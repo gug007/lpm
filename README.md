@@ -18,7 +18,15 @@ go install github.com/gug007/lpm@latest
 
 ## Quick start
 
-Create a project config at `~/.lpm/projects/myapp.yml`:
+```sh
+cd ~/Projects/myapp
+lpm init                # detects services and creates config
+lpm myapp               # start all services in a tmux session
+```
+
+`lpm init` auto-detects common setups: Rails, Node (Next.js, Vite, React), Go, Django, Flask, Docker Compose, and Sidekiq.
+
+Or create a config manually at `~/.lpm/projects/myapp.yml`:
 
 ```yaml
 name: myapp
@@ -37,24 +45,24 @@ profiles:
   api: [backend]
 ```
 
-Then:
-
 ```sh
 lpm myapp           # start all services in a tmux session
-lpm myapp -p api    # start only the api
+lpm myapp -p api    # start only the api profile
 lpm kill myapp      # stop the project
 lpm list            # show all configured projects
-lpm status          # show running projects
 ```
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `lpm <project>` | Start a project |
+| `lpm <project>` | Start a project and attach to its tmux session |
+| `lpm init [name]` | Initialize a project from the current directory |
+| `lpm remove <project>` | Remove a project config (alias: `rm`) |
 | `lpm kill <project>` | Stop a running project |
-| `lpm list` | List all configured projects |
+| `lpm list` | List all configured projects (alias: `ls`) |
 | `lpm status` | Show which projects are running |
+| `lpm open <project>` | Open the project root in Finder |
 | `lpm version` | Print version |
 
 ## Configuration
