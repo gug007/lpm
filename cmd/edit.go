@@ -5,10 +5,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/gug007/lpm/internal/config"
 	"github.com/spf13/cobra"
 )
+
+func shellescape(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
 
 var editCmd = &cobra.Command{
 	Use:   "edit <project>",
@@ -16,6 +21,10 @@ var editCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		name := args[0]
+		if err := config.ValidateName(name); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 		path := filepath.Join(config.ProjectsDir(), name+".yml")
 
 		if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -28,7 +37,7 @@ var editCmd = &cobra.Command{
 			editor = "vi"
 		}
 
-		c := exec.Command(editor, path)
+		c := exec.Command("sh", "-c", editor+" "+shellescape(path))
 		c.Stdin = os.Stdin
 		c.Stdout = os.Stdout
 		c.Stderr = os.Stderr

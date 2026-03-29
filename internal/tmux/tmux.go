@@ -40,7 +40,10 @@ func StartProject(cfg *config.ProjectConfig, profile string) error {
 
 	// Create new session with first service
 	firstService := serviceNames[0]
-	svc := cfg.Services[firstService]
+	svc, ok := cfg.Services[firstService]
+	if !ok {
+		return fmt.Errorf("service %q not found in project config", firstService)
+	}
 	cwd := resolveWorkDir(cfg.Root, svc.Cwd)
 
 	createCmd := exec.Command("tmux", "new-session", "-d", "-s", cfg.Name)
@@ -50,11 +53,16 @@ func StartProject(cfg *config.ProjectConfig, profile string) error {
 	}
 
 	// Send command to first pane
-	sendKeys(cfg.Name, "0.0", buildCommand(cwd, svc))
+	if err := sendKeys(cfg.Name, "0.0", buildCommand(cwd, svc)); err != nil {
+		return fmt.Errorf("failed to start %s: %w", firstService, err)
+	}
 
 	// Split and send commands for remaining services
 	for i, name := range serviceNames[1:] {
-		svc := cfg.Services[name]
+		svc, ok := cfg.Services[name]
+		if !ok {
+			return fmt.Errorf("service %q not found in project config", name)
+		}
 		cwd := resolveWorkDir(cfg.Root, svc.Cwd)
 
 		splitType := "-h" // horizontal split
@@ -69,7 +77,9 @@ func StartProject(cfg *config.ProjectConfig, profile string) error {
 		}
 
 		pane := fmt.Sprintf("0.%d", i+1)
-		sendKeys(cfg.Name, pane, buildCommand(cwd, svc))
+		if err := sendKeys(cfg.Name, pane, buildCommand(cwd, svc)); err != nil {
+			return fmt.Errorf("failed to start %s: %w", name, err)
+		}
 	}
 
 	return nil
@@ -83,17 +93,21 @@ func Attach(sessionName string) error {
 	return cmd.Run()
 }
 
-func sendKeys(session, pane, command string) {
+func sendKeys(session, pane, command string) error {
 	target := fmt.Sprintf("%s:%s", session, pane)
 	cmd := exec.Command("tmux", "send-keys", "-t", target, command, "Enter")
-	cmd.Run()
+	return cmd.Run()
+}
+
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }
 
 func buildCommand(cwd string, svc config.Service) string {
-	parts := []string{fmt.Sprintf("cd %s", cwd)}
+	parts := []string{fmt.Sprintf("cd %s", shellQuote(cwd))}
 
 	for k, v := range svc.Env {
-		parts = append(parts, fmt.Sprintf("export %s=%s", k, v))
+		parts = append(parts, fmt.Sprintf("export %s=%s", k, shellQuote(v)))
 	}
 
 	parts = append(parts, svc.Cmd)

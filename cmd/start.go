@@ -16,6 +16,11 @@ var startCmd = &cobra.Command{
 	Short: "Start a project",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		if err := tmux.EnsureInstalled(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+
 		name := args[0]
 
 		cfg, err := config.LoadProject(name)

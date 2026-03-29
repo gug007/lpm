@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -36,7 +37,17 @@ func EnsureDirs() error {
 	return os.MkdirAll(ProjectsDir(), 0755)
 }
 
+func ValidateName(name string) error {
+	if name == "" || strings.Contains(name, "/") || strings.Contains(name, "\\") || name == "." || name == ".." {
+		return fmt.Errorf("invalid project name: %q", name)
+	}
+	return nil
+}
+
 func LoadProject(name string) (*ProjectConfig, error) {
+	if err := ValidateName(name); err != nil {
+		return nil, err
+	}
 	path := filepath.Join(ProjectsDir(), name+".yml")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -85,6 +96,10 @@ func SaveProject(cfg *ProjectConfig) error {
 }
 
 func expandHome(path string) string {
+	if path == "~" {
+		home, _ := os.UserHomeDir()
+		return home
+	}
 	if len(path) > 1 && path[:2] == "~/" {
 		home, _ := os.UserHomeDir()
 		return filepath.Join(home, path[2:])

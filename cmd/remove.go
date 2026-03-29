@@ -17,6 +17,10 @@ var removeCmd = &cobra.Command{
 	Args:    cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		name := args[0]
+		if err := config.ValidateName(name); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 		path := filepath.Join(config.ProjectsDir(), name+".yml")
 
 		if _, err := os.Stat(path); os.IsNotExist(err) {

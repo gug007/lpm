@@ -21,7 +21,7 @@ var listCmd = &cobra.Command{
 		}
 
 		if len(projects) == 0 {
-			fmt.Println("No projects configured. Use 'lpm add' to add one.")
+			fmt.Println("No projects configured. Use 'lpm init' to add one.")
 			return
 		}
 
