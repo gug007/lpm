@@ -72,6 +72,12 @@ func LoadProject(name string) (*ProjectConfig, error) {
 	}
 
 	cfg.Root = expandHome(cfg.Root)
+	for name, svc := range cfg.Services {
+		if svc.Cwd != "" {
+			svc.Cwd = expandHome(svc.Cwd)
+			cfg.Services[name] = svc
+		}
+	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
