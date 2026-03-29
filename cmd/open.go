@@ -28,5 +28,6 @@ var openCmd = &cobra.Command{
 }
 
 func init() {
+	openCmd.ValidArgsFunction = completeProjectNames
 	rootCmd.AddCommand(openCmd)
 }

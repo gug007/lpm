@@ -44,5 +44,6 @@ var removeCmd = &cobra.Command{
 }
 
 func init() {
+	removeCmd.ValidArgsFunction = completeProjectNames
 	rootCmd.AddCommand(removeCmd)
 }

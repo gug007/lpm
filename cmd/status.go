@@ -24,16 +24,16 @@ var statusCmd = &cobra.Command{
 
 		running := tmux.SessionExists(cfg.Name)
 		if running {
-			fmt.Printf("%s: running\n", name)
+			fmt.Printf("%s%s%s: %s● running%s\n", colorBold, name, colorReset, colorGreen, colorReset)
 		} else {
-			fmt.Printf("%s: stopped\n", name)
+			fmt.Printf("%s%s%s: %s○ stopped%s\n", colorBold, name, colorReset, colorDim, colorReset)
 		}
 
 		fmt.Println("\nServices:")
 		for svcName, svc := range cfg.Services {
 			portInfo := ""
 			if svc.Port > 0 {
-				portInfo = fmt.Sprintf(" (port %d)", svc.Port)
+				portInfo = fmt.Sprintf(" %s:%d%s", colorCyan, svc.Port, colorReset)
 			}
 			fmt.Printf("  %-15s %s%s\n", svcName, svc.Cmd, portInfo)
 		}
@@ -48,5 +48,6 @@ var statusCmd = &cobra.Command{
 }
 
 func init() {
+	statusCmd.ValidArgsFunction = completeProjectNames
 	rootCmd.AddCommand(statusCmd)
 }

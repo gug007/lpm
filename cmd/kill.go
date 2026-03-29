@@ -60,5 +60,6 @@ func killAll() {
 }
 
 func init() {
+	killCmd.ValidArgsFunction = completeProjectNames
 	rootCmd.AddCommand(killCmd)
 }

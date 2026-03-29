@@ -45,5 +45,6 @@ var startCmd = &cobra.Command{
 
 func init() {
 	startCmd.Flags().StringVarP(&profileFlag, "profile", "p", "", "profile to use (default: all services)")
+	startCmd.ValidArgsFunction = completeProjectNames
 	rootCmd.AddCommand(startCmd)
 }

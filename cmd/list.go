@@ -26,11 +26,11 @@ var listCmd = &cobra.Command{
 		}
 
 		for _, name := range projects {
-			status := "stopped"
 			if tmux.SessionExists(name) {
-				status = "running"
+				fmt.Printf("  %-20s %s● running%s\n", name, colorGreen, colorReset)
+			} else {
+				fmt.Printf("  %-20s %s○ stopped%s\n", name, colorDim, colorReset)
 			}
-			fmt.Printf("  %-20s %s\n", name, status)
 		}
 	},
 }

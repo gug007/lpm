@@ -50,5 +50,6 @@ var editCmd = &cobra.Command{
 }
 
 func init() {
+	editCmd.ValidArgsFunction = completeProjectNames
 	rootCmd.AddCommand(editCmd)
 }

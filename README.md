@@ -24,7 +24,8 @@ curl -fsSL https://raw.githubusercontent.com/gug007/lpm/main/install.sh | bash
 cd ~/Projects/myapp
 lpm init          # detects services, creates config
 lpm myapp         # start all services
-lpm kill myapp    # stop
+lpm switch other  # stop myapp, start other
+lpm kill          # stop everything
 ```
 
 `lpm init` auto-detects Rails, Node, Go, Django, Flask, and Docker Compose projects.
@@ -73,11 +74,12 @@ lpm myapp -p full    # starts everything
 | Command | Description |
 |---------|-------------|
 | `lpm <project>` | Start a project |
+| `lpm switch <project>` | Stop all running projects, start another |
+| `lpm kill [project]` | Stop a project (all if no name given) |
 | `lpm init [name]` | Create config from current directory |
 | `lpm edit <project>` | Open config in `$EDITOR` |
-| `lpm kill <project>` | Stop a project |
 | `lpm list` | List all projects |
-| `lpm status` | Show running projects |
+| `lpm status <project>` | Show project details |
 | `lpm remove <project>` | Remove a project |
 | `lpm open <project>` | Open project in Finder |
 

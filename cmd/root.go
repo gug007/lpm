@@ -52,6 +52,7 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.Flags().StringVarP(&rootProfileFlag, "profile", "p", "", "profile to use (default: all services)")
+	rootCmd.ValidArgsFunction = completeProjectNames
 }
 
 func Execute() {

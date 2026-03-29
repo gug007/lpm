@@ -60,7 +60,10 @@ func LoadProject(name string) (*ProjectConfig, error) {
 	path := filepath.Join(ProjectsDir(), name+".yml")
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("project %q not found: %w", name, err)
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("project %q not found. Run 'lpm init %s' to create it, or 'lpm list' to see available projects", name, name)
+		}
+		return nil, fmt.Errorf("failed to read project %q: %w", name, err)
 	}
 
 	var cfg ProjectConfig
@@ -69,7 +72,56 @@ func LoadProject(name string) (*ProjectConfig, error) {
 	}
 
 	cfg.Root = expandHome(cfg.Root)
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
 	return &cfg, nil
+}
+
+func (p *ProjectConfig) Validate() error {
+	var errs []string
+
+	if len(p.Services) == 0 {
+		errs = append(errs, "no services defined")
+	}
+
+	ports := map[int]string{}
+	for name, svc := range p.Services {
+		if strings.TrimSpace(svc.Cmd) == "" {
+			errs = append(errs, fmt.Sprintf("service %q: missing cmd", name))
+		}
+		if svc.Port < 0 || svc.Port > 65535 {
+			errs = append(errs, fmt.Sprintf("service %q: invalid port %d", name, svc.Port))
+		}
+		if svc.Port > 0 {
+			if other, dup := ports[svc.Port]; dup {
+				errs = append(errs, fmt.Sprintf("service %q: port %d already used by %q", name, svc.Port, other))
+			}
+			ports[svc.Port] = name
+		}
+		if svc.Cwd != "" {
+			abs := svc.Cwd
+			if !filepath.IsAbs(abs) {
+				abs = filepath.Join(p.Root, abs)
+			}
+			if info, err := os.Stat(abs); err != nil || !info.IsDir() {
+				errs = append(errs, fmt.Sprintf("service %q: cwd %q does not exist", name, svc.Cwd))
+			}
+		}
+	}
+
+	for pName, services := range p.Profiles {
+		for _, svcName := range services {
+			if _, ok := p.Services[svcName]; !ok {
+				errs = append(errs, fmt.Sprintf("profile %q: references unknown service %q", pName, svcName))
+			}
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("config validation failed:\n  - %s", strings.Join(errs, "\n  - "))
+	}
+	return nil
 }
 
 func ListProjects() ([]string, error) {
