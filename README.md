@@ -51,12 +51,10 @@ lpm status          # show running projects
 
 | Command | Description |
 |---------|-------------|
-| `lpm <project>` | Start a project and attach to its tmux session |
-| `lpm start <project>` | Start a project without attaching |
+| `lpm <project>` | Start a project |
 | `lpm kill <project>` | Stop a running project |
 | `lpm list` | List all configured projects |
 | `lpm status` | Show which projects are running |
-| `lpm open <project>` | Open the project root in Finder |
 | `lpm version` | Print version |
 
 ## Configuration
