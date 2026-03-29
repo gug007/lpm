@@ -1,0 +1,26 @@
+version: 2
+
+builds:
+  - binary: lpm
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+archives:
+  - format: tar.gz
+    name_template: "lpm_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  github:
+    owner: gug007
+    name: lpm
