@@ -12,7 +12,7 @@ else
   MAJOR=$(echo "$VERSION" | cut -d. -f1)
   MINOR=$(echo "$VERSION" | cut -d. -f2)
   PATCH=$(echo "$VERSION" | cut -d. -f3)
-  NEXT="v${MAJOR}.$((MINOR + 1)).${PATCH}"
+  NEXT="v${MAJOR}.${MINOR}.$((PATCH + 1))"
 fi
 
 echo "$LATEST -> $NEXT"
