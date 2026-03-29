@@ -41,7 +41,7 @@ Then:
 
 ```sh
 lpm myapp           # start all services in a tmux session
-lpm myapp -p api    # start only the api profile
+lpm myapp -p api    # start only the api
 lpm kill myapp      # stop the project
 lpm list            # show all configured projects
 lpm status          # show running projects
