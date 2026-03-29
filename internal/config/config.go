@@ -17,6 +17,15 @@ type Service struct {
 	Profiles []string          `yaml:"profiles,omitempty"`
 }
 
+func (s *Service) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind == yaml.ScalarNode {
+		s.Cmd = value.Value
+		return nil
+	}
+	type plain Service
+	return value.Decode((*plain)(s))
+}
+
 type ProjectConfig struct {
 	Name     string              `yaml:"name"`
 	Root     string              `yaml:"root"`
