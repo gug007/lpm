@@ -13,7 +13,7 @@ var profileFlag string
 
 var startCmd = &cobra.Command{
 	Use:   "start <project>",
-	Short: "Start a project",
+	Short: "Start a project and attach to its session",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := tmux.EnsureInstalled(); err != nil {
