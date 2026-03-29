@@ -65,6 +65,60 @@ lpm list            # show all configured projects
 | `lpm open <project>` | Open the project root in Finder |
 | `lpm version` | Print version |
 
+## Examples
+
+### Simple — static site with a dev server
+
+```yaml
+# ~/.lpm/projects/blog.yml
+name: blog
+root: ~/Projects/blog
+services:
+  dev:
+    cmd: npm run dev
+    port: 3000
+```
+
+```sh
+lpm blog        # start and attach
+lpm kill blog   # stop
+```
+
+### Full stack — Rails + React + background workers
+
+```yaml
+# ~/.lpm/projects/shopify-clone.yml
+name: shopify-clone
+root: ~/Projects/shopify-clone
+services:
+  api:
+    cmd: rails s -p 3000
+    cwd: ./backend
+    port: 3000
+    env:
+      RAILS_ENV: development
+      DATABASE_URL: postgres://localhost/shop_dev
+  frontend:
+    cmd: npm run dev
+    cwd: ./frontend
+    port: 5173
+  sidekiq:
+    cmd: bundle exec sidekiq
+    cwd: ./backend
+  redis:
+    cmd: redis-server
+profiles:
+  default: [api, frontend]
+  full: [api, frontend, sidekiq, redis]
+  api: [api, redis]
+```
+
+```sh
+lpm shopify-clone            # starts api + frontend
+lpm shopify-clone -p full    # starts everything
+lpm shopify-clone -p api     # starts api + redis only
+```
+
 ## Configuration
 
 Project configs live in `~/.lpm/projects/<name>.yml`.
