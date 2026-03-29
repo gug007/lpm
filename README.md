@@ -38,9 +38,7 @@ lpm kill myapp    # stop
 name: storefront
 root: ~/Projects/storefront
 services:
-  dev:
-    cmd: npm run dev
-    port: 3000
+  dev: npm run dev
 ```
 
 **Full stack — multiple services with profiles**
@@ -56,17 +54,14 @@ services:
     port: 3000
     env:
       RAILS_ENV: development
-  frontend:
-    cmd: npm run dev
-    cwd: ./frontend
-    port: 5173
-  sidekiq:
-    cmd: bundle exec sidekiq
-    cwd: ./backend
+  frontend: npm run dev
+  sidekiq: bundle exec sidekiq
 profiles:
   default: [api, frontend]
   full: [api, frontend, sidekiq]
 ```
+
+Services can be a simple string (`dev: npm run dev`) or a full object when you need `cwd`, `port`, or `env`.
 
 ```sh
 lpm myapp            # starts api + frontend
