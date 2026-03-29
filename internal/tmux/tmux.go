@@ -10,6 +10,13 @@ import (
 	"github.com/gug007/lpm/internal/config"
 )
 
+func EnsureInstalled() error {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		return fmt.Errorf("tmux is required but not installed. Install it with: brew install tmux")
+	}
+	return nil
+}
+
 func SessionExists(name string) bool {
 	cmd := exec.Command("tmux", "has-session", "-t", name)
 	return cmd.Run() == nil

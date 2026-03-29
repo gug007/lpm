@@ -24,6 +24,11 @@ var rootCmd = &cobra.Command{
 			return
 		}
 
+		if err := tmux.EnsureInstalled(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+
 		name := args[0]
 		cfg, err := config.LoadProject(name)
 		if err != nil {

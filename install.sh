@@ -56,3 +56,10 @@ fi
 chmod +x "${INSTALL_DIR}/lpm"
 
 echo "lpm installed to ${INSTALL_DIR}/lpm"
+
+if ! command -v tmux >/dev/null 2>&1; then
+  echo ""
+  echo "Note: lpm requires tmux. Install it with:"
+  echo "  brew install tmux    # macOS"
+  echo "  apt install tmux     # Debian/Ubuntu"
+fi
