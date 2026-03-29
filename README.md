@@ -1,7 +1,7 @@
 <p align="center">
   <b>lpm</b> — local project manager
   <br>
-  <i>Start, stop, and switch between dev projects with a single command.</i>
+  <i>Start, stop, and switch between local dev projects with a single command.</i>
 </p>
 
 <p align="center">
@@ -12,11 +12,23 @@
 
 ---
 
+A CLI tool for managing local development environments. Define your project services in a simple YAML config, then start, stop, and switch between projects instantly. Built for developers who work on multiple projects and need fast context switching.
+
+**Why lpm?**
+- No Docker required — runs your services natively
+- Auto-detects project setup (Rails, Next.js, Go, Django, Flask, Docker Compose)
+- One command to switch between projects
+- Profile support for running service subsets
+- Tab completion for all commands
+- Works with any stack — if it runs in a terminal, lpm can manage it
+
 ## Install
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/gug007/lpm/main/install.sh | bash
 ```
+
+Supports macOS (Apple Silicon & Intel) and Linux (amd64 & arm64).
 
 ## Quick start
 
@@ -28,7 +40,7 @@ lpm switch other  # stop myapp, start other
 lpm kill          # stop everything
 ```
 
-`lpm init` auto-detects Rails, Node, Go, Django, Flask, and Docker Compose projects.
+`lpm init` auto-detects Rails, Node.js, Next.js, Vite, React, Go, Django, Flask, and Docker Compose projects.
 
 ## Examples
 
@@ -42,7 +54,7 @@ services:
   dev: npm run dev
 ```
 
-**Full stack — multiple services with profiles**
+**Full stack — Rails API + React frontend + background workers**
 
 ```yaml
 # ~/.lpm/projects/myapp.yml
@@ -78,8 +90,8 @@ lpm myapp -p full    # starts everything
 | `lpm kill [project]` | Stop a project (all if no name given) |
 | `lpm init [name]` | Create config from current directory |
 | `lpm edit <project>` | Open config in `$EDITOR` |
-| `lpm list` | List all projects |
-| `lpm status <project>` | Show project details |
+| `lpm list` | List all projects with status |
+| `lpm status <project>` | Show project details and services |
 | `lpm remove <project>` | Remove a project |
 | `lpm open <project>` | Open project in Finder |
 
@@ -90,6 +102,18 @@ Configs live in `~/.lpm/projects/<name>.yml`. Each config has:
 - **root** — project directory
 - **services** — named services with `cmd`, `cwd`, `port`, and `env`
 - **profiles** — groups of services to start together
+
+Configs are validated on load — lpm will catch missing commands, invalid ports, duplicate ports, and nonexistent directories before starting anything.
+
+## Shell completion
+
+```sh
+# zsh
+source <(lpm completion zsh)
+
+# bash
+source <(lpm completion bash)
+```
 
 ## License
 
