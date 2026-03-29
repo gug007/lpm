@@ -50,11 +50,15 @@ var switchCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		fmt.Printf("Switched to %s\n", target)
-
-		if err := tmux.Attach(cfg.Name); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+		serviceNames := cfg.ServicesForProfile(switchProfileFlag)
+		fmt.Printf("%s%s%s: %s● running%s\n", colorBold, target, colorReset, colorGreen, colorReset)
+		for _, svcName := range serviceNames {
+			svc := cfg.Services[svcName]
+			portInfo := ""
+			if svc.Port > 0 {
+				portInfo = fmt.Sprintf(" %s:%d%s", colorCyan, svc.Port, colorReset)
+			}
+			fmt.Printf("  %-15s %s%s\n", svcName, svc.Cmd, portInfo)
 		}
 	},
 }
