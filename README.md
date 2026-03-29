@@ -35,7 +35,8 @@ Supports macOS (Apple Silicon & Intel) and Linux (amd64 & arm64).
 ```sh
 cd ~/Projects/myapp
 lpm init          # detects services, creates config
-lpm myapp         # start all services
+lpm myapp         # start in background, show status
+lpm start myapp   # start and open terminal to session
 lpm switch other  # stop myapp, start other
 lpm kill          # stop everything
 ```
@@ -55,8 +56,9 @@ services:
 ```
 
 ```sh
-lpm storefront       # start and attach
-lpm kill storefront  # stop
+lpm storefront         # start in background
+lpm start storefront   # start and open terminal
+lpm kill storefront    # stop
 ```
 
 **Full stack — Rails API + React frontend + background workers**
@@ -82,7 +84,8 @@ profiles:
 Services can be a simple string (`dev: npm run dev`) or a full object when you need `cwd`, `port`, or `env`.
 
 ```sh
-lpm myapp            # starts api + frontend
+lpm myapp            # starts api + frontend in background
+lpm start myapp      # start and open terminal
 lpm myapp -p full    # starts everything
 ```
 
@@ -90,7 +93,8 @@ lpm myapp -p full    # starts everything
 
 | Command | Description |
 |---------|-------------|
-| `lpm <project>` | Start a project |
+| `lpm <project>` | Start a project in background |
+| `lpm start <project>` | Start and open terminal |
 | `lpm switch <project>` | Stop all running projects, start another |
 | `lpm kill [project]` | Stop a project (all if no name given) |
 | `lpm init [name]` | Create config from current directory |
