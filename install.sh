@@ -2,7 +2,14 @@
 set -e
 
 REPO="gug007/lpm"
-INSTALL_DIR="/usr/local/bin"
+INSTALL_DIR="${LPM_INSTALL_DIR:-/usr/local/bin}"
+
+# Prefer /opt/homebrew/bin on Apple Silicon Macs
+if [ "$INSTALL_DIR" = "/usr/local/bin" ] && [ -d "/opt/homebrew/bin" ]; then
+  INSTALL_DIR="/opt/homebrew/bin"
+elif [ "$INSTALL_DIR" = "/usr/local/bin" ] && [ ! -d "$INSTALL_DIR" ]; then
+  mkdir -p "$INSTALL_DIR" 2>/dev/null || sudo mkdir -p "$INSTALL_DIR"
+fi
 
 # Detect OS
 OS="$(uname -s)"
