@@ -93,14 +93,14 @@ lpm myapp -p full    # starts everything
 
 | Command | Description |
 |---------|-------------|
-| `lpm <project>` | Start a project in background |
+| `lpm <project>` | Start in background |
 | `lpm start <project>` | Start and open terminal |
-| `lpm switch <project>` | Stop all running projects, start another |
-| `lpm kill [project]` | Stop a project (all if no name given) |
+| `lpm switch <project>` | Stop all, start another |
+| `lpm kill [project]` | Stop a project (all if none given) |
 | `lpm init [name]` | Create config from current directory |
 | `lpm edit <project>` | Open config in `$EDITOR` |
-| `lpm list` | List all projects with status |
-| `lpm status <project>` | Show project details and services |
+| `lpm list` | List all projects |
+| `lpm status <project>` | Show project details |
 | `lpm remove <project>` | Remove a project |
 | `lpm open <project>` | Open project in Finder |
 
