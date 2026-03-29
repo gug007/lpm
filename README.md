@@ -1,8 +1,16 @@
-# lpm
+<p align="center">
+  <b>lpm</b> — local project manager
+  <br>
+  <i>Start, stop, and switch between dev projects with a single command.</i>
+</p>
 
-Local Project Manager — start, stop, and switch between dev projects with a single command.
+<p align="center">
+  <a href="https://github.com/gug007/lpm/releases/latest"><img src="https://img.shields.io/github/v/release/gug007/lpm" alt="Release"></a>
+  <a href="https://github.com/gug007/lpm/actions"><img src="https://github.com/gug007/lpm/actions/workflows/release.yml/badge.svg" alt="Build"></a>
+  <a href="https://github.com/gug007/lpm/blob/main/LICENSE"><img src="https://img.shields.io/github/license/gug007/lpm" alt="License"></a>
+</p>
 
-LPM uses tmux to run project services in named sessions. Configure once, then launch everything with `lpm <project>`.
+---
 
 ## Install
 
@@ -10,64 +18,20 @@ LPM uses tmux to run project services in named sessions. Configure once, then la
 curl -fsSL https://raw.githubusercontent.com/gug007/lpm/main/install.sh | bash
 ```
 
-Or with Go:
-
-```sh
-go install github.com/gug007/lpm@latest
-```
-
 ## Quick start
 
 ```sh
 cd ~/Projects/myapp
-lpm init                # detects services and creates config
-lpm myapp               # start all services in a tmux session
+lpm init          # detects services, creates config
+lpm myapp         # start all services
+lpm kill myapp    # stop
 ```
 
-`lpm init` auto-detects common setups: Rails, Node (Next.js, Vite, React), Go, Django, Flask, Docker Compose, and Sidekiq.
-
-Or create a config manually at `~/.lpm/projects/myapp.yml`:
-
-```yaml
-name: myapp
-root: ~/Projects/myapp
-services:
-  backend:
-    cmd: go run .
-    cwd: ./api
-    port: 8080
-  frontend:
-    cmd: npm run dev
-    cwd: ./web
-    port: 3000
-profiles:
-  default: [backend, frontend]
-  api: [backend]
-```
-
-```sh
-lpm myapp           # start all services in a tmux session
-lpm myapp -p api    # start only the api profile
-lpm kill myapp      # stop the project
-lpm list            # show all configured projects
-```
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `lpm <project>` | Start a project and attach to its tmux session |
-| `lpm init [name]` | Initialize a project from the current directory |
-| `lpm remove <project>` | Remove a project config (alias: `rm`) |
-| `lpm kill <project>` | Stop a running project |
-| `lpm list` | List all configured projects (alias: `ls`) |
-| `lpm status` | Show which projects are running |
-| `lpm open <project>` | Open the project root in Finder |
-| `lpm version` | Print version |
+`lpm init` auto-detects Rails, Node, Go, Django, Flask, and Docker Compose projects.
 
 ## Examples
 
-### Simple — static site with a dev server
+**Simple — one service**
 
 ```yaml
 # ~/.lpm/projects/blog.yml
@@ -79,17 +43,12 @@ services:
     port: 3000
 ```
 
-```sh
-lpm blog        # start and attach
-lpm kill blog   # stop
-```
-
-### Full stack — Rails + React + background workers
+**Full stack — multiple services with profiles**
 
 ```yaml
-# ~/.lpm/projects/shopify-clone.yml
-name: shopify-clone
-root: ~/Projects/shopify-clone
+# ~/.lpm/projects/myapp.yml
+name: myapp
+root: ~/Projects/myapp
 services:
   api:
     cmd: rails s -p 3000
@@ -97,7 +56,6 @@ services:
     port: 3000
     env:
       RAILS_ENV: development
-      DATABASE_URL: postgres://localhost/shop_dev
   frontend:
     cmd: npm run dev
     cwd: ./frontend
@@ -105,29 +63,36 @@ services:
   sidekiq:
     cmd: bundle exec sidekiq
     cwd: ./backend
-  redis:
-    cmd: redis-server
 profiles:
   default: [api, frontend]
-  full: [api, frontend, sidekiq, redis]
-  api: [api, redis]
+  full: [api, frontend, sidekiq]
 ```
 
 ```sh
-lpm shopify-clone            # starts api + frontend
-lpm shopify-clone -p full    # starts everything
-lpm shopify-clone -p api     # starts api + redis only
+lpm myapp            # starts api + frontend
+lpm myapp -p full    # starts everything
 ```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `lpm <project>` | Start a project |
+| `lpm init [name]` | Create config from current directory |
+| `lpm edit <project>` | Open config in `$EDITOR` |
+| `lpm kill <project>` | Stop a project |
+| `lpm list` | List all projects |
+| `lpm status` | Show running projects |
+| `lpm remove <project>` | Remove a project |
+| `lpm open <project>` | Open project in Finder |
 
 ## Configuration
 
-Project configs live in `~/.lpm/projects/<name>.yml`.
+Configs live in `~/.lpm/projects/<name>.yml`. Each config has:
 
-Each config defines a project root, a set of services (with command, working directory, port, and environment variables), and optional profiles to group services.
-
-## Requirements
-
-- [tmux](https://github.com/tmux/tmux)
+- **root** — project directory
+- **services** — named services with `cmd`, `cwd`, `port`, and `env`
+- **profiles** — groups of services to start together
 
 ## License
 
