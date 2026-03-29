@@ -54,6 +54,11 @@ services:
   dev: npm run dev
 ```
 
+```sh
+lpm storefront       # start and attach
+lpm kill storefront  # stop
+```
+
 **Full stack — Rails API + React frontend + background workers**
 
 ```yaml
@@ -104,16 +109,6 @@ Configs live in `~/.lpm/projects/<name>.yml`. Each config has:
 - **profiles** — groups of services to start together
 
 Configs are validated on load — lpm will catch missing commands, invalid ports, duplicate ports, and nonexistent directories before starting anything.
-
-## Shell completion
-
-```sh
-# zsh
-source <(lpm completion zsh)
-
-# bash
-source <(lpm completion bash)
-```
 
 ## License
 
