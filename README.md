@@ -31,12 +31,12 @@ lpm kill myapp    # stop
 
 ## Examples
 
-**Simple — one service**
+**Simple — Next.js app**
 
 ```yaml
-# ~/.lpm/projects/blog.yml
-name: blog
-root: ~/Projects/blog
+# ~/.lpm/projects/storefront.yml
+name: storefront
+root: ~/Projects/storefront
 services:
   dev:
     cmd: npm run dev
