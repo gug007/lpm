@@ -36,12 +36,10 @@ var switchCmd = &cobra.Command{
 			os.Exit(1)
 		}
 		for _, name := range projects {
-			if name != target && tmux.SessionExists(name) {
-				if err := tmux.KillSession(name); err != nil {
-					fmt.Fprintf(os.Stderr, "failed to kill %s: %v\n", name, err)
-					continue
+			if name != target {
+				if err := tmux.KillSession(name); err == nil {
+					fmt.Printf("Stopped %s\n", name)
 				}
-				fmt.Printf("Stopped %s\n", name)
 			}
 		}
 
@@ -50,16 +48,7 @@ var switchCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		serviceNames := cfg.ServicesForProfile(switchProfileFlag)
-		fmt.Printf("%s%s%s: %s● running%s\n", colorBold, target, colorReset, colorGreen, colorReset)
-		for _, svcName := range serviceNames {
-			svc := cfg.Services[svcName]
-			portInfo := ""
-			if svc.Port > 0 {
-				portInfo = fmt.Sprintf(" %s:%d%s", colorCyan, svc.Port, colorReset)
-			}
-			fmt.Printf("  %-15s %s%s\n", svcName, svc.Cmd, portInfo)
-		}
+		printStarted(target, cfg, switchProfileFlag)
 	},
 }
 

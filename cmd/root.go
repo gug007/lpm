@@ -41,16 +41,7 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		serviceNames := cfg.ServicesForProfile(rootProfileFlag)
-		fmt.Printf("%s%s%s: %s● running%s\n", colorBold, name, colorReset, colorGreen, colorReset)
-		for _, svcName := range serviceNames {
-			svc := cfg.Services[svcName]
-			portInfo := ""
-			if svc.Port > 0 {
-				portInfo = fmt.Sprintf(" %s:%d%s", colorCyan, svc.Port, colorReset)
-			}
-			fmt.Printf("  %-15s %s%s\n", svcName, svc.Cmd, portInfo)
-		}
+		printStarted(name, cfg, rootProfileFlag)
 	},
 }
 

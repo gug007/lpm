@@ -30,13 +30,8 @@ var statusCmd = &cobra.Command{
 		}
 
 		fmt.Println("\nServices:")
-		for svcName, svc := range cfg.Services {
-			portInfo := ""
-			if svc.Port > 0 {
-				portInfo = fmt.Sprintf(" %s:%d%s", colorCyan, svc.Port, colorReset)
-			}
-			fmt.Printf("  %-15s %s%s\n", svcName, svc.Cmd, portInfo)
-		}
+		serviceNames := cfg.ServicesForProfile("")
+		printServiceTable(serviceNames, cfg.Services)
 
 		if len(cfg.Profiles) > 0 {
 			fmt.Println("\nProfiles:")
