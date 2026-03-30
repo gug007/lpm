@@ -45,38 +45,32 @@ export function ProjectDetail({
         </div>
       </div>
 
-      <div className="mt-6 flex gap-3">
+      <div className="mt-6 flex items-center gap-2">
         {project.running ? (
           <>
-            <button
+            <ActionButton
               onClick={() => withLoading(() => onStop(project.name))}
               disabled={loading}
-              className="rounded-lg bg-[var(--accent-red)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-            >
-              Stop
-            </button>
-            <button
-              onClick={() =>
-                withLoading(() =>
-                  onRestart(project.name, activeProfile)
-                )
-              }
+              variant="destructive"
+              icon="■"
+              label="Stop"
+            />
+            <ActionButton
+              onClick={() => withLoading(() => onRestart(project.name, activeProfile))}
               disabled={loading}
-              className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
-            >
-              Restart
-            </button>
+              variant="secondary"
+              icon="↻"
+              label="Restart"
+            />
           </>
         ) : (
-          <button
-            onClick={() =>
-              withLoading(() => onStart(project.name, activeProfile))
-            }
+          <ActionButton
+            onClick={() => withLoading(() => onStart(project.name, activeProfile))}
             disabled={loading}
-            className="rounded-lg bg-[var(--accent-green)] px-4 py-2 text-sm font-medium text-gray-900 transition-opacity hover:opacity-90 disabled:opacity-50"
-          >
-            Start
-          </button>
+            variant="primary"
+            icon="▶"
+            label="Start"
+          />
         )}
       </div>
 
@@ -115,6 +109,40 @@ export function ProjectDetail({
         <p>Config: ~/.lpm/projects/{project.name}.yml</p>
       </div>
     </div>
+  );
+}
+
+const actionStyles = {
+  primary:
+    "bg-[var(--accent-green)]/10 text-[var(--accent-green)] hover:bg-[var(--accent-green)]/20 border-[var(--accent-green)]/20",
+  destructive:
+    "bg-[var(--accent-red)]/10 text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 border-[var(--accent-red)]/20",
+  secondary:
+    "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] border-[var(--border)]",
+} as const;
+
+function ActionButton({
+  onClick,
+  disabled,
+  variant,
+  icon,
+  label,
+}: {
+  onClick: () => void;
+  disabled: boolean;
+  variant: keyof typeof actionStyles;
+  icon: string;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium transition-all active:scale-95 disabled:opacity-40 disabled:active:scale-100 ${actionStyles[variant]}`}
+    >
+      <span className="text-xs">{icon}</span>
+      {label}
+    </button>
   );
 }
 
