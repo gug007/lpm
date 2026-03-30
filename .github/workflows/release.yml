@@ -54,8 +54,8 @@ jobs:
       - name: Package arm64
         run: |
           cd desktop/build/bin
-          zip -r lpm-desktop-macos-arm64.zip lpm-desktop.app
-          rm -rf lpm-desktop.app
+          zip -r lpm-desktop-macos-arm64.zip lpm.app
+          rm -rf lpm.app
 
       - name: Build amd64
         working-directory: desktop
@@ -64,7 +64,7 @@ jobs:
       - name: Package amd64
         run: |
           cd desktop/build/bin
-          zip -r lpm-desktop-macos-amd64.zip lpm-desktop.app
+          zip -r lpm-desktop-macos-amd64.zip lpm.app
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
