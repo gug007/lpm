@@ -63,6 +63,13 @@ jobs:
       - name: Create DMG
         run: |
           brew install create-dmg
+          APP_PATH="desktop/build/bin/lpm-desktop.app"
+          DMG_PATH="desktop/build/bin/${{ matrix.name }}.dmg"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "App not found at $APP_PATH"
+            ls -la desktop/build/bin/
+            exit 1
+          fi
           create-dmg \
             --volname "lpm" \
             --window-pos 200 120 \
@@ -70,8 +77,11 @@ jobs:
             --icon-size 100 \
             --icon "lpm-desktop.app" 150 190 \
             --app-drop-link 450 190 \
-            "desktop/build/bin/${{ matrix.name }}.dmg" \
-            "desktop/build/bin/lpm-desktop.app"
+            --no-internet-enable \
+            "$DMG_PATH" \
+            "$APP_PATH" || true
+          # create-dmg exits 1 even on success when code signing is skipped
+          test -f "$DMG_PATH"
 
       - name: Upload DMG to release
         uses: softprops/action-gh-release@v2
