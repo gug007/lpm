@@ -26,7 +26,6 @@
       <div class="flex items-center gap-6">
         <a href="https://github.com/gug007/lpm" class="text-sm text-gray-500 hover:text-gray-900 dark:hover:text-white">GitHub</a>
         <a href="https://github.com/gug007/lpm/releases/latest" class="text-sm text-gray-500 hover:text-gray-900 dark:hover:text-white">Releases</a>
-        <a href="#download" class="text-sm text-gray-500 hover:text-gray-900 dark:hover:text-white">Download</a>
         <button onclick="toggleTheme()" id="themeBtn" class="text-gray-500 hover:text-gray-900 dark:hover:text-white cursor-pointer transition">
           <i id="sunIcon" data-lucide="sun" class="w-4 h-4 hidden"></i>
           <i id="moonIcon" data-lucide="moon" class="w-4 h-4 hidden"></i>
@@ -43,7 +42,10 @@
         Start, stop, and switch between dev projects with one command. CLI + native macOS desktop app.
       </p>
       <div class="mt-8 flex gap-3 justify-center flex-wrap">
-        <a href="#download" class="px-6 py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl text-sm font-semibold hover:opacity-85 transition">Download</a>
+        <a id="heroDownload" href="#download" class="px-6 py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl text-sm font-semibold hover:opacity-85 transition flex items-center gap-2">
+          <i data-lucide="download" class="w-4 h-4"></i>
+          <span id="heroDownloadLabel">Download</span>
+        </a>
         <a href="https://github.com/gug007/lpm" class="px-6 py-3 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-800 transition">View on GitHub</a>
       </div>
     </div>
@@ -141,32 +143,34 @@
     <div class="max-w-3xl mx-auto px-6">
       <h2 class="text-3xl font-bold mb-2">Download</h2>
       <p class="text-gray-500 dark:text-gray-400 mb-8">macOS (Apple Silicon &amp; Intel) and Linux</p>
-      <div class="flex gap-3 justify-center flex-wrap">
-        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm-desktop-macos-arm64.zip" class="flex flex-col items-center gap-1 px-7 py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
+      <p id="detectedPlatform" class="text-xs text-gray-400 mb-4"></p>
+      <div class="flex gap-3 justify-center flex-wrap" id="downloadGrid">
+        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm-desktop-macos-arm64.zip" data-platform="mac-arm" class="dl-card flex flex-col items-center gap-1 px-7 py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
           <span class="text-sm font-semibold">macOS Desktop</span>
           <span class="text-xs text-gray-400">Apple Silicon</span>
         </a>
-        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm-desktop-macos-amd64.zip" class="flex flex-col items-center gap-1 px-7 py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
+        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm-desktop-macos-amd64.zip" data-platform="mac-intel" class="dl-card flex flex-col items-center gap-1 px-7 py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
           <span class="text-sm font-semibold">macOS Desktop</span>
           <span class="text-xs text-gray-400">Intel</span>
         </a>
-        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_darwin_arm64.tar.gz" class="flex flex-col items-center gap-1 px-7 py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
+        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_darwin_arm64.tar.gz" data-platform="mac-arm" class="dl-card flex flex-col items-center gap-1 px-7 py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
           <span class="text-sm font-semibold">CLI</span>
           <span class="text-xs text-gray-400">macOS ARM64</span>
         </a>
-        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_darwin_amd64.tar.gz" class="flex flex-col items-center gap-1 px-7 py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
+        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_darwin_amd64.tar.gz" data-platform="mac-intel" class="dl-card flex flex-col items-center gap-1 px-7 py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
           <span class="text-sm font-semibold">CLI</span>
           <span class="text-xs text-gray-400">macOS Intel</span>
         </a>
-        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_linux_amd64.tar.gz" class="flex flex-col items-center gap-1 px-7 py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
+        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_linux_amd64.tar.gz" data-platform="linux" class="dl-card flex flex-col items-center gap-1 px-7 py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
           <span class="text-sm font-semibold">CLI</span>
           <span class="text-xs text-gray-400">Linux amd64</span>
         </a>
-        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_linux_arm64.tar.gz" class="flex flex-col items-center gap-1 px-7 py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
+        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_linux_arm64.tar.gz" data-platform="linux" class="dl-card flex flex-col items-center gap-1 px-7 py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
           <span class="text-sm font-semibold">CLI</span>
           <span class="text-xs text-gray-400">Linux arm64</span>
         </a>
       </div>
+      <p class="mt-4 text-xs text-gray-400"><a href="https://github.com/gug007/lpm/releases/latest" class="underline">View all downloads</a></p>
     </div>
   </section>
 
@@ -195,6 +199,66 @@
     }
 
     applyTheme(getTheme());
+
+    // Detect platform
+    (function() {
+      const ua = navigator.userAgent.toLowerCase();
+      const platform = navigator.platform?.toLowerCase() || "";
+      let os = "unknown";
+      let arch = "unknown";
+
+      if (ua.includes("mac") || platform.includes("mac")) {
+        os = "mac";
+        // All Apple Silicon Macs (M1+) report as MacIntel in navigator.platform
+        // but have GPU with "apple" in the renderer string
+        try {
+          const canvas = document.createElement("canvas");
+          const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+          if (gl) {
+            const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+            const renderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL).toLowerCase() : "";
+            arch = renderer.includes("apple") ? "arm" : "intel";
+          } else {
+            arch = "arm"; // default to ARM for modern Macs
+          }
+        } catch {
+          arch = "arm";
+        }
+      } else if (ua.includes("linux")) {
+        os = "linux";
+      }
+
+      const detected = os === "mac" ? `mac-${arch}` : os;
+      const labels = {
+        "mac-arm": "Download for macOS (Apple Silicon)",
+        "mac-intel": "Download for macOS (Intel)",
+        "linux": "Download for Linux",
+      };
+
+      // Update hero button
+      const heroBtn = document.getElementById("heroDownload");
+      const heroLabel = document.getElementById("heroDownloadLabel");
+      if (labels[detected]) {
+        heroLabel.textContent = labels[detected];
+        const bestCard = document.querySelector(`.dl-card[data-platform="${detected}"]`);
+        if (bestCard) heroBtn.href = bestCard.href;
+      }
+
+      // Highlight matching cards
+      const detectedText = document.getElementById("detectedPlatform");
+      if (os === "mac") {
+        detectedText.textContent = `Detected: macOS ${arch === "arm" ? "Apple Silicon" : "Intel"}`;
+      } else if (os === "linux") {
+        detectedText.textContent = "Detected: Linux";
+      }
+
+      document.querySelectorAll(".dl-card").forEach(card => {
+        if (card.dataset.platform === detected) {
+          card.classList.add("ring-2", "ring-gray-900", "dark:ring-white");
+        }
+      });
+    })();
+
     lucide.createIcons();
   </script>
 </body>
