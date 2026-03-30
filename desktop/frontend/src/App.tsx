@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { Settings } from "./components/Settings";
+import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
 import type { ProjectInfo } from "./types";
 
 import { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder, CreateProject } from '../wailsjs/go/main/App';
@@ -62,6 +63,20 @@ export default function App() {
     }
   };
 
+  const handleAddProject = async () => {
+    try {
+      const dir = await api.BrowseFolder();
+      if (!dir) return;
+      const name = dir.split("/").pop() || "new-project";
+      await api.CreateProject(name, dir);
+      await refresh();
+      setSelected(name);
+      setView("projects");
+    } catch (err) {
+      setError(`Failed to add project: ${err}`);
+    }
+  };
+
   const handleRemove = async (name: string) => {
     try {
       await api.RemoveProject(name);
@@ -105,19 +120,7 @@ export default function App() {
             }
           }}
           onSettings={() => setView("settings")}
-          onAddProject={async () => {
-            try {
-              const dir = await api.BrowseFolder();
-              if (!dir) return;
-              const name = dir.split("/").pop() || "new-project";
-              await api.CreateProject(name, dir);
-              await refresh();
-              setSelected(name);
-              setView("projects");
-            } catch (err) {
-              setError(`Failed to add project: ${err}`);
-            }
-          }}
+          onAddProject={handleAddProject}
           showSettings={view === "settings"}
         />
         <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6 pt-10">
@@ -136,6 +139,8 @@ export default function App() {
               }}
               onRemove={handleRemove}
             />
+          ) : projects.length === 0 ? (
+            <EmptyStateNoProjects onAdd={handleAddProject} />
           ) : (
             <EmptyState />
           )}
@@ -145,17 +150,3 @@ export default function App() {
   );
 }
 
-function EmptyState() {
-  return (
-    <div className="flex h-full items-center justify-center">
-      <div className="text-center">
-        <p className="text-2xl font-semibold text-[var(--text-primary)]">
-          Select a project
-        </p>
-        <p className="mt-2 text-[var(--text-secondary)]">
-          Choose a project from the sidebar to get started
-        </p>
-      </div>
-    </div>
-  );
-}

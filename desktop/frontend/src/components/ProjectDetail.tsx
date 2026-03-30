@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { StatusDot } from "./StatusDot";
+import { ActionButton } from "./ActionButton";
+import { ProfileTag } from "./ProfileTag";
 import { TerminalView } from "./TerminalView";
 import { ConfigEditor } from "./ConfigEditor";
 import type { ProjectInfo } from "../types";
@@ -158,58 +160,3 @@ export function ProjectDetail({
   );
 }
 
-const actionStyles = {
-  primary:
-    "bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-85",
-  destructive:
-    "bg-[var(--accent-red)] text-white hover:opacity-85",
-  secondary:
-    "border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]",
-  ghost:
-    "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]",
-} as const;
-
-function ActionButton({
-  onClick,
-  disabled,
-  variant,
-  label,
-}: {
-  onClick: () => void;
-  disabled: boolean;
-  variant: keyof typeof actionStyles;
-  label: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 ${actionStyles[variant]}`}
-    >
-      {label}
-    </button>
-  );
-}
-
-function ProfileTag({
-  name,
-  active,
-  onClick,
-}: {
-  name: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
-        active
-          ? "bg-[var(--accent-cyan)]/15 text-[var(--accent-cyan)]"
-          : "bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-      }`}
-    >
-      {name}
-    </button>
-  );
-}
