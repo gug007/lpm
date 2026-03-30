@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { SETTINGS, getSetting, setSetting } from "../settings";
+
 import { getStoredTheme, applyTheme, type Theme } from "../theme";
 
 import { SetDarkMode } from '../../wailsjs/go/main/App';
@@ -26,6 +28,24 @@ export function Settings() {
   return (
     <div className="mx-auto max-w-lg">
       <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
+
+      <div className="mt-6 space-y-1">
+        <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
+          Behavior
+        </h2>
+
+        <div className="rounded-lg border border-[var(--border)] divide-y divide-[var(--border)]">
+          <SettingsRow
+            label="Double-click to start/stop"
+            description="Double-click a project in sidebar to toggle it"
+          >
+            <Toggle
+              enabled={getSetting(SETTINGS.DOUBLE_CLICK)}
+              onChange={(v) => setSetting(SETTINGS.DOUBLE_CLICK, v)}
+            />
+          </SettingsRow>
+        </div>
+      </div>
 
       <div className="mt-6 space-y-1">
         <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
@@ -147,5 +167,32 @@ function MonitorIcon() {
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
     </svg>
+  );
+}
+
+function Toggle({
+  enabled,
+  onChange,
+}: {
+  enabled: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  const [on, setOn] = useState(enabled);
+  return (
+    <button
+      onClick={() => {
+        setOn(!on);
+        onChange(!on);
+      }}
+      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+        on ? "bg-[var(--accent-green)]" : "bg-[var(--border)]"
+      }`}
+    >
+      <span
+        className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
+          on ? "translate-x-4" : "translate-x-0.5"
+        }`}
+      />
+    </button>
   );
 }

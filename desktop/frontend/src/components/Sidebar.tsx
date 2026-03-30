@@ -1,16 +1,18 @@
 import { StatusDot } from "./StatusDot";
+import { SETTINGS, getSetting } from "../settings";
 import type { ProjectInfo } from "../types";
 
 interface SidebarProps {
   projects: ProjectInfo[];
   selected: string | null;
   onSelect: (name: string) => void;
+  onToggle: (name: string) => void;
   onSettings: () => void;
   onAddProject: () => void;
   showSettings: boolean;
 }
 
-export function Sidebar({ projects, selected, onSelect, onSettings, onAddProject, showSettings }: SidebarProps) {
+export function Sidebar({ projects, selected, onSelect, onToggle, onSettings, onAddProject, showSettings }: SidebarProps) {
   return (
     <aside className="flex w-[var(--sidebar-width)] shrink-0 flex-col border-r border-[var(--border)] bg-[var(--bg-sidebar)]">
       <div className="wails-drag h-8 shrink-0" />
@@ -32,6 +34,11 @@ export function Sidebar({ projects, selected, onSelect, onSettings, onAddProject
           <button
             key={project.name}
             onClick={() => onSelect(project.name)}
+            onDoubleClick={() => {
+              if (getSetting(SETTINGS.DOUBLE_CLICK)) {
+                onToggle(project.name);
+              }
+            }}
             className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
               selected === project.name
                 ? "bg-[var(--bg-active)] text-[var(--text-primary)]"

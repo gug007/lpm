@@ -90,6 +90,20 @@ export default function App() {
             setSelected(name);
             setView("projects");
           }}
+          onToggle={async (name) => {
+            const project = projects.find((p) => p.name === name);
+            if (!project) return;
+            try {
+              if (project.running) {
+                await api.StopProject(name);
+              } else {
+                await api.StartProject(name, "");
+              }
+              await refresh();
+            } catch (err) {
+              setError(`${err}`);
+            }
+          }}
           onSettings={() => setView("settings")}
           onAddProject={async () => {
             try {
