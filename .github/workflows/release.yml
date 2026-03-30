@@ -32,6 +32,8 @@ jobs:
 
   desktop-macos:
     runs-on: macos-14
+    env:
+      SIGNING_IDENTITY: "Developer ID Application: Gurgen Abagyan (N7S7ZCZ5P7)"
     steps:
       - uses: actions/checkout@v4
 
@@ -46,6 +48,30 @@ jobs:
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
+      - name: Import certificate
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          CERT_PATH="$RUNNER_TEMP/certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > "$CERT_PATH"
+          security create-keychain -p "temp-password" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "temp-password" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "temp-password" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+          rm "$CERT_PATH"
+
+      - name: Store API key
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+        run: |
+          mkdir -p "$HOME/.private_keys"
+          echo "$APPLE_API_KEY_BASE64" | base64 --decode > "$HOME/.private_keys/AuthKey_${APPLE_API_KEY_ID}.p8"
+
       - name: Install frontend dependencies
         working-directory: desktop/frontend
         run: npm install
@@ -54,20 +80,64 @@ jobs:
         working-directory: desktop
         run: wails build -platform darwin/arm64
 
+      - name: Sign arm64
+        run: |
+          codesign --deep --force --options runtime \
+            --sign "$SIGNING_IDENTITY" \
+            --entitlements desktop/build/darwin/entitlements.plist \
+            --timestamp \
+            desktop/build/bin/lpm.app
+          codesign --verify --verbose=2 desktop/build/bin/lpm.app
+
+      - name: Notarize arm64
+        env:
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          ditto -c -k --keepParent desktop/build/bin/lpm.app "$RUNNER_TEMP/lpm-arm64.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/lpm-arm64.zip" \
+            --key "$HOME/.private_keys/AuthKey_${APPLE_API_KEY_ID}.p8" \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER_ID" \
+            --wait --timeout 30m
+          xcrun stapler staple desktop/build/bin/lpm.app
+
       - name: Package arm64
         run: |
           cd desktop/build/bin
-          zip -r lpm-desktop-macos-arm64.zip lpm.app
+          ditto -c -k --keepParent lpm.app lpm-desktop-macos-arm64.zip
           rm -rf lpm.app
 
       - name: Build amd64
         working-directory: desktop
         run: wails build -platform darwin/amd64
 
+      - name: Sign amd64
+        run: |
+          codesign --deep --force --options runtime \
+            --sign "$SIGNING_IDENTITY" \
+            --entitlements desktop/build/darwin/entitlements.plist \
+            --timestamp \
+            desktop/build/bin/lpm.app
+          codesign --verify --verbose=2 desktop/build/bin/lpm.app
+
+      - name: Notarize amd64
+        env:
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          ditto -c -k --keepParent desktop/build/bin/lpm.app "$RUNNER_TEMP/lpm-amd64.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/lpm-amd64.zip" \
+            --key "$HOME/.private_keys/AuthKey_${APPLE_API_KEY_ID}.p8" \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER_ID" \
+            --wait --timeout 30m
+          xcrun stapler staple desktop/build/bin/lpm.app
+
       - name: Package amd64
         run: |
           cd desktop/build/bin
-          zip -r lpm-desktop-macos-amd64.zip lpm.app
+          ditto -c -k --keepParent lpm.app lpm-desktop-macos-amd64.zip
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
@@ -77,3 +147,10 @@ jobs:
             desktop/build/bin/lpm-desktop-macos-amd64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cleanup
+        if: always()
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          [ -f "$KEYCHAIN_PATH" ] && security delete-keychain "$KEYCHAIN_PATH"
+          rm -rf "$HOME/.private_keys"
