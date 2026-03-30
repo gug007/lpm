@@ -12,6 +12,10 @@
 
 ---
 
+<p align="center">
+  <img src="docs/app-demo.gif" alt="lpm demo" width="700">
+</p>
+
 A CLI tool for managing local development environments. Define your project services in a simple YAML config, then start, stop, and switch between projects instantly. Built for developers who work on multiple projects and need fast context switching.
 
 **Why lpm?**
