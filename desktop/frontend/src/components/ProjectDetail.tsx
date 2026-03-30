@@ -106,7 +106,6 @@ export function ProjectDetail({
         <div className="mt-3 -mx-6 -mb-6 flex flex-1 flex-col overflow-hidden">
           <ConfigEditor
             projectName={project.name}
-            onClose={() => {}}
             onSaved={onRefresh}
           />
         </div>

@@ -87,7 +87,7 @@ export default function App() {
           onSettings={() => setView("settings")}
           showSettings={view === "settings"}
         />
-        <main className={`flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] ${view !== "editor" ? "p-6" : ""}`}>
+        <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] p-6">
           {view === "settings" ? (
             <Settings />
           ) : selectedProject ? (

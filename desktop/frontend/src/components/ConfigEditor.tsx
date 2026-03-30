@@ -3,13 +3,11 @@ import { ReadConfig, SaveConfig } from "../../wailsjs/go/main/App";
 
 interface ConfigEditorProps {
   projectName: string;
-  onClose: () => void;
   onSaved: () => void;
 }
 
 export function ConfigEditor({
   projectName,
-  onClose,
   onSaved,
 }: ConfigEditorProps) {
   const [content, setContent] = useState("");
@@ -18,11 +16,8 @@ export function ConfigEditor({
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const saveRef = useRef<() => void>(() => {});
-  const closeRef = useRef(onClose);
 
   const dirty = content !== original;
-
-  closeRef.current = onClose;
 
   useEffect(() => {
     ReadConfig(projectName)
@@ -56,9 +51,6 @@ export function ConfigEditor({
         e.preventDefault();
         saveRef.current();
       }
-      if (e.key === "Escape") {
-        closeRef.current();
-      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -81,23 +73,21 @@ export function ConfigEditor({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-2">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-[var(--text-primary)]">
-            {projectName}.yml
-          </span>
-          {dirty && (
-            <span className="h-2 w-2 rounded-full bg-[var(--accent-cyan)]" />
-          )}
-        </div>
-        <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 border-b border-[var(--border)] px-4 py-1.5">
+        <span className="text-xs text-[var(--text-muted)]">
+          {projectName}.yml
+        </span>
+        {dirty && (
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-cyan)]" />
+        )}
+        <div className="ml-auto flex items-center gap-2">
           {error && (
             <span className="text-xs text-[var(--accent-red)]">{error}</span>
           )}
           <button
             onClick={handleSave}
             disabled={!dirty || saving}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--accent-green)]/20 bg-[var(--accent-green)]/10 px-3 py-1 text-xs font-medium text-[var(--accent-green)] transition-all hover:bg-[var(--accent-green)]/20 active:scale-95 disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--accent-green)]/20 bg-[var(--accent-green)]/10 px-2.5 py-0.5 text-[11px] font-medium text-[var(--accent-green)] transition-all hover:bg-[var(--accent-green)]/20 active:scale-95 disabled:opacity-40"
           >
             {saving ? "Saving..." : "Save"}
           </button>
