@@ -73,29 +73,6 @@ export function ConfigEditor({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-[var(--border)] px-4 py-1.5">
-        <span className="text-xs text-[var(--text-muted)]">
-          {projectName}.yml
-        </span>
-        {dirty && (
-          <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-cyan)]" />
-        )}
-        <div className="ml-auto flex items-center gap-2">
-          {error && (
-            <span className="text-xs text-[var(--accent-red)]">{error}</span>
-          )}
-          <span className="text-[10px] text-[var(--text-muted)]">
-            {"\u2318"}S
-          </span>
-          <button
-            onClick={handleSave}
-            disabled={!dirty || saving}
-            className="rounded-lg bg-[var(--text-primary)] px-3.5 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-85 disabled:opacity-40"
-          >
-            {saving ? "Saving..." : "Save"}
-          </button>
-        </div>
-      </div>
       <div className="relative flex-1 overflow-hidden">
         <textarea
           ref={textareaRef}
@@ -103,9 +80,24 @@ export function ConfigEditor({
           onChange={(e) => setContent(e.target.value)}
           onKeyDown={handleTab}
           spellCheck={false}
-          className="h-full w-full resize-none bg-[var(--bg-primary)] p-4 font-mono text-sm leading-relaxed text-[var(--text-primary)] outline-none"
+          className="h-full w-full resize-none bg-[var(--bg-primary)] px-6 py-4 font-mono text-sm leading-relaxed text-[var(--text-primary)] outline-none"
           style={{ tabSize: 2 }}
         />
+        {(dirty || error) && (
+          <div className="absolute bottom-4 right-4 flex items-center gap-2">
+            {error && (
+              <span className="text-xs text-[var(--accent-red)]">{error}</span>
+            )}
+            <span className="text-[10px] text-[var(--text-muted)]">{"\u2318"}S</span>
+            <button
+              onClick={handleSave}
+              disabled={!dirty || saving}
+              className="rounded-lg bg-[var(--text-primary)] px-3.5 py-1.5 text-xs font-medium text-[var(--bg-primary)] shadow-lg transition-all hover:opacity-85 disabled:opacity-40"
+            >
+              {saving ? "Saving..." : "Save"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
