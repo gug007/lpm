@@ -2,18 +2,16 @@ import { useState, useEffect, useCallback } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { Settings } from "./components/Settings";
-import { AddProject } from "./components/AddProject";
 import type { ProjectInfo } from "./types";
 
-import { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder } from '../wailsjs/go/main/App';
-const api = { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder };
+import { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder, CreateProject } from '../wailsjs/go/main/App';
+const api = { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder, CreateProject };
 
 export default function App() {
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<"projects" | "settings">("projects");
   const [error, setError] = useState<string | null>(null);
-  const [addProjectFolder, setAddProjectFolder] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -94,8 +92,17 @@ export default function App() {
           }}
           onSettings={() => setView("settings")}
           onAddProject={async () => {
-            const dir = await api.BrowseFolder();
-            if (dir) setAddProjectFolder(dir);
+            try {
+              const dir = await api.BrowseFolder();
+              if (!dir) return;
+              const name = dir.split("/").pop() || "new-project";
+              await api.CreateProject(name, dir);
+              await refresh();
+              setSelected(name);
+              setView("projects");
+            } catch (err) {
+              setError(`Failed to add project: ${err}`);
+            }
           }}
           showSettings={view === "settings"}
         />
@@ -117,18 +124,6 @@ export default function App() {
           )}
         </main>
       </div>
-      {addProjectFolder && (
-        <AddProject
-          initialFolder={addProjectFolder}
-          onClose={() => setAddProjectFolder(null)}
-          onCreated={async (name) => {
-            setAddProjectFolder(null);
-            await refresh();
-            setSelected(name);
-            setView("projects");
-          }}
-        />
-      )}
     </div>
   );
 }
