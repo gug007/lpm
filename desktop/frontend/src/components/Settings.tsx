@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react";
 import { getStoredTheme, applyTheme, type Theme } from "../theme";
 
-// Uncomment when wailsjs bindings are generated:
-// import { SetDarkMode } from '../../wailsjs/go/main/App';
-const SetDarkMode = async (_dark: boolean) => {};
+import { SetDarkMode } from '../../wailsjs/go/main/App';
 
 export function Settings() {
   const [theme, setTheme] = useState<Theme>(getStoredTheme);
