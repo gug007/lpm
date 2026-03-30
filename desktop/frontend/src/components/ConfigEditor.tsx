@@ -84,6 +84,9 @@ export function ConfigEditor({
           {error && (
             <span className="text-xs text-[var(--accent-red)]">{error}</span>
           )}
+          <span className="text-[10px] text-[var(--text-muted)]">
+            {"\u2318"}S
+          </span>
           <button
             onClick={handleSave}
             disabled={!dirty || saving}
@@ -91,9 +94,6 @@ export function ConfigEditor({
           >
             {saving ? "Saving..." : "Save"}
           </button>
-          <span className="text-[10px] text-[var(--text-muted)]">
-            {"\u2318"}S
-          </span>
         </div>
       </div>
       <div className="relative flex-1 overflow-hidden">
