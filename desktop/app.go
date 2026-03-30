@@ -194,6 +194,28 @@ func (a *App) SaveConfig(name string, content string) error {
 	return os.WriteFile(path, []byte(content), mode)
 }
 
+func (a *App) CreateProject(name string, root string) error {
+	if err := config.ValidateName(name); err != nil {
+		return err
+	}
+	path := config.ProjectPath(name)
+	if _, err := os.Stat(path); err == nil {
+		return fmt.Errorf("project %q already exists", name)
+	}
+	cfg := &config.ProjectConfig{
+		Name:     name,
+		Root:     root,
+		Services: map[string]config.Service{"dev": {Cmd: "echo 'configure me'"}},
+	}
+	return config.SaveProject(cfg)
+}
+
+func (a *App) BrowseFolder() (string, error) {
+	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Select project folder",
+	})
+}
+
 func (a *App) RemoveProject(name string) error {
 	if cfg, err := config.LoadProject(name); err == nil {
 		tmux.KillSession(cfg.Name)

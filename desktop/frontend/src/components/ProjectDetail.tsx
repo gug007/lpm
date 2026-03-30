@@ -22,7 +22,9 @@ export function ProjectDetail({
   onRemove,
 }: ProjectDetailProps) {
   const [loading, setLoading] = useState(false);
-  const [activeProfile, setActiveProfile] = useState("");
+  const [activeProfile, setActiveProfile] = useState(
+    project.profiles?.[0] ?? ""
+  );
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   const withLoading = async (fn: () => Promise<void>) => {
@@ -44,11 +46,6 @@ export function ProjectDetail({
           {project.running && <StatusDot running={true} />}
           {project.profiles && project.profiles.length > 0 && (
             <div className="flex items-center gap-1">
-              <ProfileTag
-                name="all"
-                active={activeProfile === ""}
-                onClick={() => setActiveProfile("")}
-              />
               {project.profiles.map((p) => (
                 <ProfileTag
                   key={p}
@@ -85,7 +82,7 @@ export function ProjectDetail({
               <ActionButton
                 onClick={() => setConfirmRemove(true)}
                 disabled={false}
-                variant="ghost"
+                variant="secondary"
                 label="Remove"
               />
               <ActionButton

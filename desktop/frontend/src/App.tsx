@@ -2,16 +2,18 @@ import { useState, useEffect, useCallback } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { Settings } from "./components/Settings";
+import { AddProject } from "./components/AddProject";
 import type { ProjectInfo } from "./types";
 
-import { ListProjects, StartProject, StopProject, GetProject, RemoveProject } from '../wailsjs/go/main/App';
-const api = { ListProjects, StartProject, StopProject, GetProject, RemoveProject };
+import { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder } from '../wailsjs/go/main/App';
+const api = { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder };
 
 export default function App() {
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<"projects" | "settings">("projects");
   const [error, setError] = useState<string | null>(null);
+  const [addProjectFolder, setAddProjectFolder] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -91,6 +93,10 @@ export default function App() {
             setView("projects");
           }}
           onSettings={() => setView("settings")}
+          onAddProject={async () => {
+            const dir = await api.BrowseFolder();
+            if (dir) setAddProjectFolder(dir);
+          }}
           showSettings={view === "settings"}
         />
         <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6 pt-10">
@@ -111,6 +117,18 @@ export default function App() {
           )}
         </main>
       </div>
+      {addProjectFolder && (
+        <AddProject
+          initialFolder={addProjectFolder}
+          onClose={() => setAddProjectFolder(null)}
+          onCreated={async (name) => {
+            setAddProjectFolder(null);
+            await refresh();
+            setSelected(name);
+            setView("projects");
+          }}
+        />
+      )}
     </div>
   );
 }

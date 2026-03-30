@@ -6,10 +6,11 @@ interface SidebarProps {
   selected: string | null;
   onSelect: (name: string) => void;
   onSettings: () => void;
+  onAddProject: () => void;
   showSettings: boolean;
 }
 
-export function Sidebar({ projects, selected, onSelect, onSettings, showSettings }: SidebarProps) {
+export function Sidebar({ projects, selected, onSelect, onSettings, onAddProject, showSettings }: SidebarProps) {
   return (
     <aside className="flex w-[var(--sidebar-width)] shrink-0 flex-col border-r border-[var(--border)] bg-[var(--bg-sidebar)]">
       <div className="wails-drag h-8 shrink-0" />
@@ -18,6 +19,7 @@ export function Sidebar({ projects, selected, onSelect, onSettings, showSettings
           Projects
         </h2>
         <button
+          onClick={onAddProject}
           className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           title="Add project"
         >
