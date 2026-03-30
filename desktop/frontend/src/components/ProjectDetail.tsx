@@ -28,58 +28,63 @@ export function ProjectDetail({
     }
   };
 
+  const svcCount = project.services?.length || 0;
+
   return (
-    <div className="mx-auto max-w-2xl">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-xl">
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">{project.name}</h1>
-          <div className="mt-1 flex items-center gap-2">
+          <h1 className="text-xl font-semibold tracking-tight">
+            {project.name}
+          </h1>
+          <p className="mt-1 flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
             <StatusDot running={project.running} />
-            <span className="text-sm text-[var(--text-secondary)]">
-              {project.running ? "Running" : "Stopped"}
-              {" \u00b7 "}
-              {project.services?.length || 0} service
-              {(project.services?.length || 0) !== 1 ? "s" : ""}
-            </span>
-          </div>
+            {project.running ? "Running" : "Stopped"} &middot; {svcCount}{" "}
+            service{svcCount !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {project.running ? (
+            <>
+              <ActionButton
+                onClick={() => withLoading(() => onStop(project.name))}
+                disabled={loading}
+                variant="destructive"
+                icon="■"
+                label="Stop"
+              />
+              <ActionButton
+                onClick={() =>
+                  withLoading(() =>
+                    onRestart(project.name, activeProfile)
+                  )
+                }
+                disabled={loading}
+                variant="secondary"
+                icon="↻"
+                label="Restart"
+              />
+            </>
+          ) : (
+            <ActionButton
+              onClick={() =>
+                withLoading(() =>
+                  onStart(project.name, activeProfile)
+                )
+              }
+              disabled={loading}
+              variant="primary"
+              icon="▶"
+              label="Start"
+            />
+          )}
         </div>
       </div>
 
-      <div className="mt-6 flex items-center gap-2">
-        {project.running ? (
-          <>
-            <ActionButton
-              onClick={() => withLoading(() => onStop(project.name))}
-              disabled={loading}
-              variant="destructive"
-              icon="■"
-              label="Stop"
-            />
-            <ActionButton
-              onClick={() => withLoading(() => onRestart(project.name, activeProfile))}
-              disabled={loading}
-              variant="secondary"
-              icon="↻"
-              label="Restart"
-            />
-          </>
-        ) : (
-          <ActionButton
-            onClick={() => withLoading(() => onStart(project.name, activeProfile))}
-            disabled={loading}
-            variant="primary"
-            icon="▶"
-            label="Start"
-          />
-        )}
-      </div>
-
       {project.profiles && project.profiles.length > 0 && (
-        <div className="mt-6">
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
-            Profile
-          </h3>
-          <div className="flex flex-wrap gap-2">
+        <div className="mt-5 flex items-center gap-2">
+          <span className="text-xs text-[var(--text-muted)]">Profile</span>
+          <div className="flex gap-1">
             <ProfileTag
               name="all"
               active={activeProfile === ""}
@@ -97,17 +102,13 @@ export function ProjectDetail({
         </div>
       )}
 
-      <div className="mt-6">
-        <h3 className="mb-3 text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
-          Services
-        </h3>
+      <div className="mt-5">
         <ServiceList services={project.services || []} />
       </div>
 
-      <div className="mt-8 space-y-1 text-xs text-[var(--text-muted)]">
-        <p>Root: {project.root}</p>
-        <p>Config: ~/.lpm/projects/{project.name}.yml</p>
-      </div>
+      <p className="mt-6 text-[11px] text-[var(--text-muted)]">
+        {project.root}
+      </p>
     </div>
   );
 }
@@ -138,9 +139,9 @@ function ActionButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium transition-all active:scale-95 disabled:opacity-40 disabled:active:scale-100 ${actionStyles[variant]}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all active:scale-95 disabled:opacity-40 disabled:active:scale-100 ${actionStyles[variant]}`}
     >
-      <span className="text-xs">{icon}</span>
+      <span className="text-[10px]">{icon}</span>
       {label}
     </button>
   );
@@ -158,10 +159,10 @@ function ProfileTag({
   return (
     <button
       onClick={onClick}
-      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+      className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
         active
-          ? "bg-[var(--accent-cyan)] text-gray-900"
-          : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+          ? "bg-[var(--accent-cyan)]/15 text-[var(--accent-cyan)]"
+          : "bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
       }`}
     >
       {name}
