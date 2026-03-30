@@ -24,41 +24,74 @@ export function Settings() {
   }, [theme]);
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <h1 className="text-2xl font-semibold">Settings</h1>
+    <div className="mx-auto max-w-lg">
+      <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
 
-      <div className="mt-8 rounded-lg border border-[var(--border)] p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-[var(--text-primary)]">
-              Theme
-            </p>
-            <p className="mt-0.5 text-xs text-[var(--text-muted)]">
-              Use light, dark, or match your system
-            </p>
-          </div>
-          <div className="flex rounded-lg border border-[var(--border)] p-0.5">
-            <ThemeButton
-              label="Light"
-              icon="☀"
-              active={theme === "light"}
-              onClick={() => setTheme("light")}
-            />
-            <ThemeButton
-              label="Dark"
-              icon="☾"
-              active={theme === "dark"}
-              onClick={() => setTheme("dark")}
-            />
-            <ThemeButton
-              label="System"
-              icon="🖥"
-              active={theme === "system"}
-              onClick={() => setTheme("system")}
-            />
-          </div>
+      <div className="mt-6 space-y-1">
+        <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
+          Appearance
+        </h2>
+
+        <div className="rounded-lg border border-[var(--border)] divide-y divide-[var(--border)]">
+          <SettingsRow
+            label="Theme"
+            description="Choose your preferred look"
+          >
+            <div className="flex rounded-lg border border-[var(--border)] p-0.5">
+              <ThemeButton
+                label="Light"
+                icon={<SunIcon />}
+                active={theme === "light"}
+                onClick={() => setTheme("light")}
+              />
+              <ThemeButton
+                label="Dark"
+                icon={<MoonIcon />}
+                active={theme === "dark"}
+                onClick={() => setTheme("dark")}
+              />
+              <ThemeButton
+                label="System"
+                icon={<MonitorIcon />}
+                active={theme === "system"}
+                onClick={() => setTheme("system")}
+              />
+            </div>
+          </SettingsRow>
         </div>
       </div>
+
+      <div className="mt-6 space-y-1">
+        <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
+          About
+        </h2>
+
+        <div className="rounded-lg border border-[var(--border)] divide-y divide-[var(--border)]">
+          <SettingsRow label="Version" description="lpm desktop">
+            <span className="text-xs text-[var(--text-muted)]">0.1.9</span>
+          </SettingsRow>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsRow({
+  label,
+  description,
+  children,
+}: {
+  label: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 px-4 py-3">
+      <div className="shrink-0">
+        <p className="text-sm font-medium text-[var(--text-primary)]">{label}</p>
+        <p className="text-[11px] text-[var(--text-muted)]">{description}</p>
+      </div>
+      {children}
     </div>
   );
 }
@@ -70,7 +103,7 @@ function ThemeButton({
   onClick,
 }: {
   label: string;
-  icon: string;
+  icon: React.ReactNode;
   active: boolean;
   onClick: () => void;
 }) {
@@ -83,8 +116,36 @@ function ThemeButton({
           : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
       }`}
     >
-      <span>{icon}</span>
+      {icon}
       {label}
     </button>
+  );
+}
+
+function SunIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="5" />
+      <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+      <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+    </svg>
+  );
+}
+
+function MoonIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  );
+}
+
+function MonitorIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+    </svg>
   );
 }
