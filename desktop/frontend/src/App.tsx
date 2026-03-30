@@ -63,10 +63,9 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen flex-col">
-      <div className="wails-drag h-8 shrink-0 border-b border-[var(--border)]" />
+    <div className="flex h-screen">
       {error && (
-        <div className="bg-[var(--accent-red)] px-4 py-2 text-sm text-white">
+        <div className="absolute left-0 right-0 top-0 z-50 bg-[var(--accent-red)] px-4 py-2 text-sm text-white">
           {error}
           <button onClick={() => setError(null)} className="ml-2 font-bold">
             ×
@@ -84,7 +83,7 @@ export default function App() {
           onSettings={() => setView("settings")}
           showSettings={view === "settings"}
         />
-        <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] p-6">
+        <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6 pt-10">
           {view === "settings" ? (
             <Settings />
           ) : selectedProject ? (
