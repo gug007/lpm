@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>lpm — Local Project Manager</title>
+  <meta name="description" content="Start, stop, and switch between dev projects with one command. CLI + native macOS desktop app.">
+  <meta property="og:title" content="lpm — Local Project Manager">
+  <meta property="og:description" content="Start, stop, and switch between dev projects with one command.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://gug007.github.io/lpm">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #fafafa;
+      --text: #1a1a1a;
+      --muted: #666;
+      --border: #e5e5e5;
+      --accent: #000;
+      --code-bg: #f0f0f0;
+      --green: #22c55e;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111;
+        --text: #e5e5e5;
+        --muted: #999;
+        --border: #2a2a2a;
+        --accent: #fff;
+        --code-bg: #1a1a1a;
+        --green: #4ade80;
+      }
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    a { color: var(--text); }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Nav */
+    nav {
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    nav .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    nav .logo {
+      font-size: 18px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    nav .links {
+      display: flex;
+      gap: 24px;
+    }
+    nav .links a {
+      text-decoration: none;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    nav .links a:hover { color: var(--text); }
+
+    /* Hero */
+    .hero {
+      padding: 80px 0 60px;
+      text-align: center;
+    }
+    .hero h1 {
+      font-size: 48px;
+      font-weight: 700;
+      letter-spacing: -1px;
+      line-height: 1.1;
+    }
+    .hero p {
+      margin-top: 16px;
+      font-size: 18px;
+      color: var(--muted);
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .hero .actions {
+      margin-top: 32px;
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg);
+    }
+    .btn-secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    /* Install */
+    .install {
+      margin-top: 32px;
+      text-align: center;
+    }
+    .install code {
+      display: inline-block;
+      background: var(--code-bg);
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: "SF Mono", Menlo, monospace;
+      user-select: all;
+      border: 1px solid var(--border);
+    }
+    .install .label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Screenshot */
+    .screenshot {
+      margin: 60px 0;
+      text-align: center;
+    }
+    .screenshot img {
+      max-width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
+
+    /* Features */
+    .features {
+      padding: 60px 0;
+    }
+    .features h2 {
+      font-size: 28px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 600px) {
+      .features-grid { grid-template-columns: 1fr; }
+    }
+    .feature {
+      padding: 20px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+    .feature h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .feature p {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    /* Commands */
+    .commands {
+      padding: 40px 0 60px;
+    }
+    .commands h2 {
+      font-size: 28px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .commands table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .commands td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .commands td:first-child {
+      font-family: "SF Mono", Menlo, monospace;
+      font-size: 13px;
+      white-space: nowrap;
+      width: 40%;
+    }
+    .commands td:last-child {
+      color: var(--muted);
+    }
+
+    /* Download */
+    .download {
+      padding: 60px 0;
+      text-align: center;
+      border-top: 1px solid var(--border);
+    }
+    .download h2 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .download p {
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+    .download-grid {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .download-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 20px 28px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      text-decoration: none;
+      color: var(--text);
+      transition: border-color 0.2s;
+    }
+    .download-card:hover { border-color: var(--muted); }
+    .download-card .platform {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .download-card .arch {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* Footer */
+    footer {
+      padding: 24px 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    footer a { color: var(--muted); }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <div class="container">
+      <a href="/" class="logo">lpm</a>
+      <div class="links">
+        <a href="https://github.com/gug007/lpm">GitHub</a>
+        <a href="https://github.com/gug007/lpm/releases/latest">Releases</a>
+        <a href="#download">Download</a>
+      </div>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="container">
+      <h1>Local Project Manager</h1>
+      <p>Start, stop, and switch between dev projects with one command. CLI + native macOS desktop app.</p>
+      <div class="actions">
+        <a href="#download" class="btn btn-primary">Download</a>
+        <a href="https://github.com/gug007/lpm" class="btn btn-secondary">View on GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="install">
+    <div class="container">
+      <p class="label">Install CLI</p>
+      <code>curl -fsSL https://raw.githubusercontent.com/gug007/lpm/main/install.sh | bash</code>
+    </div>
+  </div>
+
+  <section class="screenshot">
+    <div class="container">
+      <!-- Replace with actual screenshot -->
+      <img src="screenshot.png" alt="lpm desktop app" onerror="this.style.display='none'">
+    </div>
+  </section>
+
+  <section class="features">
+    <div class="container">
+      <h2>Features</h2>
+      <div class="features-grid">
+        <div class="feature">
+          <h3>One command to start</h3>
+          <p>Define your services in YAML, launch everything with lpm myapp.</p>
+        </div>
+        <div class="feature">
+          <h3>Auto-detect</h3>
+          <p>Detects Rails, Next.js, Go, Django, Flask, Docker Compose automatically.</p>
+        </div>
+        <div class="feature">
+          <h3>Fast switching</h3>
+          <p>Switch between projects instantly. Stop one, start another in a single command.</p>
+        </div>
+        <div class="feature">
+          <h3>Profiles</h3>
+          <p>Run subsets of services. Start just the API, or the full stack.</p>
+        </div>
+        <div class="feature">
+          <h3>Desktop app</h3>
+          <p>Native macOS app with live terminal, config editor, and theme support.</p>
+        </div>
+        <div class="feature">
+          <h3>Any stack</h3>
+          <p>If it runs in a terminal, lpm can manage it. No Docker required.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="commands">
+    <div class="container">
+      <h2>Commands</h2>
+      <table>
+        <tr><td>lpm &lt;project&gt;</td><td>Start in background</td></tr>
+        <tr><td>lpm start &lt;project&gt;</td><td>Start and open terminal</td></tr>
+        <tr><td>lpm switch &lt;project&gt;</td><td>Stop all, start another</td></tr>
+        <tr><td>lpm kill [project]</td><td>Stop a project (all if none given)</td></tr>
+        <tr><td>lpm init [name]</td><td>Create config from current directory</td></tr>
+        <tr><td>lpm edit &lt;project&gt;</td><td>Open config in $EDITOR</td></tr>
+        <tr><td>lpm list</td><td>List all projects</td></tr>
+        <tr><td>lpm status &lt;project&gt;</td><td>Show project details</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="download" id="download">
+    <div class="container">
+      <h2>Download</h2>
+      <p>macOS (Apple Silicon &amp; Intel) and Linux</p>
+      <div class="download-grid">
+        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm-desktop-macos-arm64.zip" class="download-card">
+          <span class="platform">macOS Desktop</span>
+          <span class="arch">Apple Silicon</span>
+        </a>
+        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm-desktop-macos-amd64.zip" class="download-card">
+          <span class="platform">macOS Desktop</span>
+          <span class="arch">Intel</span>
+        </a>
+        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_darwin_arm64.tar.gz" class="download-card">
+          <span class="platform">CLI</span>
+          <span class="arch">macOS ARM64</span>
+        </a>
+        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_darwin_amd64.tar.gz" class="download-card">
+          <span class="platform">CLI</span>
+          <span class="arch">macOS Intel</span>
+        </a>
+        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_linux_amd64.tar.gz" class="download-card">
+          <span class="platform">CLI</span>
+          <span class="arch">Linux amd64</span>
+        </a>
+        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_linux_arm64.tar.gz" class="download-card">
+          <span class="platform">CLI</span>
+          <span class="arch">Linux arm64</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container">
+      <a href="https://github.com/gug007/lpm">gug007/lpm</a> &middot; MIT License
+    </div>
+  </footer>
+
+</body>
+</html>
