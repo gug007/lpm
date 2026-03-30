@@ -1,2 +1,19 @@
 .claude
 PROJECT.md
+
+# Go
+lpm
+*.exe
+
+# Desktop app (Wails)
+desktop/build/bin/
+desktop/frontend/dist/
+desktop/frontend/node_modules/
+desktop/frontend/wailsjs/
+desktop/frontend/package.json.md5
+
+# Dependencies
+node_modules
+
+# OS
+.DS_Store
