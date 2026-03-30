@@ -35,10 +35,10 @@
   </nav>
 
   <!-- Hero -->
-  <section class="pt-20 pb-16 text-center">
+  <section class="pt-12 sm:pt-20 pb-10 sm:pb-16 text-center">
     <div class="max-w-3xl mx-auto px-6">
-      <h1 class="text-5xl font-bold tracking-tight leading-tight">Local Project Manager</h1>
-      <p class="mt-4 text-lg text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+      <h1 class="text-3xl sm:text-5xl font-bold tracking-tight leading-tight">Local Project Manager</h1>
+      <p class="mt-4 text-base sm:text-lg text-gray-500 dark:text-gray-400 max-w-md mx-auto">
         Start, stop, and switch between dev projects with one command. CLI + native macOS desktop app.
       </p>
       <div class="mt-8 flex gap-3 justify-center flex-wrap">
@@ -54,20 +54,20 @@
   <!-- Install -->
   <div class="text-center pb-10">
     <p class="text-xs text-gray-400 uppercase tracking-widest mb-2">Install CLI</p>
-    <code class="inline-block bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 px-5 py-3 rounded-lg text-sm font-mono select-all">curl -fsSL https://raw.githubusercontent.com/gug007/lpm/main/install.sh | bash</code>
+    <code class="block max-w-full overflow-x-auto bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 px-5 py-3 rounded-lg text-xs sm:text-sm font-mono select-all whitespace-nowrap">curl -fsSL https://raw.githubusercontent.com/gug007/lpm/main/install.sh | bash</code>
   </div>
 
-  <!-- Screenshot -->
+  <!-- Demo -->
   <section class="py-10 text-center">
     <div class="max-w-3xl mx-auto px-6">
-      <img src="screenshot.png" alt="lpm desktop app" class="max-w-full rounded-xl border border-gray-200 dark:border-gray-800 shadow-lg" onerror="this.style.display='none'">
+      <video src="app-demo.mp4" autoplay loop muted playsinline class="max-w-full rounded-xl border border-gray-200 dark:border-gray-800 shadow-lg"></video>
     </div>
   </section>
 
   <!-- Features -->
   <section class="py-16">
     <div class="max-w-3xl mx-auto px-6">
-      <h2 class="text-3xl font-bold text-center mb-10">Features</h2>
+      <h2 class="text-2xl sm:text-3xl font-bold text-center mb-10">Features</h2>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <div class="p-5 rounded-xl border border-gray-200 dark:border-gray-800">
           <h3 class="text-sm font-semibold">One command to start</h3>
@@ -100,7 +100,7 @@
   <!-- Commands -->
   <section class="pb-16">
     <div class="max-w-3xl mx-auto px-6">
-      <h2 class="text-3xl font-bold text-center mb-6">Commands</h2>
+      <h2 class="text-2xl sm:text-3xl font-bold text-center mb-6">Commands</h2>
       <table class="w-full text-sm">
         <tr class="border-b border-gray-200 dark:border-gray-800">
           <td class="py-2.5 pr-4 font-mono text-xs whitespace-nowrap w-2/5">lpm &lt;project&gt;</td>
@@ -145,27 +145,27 @@
       <p class="text-gray-500 dark:text-gray-400 mb-8">macOS (Apple Silicon &amp; Intel) and Linux</p>
       <p id="detectedPlatform" class="text-xs text-gray-400 mb-4"></p>
       <div class="flex gap-3 justify-center flex-wrap" id="downloadGrid">
-        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm-desktop-macos-arm64.zip" data-platform="mac-arm" class="dl-card flex flex-col items-center gap-1 px-7 py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
+        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm-desktop-macos-arm64.zip" data-platform="mac-arm" class="dl-card flex flex-col items-center gap-1 px-5 py-4 sm:px-7 sm:py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
           <span class="text-sm font-semibold">macOS Desktop</span>
           <span class="text-xs text-gray-400">Apple Silicon</span>
         </a>
-        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm-desktop-macos-amd64.zip" data-platform="mac-intel" class="dl-card flex flex-col items-center gap-1 px-7 py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
+        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm-desktop-macos-amd64.zip" data-platform="mac-intel" class="dl-card flex flex-col items-center gap-1 px-5 py-4 sm:px-7 sm:py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
           <span class="text-sm font-semibold">macOS Desktop</span>
           <span class="text-xs text-gray-400">Intel</span>
         </a>
-        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_darwin_arm64.tar.gz" data-platform="mac-arm" class="dl-card flex flex-col items-center gap-1 px-7 py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
+        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_darwin_arm64.tar.gz" data-platform="mac-arm" class="dl-card flex flex-col items-center gap-1 px-5 py-4 sm:px-7 sm:py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
           <span class="text-sm font-semibold">CLI</span>
           <span class="text-xs text-gray-400">macOS ARM64</span>
         </a>
-        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_darwin_amd64.tar.gz" data-platform="mac-intel" class="dl-card flex flex-col items-center gap-1 px-7 py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
+        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_darwin_amd64.tar.gz" data-platform="mac-intel" class="dl-card flex flex-col items-center gap-1 px-5 py-4 sm:px-7 sm:py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
           <span class="text-sm font-semibold">CLI</span>
           <span class="text-xs text-gray-400">macOS Intel</span>
         </a>
-        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_linux_amd64.tar.gz" data-platform="linux" class="dl-card flex flex-col items-center gap-1 px-7 py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
+        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_linux_amd64.tar.gz" data-platform="linux" class="dl-card flex flex-col items-center gap-1 px-5 py-4 sm:px-7 sm:py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
           <span class="text-sm font-semibold">CLI</span>
           <span class="text-xs text-gray-400">Linux amd64</span>
         </a>
-        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_linux_arm64.tar.gz" data-platform="linux" class="dl-card flex flex-col items-center gap-1 px-7 py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
+        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_linux_arm64.tar.gz" data-platform="linux" class="dl-card flex flex-col items-center gap-1 px-5 py-4 sm:px-7 sm:py-5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition">
           <span class="text-sm font-semibold">CLI</span>
           <span class="text-xs text-gray-400">Linux arm64</span>
         </a>
