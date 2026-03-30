@@ -12,10 +12,16 @@ interface SidebarProps {
 export function Sidebar({ projects, selected, onSelect, onSettings, showSettings }: SidebarProps) {
   return (
     <aside className="flex w-[var(--sidebar-width)] shrink-0 flex-col border-r border-[var(--border)] bg-[var(--bg-sidebar)]">
-      <div className="p-4 pb-2">
+      <div className="flex items-center justify-between p-4 pb-2">
         <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
           Projects
         </h2>
+        <button
+          className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          title="Add project"
+        >
+          +
+        </button>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2">
@@ -38,10 +44,7 @@ export function Sidebar({ projects, selected, onSelect, onSettings, showSettings
         ))}
       </nav>
 
-      <div className="border-t border-[var(--border)] p-2 space-y-1">
-        <button className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]">
-          + Add project
-        </button>
+      <div className="border-t border-[var(--border)] p-2">
         <button
           onClick={onSettings}
           className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
