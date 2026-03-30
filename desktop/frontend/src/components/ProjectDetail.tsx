@@ -33,7 +33,7 @@ export function ProjectDetail({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between -mx-2">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold tracking-tight">
             {project.name}
