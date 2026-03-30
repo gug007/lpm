@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/gug007/lpm/internal/config"
 	"github.com/gug007/lpm/internal/tmux"
@@ -16,24 +15,11 @@ var switchCmd = &cobra.Command{
 	Short: "Kill all running projects and start another",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := tmux.EnsureInstalled(); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-
 		target := args[0]
 
-		cfg, err := config.LoadProject(target)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-
-		// Kill all running projects except the target
 		projects, err := config.ListProjects()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to list projects: %v\n", err)
-			os.Exit(1)
+			fatal(err)
 		}
 		for _, name := range projects {
 			if name != target {
@@ -43,12 +29,7 @@ var switchCmd = &cobra.Command{
 			}
 		}
 
-		if err := tmux.StartProject(cfg, switchProfileFlag); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-
-		printStarted(target, cfg, switchProfileFlag)
+		runProject(target, switchProfileFlag, false)
 	},
 }
 

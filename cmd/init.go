@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+
 	"github.com/gug007/lpm/internal/config"
 	"github.com/spf13/cobra"
 )
@@ -18,8 +19,7 @@ var initCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		cwd, err := os.Getwd()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			fatal(err)
 		}
 
 		name := filepath.Base(cwd)
@@ -27,11 +27,9 @@ var initCmd = &cobra.Command{
 			name = args[0]
 		}
 
-		// Check if project already exists
-		existing := filepath.Join(config.ProjectsDir(), name+".yml")
+		existing := config.ProjectPath(name)
 		if _, err := os.Stat(existing); err == nil {
-			fmt.Fprintf(os.Stderr, "project %q already exists. Edit %s to modify it.\n", name, existing)
-			os.Exit(1)
+			fatalf("project %q already exists. Edit with: lpm edit %s", name, name)
 		}
 
 		cfg := &config.ProjectConfig{
@@ -62,8 +60,7 @@ var initCmd = &cobra.Command{
 		}
 
 		if err := config.SaveProject(cfg); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to save project: %v\n", err)
-			os.Exit(1)
+			fatal(err)
 		}
 
 		fmt.Printf("Created %s\n", existing)

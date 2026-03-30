@@ -1,17 +1,15 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/gug007/lpm/internal/config"
 	"github.com/spf13/cobra"
 )
 
-func shellescape(s string) string {
+func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }
 
@@ -22,14 +20,12 @@ var editCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		name := args[0]
 		if err := config.ValidateName(name); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			fatal(err)
 		}
-		path := filepath.Join(config.ProjectsDir(), name+".yml")
+		path := config.ProjectPath(name)
 
 		if _, err := os.Stat(path); os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "project %q not found\n", name)
-			os.Exit(1)
+			fatalf("project %q not found", name)
 		}
 
 		editor := os.Getenv("EDITOR")
@@ -37,14 +33,13 @@ var editCmd = &cobra.Command{
 			editor = "vi"
 		}
 
-		c := exec.Command("sh", "-c", editor+" "+shellescape(path))
+		c := exec.Command("sh", "-c", editor+" "+shellQuote(path))
 		c.Stdin = os.Stdin
 		c.Stdout = os.Stdout
 		c.Stderr = os.Stderr
 
 		if err := c.Run(); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to open editor: %v\n", err)
-			os.Exit(1)
+			fatalf("failed to open editor: %v", err)
 		}
 	},
 }

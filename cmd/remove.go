@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/gug007/lpm/internal/config"
 	"github.com/gug007/lpm/internal/tmux"
@@ -18,25 +17,17 @@ var removeCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		name := args[0]
 		if err := config.ValidateName(name); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			fatal(err)
 		}
-		path := filepath.Join(config.ProjectsDir(), name+".yml")
+		path := config.ProjectPath(name)
 
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "project %q not found\n", name)
-			os.Exit(1)
-		}
-
-		// Kill session if running
-		if tmux.SessionExists(name) {
-			tmux.KillSession(name)
-			fmt.Printf("Stopped %s\n", name)
-		}
+		tmux.KillSession(name)
 
 		if err := os.Remove(path); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to remove %s: %v\n", name, err)
-			os.Exit(1)
+			if os.IsNotExist(err) {
+				fatalf("project %q not found", name)
+			}
+			fatalf("failed to remove %s: %v", name, err)
 		}
 
 		fmt.Printf("Removed %s\n", name)

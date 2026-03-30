@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/gug007/lpm/internal/config"
 	"github.com/gug007/lpm/internal/tmux"
@@ -18,8 +17,7 @@ var statusCmd = &cobra.Command{
 
 		cfg, err := config.LoadProject(name)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			fatal(err)
 		}
 
 		running := tmux.SessionExists(cfg.Name)

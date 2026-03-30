@@ -53,11 +53,15 @@ func ValidateName(name string) error {
 	return nil
 }
 
+func ProjectPath(name string) string {
+	return filepath.Join(ProjectsDir(), name+".yml")
+}
+
 func LoadProject(name string) (*ProjectConfig, error) {
 	if err := ValidateName(name); err != nil {
 		return nil, err
 	}
-	path := filepath.Join(ProjectsDir(), name+".yml")
+	path := ProjectPath(name)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -71,6 +75,9 @@ func LoadProject(name string) (*ProjectConfig, error) {
 		return nil, fmt.Errorf("invalid config for %q: %w", name, err)
 	}
 
+	if cfg.Name == "" {
+		cfg.Name = name
+	}
 	cfg.Root = expandHome(cfg.Root)
 	for name, svc := range cfg.Services {
 		if svc.Cwd != "" {

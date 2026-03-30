@@ -47,10 +47,7 @@ func StartProject(cfg *config.ProjectConfig, profile string) error {
 		return fmt.Errorf("no services to start for profile %q", profile)
 	}
 
-	// Kill existing session if running
-	if SessionExists(cfg.Name) {
-		KillSession(cfg.Name)
-	}
+	KillSession(cfg.Name)
 
 	// Create new session with first service
 	firstService := serviceNames[0]

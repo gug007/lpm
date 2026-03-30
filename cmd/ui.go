@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/gug007/lpm/internal/config"
+	"github.com/gug007/lpm/internal/tmux"
 )
 
 var (
@@ -19,6 +20,16 @@ func init() {
 	if fi, _ := os.Stdout.Stat(); fi != nil && (fi.Mode()&os.ModeCharDevice) == 0 {
 		colorGreen, colorCyan, colorBold, colorDim, colorReset = "", "", "", "", ""
 	}
+}
+
+func fatal(err error) {
+	fmt.Fprintln(os.Stderr, err)
+	os.Exit(1)
+}
+
+func fatalf(format string, args ...any) {
+	fmt.Fprintf(os.Stderr, format+"\n", args...)
+	os.Exit(1)
 }
 
 func pluralize(n int, singular string) string {
@@ -53,6 +64,27 @@ func printServiceTable(serviceNames []string, services map[string]config.Service
 			portInfo = fmt.Sprintf("  %s→ localhost:%d%s", colorCyan, svc.Port, colorReset)
 		}
 		fmt.Printf("  %-12s %s%s\n", svcName, svc.Cmd, portInfo)
+	}
+}
+
+func runProject(name, profile string, attach bool) {
+	if err := tmux.EnsureInstalled(); err != nil {
+		fatal(err)
+	}
+	cfg, err := config.LoadProject(name)
+	if err != nil {
+		fatal(err)
+	}
+	if err := tmux.StartProject(cfg, profile); err != nil {
+		fatal(err)
+	}
+	if attach {
+		fmt.Printf("Started %s\n", name)
+		if err := tmux.Attach(cfg.Name); err != nil {
+			fatal(err)
+		}
+	} else {
+		printStarted(name, cfg, profile)
 	}
 }
 

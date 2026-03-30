@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/gug007/lpm/internal/config"
 	"github.com/gug007/lpm/internal/tmux"
@@ -20,17 +19,10 @@ var killCmd = &cobra.Command{
 		}
 
 		name := args[0]
-
-		if !tmux.SessionExists(name) {
+		if err := tmux.KillSession(name); err != nil {
 			fmt.Printf("%s is not running\n", name)
 			return
 		}
-
-		if err := tmux.KillSession(name); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to kill %s: %v\n", name, err)
-			os.Exit(1)
-		}
-
 		fmt.Printf("Stopped %s\n", name)
 	},
 }
@@ -38,17 +30,12 @@ var killCmd = &cobra.Command{
 func killAll() {
 	projects, err := config.ListProjects()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to list projects: %v\n", err)
-		os.Exit(1)
+		fatal(err)
 	}
 
 	stopped := 0
 	for _, name := range projects {
-		if tmux.SessionExists(name) {
-			if err := tmux.KillSession(name); err != nil {
-				fmt.Fprintf(os.Stderr, "failed to kill %s: %v\n", name, err)
-				continue
-			}
+		if err := tmux.KillSession(name); err == nil {
 			fmt.Printf("Stopped %s\n", name)
 			stopped++
 		}
