@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"sync"
 
 	"github.com/gug007/lpm/internal/config"
 	"github.com/gug007/lpm/internal/tmux"
@@ -14,10 +15,17 @@ import (
 
 type App struct {
 	ctx context.Context
+
+	// sessionCache avoids re-reading and parsing YAML on every
+	// GetServiceLogs call (which fires every 1s per pane).
+	sessionMu    sync.RWMutex
+	sessionCache map[string]string // projectName -> session name
 }
 
 func NewApp() *App {
-	return &App{}
+	return &App{
+		sessionCache: make(map[string]string),
+	}
 }
 
 func (a *App) startup(ctx context.Context) {
@@ -136,8 +144,29 @@ func (a *App) GetProject(name string) (*ProjectInfo, error) {
 	return &info, nil
 }
 
+func (a *App) cachedSessionName(projectName string) string {
+	a.sessionMu.RLock()
+	if s, ok := a.sessionCache[projectName]; ok {
+		a.sessionMu.RUnlock()
+		return s
+	}
+	a.sessionMu.RUnlock()
+
+	s := config.SessionName(projectName)
+	a.sessionMu.Lock()
+	a.sessionCache[projectName] = s
+	a.sessionMu.Unlock()
+	return s
+}
+
+func (a *App) invalidateSessionCache(projectName string) {
+	a.sessionMu.Lock()
+	delete(a.sessionCache, projectName)
+	a.sessionMu.Unlock()
+}
+
 func (a *App) GetServiceLogs(projectName string, paneIndex int, lines int) (string, error) {
-	session := config.SessionName(projectName)
+	session := a.cachedSessionName(projectName)
 	return tmux.CapturePaneLogs(session, paneIndex, lines)
 }
 
@@ -161,6 +190,7 @@ func (a *App) SaveConfig(name string, content string) error {
 	if info, err := os.Stat(path); err == nil {
 		mode = info.Mode()
 	}
+	a.invalidateSessionCache(name)
 	return os.WriteFile(path, []byte(content), mode)
 }
 
@@ -168,5 +198,6 @@ func (a *App) RemoveProject(name string) error {
 	if cfg, err := config.LoadProject(name); err == nil {
 		tmux.KillSession(cfg.Name)
 	}
+	a.invalidateSessionCache(name)
 	return os.Remove(config.ProjectPath(name))
 }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { StatusDot } from "./StatusDot";
 import { TerminalView } from "./TerminalView";
+import { ConfigEditor } from "./ConfigEditor";
 import type { ProjectInfo } from "../types";
 
 interface ProjectDetailProps {
@@ -8,7 +9,7 @@ interface ProjectDetailProps {
   onStart: (name: string, profile: string) => Promise<void>;
   onStop: (name: string) => Promise<void>;
   onRestart: (name: string, profile: string) => Promise<void>;
-  onEdit: (name: string) => void;
+  onRefresh: () => void;
 }
 
 export function ProjectDetail({
@@ -16,7 +17,7 @@ export function ProjectDetail({
   onStart,
   onStop,
   onRestart,
-  onEdit,
+  onRefresh,
 }: ProjectDetailProps) {
   const [loading, setLoading] = useState(false);
   const [activeProfile, setActiveProfile] = useState("");
@@ -94,23 +95,19 @@ export function ProjectDetail({
         </div>
       </div>
 
-      {!project.running && (
-        <div className="mt-6 flex items-center justify-between">
-          <p className="text-[11px] text-[var(--text-muted)]">{project.root}</p>
-          <button
-            onClick={() => onEdit(project.name)}
-            className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-          >
-            Edit config
-          </button>
-        </div>
-      )}
-
-      {project.running && project.services?.length > 0 && (
+      {project.running && project.services?.length > 0 ? (
         <div className="mt-3 -mx-6 -mb-6 flex flex-1 flex-col overflow-hidden">
           <TerminalView
             projectName={project.name}
             services={project.services}
+          />
+        </div>
+      ) : (
+        <div className="mt-3 -mx-6 -mb-6 flex flex-1 flex-col overflow-hidden">
+          <ConfigEditor
+            projectName={project.name}
+            onClose={() => {}}
+            onSaved={onRefresh}
           />
         </div>
       )}

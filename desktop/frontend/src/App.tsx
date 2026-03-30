@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { Settings } from "./components/Settings";
-import { ConfigEditor } from "./components/ConfigEditor";
 import { StatusBar } from "./components/StatusBar";
 import type { ProjectInfo } from "./types";
 
@@ -12,8 +11,7 @@ const api = { ListProjects, StartProject, StopProject, GetProject };
 export default function App() {
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [view, setView] = useState<"projects" | "settings" | "editor">("projects");
-  const [editingProject, setEditingProject] = useState<string | null>(null);
+  const [view, setView] = useState<"projects" | "settings">("projects");
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -90,13 +88,7 @@ export default function App() {
           showSettings={view === "settings"}
         />
         <main className={`flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] ${view !== "editor" ? "p-6" : ""}`}>
-          {view === "editor" && editingProject ? (
-            <ConfigEditor
-              projectName={editingProject}
-              onClose={() => setView("projects")}
-              onSaved={refresh}
-            />
-          ) : view === "settings" ? (
+          {view === "settings" ? (
             <Settings />
           ) : selectedProject ? (
             <ProjectDetail
@@ -105,10 +97,7 @@ export default function App() {
               onStart={handleStart}
               onStop={handleStop}
               onRestart={handleRestart}
-              onEdit={(name) => {
-                setEditingProject(name);
-                setView("editor");
-              }}
+              onRefresh={refresh}
             />
           ) : (
             <EmptyState />
