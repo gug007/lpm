@@ -59,7 +59,13 @@
     <div class="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between">
       <a href="/" class="text-base font-bold tracking-tight text-gray-900 dark:text-white">lpm</a>
       <div class="flex items-center gap-5">
-        <a href="https://github.com/gug007/lpm" class="text-[13px] text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200">GitHub</a>
+        <a href="https://github.com/gug007/lpm" class="inline-flex items-center gap-1.5 text-[13px] text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200">
+          GitHub
+          <span id="starCount" class="hidden items-center gap-0.5 text-[11px] bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded-full font-medium">
+            <i data-lucide="star" class="w-3 h-3"></i>
+            <span id="starNum"></span>
+          </span>
+        </a>
         <a href="https://github.com/gug007/lpm/releases/latest" class="text-[13px] text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200">Releases</a>
         <button onclick="toggleTheme()" id="themeBtn" class="text-gray-400 hover:text-gray-900 dark:hover:text-white cursor-pointer transition-colors duration-200">
           <i id="sunIcon" data-lucide="sun" class="w-[15px] h-[15px] hidden"></i>
@@ -431,6 +437,21 @@
         btn.querySelector(".check-icon").classList.add("hidden");
       }, 2000);
     }
+
+    fetch("https://api.github.com/repos/gug007/lpm")
+      .then(r => r.json())
+      .then(data => {
+        if (data.stargazers_count != null) {
+          const count = data.stargazers_count >= 1000
+            ? (data.stargazers_count / 1000).toFixed(1) + "k"
+            : String(data.stargazers_count);
+          document.getElementById("starNum").textContent = count;
+          document.getElementById("starCount").classList.remove("hidden");
+          document.getElementById("starCount").classList.add("inline-flex");
+          lucide.createIcons({ nameAttr: "data-lucide" });
+        }
+      })
+      .catch(() => {});
 
     lucide.createIcons();
   </script>
