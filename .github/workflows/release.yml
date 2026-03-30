@@ -28,16 +28,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   desktop-macos:
-    strategy:
-      matrix:
-        include:
-          - platform: macos-14
-            arch: arm64
-            name: lpm-desktop-macos-arm64
-          - platform: macos-15
-            arch: amd64
-            name: lpm-desktop-macos-amd64
-    runs-on: ${{ matrix.platform }}
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
 
@@ -56,19 +47,30 @@ jobs:
         working-directory: desktop/frontend
         run: npm install
 
-      - name: Build desktop app
+      - name: Build arm64
         working-directory: desktop
-        run: wails build -platform darwin/${{ matrix.arch }}
+        run: wails build -platform darwin/arm64
 
-      - name: Package app
+      - name: Package arm64
         run: |
           cd desktop/build/bin
-          ls -la
-          zip -r "${{ matrix.name }}.zip" lpm-desktop.app
+          zip -r lpm-desktop-macos-arm64.zip lpm-desktop.app
+          rm -rf lpm-desktop.app
+
+      - name: Build amd64
+        working-directory: desktop
+        run: wails build -platform darwin/amd64
+
+      - name: Package amd64
+        run: |
+          cd desktop/build/bin
+          zip -r lpm-desktop-macos-amd64.zip lpm-desktop.app
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          files: desktop/build/bin/${{ matrix.name }}.zip
+          files: |
+            desktop/build/bin/lpm-desktop-macos-arm64.zip
+            desktop/build/bin/lpm-desktop-macos-amd64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
