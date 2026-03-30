@@ -87,7 +87,7 @@ export function ConfigEditor({
           <button
             onClick={handleSave}
             disabled={!dirty || saving}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--accent-green)]/20 bg-[var(--accent-green)]/10 px-2.5 py-0.5 text-[11px] font-medium text-[var(--accent-green)] transition-all hover:bg-[var(--accent-green)]/20 active:scale-95 disabled:opacity-40"
+            className="rounded-lg bg-[var(--text-primary)] px-3.5 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-85 disabled:opacity-40"
           >
             {saving ? "Saving..." : "Save"}
           </button>

@@ -60,14 +60,13 @@ export function ProjectDetail({
             </div>
           )}
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           {project.running ? (
             <>
               <ActionButton
                 onClick={() => withLoading(() => onStop(project.name))}
                 disabled={loading}
                 variant="destructive"
-                icon="■"
                 label="Stop"
               />
               <ActionButton
@@ -78,7 +77,6 @@ export function ProjectDetail({
                 }
                 disabled={loading}
                 variant="secondary"
-                icon="↻"
                 label="Restart"
               />
             </>
@@ -91,7 +89,6 @@ export function ProjectDetail({
               }
               disabled={loading}
               variant="primary"
-              icon="▶"
               label="Start"
             />
           )}
@@ -99,9 +96,8 @@ export function ProjectDetail({
             <ActionButton
               onClick={() => setConfirmRemove(true)}
               disabled={false}
-              variant="secondary"
-              icon="🗑"
-              label=""
+              variant="ghost"
+              label="Remove"
             />
           )}
         </div>
@@ -143,7 +139,7 @@ export function ProjectDetail({
             <div className="mt-5 flex justify-end gap-2">
               <button
                 onClick={() => setConfirmRemove(false)}
-                className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
+                className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
               >
                 Cancel
               </button>
@@ -153,7 +149,7 @@ export function ProjectDetail({
                   setConfirmRemove(false);
                 }}
                 disabled={loading}
-                className="rounded-lg bg-[var(--accent-red)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                className="rounded-lg bg-[var(--accent-red)] px-4 py-2 text-sm font-medium text-white transition-all hover:opacity-85 disabled:opacity-40"
               >
                 Remove
               </button>
@@ -167,33 +163,32 @@ export function ProjectDetail({
 
 const actionStyles = {
   primary:
-    "bg-[var(--accent-green)]/10 text-[var(--accent-green)] hover:bg-[var(--accent-green)]/20 border-[var(--accent-green)]/20",
+    "bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-85",
   destructive:
-    "bg-[var(--accent-red)]/10 text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 border-[var(--accent-red)]/20",
+    "bg-[var(--accent-red)] text-white hover:opacity-85",
   secondary:
-    "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] border-[var(--border)]",
+    "border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]",
+  ghost:
+    "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]",
 } as const;
 
 function ActionButton({
   onClick,
   disabled,
   variant,
-  icon,
   label,
 }: {
   onClick: () => void;
   disabled: boolean;
   variant: keyof typeof actionStyles;
-  icon: string;
   label: string;
 }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all active:scale-95 disabled:opacity-40 disabled:active:scale-100 ${actionStyles[variant]}`}
+      className={`rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 ${actionStyles[variant]}`}
     >
-      <span className="text-[10px]">{icon}</span>
       {label}
     </button>
   );
