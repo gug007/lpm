@@ -23,11 +23,7 @@ var statusCmd = &cobra.Command{
 		}
 
 		running := tmux.SessionExists(cfg.Name)
-		if running {
-			fmt.Printf("%s%s%s: %s● running%s\n", colorBold, name, colorReset, colorGreen, colorReset)
-		} else {
-			fmt.Printf("%s%s%s: %s○ stopped%s\n", colorBold, name, colorReset, colorDim, colorReset)
-		}
+		fmt.Printf("%s%s%s: %s\n", colorBold, name, colorReset, statusIndicator(running))
 
 		fmt.Println("\nServices:")
 		serviceNames := cfg.ServicesForProfile("")

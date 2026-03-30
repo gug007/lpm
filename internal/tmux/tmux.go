@@ -22,6 +22,20 @@ func SessionExists(name string) bool {
 	return cmd.Run() == nil
 }
 
+func ListSessions() map[string]bool {
+	sessions := make(map[string]bool)
+	out, err := exec.Command("tmux", "list-sessions", "-F", "#{session_name}").Output()
+	if err != nil {
+		return sessions
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if line != "" {
+			sessions[line] = true
+		}
+	}
+	return sessions
+}
+
 func KillSession(name string) error {
 	cmd := exec.Command("tmux", "kill-session", "-t", name)
 	return cmd.Run()

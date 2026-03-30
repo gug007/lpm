@@ -21,6 +21,30 @@ func init() {
 	}
 }
 
+func pluralize(n int, singular string) string {
+	if n == 1 {
+		return fmt.Sprintf("1 %s", singular)
+	}
+	return fmt.Sprintf("%d %ss", n, singular)
+}
+
+func collectPorts(services map[string]config.Service) []string {
+	var ports []string
+	for _, svc := range services {
+		if svc.Port > 0 {
+			ports = append(ports, fmt.Sprintf(":%d", svc.Port))
+		}
+	}
+	return ports
+}
+
+func statusIndicator(running bool) string {
+	if running {
+		return fmt.Sprintf("%s●%s", colorGreen, colorReset)
+	}
+	return fmt.Sprintf("%s○%s", colorDim, colorReset)
+}
+
 func printServiceTable(serviceNames []string, services map[string]config.Service) {
 	for _, svcName := range serviceNames {
 		svc := services[svcName]
