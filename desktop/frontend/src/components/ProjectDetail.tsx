@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { StatusDot } from "./StatusDot";
-import { ServiceList } from "./ServiceList";
+import { TerminalView } from "./TerminalView";
 import type { ProjectInfo } from "../types";
 
 interface ProjectDetailProps {
@@ -31,17 +31,29 @@ export function ProjectDetail({
   };
 
   return (
-    <div className="mx-auto max-w-xl">
-      <div className="flex items-start justify-between">
-        <div>
+    <div className="flex h-full flex-col">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold tracking-tight">
             {project.name}
           </h1>
-          {project.running && (
-            <p className="mt-1 flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
-              <StatusDot running={true} />
-              Running
-            </p>
+          {project.running && <StatusDot running={true} />}
+          {project.profiles && project.profiles.length > 0 && (
+            <div className="flex items-center gap-1">
+              <ProfileTag
+                name="all"
+                active={activeProfile === ""}
+                onClick={() => setActiveProfile("")}
+              />
+              {project.profiles.map((p) => (
+                <ProfileTag
+                  key={p}
+                  name={p}
+                  active={activeProfile === p}
+                  onClick={() => setActiveProfile(p)}
+                />
+              ))}
+            </div>
           )}
         </div>
         <div className="flex items-center gap-1.5">
@@ -82,40 +94,26 @@ export function ProjectDetail({
         </div>
       </div>
 
-      {project.profiles && project.profiles.length > 0 && (
-        <div className="mt-5 flex items-center gap-2">
-          <span className="text-xs text-[var(--text-muted)]">Profile</span>
-          <div className="flex gap-1">
-            <ProfileTag
-              name="all"
-              active={activeProfile === ""}
-              onClick={() => setActiveProfile("")}
-            />
-            {project.profiles.map((p) => (
-              <ProfileTag
-                key={p}
-                name={p}
-                active={activeProfile === p}
-                onClick={() => setActiveProfile(p)}
-              />
-            ))}
-          </div>
+      {!project.running && (
+        <div className="mt-6 flex items-center justify-between">
+          <p className="text-[11px] text-[var(--text-muted)]">{project.root}</p>
+          <button
+            onClick={() => onEdit(project.name)}
+            className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+          >
+            Edit config
+          </button>
         </div>
       )}
 
-      <div className="mt-5">
-        <ServiceList services={project.services || []} />
-      </div>
-
-      <div className="mt-6 flex items-center justify-between">
-        <p className="text-[11px] text-[var(--text-muted)]">{project.root}</p>
-        <button
-          onClick={() => onEdit(project.name)}
-          className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-        >
-          Edit config
-        </button>
-      </div>
+      {project.running && project.services?.length > 0 && (
+        <div className="mt-3 -mx-6 -mb-6 flex flex-1 flex-col overflow-hidden">
+          <TerminalView
+            projectName={project.name}
+            services={project.services}
+          />
+        </div>
+      )}
     </div>
   );
 }

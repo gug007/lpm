@@ -136,6 +136,11 @@ func (a *App) GetProject(name string) (*ProjectInfo, error) {
 	return &info, nil
 }
 
+func (a *App) GetServiceLogs(projectName string, paneIndex int, lines int) (string, error) {
+	session := config.SessionName(projectName)
+	return tmux.CapturePaneLogs(session, paneIndex, lines)
+}
+
 func (a *App) ReadConfig(name string) (string, error) {
 	path := config.ProjectPath(name)
 	data, err := os.ReadFile(path)

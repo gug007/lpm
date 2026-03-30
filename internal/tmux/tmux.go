@@ -36,6 +36,16 @@ func ListSessions() map[string]bool {
 	return sessions
 }
 
+func CapturePaneLogs(session string, paneIndex int, lines int) (string, error) {
+	target := fmt.Sprintf("%s:0.%d", session, paneIndex)
+	cmd := exec.Command("tmux", "capture-pane", "-t", target, "-p", "-J", "-S", fmt.Sprintf("-%d", lines))
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to capture pane %s: %w", target, err)
+	}
+	return strings.TrimRight(string(out), "\n"), nil
+}
+
 func KillSession(name string) error {
 	cmd := exec.Command("tmux", "kill-session", "-t", name)
 	return cmd.Run()
