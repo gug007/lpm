@@ -10,6 +10,20 @@ import (
 	"github.com/gug007/lpm/internal/config"
 )
 
+func init() {
+	// When launched as a macOS .app from Finder, PATH is minimal and won't
+	// include Homebrew paths. Ensure common locations are present so that
+	// exec.Command("tmux", ...) can find the binary.
+	extra := []string{"/opt/homebrew/bin", "/usr/local/bin"}
+	current := os.Getenv("PATH")
+	for _, dir := range extra {
+		if !strings.Contains(current, dir) {
+			current = dir + ":" + current
+		}
+	}
+	os.Setenv("PATH", current)
+}
+
 func EnsureInstalled() error {
 	if _, err := exec.LookPath("tmux"); err != nil {
 		return fmt.Errorf("tmux is required but not installed. Install it with: brew install tmux")

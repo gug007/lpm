@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"sort"
 	"sync"
 
@@ -30,6 +31,48 @@ func NewApp() *App {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+
+	if err := tmux.EnsureInstalled(); err != nil {
+		sel, _ := runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
+			Type:          runtime.QuestionDialog,
+			Title:         "tmux not found",
+			Message:       "tmux is required but not installed.\n\nWould you like to install it now via Homebrew?",
+			Buttons:       []string{"Install", "Cancel"},
+			DefaultButton: "Install",
+			CancelButton:  "Cancel",
+		})
+		if sel == "Install" {
+			a.installTmux()
+		}
+	}
+}
+
+func (a *App) installTmux() {
+	brewPath, err := exec.LookPath("brew")
+	if err != nil {
+		runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
+			Type:    runtime.ErrorDialog,
+			Title:   "Homebrew not found",
+			Message: "Homebrew is required to install tmux.\n\nInstall it from https://brew.sh and relaunch the app.",
+		})
+		return
+	}
+
+	cmd := exec.Command(brewPath, "install", "tmux")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
+			Type:    runtime.ErrorDialog,
+			Title:   "Installation failed",
+			Message: fmt.Sprintf("Failed to install tmux:\n\n%s", string(out)),
+		})
+		return
+	}
+
+	runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
+		Type:    runtime.InfoDialog,
+		Title:   "tmux installed",
+		Message: "tmux was installed successfully.",
+	})
 }
 
 func (a *App) SetDarkMode(dark bool) {
