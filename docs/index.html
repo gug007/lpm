@@ -265,6 +265,16 @@
       });
     })();
 
+    function copyInstall(btn) {
+      navigator.clipboard.writeText("curl -fsSL https://raw.githubusercontent.com/gug007/lpm/main/install.sh | bash");
+      btn.querySelector(".copy-icon").classList.add("hidden");
+      btn.querySelector(".check-icon").classList.remove("hidden");
+      setTimeout(() => {
+        btn.querySelector(".copy-icon").classList.remove("hidden");
+        btn.querySelector(".check-icon").classList.add("hidden");
+      }, 2000);
+    }
+
     lucide.createIcons();
   </script>
 </body>
