@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sort"
 
 	"github.com/gug007/lpm/internal/config"
 	"github.com/gug007/lpm/internal/tmux"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"gopkg.in/yaml.v3"
 )
 
 type App struct {
@@ -132,6 +134,29 @@ func (a *App) GetProject(name string) (*ProjectInfo, error) {
 	running := tmux.SessionExists(cfg.Name)
 	info := toProjectInfo(name, cfg, running)
 	return &info, nil
+}
+
+func (a *App) ReadConfig(name string) (string, error) {
+	path := config.ProjectPath(name)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func (a *App) SaveConfig(name string, content string) error {
+	var test config.ProjectConfig
+	if err := yaml.Unmarshal([]byte(content), &test); err != nil {
+		return fmt.Errorf("invalid YAML: %w", err)
+	}
+
+	path := config.ProjectPath(name)
+	mode := os.FileMode(0644)
+	if info, err := os.Stat(path); err == nil {
+		mode = info.Mode()
+	}
+	return os.WriteFile(path, []byte(content), mode)
 }
 
 func (a *App) RemoveProject(name string) error {

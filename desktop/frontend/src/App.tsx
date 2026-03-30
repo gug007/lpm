@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { Settings } from "./components/Settings";
+import { ConfigEditor } from "./components/ConfigEditor";
 import { StatusBar } from "./components/StatusBar";
 import type { ProjectInfo } from "./types";
 
@@ -11,7 +12,8 @@ const api = { ListProjects, StartProject, StopProject, GetProject };
 export default function App() {
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [view, setView] = useState<"projects" | "settings">("projects");
+  const [view, setView] = useState<"projects" | "settings" | "editor">("projects");
+  const [editingProject, setEditingProject] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -87,8 +89,14 @@ export default function App() {
           onSettings={() => setView("settings")}
           showSettings={view === "settings"}
         />
-        <main className="flex-1 overflow-y-auto bg-[var(--bg-primary)] p-6">
-          {view === "settings" ? (
+        <main className={`flex-1 overflow-hidden bg-[var(--bg-primary)] ${view !== "editor" ? "overflow-y-auto p-6" : ""}`}>
+          {view === "editor" && editingProject ? (
+            <ConfigEditor
+              projectName={editingProject}
+              onClose={() => setView("projects")}
+              onSaved={refresh}
+            />
+          ) : view === "settings" ? (
             <Settings />
           ) : selectedProject ? (
             <ProjectDetail
@@ -97,6 +105,10 @@ export default function App() {
               onStart={handleStart}
               onStop={handleStop}
               onRestart={handleRestart}
+              onEdit={(name) => {
+                setEditingProject(name);
+                setView("editor");
+              }}
             />
           ) : (
             <EmptyState />

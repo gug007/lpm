@@ -8,6 +8,7 @@ interface ProjectDetailProps {
   onStart: (name: string, profile: string) => Promise<void>;
   onStop: (name: string) => Promise<void>;
   onRestart: (name: string, profile: string) => Promise<void>;
+  onEdit: (name: string) => void;
 }
 
 export function ProjectDetail({
@@ -15,6 +16,7 @@ export function ProjectDetail({
   onStart,
   onStop,
   onRestart,
+  onEdit,
 }: ProjectDetailProps) {
   const [loading, setLoading] = useState(false);
   const [activeProfile, setActiveProfile] = useState("");
@@ -28,8 +30,6 @@ export function ProjectDetail({
     }
   };
 
-  const svcCount = project.services?.length || 0;
-
   return (
     <div className="mx-auto max-w-xl">
       <div className="flex items-start justify-between">
@@ -37,11 +37,12 @@ export function ProjectDetail({
           <h1 className="text-xl font-semibold tracking-tight">
             {project.name}
           </h1>
-          <p className="mt-1 flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
-            <StatusDot running={project.running} />
-            {project.running ? "Running" : "Stopped"} &middot; {svcCount}{" "}
-            service{svcCount !== 1 ? "s" : ""}
-          </p>
+          {project.running && (
+            <p className="mt-1 flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
+              <StatusDot running={true} />
+              Running
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-1.5">
           {project.running ? (
@@ -106,9 +107,15 @@ export function ProjectDetail({
         <ServiceList services={project.services || []} />
       </div>
 
-      <p className="mt-6 text-[11px] text-[var(--text-muted)]">
-        {project.root}
-      </p>
+      <div className="mt-6 flex items-center justify-between">
+        <p className="text-[11px] text-[var(--text-muted)]">{project.root}</p>
+        <button
+          onClick={() => onEdit(project.name)}
+          className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+        >
+          Edit config
+        </button>
+      </div>
     </div>
   );
 }
