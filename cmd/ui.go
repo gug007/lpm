@@ -67,6 +67,29 @@ func printServiceTable(serviceNames []string, services map[string]config.Service
 	}
 }
 
+func killProjectSession(name string) error {
+	return tmux.KillSession(config.SessionName(name))
+}
+
+func killAllExcept(exclude string) {
+	projects, err := config.ListProjects()
+	if err != nil {
+		fatal(err)
+	}
+	stopped := 0
+	for _, name := range projects {
+		if name != exclude {
+			if err := killProjectSession(name); err == nil {
+				fmt.Printf("Stopped %s\n", name)
+				stopped++
+			}
+		}
+	}
+	if stopped == 0 && exclude == "" {
+		fmt.Println("No running projects")
+	}
+}
+
 func runProject(name, profile string, attach bool) {
 	if err := tmux.EnsureInstalled(); err != nil {
 		fatal(err)

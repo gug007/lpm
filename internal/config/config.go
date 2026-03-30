@@ -57,6 +57,21 @@ func ProjectPath(name string) string {
 	return filepath.Join(ProjectsDir(), name+".yml")
 }
 
+func SessionName(name string) string {
+	path := ProjectPath(name)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return name
+	}
+	var partial struct {
+		Name string `yaml:"name"`
+	}
+	if err := yaml.Unmarshal(data, &partial); err != nil || partial.Name == "" {
+		return name
+	}
+	return partial.Name
+}
+
 func LoadProject(name string) (*ProjectConfig, error) {
 	if err := ValidateName(name); err != nil {
 		return nil, err
