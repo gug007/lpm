@@ -10,6 +10,7 @@ interface ProjectDetailProps {
   onStop: (name: string) => Promise<void>;
   onRestart: (name: string, profile: string) => Promise<void>;
   onRefresh: () => void;
+  onRemove: (name: string) => Promise<void>;
 }
 
 export function ProjectDetail({
@@ -18,9 +19,11 @@ export function ProjectDetail({
   onStop,
   onRestart,
   onRefresh,
+  onRemove,
 }: ProjectDetailProps) {
   const [loading, setLoading] = useState(false);
   const [activeProfile, setActiveProfile] = useState("");
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
   const withLoading = async (fn: () => Promise<void>) => {
     setLoading(true);
@@ -92,6 +95,15 @@ export function ProjectDetail({
               label="Start"
             />
           )}
+          {!project.running && (
+            <ActionButton
+              onClick={() => setConfirmRemove(true)}
+              disabled={false}
+              variant="secondary"
+              icon="🗑"
+              label=""
+            />
+          )}
         </div>
       </div>
 
@@ -108,6 +120,45 @@ export function ProjectDetail({
             projectName={project.name}
             onSaved={onRefresh}
           />
+        </div>
+      )}
+
+      {confirmRemove && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setConfirmRemove(false)}
+          />
+          <div className="relative w-80 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-6 shadow-xl">
+            <h3 className="text-base font-semibold text-[var(--text-primary)]">
+              Remove project
+            </h3>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">
+              Are you sure you want to remove{" "}
+              <span className="font-medium text-[var(--text-primary)]">
+                {project.name}
+              </span>
+              ? This will delete the config file and stop any running session.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmRemove(false)}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  await onRemove(project.name);
+                  setConfirmRemove(false);
+                }}
+                disabled={loading}
+                className="rounded-lg bg-[var(--accent-red)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

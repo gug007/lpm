@@ -4,8 +4,8 @@ import { ProjectDetail } from "./components/ProjectDetail";
 import { Settings } from "./components/Settings";
 import type { ProjectInfo } from "./types";
 
-import { ListProjects, StartProject, StopProject, GetProject } from '../wailsjs/go/main/App';
-const api = { ListProjects, StartProject, StopProject, GetProject };
+import { ListProjects, StartProject, StopProject, GetProject, RemoveProject } from '../wailsjs/go/main/App';
+const api = { ListProjects, StartProject, StopProject, GetProject, RemoveProject };
 
 export default function App() {
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
@@ -62,6 +62,16 @@ export default function App() {
     }
   };
 
+  const handleRemove = async (name: string) => {
+    try {
+      await api.RemoveProject(name);
+      setSelected(null);
+      await refresh();
+    } catch (err) {
+      setError(`Failed to remove ${name}: ${err}`);
+    }
+  };
+
   return (
     <div className="flex h-screen">
       {error && (
@@ -94,6 +104,7 @@ export default function App() {
               onStop={handleStop}
               onRestart={handleRestart}
               onRefresh={refresh}
+              onRemove={handleRemove}
             />
           ) : (
             <EmptyState />
