@@ -20,13 +20,18 @@ A CLI tool for managing local development environments. Define your project serv
 - One command to switch between projects
 - Profile support for running service subsets
 - Tab completion for all commands
+- **Desktop app** — native macOS GUI with live terminal, config editor, and theme support
 - Works with any stack — if it runs in a terminal, lpm can manage it
 
 ## Install
 
+**CLI:**
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/gug007/lpm/main/install.sh | bash
 ```
+
+**Desktop app:** download the `.dmg` from [Releases](https://github.com/gug007/lpm/releases/latest).
 
 Supports macOS (Apple Silicon & Intel) and Linux (amd64 & arm64).
 

@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  cli:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,5 +24,58 @@ jobs:
         with:
           version: latest
           args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  desktop-macos:
+    strategy:
+      matrix:
+        include:
+          - platform: macos-14
+            arch: arm64
+            name: lpm-desktop-macos-arm64
+          - platform: macos-13
+            arch: amd64
+            name: lpm-desktop-macos-amd64
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install frontend dependencies
+        working-directory: desktop/frontend
+        run: npm install
+
+      - name: Build desktop app
+        working-directory: desktop
+        run: wails build -platform darwin/${{ matrix.arch }}
+
+      - name: Create DMG
+        run: |
+          brew install create-dmg
+          create-dmg \
+            --volname "lpm" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "lpm-desktop.app" 150 190 \
+            --app-drop-link 450 190 \
+            "desktop/build/bin/${{ matrix.name }}.dmg" \
+            "desktop/build/bin/lpm-desktop.app"
+
+      - name: Upload DMG to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: desktop/build/bin/${{ matrix.name }}.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
