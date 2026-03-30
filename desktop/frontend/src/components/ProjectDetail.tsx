@@ -9,7 +9,7 @@ interface ProjectDetailProps {
   onStart: (name: string, profile: string) => Promise<void>;
   onStop: (name: string) => Promise<void>;
   onRestart: (name: string, profile: string) => Promise<void>;
-  onRefresh: () => void;
+  onRefresh: (newName?: string) => void;
   onRemove: (name: string) => Promise<void>;
 }
 

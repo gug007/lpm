@@ -3,7 +3,7 @@ import { ReadConfig, SaveConfig } from "../../wailsjs/go/main/App";
 
 interface ConfigEditorProps {
   projectName: string;
-  onSaved: () => void;
+  onSaved: (newName: string) => void;
 }
 
 export function ConfigEditor({
@@ -33,9 +33,9 @@ export function ConfigEditor({
     setSaving(true);
     setError(null);
     try {
-      await SaveConfig(projectName, content);
+      const newName = await SaveConfig(projectName, content);
       setOriginal(content);
-      onSaved();
+      onSaved(newName);
     } catch (err) {
       setError(`${err}`);
     } finally {

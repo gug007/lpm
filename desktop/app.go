@@ -179,19 +179,42 @@ func (a *App) ReadConfig(name string) (string, error) {
 	return string(data), nil
 }
 
-func (a *App) SaveConfig(name string, content string) error {
-	var test config.ProjectConfig
-	if err := yaml.Unmarshal([]byte(content), &test); err != nil {
-		return fmt.Errorf("invalid YAML: %w", err)
+// SaveConfig returns the new project name (may differ from input if name: field changed).
+func (a *App) SaveConfig(name string, content string) (string, error) {
+	var parsed config.ProjectConfig
+	if err := yaml.Unmarshal([]byte(content), &parsed); err != nil {
+		return "", fmt.Errorf("invalid YAML: %w", err)
 	}
 
-	path := config.ProjectPath(name)
+	oldPath := config.ProjectPath(name)
 	mode := os.FileMode(0644)
-	if info, err := os.Stat(path); err == nil {
+	if info, err := os.Stat(oldPath); err == nil {
 		mode = info.Mode()
 	}
+
+	newName := parsed.Name
+	if newName == "" {
+		newName = name
+	}
+
+	if newName != name {
+		if err := config.ValidateName(newName); err != nil {
+			return "", err
+		}
+		newPath := config.ProjectPath(newName)
+		if _, err := os.Stat(newPath); err == nil {
+			return "", fmt.Errorf("project %q already exists", newName)
+		}
+		if err := os.WriteFile(newPath, []byte(content), mode); err != nil {
+			return "", err
+		}
+		os.Remove(oldPath)
+		a.invalidateSessionCache(name)
+		return newName, nil
+	}
+
 	a.invalidateSessionCache(name)
-	return os.WriteFile(path, []byte(content), mode)
+	return name, os.WriteFile(oldPath, []byte(content), mode)
 }
 
 func (a *App) CreateProject(name string, root string) error {

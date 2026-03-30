@@ -116,7 +116,10 @@ export default function App() {
               onStart={handleStart}
               onStop={handleStop}
               onRestart={handleRestart}
-              onRefresh={refresh}
+              onRefresh={async (newName?: string) => {
+                await refresh();
+                if (newName && newName !== selected) setSelected(newName);
+              }}
               onRemove={handleRemove}
             />
           ) : (
