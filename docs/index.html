@@ -9,6 +9,12 @@
   <meta property="og:description" content="Start, stop, and switch between dev projects with one command.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://gug007.github.io/lpm">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+    }
+  </script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -23,7 +29,7 @@
     }
 
     @media (prefers-color-scheme: dark) {
-      :root {
+      :root:not([data-theme="light"]) {
         --bg: #111;
         --text: #e5e5e5;
         --muted: #999;
@@ -32,6 +38,16 @@
         --code-bg: #1a1a1a;
         --green: #4ade80;
       }
+    }
+
+    :root[data-theme="dark"] {
+      --bg: #111;
+      --text: #e5e5e5;
+      --muted: #999;
+      --border: #2a2a2a;
+      --accent: #fff;
+      --code-bg: #1a1a1a;
+      --green: #4ade80;
     }
 
     body {
@@ -74,6 +90,17 @@
       color: var(--muted);
     }
     nav .links a:hover { color: var(--text); }
+    .theme-toggle {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 13px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .theme-toggle:hover { color: var(--text); border-color: var(--muted); }
 
     /* Hero */
     .hero {
@@ -283,6 +310,7 @@
         <a href="https://github.com/gug007/lpm">GitHub</a>
         <a href="https://github.com/gug007/lpm/releases/latest">Releases</a>
         <a href="#download">Download</a>
+        <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn"></button>
       </div>
     </div>
   </nav>
@@ -399,5 +427,31 @@
     </div>
   </footer>
 
+  <script>
+    const themes = ["system", "light", "dark"];
+    const icons = { system: "System", light: "Light", dark: "Dark" };
+
+    function getTheme() {
+      return localStorage.getItem("lpm-site-theme") || "system";
+    }
+
+    function applyTheme(t) {
+      if (t === "system") {
+        document.documentElement.removeAttribute("data-theme");
+      } else {
+        document.documentElement.setAttribute("data-theme", t);
+      }
+      document.getElementById("themeBtn").textContent = icons[t];
+    }
+
+    function toggleTheme() {
+      const current = getTheme();
+      const next = themes[(themes.indexOf(current) + 1) % themes.length];
+      localStorage.setItem("lpm-site-theme", next);
+      applyTheme(next);
+    }
+
+    applyTheme(getTheme());
+  </script>
 </body>
 </html>
