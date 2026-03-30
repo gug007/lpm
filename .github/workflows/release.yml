@@ -34,7 +34,7 @@ jobs:
           - platform: macos-14
             arch: arm64
             name: lpm-desktop-macos-arm64
-          - platform: macos-13
+          - platform: macos-15
             arch: amd64
             name: lpm-desktop-macos-amd64
     runs-on: ${{ matrix.platform }}
@@ -60,32 +60,15 @@ jobs:
         working-directory: desktop
         run: wails build -platform darwin/${{ matrix.arch }}
 
-      - name: Create DMG
+      - name: Package app
         run: |
-          brew install create-dmg
-          APP_PATH="desktop/build/bin/lpm-desktop.app"
-          DMG_PATH="desktop/build/bin/${{ matrix.name }}.dmg"
-          if [ ! -d "$APP_PATH" ]; then
-            echo "App not found at $APP_PATH"
-            ls -la desktop/build/bin/
-            exit 1
-          fi
-          create-dmg \
-            --volname "lpm" \
-            --window-pos 200 120 \
-            --window-size 600 400 \
-            --icon-size 100 \
-            --icon "lpm-desktop.app" 150 190 \
-            --app-drop-link 450 190 \
-            --no-internet-enable \
-            "$DMG_PATH" \
-            "$APP_PATH" || true
-          # create-dmg exits 1 even on success when code signing is skipped
-          test -f "$DMG_PATH"
+          cd desktop/build/bin
+          ls -la
+          zip -r "${{ matrix.name }}.zip" lpm-desktop.app
 
-      - name: Upload DMG to release
+      - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          files: desktop/build/bin/${{ matrix.name }}.dmg
+          files: desktop/build/bin/${{ matrix.name }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
