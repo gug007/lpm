@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { Settings } from "./components/Settings";
-import { StatusBar } from "./components/StatusBar";
 import type { ProjectInfo } from "./types";
 
 import { ListProjects, StartProject, StopProject, GetProject } from '../wailsjs/go/main/App';
@@ -63,8 +62,6 @@ export default function App() {
     }
   };
 
-  const runningCount = projects.filter((p) => p.running).length;
-
   return (
     <div className="flex h-screen flex-col">
       <div className="wails-drag h-8 shrink-0 border-b border-[var(--border)]" />
@@ -104,7 +101,6 @@ export default function App() {
           )}
         </main>
       </div>
-      <StatusBar total={projects.length} running={runningCount} />
     </div>
   );
 }
