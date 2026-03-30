@@ -64,12 +64,6 @@ export function ProjectDetail({
           {project.running ? (
             <>
               <ActionButton
-                onClick={() => withLoading(() => onStop(project.name))}
-                disabled={loading}
-                variant="destructive"
-                label="Stop"
-              />
-              <ActionButton
                 onClick={() =>
                   withLoading(() =>
                     onRestart(project.name, activeProfile)
@@ -79,26 +73,32 @@ export function ProjectDetail({
                 variant="secondary"
                 label="Restart"
               />
+              <ActionButton
+                onClick={() => withLoading(() => onStop(project.name))}
+                disabled={loading}
+                variant="destructive"
+                label="Stop"
+              />
             </>
           ) : (
-            <ActionButton
-              onClick={() =>
-                withLoading(() =>
-                  onStart(project.name, activeProfile)
-                )
-              }
-              disabled={loading}
-              variant="primary"
-              label="Start"
-            />
-          )}
-          {!project.running && (
-            <ActionButton
-              onClick={() => setConfirmRemove(true)}
-              disabled={false}
-              variant="ghost"
-              label="Remove"
-            />
+            <>
+              <ActionButton
+                onClick={() => setConfirmRemove(true)}
+                disabled={false}
+                variant="ghost"
+                label="Remove"
+              />
+              <ActionButton
+                onClick={() =>
+                  withLoading(() =>
+                    onStart(project.name, activeProfile)
+                  )
+                }
+                disabled={loading}
+                variant="primary"
+                label="Start"
+              />
+            </>
           )}
         </div>
       </div>
