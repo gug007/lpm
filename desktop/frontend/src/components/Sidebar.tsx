@@ -1,3 +1,4 @@
+import { useState, useRef } from "react";
 import { StatusDot } from "./StatusDot";
 import { getSettings } from "../settings";
 import type { ProjectInfo } from "../types";
@@ -9,10 +10,39 @@ interface SidebarProps {
   onToggle: (name: string) => void;
   onSettings: () => void;
   onAddProject: () => void;
+  onReorder: (order: string[]) => void;
   showSettings: boolean;
 }
 
-export function Sidebar({ projects, selected, onSelect, onToggle, onSettings, onAddProject, showSettings }: SidebarProps) {
+export function Sidebar({ projects, selected, onSelect, onToggle, onSettings, onAddProject, onReorder, showSettings }: SidebarProps) {
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [overIdx, setOverIdx] = useState<number | null>(null);
+  const dragRef = useRef(false);
+
+  const handleDragStart = (e: React.DragEvent<HTMLButtonElement>, idx: number) => {
+    setDragIdx(idx);
+    dragRef.current = true;
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragEnd = () => {
+    if (dragIdx !== null && overIdx !== null && dragIdx !== overIdx) {
+      const newOrder = projects.map((p) => p.name);
+      const [moved] = newOrder.splice(dragIdx, 1);
+      newOrder.splice(overIdx, 0, moved);
+      onReorder(newOrder);
+    }
+    setDragIdx(null);
+    setOverIdx(null);
+    dragRef.current = false;
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLButtonElement>, idx: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (idx !== overIdx) setOverIdx(idx);
+  };
+
   return (
     <aside className="flex w-[var(--sidebar-width)] shrink-0 flex-col border-r border-[var(--border)] bg-[var(--bg-sidebar)]">
       <div className="wails-drag h-8 shrink-0" />
@@ -30,27 +60,39 @@ export function Sidebar({ projects, selected, onSelect, onToggle, onSettings, on
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2">
-        {projects.map((project) => (
-          <button
-            key={project.name}
-            onClick={() => onSelect(project.name)}
-            onDoubleClick={() => {
-              if (getSettings().doubleClickToToggle) {
-                onToggle(project.name);
-              }
-            }}
-            className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
-              selected === project.name
-                ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            }`}
-          >
-            <StatusDot running={project.running} />
-            <span className="truncate">{project.name}</span>
-            <span className="ml-auto text-xs text-[var(--text-muted)]">
-              {project.services?.length || 0}
-            </span>
-          </button>
+        {projects.map((project, idx) => (
+          <div key={project.name} className="relative">
+            {dragIdx !== null && overIdx === idx && dragIdx !== idx && dragIdx > idx && (
+              <div className="absolute left-2 right-2 top-0 h-0.5 rounded bg-[var(--accent-cyan)]" />
+            )}
+            <button
+              draggable
+              onDragStart={(e) => handleDragStart(e, idx)}
+              onDragEnd={handleDragEnd}
+              onDragOver={(e) => handleDragOver(e, idx)}
+              onDragEnter={(e) => e.preventDefault()}
+              onClick={() => onSelect(project.name)}
+              onDoubleClick={() => {
+                if (getSettings().doubleClickToToggle) {
+                  onToggle(project.name);
+                }
+              }}
+              className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                selected === project.name
+                  ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                  : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              } ${dragIdx === idx ? "opacity-40" : ""}`}
+            >
+              <StatusDot running={project.running} />
+              <span className="truncate">{project.name}</span>
+              <span className="ml-auto text-xs text-[var(--text-muted)]">
+                {project.services?.length || 0}
+              </span>
+            </button>
+            {dragIdx !== null && overIdx === idx && dragIdx !== idx && dragIdx < idx && (
+              <div className="absolute bottom-0 left-2 right-2 h-0.5 rounded bg-[var(--accent-cyan)]" />
+            )}
+          </div>
         ))}
       </nav>
 

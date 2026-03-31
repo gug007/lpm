@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/gug007/lpm/internal/config"
-	"github.com/gug007/lpm/internal/tmux"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +20,7 @@ var removeCmd = &cobra.Command{
 		}
 		path := config.ProjectPath(name)
 
-		tmux.KillSession(name)
+		killProjectSession(name)
 
 		if err := os.Remove(path); err != nil {
 			if os.IsNotExist(err) {

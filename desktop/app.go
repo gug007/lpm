@@ -27,8 +27,9 @@ var httpClient = &http.Client{Timeout: 30 * time.Second}
 var Version = "dev"
 
 type Settings struct {
-	Theme              string `json:"theme"`
-	DoubleClickToggle  bool   `json:"doubleClickToToggle"`
+	Theme              string   `json:"theme"`
+	DoubleClickToggle  bool     `json:"doubleClickToToggle"`
+	ProjectOrder       []string `json:"projectOrder,omitempty"`
 }
 
 func defaultSettings() Settings {
@@ -45,10 +46,10 @@ func settingsPath() string {
 type App struct {
 	ctx context.Context
 
-	// sessionCache avoids re-reading and parsing YAML on every
-	// GetServiceLogs call (which fires every 1s per pane).
-	sessionMu    sync.RWMutex
-	sessionCache map[string]string // projectName -> session name
+	cacheMu      sync.RWMutex
+	sessionCache map[string]string   // projectName -> session name
+	paneCache    map[string][]string // session name -> pane IDs
+	projectOrder []string            // cached from settings to avoid disk reads on poll
 
 	pendingDownloadURL string // set by CheckForUpdate, used by InstallUpdate
 }
@@ -56,11 +57,13 @@ type App struct {
 func NewApp() *App {
 	return &App{
 		sessionCache: make(map[string]string),
+		paneCache:    make(map[string][]string),
 	}
 }
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	a.projectOrder = a.LoadSettings().ProjectOrder
 
 	if err := tmux.EnsureInstalled(); err != nil {
 		sel, _ := runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
@@ -187,6 +190,9 @@ func (a *App) ListProjects() ([]ProjectInfo, error) {
 		return nil, err
 	}
 
+	// Apply saved ordering
+	names = a.applyProjectOrder(names)
+
 	sessions := tmux.ListSessions()
 	projects := make([]ProjectInfo, 0, len(names))
 
@@ -201,11 +207,53 @@ func (a *App) ListProjects() ([]ProjectInfo, error) {
 	return projects, nil
 }
 
+func (a *App) applyProjectOrder(names []string) []string {
+	a.cacheMu.RLock()
+	order := a.projectOrder
+	a.cacheMu.RUnlock()
+
+	if len(order) == 0 {
+		return names
+	}
+
+	nameSet := make(map[string]bool, len(names))
+	for _, n := range names {
+		nameSet[n] = true
+	}
+
+	ordered := make([]string, 0, len(names))
+	for _, n := range order {
+		if nameSet[n] {
+			ordered = append(ordered, n)
+			delete(nameSet, n)
+		}
+	}
+	for _, n := range names {
+		if nameSet[n] {
+			ordered = append(ordered, n)
+		}
+	}
+	return ordered
+}
+
+func (a *App) ReorderProjects(order []string) error {
+	settings := a.LoadSettings()
+	settings.ProjectOrder = order
+	if err := a.SaveSettings(settings); err != nil {
+		return err
+	}
+	a.cacheMu.Lock()
+	a.projectOrder = order
+	a.cacheMu.Unlock()
+	return nil
+}
+
 func (a *App) StartProject(name, profile string) error {
 	cfg, err := config.LoadProject(name)
 	if err != nil {
 		return err
 	}
+	a.invalidateSessionCache(name)
 	return tmux.StartProject(cfg, profile)
 }
 
@@ -214,6 +262,7 @@ func (a *App) StopProject(name string) error {
 	if err != nil {
 		return err
 	}
+	a.invalidateSessionCache(name)
 	return tmux.KillSession(cfg.Name)
 }
 
@@ -241,29 +290,50 @@ func (a *App) GetProject(name string) (*ProjectInfo, error) {
 }
 
 func (a *App) cachedSessionName(projectName string) string {
-	a.sessionMu.RLock()
+	a.cacheMu.RLock()
 	if s, ok := a.sessionCache[projectName]; ok {
-		a.sessionMu.RUnlock()
+		a.cacheMu.RUnlock()
 		return s
 	}
-	a.sessionMu.RUnlock()
+	a.cacheMu.RUnlock()
 
 	s := config.SessionName(projectName)
-	a.sessionMu.Lock()
+	a.cacheMu.Lock()
 	a.sessionCache[projectName] = s
-	a.sessionMu.Unlock()
+	a.cacheMu.Unlock()
 	return s
 }
 
+func (a *App) cachedPaneIDs(session string) []string {
+	a.cacheMu.RLock()
+	if ids, ok := a.paneCache[session]; ok {
+		a.cacheMu.RUnlock()
+		return ids
+	}
+	a.cacheMu.RUnlock()
+
+	ids := tmux.ListPaneIDs(session)
+	a.cacheMu.Lock()
+	a.paneCache[session] = ids
+	a.cacheMu.Unlock()
+	return ids
+}
+
 func (a *App) invalidateSessionCache(projectName string) {
-	a.sessionMu.Lock()
+	a.cacheMu.Lock()
+	session := a.sessionCache[projectName]
 	delete(a.sessionCache, projectName)
-	a.sessionMu.Unlock()
+	delete(a.paneCache, session)
+	a.cacheMu.Unlock()
 }
 
 func (a *App) GetServiceLogs(projectName string, paneIndex int, lines int) (string, error) {
 	session := a.cachedSessionName(projectName)
-	return tmux.CapturePaneLogs(session, paneIndex, lines)
+	panes := a.cachedPaneIDs(session)
+	if paneIndex >= len(panes) {
+		return "", fmt.Errorf("pane index %d out of range", paneIndex)
+	}
+	return tmux.CapturePaneByID(panes[paneIndex], lines)
 }
 
 func (a *App) ReadConfig(name string) (string, error) {

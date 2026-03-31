@@ -36,26 +36,42 @@ func SessionExists(name string) bool {
 	return cmd.Run() == nil
 }
 
+func parseLines(out []byte) []string {
+	raw := strings.Split(strings.TrimSpace(string(out)), "\n")
+	lines := make([]string, 0, len(raw))
+	for _, line := range raw {
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return lines
+}
+
 func ListSessions() map[string]bool {
 	sessions := make(map[string]bool)
 	out, err := exec.Command("tmux", "list-sessions", "-F", "#{session_name}").Output()
 	if err != nil {
 		return sessions
 	}
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if line != "" {
-			sessions[line] = true
-		}
+	for _, name := range parseLines(out) {
+		sessions[name] = true
 	}
 	return sessions
 }
 
-func CapturePaneLogs(session string, paneIndex int, lines int) (string, error) {
-	target := fmt.Sprintf("%s:0.%d", session, paneIndex)
-	cmd := exec.Command("tmux", "capture-pane", "-t", target, "-p", "-J", "-S", fmt.Sprintf("-%d", lines))
+func ListPaneIDs(session string) []string {
+	out, err := exec.Command("tmux", "list-panes", "-t", session, "-F", "#{pane_id}").Output()
+	if err != nil {
+		return nil
+	}
+	return parseLines(out)
+}
+
+func CapturePaneByID(paneID string, lines int) (string, error) {
+	cmd := exec.Command("tmux", "capture-pane", "-t", paneID, "-p", "-J", "-S", fmt.Sprintf("-%d", lines))
 	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("failed to capture pane %s: %w", target, err)
+		return "", fmt.Errorf("failed to capture pane %s: %w", paneID, err)
 	}
 	return strings.TrimRight(string(out), "\n"), nil
 }
@@ -73,7 +89,6 @@ func StartProject(cfg *config.ProjectConfig, profile string) error {
 
 	KillSession(cfg.Name)
 
-	// Create new session with first service
 	firstService := serviceNames[0]
 	svc, ok := cfg.Services[firstService]
 	if !ok {
@@ -81,14 +96,16 @@ func StartProject(cfg *config.ProjectConfig, profile string) error {
 	}
 	cwd := resolveWorkDir(cfg.Root, svc.Cwd)
 
-	createCmd := exec.Command("tmux", "new-session", "-d", "-s", cfg.Name)
+	createCmd := exec.Command("tmux", "new-session", "-d", "-s", cfg.Name, "-P", "-F", "#{pane_id}")
 	createCmd.Dir = cwd
-	if err := createCmd.Run(); err != nil {
+	out, err := createCmd.Output()
+	if err != nil {
 		return fmt.Errorf("failed to create tmux session: %w", err)
 	}
+	firstPaneID := strings.TrimSpace(string(out))
 
 	// Send command to first pane
-	if err := sendKeys(cfg.Name, "0.0", buildCommand(cwd, svc)); err != nil {
+	if err := sendKeys(firstPaneID, buildCommand(cwd, svc)); err != nil {
 		return fmt.Errorf("failed to start %s: %w", firstService, err)
 	}
 
@@ -105,14 +122,15 @@ func StartProject(cfg *config.ProjectConfig, profile string) error {
 			splitType = "-v" // vertical split for 3rd+ panes
 		}
 
-		split := exec.Command("tmux", "split-window", splitType, "-t", cfg.Name)
+		split := exec.Command("tmux", "split-window", splitType, "-t", cfg.Name, "-P", "-F", "#{pane_id}")
 		split.Dir = cwd
-		if err := split.Run(); err != nil {
+		out, err := split.Output()
+		if err != nil {
 			return fmt.Errorf("failed to split window for %s: %w", name, err)
 		}
+		paneID := strings.TrimSpace(string(out))
 
-		pane := fmt.Sprintf("0.%d", i+1)
-		if err := sendKeys(cfg.Name, pane, buildCommand(cwd, svc)); err != nil {
+		if err := sendKeys(paneID, buildCommand(cwd, svc)); err != nil {
 			return fmt.Errorf("failed to start %s: %w", name, err)
 		}
 	}
@@ -128,8 +146,7 @@ func Attach(sessionName string) error {
 	return cmd.Run()
 }
 
-func sendKeys(session, pane, command string) error {
-	target := fmt.Sprintf("%s:%s", session, pane)
+func sendKeys(target, command string) error {
 	cmd := exec.Command("tmux", "send-keys", "-t", target, command, "Enter")
 	return cmd.Run()
 }

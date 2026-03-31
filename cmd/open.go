@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/gug007/lpm/internal/config"
 	"github.com/gug007/lpm/internal/tmux"
 	"github.com/spf13/cobra"
 )
@@ -11,7 +12,7 @@ var openCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		name := args[0]
-		if err := tmux.Attach(name); err != nil {
+		if err := tmux.Attach(config.SessionName(name)); err != nil {
 			fatalf("%s is not running. Start it with: lpm %s", name, name)
 		}
 	},

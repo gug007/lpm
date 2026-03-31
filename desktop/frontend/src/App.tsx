@@ -5,8 +5,8 @@ import { Settings } from "./components/Settings";
 import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
 import type { ProjectInfo } from "./types";
 
-import { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder, CreateProject } from '../wailsjs/go/main/App';
-const api = { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder, CreateProject };
+import { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects } from '../wailsjs/go/main/App';
+const api = { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects };
 
 export default function App() {
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
@@ -121,6 +121,17 @@ export default function App() {
           }}
           onSettings={() => setView("settings")}
           onAddProject={handleAddProject}
+          onReorder={async (order) => {
+            const orderMap = new Map(order.map((n, i) => [n, i]));
+            setProjects((prev) =>
+              [...prev].sort((a, b) => (orderMap.get(a.name) ?? 0) - (orderMap.get(b.name) ?? 0))
+            );
+            try {
+              await api.ReorderProjects(order);
+            } catch (err) {
+              setError(`Failed to reorder: ${err}`);
+            }
+          }}
           showSettings={view === "settings"}
         />
         <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6 pt-10">
