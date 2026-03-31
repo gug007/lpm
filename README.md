@@ -5,6 +5,7 @@
 </p>
 
 <p align="center">
+  <a href="https://gug007.github.io/lpm/"><img src="https://img.shields.io/badge/website-gug007.github.io%2Flpm-blue" alt="Website"></a>
   <a href="https://github.com/gug007/lpm/releases/latest"><img src="https://img.shields.io/github/v/release/gug007/lpm" alt="Release"></a>
   <a href="https://github.com/gug007/lpm/actions"><img src="https://github.com/gug007/lpm/actions/workflows/release.yml/badge.svg" alt="Build"></a>
   <a href="https://github.com/gug007/lpm/blob/main/LICENSE"><img src="https://img.shields.io/github/license/gug007/lpm" alt="License"></a>
