@@ -7,19 +7,21 @@
 <p align="center">
   <a href="https://gug007.github.io/lpm/"><img src="https://img.shields.io/badge/website-gug007.github.io%2Flpm-blue" alt="Website"></a>
   <a href="https://github.com/gug007/lpm/releases/latest"><img src="https://img.shields.io/github/v/release/gug007/lpm" alt="Release"></a>
-  <a href="https://github.com/gug007/lpm/actions"><img src="https://github.com/gug007/lpm/actions/workflows/release.yml/badge.svg" alt="Build"></a>
-  <a href="https://github.com/gug007/lpm/blob/main/LICENSE"><img src="https://img.shields.io/github/license/gug007/lpm" alt="License"></a>
+ 
 </p>
 
 ---
 
 <p align="center">
   <img src="docs/app-demo.gif" alt="lpm demo" width="700">
+  <br>
+  <a href="https://gug007.github.io/lpm/">Download the app</a>
 </p>
 
 A CLI tool for managing local development environments. Define your project services in a simple YAML config, then start, stop, and switch between projects instantly. Built for developers who work on multiple projects and need fast context switching.
 
 **Why lpm?**
+
 - No Docker required — runs your services natively
 - Auto-detects project setup (Rails, Next.js, Go, Django, Flask, Docker Compose)
 - One command to switch between projects
@@ -101,18 +103,18 @@ lpm myapp -p full    # starts everything
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `lpm <project>` | Start in background |
-| `lpm start <project>` | Start and open terminal |
-| `lpm switch <project>` | Stop all, start another |
-| `lpm kill [project]` | Stop a project (all if none given) |
-| `lpm list` | List all projects |
-| `lpm status <project>` | Show project details |
-| `lpm init [name]` | Create config from current directory |
-| `lpm edit <project>` | Open config in `$EDITOR` |
-| `lpm remove <project>` | Remove a project |
-| `lpm open <project>` | Open project in Finder |
+| Command                | Description                          |
+| ---------------------- | ------------------------------------ |
+| `lpm <project>`        | Start in background                  |
+| `lpm start <project>`  | Start and open terminal              |
+| `lpm switch <project>` | Stop all, start another              |
+| `lpm kill [project]`   | Stop a project (all if none given)   |
+| `lpm list`             | List all projects                    |
+| `lpm status <project>` | Show project details                 |
+| `lpm init [name]`      | Create config from current directory |
+| `lpm edit <project>`   | Open config in `$EDITOR`             |
+| `lpm remove <project>` | Remove a project                     |
+| `lpm open <project>`   | Open project in Finder               |
 
 ## Configuration
 
