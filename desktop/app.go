@@ -19,9 +19,6 @@ type App struct {
 	projectOrder []string            // cached from settings to avoid disk reads on poll
 
 	pendingDownloadURL string // set by CheckForUpdate, used by InstallUpdate
-
-	logWatchMu     sync.Mutex
-	logWatchCancel context.CancelFunc
 }
 
 func NewApp() *App {

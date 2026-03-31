@@ -1,12 +1,10 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"slices"
 	"sort"
-	"time"
 
 	"github.com/gug007/lpm/internal/config"
 	"github.com/gug007/lpm/internal/tmux"
@@ -217,58 +215,6 @@ func (a *App) GetServiceLogs(projectName string, paneIndex int, lines int) (stri
 		return "", fmt.Errorf("pane index %d out of range", paneIndex)
 	}
 	return tmux.CapturePaneByID(panes[paneIndex], lines)
-}
-
-// WatchLogs starts a background goroutine that polls tmux panes every 200ms
-// and emits "log-update" events when output changes.
-func (a *App) WatchLogs(projectName string, paneIndices []int, lines int) {
-	a.logWatchMu.Lock()
-	if a.logWatchCancel != nil {
-		a.logWatchCancel()
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	a.logWatchCancel = cancel
-	a.logWatchMu.Unlock()
-
-	session := a.cachedSessionName(projectName)
-
-	go func() {
-		prev := make([]string, len(paneIndices))
-		ticker := time.NewTicker(200 * time.Millisecond)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				panes := a.cachedPaneIDs(session)
-				for slot, idx := range paneIndices {
-					if idx >= len(panes) {
-						continue
-					}
-					content, err := tmux.CapturePaneByID(panes[idx], lines)
-					if err != nil {
-						continue
-					}
-					if content != prev[slot] {
-						prev[slot] = content
-						runtime.EventsEmit(a.ctx, "log-update", idx, content)
-					}
-				}
-			}
-		}
-	}()
-}
-
-// StopWatchLogs cancels any running log-watch goroutine.
-func (a *App) StopWatchLogs() {
-	a.logWatchMu.Lock()
-	if a.logWatchCancel != nil {
-		a.logWatchCancel()
-		a.logWatchCancel = nil
-	}
-	a.logWatchMu.Unlock()
 }
 
 func (a *App) ReadConfig(name string) (string, error) {
