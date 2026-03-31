@@ -14,16 +14,18 @@ import (
 )
 
 type updateCache struct {
-	Date    string `json:"date"`
-	Latest  string `json:"latest"`
-	Current string `json:"current"`
+	Date   string `json:"date"`
+	Latest string `json:"latest"`
 }
+
+var (
+	updateDone   = make(chan string, 1)
+	updateClient = &http.Client{Timeout: 3 * time.Second}
+)
 
 func updateCachePath() string {
 	return filepath.Join(config.LpmDir(), ".update-check")
 }
-
-var updateDone = make(chan string, 1)
 
 func checkForUpdateInBackground() {
 	if version == "dev" {
@@ -51,20 +53,17 @@ func checkUpdate() string {
 	path := updateCachePath()
 	today := time.Now().Format("2006-01-02")
 
-	// Check cache first
 	if data, err := os.ReadFile(path); err == nil {
 		var c updateCache
 		if json.Unmarshal(data, &c) == nil && c.Date == today {
-			if c.Latest != "" && versionNewer(c.Latest, c.Current) {
+			if c.Latest != "" && versionNewer(c.Latest, version) {
 				return updateNotice(c.Latest)
 			}
 			return ""
 		}
 	}
 
-	// Fetch latest
-	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get("https://api.github.com/repos/gug007/lpm/releases/latest")
+	resp, err := updateClient.Get("https://api.github.com/repos/gug007/lpm/releases/latest")
 	if err != nil {
 		return ""
 	}
@@ -83,8 +82,7 @@ func checkUpdate() string {
 
 	latest := strings.TrimPrefix(release.TagName, "v")
 
-	// Save cache
-	c := updateCache{Date: today, Latest: latest, Current: version}
+	c := updateCache{Date: today, Latest: latest}
 	if data, err := json.Marshal(c); err == nil {
 		os.WriteFile(path, data, 0644)
 	}
