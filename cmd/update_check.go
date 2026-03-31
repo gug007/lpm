@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gug007/lpm/internal/config"
+	semver "github.com/gug007/lpm/internal/version"
 )
 
 type updateCache struct {
@@ -56,7 +56,7 @@ func checkUpdate() string {
 	if data, err := os.ReadFile(path); err == nil {
 		var c updateCache
 		if json.Unmarshal(data, &c) == nil && c.Date == today {
-			if c.Latest != "" && versionNewer(c.Latest, version) {
+			if c.Latest != "" && semver.Newer(c.Latest, version) {
 				return updateNotice(c.Latest)
 			}
 			return ""
@@ -87,29 +87,12 @@ func checkUpdate() string {
 		os.WriteFile(path, data, 0644)
 	}
 
-	if versionNewer(latest, version) {
+	if semver.Newer(latest, version) {
 		return updateNotice(latest)
 	}
 	return ""
 }
 
-func versionNewer(latest, current string) bool {
-	parse := func(v string) [3]int {
-		var parts [3]int
-		for i, s := range strings.SplitN(v, ".", 3) {
-			parts[i], _ = strconv.Atoi(s)
-		}
-		return parts
-	}
-	l, c := parse(latest), parse(current)
-	if l[0] != c[0] {
-		return l[0] > c[0]
-	}
-	if l[1] != c[1] {
-		return l[1] > c[1]
-	}
-	return l[2] > c[2]
-}
 
 func updateNotice(latest string) string {
 	return fmt.Sprintf("\n%sUpdate available: v%s → v%s%s\n  curl -fsSL https://raw.githubusercontent.com/gug007/lpm/main/install.sh | bash\n",
