@@ -104,13 +104,8 @@ jobs:
 
       - name: Package arm64
         run: |
-          DMG_DIR="$RUNNER_TEMP/dmg-arm64"
-          mkdir -p "$DMG_DIR"
-          cp -R desktop/build/bin/lpm.app "$DMG_DIR/"
-          ln -s /Applications "$DMG_DIR/Applications"
-          hdiutil create -volname "lpm" -srcfolder "$DMG_DIR" \
-            -ov -format UDZO desktop/build/bin/lpm-desktop-macos-arm64.dmg
-          rm -rf desktop/build/bin/lpm.app "$DMG_DIR"
+          bash scripts/create-dmg.sh desktop/build/bin/lpm.app desktop/build/bin/lpm-desktop-macos-arm64.dmg
+          rm -rf desktop/build/bin/lpm.app
 
       - name: Build amd64
         working-directory: desktop
@@ -140,13 +135,8 @@ jobs:
 
       - name: Package amd64
         run: |
-          DMG_DIR="$RUNNER_TEMP/dmg-amd64"
-          mkdir -p "$DMG_DIR"
-          cp -R desktop/build/bin/lpm.app "$DMG_DIR/"
-          ln -s /Applications "$DMG_DIR/Applications"
-          hdiutil create -volname "lpm" -srcfolder "$DMG_DIR" \
-            -ov -format UDZO desktop/build/bin/lpm-desktop-macos-amd64.dmg
-          rm -rf desktop/build/bin/lpm.app "$DMG_DIR"
+          bash scripts/create-dmg.sh desktop/build/bin/lpm.app desktop/build/bin/lpm-desktop-macos-amd64.dmg
+          rm -rf desktop/build/bin/lpm.app
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
