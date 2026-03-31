@@ -18,7 +18,9 @@
   <a href="https://gug007.github.io/lpm/">Download the app</a>
 </p>
 
-A CLI tool for managing local development environments. Define your project services in a simple YAML config, then start, stop, and switch between projects instantly. Built for developers who work on multiple projects and need fast context switching.
+A lightweight tool for managing local development environments. Define your project services in a simple YAML config, then start, stop, and switch between projects instantly. Built for developers who work on multiple projects and need fast context switching.
+
+**Two ways to use it — CLI and desktop app.** Both have the same functionality, share the same config and state, and stay fully in sync. Start a project from the app, stop it from the terminal. Use whichever fits your workflow, or both.
 
 **Why lpm?**
 
@@ -28,6 +30,7 @@ A CLI tool for managing local development environments. Define your project serv
 - Profile support for running service subsets
 - Tab completion for all commands
 - **Desktop app** — native macOS GUI with live terminal, config editor, and theme support
+- **CLI + App in sync** — same features, same state, mix and match freely
 - Works with any stack — if it runs in a terminal, lpm can manage it
 
 ## Install
