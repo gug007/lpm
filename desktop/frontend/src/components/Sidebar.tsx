@@ -1,6 +1,8 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { StatusDot } from "./StatusDot";
 import { getSettings } from "../settings";
+import { EventsOn } from "../../wailsjs/runtime/runtime";
+import { InstallUpdate } from "../../wailsjs/go/main/App";
 import type { ProjectInfo } from "../types";
 
 interface SidebarProps {
@@ -18,6 +20,19 @@ export function Sidebar({ projects, selected, onSelect, onToggle, onSettings, on
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
   const dragRef = useRef(false);
+  const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
+  const [installing, setInstalling] = useState(false);
+
+  useEffect(() => EventsOn("update-available", setUpdateInfo), []);
+
+  const handleUpdate = async () => {
+    setInstalling(true);
+    try {
+      await InstallUpdate();
+    } catch {
+      setInstalling(false);
+    }
+  };
 
   const handleDragStart = (e: React.DragEvent<HTMLButtonElement>, idx: number) => {
     setDragIdx(idx);
@@ -43,6 +58,10 @@ export function Sidebar({ projects, selected, onSelect, onToggle, onSettings, on
     if (idx !== overIdx) setOverIdx(idx);
   };
 
+  const isDragging = dragIdx !== null;
+  const showDropAbove = (idx: number) => isDragging && overIdx === idx && dragIdx !== idx && dragIdx! > idx;
+  const showDropBelow = (idx: number) => isDragging && overIdx === idx && dragIdx !== idx && dragIdx! < idx;
+
   return (
     <aside className="flex w-[var(--sidebar-width)] shrink-0 flex-col border-r border-[var(--border)] bg-[var(--bg-sidebar)]">
       <div className="wails-drag h-8 shrink-0" />
@@ -62,8 +81,8 @@ export function Sidebar({ projects, selected, onSelect, onToggle, onSettings, on
       <nav className="flex-1 overflow-y-auto px-2">
         {projects.map((project, idx) => (
           <div key={project.name} className="relative">
-            {dragIdx !== null && overIdx === idx && dragIdx !== idx && dragIdx > idx && (
-              <div className="absolute left-2 right-2 top-0 h-0.5 rounded bg-[var(--accent-cyan)]" />
+            {showDropAbove(idx) && (
+              <div className="absolute inset-x-3 top-0 h-px bg-[var(--accent-cyan)]" />
             )}
             <button
               draggable
@@ -81,7 +100,7 @@ export function Sidebar({ projects, selected, onSelect, onToggle, onSettings, on
                 selected === project.name
                   ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
                   : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-              } ${dragIdx === idx ? "opacity-40" : ""}`}
+              } ${dragIdx === idx ? "opacity-30" : ""}`}
             >
               <StatusDot running={project.running} />
               <span className="truncate">{project.name}</span>
@@ -89,12 +108,30 @@ export function Sidebar({ projects, selected, onSelect, onToggle, onSettings, on
                 {project.services?.length || 0}
               </span>
             </button>
-            {dragIdx !== null && overIdx === idx && dragIdx !== idx && dragIdx < idx && (
-              <div className="absolute bottom-0 left-2 right-2 h-0.5 rounded bg-[var(--accent-cyan)]" />
+            {showDropBelow(idx) && (
+              <div className="absolute inset-x-3 bottom-0 h-px bg-[var(--accent-cyan)]" />
             )}
           </div>
         ))}
       </nav>
+
+      {updateInfo && (
+        <button
+          onClick={handleUpdate}
+          disabled={installing}
+          className="mx-2 mb-2 flex items-center gap-2 rounded-md px-3 py-2 text-left transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
+        >
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent-green)]" />
+          <span className="text-xs text-[var(--text-secondary)]">
+            {installing ? "Updating..." : `v${updateInfo.latestVersion}`}
+          </span>
+          {!installing && (
+            <span className="ml-auto text-[10px] font-medium text-[var(--accent-green)]">
+              Update
+            </span>
+          )}
+        </button>
+      )}
 
       <div className="border-t border-[var(--border)] p-2">
         <button

@@ -30,6 +30,7 @@ type Settings struct {
 	Theme              string   `json:"theme"`
 	DoubleClickToggle  bool     `json:"doubleClickToToggle"`
 	ProjectOrder       []string `json:"projectOrder,omitempty"`
+	LastUpdateCheck    string   `json:"lastUpdateCheck,omitempty"`
 }
 
 func defaultSettings() Settings {
@@ -63,7 +64,10 @@ func NewApp() *App {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	a.projectOrder = a.LoadSettings().ProjectOrder
+	settings := a.LoadSettings()
+	a.projectOrder = settings.ProjectOrder
+
+	go a.autoCheckForUpdate(settings)
 
 	if err := tmux.EnsureInstalled(); err != nil {
 		sel, _ := runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
@@ -440,6 +444,25 @@ func versionNewer(latest, current string) bool {
 		return l[1] > c[1]
 	}
 	return l[2] > c[2]
+}
+
+func (a *App) autoCheckForUpdate(settings Settings) {
+	today := time.Now().Format("2006-01-02")
+	if settings.LastUpdateCheck == today {
+		return
+	}
+
+	info, err := a.CheckForUpdate()
+	if err != nil {
+		return
+	}
+
+	settings.LastUpdateCheck = today
+	a.SaveSettings(settings)
+
+	if info.UpdateAvail {
+		runtime.EventsEmit(a.ctx, "update-available", info)
+	}
 }
 
 func (a *App) CheckForUpdate() (*UpdateInfo, error) {
