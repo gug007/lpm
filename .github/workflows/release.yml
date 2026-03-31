@@ -78,7 +78,7 @@ jobs:
 
       - name: Build arm64
         working-directory: desktop
-        run: wails build -platform darwin/arm64
+        run: wails build -platform darwin/arm64 -ldflags "-X main.Version=${GITHUB_REF_NAME#v}"
 
       - name: Sign arm64
         run: |
@@ -109,7 +109,7 @@ jobs:
 
       - name: Build amd64
         working-directory: desktop
-        run: wails build -platform darwin/amd64
+        run: wails build -platform darwin/amd64 -ldflags "-X main.Version=${GITHUB_REF_NAME#v}"
 
       - name: Sign amd64
         run: |

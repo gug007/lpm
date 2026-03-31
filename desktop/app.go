@@ -24,7 +24,7 @@ import (
 
 var httpClient = &http.Client{Timeout: 30 * time.Second}
 
-var Version = "0.1.9"
+var Version = "dev"
 
 type Settings struct {
 	Theme              string `json:"theme"`
