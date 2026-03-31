@@ -103,7 +103,7 @@ export function ProjectDetail({
       </div>
 
       {project.running && project.services?.length > 0 ? (
-        <div className="mt-3 -mx-6 -mb-6 flex flex-1 flex-col overflow-hidden">
+        <div className="mt-3 -mx-2 -mb-3 flex flex-1 flex-col overflow-hidden">
           <TerminalView
             projectName={project.name}
             services={project.services}

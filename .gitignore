@@ -6,6 +6,7 @@ lpm
 *.exe
 
 # Desktop app (Wails)
+desktop/desktop
 desktop/build/bin/
 desktop/frontend/dist/
 desktop/frontend/node_modules/

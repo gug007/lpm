@@ -2,14 +2,58 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { GetServiceLogs, StartLogStreaming, StopLogStreaming } from "../../wailsjs/go/main/App";
 import { Pane, PaneHandle } from "./Pane";
-import { TabButton } from "./TabButton";
-
-const toolbarBtn =
-  "rounded px-1.5 py-0.5 text-[11px] text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]";
 
 interface TerminalViewProps {
   projectName: string;
   services: { name: string }[];
+}
+
+const iconProps = { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+
+function SearchIcon() { return <svg {...iconProps}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>; }
+function TrashIcon() { return <svg {...iconProps}><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>; }
+function ArrowDownIcon() { return <svg {...iconProps}><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></svg>; }
+function MinusIcon() { return <svg {...iconProps}><path d="M5 12h14" /></svg>; }
+function PlusIcon() { return <svg {...iconProps}><path d="M12 5v14" /><path d="M5 12h14" /></svg>; }
+function ChevronUpIcon() { return <svg {...iconProps}><path d="m18 15-6-6-6 6" /></svg>; }
+function ChevronDownIcon() { return <svg {...iconProps}><path d="m6 9 6 6 6-6" /></svg>; }
+function XIcon() { return <svg {...iconProps}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>; }
+
+function IconBtn({ onClick, title, children, active, className = "" }: {
+  onClick: () => void;
+  title: string;
+  children: React.ReactNode;
+  active?: boolean;
+  className?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`flex items-center justify-center rounded p-1 transition-colors ${
+        active
+          ? "bg-[var(--terminal-header-active)] text-[var(--terminal-tab-active)]"
+          : "text-[var(--terminal-header-text)] hover:bg-[var(--terminal-header-hover)] hover:text-[var(--terminal-tab-active)]"
+      } ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function HeaderTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-md px-2.5 py-1 font-mono text-[11px] font-medium transition-colors ${
+        active
+          ? "bg-[var(--terminal-header-active)] text-[var(--terminal-tab-active)]"
+          : "text-[var(--terminal-header-text)] hover:text-[var(--terminal-tab-active)]"
+      }`}
+    >
+      {label}
+    </button>
+  );
 }
 
 export function TerminalView({ projectName, services }: TerminalViewProps) {
@@ -23,10 +67,8 @@ export function TerminalView({ projectName, services }: TerminalViewProps) {
   const paneScrollState = useRef<Record<number, boolean>>({});
   const searchInputRef = useRef<HTMLInputElement>(null);
   const prevOutputs = useRef<string[]>([]);
-  const showSearchRef = useRef(showSearch);
   const activePaneRef = useRef(activePane);
 
-  showSearchRef.current = showSearch;
   activePaneRef.current = activePane;
 
   const servicesKey = useMemo(
@@ -61,17 +103,14 @@ export function TerminalView({ projectName, services }: TerminalViewProps) {
   const zoomOut = useCallback(() => setFontSize((s) => Math.max(s - 1, 8)), []);
 
   const forActivePanes = useCallback((fn: (p: PaneHandle) => void) => {
-      if (activePaneRef.current === "all") {
-        paneRefs.current.forEach((p) => p && fn(p));
-      } else {
-        const p = paneRefs.current[activePaneRef.current];
-        if (p) fn(p);
-      }
-    },
-    []
-  );
+    if (activePaneRef.current === "all") {
+      paneRefs.current.forEach((p) => p && fn(p));
+    } else {
+      const p = paneRefs.current[activePaneRef.current];
+      if (p) fn(p);
+    }
+  }, []);
 
-  // Try event-based streaming; fall back to polling if unavailable
   useEffect(() => {
     setOutputs(new Array(stableServices.length).fill(""));
     prevOutputs.current = [];
@@ -83,17 +122,16 @@ export function TerminalView({ projectName, services }: TerminalViewProps) {
 
     try {
       StartLogStreaming(projectName).catch(() => {});
-
       const cancel = EventsOn("log-update", (update: { project: string; pane: number; content: string }) => {
         if (update?.project !== projectName) return;
         setOutputs((prev) => {
           if (update.pane < 0 || update.pane >= prev.length) return prev;
+          if (prev[update.pane] === update.content) return prev;
           const next = [...prev];
           next[update.pane] = update.content;
           return next;
         });
       });
-
       if (typeof cancel === "function") eventCleanup = cancel;
       streaming = true;
     } catch {
@@ -126,20 +164,14 @@ export function TerminalView({ projectName, services }: TerminalViewProps) {
     };
   }, [projectName, stableServices]);
 
-  // Keyboard shortcuts — uses refs to avoid re-registration on state changes
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey;
-
       if (mod && e.key === "f") { e.preventDefault(); toggleSearch(); }
       if (mod && (e.key === "=" || e.key === "+")) { e.preventDefault(); zoomIn(); }
       if (mod && e.key === "-") { e.preventDefault(); zoomOut(); }
-
-      if (e.key === "Escape" && showSearchRef.current) {
-        closeSearch();
-      }
+      if (e.key === "Escape") closeSearch();
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [toggleSearch, zoomIn, zoomOut, closeSearch]);
@@ -165,92 +197,65 @@ export function TerminalView({ projectName, services }: TerminalViewProps) {
   };
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden border-t border-[var(--border)]">
-      {/* Toolbar */}
-      <div className="flex items-center gap-1 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-2 py-1">
-        {hasMultiple && (
-          <TabButton label="all" active={showAll} onClick={() => setActivePane("all")} />
-        )}
-        {stableServices.map((svc, i) => (
-          <TabButton
-            key={svc.name}
-            label={svc.name}
-            active={activePane === i}
-            onClick={() => setActivePane(i)}
-          />
-        ))}
+    <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-[var(--border)]">
+      <div className="flex items-center gap-0.5 rounded-t-lg bg-[var(--terminal-header)] px-3 py-1.5">
+        <div className="flex items-center gap-0.5">
+          {hasMultiple && (
+            <HeaderTab label="All" active={showAll} onClick={() => setActivePane("all")} />
+          )}
+          {stableServices.map((svc, i) => (
+            <HeaderTab key={svc.name} label={svc.name} active={activePane === i} onClick={() => setActivePane(i)} />
+          ))}
+        </div>
 
         <div className="flex-1" />
 
-        <button onClick={zoomOut} className={toolbarBtn} title="Decrease font size">A-</button>
-        <span className="min-w-[1.5rem] text-center text-[10px] tabular-nums text-[var(--text-muted)]">{fontSize}</span>
-        <button onClick={zoomIn} className={toolbarBtn} title="Increase font size">A+</button>
-
-        <div className="mx-1 h-3 w-px bg-[var(--border)]" />
-
-        <button
-          onClick={toggleSearch}
-          className={`rounded px-1.5 py-0.5 text-[11px] transition-colors ${
-            showSearch
-              ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-              : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
-          }`}
-          title="Search (Cmd+F)"
-        >
-          Search
-        </button>
-
-        <button
-          onClick={() => forActivePanes((p) => p.clear())}
-          className={toolbarBtn}
-          title="Clear terminal"
-        >
-          Clear
-        </button>
-
-        {!atBottom && (
-          <button
-            onClick={() => {
-              forActivePanes((p) => p.scrollToBottom());
-              paneScrollState.current = {};
-              setAtBottom(true);
-            }}
-            className="ml-1 rounded bg-[var(--accent-cyan)] px-2 py-0.5 text-[11px] font-medium text-white transition-opacity hover:opacity-90"
-            title="Scroll to bottom"
-          >
-            ↓ Bottom
-          </button>
-        )}
+        <div className="flex items-center gap-0.5">
+          <IconBtn onClick={zoomOut} title="Zoom out"><MinusIcon /></IconBtn>
+          <span className="min-w-[1.25rem] text-center font-mono text-[10px] tabular-nums text-[var(--terminal-header-text)]">
+            {fontSize}
+          </span>
+          <IconBtn onClick={zoomIn} title="Zoom in"><PlusIcon /></IconBtn>
+          <div className="mx-1 h-3.5 w-px bg-[var(--terminal-header-hover)]" />
+          <IconBtn onClick={toggleSearch} title="Search (Cmd+F)" active={showSearch}><SearchIcon /></IconBtn>
+          <IconBtn onClick={() => forActivePanes((p) => p.clear())} title="Clear"><TrashIcon /></IconBtn>
+          {!atBottom && (
+            <IconBtn
+              onClick={() => {
+                forActivePanes((p) => p.scrollToBottom());
+                paneScrollState.current = {};
+                setAtBottom(true);
+              }}
+              title="Scroll to bottom"
+              className="text-[var(--accent-cyan)]"
+            >
+              <ArrowDownIcon />
+            </IconBtn>
+          )}
+        </div>
       </div>
 
-      {/* Search bar */}
       {showSearch && (
-        <div className="flex items-center gap-1.5 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-2 py-1">
+        <div className="flex items-center gap-1 bg-[var(--terminal-header)] px-3 py-1 border-t border-[var(--terminal-header-hover)]">
           <input
             ref={searchInputRef}
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                handleSearch(e.shiftKey ? "prev" : "next");
-              }
+              if (e.key === "Enter") { e.preventDefault(); handleSearch(e.shiftKey ? "prev" : "next"); }
               if (e.key === "Escape") closeSearch();
             }}
-            placeholder="Search logs..."
-            className="w-52 rounded border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-0.5 text-[11px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
+            placeholder="Find in logs..."
+            className="w-48 rounded-md border border-[var(--terminal-header-hover)] bg-[var(--terminal-bg)] px-2 py-0.5 font-mono text-[11px] text-[var(--terminal-fg)] outline-none placeholder:text-[var(--terminal-header-text)] focus:border-[var(--accent-cyan)]"
           />
-          <button onClick={() => handleSearch("prev")} className={toolbarBtn} title="Previous match (Shift+Enter)">↑</button>
-          <button onClick={() => handleSearch("next")} className={toolbarBtn} title="Next match (Enter)">↓</button>
-          <button onClick={closeSearch} className={toolbarBtn} title="Close search (Escape)">✕</button>
+          <IconBtn onClick={() => handleSearch("prev")} title="Previous (Shift+Enter)"><ChevronUpIcon /></IconBtn>
+          <IconBtn onClick={() => handleSearch("next")} title="Next (Enter)"><ChevronDownIcon /></IconBtn>
+          <IconBtn onClick={closeSearch} title="Close (Escape)"><XIcon /></IconBtn>
         </div>
       )}
 
-      {/* Terminal panes */}
-      <div
-        className={`flex flex-1 overflow-hidden ${showAll && hasMultiple ? "divide-x divide-[var(--border)]" : ""}`}
-      >
+      <div className={`flex flex-1 overflow-hidden ${showAll && hasMultiple ? "divide-x divide-[var(--border)]" : ""}`}>
         {stableServices.map((svc, i) => {
           const visible = showAll || activePane === i;
           return (
@@ -259,9 +264,7 @@ export function TerminalView({ projectName, services }: TerminalViewProps) {
               className={visible ? "flex flex-1 flex-col overflow-hidden" : "hidden"}
             >
               <Pane
-                ref={(el) => {
-                  paneRefs.current[i] = el;
-                }}
+                ref={(el) => { paneRefs.current[i] = el; }}
                 label={showAll && hasMultiple ? svc.name : undefined}
                 output={outputs[i] || ""}
                 visible={visible}
