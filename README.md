@@ -38,7 +38,7 @@ A CLI tool for managing local development environments. Define your project serv
 curl -fsSL https://raw.githubusercontent.com/gug007/lpm/main/install.sh | bash
 ```
 
-**Desktop app:** download the `.zip` from [Releases](https://github.com/gug007/lpm/releases/latest), unzip, and drag to Applications.
+**Desktop app:** download the `.dmg` from [Releases](https://github.com/gug007/lpm/releases/latest), open it, and drag to Applications.
 
 Supports macOS (Apple Silicon & Intel) and Linux (amd64 & arm64).
 

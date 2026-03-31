@@ -104,9 +104,9 @@ jobs:
 
       - name: Package arm64
         run: |
-          cd desktop/build/bin
-          ditto -c -k --keepParent lpm.app lpm-desktop-macos-arm64.zip
-          rm -rf lpm.app
+          hdiutil create -volname "lpm" -srcfolder desktop/build/bin/lpm.app \
+            -ov -format UDZO desktop/build/bin/lpm-desktop-macos-arm64.dmg
+          rm -rf desktop/build/bin/lpm.app
 
       - name: Build amd64
         working-directory: desktop
@@ -136,15 +136,16 @@ jobs:
 
       - name: Package amd64
         run: |
-          cd desktop/build/bin
-          ditto -c -k --keepParent lpm.app lpm-desktop-macos-amd64.zip
+          hdiutil create -volname "lpm" -srcfolder desktop/build/bin/lpm.app \
+            -ov -format UDZO desktop/build/bin/lpm-desktop-macos-amd64.dmg
+          rm -rf desktop/build/bin/lpm.app
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            desktop/build/bin/lpm-desktop-macos-arm64.zip
-            desktop/build/bin/lpm-desktop-macos-amd64.zip
+            desktop/build/bin/lpm-desktop-macos-arm64.dmg
+            desktop/build/bin/lpm-desktop-macos-amd64.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
