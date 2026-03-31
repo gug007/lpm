@@ -15,6 +15,10 @@
   --accent-green: #22c55e;
   --accent-red: #ef4444;
   --accent-cyan: #06b6d4;
+  --terminal-bg: #fafafa;
+  --terminal-fg: #383a42;
+  --terminal-selection: rgba(0, 122, 204, 0.2);
+  --terminal-cursor: #383a42;
 }
 
 [data-theme="dark"] {
@@ -30,6 +34,10 @@
   --accent-green: #4ade80;
   --accent-red: #f87171;
   --accent-cyan: #22d3ee;
+  --terminal-bg: #1a1a1a;
+  --terminal-fg: #cccccc;
+  --terminal-selection: #444444;
+  --terminal-cursor: #cccccc;
 }
 
 body {

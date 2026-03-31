@@ -18,6 +18,9 @@ type App struct {
 	paneCache    map[string][]string // session name -> pane IDs
 	projectOrder []string            // cached from settings to avoid disk reads on poll
 
+	streamMu sync.Mutex
+	streams  map[string]context.CancelFunc // projectName -> cancel streaming
+
 	pendingDownloadURL string // set by CheckForUpdate, used by InstallUpdate
 }
 
@@ -25,6 +28,7 @@ func NewApp() *App {
 	return &App{
 		sessionCache: make(map[string]string),
 		paneCache:    make(map[string][]string),
+		streams:      make(map[string]context.CancelFunc),
 	}
 }
 
@@ -76,6 +80,15 @@ func (a *App) installTmux() {
 		Title:   "tmux installed",
 		Message: "tmux was installed successfully.",
 	})
+}
+
+func (a *App) shutdown(ctx context.Context) {
+	a.streamMu.Lock()
+	for name, cancel := range a.streams {
+		cancel()
+		delete(a.streams, name)
+	}
+	a.streamMu.Unlock()
 }
 
 func (a *App) SetDarkMode(dark bool) {
