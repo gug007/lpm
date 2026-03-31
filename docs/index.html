@@ -1,492 +1,863 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>lpm — Local Project Manager | Manage Dev Projects from the Terminal</title>
-  <meta name="description" content="lpm is a CLI and native macOS desktop app for managing local dev projects. Start, stop, and switch between projects with one command. CLI and app stay fully in sync. Supports Rails, Next.js, Go, Django, Docker Compose, and more.">
-  <meta name="keywords" content="local project manager, dev tools, CLI, macOS app, process manager, developer workflow, terminal, project switcher">
-  <link rel="canonical" href="https://gug007.github.io/lpm">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+      lpm — Local Project Manager | Manage Dev Projects from the Terminal
+    </title>
+    <meta
+      name="description"
+      content="lpm is a CLI and native macOS desktop app for managing local dev projects. Start, stop, and switch between projects with one command. CLI and app stay fully in sync. Supports Rails, Next.js, Go, Django, Docker Compose, and more."
+    />
+    <meta
+      name="keywords"
+      content="local project manager, dev tools, CLI, macOS app, process manager, developer workflow, terminal, project switcher"
+    />
+    <link rel="canonical" href="https://gug007.github.io/lpm" />
 
-  <!-- Open Graph -->
-  <meta property="og:title" content="lpm — Local Project Manager">
-  <meta property="og:description" content="Use the CLI or the desktop app — they stay in sync. Start, stop, and switch between local dev projects with one command.">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://gug007.github.io/lpm">
-  <meta property="og:site_name" content="lpm">
+    <!-- Open Graph -->
+    <meta property="og:title" content="lpm — Local Project Manager" />
+    <meta
+      property="og:description"
+      content="Use the CLI or the desktop app — they stay in sync. Start, stop, and switch between local dev projects with one command."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://gug007.github.io/lpm" />
+    <meta property="og:site_name" content="lpm" />
 
-  <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="lpm — Local Project Manager">
-  <meta name="twitter:description" content="Use the CLI or the desktop app — they stay in sync. Start, stop, and switch between local dev projects with one command.">
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="lpm — Local Project Manager" />
+    <meta
+      name="twitter:description"
+      content="Use the CLI or the desktop app — they stay in sync. Start, stop, and switch between local dev projects with one command."
+    />
 
-  <!-- Structured Data -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    "name": "lpm",
-    "alternateName": "Local Project Manager",
-    "description": "A CLI and native macOS desktop app to manage local dev projects. Start, stop, and switch with one command. CLI and app stay fully in sync.",
-    "applicationCategory": "DeveloperApplication",
-    "operatingSystem": "macOS, Linux",
-    "url": "https://gug007.github.io/lpm",
-    "downloadUrl": "https://github.com/gug007/lpm/releases/latest",
-    "softwareHelp": "https://github.com/gug007/lpm",
-    "license": "https://opensource.org/licenses/MIT",
-    "offers": {
-      "@type": "Offer",
-      "price": "0",
-      "priceCurrency": "USD"
-    }
-  }
-  </script>
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "lpm",
+        "alternateName": "Local Project Manager",
+        "description": "A CLI and native macOS desktop app to manage local dev projects. Start, stop, and switch with one command. CLI and app stay fully in sync.",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "macOS, Linux",
+        "url": "https://gug007.github.io/lpm",
+        "downloadUrl": "https://github.com/gug007/lpm/releases/latest",
+        "softwareHelp": "https://github.com/gug007/lpm",
+        "license": "https://opensource.org/licenses/MIT",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    </script>
 
-  <link rel="preconnect" href="https://cdn.tailwindcss.com">
-  <link rel="preconnect" href="https://unpkg.com">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-    }
-  </script>
-</head>
-<body class="bg-white text-gray-900 dark:bg-[#111] dark:text-gray-200 font-sans">
-
-  <!-- Nav -->
-  <nav aria-label="Main navigation" class="fixed top-0 left-0 right-0 z-50 backdrop-blur-lg bg-white/70 dark:bg-[#111]/70">
-    <div class="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between">
-      <a href="/" class="text-base font-bold tracking-tight text-gray-900 dark:text-white">lpm</a>
-      <div class="flex items-center gap-5">
-        <a href="https://github.com/gug007/lpm" class="inline-flex items-center gap-1.5 text-[13px] text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200">
-          GitHub
-          <span id="starCount" class="hidden items-center gap-0.5 text-[11px] bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded-full font-medium">
-            <i data-lucide="star" class="w-3 h-3"></i>
-            <span id="starNum"></span>
-          </span>
-        </a>
-        <a href="https://github.com/gug007/lpm/releases/latest" class="text-[13px] text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200">Releases</a>
-        <button onclick="toggleTheme()" id="themeBtn" class="text-gray-400 hover:text-gray-900 dark:hover:text-white cursor-pointer transition-colors duration-200">
-          <i id="sunIcon" data-lucide="sun" class="w-[15px] h-[15px] hidden"></i>
-          <i id="moonIcon" data-lucide="moon" class="w-[15px] h-[15px] hidden"></i>
-        </button>
-      </div>
-    </div>
-  </nav>
-
-  <!-- Hero -->
-  <main>
-  <section class="pt-28 sm:pt-40 pb-12 sm:pb-20 text-center">
-    <div class="max-w-3xl mx-auto px-6">
-      <p class="text-xs font-medium uppercase tracking-[0.25em] text-gray-400 dark:text-gray-500 mb-6">Local Project Manager</p>
-      <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.1] bg-gradient-to-br from-gray-900 via-gray-700 to-gray-500 dark:from-white dark:via-gray-200 dark:to-gray-500 bg-clip-text text-transparent">
-        Manage dev projects<br class="hidden sm:block"> from CLI or desktop app
-      </h1>
-      <p class="mt-6 text-base sm:text-lg text-gray-400 dark:text-gray-500 max-w-lg mx-auto leading-relaxed tracking-wide">
-        Start, stop, and switch between local dev projects instantly. A lightweight tool for developers who juggle multiple services.
-      </p>
-      <div class="mt-10 flex gap-4 justify-center flex-wrap">
-        <a id="heroDownload" href="#download" class="group px-7 py-3.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-full text-sm font-semibold hover:scale-[1.03] hover:shadow-lg active:scale-[0.98] transition-all duration-200 flex items-center gap-2.5">
-          <i data-lucide="download" class="w-4 h-4 transition-transform duration-200 group-hover:-translate-y-px"></i>
-          <span id="heroDownloadLabel">Download</span>
-        </a>
-        <a href="https://github.com/gug007/lpm" class="px-7 py-3.5 border border-gray-200 dark:border-gray-700 rounded-full text-sm font-semibold hover:border-gray-400 dark:hover:border-gray-500 hover:scale-[1.03] active:scale-[0.98] transition-all duration-200">View on GitHub</a>
-      </div>
-
-      <!-- Install CLI -->
-      <div class="mt-12">
-        <div class="inline-flex items-center gap-3 bg-gray-50 dark:bg-white/[0.04] border border-gray-200/60 dark:border-gray-800/60 px-5 py-3 rounded-full max-w-full">
-          <span class="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400 dark:text-gray-600 hidden sm:inline">install</span>
-          <span class="hidden sm:block w-px h-4 bg-gray-200 dark:bg-gray-700"></span>
-          <code class="text-xs sm:text-sm font-mono text-gray-600 dark:text-gray-400 select-all whitespace-nowrap overflow-x-auto">curl -fsSL https://raw.githubusercontent.com/gug007/lpm/main/install.sh | bash</code>
-          <button onclick="copyInstall(this)" class="flex-shrink-0 p-1 text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors duration-200 cursor-pointer" title="Copy to clipboard">
-            <i data-lucide="copy" class="w-3.5 h-3.5 copy-icon"></i>
-            <i data-lucide="check" class="w-3.5 h-3.5 check-icon hidden text-green-500"></i>
+    <link rel="preconnect" href="https://cdn.tailwindcss.com" />
+    <link rel="preconnect" href="https://unpkg.com" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+      };
+    </script>
+  </head>
+  <body
+    class="bg-white text-gray-900 dark:bg-[#111] dark:text-gray-200 font-sans"
+  >
+    <!-- Nav -->
+    <nav
+      aria-label="Main navigation"
+      class="fixed top-0 left-0 right-0 z-50 backdrop-blur-lg bg-white/70 dark:bg-[#111]/70"
+    >
+      <div
+        class="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between"
+      >
+        <a
+          href="/"
+          class="text-base font-bold tracking-tight text-gray-900 dark:text-white"
+          >lpm</a
+        >
+        <div class="flex items-center gap-5">
+          <span id="ghBtn" class="relative top-[3px] invisible"
+            ><a
+              class="github-button text-[13px]"
+              href="https://github.com/gug007/lpm"
+              data-icon="octicon-star"
+              data-show-count="true"
+              aria-label="Star gug007/lpm on GitHub"
+              >GitHub</a
+            ></span
+          >
+          <a
+            href="https://github.com/gug007/lpm/releases/latest"
+            class="text-[13px] text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
+            >Releases</a
+          >
+          <button
+            onclick="toggleTheme()"
+            id="themeBtn"
+            class="text-gray-400 hover:text-gray-900 dark:hover:text-white cursor-pointer transition-colors duration-200"
+          >
+            <i
+              id="sunIcon"
+              data-lucide="sun"
+              class="w-[15px] h-[15px] hidden"
+            ></i>
+            <i
+              id="moonIcon"
+              data-lucide="moon"
+              class="w-[15px] h-[15px] hidden"
+            ></i>
           </button>
         </div>
       </div>
-    </div>
-  </section>
+    </nav>
 
-  <!-- Demo -->
-  <section class="py-16 relative overflow-hidden">
-    <div class="absolute inset-0 bg-gradient-to-b from-gray-50/80 via-gray-100/50 to-transparent dark:from-gray-900/60 dark:via-gray-900/30 dark:to-transparent pointer-events-none"></div>
-    <div class="max-w-3xl mx-auto px-6 relative z-10">
-      <p class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500 text-center mb-6 flex items-center justify-center gap-2">
-        <i data-lucide="play-circle" class="w-4 h-4"></i>
-        See it in action
-      </p>
-      <video src="app-demo.mp4" autoplay loop muted playsinline aria-label="lpm desktop app demo showing project management" class="w-full rounded-2xl shadow-2xl shadow-gray-200/60 dark:shadow-black/40 border border-gray-200/80 dark:border-gray-800/80">
-        <p>Demo of lpm desktop app — start, stop, and manage local dev projects from a native macOS interface.</p>
-      </video>
-    </div>
-  </section>
+    <!-- Hero -->
+    <main>
+      <section class="pt-28 sm:pt-40 pb-12 sm:pb-20 text-center">
+        <div class="max-w-3xl mx-auto px-6">
+          <p
+            class="text-xs font-medium uppercase tracking-[0.25em] text-gray-400 dark:text-gray-500 mb-6"
+          >
+            Local Project Manager
+          </p>
+          <h1
+            class="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.1] bg-gradient-to-br from-gray-900 via-gray-700 to-gray-500 dark:from-white dark:via-gray-200 dark:to-gray-500 bg-clip-text text-transparent"
+          >
+            Manage dev projects<br class="hidden sm:block" />
+            from CLI or desktop app
+          </h1>
+          <p
+            class="mt-6 text-base sm:text-lg text-gray-400 dark:text-gray-500 max-w-lg mx-auto leading-relaxed tracking-wide"
+          >
+            Start, stop, and switch between local dev projects instantly. A
+            lightweight tool for developers who juggle multiple services.
+          </p>
+          <div class="mt-10 flex gap-4 justify-center flex-wrap">
+            <a
+              id="heroDownload"
+              href="#download"
+              class="group px-7 py-3.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-full text-sm font-semibold hover:scale-[1.03] hover:shadow-lg active:scale-[0.98] transition-all duration-200 flex items-center gap-2.5"
+            >
+              <i
+                data-lucide="download"
+                class="w-4 h-4 transition-transform duration-200 group-hover:-translate-y-px"
+              ></i>
+              <span id="heroDownloadLabel">Download</span>
+            </a>
+            <a
+              href="https://github.com/gug007/lpm"
+              class="px-7 py-3.5 border border-gray-200 dark:border-gray-700 rounded-full text-sm font-semibold hover:border-gray-400 dark:hover:border-gray-500 hover:scale-[1.03] active:scale-[0.98] transition-all duration-200"
+              >View on GitHub</a
+            >
+          </div>
 
-  <!-- Two Ways -->
-  <section class="py-20 sm:py-24">
-    <div class="max-w-3xl mx-auto px-6">
-      <div class="text-center mb-12">
-        <span class="inline-block text-xs font-semibold tracking-widest uppercase text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800/60 px-3 py-1 rounded-full mb-4">Your choice</span>
-        <h2 class="text-2xl sm:text-3xl font-bold tracking-tight">CLI and desktop app, one workflow</h2>
-        <p class="mt-3 text-sm sm:text-base text-gray-400 dark:text-gray-500 max-w-lg mx-auto leading-relaxed">Use the CLI, the desktop app, or both. They share the same config, the same state, and the same functionality. Start a project from the app, stop it from the terminal — everything stays in sync.</p>
+          <!-- Install CLI -->
+          <div class="mt-12">
+            <div
+              class="inline-flex items-center gap-3 bg-gray-50 dark:bg-white/[0.04] border border-gray-200/60 dark:border-gray-800/60 px-5 py-3 rounded-full max-w-full"
+            >
+              <span
+                class="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400 dark:text-gray-600 hidden sm:inline"
+                >install</span
+              >
+              <span
+                class="hidden sm:block w-px h-4 bg-gray-200 dark:bg-gray-700"
+              ></span>
+              <code
+                class="text-xs sm:text-sm font-mono text-gray-600 dark:text-gray-400 select-all whitespace-nowrap overflow-x-auto"
+                >curl -fsSL
+                https://raw.githubusercontent.com/gug007/lpm/main/install.sh |
+                bash</code
+              >
+              <button
+                onclick="copyInstall(this)"
+                class="flex-shrink-0 p-1 text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors duration-200 cursor-pointer"
+                title="Copy to clipboard"
+              >
+                <i data-lucide="copy" class="w-3.5 h-3.5 copy-icon"></i>
+                <i
+                  data-lucide="check"
+                  class="w-3.5 h-3.5 check-icon hidden text-green-500"
+                ></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Demo -->
+      <section class="py-16 relative overflow-hidden">
+        <div
+          class="absolute inset-0 bg-gradient-to-b from-gray-50/80 via-gray-100/50 to-transparent dark:from-gray-900/60 dark:via-gray-900/30 dark:to-transparent pointer-events-none"
+        ></div>
+        <div class="max-w-3xl mx-auto px-6 relative z-10">
+          <p
+            class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500 text-center mb-6 flex items-center justify-center gap-2"
+          >
+            <i data-lucide="play-circle" class="w-4 h-4"></i>
+            See it in action
+          </p>
+          <video
+            src="app-demo.mp4"
+            autoplay
+            loop
+            muted
+            playsinline
+            aria-label="lpm desktop app demo showing project management"
+            class="w-full rounded-2xl shadow-2xl shadow-gray-200/60 dark:shadow-black/40 border border-gray-200/80 dark:border-gray-800/80"
+          >
+            <p>
+              Demo of lpm desktop app — start, stop, and manage local dev
+              projects from a native macOS interface.
+            </p>
+          </video>
+        </div>
+      </section>
+
+      <!-- Two Ways -->
+      <section class="py-20 sm:py-24">
+        <div class="max-w-3xl mx-auto px-6">
+          <div class="text-center mb-12">
+            <span
+              class="inline-block text-xs font-semibold tracking-widest uppercase text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800/60 px-3 py-1 rounded-full mb-4"
+              >Your choice</span
+            >
+            <h2 class="text-2xl sm:text-3xl font-bold tracking-tight">
+              CLI and desktop app, one workflow
+            </h2>
+            <p
+              class="mt-3 text-sm sm:text-base text-gray-400 dark:text-gray-500 max-w-lg mx-auto leading-relaxed"
+            >
+              Use the CLI, the desktop app, or both. They share the same config,
+              the same state, and the same functionality. Start a project from
+              the app, stop it from the terminal — everything stays in sync.
+            </p>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div
+              class="group p-8 rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-md dark:hover:shadow-none hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-all duration-200 text-center"
+            >
+              <div
+                class="w-12 h-12 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 mx-auto mb-5 group-hover:bg-gray-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-gray-900 transition-colors duration-200"
+              >
+                <i data-lucide="terminal" class="w-5 h-5"></i>
+              </div>
+              <h3 class="text-base font-semibold mb-2">CLI</h3>
+              <p
+                class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed"
+              >
+                Fast and scriptable. Manage projects directly from your terminal
+                with simple commands.
+              </p>
+            </div>
+            <div
+              class="group p-8 rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-md dark:hover:shadow-none hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-all duration-200 text-center"
+            >
+              <div
+                class="w-12 h-12 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 mx-auto mb-5 group-hover:bg-gray-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-gray-900 transition-colors duration-200"
+              >
+                <i data-lucide="monitor" class="w-5 h-5"></i>
+              </div>
+              <h3 class="text-base font-semibold mb-2">Desktop App</h3>
+              <p
+                class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed"
+              >
+                Visual and intuitive. See live output, edit configs, and manage
+                everything from a native macOS app.
+              </p>
+            </div>
+          </div>
+          <p
+            class="mt-8 text-center text-xs text-gray-400 dark:text-gray-600 tracking-wide flex items-center justify-center gap-2"
+          >
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            Same features, always in sync — mix and match freely
+          </p>
+        </div>
+      </section>
+
+      <!-- Features -->
+      <section class="py-20 sm:py-24">
+        <div class="max-w-3xl mx-auto px-6">
+          <div class="text-center mb-14">
+            <span
+              class="inline-block text-xs font-semibold tracking-widest uppercase text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800/60 px-3 py-1 rounded-full mb-4"
+              >What you get</span
+            >
+            <h2 class="text-2xl sm:text-3xl font-bold tracking-tight">
+              Built for real dev workflows
+            </h2>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div
+              class="group p-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-md dark:hover:shadow-none hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-all duration-200"
+            >
+              <div
+                class="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 mb-4 group-hover:bg-gray-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-gray-900 transition-colors duration-200"
+              >
+                <i data-lucide="terminal" class="w-4 h-4"></i>
+              </div>
+              <h3 class="text-sm font-semibold mb-1.5">One command to start</h3>
+              <p
+                class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed"
+              >
+                Define your services in a simple YAML config and launch
+                everything with
+                <code class="text-gray-600 dark:text-gray-300">lpm myapp</code>.
+              </p>
+            </div>
+            <div
+              class="group p-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-md dark:hover:shadow-none hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-all duration-200"
+            >
+              <div
+                class="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 mb-4 group-hover:bg-gray-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-gray-900 transition-colors duration-200"
+              >
+                <i data-lucide="scan-search" class="w-4 h-4"></i>
+              </div>
+              <h3 class="text-sm font-semibold mb-1.5">
+                Auto-detect frameworks
+              </h3>
+              <p
+                class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed"
+              >
+                Automatically detects Rails, Next.js, Go, Django, Flask, and
+                Docker Compose projects.
+              </p>
+            </div>
+            <div
+              class="group p-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-md dark:hover:shadow-none hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-all duration-200"
+            >
+              <div
+                class="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 mb-4 group-hover:bg-gray-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-gray-900 transition-colors duration-200"
+              >
+                <i data-lucide="zap" class="w-4 h-4"></i>
+              </div>
+              <h3 class="text-sm font-semibold mb-1.5">
+                Instant project switching
+              </h3>
+              <p
+                class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed"
+              >
+                Stop one project and start another in a single command. No
+                manual cleanup needed.
+              </p>
+            </div>
+            <div
+              class="group p-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-md dark:hover:shadow-none hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-all duration-200"
+            >
+              <div
+                class="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 mb-4 group-hover:bg-gray-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-gray-900 transition-colors duration-200"
+              >
+                <i data-lucide="layers" class="w-4 h-4"></i>
+              </div>
+              <h3 class="text-sm font-semibold mb-1.5">Service profiles</h3>
+              <p
+                class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed"
+              >
+                Run subsets of your services. Start just the API, or spin up the
+                full stack.
+              </p>
+            </div>
+            <div
+              class="group p-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-md dark:hover:shadow-none hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-all duration-200"
+            >
+              <div
+                class="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 mb-4 group-hover:bg-gray-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-gray-900 transition-colors duration-200"
+              >
+                <i data-lucide="monitor" class="w-4 h-4"></i>
+              </div>
+              <h3 class="text-sm font-semibold mb-1.5">Native macOS app</h3>
+              <p
+                class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed"
+              >
+                A desktop app with live terminal output, built-in config editor,
+                and dark mode.
+              </p>
+            </div>
+            <div
+              class="group p-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-md dark:hover:shadow-none hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-all duration-200"
+            >
+              <div
+                class="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 mb-4 group-hover:bg-gray-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-gray-900 transition-colors duration-200"
+              >
+                <i data-lucide="blocks" class="w-4 h-4"></i>
+              </div>
+              <h3 class="text-sm font-semibold mb-1.5">Works with any stack</h3>
+              <p
+                class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed"
+              >
+                If it runs in a terminal, lpm can manage it. No Docker or
+                containers required.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Commands -->
+      <section class="pb-20">
+        <div class="max-w-3xl mx-auto px-6">
+          <h2 class="text-2xl sm:text-3xl font-bold text-center mb-3">
+            Simple, powerful commands
+          </h2>
+          <p class="text-sm text-gray-400 dark:text-gray-500 text-center mb-8">
+            Everything you need to manage local projects, nothing you don't.
+          </p>
+
+          <div
+            class="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden bg-white dark:bg-gray-900/50"
+          >
+            <!-- Terminal-style header -->
+            <div
+              class="flex items-center gap-2 px-5 py-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900/80"
+            >
+              <i
+                data-lucide="terminal"
+                class="w-3.5 h-3.5 text-gray-400 dark:text-gray-500"
+              ></i>
+              <span class="text-xs text-gray-400 dark:text-gray-500 font-mono"
+                >lpm --help</span
+              >
+            </div>
+
+            <div class="divide-y divide-gray-100 dark:divide-gray-800/60">
+              <div
+                class="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors group"
+              >
+                <i
+                  data-lucide="chevron-right"
+                  class="w-3.5 h-3.5 text-gray-300 dark:text-gray-700 group-hover:text-gray-500 dark:group-hover:text-gray-400 transition-colors flex-shrink-0"
+                ></i>
+                <code
+                  class="text-xs font-mono text-gray-900 dark:text-gray-200 whitespace-nowrap w-2/5"
+                  >lpm &lt;project&gt;</code
+                >
+                <span class="text-sm text-gray-500 dark:text-gray-400"
+                  >Start in background</span
+                >
+              </div>
+              <div
+                class="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors group"
+              >
+                <i
+                  data-lucide="chevron-right"
+                  class="w-3.5 h-3.5 text-gray-300 dark:text-gray-700 group-hover:text-gray-500 dark:group-hover:text-gray-400 transition-colors flex-shrink-0"
+                ></i>
+                <code
+                  class="text-xs font-mono text-gray-900 dark:text-gray-200 whitespace-nowrap w-2/5"
+                  >lpm start &lt;project&gt;</code
+                >
+                <span class="text-sm text-gray-500 dark:text-gray-400"
+                  >Start and open terminal</span
+                >
+              </div>
+              <div
+                class="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors group"
+              >
+                <i
+                  data-lucide="chevron-right"
+                  class="w-3.5 h-3.5 text-gray-300 dark:text-gray-700 group-hover:text-gray-500 dark:group-hover:text-gray-400 transition-colors flex-shrink-0"
+                ></i>
+                <code
+                  class="text-xs font-mono text-gray-900 dark:text-gray-200 whitespace-nowrap w-2/5"
+                  >lpm switch &lt;project&gt;</code
+                >
+                <span class="text-sm text-gray-500 dark:text-gray-400"
+                  >Stop all, start another</span
+                >
+              </div>
+              <div
+                class="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors group"
+              >
+                <i
+                  data-lucide="chevron-right"
+                  class="w-3.5 h-3.5 text-gray-300 dark:text-gray-700 group-hover:text-gray-500 dark:group-hover:text-gray-400 transition-colors flex-shrink-0"
+                ></i>
+                <code
+                  class="text-xs font-mono text-gray-900 dark:text-gray-200 whitespace-nowrap w-2/5"
+                  >lpm kill [project]</code
+                >
+                <span class="text-sm text-gray-500 dark:text-gray-400"
+                  >Stop a project (all if none given)</span
+                >
+              </div>
+              <div
+                class="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors group"
+              >
+                <i
+                  data-lucide="chevron-right"
+                  class="w-3.5 h-3.5 text-gray-300 dark:text-gray-700 group-hover:text-gray-500 dark:group-hover:text-gray-400 transition-colors flex-shrink-0"
+                ></i>
+                <code
+                  class="text-xs font-mono text-gray-900 dark:text-gray-200 whitespace-nowrap w-2/5"
+                  >lpm init [name]</code
+                >
+                <span class="text-sm text-gray-500 dark:text-gray-400"
+                  >Create config from current directory</span
+                >
+              </div>
+              <div
+                class="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors group"
+              >
+                <i
+                  data-lucide="chevron-right"
+                  class="w-3.5 h-3.5 text-gray-300 dark:text-gray-700 group-hover:text-gray-500 dark:group-hover:text-gray-400 transition-colors flex-shrink-0"
+                ></i>
+                <code
+                  class="text-xs font-mono text-gray-900 dark:text-gray-200 whitespace-nowrap w-2/5"
+                  >lpm edit &lt;project&gt;</code
+                >
+                <span class="text-sm text-gray-500 dark:text-gray-400"
+                  >Open config in $EDITOR</span
+                >
+              </div>
+              <div
+                class="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors group"
+              >
+                <i
+                  data-lucide="chevron-right"
+                  class="w-3.5 h-3.5 text-gray-300 dark:text-gray-700 group-hover:text-gray-500 dark:group-hover:text-gray-400 transition-colors flex-shrink-0"
+                ></i>
+                <code
+                  class="text-xs font-mono text-gray-900 dark:text-gray-200 whitespace-nowrap w-2/5"
+                  >lpm list</code
+                >
+                <span class="text-sm text-gray-500 dark:text-gray-400"
+                  >List all projects</span
+                >
+              </div>
+              <div
+                class="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors group"
+              >
+                <i
+                  data-lucide="chevron-right"
+                  class="w-3.5 h-3.5 text-gray-300 dark:text-gray-700 group-hover:text-gray-500 dark:group-hover:text-gray-400 transition-colors flex-shrink-0"
+                ></i>
+                <code
+                  class="text-xs font-mono text-gray-900 dark:text-gray-200 whitespace-nowrap w-2/5"
+                  >lpm status &lt;project&gt;</code
+                >
+                <span class="text-sm text-gray-500 dark:text-gray-400"
+                  >Show project details</span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Download -->
+      <style>
+        .dl-card {
+          transition:
+            transform 0.2s ease,
+            box-shadow 0.2s ease,
+            border-color 0.2s ease;
+        }
+        .dl-card:hover {
+          transform: translateY(-2px) scale(1.02);
+        }
+        /* Override the JS-added ring classes with an elegant indigo glow + badge */
+        .dl-card.ring-2 {
+          --tw-ring-offset-shadow: none !important;
+          --tw-ring-shadow: none !important;
+          box-shadow:
+            0 0 0 2px rgba(99, 102, 241, 0.5),
+            0 0 16px -2px rgba(99, 102, 241, 0.15) !important;
+          border-color: rgb(99, 102, 241) !important;
+          position: relative;
+        }
+        .dl-card.ring-2::before {
+          content: "Recommended";
+          position: absolute;
+          top: -9px;
+          left: 50%;
+          transform: translateX(-50%);
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.04em;
+          color: white;
+          background: linear-gradient(135deg, #6366f1, #8b5cf6);
+          padding: 1px 10px;
+          border-radius: 9999px;
+          white-space: nowrap;
+        }
+        .dl-card.ring-2:hover {
+          box-shadow:
+            0 0 0 2px rgba(99, 102, 241, 0.6),
+            0 0 24px -2px rgba(99, 102, 241, 0.25),
+            0 10px 25px -5px rgba(0, 0, 0, 0.08) !important;
+        }
+      </style>
+      <section
+        id="download"
+        class="py-20 sm:py-24 border-t border-gray-200 dark:border-gray-800 text-center"
+      >
+        <div class="max-w-4xl mx-auto px-6">
+          <div class="flex flex-col items-center gap-3 mb-12">
+            <span
+              class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 tracking-wide uppercase"
+            >
+              <i data-lucide="package" class="w-3 h-3"></i>
+              Latest Release
+            </span>
+            <h2 class="text-3xl sm:text-4xl font-bold tracking-tight">
+              Get lpm
+            </h2>
+            <p class="text-gray-500 dark:text-gray-400 text-sm">
+              Free and open source. Available for macOS (Apple Silicon &amp;
+              Intel) and Linux.
+            </p>
+          </div>
+          <p
+            id="detectedPlatform"
+            class="text-xs text-indigo-500 dark:text-indigo-400 font-medium mb-6"
+          ></p>
+          <div
+            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-3xl mx-auto"
+            id="downloadGrid"
+          >
+            <a
+              href="https://github.com/gug007/lpm/releases/latest/download/lpm-desktop-macos-arm64.dmg"
+              data-platform="mac-arm"
+              class="dl-card group relative flex flex-col items-center gap-2 px-6 py-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-[#111]"
+            >
+              <div
+                class="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center mb-1 group-hover:bg-gray-100 dark:group-hover:bg-gray-800 transition-colors"
+              >
+                <i
+                  data-lucide="apple"
+                  class="w-5 h-5 text-gray-600 dark:text-gray-300"
+                ></i>
+              </div>
+              <span class="text-sm font-semibold">macOS Desktop</span>
+              <span class="text-xs text-gray-400">Apple Silicon</span>
+            </a>
+            <a
+              href="https://github.com/gug007/lpm/releases/latest/download/lpm-desktop-macos-amd64.dmg"
+              data-platform="mac-intel"
+              class="dl-card group relative flex flex-col items-center gap-2 px-6 py-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-[#111]"
+            >
+              <div
+                class="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center mb-1 group-hover:bg-gray-100 dark:group-hover:bg-gray-800 transition-colors"
+              >
+                <i
+                  data-lucide="monitor"
+                  class="w-5 h-5 text-gray-600 dark:text-gray-300"
+                ></i>
+              </div>
+              <span class="text-sm font-semibold">macOS Desktop</span>
+              <span class="text-xs text-gray-400">Intel</span>
+            </a>
+            <a
+              href="https://github.com/gug007/lpm/releases/latest/download/lpm_darwin_arm64.tar.gz"
+              data-platform="mac-arm"
+              class="dl-card group relative flex flex-col items-center gap-2 px-6 py-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-[#111]"
+            >
+              <div
+                class="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center mb-1 group-hover:bg-gray-100 dark:group-hover:bg-gray-800 transition-colors"
+              >
+                <i
+                  data-lucide="terminal"
+                  class="w-5 h-5 text-gray-600 dark:text-gray-300"
+                ></i>
+              </div>
+              <span class="text-sm font-semibold">CLI</span>
+              <span class="text-xs text-gray-400">macOS ARM64</span>
+            </a>
+            <a
+              href="https://github.com/gug007/lpm/releases/latest/download/lpm_darwin_amd64.tar.gz"
+              data-platform="mac-intel"
+              class="dl-card group relative flex flex-col items-center gap-2 px-6 py-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-[#111]"
+            >
+              <div
+                class="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center mb-1 group-hover:bg-gray-100 dark:group-hover:bg-gray-800 transition-colors"
+              >
+                <i
+                  data-lucide="terminal"
+                  class="w-5 h-5 text-gray-600 dark:text-gray-300"
+                ></i>
+              </div>
+              <span class="text-sm font-semibold">CLI</span>
+              <span class="text-xs text-gray-400">macOS Intel</span>
+            </a>
+            <a
+              href="https://github.com/gug007/lpm/releases/latest/download/lpm_linux_amd64.tar.gz"
+              data-platform="linux"
+              class="dl-card group relative flex flex-col items-center gap-2 px-6 py-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-[#111]"
+            >
+              <div
+                class="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center mb-1 group-hover:bg-gray-100 dark:group-hover:bg-gray-800 transition-colors"
+              >
+                <i
+                  data-lucide="hexagon"
+                  class="w-5 h-5 text-gray-600 dark:text-gray-300"
+                ></i>
+              </div>
+              <span class="text-sm font-semibold">CLI</span>
+              <span class="text-xs text-gray-400">Linux amd64</span>
+            </a>
+            <a
+              href="https://github.com/gug007/lpm/releases/latest/download/lpm_linux_arm64.tar.gz"
+              data-platform="linux"
+              class="dl-card group relative flex flex-col items-center gap-2 px-6 py-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-[#111]"
+            >
+              <div
+                class="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center mb-1 group-hover:bg-gray-100 dark:group-hover:bg-gray-800 transition-colors"
+              >
+                <i
+                  data-lucide="hexagon"
+                  class="w-5 h-5 text-gray-600 dark:text-gray-300"
+                ></i>
+              </div>
+              <span class="text-sm font-semibold">CLI</span>
+              <span class="text-xs text-gray-400">Linux arm64</span>
+            </a>
+          </div>
+          <div class="mt-8">
+            <a
+              href="https://github.com/gug007/lpm/releases/latest"
+              class="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            >
+              View all downloads
+              <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer
+      class="py-10 border-t border-gray-100 dark:border-gray-800/60 text-center"
+    >
+      <div class="max-w-3xl mx-auto px-6 flex flex-col items-center gap-3">
+        <p class="text-xs text-gray-300 dark:text-gray-600 tracking-wide">
+          Built for developers
+        </p>
+        <div class="flex items-center gap-3 text-xs text-gray-400">
+          <a
+            href="https://github.com/gug007/lpm"
+            class="hover:text-gray-600 dark:hover:text-gray-300 transition-colors inline-flex items-center gap-1.5"
+          >
+            <i data-lucide="github" class="w-3.5 h-3.5"></i>
+            gug007/lpm
+          </a>
+        </div>
       </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <div class="group p-8 rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-md dark:hover:shadow-none hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-all duration-200 text-center">
-          <div class="w-12 h-12 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 mx-auto mb-5 group-hover:bg-gray-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-gray-900 transition-colors duration-200">
-            <i data-lucide="terminal" class="w-5 h-5"></i>
-          </div>
-          <h3 class="text-base font-semibold mb-2">CLI</h3>
-          <p class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">Fast and scriptable. Manage projects directly from your terminal with simple commands.</p>
-        </div>
-        <div class="group p-8 rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-md dark:hover:shadow-none hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-all duration-200 text-center">
-          <div class="w-12 h-12 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 mx-auto mb-5 group-hover:bg-gray-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-gray-900 transition-colors duration-200">
-            <i data-lucide="monitor" class="w-5 h-5"></i>
-          </div>
-          <h3 class="text-base font-semibold mb-2">Desktop App</h3>
-          <p class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">Visual and intuitive. See live output, edit configs, and manage everything from a native macOS app.</p>
-        </div>
-      </div>
-      <p class="mt-8 text-center text-xs text-gray-400 dark:text-gray-600 tracking-wide flex items-center justify-center gap-2">
-        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-        Same features, always in sync — mix and match freely
-      </p>
-    </div>
-  </section>
+    </footer>
 
-  <!-- Features -->
-  <section class="py-20 sm:py-24">
-    <div class="max-w-3xl mx-auto px-6">
-      <div class="text-center mb-14">
-        <span class="inline-block text-xs font-semibold tracking-widest uppercase text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800/60 px-3 py-1 rounded-full mb-4">What you get</span>
-        <h2 class="text-2xl sm:text-3xl font-bold tracking-tight">Built for real dev workflows</h2>
-      </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <div class="group p-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-md dark:hover:shadow-none hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-all duration-200">
-          <div class="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 mb-4 group-hover:bg-gray-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-gray-900 transition-colors duration-200">
-            <i data-lucide="terminal" class="w-4 h-4"></i>
-          </div>
-          <h3 class="text-sm font-semibold mb-1.5">One command to start</h3>
-          <p class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">Define your services in a simple YAML config and launch everything with <code class="text-gray-600 dark:text-gray-300">lpm myapp</code>.</p>
-        </div>
-        <div class="group p-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-md dark:hover:shadow-none hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-all duration-200">
-          <div class="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 mb-4 group-hover:bg-gray-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-gray-900 transition-colors duration-200">
-            <i data-lucide="scan-search" class="w-4 h-4"></i>
-          </div>
-          <h3 class="text-sm font-semibold mb-1.5">Auto-detect frameworks</h3>
-          <p class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">Automatically detects Rails, Next.js, Go, Django, Flask, and Docker Compose projects.</p>
-        </div>
-        <div class="group p-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-md dark:hover:shadow-none hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-all duration-200">
-          <div class="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 mb-4 group-hover:bg-gray-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-gray-900 transition-colors duration-200">
-            <i data-lucide="zap" class="w-4 h-4"></i>
-          </div>
-          <h3 class="text-sm font-semibold mb-1.5">Instant project switching</h3>
-          <p class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">Stop one project and start another in a single command. No manual cleanup needed.</p>
-        </div>
-        <div class="group p-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-md dark:hover:shadow-none hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-all duration-200">
-          <div class="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 mb-4 group-hover:bg-gray-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-gray-900 transition-colors duration-200">
-            <i data-lucide="layers" class="w-4 h-4"></i>
-          </div>
-          <h3 class="text-sm font-semibold mb-1.5">Service profiles</h3>
-          <p class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">Run subsets of your services. Start just the API, or spin up the full stack.</p>
-        </div>
-        <div class="group p-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-md dark:hover:shadow-none hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-all duration-200">
-          <div class="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 mb-4 group-hover:bg-gray-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-gray-900 transition-colors duration-200">
-            <i data-lucide="monitor" class="w-4 h-4"></i>
-          </div>
-          <h3 class="text-sm font-semibold mb-1.5">Native macOS app</h3>
-          <p class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">A desktop app with live terminal output, built-in config editor, and dark mode.</p>
-        </div>
-        <div class="group p-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-md dark:hover:shadow-none hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-all duration-200">
-          <div class="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 mb-4 group-hover:bg-gray-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-gray-900 transition-colors duration-200">
-            <i data-lucide="blocks" class="w-4 h-4"></i>
-          </div>
-          <h3 class="text-sm font-semibold mb-1.5">Works with any stack</h3>
-          <p class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">If it runs in a terminal, lpm can manage it. No Docker or containers required.</p>
-        </div>
-      </div>
-    </div>
-  </section>
+    <script>
+      function getTheme() {
+        return (
+          localStorage.getItem("lpm-site-theme") ||
+          (window.matchMedia("(prefers-color-scheme: dark)").matches
+            ? "dark"
+            : "light")
+        );
+      }
 
-  <!-- Commands -->
-  <section class="pb-20">
-    <div class="max-w-3xl mx-auto px-6">
-      <h2 class="text-2xl sm:text-3xl font-bold text-center mb-3">Simple, powerful commands</h2>
-      <p class="text-sm text-gray-400 dark:text-gray-500 text-center mb-8">Everything you need to manage local projects, nothing you don't.</p>
+      function applyTheme(t) {
+        const isDark = t === "dark";
+        document.documentElement.classList.toggle("dark", isDark);
+        document.getElementById("sunIcon").classList.toggle("hidden", !isDark);
+        document.getElementById("moonIcon").classList.toggle("hidden", isDark);
+      }
 
-      <div class="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden bg-white dark:bg-gray-900/50">
-        <!-- Terminal-style header -->
-        <div class="flex items-center gap-2 px-5 py-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900/80">
-          <i data-lucide="terminal" class="w-3.5 h-3.5 text-gray-400 dark:text-gray-500"></i>
-          <span class="text-xs text-gray-400 dark:text-gray-500 font-mono">lpm --help</span>
-        </div>
+      function toggleTheme() {
+        const next = getTheme() === "dark" ? "light" : "dark";
+        localStorage.setItem("lpm-site-theme", next);
+        applyTheme(next);
+      }
 
-        <div class="divide-y divide-gray-100 dark:divide-gray-800/60">
-          <div class="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors group">
-            <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-gray-300 dark:text-gray-700 group-hover:text-gray-500 dark:group-hover:text-gray-400 transition-colors flex-shrink-0"></i>
-            <code class="text-xs font-mono text-gray-900 dark:text-gray-200 whitespace-nowrap w-2/5">lpm &lt;project&gt;</code>
-            <span class="text-sm text-gray-500 dark:text-gray-400">Start in background</span>
-          </div>
-          <div class="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors group">
-            <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-gray-300 dark:text-gray-700 group-hover:text-gray-500 dark:group-hover:text-gray-400 transition-colors flex-shrink-0"></i>
-            <code class="text-xs font-mono text-gray-900 dark:text-gray-200 whitespace-nowrap w-2/5">lpm start &lt;project&gt;</code>
-            <span class="text-sm text-gray-500 dark:text-gray-400">Start and open terminal</span>
-          </div>
-          <div class="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors group">
-            <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-gray-300 dark:text-gray-700 group-hover:text-gray-500 dark:group-hover:text-gray-400 transition-colors flex-shrink-0"></i>
-            <code class="text-xs font-mono text-gray-900 dark:text-gray-200 whitespace-nowrap w-2/5">lpm switch &lt;project&gt;</code>
-            <span class="text-sm text-gray-500 dark:text-gray-400">Stop all, start another</span>
-          </div>
-          <div class="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors group">
-            <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-gray-300 dark:text-gray-700 group-hover:text-gray-500 dark:group-hover:text-gray-400 transition-colors flex-shrink-0"></i>
-            <code class="text-xs font-mono text-gray-900 dark:text-gray-200 whitespace-nowrap w-2/5">lpm kill [project]</code>
-            <span class="text-sm text-gray-500 dark:text-gray-400">Stop a project (all if none given)</span>
-          </div>
-          <div class="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors group">
-            <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-gray-300 dark:text-gray-700 group-hover:text-gray-500 dark:group-hover:text-gray-400 transition-colors flex-shrink-0"></i>
-            <code class="text-xs font-mono text-gray-900 dark:text-gray-200 whitespace-nowrap w-2/5">lpm init [name]</code>
-            <span class="text-sm text-gray-500 dark:text-gray-400">Create config from current directory</span>
-          </div>
-          <div class="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors group">
-            <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-gray-300 dark:text-gray-700 group-hover:text-gray-500 dark:group-hover:text-gray-400 transition-colors flex-shrink-0"></i>
-            <code class="text-xs font-mono text-gray-900 dark:text-gray-200 whitespace-nowrap w-2/5">lpm edit &lt;project&gt;</code>
-            <span class="text-sm text-gray-500 dark:text-gray-400">Open config in $EDITOR</span>
-          </div>
-          <div class="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors group">
-            <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-gray-300 dark:text-gray-700 group-hover:text-gray-500 dark:group-hover:text-gray-400 transition-colors flex-shrink-0"></i>
-            <code class="text-xs font-mono text-gray-900 dark:text-gray-200 whitespace-nowrap w-2/5">lpm list</code>
-            <span class="text-sm text-gray-500 dark:text-gray-400">List all projects</span>
-          </div>
-          <div class="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors group">
-            <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-gray-300 dark:text-gray-700 group-hover:text-gray-500 dark:group-hover:text-gray-400 transition-colors flex-shrink-0"></i>
-            <code class="text-xs font-mono text-gray-900 dark:text-gray-200 whitespace-nowrap w-2/5">lpm status &lt;project&gt;</code>
-            <span class="text-sm text-gray-500 dark:text-gray-400">Show project details</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
+      applyTheme(getTheme());
 
-  <!-- Download -->
-  <style>
-    .dl-card {
-      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-    }
-    .dl-card:hover {
-      transform: translateY(-2px) scale(1.02);
-    }
-    /* Override the JS-added ring classes with an elegant indigo glow + badge */
-    .dl-card.ring-2 {
-      --tw-ring-offset-shadow: none !important;
-      --tw-ring-shadow: none !important;
-      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.5), 0 0 16px -2px rgba(99, 102, 241, 0.15) !important;
-      border-color: rgb(99, 102, 241) !important;
-      position: relative;
-    }
-    .dl-card.ring-2::before {
-      content: "Recommended";
-      position: absolute;
-      top: -9px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      color: white;
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
-      padding: 1px 10px;
-      border-radius: 9999px;
-      white-space: nowrap;
-    }
-    .dl-card.ring-2:hover {
-      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.6), 0 0 24px -2px rgba(99, 102, 241, 0.25), 0 10px 25px -5px rgba(0,0,0,0.08) !important;
-    }
-  </style>
-  <section id="download" class="py-20 sm:py-24 border-t border-gray-200 dark:border-gray-800 text-center">
-    <div class="max-w-4xl mx-auto px-6">
-      <div class="flex flex-col items-center gap-3 mb-12">
-        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 tracking-wide uppercase">
-          <i data-lucide="package" class="w-3 h-3"></i>
-          Latest Release
-        </span>
-        <h2 class="text-3xl sm:text-4xl font-bold tracking-tight">Get lpm</h2>
-        <p class="text-gray-500 dark:text-gray-400 text-sm">Free and open source. Available for macOS (Apple Silicon &amp; Intel) and Linux.</p>
-      </div>
-      <p id="detectedPlatform" class="text-xs text-indigo-500 dark:text-indigo-400 font-medium mb-6"></p>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-3xl mx-auto" id="downloadGrid">
-        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm-desktop-macos-arm64.dmg" data-platform="mac-arm" class="dl-card group relative flex flex-col items-center gap-2 px-6 py-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-[#111]">
-          <div class="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center mb-1 group-hover:bg-gray-100 dark:group-hover:bg-gray-800 transition-colors">
-            <i data-lucide="apple" class="w-5 h-5 text-gray-600 dark:text-gray-300"></i>
-          </div>
-          <span class="text-sm font-semibold">macOS Desktop</span>
-          <span class="text-xs text-gray-400">Apple Silicon</span>
-        </a>
-        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm-desktop-macos-amd64.dmg" data-platform="mac-intel" class="dl-card group relative flex flex-col items-center gap-2 px-6 py-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-[#111]">
-          <div class="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center mb-1 group-hover:bg-gray-100 dark:group-hover:bg-gray-800 transition-colors">
-            <i data-lucide="monitor" class="w-5 h-5 text-gray-600 dark:text-gray-300"></i>
-          </div>
-          <span class="text-sm font-semibold">macOS Desktop</span>
-          <span class="text-xs text-gray-400">Intel</span>
-        </a>
-        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_darwin_arm64.tar.gz" data-platform="mac-arm" class="dl-card group relative flex flex-col items-center gap-2 px-6 py-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-[#111]">
-          <div class="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center mb-1 group-hover:bg-gray-100 dark:group-hover:bg-gray-800 transition-colors">
-            <i data-lucide="terminal" class="w-5 h-5 text-gray-600 dark:text-gray-300"></i>
-          </div>
-          <span class="text-sm font-semibold">CLI</span>
-          <span class="text-xs text-gray-400">macOS ARM64</span>
-        </a>
-        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_darwin_amd64.tar.gz" data-platform="mac-intel" class="dl-card group relative flex flex-col items-center gap-2 px-6 py-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-[#111]">
-          <div class="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center mb-1 group-hover:bg-gray-100 dark:group-hover:bg-gray-800 transition-colors">
-            <i data-lucide="terminal" class="w-5 h-5 text-gray-600 dark:text-gray-300"></i>
-          </div>
-          <span class="text-sm font-semibold">CLI</span>
-          <span class="text-xs text-gray-400">macOS Intel</span>
-        </a>
-        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_linux_amd64.tar.gz" data-platform="linux" class="dl-card group relative flex flex-col items-center gap-2 px-6 py-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-[#111]">
-          <div class="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center mb-1 group-hover:bg-gray-100 dark:group-hover:bg-gray-800 transition-colors">
-            <i data-lucide="hexagon" class="w-5 h-5 text-gray-600 dark:text-gray-300"></i>
-          </div>
-          <span class="text-sm font-semibold">CLI</span>
-          <span class="text-xs text-gray-400">Linux amd64</span>
-        </a>
-        <a href="https://github.com/gug007/lpm/releases/latest/download/lpm_linux_arm64.tar.gz" data-platform="linux" class="dl-card group relative flex flex-col items-center gap-2 px-6 py-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-[#111]">
-          <div class="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center mb-1 group-hover:bg-gray-100 dark:group-hover:bg-gray-800 transition-colors">
-            <i data-lucide="hexagon" class="w-5 h-5 text-gray-600 dark:text-gray-300"></i>
-          </div>
-          <span class="text-sm font-semibold">CLI</span>
-          <span class="text-xs text-gray-400">Linux arm64</span>
-        </a>
-      </div>
-      <div class="mt-8">
-        <a href="https://github.com/gug007/lpm/releases/latest" class="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-          View all downloads
-          <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
-        </a>
-      </div>
-    </div>
-  </section>
+      // Detect platform
+      (function () {
+        const ua = navigator.userAgent.toLowerCase();
+        const platform = navigator.platform?.toLowerCase() || "";
+        let os = "unknown";
+        let arch = "unknown";
 
-  </main>
-
-  <!-- Footer -->
-  <footer class="py-10 border-t border-gray-100 dark:border-gray-800/60 text-center">
-    <div class="max-w-3xl mx-auto px-6 flex flex-col items-center gap-3">
-      <p class="text-xs text-gray-300 dark:text-gray-600 tracking-wide">Built for developers</p>
-      <div class="flex items-center gap-3 text-xs text-gray-400">
-        <a href="https://github.com/gug007/lpm" class="hover:text-gray-600 dark:hover:text-gray-300 transition-colors inline-flex items-center gap-1.5">
-          <i data-lucide="github" class="w-3.5 h-3.5"></i>
-          gug007/lpm
-        </a>
-      </div>
-    </div>
-  </footer>
-
-  <script>
-    function getTheme() {
-      return localStorage.getItem("lpm-site-theme") ||
-        (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-    }
-
-    function applyTheme(t) {
-      const isDark = t === "dark";
-      document.documentElement.classList.toggle("dark", isDark);
-      document.getElementById("sunIcon").classList.toggle("hidden", !isDark);
-      document.getElementById("moonIcon").classList.toggle("hidden", isDark);
-    }
-
-    function toggleTheme() {
-      const next = getTheme() === "dark" ? "light" : "dark";
-      localStorage.setItem("lpm-site-theme", next);
-      applyTheme(next);
-    }
-
-    applyTheme(getTheme());
-
-    // Detect platform
-    (function() {
-      const ua = navigator.userAgent.toLowerCase();
-      const platform = navigator.platform?.toLowerCase() || "";
-      let os = "unknown";
-      let arch = "unknown";
-
-      if (ua.includes("mac") || platform.includes("mac")) {
-        os = "mac";
-        // All Apple Silicon Macs (M1+) report as MacIntel in navigator.platform
-        // but have GPU with "apple" in the renderer string
-        try {
-          const canvas = document.createElement("canvas");
-          const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
-          if (gl) {
-            const dbg = gl.getExtension("WEBGL_debug_renderer_info");
-            const renderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL).toLowerCase() : "";
-            arch = renderer.includes("apple") ? "arm" : "intel";
-          } else {
-            arch = "arm"; // default to ARM for modern Macs
+        if (ua.includes("mac") || platform.includes("mac")) {
+          os = "mac";
+          // All Apple Silicon Macs (M1+) report as MacIntel in navigator.platform
+          // but have GPU with "apple" in the renderer string
+          try {
+            const canvas = document.createElement("canvas");
+            const gl =
+              canvas.getContext("webgl") ||
+              canvas.getContext("experimental-webgl");
+            if (gl) {
+              const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+              const renderer = dbg
+                ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL).toLowerCase()
+                : "";
+              arch = renderer.includes("apple") ? "arm" : "intel";
+            } else {
+              arch = "arm"; // default to ARM for modern Macs
+            }
+          } catch {
+            arch = "arm";
           }
-        } catch {
-          arch = "arm";
+        } else if (ua.includes("linux")) {
+          os = "linux";
         }
-      } else if (ua.includes("linux")) {
-        os = "linux";
+
+        const detected = os === "mac" ? `mac-${arch}` : os;
+        const labels = {
+          "mac-arm": "Download for macOS (Apple Silicon)",
+          "mac-intel": "Download for macOS (Intel)",
+          linux: "Download for Linux",
+        };
+
+        // Update hero button
+        const heroBtn = document.getElementById("heroDownload");
+        const heroLabel = document.getElementById("heroDownloadLabel");
+        if (labels[detected]) {
+          heroLabel.textContent = labels[detected];
+          const bestCard = document.querySelector(
+            `.dl-card[data-platform="${detected}"]`,
+          );
+          if (bestCard) heroBtn.href = bestCard.href;
+        }
+
+        // Highlight matching cards
+        const detectedText = document.getElementById("detectedPlatform");
+        if (os === "mac") {
+          detectedText.textContent = `Detected: macOS ${arch === "arm" ? "Apple Silicon" : "Intel"}`;
+        } else if (os === "linux") {
+          detectedText.textContent = "Detected: Linux";
+        }
+
+        document.querySelectorAll(".dl-card").forEach((card) => {
+          if (card.dataset.platform === detected) {
+            card.classList.add("ring-2", "ring-gray-900", "dark:ring-white");
+          }
+        });
+      })();
+
+      function copyInstall(btn) {
+        navigator.clipboard.writeText(
+          "curl -fsSL https://raw.githubusercontent.com/gug007/lpm/main/install.sh | bash",
+        );
+        btn.querySelector(".copy-icon").classList.add("hidden");
+        btn.querySelector(".check-icon").classList.remove("hidden");
+        setTimeout(() => {
+          btn.querySelector(".copy-icon").classList.remove("hidden");
+          btn.querySelector(".check-icon").classList.add("hidden");
+        }, 2000);
       }
 
-      const detected = os === "mac" ? `mac-${arch}` : os;
-      const labels = {
-        "mac-arm": "Download for macOS (Apple Silicon)",
-        "mac-intel": "Download for macOS (Intel)",
-        "linux": "Download for Linux",
-      };
-
-      // Update hero button
-      const heroBtn = document.getElementById("heroDownload");
-      const heroLabel = document.getElementById("heroDownloadLabel");
-      if (labels[detected]) {
-        heroLabel.textContent = labels[detected];
-        const bestCard = document.querySelector(`.dl-card[data-platform="${detected}"]`);
-        if (bestCard) heroBtn.href = bestCard.href;
-      }
-
-      // Highlight matching cards
-      const detectedText = document.getElementById("detectedPlatform");
-      if (os === "mac") {
-        detectedText.textContent = `Detected: macOS ${arch === "arm" ? "Apple Silicon" : "Intel"}`;
-      } else if (os === "linux") {
-        detectedText.textContent = "Detected: Linux";
-      }
-
-      document.querySelectorAll(".dl-card").forEach(card => {
-        if (card.dataset.platform === detected) {
-          card.classList.add("ring-2", "ring-gray-900", "dark:ring-white");
-        }
-      });
-    })();
-
-    function copyInstall(btn) {
-      navigator.clipboard.writeText("curl -fsSL https://raw.githubusercontent.com/gug007/lpm/main/install.sh | bash");
-      btn.querySelector(".copy-icon").classList.add("hidden");
-      btn.querySelector(".check-icon").classList.remove("hidden");
-      setTimeout(() => {
-        btn.querySelector(".copy-icon").classList.remove("hidden");
-        btn.querySelector(".check-icon").classList.add("hidden");
-      }, 2000);
-    }
-
-    fetch("https://api.github.com/repos/gug007/lpm")
-      .then(r => r.json())
-      .then(data => {
-        if (data.stargazers_count != null) {
-          const count = data.stargazers_count >= 1000
-            ? (data.stargazers_count / 1000).toFixed(1) + "k"
-            : String(data.stargazers_count);
-          document.getElementById("starNum").textContent = count;
-          document.getElementById("starCount").classList.remove("hidden");
-          document.getElementById("starCount").classList.add("inline-flex");
-          lucide.createIcons({ nameAttr: "data-lucide" });
-        }
-      })
-      .catch(() => {});
-
-    lucide.createIcons();
-  </script>
-</body>
+      lucide.createIcons();
+    </script>
+    <script async defer src="https://buttons.github.io/buttons.js" onload="document.getElementById('ghBtn').classList.remove('invisible')"></script>
+  </body>
 </html>
