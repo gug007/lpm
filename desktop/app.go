@@ -2,17 +2,29 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
+	goruntime "runtime"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/gug007/lpm/internal/config"
 	"github.com/gug007/lpm/internal/tmux"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"gopkg.in/yaml.v3"
 )
+
+var httpClient = &http.Client{Timeout: 30 * time.Second}
+
+var Version = "0.1.9"
 
 type App struct {
 	ctx context.Context
@@ -21,6 +33,8 @@ type App struct {
 	// GetServiceLogs call (which fires every 1s per pane).
 	sessionMu    sync.RWMutex
 	sessionCache map[string]string // projectName -> session name
+
+	pendingDownloadURL string // set by CheckForUpdate, used by InstallUpdate
 }
 
 func NewApp() *App {
@@ -288,4 +302,181 @@ func (a *App) RemoveProject(name string) error {
 	}
 	a.invalidateSessionCache(name)
 	return os.Remove(config.ProjectPath(name))
+}
+
+type UpdateInfo struct {
+	CurrentVersion string `json:"currentVersion"`
+	LatestVersion  string `json:"latestVersion"`
+	UpdateAvail    bool   `json:"updateAvail"`
+}
+
+func (a *App) GetVersion() string {
+	return Version
+}
+
+// versionNewer returns true if latest is strictly newer than current (both "major.minor.patch").
+func versionNewer(latest, current string) bool {
+	parse := func(v string) [3]int {
+		var parts [3]int
+		for i, s := range strings.SplitN(v, ".", 3) {
+			parts[i], _ = strconv.Atoi(s)
+		}
+		return parts
+	}
+	l, c := parse(latest), parse(current)
+	if l[0] != c[0] {
+		return l[0] > c[0]
+	}
+	if l[1] != c[1] {
+		return l[1] > c[1]
+	}
+	return l[2] > c[2]
+}
+
+func (a *App) CheckForUpdate() (*UpdateInfo, error) {
+	resp, err := httpClient.Get("https://api.github.com/repos/gug007/lpm/releases/latest")
+	if err != nil {
+		return nil, fmt.Errorf("failed to check for updates: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
+	}
+
+	var release struct {
+		TagName string `json:"tag_name"`
+		Assets  []struct {
+			Name               string `json:"name"`
+			BrowserDownloadURL string `json:"browser_download_url"`
+		} `json:"assets"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	latest := strings.TrimPrefix(release.TagName, "v")
+	current := strings.TrimPrefix(Version, "v")
+
+	// Find the DMG asset matching current architecture
+	suffix := fmt.Sprintf("macos-%s.dmg", goruntime.GOARCH)
+	a.pendingDownloadURL = ""
+	for _, asset := range release.Assets {
+		if strings.HasSuffix(asset.Name, suffix) {
+			a.pendingDownloadURL = asset.BrowserDownloadURL
+			break
+		}
+	}
+
+	return &UpdateInfo{
+		CurrentVersion: current,
+		LatestVersion:  latest,
+		UpdateAvail:    versionNewer(latest, current),
+	}, nil
+}
+
+func appBundlePath() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	// Walk up from e.g. /Applications/lpm.app/Contents/MacOS/lpm-desktop
+	for dir := filepath.Dir(exe); dir != "/" && dir != "."; dir = filepath.Dir(dir) {
+		if strings.HasSuffix(dir, ".app") {
+			return dir, nil
+		}
+	}
+	return "", fmt.Errorf("could not determine .app bundle path from %s", exe)
+}
+
+func (a *App) InstallUpdate() error {
+	if a.pendingDownloadURL == "" {
+		return fmt.Errorf("no update available — check for updates first")
+	}
+
+	appPath, err := appBundlePath()
+	if err != nil {
+		return err
+	}
+	appDir := filepath.Dir(appPath)
+
+	// Download DMG to temp file
+	tmpFile, err := os.CreateTemp("", "lpm-update-*.dmg")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	dmgPath := tmpFile.Name()
+	defer os.Remove(dmgPath)
+	defer tmpFile.Close()
+
+	dlClient := &http.Client{Timeout: 5 * time.Minute}
+	resp, err := dlClient.Get(a.pendingDownloadURL)
+	if err != nil {
+		return fmt.Errorf("failed to download update: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("download returned status %d", resp.StatusCode)
+	}
+
+	if _, err := io.Copy(tmpFile, resp.Body); err != nil {
+		return fmt.Errorf("failed to save update: %w", err)
+	}
+	tmpFile.Close()
+
+	// Mount DMG to a known temp path
+	mountPoint, err := os.MkdirTemp("", "lpm-mount-*")
+	if err != nil {
+		return fmt.Errorf("failed to create mount dir: %w", err)
+	}
+	defer os.Remove(mountPoint)
+
+	if out, err := exec.Command("hdiutil", "attach", dmgPath, "-nobrowse", "-mountpoint", mountPoint).CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to mount DMG: %s", string(out))
+	}
+	defer exec.Command("hdiutil", "detach", mountPoint, "-quiet").Run()
+
+	// Find .app inside mounted volume
+	entries, err := os.ReadDir(mountPoint)
+	if err != nil {
+		return fmt.Errorf("failed to read mounted DMG: %w", err)
+	}
+	var newAppName string
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".app") {
+			newAppName = e.Name()
+			break
+		}
+	}
+	if newAppName == "" {
+		return fmt.Errorf("no .app found in DMG")
+	}
+
+	srcApp := filepath.Join(mountPoint, newAppName)
+	dstApp := filepath.Join(appDir, newAppName)
+
+	// Copy new app to a staging path, then atomically swap
+	stagingApp := dstApp + ".new"
+	os.RemoveAll(stagingApp)
+	if out, err := exec.Command("ditto", srcApp, stagingApp).CombinedOutput(); err != nil {
+		os.RemoveAll(stagingApp)
+		return fmt.Errorf("failed to copy new app: %s", string(out))
+	}
+	if err := os.RemoveAll(dstApp); err != nil {
+		os.RemoveAll(stagingApp)
+		return fmt.Errorf("failed to remove old app: %w", err)
+	}
+	if err := os.Rename(stagingApp, dstApp); err != nil {
+		return fmt.Errorf("failed to finalize update: %w", err)
+	}
+
+	// Cleanup explicitly before quit (defers may not run after Quit)
+	exec.Command("hdiutil", "detach", mountPoint, "-quiet").Run()
+	os.Remove(dmgPath)
+
+	exec.Command("open", "-n", dstApp).Start()
+	runtime.Quit(a.ctx)
+
+	return nil
 }

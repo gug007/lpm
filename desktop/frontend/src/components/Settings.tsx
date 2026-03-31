@@ -3,10 +3,20 @@ import { SETTINGS, getSetting, setSetting } from "../settings";
 
 import { getStoredTheme, applyTheme, type Theme } from "../theme";
 
-import { SetDarkMode } from '../../wailsjs/go/main/App';
+import { SetDarkMode, GetVersion, CheckForUpdate, InstallUpdate } from '../../wailsjs/go/main/App';
 
 export function Settings() {
   const [theme, setTheme] = useState<Theme>(getStoredTheme);
+  const [version, setVersion] = useState("");
+  const [updateStatus, setUpdateStatus] = useState<
+    "idle" | "checking" | "available" | "up-to-date" | "installing" | "error"
+  >("idle");
+  const [latestVersion, setLatestVersion] = useState("");
+  const [updateError, setUpdateError] = useState("");
+
+  useEffect(() => {
+    GetVersion().then(setVersion);
+  }, []);
 
   useEffect(() => {
     const dark = applyTheme(theme);
@@ -24,6 +34,33 @@ export function Settings() {
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
   }, [theme]);
+
+  const handleCheckUpdate = async () => {
+    setUpdateStatus("checking");
+    setUpdateError("");
+    try {
+      const info = await CheckForUpdate();
+      if (info.updateAvail) {
+        setUpdateStatus("available");
+        setLatestVersion(info.latestVersion);
+      } else {
+        setUpdateStatus("up-to-date");
+      }
+    } catch (err) {
+      setUpdateStatus("error");
+      setUpdateError(String(err));
+    }
+  };
+
+  const handleInstallUpdate = async () => {
+    setUpdateStatus("installing");
+    try {
+      await InstallUpdate();
+    } catch (err) {
+      setUpdateStatus("error");
+      setUpdateError(String(err));
+    }
+  };
 
   return (
     <div className="mx-auto max-w-lg">
@@ -88,7 +125,45 @@ export function Settings() {
 
         <div className="rounded-lg border border-[var(--border)] divide-y divide-[var(--border)]">
           <SettingsRow label="Version" description="lpm desktop">
-            <span className="text-xs text-[var(--text-muted)]">0.1.9</span>
+            <span className="text-xs text-[var(--text-muted)]">{version || "..."}</span>
+          </SettingsRow>
+
+          <SettingsRow
+            label="Updates"
+            description={
+              updateStatus === "checking"
+                ? "Checking..."
+                : updateStatus === "installing"
+                  ? "Downloading and installing..."
+                  : updateStatus === "available"
+                    ? `v${latestVersion} available`
+                    : updateStatus === "up-to-date"
+                      ? "You're up to date"
+                      : updateStatus === "error"
+                        ? updateError || "Failed to check"
+                        : "Check for new versions"
+            }
+          >
+            {updateStatus === "available" ? (
+              <button
+                onClick={handleInstallUpdate}
+                className="rounded-md bg-[var(--accent-green)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
+              >
+                Update
+              </button>
+            ) : (
+              <button
+                onClick={handleCheckUpdate}
+                disabled={updateStatus === "checking" || updateStatus === "installing"}
+                className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-active)] disabled:opacity-50"
+              >
+                {updateStatus === "checking" || updateStatus === "installing" ? (
+                  <RefreshIcon spinning />
+                ) : (
+                  "Check"
+                )}
+              </button>
+            )}
           </SettingsRow>
         </div>
       </div>
@@ -166,6 +241,25 @@ function MonitorIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+    </svg>
+  );
+}
+
+function RefreshIcon({ spinning }: { spinning?: boolean }) {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={spinning ? "animate-spin" : ""}
+    >
+      <polyline points="23 4 23 10 17 10" />
+      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
     </svg>
   );
 }
