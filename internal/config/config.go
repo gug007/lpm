@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -205,10 +206,11 @@ func (p *ProjectConfig) ServicesForProfile(profile string) []string {
 		return names
 	}
 
-	// No profiles defined — return all services
+	// No profiles defined — return all services sorted for stable pane ordering
 	var all []string
 	for name := range p.Services {
 		all = append(all, name)
 	}
+	sort.Strings(all)
 	return all
 }
