@@ -25,25 +25,17 @@ export function TerminalView({ projectName, services }: TerminalViewProps) {
   useEffect(() => {
     const poll = async () => {
       try {
-        if (showAll) {
-          const results = await Promise.all(
-            stableServices.map((_, i) =>
-              GetServiceLogs(projectName, i, 100).catch(() => "(no output)")
-            )
-          );
-          const changed = results.some(
-            (r, i) => r !== prevOutputs.current[i]
-          );
-          if (changed) {
-            prevOutputs.current = results;
-            setOutputs(results);
-          }
-        } else {
-          const logs = await GetServiceLogs(projectName, activePane, 100);
-          if (logs !== prevOutputs.current[0]) {
-            prevOutputs.current = [logs];
-            setOutputs([logs]);
-          }
+        const results = await Promise.all(
+          stableServices.map((_, i) =>
+            GetServiceLogs(projectName, i, 100).catch(() => "(no output)")
+          )
+        );
+        const changed = results.some(
+          (r, i) => r !== prevOutputs.current[i]
+        );
+        if (changed) {
+          prevOutputs.current = results;
+          setOutputs(results);
         }
       } catch {
         // pane may not exist yet
@@ -53,7 +45,7 @@ export function TerminalView({ projectName, services }: TerminalViewProps) {
     poll();
     const interval = setInterval(poll, 1000);
     return () => clearInterval(interval);
-  }, [projectName, activePane, stableServices]);
+  }, [projectName, stableServices]);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden border-t border-[var(--border)]">
@@ -75,15 +67,23 @@ export function TerminalView({ projectName, services }: TerminalViewProps) {
         ))}
       </div>
 
-      {showAll && hasMultiple ? (
-        <div className="flex flex-1 divide-x divide-[#333] overflow-hidden">
-          {stableServices.map((svc, i) => (
-            <Pane key={svc.name} label={svc.name} output={outputs[i] || ""} />
-          ))}
-        </div>
-      ) : (
-        <Pane output={outputs[0] || ""} />
-      )}
+      <div className={`flex flex-1 overflow-hidden ${showAll && hasMultiple ? "divide-x divide-[var(--border)]" : ""}`}>
+        {stableServices.map((svc, i) => {
+          const visible = showAll || activePane === i;
+          return (
+            <div
+              key={svc.name}
+              className={visible ? "flex flex-1 flex-col overflow-hidden" : "hidden"}
+            >
+              <Pane
+                label={showAll && hasMultiple ? svc.name : undefined}
+                output={outputs[i] || ""}
+                visible={visible}
+              />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
