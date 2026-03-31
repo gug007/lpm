@@ -447,6 +447,10 @@ func versionNewer(latest, current string) bool {
 }
 
 func (a *App) autoCheckForUpdate(settings Settings) {
+	if Version == "dev" {
+		return
+	}
+
 	today := time.Now().Format("2006-01-02")
 	if settings.LastUpdateCheck == today {
 		return
