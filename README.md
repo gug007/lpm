@@ -1,7 +1,7 @@
+# lpm — Local Project Manager
+
 <p align="center">
-  <b>lpm</b> — local project manager
-  <br>
-  <i>Start, stop, and switch between local dev projects with a single command.</i>
+  <i>Start, stop, and switch between local dev projects with a single command. CLI and native macOS desktop app.</i>
 </p>
 
 <p align="center">
@@ -13,12 +13,12 @@
 ---
 
 <p align="center">
-  <img src="docs/app-demo.gif" alt="lpm demo" width="700">
+  <img src="docs/app-demo.gif" alt="lpm local project manager — CLI and desktop app for managing dev projects on macOS and Linux" width="700">
   <br>
-  <a href="https://gug007.github.io/lpm/">Download the app</a>
+  <a href="https://gug007.github.io/lpm/">Download lpm for macOS or Linux</a>
 </p>
 
-A lightweight tool for managing local development environments. Define your project services in a simple YAML config, then start, stop, and switch between projects instantly. Built for developers who work on multiple projects and need fast context switching.
+A lightweight local project manager for macOS and Linux. Define your project services in a simple YAML config, then start, stop, and switch between dev projects with a single command. Built for developers who juggle multiple services — Rails, Next.js, Go, Django, Docker Compose, and more.
 
 **Two ways to use it — CLI and desktop app.** Both have the same functionality, share the same config and state, and stay fully in sync. Start a project from the app, stop it from the terminal. Use whichever fits your workflow, or both.
 
@@ -33,7 +33,7 @@ A lightweight tool for managing local development environments. Define your proj
 - **CLI + App in sync** — same features, same state, mix and match freely
 - Works with any stack — if it runs in a terminal, lpm can manage it
 
-## Install
+## Install lpm
 
 **CLI:**
 
@@ -104,7 +104,7 @@ lpm start myapp      # start and open terminal
 lpm myapp -p full    # starts everything
 ```
 
-## Commands
+## CLI Commands
 
 | Command                | Description                          |
 | ---------------------- | ------------------------------------ |
@@ -119,7 +119,7 @@ lpm myapp -p full    # starts everything
 | `lpm remove <project>` | Remove a project                     |
 | `lpm open <project>`   | Open project in Finder               |
 
-## Configuration
+## Project Configuration
 
 Configs live in `~/.lpm/projects/<name>.yml`. Each config has:
 
