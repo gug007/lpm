@@ -10,7 +10,6 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// App is the main application struct bound to the Wails frontend.
 type App struct {
 	ctx context.Context
 

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 
 	"github.com/gug007/lpm/internal/config"
