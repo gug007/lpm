@@ -1,9 +1,5 @@
 export type Theme = "light" | "dark" | "system";
 
-export function getStoredTheme(): Theme {
-  return (localStorage.getItem("lpm-theme") as Theme) || "system";
-}
-
 export function isDarkTheme(theme: Theme): boolean {
   return (
     theme === "dark" ||

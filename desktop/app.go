@@ -26,6 +26,22 @@ var httpClient = &http.Client{Timeout: 30 * time.Second}
 
 var Version = "0.1.9"
 
+type Settings struct {
+	Theme              string `json:"theme"`
+	DoubleClickToggle  bool   `json:"doubleClickToToggle"`
+}
+
+func defaultSettings() Settings {
+	return Settings{
+		Theme:             "system",
+		DoubleClickToggle: false,
+	}
+}
+
+func settingsPath() string {
+	return filepath.Join(config.LpmDir(), "settings.json")
+}
+
 type App struct {
 	ctx context.Context
 
@@ -95,6 +111,29 @@ func (a *App) SetDarkMode(dark bool) {
 	} else {
 		runtime.WindowSetLightTheme(a.ctx)
 	}
+}
+
+func (a *App) LoadSettings() Settings {
+	data, err := os.ReadFile(settingsPath())
+	if err != nil {
+		return defaultSettings()
+	}
+	s := defaultSettings()
+	if err := json.Unmarshal(data, &s); err != nil {
+		return defaultSettings()
+	}
+	return s
+}
+
+func (a *App) SaveSettings(s Settings) error {
+	if err := config.EnsureDirs(); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(settingsPath(), data, 0644)
 }
 
 type ProjectInfo struct {

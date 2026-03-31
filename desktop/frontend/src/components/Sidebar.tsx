@@ -1,5 +1,5 @@
 import { StatusDot } from "./StatusDot";
-import { SETTINGS, getSetting } from "../settings";
+import { getSettings } from "../settings";
 import type { ProjectInfo } from "../types";
 
 interface SidebarProps {
@@ -35,7 +35,7 @@ export function Sidebar({ projects, selected, onSelect, onToggle, onSettings, on
             key={project.name}
             onClick={() => onSelect(project.name)}
             onDoubleClick={() => {
-              if (getSetting(SETTINGS.DOUBLE_CLICK)) {
+              if (getSettings().doubleClickToToggle) {
                 onToggle(project.name);
               }
             }}

@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
-import { SETTINGS, getSetting, setSetting } from "../settings";
+import { getSettings, saveSettings } from "../settings";
 
-import { getStoredTheme, applyTheme, type Theme } from "../theme";
+import { applyTheme, type Theme } from "../theme";
 
 import { SetDarkMode, GetVersion, CheckForUpdate, InstallUpdate } from '../../wailsjs/go/main/App';
 
 export function Settings() {
-  const [theme, setTheme] = useState<Theme>(getStoredTheme);
+  const settings = getSettings();
+  const [theme, setTheme] = useState<Theme>(settings.theme);
+  const [dblClick, setDblClick] = useState(settings.doubleClickToToggle);
   const [version, setVersion] = useState("");
   const [updateStatus, setUpdateStatus] = useState<
     "idle" | "checking" | "available" | "up-to-date" | "installing" | "error"
@@ -20,7 +22,7 @@ export function Settings() {
 
   useEffect(() => {
     const dark = applyTheme(theme);
-    localStorage.setItem("lpm-theme", theme);
+    saveSettings({ ...getSettings(), theme });
     SetDarkMode(dark);
   }, [theme]);
 
@@ -77,8 +79,11 @@ export function Settings() {
             description="Double-click a project in sidebar to toggle it"
           >
             <Toggle
-              enabled={getSetting(SETTINGS.DOUBLE_CLICK)}
-              onChange={(v) => setSetting(SETTINGS.DOUBLE_CLICK, v)}
+              enabled={dblClick}
+              onChange={(v) => {
+                setDblClick(v);
+                saveSettings({ ...getSettings(), doubleClickToToggle: v });
+              }}
             />
           </SettingsRow>
         </div>
