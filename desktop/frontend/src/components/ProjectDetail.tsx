@@ -66,7 +66,7 @@ function ActionTerminal({ label, onClose }: { label: string; onClose: () => void
             <XIcon />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto bg-[var(--terminal-bg)] px-4 py-3 font-mono text-[11px] leading-relaxed text-[var(--terminal-fg)]">
+        <div className="flex-1 select-text overflow-y-auto bg-[var(--terminal-bg)] px-4 py-3 font-mono text-[11px] leading-relaxed text-[var(--terminal-fg)]">
           {lines.length === 0 && !done && (
             <span className="text-[var(--text-muted)]">Running...</span>
           )}

@@ -152,7 +152,8 @@ export default function App() {
           }}
           showSettings={view === "settings"}
         />
-        <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6 pt-4">
+        <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">
+          <div className="wails-drag h-8 shrink-0" />
           {view === "settings" ? (
             <Settings />
           ) : selectedProject ? (
