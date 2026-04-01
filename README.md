@@ -13,7 +13,11 @@
 ---
 
 <p align="center">
-  <img src="docs/app-demo.gif" alt="lpm local project manager — CLI and desktop app for managing dev projects on macOS and Linux" width="700">
+  <strong>Add a project</strong> — browse to a directory, define services, save<br>
+  <img src="docs/videos/add-project.gif" alt="Adding a new project in lpm desktop app" width="700">
+  <br><br>
+  <strong>Start a project</strong> — one click, live terminal output for every service<br>
+  <img src="docs/videos/start-project.gif" alt="Starting a project in lpm desktop app" width="700">
   <br>
   <a href="https://gug007.github.io/lpm/">Download lpm for macOS or Linux</a>
 </p>
