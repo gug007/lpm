@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect } from "react";
-import { StatusDot } from "./StatusDot";
 import { ActionButton } from "./ActionButton";
 import { TerminalView } from "./TerminalView";
 import { ConfigEditor } from "./ConfigEditor";
@@ -68,17 +67,14 @@ export function ProjectDetail({
           <h1 className="text-xl font-semibold tracking-tight">
             {project.name}
           </h1>
-          {project.running && <StatusDot running={true} />}
-        </div>
-        <div className="flex items-center gap-2">
           {hasProfiles && (
-            <div className="flex items-center rounded-lg border border-[var(--border)] p-0.5">
+            <div className="flex items-center rounded border border-[var(--border)] p-px">
               {project.profiles.map((p) => (
                 <button
                   key={p}
                   onClick={() => setActiveProfile(p)}
                   disabled={project.running}
-                  className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors disabled:cursor-default ${
+                  className={`rounded-sm px-2 py-0.5 text-[10px] font-medium transition-colors disabled:cursor-default ${
                     activeProfile === p
                       ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
                       : "text-[var(--text-muted)] hover:text-[var(--text-secondary)] disabled:hover:text-[var(--text-muted)]"
@@ -89,6 +85,8 @@ export function ProjectDetail({
               ))}
             </div>
           )}
+        </div>
+        <div className="flex items-center gap-2">
           {project.running ? (
             <>
               <ActionButton
