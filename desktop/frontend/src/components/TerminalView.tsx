@@ -206,7 +206,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
         try {
           const results = await Promise.all(
             stableServices.map((_, i) =>
-              GetServiceLogs(projectName, i, 100).catch(() => "(no output)")
+              GetServiceLogs(projectName, i, 1000).catch(() => "(no output)")
             )
           );
           const changed = results.some((r, i) => r !== prevOutputs.current[i]);

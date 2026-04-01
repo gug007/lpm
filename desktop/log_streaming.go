@@ -64,7 +64,7 @@ func (a *App) streamLogs(ctx context.Context, projectName string) {
 func (a *App) emitLogs(session, projectName string, prevContent map[int]string) {
 	panes := a.cachedPaneIDs(session)
 	for i, paneID := range panes {
-		content, err := tmux.CapturePaneByID(paneID, 100)
+		content, err := tmux.CapturePaneByID(paneID, 1000)
 		if err != nil {
 			continue
 		}
