@@ -181,8 +181,13 @@ func SaveProject(cfg *ProjectConfig) error {
 		return err
 	}
 
+	// Add blank lines before top-level sections for readability
+	out := string(data)
+	out = strings.Replace(out, "\nservices:\n", "\n\nservices:\n", 1)
+	out = strings.Replace(out, "\nprofiles:\n", "\n\nprofiles:\n", 1)
+
 	path := filepath.Join(ProjectsDir(), cfg.Name+".yml")
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, []byte(out), 0644)
 }
 
 func expandHome(path string) string {
