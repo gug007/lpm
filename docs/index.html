@@ -586,32 +586,30 @@
       <section class="pb-20">
         <div class="max-w-3xl mx-auto px-6">
           <h2 class="text-2xl sm:text-3xl font-bold text-center mb-3">
-            Simple config
+            One config file. That's it.
           </h2>
           <p class="text-sm text-gray-400 dark:text-gray-500 text-center mb-8">
-            Define services, actions, and profiles in one file.
+            Define your services, group them into profiles, and add one-shot actions.
           </p>
 
-          <div class="grid gap-4 sm:grid-cols-2">
+          <div class="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
             <div
-              class="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden"
+              class="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900/80"
             >
-              <div
-                class="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900/80"
+              <i
+                data-lucide="file-text"
+                class="w-3.5 h-3.5 text-gray-400 dark:text-gray-500"
+              ></i>
+              <span class="text-xs text-gray-400 dark:text-gray-500 font-mono"
+                >~/.lpm/projects/myapp.yml</span
               >
-                <i
-                  data-lucide="file-text"
-                  class="w-3.5 h-3.5 text-gray-400 dark:text-gray-500"
-                ></i>
-                <span class="text-xs text-gray-400 dark:text-gray-500 font-mono"
-                  >services + profiles</span
-                >
-              </div>
-              <pre
-                class="px-4 py-3 text-xs font-mono text-gray-700 dark:text-gray-300 leading-relaxed overflow-x-auto"
-              ><code>name: myapp
+            </div>
+            <pre
+              class="px-4 py-3 text-xs font-mono text-gray-700 dark:text-gray-300 leading-relaxed overflow-x-auto"
+            ><code>name: myapp
 root: ~/Projects/myapp
 
+<span class="text-gray-400 dark:text-gray-500"># Long-running services — started with lpm start</span>
 services:
   api:
     cmd: python manage.py runserver
@@ -622,44 +620,35 @@ services:
     cwd: ./frontend
   worker: celery -A backend worker
 
+<span class="text-gray-400 dark:text-gray-500"># Named subsets of services</span>
 profiles:
   default: [api, frontend]
-  full: [api, frontend, worker]</code></pre>
-            </div>
+  full: [api, frontend, worker]
 
-            <div
-              class="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden"
-            >
-              <div
-                class="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900/80"
-              >
-                <i
-                  data-lucide="zap"
-                  class="w-3.5 h-3.5 text-gray-400 dark:text-gray-500"
-                ></i>
-                <span class="text-xs text-gray-400 dark:text-gray-500 font-mono"
-                  >actions</span
-                >
-              </div>
-              <pre
-                class="px-4 py-3 text-xs font-mono text-gray-700 dark:text-gray-300 leading-relaxed overflow-x-auto"
-              ><code>actions:
+<span class="text-gray-400 dark:text-gray-500"># One-shot commands — run from app or CLI</span>
+actions:
   test: pytest
   migrate:
     cmd: python manage.py migrate
     cwd: ./backend
     confirm: true
   deploy: ./scripts/deploy.sh</code></pre>
-            </div>
           </div>
 
-          <p class="text-xs text-gray-400 dark:text-gray-500 text-center mt-4">
-            Run actions from the desktop app via the Actions button, or from CLI
-            with
-            <code class="font-mono text-gray-500 dark:text-gray-400"
-              >lpm run myapp deploy</code
-            >
-          </p>
+          <div class="grid gap-3 sm:grid-cols-3 mt-4">
+            <div class="rounded-lg border border-gray-200 dark:border-gray-800 px-3.5 py-2.5">
+              <p class="text-[11px] font-medium text-gray-900 dark:text-gray-200 mb-0.5">Services</p>
+              <p class="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">Long-running processes. Use string shorthand or full config with <code class="font-mono">cwd</code>, <code class="font-mono">port</code>, <code class="font-mono">env</code>.</p>
+            </div>
+            <div class="rounded-lg border border-gray-200 dark:border-gray-800 px-3.5 py-2.5">
+              <p class="text-[11px] font-medium text-gray-900 dark:text-gray-200 mb-0.5">Profiles</p>
+              <p class="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">Named groups of services. Start a subset with <code class="font-mono">lpm myapp -p full</code> or pick from the app.</p>
+            </div>
+            <div class="rounded-lg border border-gray-200 dark:border-gray-800 px-3.5 py-2.5">
+              <p class="text-[11px] font-medium text-gray-900 dark:text-gray-200 mb-0.5">Actions</p>
+              <p class="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">One-shot commands. Run from the desktop app or CLI with <code class="font-mono">lpm run myapp deploy</code>.</p>
+            </div>
+          </div>
         </div>
       </section>
 
