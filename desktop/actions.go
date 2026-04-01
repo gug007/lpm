@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -56,7 +57,11 @@ func (a *App) RunAction(projectName string, actionName string) error {
 		cmdStr = strings.Join(parts, " && ")
 	}
 
-	cmd := exec.Command("/bin/sh", "-c", cmdStr)
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = "/bin/sh"
+	}
+	cmd := exec.Command(shell, "-l", "-c", cmdStr)
 	cmd.Dir = cwd
 
 	// Merge stdout and stderr into a single pipe
