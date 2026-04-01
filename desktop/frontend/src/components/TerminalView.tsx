@@ -23,6 +23,8 @@ function ChevronUpIcon() { return <svg {...iconProps}><path d="m18 15-6-6-6 6" /
 function ChevronDownIcon() { return <svg {...iconProps}><path d="m6 9 6 6 6-6" /></svg>; }
 function XIcon() { return <svg {...iconProps}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>; }
 function PaletteIcon() { return <svg {...iconProps}><circle cx="13.5" cy="6.5" r="0.5" fill="currentColor" /><circle cx="17.5" cy="10.5" r="0.5" fill="currentColor" /><circle cx="8.5" cy="7.5" r="0.5" fill="currentColor" /><circle cx="6.5" cy="12" r="0.5" fill="currentColor" /><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.5-.7 1.5-1.5 0-.4-.1-.7-.4-1-.3-.3-.4-.6-.4-1 0-.8.7-1.5 1.5-1.5H16c3.3 0 6-2.7 6-6 0-5.5-4.5-9-10-9z" /></svg>; }
+function ExpandIcon() { return <svg {...iconProps}><polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" /><line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" /></svg>; }
+function ShrinkIcon() { return <svg {...iconProps}><polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" /><line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" /></svg>; }
 
 function IconBtn({ onClick, title, children, active, className = "" }: {
   onClick: () => void;
@@ -111,6 +113,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
   const [searchQuery, setSearchQuery] = useState("");
   const [atBottom, setAtBottom] = useState(true);
   const [showThemePicker, setShowThemePicker] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const paneRefs = useRef<(PaneHandle | null)[]>([]);
   const paneScrollState = useRef<Record<number, boolean>>({});
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -232,7 +235,10 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
       if (mod && e.key === "f") { e.preventDefault(); toggleSearch(); }
       if (mod && (e.key === "=" || e.key === "+")) { e.preventDefault(); zoomIn(); }
       if (mod && e.key === "-") { e.preventDefault(); zoomOut(); }
-      if (e.key === "Escape") closeSearch();
+      if (e.key === "Escape") {
+        setFullscreen((fs) => { if (fs) { e.preventDefault(); return false; } return fs; });
+        closeSearch();
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
@@ -259,8 +265,15 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
   };
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-[var(--border)]" style={containerStyle}>
-      <div className="flex items-center gap-0.5 rounded-t-lg bg-[var(--terminal-header)] px-3 py-1.5">
+    <div
+      className={
+        fullscreen
+          ? "fixed inset-0 z-50 flex flex-col overflow-hidden bg-[var(--terminal-bg)]"
+          : "flex flex-1 flex-col overflow-hidden rounded-lg border border-[var(--border)]"
+      }
+      style={containerStyle}
+    >
+      <div className={`flex items-center gap-0.5 bg-[var(--terminal-header)] py-1.5 ${fullscreen ? "pl-20 pr-3" : "rounded-t-lg px-3"}`}>
         <div className="flex items-center gap-0.5">
           {hasMultiple && (
             <HeaderTab label="All" active={showAll} onClick={() => setActivePane("all")} />
@@ -282,6 +295,9 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
           <IconBtn onClick={() => setShowThemePicker((v) => !v)} title="Terminal theme" active={showThemePicker}><PaletteIcon /></IconBtn>
           <IconBtn onClick={toggleSearch} title="Search (Cmd+F)" active={showSearch}><SearchIcon /></IconBtn>
           <IconBtn onClick={() => forActivePanes((p) => p.clear())} title="Clear"><TrashIcon /></IconBtn>
+          <IconBtn onClick={() => setFullscreen((v) => !v)} title={fullscreen ? "Exit fullscreen (Esc)" : "Fullscreen"}>
+            {fullscreen ? <ShrinkIcon /> : <ExpandIcon />}
+          </IconBtn>
           {!atBottom && (
             <IconBtn
               onClick={() => {

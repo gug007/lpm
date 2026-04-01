@@ -143,6 +143,3 @@ Configs live in `~/.lpm/projects/<name>.yml`. Each config has:
 
 Configs are validated on load — lpm will catch missing commands, invalid ports, duplicate ports, and nonexistent directories before starting anything.
 
-## License
-
-MIT

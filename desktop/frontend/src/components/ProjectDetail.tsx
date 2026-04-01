@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { ActionButton } from "./ActionButton";
 import { TerminalView } from "./TerminalView";
 import { ConfigEditor } from "./ConfigEditor";
@@ -17,7 +18,72 @@ function SpinnerIcon() {
     </svg>
   );
 }
-function CheckIcon() { return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>; }
+function XIcon() { return <svg {...iconProps}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>; }
+function CheckCircleIcon() { return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>; }
+function ErrorCircleIcon() { return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent-red)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="m15 9-6 6" /><path d="m9 9 6 6" /></svg>; }
+
+// Terminal-style modal that shows live action output
+function ActionTerminal({ label, onClose }: { label: string; onClose: () => void }) {
+  const [lines, setLines] = useState<string[]>([]);
+  const [done, setDone] = useState<{ success: boolean; error?: string } | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const cleanupOutput = EventsOn("action-output", (data: { line: string }) => {
+      setLines((prev) => [...prev, data.line]);
+    });
+    const cleanupDone = EventsOn("action-done", (data: { success: boolean; error?: string }) => {
+      setDone(data);
+    });
+    return () => {
+      if (typeof cleanupOutput === "function") cleanupOutput();
+      if (typeof cleanupDone === "function") cleanupDone();
+    };
+  }, []);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [lines]);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative flex w-[560px] max-h-[70vh] flex-col rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border)] bg-[var(--bg-secondary)]">
+          <div className="flex items-center gap-2">
+            {!done && <SpinnerIcon />}
+            {done?.success && <CheckCircleIcon />}
+            {done && !done.success && <ErrorCircleIcon />}
+            <span className="text-xs font-medium text-[var(--text-primary)]">{label}</span>
+            {done && (
+              <span className={`text-[10px] ${done.success ? "text-[var(--accent-green)]" : "text-[var(--accent-red)]"}`}>
+                {done.success ? "completed" : "failed"}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded p-1 text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
+          >
+            <XIcon />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto bg-[var(--terminal-bg)] px-4 py-3 font-mono text-[11px] leading-relaxed text-[var(--terminal-fg)]">
+          {lines.length === 0 && !done && (
+            <span className="text-[var(--text-muted)]">Running...</span>
+          )}
+          {lines.map((line, i) => (
+            <div key={i} className="whitespace-pre-wrap break-all">{line || "\u00A0"}</div>
+          ))}
+          {done?.error && (
+            <div className="mt-2 text-[var(--accent-red)]">{done.error}</div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ActionsPopover({ actions, projectName, onClose, onError }: {
   actions: ActionInfo[];
@@ -26,19 +92,23 @@ function ActionsPopover({ actions, projectName, onClose, onError }: {
   onError: (msg: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [running, setRunning] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null);
+  const [runningAction, setRunningAction] = useState<ActionInfo | null>(null);
   const [confirmAction, setConfirmAction] = useState<ActionInfo | null>(null);
+  const confirmRef = useRef(confirmAction);
+  const runningRef = useRef(runningAction);
+  confirmRef.current = confirmAction;
+  runningRef.current = runningAction;
 
   useEffect(() => {
     const handle = (e: MouseEvent) => {
+      if (confirmRef.current || runningRef.current) return;
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     };
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, [onClose]);
 
-  const run = async (action: ActionInfo) => {
+  const run = (action: ActionInfo) => {
     if (action.confirm) {
       setConfirmAction(action);
       return;
@@ -48,19 +118,11 @@ function ActionsPopover({ actions, projectName, onClose, onError }: {
 
   const execute = async (action: ActionInfo) => {
     setConfirmAction(null);
-    setRunning(action.name);
     try {
-      const result = await RunAction(projectName, action.name);
-      if (result.success) {
-        setDone(action.name);
-        setTimeout(() => setDone(null), 1500);
-      } else {
-        onError(`${action.label} failed: ${result.error}`);
-      }
+      await RunAction(projectName, action.name);
+      setRunningAction(action);
     } catch (err) {
       onError(`${action.label}: ${err}`);
-    } finally {
-      setRunning(null);
     }
   };
 
@@ -74,15 +136,11 @@ function ActionsPopover({ actions, projectName, onClose, onError }: {
           <button
             key={action.name}
             onClick={() => run(action)}
-            disabled={running !== null}
-            className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50 ${
-              running === action.name || done === action.name
-                ? "text-[var(--text-primary)]"
-                : "text-[var(--text-secondary)]"
-            }`}
+            disabled={runningAction !== null}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
           >
             <span className="flex-1 font-mono truncate">{action.label}</span>
-            {running === action.name ? <SpinnerIcon /> : done === action.name ? <CheckIcon /> : <PlayIcon />}
+            <PlayIcon />
           </button>
         ))}
       </div>
@@ -110,6 +168,13 @@ function ActionsPopover({ actions, projectName, onClose, onError }: {
             </div>
           </div>
         </div>
+      )}
+
+      {runningAction && (
+        <ActionTerminal
+          label={runningAction.label}
+          onClose={() => { setRunningAction(null); onClose(); }}
+        />
       )}
     </>
   );

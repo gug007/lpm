@@ -1,17 +1,23 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/gug007/lpm/internal/config"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-type ActionResult struct {
+type ActionOutput struct {
+	Line string `json:"line"`
+}
+
+type ActionDone struct {
 	Success bool   `json:"success"`
-	Output  string `json:"output"`
 	Error   string `json:"error,omitempty"`
 }
 
@@ -19,15 +25,16 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }
 
-func (a *App) RunAction(projectName string, actionName string) (*ActionResult, error) {
+// RunAction starts an action and streams output via events. Returns immediately.
+func (a *App) RunAction(projectName string, actionName string) error {
 	cfg, err := config.LoadProject(projectName)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	action, ok := cfg.Actions[actionName]
 	if !ok {
-		return nil, fmt.Errorf("action %q not found in project %q", actionName, projectName)
+		return fmt.Errorf("action %q not found in project %q", actionName, projectName)
 	}
 
 	cwd := cfg.Root
@@ -51,14 +58,34 @@ func (a *App) RunAction(projectName string, actionName string) (*ActionResult, e
 
 	cmd := exec.Command("/bin/sh", "-c", cmdStr)
 	cmd.Dir = cwd
-	out, err := cmd.CombinedOutput()
 
-	result := &ActionResult{
-		Success: err == nil,
-		Output:  string(out),
+	// Merge stdout and stderr into a single pipe
+	pr, pw := io.Pipe()
+	cmd.Stdout = pw
+	cmd.Stderr = pw
+
+	if err := cmd.Start(); err != nil {
+		return err
 	}
-	if err != nil {
-		result.Error = err.Error()
-	}
-	return result, nil
+
+	// Close the write end when the command exits so the scanner unblocks
+	go func() {
+		cmd.Wait()
+		pw.Close()
+	}()
+
+	go func() {
+		scanner := bufio.NewScanner(pr)
+		for scanner.Scan() {
+			runtime.EventsEmit(a.ctx, "action-output", ActionOutput{Line: scanner.Text()})
+		}
+
+		done := ActionDone{Success: cmd.ProcessState.Success()}
+		if !done.Success {
+			done.Error = cmd.ProcessState.String()
+		}
+		runtime.EventsEmit(a.ctx, "action-done", done)
+	}()
+
+	return nil
 }
