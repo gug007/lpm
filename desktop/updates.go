@@ -30,26 +30,32 @@ func (a *App) GetVersion() string {
 	return Version
 }
 
-func (a *App) autoCheckForUpdate(settings Settings) {
-	if Version == "dev" {
-		return
-	}
-
-	today := time.Now().Format("2006-01-02")
-	if settings.LastUpdateCheck == today {
-		return
-	}
-
+func (a *App) checkAndEmitUpdate() {
 	info, err := a.CheckForUpdate()
 	if err != nil {
 		return
 	}
-
-	settings.LastUpdateCheck = today
-	a.SaveSettings(settings)
-
 	if info.UpdateAvail {
 		runtime.EventsEmit(a.ctx, "update-available", info)
+	}
+}
+
+func (a *App) autoCheckForUpdate() {
+	if Version == "dev" {
+		return
+	}
+
+	a.checkAndEmitUpdate()
+
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-a.ctx.Done():
+			return
+		case <-ticker.C:
+			a.checkAndEmitUpdate()
+		}
 	}
 }
 

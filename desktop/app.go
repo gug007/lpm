@@ -40,7 +40,7 @@ func (a *App) startup(ctx context.Context) {
 	settings := a.LoadSettings()
 	a.projectOrder = settings.ProjectOrder
 
-	go a.autoCheckForUpdate(settings)
+	go a.autoCheckForUpdate()
 
 	if err := tmux.EnsureInstalled(); err != nil {
 		sel, _ := runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{

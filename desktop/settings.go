@@ -12,7 +12,6 @@ type Settings struct {
 	Theme             string            `json:"theme"`
 	DoubleClickToggle bool              `json:"doubleClickToToggle"`
 	ProjectOrder      []string          `json:"projectOrder,omitempty"`
-	LastUpdateCheck   string            `json:"lastUpdateCheck,omitempty"`
 	TerminalTheme     string            `json:"terminalTheme,omitempty"`
 	TerminalFontSize  int               `json:"terminalFontSize,omitempty"`
 }
