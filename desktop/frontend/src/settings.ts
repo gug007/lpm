@@ -5,7 +5,7 @@ export interface Settings {
   theme: Theme;
   doubleClickToToggle: boolean;
   projectOrder?: string[];
-  terminalThemes?: Record<string, string>;
+  terminalTheme?: string;
   terminalFontSize?: number;
 }
 
@@ -23,7 +23,7 @@ export async function loadSettings(): Promise<Settings> {
       theme: (s.theme as Theme) || defaults.theme,
       doubleClickToToggle: s.doubleClickToToggle ?? defaults.doubleClickToToggle,
       projectOrder: s.projectOrder,
-      terminalThemes: s.terminalThemes,
+      terminalTheme: s.terminalTheme,
       terminalFontSize: s.terminalFontSize,
     };
   } catch {

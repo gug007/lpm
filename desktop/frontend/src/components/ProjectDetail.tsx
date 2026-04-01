@@ -209,7 +209,7 @@ export function ProjectDetail({
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [showActions, setShowActions] = useState(false);
 
-  const saved = getSettings().terminalThemes?.[project.name];
+  const saved = getSettings().terminalTheme;
   const [termTheme, setTermTheme] = useState<TerminalThemeName>(
     saved && terminalThemeNames.includes(saved as TerminalThemeName) ? saved as TerminalThemeName : "default"
   );
@@ -217,14 +217,8 @@ export function ProjectDetail({
   const handleTerminalThemeChange = useCallback((theme: TerminalThemeName) => {
     setTermTheme(theme);
     const s = getSettings();
-    const themes = { ...s.terminalThemes };
-    if (theme === "default") {
-      delete themes[project.name];
-    } else {
-      themes[project.name] = theme;
-    }
-    saveSettings({ ...s, terminalThemes: Object.keys(themes).length ? themes : undefined });
-  }, [project.name]);
+    saveSettings({ ...s, terminalTheme: theme === "default" ? undefined : theme });
+  }, []);
 
   const withLoading = async (fn: () => Promise<void>) => {
     setLoading(true);
