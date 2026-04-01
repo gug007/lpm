@@ -13,10 +13,10 @@
 ---
 
 <p align="center">
-  <strong>Add a project</strong> — browse to a directory, define services, save<br>
+  <strong>Add a project</strong> — browse to a directory, define services, save<br><br>
   <img src="docs/videos/add-project.gif" alt="Adding a new project in lpm desktop app" width="700">
   <br><br>
-  <strong>Start a project</strong> — one click, live terminal output for every service<br>
+  <strong>Start a project</strong> — one click, live terminal output for every service<br><br>
   <img src="docs/videos/start-project.gif" alt="Starting a project in lpm desktop app" width="700">
   <br>
   <a href="https://gug007.github.io/lpm/">Download lpm for macOS or Linux</a>
@@ -123,19 +123,19 @@ lpm run myapp deploy   # deploy
 
 ## CLI Commands
 
-| Command                | Description                          |
-| ---------------------- | ------------------------------------ |
-| `lpm <project>`        | Start in background                  |
-| `lpm start <project>`  | Start and open terminal              |
-| `lpm switch <project>` | Stop all, start another              |
-| `lpm kill [project]`   | Stop a project (all if none given)   |
-| `lpm list`             | List all projects                    |
-| `lpm status <project>` | Show project details                 |
-| `lpm init [name]`      | Create config from current directory |
-| `lpm edit <project>`   | Open config in `$EDITOR`             |
-| `lpm remove <project>` | Remove a project                     |
-| `lpm open <project>`   | View a running project's live output |
-| `lpm run <project> <action>` | Run a project action             |
+| Command                      | Description                          |
+| ---------------------------- | ------------------------------------ |
+| `lpm <project>`              | Start in background                  |
+| `lpm start <project>`        | Start and open terminal              |
+| `lpm switch <project>`       | Stop all, start another              |
+| `lpm kill [project]`         | Stop a project (all if none given)   |
+| `lpm list`                   | List all projects                    |
+| `lpm status <project>`       | Show project details                 |
+| `lpm init [name]`            | Create config from current directory |
+| `lpm edit <project>`         | Open config in `$EDITOR`             |
+| `lpm remove <project>`       | Remove a project                     |
+| `lpm open <project>`         | View a running project's live output |
+| `lpm run <project> <action>` | Run a project action                 |
 
 ## Project Configuration
 
@@ -146,4 +146,3 @@ Configs live in `~/.lpm/projects/<name>.yml`. Each config has:
 - **profiles** — groups of services to start together
 
 Configs are validated on load — lpm will catch missing commands, invalid ports, duplicate ports, and nonexistent directories before starting anything.
-
