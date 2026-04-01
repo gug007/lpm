@@ -268,7 +268,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
       className={
         fullscreen
           ? "fixed inset-0 z-50 flex flex-col overflow-hidden bg-[var(--terminal-bg)]"
-          : "flex flex-1 flex-col overflow-hidden rounded-lg border border-[var(--border)]"
+          : "flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-[var(--border)]"
       }
       style={containerStyle}
     >
@@ -340,13 +340,13 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
         </div>
       )}
 
-      <div className={`flex flex-1 overflow-hidden ${showAll && hasMultiple ? "divide-x divide-[var(--border)]" : ""}`}>
+      <div className={`flex min-h-0 flex-1 overflow-hidden ${showAll && hasMultiple ? "divide-x divide-[var(--border)]" : ""}`}>
         {stableServices.map((svc, i) => {
           const visible = showAll || activePane === i;
           return (
             <div
               key={svc.name}
-              className={visible ? "flex flex-1 flex-col overflow-hidden" : "hidden"}
+              className={visible ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "hidden"}
             >
               <Pane
                 ref={(el) => { paneRefs.current[i] = el; }}

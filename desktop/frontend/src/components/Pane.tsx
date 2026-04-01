@@ -204,7 +204,7 @@ export const Pane = forwardRef<PaneHandle, PaneProps>(
     }, [output]);
 
     return (
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {label && (
           <div className="border-b border-[var(--terminal-header-hover)] bg-[var(--terminal-header)] px-3 py-0.5">
             <span className="font-mono text-[10px] font-medium text-[var(--terminal-header-text)]">
