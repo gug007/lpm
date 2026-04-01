@@ -5,7 +5,7 @@ import { ProfileTag } from "./ProfileTag";
 import { TerminalView } from "./TerminalView";
 import { ConfigEditor } from "./ConfigEditor";
 import { getSettings, saveSettings } from "../settings";
-import type { TerminalThemeName } from "../terminal-themes";
+import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
 import type { ProjectInfo } from "../types";
 
 interface ProjectDetailProps {
@@ -31,9 +31,9 @@ export function ProjectDetail({
   );
   const [confirmRemove, setConfirmRemove] = useState(false);
 
-  const settings = getSettings();
+  const saved = getSettings().terminalThemes?.[project.name];
   const [termTheme, setTermTheme] = useState<TerminalThemeName>(
-    (settings.terminalThemes?.[project.name] as TerminalThemeName) || "default"
+    saved && terminalThemeNames.includes(saved as TerminalThemeName) ? saved as TerminalThemeName : "default"
   );
 
   const handleTerminalThemeChange = useCallback((theme: TerminalThemeName) => {

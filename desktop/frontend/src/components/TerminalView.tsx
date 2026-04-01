@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { GetServiceLogs, StartLogStreaming, StopLogStreaming } from "../../wailsjs/go/main/App";
-import { Pane, PaneHandle, type XtermTheme } from "./Pane";
+import type { ITheme } from "@xterm/xterm";
+import { Pane, PaneHandle } from "./Pane";
 import { type TerminalThemeName, terminalThemeNames, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
 
 interface TerminalViewProps {
@@ -127,15 +128,14 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
   const showAll = activePane === "all";
   const hasMultiple = stableServices.length > 1;
 
-  const themeColors = useMemo(() => getTerminalThemeColors(terminalTheme), [terminalTheme]);
-  const containerStyle = useMemo(
-    () => themeColors ? terminalThemeCssVars(themeColors) as React.CSSProperties : undefined,
-    [themeColors]
-  );
-  const xtermTheme = useMemo((): XtermTheme | null => {
-    if (!themeColors) return null;
-    return { background: themeColors.bg, foreground: themeColors.fg, selectionBackground: themeColors.selection, cursor: themeColors.cursor };
-  }, [themeColors]);
+  const { containerStyle, xtermTheme } = useMemo(() => {
+    const colors = getTerminalThemeColors(terminalTheme);
+    if (!colors) return { containerStyle: undefined, xtermTheme: null };
+    return {
+      containerStyle: terminalThemeCssVars(colors) as React.CSSProperties,
+      xtermTheme: { background: colors.bg, foreground: colors.fg, selectionBackground: colors.selection, cursor: colors.cursor } as ITheme,
+    };
+  }, [terminalTheme]);
 
   const getActivePane = useCallback((): PaneHandle | null => {
     const ap = activePaneRef.current;

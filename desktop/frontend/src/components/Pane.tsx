@@ -1,5 +1,5 @@
 import { useRef, useEffect, useImperativeHandle, forwardRef } from "react";
-import { Terminal } from "@xterm/xterm";
+import { Terminal, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -15,20 +15,13 @@ export interface PaneHandle {
   scrollToBottom: () => void;
 }
 
-export interface XtermTheme {
-  background: string;
-  foreground: string;
-  selectionBackground: string;
-  cursor: string;
-}
-
 interface PaneProps {
   label?: string;
   output: string;
   visible?: boolean;
   fontSize?: number;
   onScrollStateChange?: (atBottom: boolean) => void;
-  themeOverride?: XtermTheme | null;
+  themeOverride?: ITheme | null;
 }
 
 function getTerminalTheme(el?: Element | null) {
@@ -50,7 +43,9 @@ export const Pane = forwardRef<PaneHandle, PaneProps>(
     const prevLinesRef = useRef<string[]>([]);
     const stickToBottomRef = useRef(true);
     const scrollCallbackRef = useRef(onScrollStateChange);
+    const themeOverrideRef = useRef(themeOverride);
     scrollCallbackRef.current = onScrollStateChange;
+    themeOverrideRef.current = themeOverride;
 
     useImperativeHandle(ref, () => ({
       clear() {
@@ -119,9 +114,8 @@ export const Pane = forwardRef<PaneHandle, PaneProps>(
       };
       el.addEventListener("mouseup", handleMouseUp);
 
-      // Watch global theme changes (light/dark) — only matters when no override is active
       const globalObserver = new MutationObserver(() => {
-        if (!themeOverride) term.options.theme = getTerminalTheme(el);
+        if (!themeOverrideRef.current) term.options.theme = getTerminalTheme(el);
       });
       globalObserver.observe(document.documentElement, {
         attributes: true,
