@@ -133,7 +133,7 @@ export function Sidebar({ projects, selected, onSelect, onToggle, onSettings, on
         </button>
       )}
 
-      <div className="border-t border-[var(--border)] p-2">
+      <div className="p-2">
         <button
           onClick={onSettings}
           className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
