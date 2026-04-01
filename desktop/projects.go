@@ -18,6 +18,7 @@ type ProjectInfo struct {
 	Root          string        `json:"root"`
 	Running       bool          `json:"running"`
 	Services      []ServiceInfo `json:"services"`
+	Actions       []ActionInfo  `json:"actions"`
 	Profiles      []string      `json:"profiles"`
 	ActiveProfile string        `json:"activeProfile"`
 }
@@ -27,6 +28,12 @@ type ServiceInfo struct {
 	Cmd  string `json:"cmd"`
 	Cwd  string `json:"cwd"`
 	Port int    `json:"port"`
+}
+
+type ActionInfo struct {
+	Name    string `json:"name"`
+	Label   string `json:"label"`
+	Confirm bool   `json:"confirm"`
 }
 
 func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, activeProfile string) ProjectInfo {
@@ -48,12 +55,33 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, activeP
 	}
 	sort.Strings(profiles)
 
+	actionNames := make([]string, 0, len(cfg.Actions))
+	for aName := range cfg.Actions {
+		actionNames = append(actionNames, aName)
+	}
+	sort.Strings(actionNames)
+
+	actions := make([]ActionInfo, 0, len(actionNames))
+	for _, aName := range actionNames {
+		act := cfg.Actions[aName]
+		label := act.Label
+		if label == "" {
+			label = aName
+		}
+		actions = append(actions, ActionInfo{
+			Name:    aName,
+			Label:   label,
+			Confirm: act.Confirm,
+		})
+	}
+
 	return ProjectInfo{
 		Name:          name,
 		Session:       cfg.Name,
 		Root:          cfg.Root,
 		Running:       running,
 		Services:      services,
+		Actions:       actions,
 		Profiles:      profiles,
 		ActiveProfile: activeProfile,
 	}

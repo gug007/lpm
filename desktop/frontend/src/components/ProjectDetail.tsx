@@ -2,9 +2,119 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { ActionButton } from "./ActionButton";
 import { TerminalView } from "./TerminalView";
 import { ConfigEditor } from "./ConfigEditor";
+import { RunAction } from "../../wailsjs/go/main/App";
 import { getSettings, saveSettings } from "../settings";
 import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
-import type { ProjectInfo } from "../types";
+import type { ProjectInfo, ActionInfo } from "../types";
+
+const iconProps = { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+
+function ZapIcon() { return <svg {...iconProps}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>; }
+function PlayIcon() { return <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3" /></svg>; }
+function SpinnerIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="animate-spin">
+      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+    </svg>
+  );
+}
+function CheckIcon() { return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>; }
+
+function ActionsPopover({ actions, projectName, onClose, onError }: {
+  actions: ActionInfo[];
+  projectName: string;
+  onClose: () => void;
+  onError: (msg: string) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [running, setRunning] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<ActionInfo | null>(null);
+
+  useEffect(() => {
+    const handle = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [onClose]);
+
+  const run = async (action: ActionInfo) => {
+    if (action.confirm) {
+      setConfirmAction(action);
+      return;
+    }
+    execute(action);
+  };
+
+  const execute = async (action: ActionInfo) => {
+    setConfirmAction(null);
+    setRunning(action.name);
+    try {
+      const result = await RunAction(projectName, action.name);
+      if (result.success) {
+        setDone(action.name);
+        setTimeout(() => setDone(null), 1500);
+      } else {
+        onError(`${action.label} failed: ${result.error}`);
+      }
+    } catch (err) {
+      onError(`${action.label}: ${err}`);
+    } finally {
+      setRunning(null);
+    }
+  };
+
+  return (
+    <>
+      <div ref={ref} className="absolute right-0 top-full z-50 mt-1 w-52 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
+        <div className="px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
+          Actions
+        </div>
+        {actions.map((action) => (
+          <button
+            key={action.name}
+            onClick={() => run(action)}
+            disabled={running !== null}
+            className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50 ${
+              running === action.name || done === action.name
+                ? "text-[var(--text-primary)]"
+                : "text-[var(--text-secondary)]"
+            }`}
+          >
+            <span className="flex-1 font-mono truncate">{action.label}</span>
+            {running === action.name ? <SpinnerIcon /> : done === action.name ? <CheckIcon /> : <PlayIcon />}
+          </button>
+        ))}
+      </div>
+
+      {confirmAction && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmAction(null)} />
+          <div className="relative w-72 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-5 shadow-xl">
+            <p className="text-sm text-[var(--text-secondary)]">
+              Run <span className="font-medium text-[var(--text-primary)]">{confirmAction.label}</span>?
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmAction(null)}
+                className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => execute(confirmAction)}
+                className="rounded-lg bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] hover:opacity-90"
+              >
+                Run
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
 interface ProjectDetailProps {
   project: ProjectInfo;
@@ -13,6 +123,7 @@ interface ProjectDetailProps {
   onRestart: (name: string, profile: string) => Promise<void>;
   onRefresh: (newName?: string) => void;
   onRemove: (name: string) => Promise<void>;
+  onError: (msg: string) => void;
 }
 
 export function ProjectDetail({
@@ -22,6 +133,7 @@ export function ProjectDetail({
   onRestart,
   onRefresh,
   onRemove,
+  onError,
 }: ProjectDetailProps) {
   const [loading, setLoading] = useState(false);
   const [activeProfile, setActiveProfile] = useState(
@@ -31,6 +143,7 @@ export function ProjectDetail({
     if (project.activeProfile) setActiveProfile(project.activeProfile);
   }, [project.activeProfile]);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [showActions, setShowActions] = useState(false);
 
   const saved = getSettings().terminalThemes?.[project.name];
   const [termTheme, setTermTheme] = useState<TerminalThemeName>(
@@ -59,6 +172,7 @@ export function ProjectDetail({
   };
 
   const hasProfiles = project.profiles && project.profiles.length > 0;
+  const hasActions = project.actions && project.actions.length > 0;
   const [copied, setCopied] = useState(false);
   const copyTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -69,7 +183,7 @@ export function ProjectDetail({
       clearTimeout(copyTimeout.current);
       copyTimeout.current = setTimeout(() => setCopied(false), 2000);
     }).catch(() => {});
-  }, [project.session]);
+  }, [project.name]);
 
   return (
     <div className="flex h-full flex-col">
@@ -115,6 +229,29 @@ export function ProjectDetail({
           )}
         </div>
         <div className="flex items-center gap-2">
+          {hasActions && (
+            <div className="relative">
+              <button
+                onClick={() => setShowActions((v) => !v)}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  showActions
+                    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                    : "border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                <ZapIcon />
+                Actions
+              </button>
+              {showActions && (
+                <ActionsPopover
+                  actions={project.actions}
+                  projectName={project.name}
+                  onClose={() => setShowActions(false)}
+                  onError={onError}
+                />
+              )}
+            </div>
+          )}
           {project.running ? (
             <>
               <ActionButton

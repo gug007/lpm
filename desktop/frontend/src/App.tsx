@@ -149,6 +149,7 @@ export default function App() {
                 if (newName && newName !== selected) setSelected(newName);
               }}
               onRemove={handleRemove}
+              onError={setError}
             />
           ) : projects.length === 0 ? (
             <EmptyStateNoProjects onAdd={handleAddProject} />

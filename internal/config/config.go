@@ -27,10 +27,28 @@ func (s *Service) UnmarshalYAML(value *yaml.Node) error {
 	return value.Decode((*plain)(s))
 }
 
+type Action struct {
+	Cmd     string            `yaml:"cmd"`
+	Label   string            `yaml:"label,omitempty"`
+	Cwd     string            `yaml:"cwd,omitempty"`
+	Env     map[string]string `yaml:"env,omitempty"`
+	Confirm bool              `yaml:"confirm,omitempty"`
+}
+
+func (a *Action) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind == yaml.ScalarNode {
+		a.Cmd = value.Value
+		return nil
+	}
+	type plain Action
+	return value.Decode((*plain)(a))
+}
+
 type ProjectConfig struct {
 	Name     string              `yaml:"name"`
 	Root     string              `yaml:"root"`
 	Services map[string]Service  `yaml:"services"`
+	Actions  map[string]Action   `yaml:"actions,omitempty"`
 	Profiles map[string][]string `yaml:"profiles,omitempty"`
 }
 
@@ -101,6 +119,12 @@ func LoadProject(name string) (*ProjectConfig, error) {
 			cfg.Services[name] = svc
 		}
 	}
+	for name, act := range cfg.Actions {
+		if act.Cwd != "" {
+			act.Cwd = expandHome(act.Cwd)
+			cfg.Actions[name] = act
+		}
+	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -135,6 +159,21 @@ func (p *ProjectConfig) Validate() error {
 			}
 			if info, err := os.Stat(abs); err != nil || !info.IsDir() {
 				errs = append(errs, fmt.Sprintf("service %q: cwd %q does not exist", name, svc.Cwd))
+			}
+		}
+	}
+
+	for name, act := range p.Actions {
+		if strings.TrimSpace(act.Cmd) == "" {
+			errs = append(errs, fmt.Sprintf("action %q: missing cmd", name))
+		}
+		if act.Cwd != "" {
+			abs := act.Cwd
+			if !filepath.IsAbs(abs) {
+				abs = filepath.Join(p.Root, abs)
+			}
+			if info, err := os.Stat(abs); err != nil || !info.IsDir() {
+				errs = append(errs, fmt.Sprintf("action %q: cwd %q does not exist", name, act.Cwd))
 			}
 		}
 	}
@@ -184,6 +223,7 @@ func SaveProject(cfg *ProjectConfig) error {
 	// Add blank lines before top-level sections for readability
 	out := string(data)
 	out = strings.Replace(out, "\nservices:\n", "\n\nservices:\n", 1)
+	out = strings.Replace(out, "\nactions:\n", "\n\nactions:\n", 1)
 	out = strings.Replace(out, "\nprofiles:\n", "\n\nprofiles:\n", 1)
 
 	path := filepath.Join(ProjectsDir(), cfg.Name+".yml")
