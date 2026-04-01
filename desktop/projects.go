@@ -180,6 +180,7 @@ func (a *App) StartProject(name, profile string) error {
 	a.cacheMu.Lock()
 	a.runningProfiles[name] = profile
 	a.cacheMu.Unlock()
+	runtime.EventsEmit(a.ctx, "projects-changed")
 	return nil
 }
 
@@ -192,7 +193,11 @@ func (a *App) StopProject(name string) error {
 	a.cacheMu.Lock()
 	delete(a.runningProfiles, name)
 	a.cacheMu.Unlock()
-	return tmux.KillSession(cfg.Name)
+	if err := tmux.KillSession(cfg.Name); err != nil {
+		return err
+	}
+	runtime.EventsEmit(a.ctx, "projects-changed")
+	return nil
 }
 
 func (a *App) StopAll() error {
@@ -335,7 +340,11 @@ func (a *App) CreateProject(name string, root string) error {
 		Root:     root,
 		Services: map[string]config.Service{"dev": {Cmd: "echo 'configure me'"}},
 	}
-	return config.SaveProject(cfg)
+	if err := config.SaveProject(cfg); err != nil {
+		return err
+	}
+	runtime.EventsEmit(a.ctx, "projects-changed")
+	return nil
 }
 
 func (a *App) BrowseFolder() (string, error) {
@@ -349,5 +358,9 @@ func (a *App) RemoveProject(name string) error {
 		tmux.KillSession(cfg.Name)
 	}
 	a.invalidateSessionCache(name)
-	return os.Remove(config.ProjectPath(name))
+	if err := os.Remove(config.ProjectPath(name)); err != nil {
+		return err
+	}
+	runtime.EventsEmit(a.ctx, "projects-changed")
+	return nil
 }

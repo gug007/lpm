@@ -202,29 +202,46 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
       // fall through to polling
     }
 
+    const poll = async () => {
+      try {
+        const results = await Promise.all(
+          stableServices.map((_, i) =>
+            GetServiceLogs(projectName, i, 1000).catch(() => "(no output)")
+          )
+        );
+        const changed = results.some((r, i) => r !== prevOutputs.current[i]);
+        if (changed) {
+          prevOutputs.current = results;
+          setOutputs(results);
+        }
+      } catch {}
+    };
+
     if (!streaming) {
-      const poll = async () => {
-        try {
-          const results = await Promise.all(
-            stableServices.map((_, i) =>
-              GetServiceLogs(projectName, i, 1000).catch(() => "(no output)")
-            )
-          );
-          const changed = results.some((r, i) => r !== prevOutputs.current[i]);
-          if (changed) {
-            prevOutputs.current = results;
-            setOutputs(results);
-          }
-        } catch {}
-      };
       poll();
       pollInterval = setInterval(poll, 1000);
     }
 
+    const onVisibility = () => {
+      if (document.hidden) {
+        StopLogStreaming(projectName).catch(() => {});
+        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+      } else {
+        if (streaming) {
+          StartLogStreaming(projectName).catch(() => {});
+        } else if (!pollInterval) {
+          poll();
+          pollInterval = setInterval(poll, 1000);
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
     return () => {
       if (eventCleanup) eventCleanup();
       if (pollInterval) clearInterval(pollInterval);
-      try { StopLogStreaming(projectName).catch(() => {}); } catch {}
+      StopLogStreaming(projectName).catch(() => {});
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [projectName, stableServices]);
 

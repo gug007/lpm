@@ -6,6 +6,7 @@ import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
 import type { ProjectInfo } from "./types";
 
 import { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects } from '../wailsjs/go/main/App';
+import { EventsOn } from '../wailsjs/runtime/runtime';
 const api = { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects };
 
 export default function App() {
@@ -29,8 +30,25 @@ export default function App() {
 
   useEffect(() => {
     refresh();
-    const interval = setInterval(refresh, 3000);
-    return () => clearInterval(interval);
+    let interval: ReturnType<typeof setInterval> | null = setInterval(refresh, 10_000);
+
+    const cancelEvent = EventsOn("projects-changed", refresh);
+
+    const onVisibility = () => {
+      if (document.hidden) {
+        if (interval) { clearInterval(interval); interval = null; }
+      } else {
+        refresh();
+        if (!interval) interval = setInterval(refresh, 10_000);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      if (interval) clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+      if (typeof cancelEvent === "function") cancelEvent();
+    };
   }, [refresh]);
 
   const selectedProject = projects.find((p) => p.name === selected) || null;
