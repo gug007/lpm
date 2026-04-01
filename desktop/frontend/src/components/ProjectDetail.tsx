@@ -6,8 +6,7 @@ import { RunAction } from "../../wailsjs/go/main/App";
 import { getSettings, saveSettings } from "../settings";
 import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
 import type { ProjectInfo, ActionInfo } from "../types";
-
-const iconProps = { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+import { iconProps } from "./icons";
 
 function ZapIcon() { return <svg {...iconProps}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>; }
 function PlayIcon() { return <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3" /></svg>; }

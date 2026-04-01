@@ -5,6 +5,7 @@ import type { ITheme } from "@xterm/xterm";
 import { Pane, PaneHandle } from "./Pane";
 import { getSettings, saveSettings } from "../settings";
 import { type TerminalThemeName, terminalThemeNames, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
+import { iconProps } from "./icons";
 
 interface TerminalViewProps {
   projectName: string;
@@ -12,8 +13,6 @@ interface TerminalViewProps {
   terminalTheme: TerminalThemeName;
   onTerminalThemeChange: (theme: TerminalThemeName) => void;
 }
-
-const iconProps = { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 
 function SearchIcon() { return <svg {...iconProps}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>; }
 function TrashIcon() { return <svg {...iconProps}><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>; }
