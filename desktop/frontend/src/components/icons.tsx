@@ -8,3 +8,5 @@ export const iconProps = {
   strokeLinecap: "round" as const,
   strokeLinejoin: "round" as const,
 };
+
+export function XIcon() { return <svg {...iconProps}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>; }

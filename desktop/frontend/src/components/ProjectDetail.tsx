@@ -7,22 +7,20 @@ import { RunAction } from "../../wailsjs/go/main/App";
 import { getSettings, saveSettings } from "../settings";
 import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
 import type { ProjectInfo, ActionInfo } from "../types";
-import { iconProps } from "./icons";
+import { iconProps, XIcon } from "./icons";
 
 function ZapIcon() { return <svg {...iconProps}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>; }
-function PlayIcon() { return <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3" /></svg>; }
+function PlayIcon() { return <svg {...iconProps} width={12} height={12} fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3" /></svg>; }
 function SpinnerIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="animate-spin">
+    <svg {...iconProps} width={12} height={12} strokeWidth={2} className="animate-spin">
       <path d="M21 12a9 9 0 1 1-6.219-8.56" />
     </svg>
   );
 }
-function XIcon() { return <svg {...iconProps}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>; }
-function CheckCircleIcon() { return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>; }
-function ErrorCircleIcon() { return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent-red)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="m15 9-6 6" /><path d="m9 9 6 6" /></svg>; }
+function CheckCircleIcon() { return <svg {...iconProps} width={12} height={12} stroke="var(--accent-green)" strokeWidth={2}><polyline points="20 6 9 17 4 12" /></svg>; }
+function ErrorCircleIcon() { return <svg {...iconProps} width={12} height={12} stroke="var(--accent-red)" strokeWidth={2}><circle cx="12" cy="12" r="10" /><path d="m15 9-6 6" /><path d="m9 9 6 6" /></svg>; }
 
-// Terminal-style modal that shows live action output
 function ActionTerminal({ label, onClose }: { label: string; onClose: () => void }) {
   const [lines, setLines] = useState<string[]>([]);
   const [done, setDone] = useState<{ success: boolean; error?: string } | null>(null);
