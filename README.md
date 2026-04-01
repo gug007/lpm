@@ -108,7 +108,7 @@ actions:
 
 Services can be a simple string (`dev: npm run dev`) or a full object when you need `cwd`, `port`, or `env`. Actions are one-shot commands — test runners, migrations, deploy scripts.
 
-`confirm: true` shows a confirmation dialog before running.
+`confirm: true` shows a confirmation dialog before running. Actions can be run from the CLI or from the desktop app via the Actions button.
 
 ```sh
 lpm myapp              # starts api + frontend

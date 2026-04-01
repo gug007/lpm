@@ -77,7 +77,10 @@
       <div
         class="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between"
       >
-        <span class="text-base font-bold tracking-tight text-gray-900 dark:text-white">lpm</span>
+        <span
+          class="text-base font-bold tracking-tight text-gray-900 dark:text-white"
+          >lpm</span
+        >
         <div class="flex items-center gap-5">
           <span id="ghBtn" class="relative top-[3px] invisible"
             ><a
@@ -583,19 +586,30 @@
       <section class="pb-20">
         <div class="max-w-3xl mx-auto px-6">
           <h2 class="text-2xl sm:text-3xl font-bold text-center mb-3">
-            Simple YAML config
+            Simple config
           </h2>
           <p class="text-sm text-gray-400 dark:text-gray-500 text-center mb-8">
             Define services, actions, and profiles in one file.
           </p>
 
           <div class="grid gap-4 sm:grid-cols-2">
-            <div class="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-              <div class="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900/80">
-                <i data-lucide="file-text" class="w-3.5 h-3.5 text-gray-400 dark:text-gray-500"></i>
-                <span class="text-xs text-gray-400 dark:text-gray-500 font-mono">services + profiles</span>
+            <div
+              class="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden"
+            >
+              <div
+                class="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900/80"
+              >
+                <i
+                  data-lucide="file-text"
+                  class="w-3.5 h-3.5 text-gray-400 dark:text-gray-500"
+                ></i>
+                <span class="text-xs text-gray-400 dark:text-gray-500 font-mono"
+                  >services + profiles</span
+                >
               </div>
-              <pre class="px-4 py-3 text-xs font-mono text-gray-700 dark:text-gray-300 leading-relaxed overflow-x-auto"><code>name: myapp
+              <pre
+                class="px-4 py-3 text-xs font-mono text-gray-700 dark:text-gray-300 leading-relaxed overflow-x-auto"
+              ><code>name: myapp
 root: ~/Projects/myapp
 
 services:
@@ -613,12 +627,23 @@ profiles:
   full: [api, frontend, worker]</code></pre>
             </div>
 
-            <div class="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-              <div class="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900/80">
-                <i data-lucide="zap" class="w-3.5 h-3.5 text-gray-400 dark:text-gray-500"></i>
-                <span class="text-xs text-gray-400 dark:text-gray-500 font-mono">actions</span>
+            <div
+              class="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden"
+            >
+              <div
+                class="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900/80"
+              >
+                <i
+                  data-lucide="zap"
+                  class="w-3.5 h-3.5 text-gray-400 dark:text-gray-500"
+                ></i>
+                <span class="text-xs text-gray-400 dark:text-gray-500 font-mono"
+                  >actions</span
+                >
               </div>
-              <pre class="px-4 py-3 text-xs font-mono text-gray-700 dark:text-gray-300 leading-relaxed overflow-x-auto"><code>actions:
+              <pre
+                class="px-4 py-3 text-xs font-mono text-gray-700 dark:text-gray-300 leading-relaxed overflow-x-auto"
+              ><code>actions:
   test: pytest
   migrate:
     cmd: python manage.py migrate
@@ -629,7 +654,11 @@ profiles:
           </div>
 
           <p class="text-xs text-gray-400 dark:text-gray-500 text-center mt-4">
-            Run actions from CLI with <code class="font-mono text-gray-500 dark:text-gray-400">lpm run myapp deploy</code> or from the desktop app.
+            Run actions from CLI with
+            <code class="font-mono text-gray-500 dark:text-gray-400"
+              >lpm run myapp deploy</code
+            >
+            or from the desktop app.
           </p>
         </div>
       </section>
@@ -939,6 +968,11 @@ profiles:
 
       lucide.createIcons();
     </script>
-    <script async defer src="https://buttons.github.io/buttons.js" onload="document.getElementById('ghBtn').classList.remove('invisible')"></script>
+    <script
+      async
+      defer
+      src="https://buttons.github.io/buttons.js"
+      onload="document.getElementById('ghBtn').classList.remove('invisible')"
+    ></script>
   </body>
 </html>
