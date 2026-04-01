@@ -3,17 +3,25 @@ import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { Settings } from "./components/Settings";
 import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
+import { TmuxInstaller } from "./components/TmuxInstaller";
 import type { ProjectInfo } from "./types";
 
-import { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects } from '../wailsjs/go/main/App';
+import { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects, TmuxInstalled, InstallTmux } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 const api = { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects };
 
 export default function App() {
+  const [tmuxReady, setTmuxReady] = useState<boolean | null>(null);
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<"projects" | "settings">("projects");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    TmuxInstalled().then(setTmuxReady);
+  }, []);
+
+  const handleTmuxInstalled = useCallback(() => setTmuxReady(true), []);
 
   const refresh = useCallback(async () => {
     try {
@@ -104,6 +112,14 @@ export default function App() {
       setError(`Failed to remove ${name}: ${err}`);
     }
   };
+
+  if (tmuxReady === null) {
+    return <div className="flex h-screen bg-[var(--bg-primary)]"><div className="wails-drag absolute inset-x-0 top-0 h-8" /></div>;
+  }
+
+  if (tmuxReady === false) {
+    return <TmuxInstaller installTmux={InstallTmux} onInstalled={handleTmuxInstalled} />;
+  }
 
   return (
     <div className="flex h-screen">

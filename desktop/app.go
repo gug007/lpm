@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -45,48 +46,45 @@ func (a *App) startup(ctx context.Context) {
 	a.projectOrder = settings.ProjectOrder
 
 	go a.autoCheckForUpdate()
-
-	if err := tmux.EnsureInstalled(); err != nil {
-		sel, _ := runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
-			Type:          runtime.QuestionDialog,
-			Title:         "tmux not found",
-			Message:       "tmux is required but not installed.\n\nWould you like to install it now via Homebrew?",
-			Buttons:       []string{"Install", "Cancel"},
-			DefaultButton: "Install",
-			CancelButton:  "Cancel",
-		})
-		if sel == "Install" {
-			a.installTmux()
-		}
-	}
 }
 
-func (a *App) installTmux() {
+// TmuxInstalled reports whether tmux is available on the system.
+func (a *App) TmuxInstalled() bool {
+	return tmux.EnsureInstalled() == nil
+}
+
+// InstallTmux installs tmux via Homebrew, streaming progress lines to the
+// frontend via "tmux-install-output" events. The frontend should call
+// TmuxInstalled first and only invoke this when tmux is missing.
+func (a *App) InstallTmux() error {
 	brewPath, err := exec.LookPath("brew")
 	if err != nil {
-		runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
-			Type:    runtime.ErrorDialog,
-			Title:   "Homebrew not found",
-			Message: "Homebrew is required to install tmux.\n\nInstall it from https://brew.sh and relaunch the app.",
-		})
-		return
+		return fmt.Errorf("Homebrew is required to install tmux.\n\nInstall it from https://brew.sh and relaunch the app.")
 	}
+
+	runtime.EventsEmit(a.ctx, "tmux-install-output", "==> Installing tmux via Homebrew…")
 
 	cmd := exec.Command(brewPath, "install", "tmux")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
-			Type:    runtime.ErrorDialog,
-			Title:   "Installation failed",
-			Message: fmt.Sprintf("Failed to install tmux:\n\n%s", string(out)),
-		})
-		return
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("failed to start installation: %w", err)
+	}
+	cmd.Stderr = cmd.Stdout // merge stderr into stdout
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start installation: %w", err)
 	}
 
-	runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
-		Type:    runtime.InfoDialog,
-		Title:   "tmux installed",
-		Message: "tmux was installed successfully.",
-	})
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		runtime.EventsEmit(a.ctx, "tmux-install-output", scanner.Text())
+	}
+
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("installation failed: %w", err)
+	}
+
+	return nil
 }
 
 // resolveUserPath runs the user's interactive login shell once to capture the
