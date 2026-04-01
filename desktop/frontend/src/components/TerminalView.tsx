@@ -273,7 +273,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
       }
       style={containerStyle}
     >
-      <div className={`flex items-center gap-0.5 bg-[var(--terminal-header)] py-1.5 ${fullscreen ? "pl-20 pr-3" : "rounded-t-lg px-3"}`}>
+      <div className={`flex items-center gap-0.5 bg-[var(--terminal-header)] py-1.5 ${fullscreen ? "wails-drag pl-20 pr-3" : "rounded-t-lg px-3"}`}>
         <div className="flex items-center gap-0.5">
           {hasMultiple && (
             <HeaderTab label="All" active={showAll} onClick={() => setActivePane("all")} />
