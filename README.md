@@ -76,32 +76,45 @@ lpm start storefront   # start and open terminal
 lpm kill storefront    # stop
 ```
 
-**Full stack — Rails API + React frontend + background workers**
+**Full stack — Python API + Next.js frontend + worker**
 
 ```yaml
 # ~/.lpm/projects/myapp.yml
 name: myapp
 root: ~/Projects/myapp
+
 services:
   api:
-    cmd: rails s -p 3000
+    cmd: python manage.py runserver
     cwd: ./backend
-    port: 3000
-    env:
-      RAILS_ENV: development
-  frontend: npm run dev
-  sidekiq: bundle exec sidekiq
+    port: 8000
+  frontend:
+    cmd: npm run dev
+    cwd: ./frontend
+  worker: celery -A backend worker
+
 profiles:
   default: [api, frontend]
-  full: [api, frontend, sidekiq]
+  full: [api, frontend, worker]
+
+actions:
+  test: pytest
+  migrate:
+    cmd: python manage.py migrate
+    cwd: ./backend
+    confirm: true
+  deploy: ./scripts/deploy.sh
 ```
 
-Services can be a simple string (`dev: npm run dev`) or a full object when you need `cwd`, `port`, or `env`.
+Services can be a simple string (`dev: npm run dev`) or a full object when you need `cwd`, `port`, or `env`. Actions are one-shot commands — test runners, migrations, deploy scripts.
+
+`confirm: true` shows a confirmation dialog before running.
 
 ```sh
-lpm myapp            # starts api + frontend in background
-lpm start myapp      # start and open terminal
-lpm myapp -p full    # starts everything
+lpm myapp              # starts api + frontend
+lpm myapp -p full      # starts everything
+lpm run myapp test     # run tests
+lpm run myapp deploy   # deploy
 ```
 
 ## CLI Commands
