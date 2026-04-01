@@ -190,32 +190,114 @@
         </div>
       </section>
 
-      <!-- Demo -->
-      <section class="py-16 relative overflow-hidden">
-        <div
-          class="absolute inset-0 bg-gradient-to-b from-gray-50/80 via-gray-100/50 to-transparent dark:from-gray-900/60 dark:via-gray-900/30 dark:to-transparent pointer-events-none"
-        ></div>
-        <div class="max-w-3xl mx-auto px-6 relative z-10">
-          <p
-            class="text-xs font-medium uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500 text-center mb-6 flex items-center justify-center gap-2"
-          >
-            <i data-lucide="play-circle" class="w-4 h-4"></i>
-            See it in action
-          </p>
-          <video
-            src="app-demo.mp4"
-            autoplay
-            loop
-            muted
-            playsinline
-            aria-label="lpm desktop app demo showing project management"
-            class="w-full rounded-2xl shadow-2xl shadow-gray-200/60 dark:shadow-black/40 border border-gray-200/80 dark:border-gray-800/80"
-          >
-            <p>
-              Demo of lpm desktop app — start, stop, and manage local dev
-              projects from a native macOS interface.
-            </p>
-          </video>
+      <!-- How it works -->
+      <section class="py-16 sm:py-20">
+        <div class="max-w-3xl mx-auto px-6">
+          <div class="text-center mb-14">
+            <span
+              class="inline-block text-xs font-semibold tracking-widest uppercase text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800/60 px-3 py-1 rounded-full mb-4"
+              >How it works</span
+            >
+            <h2 class="text-2xl sm:text-3xl font-bold tracking-tight">
+              See it in action
+            </h2>
+          </div>
+
+          <div class="space-y-16">
+            <!-- Add a new project -->
+            <div>
+              <div class="mb-4">
+                <h3 class="text-lg font-semibold mb-1.5">Add a new project</h3>
+                <p
+                  class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed"
+                >
+                  Define your services in a config file or use
+                  <code class="text-gray-600 dark:text-gray-300">lpm init</code>
+                  to auto-detect them. The desktop app provides a guided flow —
+                  pick a directory, name your project, and configure services
+                  with live validation.
+                </p>
+              </div>
+              <img
+                src="videos/add-project.gif"
+                alt="Adding a new project in lpm desktop app"
+                class="w-full rounded-2xl shadow-2xl shadow-gray-200/60 dark:shadow-black/40 border border-gray-200/80 dark:border-gray-800/80"
+                loading="lazy"
+              />
+            </div>
+
+            <!-- Start a project -->
+            <div>
+              <div class="mb-4">
+                <h3 class="text-lg font-semibold mb-1.5">Start a project</h3>
+                <p
+                  class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed"
+                >
+                  Start any project with a single command or click. All services
+                  launch in parallel, and you get live terminal output for each
+                  one. Switch between projects instantly — lpm stops the current
+                  one and starts the next.
+                </p>
+              </div>
+              <img
+                src="videos/start-project.gif"
+                alt="Starting a project in lpm desktop app"
+                class="w-full rounded-2xl shadow-2xl shadow-gray-200/60 dark:shadow-black/40 border border-gray-200/80 dark:border-gray-800/80"
+                loading="lazy"
+              />
+            </div>
+
+            <!-- Add an action -->
+            <div>
+              <div class="mb-4">
+                <h3 class="text-lg font-semibold mb-1.5">Add an action</h3>
+                <p
+                  class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed"
+                >
+                  Actions are one-shot commands — test runners, migrations,
+                  deploy scripts — that live alongside your project config. Add
+                  them from the desktop app or directly in the config file. Use
+                  <code class="text-gray-600 dark:text-gray-300"
+                    >confirm: true</code
+                  >
+                  to require confirmation before running destructive commands.
+                </p>
+              </div>
+              <img
+                src="videos/add-action.gif"
+                alt="Adding an action to a project in lpm desktop app"
+                class="w-full rounded-2xl shadow-2xl shadow-gray-200/60 dark:shadow-black/40 border border-gray-200/80 dark:border-gray-800/80"
+                loading="lazy"
+              />
+            </div>
+
+            <!-- Run with profiles -->
+            <div>
+              <div class="mb-4">
+                <h3 class="text-lg font-semibold mb-1.5">
+                  Run a project with profiles
+                </h3>
+                <p
+                  class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed"
+                >
+                  Profiles let you start different subsets of services. Define a
+                  <code class="text-gray-600 dark:text-gray-300">default</code>
+                  profile for everyday work and a
+                  <code class="text-gray-600 dark:text-gray-300">full</code>
+                  profile when you need everything running. Select the profile
+                  from the desktop app or pass
+                  <code class="text-gray-600 dark:text-gray-300">-p</code> on
+                  the CLI.
+                </p>
+              </div>
+              <img
+                src="videos/run-profile-project.gif"
+                alt="Running a project with multiple profiles in lpm desktop app"
+                class="w-full rounded-2xl shadow-2xl shadow-gray-200/60 dark:shadow-black/40 border border-gray-200/80 dark:border-gray-800/80"
+                loading="lazy"
+              />
+            </div>
+          </div>
         </div>
       </section>
 
@@ -306,7 +388,7 @@
               <p
                 class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed"
               >
-                Define your services in a simple YAML config and launch
+                Define your services in a simple config file and launch
                 everything with
                 <code class="text-gray-600 dark:text-gray-300">lpm myapp</code>.
               </p>
