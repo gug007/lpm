@@ -3,8 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/gug007/lpm/internal/tmux"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -37,6 +40,7 @@ func NewApp() *App {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	resolveUserPath()
 	settings := a.LoadSettings()
 	a.projectOrder = settings.ProjectOrder
 
@@ -83,6 +87,44 @@ func (a *App) installTmux() {
 		Title:   "tmux installed",
 		Message: "tmux was installed successfully.",
 	})
+}
+
+// resolveUserPath runs the user's interactive login shell once to capture the
+// full PATH. Needed because macOS .apps launched from Finder inherit a minimal
+// PATH that excludes tools set up in ~/.zshrc (nvm, pnpm, etc.).
+func resolveUserPath() {
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Uses -l -i because zsh -l -c (login, non-interactive) skips ~/.zshrc.
+	// Uses printenv (not $PATH) so fish shell returns colon-separated PATH.
+	const marker = "__LPM_PATH__"
+	cmd := exec.CommandContext(ctx, shell, "-l", "-i", "-c",
+		"printf '"+marker+"'; printenv PATH; printf '"+marker+"'")
+
+	out, err := cmd.Output()
+	if err != nil {
+		return
+	}
+
+	s := string(out)
+	start := strings.Index(s, marker)
+	if start < 0 {
+		return
+	}
+	rest := s[start+len(marker):]
+	end := strings.Index(rest, marker)
+	if end < 0 {
+		return
+	}
+	if path := strings.TrimSpace(rest[:end]); path != "" {
+		os.Setenv("PATH", path)
+	}
 }
 
 func (a *App) shutdown(ctx context.Context) {
