@@ -118,6 +118,7 @@ lpm myapp -p full    # starts everything
 | `lpm edit <project>`   | Open config in `$EDITOR`             |
 | `lpm remove <project>` | Remove a project                     |
 | `lpm open <project>`   | View a running project's live output |
+| `lpm run <project> <action>` | Run a project action             |
 
 ## Project Configuration
 
