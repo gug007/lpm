@@ -117,7 +117,7 @@ lpm myapp -p full    # starts everything
 | `lpm init [name]`      | Create config from current directory |
 | `lpm edit <project>`   | Open config in `$EDITOR`             |
 | `lpm remove <project>` | Remove a project                     |
-| `lpm open <project>`   | Open project in Finder               |
+| `lpm open <project>`   | View a running project's live output |
 
 ## Project Configuration
 
