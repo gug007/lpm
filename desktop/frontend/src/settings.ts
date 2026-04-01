@@ -6,6 +6,7 @@ export interface Settings {
   doubleClickToToggle: boolean;
   projectOrder?: string[];
   terminalThemes?: Record<string, string>;
+  terminalFontSize?: number;
 }
 
 const defaults: Settings = {
@@ -23,6 +24,7 @@ export async function loadSettings(): Promise<Settings> {
       doubleClickToToggle: s.doubleClickToToggle ?? defaults.doubleClickToToggle,
       projectOrder: s.projectOrder,
       terminalThemes: s.terminalThemes,
+      terminalFontSize: s.terminalFontSize,
     };
   } catch {
     cached = { ...defaults };

@@ -3,6 +3,7 @@ import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { GetServiceLogs, StartLogStreaming, StopLogStreaming } from "../../wailsjs/go/main/App";
 import type { ITheme } from "@xterm/xterm";
 import { Pane, PaneHandle } from "./Pane";
+import { getSettings, saveSettings } from "../settings";
 import { type TerminalThemeName, terminalThemeNames, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
 
 interface TerminalViewProps {
@@ -106,7 +107,7 @@ function ThemePicker({ current, onChange, onClose }: {
 export function TerminalView({ projectName, services, terminalTheme, onTerminalThemeChange }: TerminalViewProps) {
   const [activePane, setActivePane] = useState<number | "all">("all");
   const [outputs, setOutputs] = useState<string[]>([]);
-  const [fontSize, setFontSize] = useState(12);
+  const [fontSize, setFontSize] = useState(() => getSettings().terminalFontSize || 12);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [atBottom, setAtBottom] = useState(true);
@@ -156,8 +157,13 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
     getActivePane()?.clearSearch();
   }, [getActivePane]);
 
-  const zoomIn = useCallback(() => setFontSize((s) => Math.min(s + 1, 24)), []);
-  const zoomOut = useCallback(() => setFontSize((s) => Math.max(s - 1, 8)), []);
+  const persistFontSize = useCallback((size: number) => {
+    const s = getSettings();
+    if (s.terminalFontSize !== size) saveSettings({ ...s, terminalFontSize: size });
+  }, []);
+
+  const zoomIn = useCallback(() => setFontSize((s) => { const n = Math.min(s + 1, 24); persistFontSize(n); return n; }), [persistFontSize]);
+  const zoomOut = useCallback(() => setFontSize((s) => { const n = Math.max(s - 1, 8); persistFontSize(n); return n; }), [persistFontSize]);
 
   const forActivePanes = useCallback((fn: (p: PaneHandle) => void) => {
     if (activePaneRef.current === "all") {
