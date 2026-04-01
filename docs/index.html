@@ -203,97 +203,80 @@
             </h2>
           </div>
 
-          <div class="space-y-16">
-            <!-- Add a new project -->
-            <div>
+          <div class="space-y-12">
+            <!-- Step 1: Add a new project -->
+            <div class="relative pl-10">
+              <div class="absolute left-0 top-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-gray-900 dark:bg-white text-xs font-bold text-white dark:text-gray-900">1</div>
               <div class="mb-4">
                 <h3 class="text-lg font-semibold mb-1.5">Add a new project</h3>
-                <p
-                  class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed"
-                >
-                  Define your services in a config file or use
-                  <code class="text-gray-600 dark:text-gray-300">lpm init</code>
-                  to auto-detect them. The desktop app provides a guided flow —
-                  pick a directory, name your project, and configure services
-                  with live validation.
+                <p class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                  Click <strong>+</strong> in the sidebar, browse to a directory,
+                  and define your services in the built-in editor. Hit Save and
+                  the project appears in the sidebar ready to start.
                 </p>
               </div>
               <img
                 src="videos/add-project.gif"
                 alt="Adding a new project in lpm desktop app"
-                class="w-full rounded-2xl shadow-2xl shadow-gray-200/60 dark:shadow-black/40 border border-gray-200/80 dark:border-gray-800/80"
+                class="w-full rounded-2xl shadow-2xl shadow-gray-200/60 dark:shadow-black/40"
                 loading="lazy"
               />
             </div>
 
-            <!-- Start a project -->
-            <div>
+            <!-- Step 2: Start a project -->
+            <div class="relative pl-10">
+              <div class="absolute left-0 top-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-gray-900 dark:bg-white text-xs font-bold text-white dark:text-gray-900">2</div>
               <div class="mb-4">
                 <h3 class="text-lg font-semibold mb-1.5">Start a project</h3>
-                <p
-                  class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed"
-                >
-                  Start any project with a single command or click. All services
-                  launch in parallel, and you get live terminal output for each
-                  one. Switch between projects instantly — lpm stops the current
-                  one and starts the next.
+                <p class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                  Select a project and click Start. All services launch in
+                  parallel with live terminal output side by side. Switch
+                  between service tabs or view them all at once.
                 </p>
               </div>
               <img
                 src="videos/start-project.gif"
                 alt="Starting a project in lpm desktop app"
-                class="w-full rounded-2xl shadow-2xl shadow-gray-200/60 dark:shadow-black/40 border border-gray-200/80 dark:border-gray-800/80"
+                class="w-full rounded-2xl shadow-2xl shadow-gray-200/60 dark:shadow-black/40"
                 loading="lazy"
               />
             </div>
 
-            <!-- Add an action -->
-            <div>
+            <!-- Step 3: Add an action -->
+            <div class="relative pl-10">
+              <div class="absolute left-0 top-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-gray-900 dark:bg-white text-xs font-bold text-white dark:text-gray-900">3</div>
               <div class="mb-4">
                 <h3 class="text-lg font-semibold mb-1.5">Add an action</h3>
-                <p
-                  class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed"
-                >
-                  Actions are one-shot commands — test runners, migrations,
-                  deploy scripts — that live alongside your project config. Add
-                  them from the desktop app or directly in the config file. Use
-                  <code class="text-gray-600 dark:text-gray-300"
-                    >confirm: true</code
-                  >
-                  to require confirmation before running destructive commands.
+                <p class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                  Add one-shot commands like linters, test runners, or deploy
+                  scripts directly in the editor. Actions appear as buttons
+                  you can trigger without leaving the app.
                 </p>
               </div>
               <img
                 src="videos/add-action.gif"
                 alt="Adding an action to a project in lpm desktop app"
-                class="w-full rounded-2xl shadow-2xl shadow-gray-200/60 dark:shadow-black/40 border border-gray-200/80 dark:border-gray-800/80"
+                class="w-full rounded-2xl shadow-2xl shadow-gray-200/60 dark:shadow-black/40"
                 loading="lazy"
               />
             </div>
 
-            <!-- Run with profiles -->
-            <div>
+            <!-- Step 4: Run with profiles -->
+            <div class="relative pl-10">
+              <div class="absolute left-0 top-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-gray-900 dark:bg-white text-xs font-bold text-white dark:text-gray-900">4</div>
               <div class="mb-4">
-                <h3 class="text-lg font-semibold mb-1.5">
-                  Run a project with profiles
-                </h3>
-                <p
-                  class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed"
-                >
-                  Profiles let you start different subsets of services. Define a
-                  <code class="text-gray-600 dark:text-gray-300">default</code>
-                  profile for everyday work and a
-                  <code class="text-gray-600 dark:text-gray-300">full</code>
-                  profile when you need everything running. Select the profile
-                  from the desktop app or pass
-                  <code class="text-gray-600 dark:text-gray-300">-p</code> on
-                  the CLI.
+                <h3 class="text-lg font-semibold mb-1.5">Switch between profiles</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                  Define profiles to run different subsets of services. Toggle
+                  between them with the profile switcher in the header — pick
+                  <strong>default</strong> for everyday work or <strong>full</strong>
+                  when you need everything running.
                 </p>
               </div>
               <img
                 src="videos/run-profile-project.gif"
                 alt="Running a project with multiple profiles in lpm desktop app"
-                class="w-full rounded-2xl shadow-2xl shadow-gray-200/60 dark:shadow-black/40 border border-gray-200/80 dark:border-gray-800/80"
+                class="w-full rounded-2xl shadow-2xl shadow-gray-200/60 dark:shadow-black/40"
                 loading="lazy"
               />
             </div>
