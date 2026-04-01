@@ -1,7 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { StatusDot } from "./StatusDot";
 import { ActionButton } from "./ActionButton";
-import { ProfileTag } from "./ProfileTag";
 import { TerminalView } from "./TerminalView";
 import { ConfigEditor } from "./ConfigEditor";
 import { getSettings, saveSettings } from "../settings";
@@ -27,8 +26,11 @@ export function ProjectDetail({
 }: ProjectDetailProps) {
   const [loading, setLoading] = useState(false);
   const [activeProfile, setActiveProfile] = useState(
-    project.profiles?.[0] ?? ""
+    project.activeProfile || project.profiles?.[0] || ""
   );
+  useEffect(() => {
+    if (project.activeProfile) setActiveProfile(project.activeProfile);
+  }, [project.activeProfile]);
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   const saved = getSettings().terminalThemes?.[project.name];
@@ -57,6 +59,8 @@ export function ProjectDetail({
     }
   };
 
+  const hasProfiles = project.profiles && project.profiles.length > 0;
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between -mx-2">
@@ -65,20 +69,26 @@ export function ProjectDetail({
             {project.name}
           </h1>
           {project.running && <StatusDot running={true} />}
-          {project.profiles && project.profiles.length > 0 && (
-            <div className="flex items-center gap-1">
+        </div>
+        <div className="flex items-center gap-2">
+          {hasProfiles && (
+            <div className="flex items-center rounded-lg border border-[var(--border)] p-0.5">
               {project.profiles.map((p) => (
-                <ProfileTag
+                <button
                   key={p}
-                  name={p}
-                  active={activeProfile === p}
                   onClick={() => setActiveProfile(p)}
-                />
+                  disabled={project.running}
+                  className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors disabled:cursor-default ${
+                    activeProfile === p
+                      ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-secondary)] disabled:hover:text-[var(--text-muted)]"
+                  }`}
+                >
+                  {p}
+                </button>
               ))}
             </div>
           )}
-        </div>
-        <div className="flex items-center gap-2">
           {project.running ? (
             <>
               <ActionButton
@@ -180,4 +190,3 @@ export function ProjectDetail({
     </div>
   );
 }
-

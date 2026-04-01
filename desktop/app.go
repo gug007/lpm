@@ -21,14 +21,17 @@ type App struct {
 	streamMu sync.Mutex
 	streams  map[string]context.CancelFunc // projectName -> cancel streaming
 
+	runningProfiles map[string]string // projectName -> profile used to start
+
 	pendingDownloadURL string // set by CheckForUpdate, used by InstallUpdate
 }
 
 func NewApp() *App {
 	return &App{
-		sessionCache: make(map[string]string),
-		paneCache:    make(map[string][]string),
-		streams:      make(map[string]context.CancelFunc),
+		sessionCache:    make(map[string]string),
+		paneCache:       make(map[string][]string),
+		streams:         make(map[string]context.CancelFunc),
+		runningProfiles: make(map[string]string),
 	}
 }
 

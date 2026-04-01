@@ -12,4 +12,5 @@ export interface ProjectInfo {
   running: boolean;
   services: ServiceInfo[];
   profiles: string[];
+  activeProfile: string;
 }

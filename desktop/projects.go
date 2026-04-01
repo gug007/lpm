@@ -13,12 +13,13 @@ import (
 )
 
 type ProjectInfo struct {
-	Name     string        `json:"name"`
-	Session  string        `json:"session"`
-	Root     string        `json:"root"`
-	Running  bool          `json:"running"`
-	Services []ServiceInfo `json:"services"`
-	Profiles []string      `json:"profiles"`
+	Name          string        `json:"name"`
+	Session       string        `json:"session"`
+	Root          string        `json:"root"`
+	Running       bool          `json:"running"`
+	Services      []ServiceInfo `json:"services"`
+	Profiles      []string      `json:"profiles"`
+	ActiveProfile string        `json:"activeProfile"`
 }
 
 type ServiceInfo struct {
@@ -28,8 +29,8 @@ type ServiceInfo struct {
 	Port int    `json:"port"`
 }
 
-func toProjectInfo(name string, cfg *config.ProjectConfig, running bool) ProjectInfo {
-	serviceNames := cfg.ServicesForProfile("")
+func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, activeProfile string) ProjectInfo {
+	serviceNames := cfg.ServicesForProfile(activeProfile)
 	services := make([]ServiceInfo, 0, len(serviceNames))
 	for _, svcName := range serviceNames {
 		svc := cfg.Services[svcName]
@@ -48,12 +49,13 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool) Project
 	sort.Strings(profiles)
 
 	return ProjectInfo{
-		Name:     name,
-		Session:  cfg.Name,
-		Root:     cfg.Root,
-		Running:  running,
-		Services: services,
-		Profiles: profiles,
+		Name:          name,
+		Session:       cfg.Name,
+		Root:          cfg.Root,
+		Running:       running,
+		Services:      services,
+		Profiles:      profiles,
+		ActiveProfile: activeProfile,
 	}
 }
 
@@ -69,12 +71,21 @@ func (a *App) ListProjects() ([]ProjectInfo, error) {
 	sessions := tmux.ListSessions()
 	projects := make([]ProjectInfo, 0, len(names))
 
+	a.cacheMu.RLock()
+	profiles := a.runningProfiles
+	a.cacheMu.RUnlock()
+
 	for _, name := range names {
 		cfg, err := config.LoadProject(name)
 		if err != nil {
 			continue
 		}
-		projects = append(projects, toProjectInfo(name, cfg, sessions[cfg.Name]))
+		running := sessions[cfg.Name]
+		profile := ""
+		if running {
+			profile = profiles[name]
+		}
+		projects = append(projects, toProjectInfo(name, cfg, running, profile))
 	}
 
 	return projects, nil
@@ -135,7 +146,13 @@ func (a *App) StartProject(name, profile string) error {
 		return err
 	}
 	a.invalidateSessionCache(name)
-	return tmux.StartProject(cfg, profile)
+	if err := tmux.StartProject(cfg, profile); err != nil {
+		return err
+	}
+	a.cacheMu.Lock()
+	a.runningProfiles[name] = profile
+	a.cacheMu.Unlock()
+	return nil
 }
 
 func (a *App) StopProject(name string) error {
@@ -144,6 +161,9 @@ func (a *App) StopProject(name string) error {
 		return err
 	}
 	a.invalidateSessionCache(name)
+	a.cacheMu.Lock()
+	delete(a.runningProfiles, name)
+	a.cacheMu.Unlock()
 	return tmux.KillSession(cfg.Name)
 }
 
@@ -166,8 +186,18 @@ func (a *App) GetProject(name string) (*ProjectInfo, error) {
 		return nil, err
 	}
 	running := tmux.SessionExists(cfg.Name)
-	info := toProjectInfo(name, cfg, running)
+	profile := ""
+	if running {
+		profile = a.getRunningProfile(name)
+	}
+	info := toProjectInfo(name, cfg, running, profile)
 	return &info, nil
+}
+
+func (a *App) getRunningProfile(name string) string {
+	a.cacheMu.RLock()
+	defer a.cacheMu.RUnlock()
+	return a.runningProfiles[name]
 }
 
 func (a *App) cachedSessionName(projectName string) string {
