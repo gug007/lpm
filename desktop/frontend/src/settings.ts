@@ -5,6 +5,7 @@ export interface Settings {
   theme: Theme;
   doubleClickToToggle: boolean;
   projectOrder?: string[];
+  terminalThemes?: Record<string, string>;
 }
 
 const defaults: Settings = {
@@ -21,6 +22,7 @@ export async function loadSettings(): Promise<Settings> {
       theme: (s.theme as Theme) || defaults.theme,
       doubleClickToToggle: s.doubleClickToToggle ?? defaults.doubleClickToToggle,
       projectOrder: s.projectOrder,
+      terminalThemes: s.terminalThemes,
     };
   } catch {
     cached = { ...defaults };

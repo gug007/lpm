@@ -1,11 +1,14 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { GetServiceLogs, StartLogStreaming, StopLogStreaming } from "../../wailsjs/go/main/App";
-import { Pane, PaneHandle } from "./Pane";
+import { Pane, PaneHandle, type XtermTheme } from "./Pane";
+import { type TerminalThemeName, terminalThemeNames, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
 
 interface TerminalViewProps {
   projectName: string;
   services: { name: string }[];
+  terminalTheme: TerminalThemeName;
+  onTerminalThemeChange: (theme: TerminalThemeName) => void;
 }
 
 const iconProps = { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -18,6 +21,7 @@ function PlusIcon() { return <svg {...iconProps}><path d="M12 5v14" /><path d="M
 function ChevronUpIcon() { return <svg {...iconProps}><path d="m18 15-6-6-6 6" /></svg>; }
 function ChevronDownIcon() { return <svg {...iconProps}><path d="m6 9 6 6 6-6" /></svg>; }
 function XIcon() { return <svg {...iconProps}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>; }
+function PaletteIcon() { return <svg {...iconProps}><circle cx="13.5" cy="6.5" r="0.5" fill="currentColor" /><circle cx="17.5" cy="10.5" r="0.5" fill="currentColor" /><circle cx="8.5" cy="7.5" r="0.5" fill="currentColor" /><circle cx="6.5" cy="12" r="0.5" fill="currentColor" /><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.5-.7 1.5-1.5 0-.4-.1-.7-.4-1-.3-.3-.4-.6-.4-1 0-.8.7-1.5 1.5-1.5H16c3.3 0 6-2.7 6-6 0-5.5-4.5-9-10-9z" /></svg>; }
 
 function IconBtn({ onClick, title, children, active, className = "" }: {
   onClick: () => void;
@@ -56,13 +60,56 @@ function HeaderTab({ label, active, onClick }: { label: string; active: boolean;
   );
 }
 
-export function TerminalView({ projectName, services }: TerminalViewProps) {
+function ThemePicker({ current, onChange, onClose }: {
+  current: TerminalThemeName;
+  onChange: (t: TerminalThemeName) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      className="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg"
+    >
+      {terminalThemeNames.map((name) => {
+        const colors = getTerminalThemeColors(name);
+        return (
+          <button
+            key={name}
+            onClick={() => { onChange(name); onClose(); }}
+            className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)] ${
+              current === name ? "font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
+            }`}
+          >
+            <span
+              className="inline-block h-3 w-3 shrink-0 rounded-full border border-[var(--border)]"
+              style={{ background: colors?.bg ?? "var(--terminal-bg)" }}
+            />
+            {name === "default" ? "Default" : name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function TerminalView({ projectName, services, terminalTheme, onTerminalThemeChange }: TerminalViewProps) {
   const [activePane, setActivePane] = useState<number | "all">("all");
   const [outputs, setOutputs] = useState<string[]>([]);
   const [fontSize, setFontSize] = useState(12);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [atBottom, setAtBottom] = useState(true);
+  const [showThemePicker, setShowThemePicker] = useState(false);
   const paneRefs = useRef<(PaneHandle | null)[]>([]);
   const paneScrollState = useRef<Record<number, boolean>>({});
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -79,6 +126,16 @@ export function TerminalView({ projectName, services }: TerminalViewProps) {
 
   const showAll = activePane === "all";
   const hasMultiple = stableServices.length > 1;
+
+  const themeColors = useMemo(() => getTerminalThemeColors(terminalTheme), [terminalTheme]);
+  const containerStyle = useMemo(
+    () => themeColors ? terminalThemeCssVars(themeColors) as React.CSSProperties : undefined,
+    [themeColors]
+  );
+  const xtermTheme = useMemo((): XtermTheme | null => {
+    if (!themeColors) return null;
+    return { background: themeColors.bg, foreground: themeColors.fg, selectionBackground: themeColors.selection, cursor: themeColors.cursor };
+  }, [themeColors]);
 
   const getActivePane = useCallback((): PaneHandle | null => {
     const ap = activePaneRef.current;
@@ -197,7 +254,7 @@ export function TerminalView({ projectName, services }: TerminalViewProps) {
   };
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-[var(--border)]">
+    <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-[var(--border)]" style={containerStyle}>
       <div className="flex items-center gap-0.5 rounded-t-lg bg-[var(--terminal-header)] px-3 py-1.5">
         <div className="flex items-center gap-0.5">
           {hasMultiple && (
@@ -210,13 +267,14 @@ export function TerminalView({ projectName, services }: TerminalViewProps) {
 
         <div className="flex-1" />
 
-        <div className="flex items-center gap-0.5">
+        <div className="relative flex items-center gap-0.5">
           <IconBtn onClick={zoomOut} title="Zoom out"><MinusIcon /></IconBtn>
           <span className="min-w-[1.25rem] text-center font-mono text-[10px] tabular-nums text-[var(--terminal-header-text)]">
             {fontSize}
           </span>
           <IconBtn onClick={zoomIn} title="Zoom in"><PlusIcon /></IconBtn>
           <div className="mx-1 h-3.5 w-px bg-[var(--terminal-header-hover)]" />
+          <IconBtn onClick={() => setShowThemePicker((v) => !v)} title="Terminal theme" active={showThemePicker}><PaletteIcon /></IconBtn>
           <IconBtn onClick={toggleSearch} title="Search (Cmd+F)" active={showSearch}><SearchIcon /></IconBtn>
           <IconBtn onClick={() => forActivePanes((p) => p.clear())} title="Clear"><TrashIcon /></IconBtn>
           {!atBottom && (
@@ -231,6 +289,13 @@ export function TerminalView({ projectName, services }: TerminalViewProps) {
             >
               <ArrowDownIcon />
             </IconBtn>
+          )}
+          {showThemePicker && (
+            <ThemePicker
+              current={terminalTheme}
+              onChange={onTerminalThemeChange}
+              onClose={() => setShowThemePicker(false)}
+            />
           )}
         </div>
       </div>
@@ -269,6 +334,7 @@ export function TerminalView({ projectName, services }: TerminalViewProps) {
                 output={outputs[i] || ""}
                 visible={visible}
                 fontSize={fontSize}
+                themeOverride={xtermTheme}
                 onScrollStateChange={(ab) => handlePaneScroll(i, ab)}
               />
             </div>

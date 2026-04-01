@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { StatusDot } from "./StatusDot";
 import { ActionButton } from "./ActionButton";
 import { ProfileTag } from "./ProfileTag";
 import { TerminalView } from "./TerminalView";
 import { ConfigEditor } from "./ConfigEditor";
+import { getSettings, saveSettings } from "../settings";
+import type { TerminalThemeName } from "../terminal-themes";
 import type { ProjectInfo } from "../types";
 
 interface ProjectDetailProps {
@@ -28,6 +30,23 @@ export function ProjectDetail({
     project.profiles?.[0] ?? ""
   );
   const [confirmRemove, setConfirmRemove] = useState(false);
+
+  const settings = getSettings();
+  const [termTheme, setTermTheme] = useState<TerminalThemeName>(
+    (settings.terminalThemes?.[project.name] as TerminalThemeName) || "default"
+  );
+
+  const handleTerminalThemeChange = useCallback((theme: TerminalThemeName) => {
+    setTermTheme(theme);
+    const s = getSettings();
+    const themes = { ...s.terminalThemes };
+    if (theme === "default") {
+      delete themes[project.name];
+    } else {
+      themes[project.name] = theme;
+    }
+    saveSettings({ ...s, terminalThemes: Object.keys(themes).length ? themes : undefined });
+  }, [project.name]);
 
   const withLoading = async (fn: () => Promise<void>) => {
     setLoading(true);
@@ -107,6 +126,8 @@ export function ProjectDetail({
           <TerminalView
             projectName={project.name}
             services={project.services}
+            terminalTheme={termTheme}
+            onTerminalThemeChange={handleTerminalThemeChange}
           />
         </div>
       ) : (

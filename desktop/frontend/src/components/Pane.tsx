@@ -15,16 +15,24 @@ export interface PaneHandle {
   scrollToBottom: () => void;
 }
 
+export interface XtermTheme {
+  background: string;
+  foreground: string;
+  selectionBackground: string;
+  cursor: string;
+}
+
 interface PaneProps {
   label?: string;
   output: string;
   visible?: boolean;
   fontSize?: number;
   onScrollStateChange?: (atBottom: boolean) => void;
+  themeOverride?: XtermTheme | null;
 }
 
-function getTerminalTheme() {
-  const style = getComputedStyle(document.documentElement);
+function getTerminalTheme(el?: Element | null) {
+  const style = getComputedStyle(el || document.documentElement);
   return {
     background: style.getPropertyValue("--terminal-bg").trim() || "#0d0d0d",
     foreground: style.getPropertyValue("--terminal-fg").trim() || "#cccccc",
@@ -34,7 +42,7 @@ function getTerminalTheme() {
 }
 
 export const Pane = forwardRef<PaneHandle, PaneProps>(
-  function Pane({ label, output, visible = true, fontSize = 12, onScrollStateChange }, ref) {
+  function Pane({ label, output, visible = true, fontSize = 12, onScrollStateChange, themeOverride }, ref) {
     const containerRef = useRef<HTMLDivElement>(null);
     const termRef = useRef<Terminal | null>(null);
     const fitRef = useRef<FitAddon | null>(null);
@@ -75,7 +83,6 @@ export const Pane = forwardRef<PaneHandle, PaneProps>(
       const el = containerRef.current;
       if (!el) return;
 
-      const theme = getTerminalTheme();
       const term = new Terminal({
         fontSize,
         fontFamily: "'SF Mono', Menlo, Monaco, 'Courier New', monospace",
@@ -83,12 +90,7 @@ export const Pane = forwardRef<PaneHandle, PaneProps>(
         disableStdin: true,
         convertEol: true,
         scrollback: 10000,
-        theme: {
-          background: theme.background,
-          foreground: theme.foreground,
-          selectionBackground: theme.selectionBackground,
-          cursor: theme.cursor,
-        },
+        theme: themeOverride ?? getTerminalTheme(el),
       });
 
       const fit = new FitAddon();
@@ -117,10 +119,11 @@ export const Pane = forwardRef<PaneHandle, PaneProps>(
       };
       el.addEventListener("mouseup", handleMouseUp);
 
-      const themeObserver = new MutationObserver(() => {
-        term.options.theme = getTerminalTheme();
+      // Watch global theme changes (light/dark) — only matters when no override is active
+      const globalObserver = new MutationObserver(() => {
+        if (!themeOverride) term.options.theme = getTerminalTheme(el);
       });
-      themeObserver.observe(document.documentElement, {
+      globalObserver.observe(document.documentElement, {
         attributes: true,
         attributeFilter: ["data-theme"],
       });
@@ -132,7 +135,7 @@ export const Pane = forwardRef<PaneHandle, PaneProps>(
 
       return () => {
         el.removeEventListener("mouseup", handleMouseUp);
-        themeObserver.disconnect();
+        globalObserver.disconnect();
         ro.disconnect();
         term.dispose();
         termRef.current = null;
@@ -140,6 +143,12 @@ export const Pane = forwardRef<PaneHandle, PaneProps>(
         searchRef.current = null;
       };
     }, []);
+
+    useEffect(() => {
+      const term = termRef.current;
+      if (!term) return;
+      term.options.theme = themeOverride ?? getTerminalTheme(containerRef.current);
+    }, [themeOverride]);
 
     useEffect(() => {
       const term = termRef.current;

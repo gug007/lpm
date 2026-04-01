@@ -9,10 +9,11 @@ import (
 )
 
 type Settings struct {
-	Theme             string   `json:"theme"`
-	DoubleClickToggle bool     `json:"doubleClickToToggle"`
-	ProjectOrder      []string `json:"projectOrder,omitempty"`
-	LastUpdateCheck   string   `json:"lastUpdateCheck,omitempty"`
+	Theme             string            `json:"theme"`
+	DoubleClickToggle bool              `json:"doubleClickToToggle"`
+	ProjectOrder      []string          `json:"projectOrder,omitempty"`
+	LastUpdateCheck   string            `json:"lastUpdateCheck,omitempty"`
+	TerminalThemes    map[string]string `json:"terminalThemes,omitempty"`
 }
 
 func defaultSettings() Settings {
