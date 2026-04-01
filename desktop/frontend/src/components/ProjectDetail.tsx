@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { ActionButton } from "./ActionButton";
 import { TerminalView } from "./TerminalView";
 import { ConfigEditor } from "./ConfigEditor";
@@ -59,6 +59,17 @@ export function ProjectDetail({
   };
 
   const hasProfiles = project.profiles && project.profiles.length > 0;
+  const [copied, setCopied] = useState(false);
+  const copyTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const copyAttachCmd = useCallback(() => {
+    const cmd = `lpm open ${project.name}`;
+    navigator.clipboard.writeText(cmd).then(() => {
+      setCopied(true);
+      clearTimeout(copyTimeout.current);
+      copyTimeout.current = setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {});
+  }, [project.session]);
 
   return (
     <div className="flex h-full flex-col">
@@ -67,6 +78,23 @@ export function ProjectDetail({
           <h1 className="text-xl font-semibold tracking-tight">
             {project.name}
           </h1>
+          {project.running && (
+            <button
+              onClick={copyAttachCmd}
+              title={copied ? "Copied!" : `Copy: lpm open ${project.name}`}
+              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
+            >
+              {copied ? (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              )}
+            </button>
+          )}
           {hasProfiles && (
             <div className="flex items-center rounded border border-[var(--border)] p-px">
               {project.profiles.map((p) => (
