@@ -15,6 +15,13 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+const (
+	minWindowWidth  = 700
+	minWindowHeight = 500
+	maxWindowWidth  = 7680
+	maxWindowHeight = 4320
+)
+
 type App struct {
 	ctx context.Context
 
@@ -32,6 +39,8 @@ type App struct {
 	runningProfiles map[string]string // projectName -> profile used to start
 
 	pendingDownloadURL string // set by CheckForUpdate, used by InstallUpdate
+
+	lastWinW, lastWinH int // cached to skip redundant saves
 }
 
 func NewApp() *App {
@@ -127,6 +136,23 @@ func resolveUserPath() {
 	}
 	if path := strings.TrimSpace(rest[:end]); path != "" {
 		os.Setenv("PATH", path)
+	}
+}
+
+func (a *App) SaveWindowSize(width, height int) {
+	if width < minWindowWidth || height < minWindowHeight ||
+		width > maxWindowWidth || height > maxWindowHeight {
+		return
+	}
+	if width == a.lastWinW && height == a.lastWinH {
+		return
+	}
+	s := a.LoadSettings()
+	s.WindowWidth = width
+	s.WindowHeight = height
+	if err := a.SaveSettings(s); err == nil {
+		a.lastWinW = width
+		a.lastWinH = height
 	}
 }
 

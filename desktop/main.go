@@ -15,10 +15,17 @@ var assets embed.FS
 func main() {
 	app := NewApp()
 
+	width, height := 960, 640
+	if s := app.LoadSettings(); s.WindowWidth >= minWindowWidth && s.WindowHeight >= minWindowHeight &&
+		s.WindowWidth <= maxWindowWidth && s.WindowHeight <= maxWindowHeight {
+		width = s.WindowWidth
+		height = s.WindowHeight
+	}
+
 	err := wails.Run(&options.App{
 		Title:            "lpm",
-		Width:            960,
-		Height:           640,
+		Width:            width,
+		Height:           height,
 		MinWidth:         700,
 		MinHeight:        500,
 		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 0},

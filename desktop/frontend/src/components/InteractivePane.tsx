@@ -36,9 +36,12 @@ export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePane
     const scrollCallbackRef = useRef(onScrollStateChange);
     const themeOverrideRef = useRef(themeOverride);
     const onExitRef = useRef(onExit);
+    const visibleRef = useRef(visible);
+    const flushRef = useRef<(() => void) | null>(null);
     scrollCallbackRef.current = onScrollStateChange;
     themeOverrideRef.current = themeOverride;
     onExitRef.current = onExit;
+    visibleRef.current = visible;
 
     useImperativeHandle(ref, () => ({
       clear() {
@@ -106,6 +109,28 @@ export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePane
       // Streaming UTF-8 decoder handles multi-byte sequences split across PTY reads
       const utf8Decoder = new TextDecoder("utf-8", { fatal: false });
 
+      // Batch writes: accumulate between frames, flush once per rAF.
+      // When hidden, data accumulates without rendering — flushed on visibility change.
+      let writeBuf = "";
+      let writeRaf = 0;
+      const flushWriteBuf = () => {
+        if (writeBuf) {
+          term.write(writeBuf);
+          writeBuf = "";
+        }
+      };
+      const scheduleWrite = (text: string) => {
+        writeBuf += text;
+        if (!visibleRef.current) return;
+        if (!writeRaf) {
+          writeRaf = requestAnimationFrame(() => {
+            writeRaf = 0;
+            flushWriteBuf();
+          });
+        }
+      };
+      flushRef.current = flushWriteBuf;
+
       // Sync initial size to PTY
       ResizeTerminal(terminalId, term.cols, term.rows).catch(() => {});
 
@@ -156,14 +181,14 @@ export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePane
         attributeFilter: ["data-theme"],
       });
 
-      // Receive PTY output — decode base64 → bytes → UTF-8 string
+      // Receive PTY output — decode base64 → bytes → UTF-8 string, batched per frame
       const cleanupOutput = EventsOn("pty-output-" + terminalId, (data: string) => {
         try {
           const raw = atob(data);
           const bytes = new Uint8Array(raw.length);
           for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
           const text = utf8Decoder.decode(bytes, { stream: true });
-          if (text) term.write(text);
+          if (text) scheduleWrite(text);
         } catch {}
       });
 
@@ -175,15 +200,22 @@ export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePane
         onExitRef.current?.(exitCode);
       });
 
-      // Resize observer
+      // Resize observer (debounced — fit() is expensive during continuous resize)
+      let resizeRaf = 0;
       const ro = new ResizeObserver(() => {
-        try { fit.fit(); } catch {}
+        if (resizeRaf) cancelAnimationFrame(resizeRaf);
+        resizeRaf = requestAnimationFrame(() => {
+          resizeRaf = 0;
+          try { fit.fit(); } catch {}
+        });
       });
       ro.observe(el);
 
       term.focus();
 
       return () => {
+        if (writeRaf) cancelAnimationFrame(writeRaf);
+        if (resizeRaf) cancelAnimationFrame(resizeRaf);
         el.removeEventListener("mouseup", handleMouseUp);
         globalObserver.disconnect();
         ro.disconnect();
@@ -220,6 +252,7 @@ export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePane
       const fit = fitRef.current;
       if (!term || !fit) return;
       requestAnimationFrame(() => {
+        flushRef.current?.();
         try { fit.fit(); } catch {}
         try { term.refresh(0, term.rows - 1); } catch {}
         term.focus();

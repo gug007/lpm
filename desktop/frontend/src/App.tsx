@@ -6,8 +6,8 @@ import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
 import { TmuxInstaller } from "./components/TmuxInstaller";
 import type { ProjectInfo } from "./types";
 
-import { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects, TmuxInstalled, InstallTmux } from '../wailsjs/go/main/App';
-import { EventsOn } from '../wailsjs/runtime/runtime';
+import { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects, TmuxInstalled, InstallTmux, SaveWindowSize } from '../wailsjs/go/main/App';
+import { EventsOn, WindowGetSize } from '../wailsjs/runtime/runtime';
 const api = { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects };
 
 export default function App() {
@@ -19,6 +19,21 @@ export default function App() {
 
   useEffect(() => {
     TmuxInstalled().then(setTmuxReady);
+  }, []);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const onResize = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        WindowGetSize().then(({ w, h }) => SaveWindowSize(w, h));
+      }, 500);
+    };
+    window.addEventListener("resize", onResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", onResize);
+    };
   }, []);
 
   const handleTmuxInstalled = useCallback(() => setTmuxReady(true), []);

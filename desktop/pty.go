@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"sync/atomic"
+	"time"
 
 	"github.com/creack/pty"
 	"github.com/gug007/lpm/internal/config"
@@ -61,16 +62,73 @@ func (a *App) StartTerminal(projectName string) (string, error) {
 
 	// Read goroutine: PTY stdout -> Wails events
 	// Terminates when ptmx.Read returns an error (after pty.Close in StopTerminal).
+	// Reads into a channel; a separate goroutine coalesces rapid output into
+	// fewer, larger IPC events (flush every 4ms or when buffer exceeds 32KB).
 	go func() {
-		buf := make([]byte, 4096)
-		for {
-			n, err := ptmx.Read(buf)
-			if n > 0 {
-				encoded := base64.StdEncoding.EncodeToString(buf[:n])
-				runtime.EventsEmit(a.ctx, "pty-output-"+id, encoded)
+		type readResult struct {
+			data []byte
+			err  error
+		}
+		ch := make(chan readResult, 8)
+
+		// Reader: blocking reads from PTY into channel
+		go func() {
+			buf := make([]byte, 16384)
+			for {
+				n, err := ptmx.Read(buf)
+				if n > 0 {
+					cp := make([]byte, n)
+					copy(cp, buf[:n])
+					ch <- readResult{data: cp}
+				}
+				if err != nil {
+					ch <- readResult{err: err}
+					return
+				}
 			}
-			if err != nil {
-				break
+		}()
+
+		// Coalescer: batches channel data, flushes on timer or size threshold.
+		// Uses a one-shot timer (not ticker) so idle terminals have zero overhead.
+		pending := make([]byte, 0, 65536)
+		flushTimer := time.NewTimer(0)
+		if !flushTimer.Stop() {
+			<-flushTimer.C
+		}
+		timerRunning := false
+
+		flush := func() {
+			if len(pending) == 0 {
+				return
+			}
+			encoded := base64.StdEncoding.EncodeToString(pending)
+			runtime.EventsEmit(a.ctx, "pty-output-"+id, encoded)
+			pending = pending[:0]
+			timerRunning = false
+		}
+
+	loop:
+		for {
+			select {
+			case r := <-ch:
+				if r.err != nil {
+					flush()
+					break loop
+				}
+				pending = append(pending, r.data...)
+				if len(pending) >= 32768 {
+					flush()
+					if timerRunning {
+						flushTimer.Stop()
+						timerRunning = false
+					}
+				} else if !timerRunning {
+					flushTimer.Reset(4 * time.Millisecond)
+					timerRunning = true
+				}
+			case <-flushTimer.C:
+				timerRunning = false
+				flush()
 			}
 		}
 

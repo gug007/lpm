@@ -7,6 +7,8 @@ export interface Settings {
   projectOrder?: string[];
   terminalTheme?: string;
   terminalFontSize?: number;
+  windowWidth?: number;
+  windowHeight?: number;
 }
 
 const defaults: Settings = {
@@ -25,6 +27,8 @@ export async function loadSettings(): Promise<Settings> {
       projectOrder: s.projectOrder,
       terminalTheme: s.terminalTheme,
       terminalFontSize: s.terminalFontSize,
+      windowWidth: s.windowWidth,
+      windowHeight: s.windowHeight,
     };
   } catch {
     cached = { ...defaults };

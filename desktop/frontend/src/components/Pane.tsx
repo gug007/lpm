@@ -113,12 +113,18 @@ export const Pane = forwardRef<PaneHandle, PaneProps>(
         attributeFilter: ["data-theme"],
       });
 
+      let resizeRaf = 0;
       const ro = new ResizeObserver(() => {
-        try { fit.fit(); } catch {}
+        if (resizeRaf) cancelAnimationFrame(resizeRaf);
+        resizeRaf = requestAnimationFrame(() => {
+          resizeRaf = 0;
+          try { fit.fit(); } catch {}
+        });
       });
       ro.observe(el);
 
       return () => {
+        if (resizeRaf) cancelAnimationFrame(resizeRaf);
         el.removeEventListener("mouseup", handleMouseUp);
         globalObserver.disconnect();
         ro.disconnect();
