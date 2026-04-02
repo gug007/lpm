@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gug007/lpm/internal/tmux"
@@ -25,6 +26,9 @@ type App struct {
 	streamMu sync.Mutex
 	streams  map[string]context.CancelFunc // projectName -> cancel streaming
 
+	ptyMu       sync.Mutex
+	ptySessions map[string]*ptySession // terminalID -> session
+
 	runningProfiles map[string]string // projectName -> profile used to start
 
 	pendingDownloadURL string // set by CheckForUpdate, used by InstallUpdate
@@ -35,6 +39,7 @@ func NewApp() *App {
 		sessionCache:    make(map[string]string),
 		paneCache:       make(map[string][]string),
 		streams:         make(map[string]context.CancelFunc),
+		ptySessions:     make(map[string]*ptySession),
 		runningProfiles: make(map[string]string),
 	}
 }
@@ -132,6 +137,14 @@ func (a *App) shutdown(ctx context.Context) {
 		delete(a.streams, name)
 	}
 	a.streamMu.Unlock()
+
+	a.ptyMu.Lock()
+	for id, sess := range a.ptySessions {
+		_ = sess.cmd.Process.Signal(syscall.SIGHUP)
+		_ = sess.pty.Close()
+		delete(a.ptySessions, id)
+	}
+	a.ptyMu.Unlock()
 }
 
 func (a *App) SetDarkMode(dark bool) {
