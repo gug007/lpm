@@ -103,7 +103,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           onClick={() => onCollapsedChange(true)}
           style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}
           className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          title="Collapse sidebar"
+          title="Collapse sidebar (⌘B)"
         >
           <SidebarIcon />
         </button>

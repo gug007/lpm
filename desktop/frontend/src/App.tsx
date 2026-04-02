@@ -232,7 +232,7 @@ export default function App() {
                 onClick={() => setSidebarCollapsed(false)}
                 style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}
                 className="absolute left-[75px] top-[7px] z-10 flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                title="Expand sidebar"
+                title="Expand sidebar (⌘B)"
               >
                 <SidebarIcon />
               </button>
