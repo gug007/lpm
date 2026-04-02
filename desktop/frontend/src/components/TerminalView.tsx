@@ -7,6 +7,7 @@ import { InteractivePane, InteractivePaneHandle } from "./InteractivePane";
 import { getSettings, saveSettings } from "../settings";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
+import { ansiColors } from "./terminal-utils";
 import { iconProps, XIcon } from "./icons";
 
 interface TerminalViewProps {
@@ -269,7 +270,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
     if (!colors) return { containerStyle: undefined, xtermTheme: null };
     return {
       containerStyle: terminalThemeCssVars(colors) as React.CSSProperties,
-      xtermTheme: { background: colors.bg, foreground: colors.fg, selectionBackground: colors.selection, cursor: colors.cursor } as ITheme,
+      xtermTheme: { background: colors.bg, foreground: colors.fg, selectionBackground: colors.selection, cursor: colors.cursor, ...ansiColors } as ITheme,
     };
   }, [terminalTheme]);
 
