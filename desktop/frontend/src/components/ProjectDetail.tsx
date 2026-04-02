@@ -249,7 +249,7 @@ export function ProjectDetail({
 
   return (
     <div className="flex h-full flex-col">
-      <div className={`wails-drag flex items-center justify-between -mx-3 py-1 ${sidebarCollapsed ? "pl-[91px]" : ""}`}>
+      <div className={`wails-drag flex items-center justify-between -mx-3 py-1 transition-[padding] duration-200 ${sidebarCollapsed ? "pl-[91px]" : ""}`}>
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold tracking-tight">
             {project.name}
