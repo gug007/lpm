@@ -27,8 +27,6 @@ function ChevronDownIcon() { return <svg {...iconProps}><path d="m6 9 6 6 6-6" /
 function PaletteIcon() { return <svg {...iconProps}><circle cx="13.5" cy="6.5" r="0.5" fill="currentColor" /><circle cx="17.5" cy="10.5" r="0.5" fill="currentColor" /><circle cx="8.5" cy="7.5" r="0.5" fill="currentColor" /><circle cx="6.5" cy="12" r="0.5" fill="currentColor" /><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.5-.7 1.5-1.5 0-.4-.1-.7-.4-1-.3-.3-.4-.6-.4-1 0-.8.7-1.5 1.5-1.5H16c3.3 0 6-2.7 6-6 0-5.5-4.5-9-10-9z" /></svg>; }
 function ExpandIcon() { return <svg {...iconProps}><polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" /><line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" /></svg>; }
 function ShrinkIcon() { return <svg {...iconProps}><polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" /><line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" /></svg>; }
-function TerminalIcon() { return <svg {...iconProps}><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>; }
-
 function IconBtn({ onClick, title, children, active, className = "" }: {
   onClick: () => void;
   title: string;
@@ -502,9 +500,13 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
               onRename={(name) => handleRenameTerminal(i, name)}
             />
           ))}
-          <IconBtn onClick={handleNewTerminal} title="New terminal">
-            <TerminalIcon />
-          </IconBtn>
+          <button
+            onClick={handleNewTerminal}
+            title="New terminal"
+            className="flex items-center gap-1 rounded-md px-2 py-1 font-mono text-[11px] font-medium text-[var(--terminal-header-text)] transition-colors hover:bg-[var(--terminal-header-hover)] hover:text-[var(--terminal-tab-active)]"
+          >
+            <PlusIcon />
+          </button>
         </div>
 
         <div className="flex-1" />
