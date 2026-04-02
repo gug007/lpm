@@ -5,6 +5,7 @@ import { Settings } from "./components/Settings";
 import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
 import { TmuxInstaller } from "./components/TmuxInstaller";
 import type { ProjectInfo } from "./types";
+import { SidebarIcon } from "./components/icons";
 
 import { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects, TmuxInstalled, InstallTmux, SaveWindowSize } from '../wailsjs/go/main/App';
 import { EventsOn, WindowGetSize } from '../wailsjs/runtime/runtime';
@@ -16,6 +17,7 @@ export default function App() {
   const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<"projects" | "settings">("projects");
   const [error, setError] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     TmuxInstalled().then(setTmuxReady);
@@ -177,6 +179,8 @@ export default function App() {
         <Sidebar
           projects={projects}
           selected={view === "projects" ? selected : null}
+          collapsed={sidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed}
           onSelect={(name) => {
             setSelected(name);
             setView("projects");
@@ -211,7 +215,18 @@ export default function App() {
           showSettings={view === "settings"}
         />
         <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">
-          <div className="wails-drag h-8 shrink-0" />
+          <div className={`wails-drag flex h-8 shrink-0 items-center ${sidebarCollapsed ? "pl-[51px]" : ""}`}>
+            {sidebarCollapsed && (
+              <button
+                onClick={() => setSidebarCollapsed(false)}
+                style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}
+                className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                title="Expand sidebar"
+              >
+                <SidebarIcon />
+              </button>
+            )}
+          </div>
           {view === "settings" ? (
             <Settings />
           ) : (

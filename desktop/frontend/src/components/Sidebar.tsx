@@ -4,6 +4,7 @@ import { getSettings, saveSettings } from "../settings";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { InstallUpdate } from "../../wailsjs/go/main/App";
 import type { ProjectInfo } from "../types";
+import { SidebarIcon } from "./icons";
 
 const MIN_WIDTH = 160;
 const MAX_WIDTH = 400;
@@ -11,6 +12,8 @@ const MAX_WIDTH = 400;
 interface SidebarProps {
   projects: ProjectInfo[];
   selected: string | null;
+  collapsed: boolean;
+  onCollapsedChange: (collapsed: boolean) => void;
   onSelect: (name: string) => void;
   onToggle: (name: string) => void;
   onSettings: () => void;
@@ -19,7 +22,7 @@ interface SidebarProps {
   showSettings: boolean;
 }
 
-export function Sidebar({ projects, selected, onSelect, onToggle, onSettings, onAddProject, onReorder, showSettings }: SidebarProps) {
+export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onSettings, onAddProject, onReorder, showSettings }: SidebarProps) {
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
   const dragRef = useRef(false);
@@ -91,9 +94,21 @@ export function Sidebar({ projects, selected, onSelect, onToggle, onSettings, on
   const showDropBelow = (idx: number) => isDragging && overIdx === idx && dragIdx !== idx && dragIdx! < idx;
 
   return (
-    <aside className="relative flex shrink-0 flex-col border-r border-[var(--border)] bg-[var(--bg-sidebar)]" style={{ width }}>
-      <div className="wails-drag h-8 shrink-0" />
-      <div className="flex items-center justify-between px-4 pb-2">
+    <aside
+      className={`relative flex shrink-0 flex-col bg-[var(--bg-sidebar)] transition-[width] duration-200 ${collapsed ? "" : "border-r border-[var(--border)]"}`}
+      style={{ width: collapsed ? 0 : width, overflow: collapsed ? "hidden" : undefined }}
+    >
+      <div className="wails-drag flex h-8 shrink-0 items-center pl-[75px]">
+        <button
+          onClick={() => onCollapsedChange(true)}
+          style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}
+          className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          title="Collapse sidebar"
+        >
+          <SidebarIcon />
+        </button>
+      </div>
+      <div className="flex items-center justify-between px-4 pb-2" style={{ minWidth: width }}>
         <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
           Projects
         </h2>
