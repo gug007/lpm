@@ -346,9 +346,10 @@ export function ProjectDetail({
               />
               <ActionButton
                 onClick={() =>
-                  withLoading(() =>
-                    onStart(project.name, activeProfile)
-                  )
+                  withLoading(async () => {
+                    await onStart(project.name, activeProfile);
+                    setDetailView("terminal");
+                  })
                 }
                 disabled={loading}
                 variant="primary"
