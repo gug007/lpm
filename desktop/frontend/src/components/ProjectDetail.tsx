@@ -10,6 +10,8 @@ import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
 import type { ProjectInfo, ActionInfo } from "../types";
 import { iconProps, XIcon } from "./icons";
 
+const EMPTY_SERVICES: { name: string }[] = [];
+
 function ZapIcon() { return <svg {...iconProps}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>; }
 function PlayIcon() { return <svg {...iconProps} width={12} height={12} fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3" /></svg>; }
 function SpinnerIcon() {
@@ -250,30 +252,28 @@ export function ProjectDetail({
           <h1 className="text-xl font-semibold tracking-tight">
             {project.name}
           </h1>
-          {project.running && (
-            <div className="flex items-center rounded border border-[var(--border)] p-px">
-              <button
-                onClick={() => switchDetailView("terminal")}
-                className={`rounded-sm px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                  detailView === "terminal"
-                    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-                }`}
-              >
-                Terminal
-              </button>
-              <button
-                onClick={() => switchDetailView("config")}
-                className={`rounded-sm px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                  detailView === "config"
-                    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-                }`}
-              >
-                Config
-              </button>
-            </div>
-          )}
+          <div className="flex items-center rounded border border-[var(--border)] p-px">
+            <button
+              onClick={() => switchDetailView("terminal")}
+              className={`rounded-sm px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                detailView === "terminal"
+                  ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              }`}
+            >
+              Terminal
+            </button>
+            <button
+              onClick={() => switchDetailView("config")}
+              className={`rounded-sm px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                detailView === "config"
+                  ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              }`}
+            >
+              Config
+            </button>
+          </div>
           {hasProfiles && (
             <div className="flex items-center rounded border border-[var(--border)] p-px">
               {project.profiles.map((p) => (
@@ -359,11 +359,11 @@ export function ProjectDetail({
         </div>
       </div>
 
-      {project.running && project.services?.length > 0 && detailView === "terminal" ? (
+      {detailView === "terminal" ? (
         <div className="mt-3 -mx-2 -mb-5 flex min-h-0 flex-1 flex-col overflow-hidden">
           <TerminalView
             projectName={project.name}
-            services={project.services}
+            services={project.running ? project.services : EMPTY_SERVICES}
             terminalTheme={termTheme}
             onTerminalThemeChange={handleTerminalThemeChange}
             visible={visible}

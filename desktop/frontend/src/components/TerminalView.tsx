@@ -220,27 +220,38 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
     });
   }, [projectName]);
 
-  // Restore saved terminals on mount
+  const servicesKey = useMemo(
+    () => services.map((s) => s.name).join(","),
+    [services]
+  );
+  const stableServices = useMemo(() => services, [servicesKey]);
+
+  // Restore saved terminals on mount (or create a default if no tabs at all)
   useEffect(() => {
     const saved = getProjectTerminals(projectName).terminals;
-    if (!saved || saved.length === 0) return;
+    const hasServices = services.length > 0;
+    const entries = saved && saved.length > 0 ? saved : !hasServices ? [{ label: "Terminal 1" }] : null;
+    if (!entries) return;
     let cancelled = false;
     const startedIds: string[] = [];
     (async () => {
       const results = await Promise.allSettled(
-        saved.map(() => StartTerminal(projectName))
+        entries.map(() => StartTerminal(projectName))
       );
       const restored: InteractiveTerminal[] = [];
       results.forEach((r, i) => {
         if (r.status === "fulfilled") {
           startedIds.push(r.value);
-          restored.push({ id: r.value, label: saved[i].label });
+          restored.push({ id: r.value, label: entries[i].label });
         }
       });
       if (cancelled) {
         restored.forEach((t) => StopTerminal(t.id).catch(() => {}));
       } else {
         setTerminals(restored);
+        if (!saved || saved.length === 0) {
+          setActivePane({ type: "terminal", index: 0 });
+        }
       }
     })();
     return () => {
@@ -248,12 +259,6 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
       startedIds.forEach((id) => StopTerminal(id).catch(() => {}));
     };
   }, [projectName]);
-
-  const servicesKey = useMemo(
-    () => services.map((s) => s.name).join(","),
-    [services]
-  );
-  const stableServices = useMemo(() => services, [servicesKey]);
 
   const activeTermIdx = terminalIndex(activePane);
   const showAll = activePane === "all";
