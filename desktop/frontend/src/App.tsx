@@ -80,21 +80,21 @@ export default function App() {
   const [visited, setVisited] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (selected && selectedProject?.running) {
+    if (selected) {
       setVisited((prev) => (prev.has(selected) ? prev : new Set([...prev, selected])));
     }
-  }, [selected, selectedProject?.running]);
+  }, [selected]);
 
   useEffect(() => {
     setVisited((prev) => {
-      const running = new Set(projects.filter((p) => p.running).map((p) => p.name));
-      const next = new Set([...prev].filter((name) => running.has(name)));
+      const existing = new Set(projects.map((p) => p.name));
+      const next = new Set([...prev].filter((name) => existing.has(name)));
       return next.size === prev.size ? prev : next;
     });
   }, [projects]);
 
-  const visitedRunning = useMemo(
-    () => projects.filter((p) => p.running && (p.name === selected || visited.has(p.name))),
+  const visitedProjects = useMemo(
+    () => projects.filter((p) => p.name === selected || visited.has(p.name)),
     [projects, visited, selected],
   );
 
@@ -210,14 +210,13 @@ export default function App() {
           }}
           showSettings={view === "settings"}
         />
-        <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6">
+        <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">
           <div className="wails-drag h-8 shrink-0" />
           {view === "settings" ? (
             <Settings />
           ) : (
             <>
-              {/* Keep visited running projects mounted to preserve terminal sessions */}
-              {visitedRunning.map((project) => {
+              {visitedProjects.map((project) => {
                 const isSelected = view === "projects" && selected === project.name;
                 return (
                   <div key={project.name} className={isSelected ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
@@ -234,19 +233,6 @@ export default function App() {
                   </div>
                 );
               })}
-              {/* Non-running selected project (config editor) */}
-              {selectedProject && !selectedProject.running && (
-                <ProjectDetail
-                  key={selectedProject.name}
-                  project={selectedProject}
-                  onStart={handleStart}
-                  onStop={handleStop}
-                  onRestart={handleRestart}
-                  onRefresh={handleRefresh}
-                  onRemove={handleRemove}
-                  onError={setError}
-                />
-              )}
               {!selectedProject && projects.length === 0 && (
                 <EmptyStateNoProjects onAdd={handleAddProject} />
               )}

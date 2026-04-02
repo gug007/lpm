@@ -480,7 +480,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
       className={
         fullscreen
           ? "fixed inset-0 z-50 flex flex-col overflow-hidden bg-[var(--terminal-bg)]"
-          : "flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-lg border-t border-x border-[var(--border)]"
+          : "flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-lg border-t border-x border-[var(--border)] bg-[var(--terminal-bg)]"
       }
       style={containerStyle}
     >
