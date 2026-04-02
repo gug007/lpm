@@ -330,7 +330,15 @@ export function ProjectDetail({
                 label="Restart"
               />
               <ActionButton
-                onClick={() => withLoading(() => onStop(project.name))}
+                onClick={() =>
+                  withLoading(async () => {
+                    await onStop(project.name);
+                    const saved = getProjectTerminals(project.name).terminals;
+                    if (!saved || saved.length === 0) {
+                      switchDetailView("config");
+                    }
+                  })
+                }
                 disabled={loading}
                 variant="destructive"
                 label="Stop"

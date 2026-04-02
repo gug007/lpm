@@ -24,6 +24,17 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "b") {
+        e.preventDefault();
+        setSidebarCollapsed((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const onResize = () => {
       clearTimeout(timer);
