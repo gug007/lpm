@@ -5,7 +5,8 @@ export type TerminalThemeName =
   | "dracula"
   | "nord"
   | "solarized-dark"
-  | "github-dark";
+  | "github-dark"
+  | "claude-dark";
 
 export interface TerminalThemeColors {
   bg: string;
@@ -27,6 +28,7 @@ export const terminalThemeNames: TerminalThemeName[] = [
   "nord",
   "solarized-dark",
   "github-dark",
+  "claude-dark",
 ];
 
 const themes: Record<Exclude<TerminalThemeName, "default">, TerminalThemeColors> = {
@@ -59,6 +61,11 @@ const themes: Record<Exclude<TerminalThemeName, "default">, TerminalThemeColors>
     bg: "#0d1117", fg: "#c9d1d9", selection: "#1f2937", cursor: "#c9d1d9",
     header: "#161b22", headerText: "#484f58", headerHover: "rgba(255,255,255,0.04)",
     headerActive: "rgba(255,255,255,0.08)", tabActive: "#c9d1d9",
+  },
+  "claude-dark": {
+    bg: "#2e2e2e", fg: "#c8c8c8", selection: "#484848", cursor: "#c8c8c8",
+    header: "#252525", headerText: "#8a8a8a", headerHover: "rgba(255,255,255,0.04)",
+    headerActive: "rgba(255,255,255,0.08)", tabActive: "#d4d4d4",
   },
 };
 

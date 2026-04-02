@@ -5,9 +5,12 @@ import { TerminalView } from "./TerminalView";
 import { ConfigEditor } from "./ConfigEditor";
 import { RunAction } from "../../wailsjs/go/main/App";
 import { getSettings, saveSettings } from "../settings";
+import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
 import type { ProjectInfo, ActionInfo } from "../types";
 import { iconProps, XIcon } from "./icons";
+
+const EMPTY_SERVICES: { name: string }[] = [];
 
 function ZapIcon() { return <svg {...iconProps}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>; }
 function PlayIcon() { return <svg {...iconProps} width={12} height={12} fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3" /></svg>; }
@@ -180,6 +183,7 @@ function ActionsPopover({ actions, projectName, onClose, onError }: {
 
 interface ProjectDetailProps {
   project: ProjectInfo;
+  visible?: boolean;
   onStart: (name: string, profile: string) => Promise<void>;
   onStop: (name: string) => Promise<void>;
   onRestart: (name: string, profile: string) => Promise<void>;
@@ -190,6 +194,7 @@ interface ProjectDetailProps {
 
 export function ProjectDetail({
   project,
+  visible = true,
   onStart,
   onStop,
   onRestart,
@@ -229,16 +234,15 @@ export function ProjectDetail({
 
   const hasProfiles = project.profiles && project.profiles.length > 0;
   const hasActions = project.actions && project.actions.length > 0;
-  const [copied, setCopied] = useState(false);
-  const copyTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [detailView, setDetailView] = useState<"terminal" | "config">(() => {
+    const saved = getProjectTerminals(project.name).detailView;
+    return saved === "config" ? "config" : "terminal";
+  });
 
-  const copyAttachCmd = useCallback(() => {
-    const cmd = `lpm open ${project.name}`;
-    navigator.clipboard.writeText(cmd).then(() => {
-      setCopied(true);
-      clearTimeout(copyTimeout.current);
-      copyTimeout.current = setTimeout(() => setCopied(false), 2000);
-    }).catch(() => {});
+  const switchDetailView = useCallback((view: "terminal" | "config") => {
+    setDetailView(view);
+    const state = getProjectTerminals(project.name);
+    saveProjectTerminals(project.name, { ...state, detailView: view });
   }, [project.name]);
 
   return (
@@ -248,23 +252,28 @@ export function ProjectDetail({
           <h1 className="text-xl font-semibold tracking-tight">
             {project.name}
           </h1>
-          {project.running && (
+          <div className="flex items-center rounded border border-[var(--border)] p-px">
             <button
-              onClick={copyAttachCmd}
-              title={copied ? "Copied!" : `Copy: lpm open ${project.name}`}
-              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
+              onClick={() => switchDetailView("terminal")}
+              className={`rounded-sm px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                detailView === "terminal"
+                  ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              }`}
             >
-              {copied ? (
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              ) : (
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
-              )}
+              Terminal
             </button>
-          )}
+            <button
+              onClick={() => switchDetailView("config")}
+              className={`rounded-sm px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                detailView === "config"
+                  ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              }`}
+            >
+              Config
+            </button>
+          </div>
           {hasProfiles && (
             <div className="flex items-center rounded border border-[var(--border)] p-px">
               {project.profiles.map((p) => (
@@ -350,13 +359,14 @@ export function ProjectDetail({
         </div>
       </div>
 
-      {project.running && project.services?.length > 0 ? (
-        <div className="mt-3 -mx-2 -mb-5 flex min-h-0 flex-1 flex-col overflow-hidden">
+      {detailView === "terminal" ? (
+        <div className="mt-3 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden">
           <TerminalView
             projectName={project.name}
-            services={project.services}
+            services={project.running ? project.services : EMPTY_SERVICES}
             terminalTheme={termTheme}
             onTerminalThemeChange={handleTerminalThemeChange}
+            visible={visible}
           />
         </div>
       ) : (

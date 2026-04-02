@@ -14,6 +14,8 @@ type Settings struct {
 	ProjectOrder      []string          `json:"projectOrder,omitempty"`
 	TerminalTheme     string            `json:"terminalTheme,omitempty"`
 	TerminalFontSize  int               `json:"terminalFontSize,omitempty"`
+	WindowWidth       int               `json:"windowWidth,omitempty"`
+	WindowHeight      int               `json:"windowHeight,omitempty"`
 }
 
 func defaultSettings() Settings {

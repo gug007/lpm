@@ -8,10 +8,18 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gug007/lpm/internal/tmux"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+)
+
+const (
+	minWindowWidth  = 700
+	minWindowHeight = 500
+	maxWindowWidth  = 7680
+	maxWindowHeight = 4320
 )
 
 type App struct {
@@ -25,9 +33,14 @@ type App struct {
 	streamMu sync.Mutex
 	streams  map[string]context.CancelFunc // projectName -> cancel streaming
 
+	ptyMu       sync.Mutex
+	ptySessions map[string]*ptySession // terminalID -> session
+
 	runningProfiles map[string]string // projectName -> profile used to start
 
 	pendingDownloadURL string // set by CheckForUpdate, used by InstallUpdate
+
+	lastWinW, lastWinH int // cached to skip redundant saves
 }
 
 func NewApp() *App {
@@ -35,6 +48,7 @@ func NewApp() *App {
 		sessionCache:    make(map[string]string),
 		paneCache:       make(map[string][]string),
 		streams:         make(map[string]context.CancelFunc),
+		ptySessions:     make(map[string]*ptySession),
 		runningProfiles: make(map[string]string),
 	}
 }
@@ -125,6 +139,23 @@ func resolveUserPath() {
 	}
 }
 
+func (a *App) SaveWindowSize(width, height int) {
+	if width < minWindowWidth || height < minWindowHeight ||
+		width > maxWindowWidth || height > maxWindowHeight {
+		return
+	}
+	if width == a.lastWinW && height == a.lastWinH {
+		return
+	}
+	s := a.LoadSettings()
+	s.WindowWidth = width
+	s.WindowHeight = height
+	if err := a.SaveSettings(s); err == nil {
+		a.lastWinW = width
+		a.lastWinH = height
+	}
+}
+
 func (a *App) shutdown(ctx context.Context) {
 	a.streamMu.Lock()
 	for name, cancel := range a.streams {
@@ -132,6 +163,14 @@ func (a *App) shutdown(ctx context.Context) {
 		delete(a.streams, name)
 	}
 	a.streamMu.Unlock()
+
+	a.ptyMu.Lock()
+	for id, sess := range a.ptySessions {
+		_ = sess.cmd.Process.Signal(syscall.SIGHUP)
+		_ = sess.pty.Close()
+		delete(a.ptySessions, id)
+	}
+	a.ptyMu.Unlock()
 }
 
 func (a *App) SetDarkMode(dark bool) {

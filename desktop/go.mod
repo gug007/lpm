@@ -3,6 +3,7 @@ module github.com/gug007/lpm/desktop
 go 1.26.1
 
 require (
+	github.com/creack/pty v1.1.24
 	github.com/gug007/lpm v0.0.0
 	github.com/wailsapp/wails/v2 v2.12.0
 	gopkg.in/yaml.v3 v3.0.1

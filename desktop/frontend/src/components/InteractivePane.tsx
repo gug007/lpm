@@ -4,47 +4,53 @@ import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
-import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
+import { EventsOn, BrowserOpenURL } from "../../wailsjs/runtime/runtime";
+import { WriteTerminal, ResizeTerminal, AckTerminalData } from "../../wailsjs/go/main/App";
 import { getTerminalTheme } from "./terminal-utils";
 import "@xterm/xterm/css/xterm.css";
 
-export interface PaneHandle {
+export interface InteractivePaneHandle {
   clear: () => void;
   findNext: (query: string) => boolean;
   findPrevious: (query: string) => boolean;
   clearSearch: () => void;
   scrollToBottom: () => void;
+  focus: () => void;
 }
 
-interface PaneProps {
-  label?: string;
-  output: string;
+interface InteractivePaneProps {
+  terminalId: string;
   visible?: boolean;
   fontSize?: number;
   onScrollStateChange?: (atBottom: boolean) => void;
   themeOverride?: ITheme | null;
+  onExit?: (exitCode: number) => void;
 }
 
-export const Pane = forwardRef<PaneHandle, PaneProps>(
-  function Pane({ label, output, visible = true, fontSize = 12, onScrollStateChange, themeOverride }, ref) {
+// Flow control: ack in batches to reduce IPC calls (matches VS Code's approach)
+const ACK_SIZE = 5000;
+const HIDDEN_BUF_CAP = 1_000_000; // max chars to buffer while hidden (~1MB)
+
+export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePaneProps>(
+  function InteractivePane({ terminalId, visible = true, fontSize = 12, onScrollStateChange, themeOverride, onExit }, ref) {
     const containerRef = useRef<HTMLDivElement>(null);
     const termRef = useRef<Terminal | null>(null);
     const fitRef = useRef<FitAddon | null>(null);
     const searchRef = useRef<SearchAddon | null>(null);
-    const prevLinesRef = useRef<string[]>([]);
-    const stickToBottomRef = useRef(true);
     const scrollCallbackRef = useRef(onScrollStateChange);
     const themeOverrideRef = useRef(themeOverride);
+    const onExitRef = useRef(onExit);
+    const visibleRef = useRef(visible);
+    const flushRef = useRef<(() => void) | null>(null);
     scrollCallbackRef.current = onScrollStateChange;
     themeOverrideRef.current = themeOverride;
+    onExitRef.current = onExit;
+    visibleRef.current = visible;
 
     useImperativeHandle(ref, () => ({
       clear() {
         const term = termRef.current;
-        if (term) {
-          term.reset();
-          prevLinesRef.current = [];
-        }
+        if (term) term.clear();
       },
       findNext(query: string) {
         return searchRef.current?.findNext(query) ?? false;
@@ -59,9 +65,11 @@ export const Pane = forwardRef<PaneHandle, PaneProps>(
         const term = termRef.current;
         if (term) {
           term.scrollToBottom();
-          stickToBottomRef.current = true;
           scrollCallbackRef.current?.(true);
         }
+      },
+      focus() {
+        termRef.current?.focus();
       },
     }));
 
@@ -72,11 +80,11 @@ export const Pane = forwardRef<PaneHandle, PaneProps>(
       const term = new Terminal({
         fontSize,
         fontFamily: "'SF Mono', Menlo, Monaco, 'Courier New', monospace",
-        cursorBlink: false,
-        disableStdin: true,
-        convertEol: true,
+        cursorBlink: true,
+        disableStdin: false,
         scrollback: 10000,
         theme: themeOverride ?? getTerminalTheme(el),
+        allowProposedApi: true,
       });
 
       const fit = new FitAddon();
@@ -90,21 +98,86 @@ export const Pane = forwardRef<PaneHandle, PaneProps>(
       termRef.current = term;
       fitRef.current = fit;
 
+      // Load WebGL addon for GPU-accelerated rendering
+      import("@xterm/addon-webgl").then(({ WebglAddon }) => {
+        if (!termRef.current) return;
+        try {
+          const webgl = new WebglAddon();
+          webgl.onContextLoss(() => webgl.dispose());
+          term.loadAddon(webgl);
+        } catch {}
+      }).catch(() => {});
+
       try { fit.fit(); } catch {}
 
+      // Flow control: batch acks to reduce IPC calls
+      let unsentAck = 0;
+      const ackData = (charCount: number) => {
+        unsentAck += charCount;
+        while (unsentAck >= ACK_SIZE) {
+          unsentAck -= ACK_SIZE;
+          AckTerminalData(terminalId, ACK_SIZE).catch(() => {});
+        }
+      };
+
+      // Visibility-gated write: when hidden, buffer data; flush on visible.
+      // Capped to prevent unbounded memory growth from long-running background output.
+      let hiddenBuf: string[] = [];
+      let hiddenBufLen = 0;
+      const writeData = (data: string) => {
+        if (!visibleRef.current) {
+          if (hiddenBufLen < HIDDEN_BUF_CAP) {
+            hiddenBuf.push(data);
+            hiddenBufLen += data.length;
+          }
+          // Always ack so flow control doesn't permanently stall
+          ackData(data.length);
+          return;
+        }
+        term.write(data, () => ackData(data.length));
+      };
+      const flushHiddenBuf = () => {
+        if (hiddenBuf.length === 0) return;
+        const joined = hiddenBuf.join("");
+        hiddenBuf = [];
+        hiddenBufLen = 0;
+        term.write(joined);
+      };
+      flushRef.current = flushHiddenBuf;
+
+      // Sync initial size to PTY
+      ResizeTerminal(terminalId, term.cols, term.rows).catch(() => {});
+
+      // Send keystrokes to PTY as raw strings (no encoding needed)
+      term.onData((data) => {
+        WriteTerminal(terminalId, data).catch(() => {});
+      });
+
+      // Send binary data (mouse events, etc.) to PTY
+      term.onBinary((data) => {
+        WriteTerminal(terminalId, data).catch(() => {});
+      });
+
+      // Sync resize to PTY
+      term.onResize(({ cols, rows }) => {
+        ResizeTerminal(terminalId, cols, rows).catch(() => {});
+      });
+
+      // Scroll tracking
       term.onScroll(() => {
         const buf = term.buffer.active;
         const atBottom = buf.baseY + term.rows >= buf.length;
-        stickToBottomRef.current = atBottom;
         scrollCallbackRef.current?.(atBottom);
       });
 
+      // Copy on select
       const handleMouseUp = () => {
         const selection = term.getSelection();
         if (selection) navigator.clipboard.writeText(selection).catch(() => {});
       };
       el.addEventListener("mouseup", handleMouseUp);
 
+      // Theme sync
       const globalObserver = new MutationObserver(() => {
         if (!themeOverrideRef.current) term.options.theme = getTerminalTheme(el);
       });
@@ -113,6 +186,20 @@ export const Pane = forwardRef<PaneHandle, PaneProps>(
         attributeFilter: ["data-theme"],
       });
 
+      // Receive PTY output as plain strings, write with callback for flow control
+      const cleanupOutput = EventsOn("pty-output-" + terminalId, (data: string) => {
+        writeData(data);
+      });
+
+      // Handle PTY exit
+      const cleanupExit = EventsOn("pty-exit-" + terminalId, (exitCode: number) => {
+        term.write(`\r\n\x1b[90m[Process exited with code ${exitCode}]\x1b[0m\r\n`);
+        term.options.disableStdin = true;
+        term.options.cursorBlink = false;
+        onExitRef.current?.(exitCode);
+      });
+
+      // Resize observer (debounced — fit() is expensive during continuous resize)
       let resizeRaf = 0;
       const ro = new ResizeObserver(() => {
         if (resizeRaf) cancelAnimationFrame(resizeRaf);
@@ -123,17 +210,21 @@ export const Pane = forwardRef<PaneHandle, PaneProps>(
       });
       ro.observe(el);
 
+      term.focus();
+
       return () => {
         if (resizeRaf) cancelAnimationFrame(resizeRaf);
         el.removeEventListener("mouseup", handleMouseUp);
         globalObserver.disconnect();
         ro.disconnect();
+        if (typeof cleanupOutput === "function") cleanupOutput();
+        if (typeof cleanupExit === "function") cleanupExit();
         term.dispose();
         termRef.current = null;
         fitRef.current = null;
         searchRef.current = null;
       };
-    }, []);
+    }, [terminalId]);
 
     useEffect(() => {
       const term = termRef.current;
@@ -156,59 +247,15 @@ export const Pane = forwardRef<PaneHandle, PaneProps>(
       const fit = fitRef.current;
       if (!term || !fit) return;
       requestAnimationFrame(() => {
+        flushRef.current?.();
         try { fit.fit(); } catch {}
         try { term.refresh(0, term.rows - 1); } catch {}
+        term.focus();
       });
     }, [visible]);
 
-    useEffect(() => {
-      const term = termRef.current;
-      if (!term) return;
-
-      const newLines = output ? output.split("\n") : [];
-      const prevLines = prevLinesRef.current;
-      prevLinesRef.current = newLines;
-
-      if (newLines.length === 0) return;
-
-      const wasStuck = stickToBottomRef.current;
-      const prevBaseY = term.buffer.active.baseY;
-
-      if (prevLines.length === 0) {
-        term.write(newLines.join("\n"));
-      } else {
-        const lastPrev = prevLines[prevLines.length - 1];
-        let overlapIdx = -1;
-        for (let i = newLines.length - 1; i >= 0; i--) {
-          if (newLines[i] === lastPrev) {
-            overlapIdx = i;
-            break;
-          }
-        }
-
-        if (overlapIdx >= 0 && overlapIdx < newLines.length - 1) {
-          const added = newLines.slice(overlapIdx + 1);
-          term.write("\n" + added.join("\n"));
-        } else if (overlapIdx === -1) {
-          term.reset();
-          term.write(newLines.join("\n"));
-        }
-      }
-
-      if (!wasStuck) {
-        term.scrollToLine(prevBaseY);
-      }
-    }, [output]);
-
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {label && (
-          <div className="border-b border-[var(--terminal-header-hover)] bg-[var(--terminal-header)] px-3 py-0.5">
-            <span className="font-mono text-[10px] font-medium text-[var(--terminal-header-text)]">
-              {label}
-            </span>
-          </div>
-        )}
         <div ref={containerRef} className="flex-1 overflow-hidden" />
       </div>
     );

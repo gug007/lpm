@@ -1,10 +1,13 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { GetServiceLogs, StartLogStreaming, StopLogStreaming } from "../../wailsjs/go/main/App";
+import { GetServiceLogs, StartLogStreaming, StopLogStreaming, StartTerminal, StopTerminal } from "../../wailsjs/go/main/App";
 import type { ITheme } from "@xterm/xterm";
 import { Pane, PaneHandle } from "./Pane";
+import { InteractivePane, InteractivePaneHandle } from "./InteractivePane";
 import { getSettings, saveSettings } from "../settings";
+import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
+import { ansiColors } from "./terminal-utils";
 import { iconProps, XIcon } from "./icons";
 
 interface TerminalViewProps {
@@ -12,6 +15,7 @@ interface TerminalViewProps {
   services: { name: string }[];
   terminalTheme: TerminalThemeName;
   onTerminalThemeChange: (theme: TerminalThemeName) => void;
+  visible?: boolean;
 }
 
 function SearchIcon() { return <svg {...iconProps}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>; }
@@ -24,7 +28,6 @@ function ChevronDownIcon() { return <svg {...iconProps}><path d="m6 9 6 6 6-6" /
 function PaletteIcon() { return <svg {...iconProps}><circle cx="13.5" cy="6.5" r="0.5" fill="currentColor" /><circle cx="17.5" cy="10.5" r="0.5" fill="currentColor" /><circle cx="8.5" cy="7.5" r="0.5" fill="currentColor" /><circle cx="6.5" cy="12" r="0.5" fill="currentColor" /><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.5-.7 1.5-1.5 0-.4-.1-.7-.4-1-.3-.3-.4-.6-.4-1 0-.8.7-1.5 1.5-1.5H16c3.3 0 6-2.7 6-6 0-5.5-4.5-9-10-9z" /></svg>; }
 function ExpandIcon() { return <svg {...iconProps}><polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" /><line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" /></svg>; }
 function ShrinkIcon() { return <svg {...iconProps}><polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" /><line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" /></svg>; }
-
 function IconBtn({ onClick, title, children, active, className = "" }: {
   onClick: () => void;
   title: string;
@@ -47,17 +50,58 @@ function IconBtn({ onClick, title, children, active, className = "" }: {
   );
 }
 
-function HeaderTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function HeaderTab({ label, active, onClick, onClose, onRename }: { label: string; active: boolean; onClick: () => void; onClose?: () => void; onRename?: (name: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(label);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!editing) return;
+    setDraft(label);
+    setTimeout(() => inputRef.current?.select(), 0);
+  }, [editing]);
+
+  const commit = () => {
+    setEditing(false);
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== label) onRename?.(trimmed);
+  };
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") setEditing(false);
+        }}
+        className="w-24 rounded-md bg-[var(--terminal-header-active)] px-2 py-1 font-mono text-[11px] font-medium text-[var(--terminal-tab-active)] outline-none"
+      />
+    );
+  }
+
   return (
     <button
       onClick={onClick}
-      className={`rounded-md px-2.5 py-1 font-mono text-[11px] font-medium transition-colors ${
+      onDoubleClick={onRename ? () => setEditing(true) : undefined}
+      className={`flex items-center gap-1 rounded-md px-2.5 py-1 font-mono text-[11px] font-medium transition-colors ${
         active
           ? "bg-[var(--terminal-header-active)] text-[var(--terminal-tab-active)]"
           : "text-[var(--terminal-header-text)] hover:text-[var(--terminal-tab-active)]"
       }`}
     >
       {label}
+      {onClose && (
+        <span
+          onClick={(e) => { e.stopPropagation(); onClose(); }}
+          className="ml-0.5 rounded p-0.5 opacity-60 hover:bg-[var(--terminal-header-hover)] hover:opacity-100"
+        >
+          <XIcon />
+        </span>
+      )}
     </button>
   );
 }
@@ -104,8 +148,40 @@ function ThemePicker({ current, onChange, onClose }: {
   );
 }
 
-export function TerminalView({ projectName, services, terminalTheme, onTerminalThemeChange }: TerminalViewProps) {
-  const [activePane, setActivePane] = useState<number | "all">("all");
+type ActivePane = number | "all" | { type: "terminal"; index: number };
+
+function terminalIndex(ap: ActivePane): number | null {
+  return typeof ap === "object" && ap.type === "terminal" ? ap.index : null;
+}
+
+function serializeActivePane(ap: ActivePane): string {
+  if (ap === "all") return "all";
+  if (typeof ap === "number") return `svc-${ap}`;
+  return `term-${ap.index}`;
+}
+
+function deserializeActivePane(s: string | undefined): ActivePane {
+  if (!s || s === "all") return "all";
+  if (s.startsWith("svc-")) {
+    const n = parseInt(s.slice(4), 10);
+    return isNaN(n) ? "all" : n;
+  }
+  if (s.startsWith("term-")) {
+    const n = parseInt(s.slice(5), 10);
+    return isNaN(n) ? "all" : { type: "terminal", index: n };
+  }
+  return "all";
+}
+
+interface InteractiveTerminal {
+  id: string;
+  label: string;
+}
+
+export function TerminalView({ projectName, services, terminalTheme, onTerminalThemeChange, visible = true }: TerminalViewProps) {
+  const [activePane, setActivePane] = useState<ActivePane>(() =>
+    deserializeActivePane(getProjectTerminals(projectName).activeTab)
+  );
   const [outputs, setOutputs] = useState<string[]>([]);
   const [fontSize, setFontSize] = useState(() => getSettings().terminalFontSize || 12);
   const [showSearch, setShowSearch] = useState(false);
@@ -113,13 +189,37 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
   const [atBottom, setAtBottom] = useState(true);
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [terminals, setTerminals] = useState<InteractiveTerminal[]>([]);
   const paneRefs = useRef<(PaneHandle | null)[]>([]);
-  const paneScrollState = useRef<Record<number, boolean>>({});
+  const interactivePaneRefs = useRef<(InteractivePaneHandle | null)[]>([]);
+  const paneScrollState = useRef<Record<string, boolean>>({});
   const searchInputRef = useRef<HTMLInputElement>(null);
   const prevOutputs = useRef<string[]>([]);
   const activePaneRef = useRef(activePane);
+  const terminalsRef = useRef(terminals);
+  const visibleRef = useRef(visible);
+  const mountedRef = useRef(false);
 
   activePaneRef.current = activePane;
+  terminalsRef.current = terminals;
+  visibleRef.current = visible;
+
+  // Persist active tab to config whenever it changes
+  useEffect(() => {
+    const key = serializeActivePane(activePane);
+    const state = getProjectTerminals(projectName);
+    if (state.activeTab !== key) {
+      saveProjectTerminals(projectName, { ...state, activeTab: key });
+    }
+  }, [activePane, projectName]);
+
+  const persistTerminals = useCallback((terms: InteractiveTerminal[]) => {
+    const state = getProjectTerminals(projectName);
+    saveProjectTerminals(projectName, {
+      ...state,
+      terminals: terms.map((t) => ({ label: t.label })),
+    });
+  }, [projectName]);
 
   const servicesKey = useMemo(
     () => services.map((s) => s.name).join(","),
@@ -127,6 +227,41 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
   );
   const stableServices = useMemo(() => services, [servicesKey]);
 
+  // Restore saved terminals on mount (or create a default if no tabs at all)
+  useEffect(() => {
+    const saved = getProjectTerminals(projectName).terminals;
+    const hasServices = services.length > 0;
+    const entries = saved && saved.length > 0 ? saved : !hasServices ? [{ label: "Terminal 1" }] : null;
+    if (!entries) return;
+    let cancelled = false;
+    const startedIds: string[] = [];
+    (async () => {
+      const results = await Promise.allSettled(
+        entries.map(() => StartTerminal(projectName))
+      );
+      const restored: InteractiveTerminal[] = [];
+      results.forEach((r, i) => {
+        if (r.status === "fulfilled") {
+          startedIds.push(r.value);
+          restored.push({ id: r.value, label: entries[i].label });
+        }
+      });
+      if (cancelled) {
+        restored.forEach((t) => StopTerminal(t.id).catch(() => {}));
+      } else {
+        setTerminals(restored);
+        if (!saved || saved.length === 0) {
+          setActivePane({ type: "terminal", index: 0 });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+      startedIds.forEach((id) => StopTerminal(id).catch(() => {}));
+    };
+  }, [projectName]);
+
+  const activeTermIdx = terminalIndex(activePane);
   const showAll = activePane === "all";
   const hasMultiple = stableServices.length > 1;
 
@@ -135,14 +270,17 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
     if (!colors) return { containerStyle: undefined, xtermTheme: null };
     return {
       containerStyle: terminalThemeCssVars(colors) as React.CSSProperties,
-      xtermTheme: { background: colors.bg, foreground: colors.fg, selectionBackground: colors.selection, cursor: colors.cursor } as ITheme,
+      xtermTheme: { background: colors.bg, foreground: colors.fg, selectionBackground: colors.selection, cursor: colors.cursor, ...ansiColors } as ITheme,
     };
   }, [terminalTheme]);
 
-  const getActivePane = useCallback((): PaneHandle | null => {
+  const getActivePane = useCallback((): PaneHandle | InteractivePaneHandle | null => {
     const ap = activePaneRef.current;
+    const ti = terminalIndex(ap);
+    if (ti !== null) return interactivePaneRefs.current[ti] ?? null;
     if (ap === "all") return paneRefs.current[0] ?? null;
-    return paneRefs.current[ap] ?? null;
+    if (typeof ap === "number") return paneRefs.current[ap] ?? null;
+    return null;
   }, []);
 
   const toggleSearch = useCallback(() => {
@@ -166,11 +304,16 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
   const zoomIn = useCallback(() => setFontSize((s) => { const n = Math.min(s + 1, 24); if (n !== s) persistFontSize(n); return n; }), [persistFontSize]);
   const zoomOut = useCallback(() => setFontSize((s) => { const n = Math.max(s - 1, 8); if (n !== s) persistFontSize(n); return n; }), [persistFontSize]);
 
-  const forActivePanes = useCallback((fn: (p: PaneHandle) => void) => {
-    if (activePaneRef.current === "all") {
+  const forActivePanes = useCallback((fn: (p: PaneHandle | InteractivePaneHandle) => void) => {
+    const ap = activePaneRef.current;
+    const ti = terminalIndex(ap);
+    if (ti !== null) {
+      const p = interactivePaneRefs.current[ti];
+      if (p) fn(p);
+    } else if (ap === "all") {
       paneRefs.current.forEach((p) => p && fn(p));
-    } else {
-      const p = paneRefs.current[activePaneRef.current];
+    } else if (typeof ap === "number") {
+      const p = paneRefs.current[ap];
       if (p) fn(p);
     }
   }, []);
@@ -222,8 +365,10 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
       pollInterval = setInterval(poll, 1000);
     }
 
+    const shouldPause = () => document.hidden || !visibleRef.current;
+
     const onVisibility = () => {
-      if (document.hidden) {
+      if (shouldPause()) {
         StopLogStreaming(projectName).catch(() => {});
         if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
       } else {
@@ -245,8 +390,19 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
     };
   }, [projectName, stableServices]);
 
+  // Pause/resume streaming when visibility changes (project switch)
+  useEffect(() => {
+    if (!mountedRef.current) { mountedRef.current = true; return; }
+    if (visible) {
+      StartLogStreaming(projectName).catch(() => {});
+    } else {
+      StopLogStreaming(projectName).catch(() => {});
+    }
+  }, [visible, projectName]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!visibleRef.current) return;
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.key === "f") { e.preventDefault(); toggleSearch(); }
       if (mod && (e.key === "=" || e.key === "+")) { e.preventDefault(); zoomIn(); }
@@ -260,6 +416,53 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [toggleSearch, zoomIn, zoomOut, closeSearch]);
 
+  // New terminal management
+  const handleNewTerminal = useCallback(async () => {
+    try {
+      const id = await StartTerminal(projectName);
+      const index = terminalsRef.current.length;
+      const label = `Terminal ${index + 1}`;
+      const next = [...terminalsRef.current, { id, label }];
+      setTerminals(next);
+      setActivePane({ type: "terminal", index });
+      persistTerminals(next);
+    } catch {}
+  }, [projectName, persistTerminals]);
+
+  const handleCloseTerminal = useCallback((index: number) => {
+    const term = terminalsRef.current[index];
+    if (!term) return;
+    StopTerminal(term.id).catch(() => {});
+    const next = terminalsRef.current.filter((_, i) => i !== index);
+    setTerminals(next);
+    interactivePaneRefs.current.splice(index, 1);
+    setActivePane((ap) => {
+      if (typeof ap === "object" && ap.type === "terminal") {
+        if (ap.index === index) return "all";
+        if (ap.index > index) return { type: "terminal", index: ap.index - 1 };
+      }
+      return ap;
+    });
+    persistTerminals(next);
+  }, [persistTerminals]);
+
+  const handleRenameTerminal = useCallback((index: number, name: string) => {
+    const next = terminalsRef.current.map((t, i) =>
+      i === index ? { ...t, label: name } : t
+    );
+    setTerminals(next);
+    persistTerminals(next);
+  }, [persistTerminals]);
+
+  // Cleanup all terminals on unmount
+  useEffect(() => {
+    return () => {
+      terminalsRef.current.forEach((t) => {
+        StopTerminal(t.id).catch(() => {});
+      });
+    };
+  }, []);
+
   const handleSearch = (direction: "next" | "prev") => {
     if (!searchQuery) return;
     const pane = getActivePane();
@@ -267,17 +470,10 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
     direction === "next" ? pane.findNext(searchQuery) : pane.findPrevious(searchQuery);
   };
 
-  const handlePaneScroll = (index: number, isAtBottom: boolean) => {
-    paneScrollState.current[index] = isAtBottom;
-    let anyUp = false;
-    for (let j = 0; j < stableServices.length; j++) {
-      const vis = showAll || activePane === j;
-      if (vis && paneScrollState.current[j] === false) {
-        anyUp = true;
-        break;
-      }
-    }
-    setAtBottom(!anyUp);
+  const handlePaneScroll = (key: string, isAtBottom: boolean) => {
+    paneScrollState.current[key] = isAtBottom;
+    const allAtBottom = Object.values(paneScrollState.current).every(Boolean);
+    setAtBottom(allAtBottom);
   };
 
   return (
@@ -285,7 +481,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
       className={
         fullscreen
           ? "fixed inset-0 z-50 flex flex-col overflow-hidden bg-[var(--terminal-bg)]"
-          : "flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-[var(--border)]"
+          : "flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-lg border-t border-x border-[var(--border)] bg-[var(--terminal-bg)]"
       }
       style={containerStyle}
     >
@@ -295,8 +491,28 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
             <HeaderTab label="All" active={showAll} onClick={() => setActivePane("all")} />
           )}
           {stableServices.map((svc, i) => (
-            <HeaderTab key={svc.name} label={svc.name} active={activePane === i} onClick={() => setActivePane(i)} />
+            <HeaderTab key={svc.name} label={svc.name} active={activeTermIdx === null && activePane === i} onClick={() => setActivePane(i)} />
           ))}
+          {terminals.length > 0 && (
+            <div className="mx-1.5 h-3.5 w-px bg-[var(--terminal-header-hover)]" />
+          )}
+          {terminals.map((term, i) => (
+            <HeaderTab
+              key={term.id}
+              label={term.label}
+              active={activeTermIdx === i}
+              onClick={() => setActivePane({ type: "terminal", index: i })}
+              onClose={() => handleCloseTerminal(i)}
+              onRename={(name) => handleRenameTerminal(i, name)}
+            />
+          ))}
+          <button
+            onClick={handleNewTerminal}
+            title="New terminal"
+            className="flex items-center gap-1 rounded-md px-2 py-1 font-mono text-[11px] font-medium text-[var(--terminal-header-text)] transition-colors hover:bg-[var(--terminal-header-hover)] hover:text-[var(--terminal-tab-active)]"
+          >
+            <PlusIcon />
+          </button>
         </div>
 
         <div className="flex-1" />
@@ -357,9 +573,9 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
         </div>
       )}
 
-      <div className={`flex min-h-0 flex-1 overflow-hidden ${showAll && hasMultiple ? "divide-x divide-[var(--border)]" : ""}`}>
+      <div className={`flex min-h-0 flex-1 overflow-hidden ${showAll && hasMultiple && activeTermIdx === null ? "divide-x divide-[var(--border)]" : ""}`}>
         {stableServices.map((svc, i) => {
-          const visible = showAll || activePane === i;
+          const visible = activeTermIdx === null && (showAll || activePane === i);
           return (
             <div
               key={svc.name}
@@ -372,7 +588,25 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
                 visible={visible}
                 fontSize={fontSize}
                 themeOverride={xtermTheme}
-                onScrollStateChange={(ab) => handlePaneScroll(i, ab)}
+                onScrollStateChange={(ab) => handlePaneScroll(`svc-${i}`, ab)}
+              />
+            </div>
+          );
+        })}
+        {terminals.map((term, i) => {
+          const visible = activeTermIdx === i;
+          return (
+            <div
+              key={term.id}
+              className={visible ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "hidden"}
+            >
+              <InteractivePane
+                ref={(el) => { interactivePaneRefs.current[i] = el; }}
+                terminalId={term.id}
+                visible={visible}
+                fontSize={fontSize}
+                themeOverride={xtermTheme}
+                onScrollStateChange={(ab) => handlePaneScroll(`term-${i}`, ab)}
               />
             </div>
           );

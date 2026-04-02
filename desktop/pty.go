@@ -1,0 +1,263 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/creack/pty"
+	"github.com/gug007/lpm/internal/config"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+)
+
+var ptyCounter atomic.Uint64
+
+// Flow control constants (matching VS Code's approach)
+const (
+	ptyHighWatermark = 100000 // pause PTY reads after this many unacked chars
+	ptyLowWatermark  = 5000  // resume PTY reads when unacked drops below this
+)
+
+type ptySession struct {
+	id  string
+	pty *os.File
+	cmd *exec.Cmd
+
+	// Flow control
+	mu      sync.Mutex
+	unacked int
+	paused  bool
+	readCh  chan struct{} // signaled to resume reading after pause
+}
+
+func (s *ptySession) addUnacked(n int) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.unacked += n
+	if !s.paused && s.unacked > ptyHighWatermark {
+		s.paused = true
+		return true // caller should pause
+	}
+	return false
+}
+
+func (s *ptySession) ack(n int) {
+	s.mu.Lock()
+	s.unacked -= n
+	if s.unacked < 0 {
+		s.unacked = 0
+	}
+	shouldResume := s.paused && s.unacked < ptyLowWatermark
+	if shouldResume {
+		s.paused = false
+	}
+	s.mu.Unlock()
+	if shouldResume {
+		select {
+		case s.readCh <- struct{}{}:
+		default:
+		}
+	}
+}
+
+// StartTerminal launches an interactive shell in the project's root directory
+// and returns a terminal ID for subsequent operations.
+func (a *App) StartTerminal(projectName string) (string, error) {
+	cfg, err := config.LoadProject(projectName)
+	if err != nil {
+		return "", fmt.Errorf("load project: %w", err)
+	}
+
+	dir := cfg.Root
+	if dir == "" {
+		return "", fmt.Errorf("project has no root directory")
+	}
+
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = "/bin/zsh"
+	}
+
+	id := fmt.Sprintf("%s-%d", projectName, ptyCounter.Add(1))
+
+	cmd := exec.Command(shell, "-l")
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+
+	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 24, Cols: 80})
+	if err != nil {
+		return "", fmt.Errorf("start pty: %w", err)
+	}
+
+	sess := &ptySession{
+		id:     id,
+		pty:    ptmx,
+		cmd:    cmd,
+		readCh: make(chan struct{}, 1),
+	}
+
+	a.ptyMu.Lock()
+	a.ptySessions[id] = sess
+	a.ptyMu.Unlock()
+
+	// Read goroutine: PTY bytes → UTF-8 strings → Wails events.
+	// Uses a reader → channel → coalescer pattern with flow control.
+	go func() {
+		type readResult struct {
+			data []byte
+			err  error
+		}
+		ch := make(chan readResult, 8)
+
+		// Reader goroutine: blocking reads from PTY, pauses on back-pressure
+		go func() {
+			buf := make([]byte, 16384)
+			for {
+				n, err := ptmx.Read(buf)
+				if n > 0 {
+					cp := make([]byte, n)
+					copy(cp, buf[:n])
+					ch <- readResult{data: cp}
+				}
+				if err != nil {
+					ch <- readResult{err: err}
+					return
+				}
+				// Flow control: block if paused until ack resumes us
+				sess.mu.Lock()
+				paused := sess.paused
+				sess.mu.Unlock()
+				if paused {
+					<-sess.readCh
+				}
+			}
+		}()
+
+		// Coalescer: batches data, decodes UTF-8, flushes as strings.
+		// One-shot timer so idle terminals have zero overhead.
+		pending := make([]byte, 0, 65536)
+		flushTimer := time.NewTimer(0)
+		if !flushTimer.Stop() {
+			<-flushTimer.C
+		}
+		timerRunning := false
+
+		flush := func() {
+			if len(pending) == 0 {
+				return
+			}
+			// Replace invalid UTF-8 so JSON serialization is safe
+			text := strings.ToValidUTF8(string(pending), "\uFFFD")
+			runtime.EventsEmit(a.ctx, "pty-output-"+id, text)
+			pending = pending[:0]
+			timerRunning = false
+			sess.addUnacked(len(text))
+		}
+
+	loop:
+		for {
+			select {
+			case r := <-ch:
+				if r.err != nil {
+					flush()
+					break loop
+				}
+				pending = append(pending, r.data...)
+				if len(pending) >= 32768 {
+					flush()
+					if timerRunning {
+						flushTimer.Stop()
+						timerRunning = false
+					}
+				} else if !timerRunning {
+					flushTimer.Reset(4 * time.Millisecond)
+					timerRunning = true
+				}
+			case <-flushTimer.C:
+				timerRunning = false
+				flush()
+			}
+		}
+
+		// Process exited
+		exitCode := 0
+		if err := cmd.Wait(); err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				exitCode = exitErr.ExitCode()
+			}
+		}
+		runtime.EventsEmit(a.ctx, "pty-exit-"+id, exitCode)
+
+		a.ptyMu.Lock()
+		delete(a.ptySessions, id)
+		a.ptyMu.Unlock()
+	}()
+
+	return id, nil
+}
+
+// WriteTerminal sends input data to the terminal's PTY as a raw string.
+func (a *App) WriteTerminal(id string, data string) error {
+	a.ptyMu.Lock()
+	sess, ok := a.ptySessions[id]
+	a.ptyMu.Unlock()
+	if !ok {
+		return fmt.Errorf("terminal not found: %s", id)
+	}
+
+	_, err := sess.pty.Write([]byte(data))
+	return err
+}
+
+// AckTerminalData acknowledges that the frontend has processed charCount
+// characters, allowing the PTY reader to resume if paused.
+func (a *App) AckTerminalData(id string, charCount int) error {
+	a.ptyMu.Lock()
+	sess, ok := a.ptySessions[id]
+	a.ptyMu.Unlock()
+	if !ok {
+		return nil
+	}
+
+	sess.ack(charCount)
+	return nil
+}
+
+// ResizeTerminal updates the PTY window size, triggering SIGWINCH in the shell.
+func (a *App) ResizeTerminal(id string, cols int, rows int) error {
+	a.ptyMu.Lock()
+	sess, ok := a.ptySessions[id]
+	a.ptyMu.Unlock()
+	if !ok {
+		return fmt.Errorf("terminal not found: %s", id)
+	}
+
+	return pty.Setsize(sess.pty, &pty.Winsize{
+		Rows: uint16(rows),
+		Cols: uint16(cols),
+	})
+}
+
+// StopTerminal closes a terminal session and kills the shell process.
+func (a *App) StopTerminal(id string) error {
+	a.ptyMu.Lock()
+	sess, ok := a.ptySessions[id]
+	if ok {
+		delete(a.ptySessions, id)
+	}
+	a.ptyMu.Unlock()
+
+	if !ok {
+		return nil
+	}
+
+	_ = sess.pty.Close()
+	if sess.cmd.Process != nil {
+		_ = sess.cmd.Process.Kill()
+	}
+	return nil
+}
