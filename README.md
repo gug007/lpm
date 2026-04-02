@@ -14,10 +14,10 @@
 
 <p align="center">
   <strong>Add a project</strong> — browse to a directory, define services, save<br><br>
-  <img src="docs/videos/add-project-2x.gif" alt="Adding a new project in lpm desktop app" width="700">
+  <img src="docs/videos/add-project-1.5x.gif" alt="Adding a new project in lpm desktop app" width="700">
   <br><br>
   <strong>Start a project</strong> — one click, live terminal output for every service<br><br>
-  <img src="docs/videos/start-project-2x.gif" alt="Starting a project in lpm desktop app" width="700">
+  <img src="docs/videos/start-project-1.5x.gif" alt="Starting a project in lpm desktop app" width="700">
   <br><br>
   <a href="https://lpm.cx">Download lpm for macOS or Linux</a><br>
 </p>
