@@ -184,6 +184,7 @@ function ActionsPopover({ actions, projectName, onClose, onError }: {
 interface ProjectDetailProps {
   project: ProjectInfo;
   visible?: boolean;
+  sidebarCollapsed?: boolean;
   onStart: (name: string, profile: string) => Promise<void>;
   onStop: (name: string) => Promise<void>;
   onRestart: (name: string, profile: string) => Promise<void>;
@@ -195,6 +196,7 @@ interface ProjectDetailProps {
 export function ProjectDetail({
   project,
   visible = true,
+  sidebarCollapsed = false,
   onStart,
   onStop,
   onRestart,
@@ -247,7 +249,7 @@ export function ProjectDetail({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="wails-drag flex items-center justify-between -mx-3 py-1">
+      <div className={`wails-drag flex items-center justify-between -mx-3 py-1 ${sidebarCollapsed ? "pl-[91px]" : ""}`}>
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold tracking-tight">
             {project.name}

@@ -226,12 +226,12 @@ export default function App() {
           showSettings={view === "settings"}
         />
         <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">
-          <div className={`wails-drag flex h-2 shrink-0 items-center ${sidebarCollapsed ? "pl-[51px]" : ""}`}>
+          <div className="wails-drag flex h-2 shrink-0 items-center">
             {sidebarCollapsed && (
               <button
                 onClick={() => setSidebarCollapsed(false)}
                 style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}
-                className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                className="absolute left-[75px] top-[7px] z-10 flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                 title="Expand sidebar"
               >
                 <SidebarIcon />
@@ -249,6 +249,7 @@ export default function App() {
                     <ProjectDetail
                       project={project}
                       visible={isSelected}
+                      sidebarCollapsed={sidebarCollapsed}
                       onStart={handleStart}
                       onStop={handleStop}
                       onRestart={handleRestart}
