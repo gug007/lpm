@@ -247,7 +247,7 @@ export function ProjectDetail({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="wails-drag flex items-center justify-between -mx-2">
+      <div className="wails-drag flex items-center justify-between -mx-3 py-1">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold tracking-tight">
             {project.name}
@@ -360,7 +360,7 @@ export function ProjectDetail({
       </div>
 
       {detailView === "terminal" ? (
-        <div className="mt-3 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden">
           <TerminalView
             projectName={project.name}
             services={project.running ? project.services : EMPTY_SERVICES}
@@ -370,7 +370,7 @@ export function ProjectDetail({
           />
         </div>
       ) : (
-        <div className="mt-3 -mx-6 -mb-6 flex flex-1 flex-col overflow-hidden">
+        <div className="mt-1.5 -mx-6 -mb-6 flex flex-1 flex-col overflow-hidden">
           <ConfigEditor
             projectName={project.name}
             onSaved={onRefresh}
