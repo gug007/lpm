@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://gug007.github.io/lpm/"><img src="https://img.shields.io/badge/website-gug007.github.io%2Flpm-blue" alt="Website"></a>
+  <a href="https://lpm.cx"><img src="https://img.shields.io/badge/website-lpm.cx-blue" alt="Website"></a>
   <a href="https://github.com/gug007/lpm/releases/latest"><img src="https://img.shields.io/github/v/release/gug007/lpm" alt="Release"></a>
  
 </p>
@@ -19,7 +19,7 @@
   <strong>Start a project</strong> — one click, live terminal output for every service<br><br>
   <img src="docs/videos/start-project.gif" alt="Starting a project in lpm desktop app" width="700">
   <br><br>
-  <a href="https://gug007.github.io/lpm/">Download lpm for macOS or Linux</a><br>
+  <a href="https://lpm.cx">Download lpm for macOS or Linux</a><br>
 </p>
 
 A lightweight local project manager for macOS and Linux. Define your project services in a simple YAML config, then start, stop, and switch between dev projects with a single command. Built for developers who juggle multiple services — Rails, Next.js, Go, Django, Docker Compose, and more.
