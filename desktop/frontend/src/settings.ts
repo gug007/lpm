@@ -9,6 +9,7 @@ export interface Settings {
   terminalFontSize?: number;
   windowWidth?: number;
   windowHeight?: number;
+  sidebarWidth?: number;
 }
 
 const defaults: Settings = {
@@ -29,6 +30,7 @@ export async function loadSettings(): Promise<Settings> {
       terminalFontSize: s.terminalFontSize,
       windowWidth: s.windowWidth,
       windowHeight: s.windowHeight,
+      sidebarWidth: s.sidebarWidth,
     };
   } catch {
     cached = { ...defaults };

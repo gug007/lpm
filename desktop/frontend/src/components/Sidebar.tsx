@@ -1,9 +1,12 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { StatusDot } from "./StatusDot";
-import { getSettings } from "../settings";
+import { getSettings, saveSettings } from "../settings";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { InstallUpdate } from "../../wailsjs/go/main/App";
 import type { ProjectInfo } from "../types";
+
+const MIN_WIDTH = 160;
+const MAX_WIDTH = 400;
 
 interface SidebarProps {
   projects: ProjectInfo[];
@@ -22,8 +25,33 @@ export function Sidebar({ projects, selected, onSelect, onToggle, onSettings, on
   const dragRef = useRef(false);
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
+  const [width, setWidth] = useState(() => getSettings().sidebarWidth || 260);
+  const widthRef = useRef(width);
+  widthRef.current = width;
 
   useEffect(() => EventsOn("update-available", setUpdateInfo), []);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = widthRef.current;
+    const onMove = (ev: MouseEvent) => {
+      setWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + ev.clientX - startX)));
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      const w = widthRef.current;
+      const s = getSettings();
+      if (s.sidebarWidth !== w) saveSettings({ ...s, sidebarWidth: w });
+    };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, []);
 
   const handleUpdate = async () => {
     setInstalling(true);
@@ -63,7 +91,7 @@ export function Sidebar({ projects, selected, onSelect, onToggle, onSettings, on
   const showDropBelow = (idx: number) => isDragging && overIdx === idx && dragIdx !== idx && dragIdx! < idx;
 
   return (
-    <aside className="flex w-[var(--sidebar-width)] shrink-0 flex-col border-r border-[var(--border)] bg-[var(--bg-sidebar)]">
+    <aside className="relative flex shrink-0 flex-col border-r border-[var(--border)] bg-[var(--bg-sidebar)]" style={{ width }}>
       <div className="wails-drag h-8 shrink-0" />
       <div className="flex items-center justify-between px-4 pb-2">
         <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
@@ -149,6 +177,10 @@ export function Sidebar({ projects, selected, onSelect, onToggle, onSettings, on
           Settings
         </button>
       </div>
+      <div
+        onMouseDown={handleResizeStart}
+        className="absolute inset-y-0 -right-1 w-1 cursor-col-resize hover:bg-[var(--accent-cyan)]/20 active:bg-[var(--accent-cyan)]/30"
+      />
     </aside>
   );
 }

@@ -16,6 +16,7 @@ type Settings struct {
 	TerminalFontSize  int               `json:"terminalFontSize,omitempty"`
 	WindowWidth       int               `json:"windowWidth,omitempty"`
 	WindowHeight      int               `json:"windowHeight,omitempty"`
+	SidebarWidth      int               `json:"sidebarWidth,omitempty"`
 }
 
 func defaultSettings() Settings {

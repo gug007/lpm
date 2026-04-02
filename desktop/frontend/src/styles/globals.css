@@ -2,7 +2,6 @@
 
 :root,
 [data-theme="light"] {
-  --sidebar-width: 260px;
   --bg-primary: #ffffff;
   --bg-secondary: #f5f5f5;
   --bg-sidebar: #fafafa;
