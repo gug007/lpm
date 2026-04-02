@@ -4,7 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
-import { EventsOn, BrowserOpenURL } from "../../wailsjs/runtime/runtime";
+import { EventsOn, BrowserOpenURL, OnFileDrop } from "../../wailsjs/runtime/runtime";
 import { WriteTerminal, ResizeTerminal, AckTerminalData } from "../../wailsjs/go/main/App";
 import { getTerminalTheme } from "./terminal-utils";
 import "@xterm/xterm/css/xterm.css";
@@ -30,6 +30,23 @@ interface InteractivePaneProps {
 // Flow control: ack in batches to reduce IPC calls (matches VS Code's approach)
 const ACK_SIZE = 5000;
 const HIDDEN_BUF_CAP = 1_000_000; // max chars to buffer while hidden (~1MB)
+
+// Global file drop handler — routes drops to the visible terminal
+let fileDropInitialized = false;
+function initFileDrop() {
+  if (fileDropInitialized) return;
+  fileDropInitialized = true;
+  OnFileDrop((_x, _y, paths) => {
+    const candidates = document.querySelectorAll<HTMLElement>("[data-terminal-id]");
+    let id: string | undefined;
+    for (const el of candidates) {
+      if (el.offsetParent !== null) { id = el.dataset.terminalId; break; }
+    }
+    if (!id) return;
+    const quoted = paths.map((p) => /[^a-zA-Z0-9_./:~-]/.test(p) ? "'" + p.replace(/'/g, "'\\''") + "'" : p);
+    WriteTerminal(id, quoted.join(" ")).catch(() => {});
+  }, false);
+}
 
 export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePaneProps>(
   function InteractivePane({ terminalId, visible = true, fontSize = 12, onScrollStateChange, themeOverride, onExit }, ref) {
@@ -76,6 +93,8 @@ export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePane
     useEffect(() => {
       const el = containerRef.current;
       if (!el) return;
+
+      initFileDrop();
 
       const term = new Terminal({
         fontSize,
@@ -255,7 +274,10 @@ export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePane
     }, [visible]);
 
     return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div
+        className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        data-terminal-id={terminalId}
+      >
         <div ref={containerRef} className="flex-1 overflow-hidden" />
       </div>
     );
