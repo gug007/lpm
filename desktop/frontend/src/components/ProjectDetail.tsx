@@ -360,7 +360,7 @@ export function ProjectDetail({
       </div>
 
       {detailView === "terminal" ? (
-        <div className="mt-3 -mx-2 -mb-5 flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="mt-3 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden">
           <TerminalView
             projectName={project.name}
             services={project.running ? project.services : EMPTY_SERVICES}
