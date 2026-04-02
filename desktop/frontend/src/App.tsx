@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { Settings } from "./components/Settings";
@@ -76,6 +76,28 @@ export default function App() {
 
   const selectedProject = projects.find((p) => p.name === selected) || null;
 
+  // Track projects that have been opened so their components stay mounted
+  const [visited, setVisited] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (selected && selectedProject?.running) {
+      setVisited((prev) => (prev.has(selected) ? prev : new Set([...prev, selected])));
+    }
+  }, [selected, selectedProject?.running]);
+
+  useEffect(() => {
+    setVisited((prev) => {
+      const running = new Set(projects.filter((p) => p.running).map((p) => p.name));
+      const next = new Set([...prev].filter((name) => running.has(name)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [projects]);
+
+  const visitedRunning = useMemo(
+    () => projects.filter((p) => p.running && (p.name === selected || visited.has(p.name))),
+    [projects, visited, selected],
+  );
+
   const handleStart = async (name: string, profile: string) => {
     try {
       await api.StartProject(name, profile);
@@ -117,6 +139,11 @@ export default function App() {
       setError(`Failed to add project: ${err}`);
     }
   };
+
+  const handleRefresh = useCallback(async (newName?: string) => {
+    await refresh();
+    if (newName && newName !== selected) setSelected(newName);
+  }, [refresh, selected]);
 
   const handleRemove = async (name: string) => {
     try {
@@ -187,24 +214,44 @@ export default function App() {
           <div className="wails-drag h-8 shrink-0" />
           {view === "settings" ? (
             <Settings />
-          ) : selectedProject ? (
-            <ProjectDetail
-              key={selectedProject.name}
-              project={selectedProject}
-              onStart={handleStart}
-              onStop={handleStop}
-              onRestart={handleRestart}
-              onRefresh={async (newName?: string) => {
-                await refresh();
-                if (newName && newName !== selected) setSelected(newName);
-              }}
-              onRemove={handleRemove}
-              onError={setError}
-            />
-          ) : projects.length === 0 ? (
-            <EmptyStateNoProjects onAdd={handleAddProject} />
           ) : (
-            <EmptyState />
+            <>
+              {/* Keep visited running projects mounted to preserve terminal sessions */}
+              {visitedRunning.map((project) => {
+                const isSelected = view === "projects" && selected === project.name;
+                return (
+                  <div key={project.name} className={isSelected ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
+                    <ProjectDetail
+                      project={project}
+                      visible={isSelected}
+                      onStart={handleStart}
+                      onStop={handleStop}
+                      onRestart={handleRestart}
+                      onRefresh={handleRefresh}
+                      onRemove={handleRemove}
+                      onError={setError}
+                    />
+                  </div>
+                );
+              })}
+              {/* Non-running selected project (config editor) */}
+              {selectedProject && !selectedProject.running && (
+                <ProjectDetail
+                  key={selectedProject.name}
+                  project={selectedProject}
+                  onStart={handleStart}
+                  onStop={handleStop}
+                  onRestart={handleRestart}
+                  onRefresh={handleRefresh}
+                  onRemove={handleRemove}
+                  onError={setError}
+                />
+              )}
+              {!selectedProject && projects.length === 0 && (
+                <EmptyStateNoProjects onAdd={handleAddProject} />
+              )}
+              {!selectedProject && projects.length > 0 && <EmptyState />}
+            </>
           )}
         </main>
       </div>

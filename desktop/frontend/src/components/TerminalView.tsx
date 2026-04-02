@@ -5,6 +5,7 @@ import type { ITheme } from "@xterm/xterm";
 import { Pane, PaneHandle } from "./Pane";
 import { InteractivePane, InteractivePaneHandle } from "./InteractivePane";
 import { getSettings, saveSettings } from "../settings";
+import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
 import { iconProps, XIcon } from "./icons";
 
@@ -13,6 +14,7 @@ interface TerminalViewProps {
   services: { name: string }[];
   terminalTheme: TerminalThemeName;
   onTerminalThemeChange: (theme: TerminalThemeName) => void;
+  visible?: boolean;
 }
 
 function SearchIcon() { return <svg {...iconProps}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>; }
@@ -49,10 +51,43 @@ function IconBtn({ onClick, title, children, active, className = "" }: {
   );
 }
 
-function HeaderTab({ label, active, onClick, onClose }: { label: string; active: boolean; onClick: () => void; onClose?: () => void }) {
+function HeaderTab({ label, active, onClick, onClose, onRename }: { label: string; active: boolean; onClick: () => void; onClose?: () => void; onRename?: (name: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(label);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!editing) return;
+    setDraft(label);
+    setTimeout(() => inputRef.current?.select(), 0);
+  }, [editing]);
+
+  const commit = () => {
+    setEditing(false);
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== label) onRename?.(trimmed);
+  };
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") setEditing(false);
+        }}
+        className="w-24 rounded-md bg-[var(--terminal-header-active)] px-2 py-1 font-mono text-[11px] font-medium text-[var(--terminal-tab-active)] outline-none"
+      />
+    );
+  }
+
   return (
     <button
       onClick={onClick}
+      onDoubleClick={onRename ? () => setEditing(true) : undefined}
       className={`flex items-center gap-1 rounded-md px-2.5 py-1 font-mono text-[11px] font-medium transition-colors ${
         active
           ? "bg-[var(--terminal-header-active)] text-[var(--terminal-tab-active)]"
@@ -120,13 +155,34 @@ function terminalIndex(ap: ActivePane): number | null {
   return typeof ap === "object" && ap.type === "terminal" ? ap.index : null;
 }
 
+function serializeActivePane(ap: ActivePane): string {
+  if (ap === "all") return "all";
+  if (typeof ap === "number") return `svc-${ap}`;
+  return `term-${ap.index}`;
+}
+
+function deserializeActivePane(s: string | undefined): ActivePane {
+  if (!s || s === "all") return "all";
+  if (s.startsWith("svc-")) {
+    const n = parseInt(s.slice(4), 10);
+    return isNaN(n) ? "all" : n;
+  }
+  if (s.startsWith("term-")) {
+    const n = parseInt(s.slice(5), 10);
+    return isNaN(n) ? "all" : { type: "terminal", index: n };
+  }
+  return "all";
+}
+
 interface InteractiveTerminal {
   id: string;
   label: string;
 }
 
-export function TerminalView({ projectName, services, terminalTheme, onTerminalThemeChange }: TerminalViewProps) {
-  const [activePane, setActivePane] = useState<ActivePane>("all");
+export function TerminalView({ projectName, services, terminalTheme, onTerminalThemeChange, visible = true }: TerminalViewProps) {
+  const [activePane, setActivePane] = useState<ActivePane>(() =>
+    deserializeActivePane(getProjectTerminals(projectName).activeTab)
+  );
   const [outputs, setOutputs] = useState<string[]>([]);
   const [fontSize, setFontSize] = useState(() => getSettings().terminalFontSize || 12);
   const [showSearch, setShowSearch] = useState(false);
@@ -142,9 +198,58 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
   const prevOutputs = useRef<string[]>([]);
   const activePaneRef = useRef(activePane);
   const terminalsRef = useRef(terminals);
+  const visibleRef = useRef(visible);
+  const mountedRef = useRef(false);
 
   activePaneRef.current = activePane;
   terminalsRef.current = terminals;
+  visibleRef.current = visible;
+
+  // Persist active tab to config whenever it changes
+  useEffect(() => {
+    const key = serializeActivePane(activePane);
+    const state = getProjectTerminals(projectName);
+    if (state.activeTab !== key) {
+      saveProjectTerminals(projectName, { ...state, activeTab: key });
+    }
+  }, [activePane, projectName]);
+
+  const persistTerminals = useCallback((terms: InteractiveTerminal[]) => {
+    const state = getProjectTerminals(projectName);
+    saveProjectTerminals(projectName, {
+      ...state,
+      terminals: terms.map((t) => ({ label: t.label })),
+    });
+  }, [projectName]);
+
+  // Restore saved terminals on mount
+  useEffect(() => {
+    const saved = getProjectTerminals(projectName).terminals;
+    if (!saved || saved.length === 0) return;
+    let cancelled = false;
+    const startedIds: string[] = [];
+    (async () => {
+      const results = await Promise.allSettled(
+        saved.map(() => StartTerminal(projectName))
+      );
+      const restored: InteractiveTerminal[] = [];
+      results.forEach((r, i) => {
+        if (r.status === "fulfilled") {
+          startedIds.push(r.value);
+          restored.push({ id: r.value, label: saved[i].label });
+        }
+      });
+      if (cancelled) {
+        restored.forEach((t) => StopTerminal(t.id).catch(() => {}));
+      } else {
+        setTerminals(restored);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      startedIds.forEach((id) => StopTerminal(id).catch(() => {}));
+    };
+  }, [projectName]);
 
   const servicesKey = useMemo(
     () => services.map((s) => s.name).join(","),
@@ -256,8 +361,10 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
       pollInterval = setInterval(poll, 1000);
     }
 
+    const shouldPause = () => document.hidden || !visibleRef.current;
+
     const onVisibility = () => {
-      if (document.hidden) {
+      if (shouldPause()) {
         StopLogStreaming(projectName).catch(() => {});
         if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
       } else {
@@ -279,8 +386,19 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
     };
   }, [projectName, stableServices]);
 
+  // Pause/resume streaming when visibility changes (project switch)
+  useEffect(() => {
+    if (!mountedRef.current) { mountedRef.current = true; return; }
+    if (visible) {
+      StartLogStreaming(projectName).catch(() => {});
+    } else {
+      StopLogStreaming(projectName).catch(() => {});
+    }
+  }, [visible, projectName]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!visibleRef.current) return;
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.key === "f") { e.preventDefault(); toggleSearch(); }
       if (mod && (e.key === "=" || e.key === "+")) { e.preventDefault(); zoomIn(); }
@@ -300,16 +418,19 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
       const id = await StartTerminal(projectName);
       const index = terminalsRef.current.length;
       const label = `Terminal ${index + 1}`;
-      setTerminals((prev) => [...prev, { id, label }]);
+      const next = [...terminalsRef.current, { id, label }];
+      setTerminals(next);
       setActivePane({ type: "terminal", index });
+      persistTerminals(next);
     } catch {}
-  }, [projectName]);
+  }, [projectName, persistTerminals]);
 
   const handleCloseTerminal = useCallback((index: number) => {
     const term = terminalsRef.current[index];
     if (!term) return;
     StopTerminal(term.id).catch(() => {});
-    setTerminals((prev) => prev.filter((_, i) => i !== index));
+    const next = terminalsRef.current.filter((_, i) => i !== index);
+    setTerminals(next);
     interactivePaneRefs.current.splice(index, 1);
     setActivePane((ap) => {
       if (typeof ap === "object" && ap.type === "terminal") {
@@ -318,7 +439,16 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
       }
       return ap;
     });
-  }, []);
+    persistTerminals(next);
+  }, [persistTerminals]);
+
+  const handleRenameTerminal = useCallback((index: number, name: string) => {
+    const next = terminalsRef.current.map((t, i) =>
+      i === index ? { ...t, label: name } : t
+    );
+    setTerminals(next);
+    persistTerminals(next);
+  }, [persistTerminals]);
 
   // Cleanup all terminals on unmount
   useEffect(() => {
@@ -369,6 +499,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
               active={activeTermIdx === i}
               onClick={() => setActivePane({ type: "terminal", index: i })}
               onClose={() => handleCloseTerminal(i)}
+              onRename={(name) => handleRenameTerminal(i, name)}
             />
           ))}
           <IconBtn onClick={handleNewTerminal} title="New terminal">
