@@ -1,10 +1,11 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -15,10 +16,52 @@ import (
 
 var ptyCounter atomic.Uint64
 
+// Flow control constants (matching VS Code's approach)
+const (
+	ptyHighWatermark = 100000 // pause PTY reads after this many unacked chars
+	ptyLowWatermark  = 5000  // resume PTY reads when unacked drops below this
+)
+
 type ptySession struct {
 	id  string
 	pty *os.File
 	cmd *exec.Cmd
+
+	// Flow control
+	mu      sync.Mutex
+	unacked int
+	paused  bool
+	readCh  chan struct{} // signaled to resume reading after pause
+}
+
+func (s *ptySession) addUnacked(n int) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.unacked += n
+	if !s.paused && s.unacked > ptyHighWatermark {
+		s.paused = true
+		return true // caller should pause
+	}
+	return false
+}
+
+func (s *ptySession) ack(n int) {
+	s.mu.Lock()
+	s.unacked -= n
+	if s.unacked < 0 {
+		s.unacked = 0
+	}
+	shouldResume := s.paused && s.unacked < ptyLowWatermark
+	if shouldResume {
+		s.paused = false
+	}
+	s.mu.Unlock()
+	if shouldResume {
+		select {
+		case s.readCh <- struct{}{}:
+		default:
+		}
+	}
 }
 
 // StartTerminal launches an interactive shell in the project's root directory
@@ -51,19 +94,18 @@ func (a *App) StartTerminal(projectName string) (string, error) {
 	}
 
 	sess := &ptySession{
-		id:  id,
-		pty: ptmx,
-		cmd: cmd,
+		id:     id,
+		pty:    ptmx,
+		cmd:    cmd,
+		readCh: make(chan struct{}, 1),
 	}
 
 	a.ptyMu.Lock()
 	a.ptySessions[id] = sess
 	a.ptyMu.Unlock()
 
-	// Read goroutine: PTY stdout -> Wails events
-	// Terminates when ptmx.Read returns an error (after pty.Close in StopTerminal).
-	// Reads into a channel; a separate goroutine coalesces rapid output into
-	// fewer, larger IPC events (flush every 4ms or when buffer exceeds 32KB).
+	// Read goroutine: PTY bytes → UTF-8 strings → Wails events.
+	// Uses a reader → channel → coalescer pattern with flow control.
 	go func() {
 		type readResult struct {
 			data []byte
@@ -71,7 +113,7 @@ func (a *App) StartTerminal(projectName string) (string, error) {
 		}
 		ch := make(chan readResult, 8)
 
-		// Reader: blocking reads from PTY into channel
+		// Reader goroutine: blocking reads from PTY, pauses on back-pressure
 		go func() {
 			buf := make([]byte, 16384)
 			for {
@@ -85,11 +127,18 @@ func (a *App) StartTerminal(projectName string) (string, error) {
 					ch <- readResult{err: err}
 					return
 				}
+				// Flow control: block if paused until ack resumes us
+				sess.mu.Lock()
+				paused := sess.paused
+				sess.mu.Unlock()
+				if paused {
+					<-sess.readCh
+				}
 			}
 		}()
 
-		// Coalescer: batches channel data, flushes on timer or size threshold.
-		// Uses a one-shot timer (not ticker) so idle terminals have zero overhead.
+		// Coalescer: batches data, decodes UTF-8, flushes as strings.
+		// One-shot timer so idle terminals have zero overhead.
 		pending := make([]byte, 0, 65536)
 		flushTimer := time.NewTimer(0)
 		if !flushTimer.Stop() {
@@ -101,10 +150,12 @@ func (a *App) StartTerminal(projectName string) (string, error) {
 			if len(pending) == 0 {
 				return
 			}
-			encoded := base64.StdEncoding.EncodeToString(pending)
-			runtime.EventsEmit(a.ctx, "pty-output-"+id, encoded)
+			// Replace invalid UTF-8 so JSON serialization is safe
+			text := strings.ToValidUTF8(string(pending), "\uFFFD")
+			runtime.EventsEmit(a.ctx, "pty-output-"+id, text)
 			pending = pending[:0]
 			timerRunning = false
+			sess.addUnacked(len(text))
 		}
 
 	loop:
@@ -149,8 +200,7 @@ func (a *App) StartTerminal(projectName string) (string, error) {
 	return id, nil
 }
 
-// WriteTerminal sends input data to the terminal's PTY.
-// Data is base64-encoded to safely transport binary/ANSI sequences.
+// WriteTerminal sends input data to the terminal's PTY as a raw string.
 func (a *App) WriteTerminal(id string, data string) error {
 	a.ptyMu.Lock()
 	sess, ok := a.ptySessions[id]
@@ -159,13 +209,22 @@ func (a *App) WriteTerminal(id string, data string) error {
 		return fmt.Errorf("terminal not found: %s", id)
 	}
 
-	decoded, err := base64.StdEncoding.DecodeString(data)
-	if err != nil {
-		return fmt.Errorf("decode input: %w", err)
+	_, err := sess.pty.Write([]byte(data))
+	return err
+}
+
+// AckTerminalData acknowledges that the frontend has processed charCount
+// characters, allowing the PTY reader to resume if paused.
+func (a *App) AckTerminalData(id string, charCount int) error {
+	a.ptyMu.Lock()
+	sess, ok := a.ptySessions[id]
+	a.ptyMu.Unlock()
+	if !ok {
+		return nil
 	}
 
-	_, err = sess.pty.Write(decoded)
-	return err
+	sess.ack(charCount)
+	return nil
 }
 
 // ResizeTerminal updates the PTY window size, triggering SIGWINCH in the shell.

@@ -5,7 +5,7 @@ import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { EventsOn, BrowserOpenURL } from "../../wailsjs/runtime/runtime";
-import { WriteTerminal, ResizeTerminal } from "../../wailsjs/go/main/App";
+import { WriteTerminal, ResizeTerminal, AckTerminalData } from "../../wailsjs/go/main/App";
 import { getTerminalTheme } from "./terminal-utils";
 import "@xterm/xterm/css/xterm.css";
 
@@ -26,6 +26,10 @@ interface InteractivePaneProps {
   themeOverride?: ITheme | null;
   onExit?: (exitCode: number) => void;
 }
+
+// Flow control: ack in batches to reduce IPC calls (matches VS Code's approach)
+const ACK_SIZE = 5000;
+const HIDDEN_BUF_CAP = 1_000_000; // max chars to buffer while hidden (~1MB)
 
 export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePaneProps>(
   function InteractivePane({ terminalId, visible = true, fontSize = 12, onScrollStateChange, themeOverride, onExit }, ref) {
@@ -106,51 +110,52 @@ export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePane
 
       try { fit.fit(); } catch {}
 
-      // Streaming UTF-8 decoder handles multi-byte sequences split across PTY reads
-      const utf8Decoder = new TextDecoder("utf-8", { fatal: false });
+      // Flow control: batch acks to reduce IPC calls
+      let unsentAck = 0;
+      const ackData = (charCount: number) => {
+        unsentAck += charCount;
+        while (unsentAck >= ACK_SIZE) {
+          unsentAck -= ACK_SIZE;
+          AckTerminalData(terminalId, ACK_SIZE).catch(() => {});
+        }
+      };
 
-      // Batch writes: accumulate between frames, flush once per rAF.
-      // When hidden, data accumulates without rendering — flushed on visibility change.
-      let writeBuf = "";
-      let writeRaf = 0;
-      const flushWriteBuf = () => {
-        if (writeBuf) {
-          term.write(writeBuf);
-          writeBuf = "";
+      // Visibility-gated write: when hidden, buffer data; flush on visible.
+      // Capped to prevent unbounded memory growth from long-running background output.
+      let hiddenBuf: string[] = [];
+      let hiddenBufLen = 0;
+      const writeData = (data: string) => {
+        if (!visibleRef.current) {
+          if (hiddenBufLen < HIDDEN_BUF_CAP) {
+            hiddenBuf.push(data);
+            hiddenBufLen += data.length;
+          }
+          // Always ack so flow control doesn't permanently stall
+          ackData(data.length);
+          return;
         }
+        term.write(data, () => ackData(data.length));
       };
-      const scheduleWrite = (text: string) => {
-        writeBuf += text;
-        if (!visibleRef.current) return;
-        if (!writeRaf) {
-          writeRaf = requestAnimationFrame(() => {
-            writeRaf = 0;
-            flushWriteBuf();
-          });
-        }
+      const flushHiddenBuf = () => {
+        if (hiddenBuf.length === 0) return;
+        const joined = hiddenBuf.join("");
+        hiddenBuf = [];
+        hiddenBufLen = 0;
+        term.write(joined);
       };
-      flushRef.current = flushWriteBuf;
+      flushRef.current = flushHiddenBuf;
 
       // Sync initial size to PTY
       ResizeTerminal(terminalId, term.cols, term.rows).catch(() => {});
 
-      // Encode bytes to base64 without stack-overflow risk from spread operator
-      const toBase64 = (bytes: Uint8Array) => {
-        let binary = "";
-        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-        return btoa(binary);
-      };
-
-      // Send keystrokes to PTY (TextEncoder handles non-Latin-1 chars like emoji)
+      // Send keystrokes to PTY as raw strings (no encoding needed)
       term.onData((data) => {
-        WriteTerminal(terminalId, toBase64(new TextEncoder().encode(data))).catch(() => {});
+        WriteTerminal(terminalId, data).catch(() => {});
       });
 
       // Send binary data (mouse events, etc.) to PTY
       term.onBinary((data) => {
-        const bytes = new Uint8Array(data.length);
-        for (let i = 0; i < data.length; i++) bytes[i] = data.charCodeAt(i);
-        WriteTerminal(terminalId, toBase64(bytes)).catch(() => {});
+        WriteTerminal(terminalId, data).catch(() => {});
       });
 
       // Sync resize to PTY
@@ -181,15 +186,9 @@ export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePane
         attributeFilter: ["data-theme"],
       });
 
-      // Receive PTY output — decode base64 → bytes → UTF-8 string, batched per frame
+      // Receive PTY output as plain strings, write with callback for flow control
       const cleanupOutput = EventsOn("pty-output-" + terminalId, (data: string) => {
-        try {
-          const raw = atob(data);
-          const bytes = new Uint8Array(raw.length);
-          for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-          const text = utf8Decoder.decode(bytes, { stream: true });
-          if (text) scheduleWrite(text);
-        } catch {}
+        writeData(data);
       });
 
       // Handle PTY exit
@@ -214,7 +213,6 @@ export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePane
       term.focus();
 
       return () => {
-        if (writeRaf) cancelAnimationFrame(writeRaf);
         if (resizeRaf) cancelAnimationFrame(resizeRaf);
         el.removeEventListener("mouseup", handleMouseUp);
         globalObserver.disconnect();
@@ -225,9 +223,6 @@ export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePane
         termRef.current = null;
         fitRef.current = null;
         searchRef.current = null;
-        // Note: StopTerminal is NOT called here — the parent TerminalView
-        // handles PTY cleanup via handleCloseTerminal and its unmount effect.
-        // Calling it here would break React StrictMode (double-mount in dev).
       };
     }, [terminalId]);
 
