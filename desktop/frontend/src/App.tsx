@@ -215,7 +215,7 @@ export default function App() {
           showSettings={view === "settings"}
         />
         <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">
-          <div className={`wails-drag flex h-8 shrink-0 items-center ${sidebarCollapsed ? "pl-[51px]" : ""}`}>
+          <div className={`wails-drag flex h-4 shrink-0 items-center ${sidebarCollapsed ? "pl-[51px]" : ""}`}>
             {sidebarCollapsed && (
               <button
                 onClick={() => setSidebarCollapsed(false)}

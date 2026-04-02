@@ -247,12 +247,12 @@ export function ProjectDetail({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between -mx-2">
+      <div className="wails-drag flex items-center justify-between -mx-2">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold tracking-tight">
             {project.name}
           </h1>
-          <div className="flex items-center rounded border border-[var(--border)] p-px">
+          <div className="flex items-center rounded border border-[var(--border)] p-px" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
             <button
               onClick={() => switchDetailView("terminal")}
               className={`rounded-sm px-2 py-0.5 text-[10px] font-medium transition-colors ${
@@ -275,7 +275,7 @@ export function ProjectDetail({
             </button>
           </div>
           {hasProfiles && (
-            <div className="flex items-center rounded border border-[var(--border)] p-px">
+            <div className="flex items-center rounded border border-[var(--border)] p-px" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
               {project.profiles.map((p) => (
                 <button
                   key={p}
@@ -293,7 +293,7 @@ export function ProjectDetail({
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
           {hasActions && (
             <div className="relative">
               <button
