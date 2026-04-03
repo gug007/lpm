@@ -31,13 +31,15 @@ export function useYamlEditor(
     }
   }, [content, save]);
 
+  const dirtyRef = useRef(false);
+  dirtyRef.current = dirty;
   saveRef.current = handleSave;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
-        saveRef.current();
+        if (dirtyRef.current) saveRef.current();
       }
     };
     window.addEventListener("keydown", handler);
