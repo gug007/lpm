@@ -113,19 +113,19 @@ export const Pane = forwardRef<PaneHandle, PaneProps>(
         attributeFilter: ["data-theme"],
       });
 
-      let resizeRaf = 0;
+      let resizeTimer = 0;
       const ro = new ResizeObserver(() => {
-        if (resizeRaf) cancelAnimationFrame(resizeRaf);
-        resizeRaf = requestAnimationFrame(() => {
-          resizeRaf = 0;
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = window.setTimeout(() => {
+          resizeTimer = 0;
           if (!el.clientWidth || !el.clientHeight) return;
           try { fit.fit(); } catch {}
-        });
+        }, 200);
       });
       ro.observe(el);
 
       return () => {
-        if (resizeRaf) cancelAnimationFrame(resizeRaf);
+        if (resizeTimer) clearTimeout(resizeTimer);
         el.removeEventListener("mouseup", handleMouseUp);
         globalObserver.disconnect();
         ro.disconnect();
@@ -210,7 +210,9 @@ export const Pane = forwardRef<PaneHandle, PaneProps>(
             </span>
           </div>
         )}
-        <div ref={containerRef} className="flex-1 overflow-hidden" />
+        <div className="relative min-h-0 min-w-0 flex-1">
+          <div ref={containerRef} className="absolute inset-0 overflow-hidden" />
+        </div>
       </div>
     );
   }

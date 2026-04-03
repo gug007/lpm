@@ -218,22 +218,23 @@ export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePane
         onExitRef.current?.(exitCode);
       });
 
-      // Resize observer (debounced — fit() is expensive during continuous resize)
-      let resizeRaf = 0;
+      // Resize observer — debounced at 200ms to avoid garbled redraws during
+      // the sidebar's CSS transition (transition-[width] duration-200)
+      let resizeTimer = 0;
       const ro = new ResizeObserver(() => {
-        if (resizeRaf) cancelAnimationFrame(resizeRaf);
-        resizeRaf = requestAnimationFrame(() => {
-          resizeRaf = 0;
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = window.setTimeout(() => {
+          resizeTimer = 0;
           if (!el.clientWidth || !el.clientHeight) return;
           try { fit.fit(); } catch {}
-        });
+        }, 200);
       });
       ro.observe(el);
 
       term.focus();
 
       return () => {
-        if (resizeRaf) cancelAnimationFrame(resizeRaf);
+        if (resizeTimer) clearTimeout(resizeTimer);
         el.removeEventListener("mouseup", handleMouseUp);
         globalObserver.disconnect();
         ro.disconnect();
@@ -279,7 +280,9 @@ export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePane
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
         data-terminal-id={terminalId}
       >
-        <div ref={containerRef} className="flex-1 overflow-hidden" />
+        <div className="relative min-h-0 min-w-0 flex-1">
+          <div ref={containerRef} className="absolute inset-0 overflow-hidden" />
+        </div>
       </div>
     );
   }
