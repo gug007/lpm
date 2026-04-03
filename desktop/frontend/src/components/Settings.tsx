@@ -65,7 +65,7 @@ export function Settings() {
   };
 
   return (
-    <div className="mx-auto max-w-lg">
+    <div className="mx-auto max-w-lg pt-6">
       <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
 
       <div className="mt-6 space-y-1">
