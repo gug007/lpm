@@ -392,18 +392,17 @@ export function ProjectDetail({
         </div>
       </div>
 
-      {detailView === "terminal" ? (
-        <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden">
-          <TerminalView
-            ref={terminalViewRef}
-            projectName={project.name}
-            services={project.running ? project.services : EMPTY_SERVICES}
-            terminalTheme={termTheme}
-            onTerminalThemeChange={handleTerminalThemeChange}
-            visible={visible}
-          />
-        </div>
-      ) : (
+      <div className={detailView === "terminal" ? "mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden" : "hidden"}>
+        <TerminalView
+          ref={terminalViewRef}
+          projectName={project.name}
+          services={project.running ? project.services : EMPTY_SERVICES}
+          terminalTheme={termTheme}
+          onTerminalThemeChange={handleTerminalThemeChange}
+          visible={visible && detailView === "terminal"}
+        />
+      </div>
+      {detailView === "config" && (
         <div className="mt-1.5 -mx-6 -mb-6 flex flex-1 flex-col overflow-hidden">
           <ConfigEditor
             projectName={project.name}

@@ -238,34 +238,29 @@ export default function App() {
               </button>
             )}
           </div>
-          {view === "settings" ? (
-            <Settings />
-          ) : (
-            <>
-              {visitedProjects.map((project) => {
-                const isSelected = view === "projects" && selected === project.name;
-                return (
-                  <div key={project.name} className={isSelected ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
-                    <ProjectDetail
-                      project={project}
-                      visible={isSelected}
-                      sidebarCollapsed={sidebarCollapsed}
-                      onStart={handleStart}
-                      onStop={handleStop}
-                      onRestart={handleRestart}
-                      onRefresh={handleRefresh}
-                      onRemove={handleRemove}
-                      onError={setError}
-                    />
-                  </div>
-                );
-              })}
-              {!selectedProject && projects.length === 0 && (
-                <EmptyStateNoProjects onAdd={handleAddProject} />
-              )}
-              {!selectedProject && projects.length > 0 && <EmptyState />}
-            </>
+          {view === "settings" && <Settings />}
+          {visitedProjects.map((project) => {
+            const isSelected = view === "projects" && selected === project.name;
+            return (
+              <div key={project.name} className={isSelected ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
+                <ProjectDetail
+                  project={project}
+                  visible={isSelected}
+                  sidebarCollapsed={sidebarCollapsed}
+                  onStart={handleStart}
+                  onStop={handleStop}
+                  onRestart={handleRestart}
+                  onRefresh={handleRefresh}
+                  onRemove={handleRemove}
+                  onError={setError}
+                />
+              </div>
+            );
+          })}
+          {view === "projects" && !selectedProject && projects.length === 0 && (
+            <EmptyStateNoProjects onAdd={handleAddProject} />
           )}
+          {view === "projects" && !selectedProject && projects.length > 0 && <EmptyState />}
         </main>
       </div>
     </div>
