@@ -289,7 +289,6 @@ function RefreshIcon({ spinning }: { spinning?: boolean }) {
   );
 }
 
-
 function Toggle({
   enabled,
   onChange,

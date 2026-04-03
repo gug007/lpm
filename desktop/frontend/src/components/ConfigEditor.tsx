@@ -1,75 +1,32 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useRef, useEffect, useCallback } from "react";
 import { ReadConfig, SaveConfig } from "../../wailsjs/go/main/App";
+import { useYamlEditor } from "../hooks/useYamlEditor";
 
 interface ConfigEditorProps {
   projectName: string;
   onSaved: (newName: string) => void;
 }
 
-export function ConfigEditor({
-  projectName,
-  onSaved,
-}: ConfigEditorProps) {
-  const [content, setContent] = useState("");
-  const [original, setOriginal] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export function ConfigEditor({ projectName, onSaved }: ConfigEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const saveRef = useRef<() => void>(() => {});
+  const onSavedRef = useRef(onSaved);
+  onSavedRef.current = onSaved;
 
-  const dirty = content !== original;
+  const load = useCallback(() => ReadConfig(projectName), [projectName]);
+  const save = useCallback(
+    async (content: string) => {
+      const newName = await SaveConfig(projectName, content);
+      onSavedRef.current(newName);
+    },
+    [projectName],
+  );
+
+  const { content, setContent, dirty, saving, error, handleSave, handleTab } =
+    useYamlEditor(load, save);
 
   useEffect(() => {
-    ReadConfig(projectName)
-      .then((data) => {
-        setContent(data);
-        setOriginal(data);
-      })
-      .catch((err) => setError(`Failed to load config: ${err}`));
     textareaRef.current?.focus();
   }, [projectName]);
-
-  const handleSave = useCallback(async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      const newName = await SaveConfig(projectName, content);
-      setOriginal(content);
-      onSaved(newName);
-    } catch (err) {
-      setError(`${err}`);
-    } finally {
-      setSaving(false);
-    }
-  }, [projectName, content, onSaved]);
-
-  saveRef.current = handleSave;
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-        e.preventDefault();
-        saveRef.current();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
-
-  const handleTab = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Tab") {
-      e.preventDefault();
-      const textarea = e.currentTarget;
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const newContent =
-        content.substring(0, start) + "  " + content.substring(end);
-      setContent(newContent);
-      requestAnimationFrame(() => {
-        textarea.selectionStart = textarea.selectionEnd = start + 2;
-      });
-    }
-  };
 
   return (
     <div className="flex h-full flex-col">
