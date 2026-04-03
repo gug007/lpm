@@ -224,6 +224,7 @@ export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePane
         if (resizeRaf) cancelAnimationFrame(resizeRaf);
         resizeRaf = requestAnimationFrame(() => {
           resizeRaf = 0;
+          if (!el.clientWidth || !el.clientHeight) return;
           try { fit.fit(); } catch {}
         });
       });

@@ -118,6 +118,7 @@ export const Pane = forwardRef<PaneHandle, PaneProps>(
         if (resizeRaf) cancelAnimationFrame(resizeRaf);
         resizeRaf = requestAnimationFrame(() => {
           resizeRaf = 0;
+          if (!el.clientWidth || !el.clientHeight) return;
           try { fit.fit(); } catch {}
         });
       });

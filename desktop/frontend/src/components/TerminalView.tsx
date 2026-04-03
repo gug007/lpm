@@ -486,7 +486,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
       style={containerStyle}
     >
       <div className={`flex items-center gap-0.5 bg-[var(--terminal-header)] py-1.5 ${fullscreen ? "wails-drag pl-20 pr-3" : "rounded-t-lg px-3"}`}>
-        <div className="flex items-center gap-0.5">
+        <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
           {hasMultiple && (
             <HeaderTab label="All" active={showAll} onClick={() => setActivePane("all")} />
           )}
@@ -515,9 +515,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
           </button>
         </div>
 
-        <div className="flex-1" />
-
-        <div className="relative flex items-center gap-0.5">
+        <div className="relative flex shrink-0 items-center gap-0.5">
           <IconBtn onClick={zoomOut} title="Zoom out"><MinusIcon /></IconBtn>
           <span className="min-w-[1.25rem] text-center font-mono text-[10px] tabular-nums text-[var(--terminal-header-text)]">
             {fontSize}
