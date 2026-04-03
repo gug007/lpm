@@ -595,17 +595,17 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(fu
 
       <div className={`flex min-h-0 flex-1 overflow-hidden ${showAll && hasMultiple && activeTermIdx === null ? "divide-x divide-[var(--border)]" : ""}`}>
         {stableServices.map((svc, i) => {
-          const visible = activeTermIdx === null && (showAll || activePane === i);
+          const paneVisible = visible && activeTermIdx === null && (showAll || activePane === i);
           return (
             <div
               key={svc.name}
-              className={visible ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "hidden"}
+              className={paneVisible ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "hidden"}
             >
               <Pane
                 ref={(el) => { paneRefs.current[i] = el; }}
                 label={showAll && hasMultiple ? svc.name : undefined}
                 output={outputs[i] || ""}
-                visible={visible}
+                visible={paneVisible}
                 fontSize={fontSize}
                 themeOverride={xtermTheme}
                 onScrollStateChange={(ab) => handlePaneScroll(`svc-${i}`, ab)}
@@ -614,16 +614,16 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(fu
           );
         })}
         {terminals.map((term, i) => {
-          const visible = activeTermIdx === i;
+          const paneVisible = visible && activeTermIdx === i;
           return (
             <div
               key={term.id}
-              className={visible ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "hidden"}
+              className={paneVisible ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "hidden"}
             >
               <InteractivePane
                 ref={(el) => { interactivePaneRefs.current[i] = el; }}
                 terminalId={term.id}
-                visible={visible}
+                visible={paneVisible}
                 fontSize={fontSize}
                 themeOverride={xtermTheme}
                 onScrollStateChange={(ab) => handlePaneScroll(`term-${i}`, ab)}
