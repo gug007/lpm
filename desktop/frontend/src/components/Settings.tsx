@@ -5,7 +5,7 @@ import { applyTheme, type Theme } from "../theme";
 
 import { SetDarkMode, GetVersion, CheckForUpdate, InstallUpdate } from '../../wailsjs/go/main/App';
 
-export function Settings() {
+export function Settings({ onEditGlobalConfig }: { onEditGlobalConfig: () => void }) {
   const settings = getSettings();
   const [theme, setTheme] = useState<Theme>(settings.theme);
   const [dblClick, setDblClick] = useState(settings.doubleClickToToggle);
@@ -119,6 +119,26 @@ export function Settings() {
                 onClick={() => setTheme("system")}
               />
             </div>
+          </SettingsRow>
+        </div>
+      </div>
+
+      <div className="mt-6 space-y-1">
+        <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
+          Global Config
+        </h2>
+
+        <div className="rounded-lg border border-[var(--border)] divide-y divide-[var(--border)]">
+          <SettingsRow
+            label="Actions & Terminals"
+            description="Shared across all projects"
+          >
+            <button
+              onClick={onEditGlobalConfig}
+              className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-active)]"
+            >
+              Edit
+            </button>
           </SettingsRow>
         </div>
       </div>
@@ -268,6 +288,7 @@ function RefreshIcon({ spinning }: { spinning?: boolean }) {
     </svg>
   );
 }
+
 
 function Toggle({
   enabled,

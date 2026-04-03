@@ -379,6 +379,32 @@ func (a *App) CreateProject(name string, root string) error {
 	return nil
 }
 
+func (a *App) ReadGlobalConfig() (string, error) {
+	data, err := os.ReadFile(config.GlobalPath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return string(data), nil
+}
+
+func (a *App) SaveGlobalConfig(content string) error {
+	var parsed config.GlobalConfig
+	if err := yaml.Unmarshal([]byte(content), &parsed); err != nil {
+		return fmt.Errorf("invalid YAML: %w", err)
+	}
+	if err := config.EnsureDirs(); err != nil {
+		return err
+	}
+	if err := os.WriteFile(config.GlobalPath(), []byte(content), 0644); err != nil {
+		return err
+	}
+	runtime.EventsEmit(a.ctx, "projects-changed")
+	return nil
+}
+
 func (a *App) BrowseFolder() (string, error) {
 	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
 		Title: "Select project folder",

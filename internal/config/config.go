@@ -71,13 +71,46 @@ type ProjectConfig struct {
 	Profiles  map[string][]string `yaml:"profiles,omitempty"`
 }
 
+type GlobalConfig struct {
+	Actions   map[string]Action   `yaml:"actions,omitempty"`
+	Terminals map[string]Terminal `yaml:"terminals,omitempty"`
+}
+
 func LpmDir() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".lpm")
 }
 
+func GlobalPath() string {
+	return filepath.Join(LpmDir(), "global.yml")
+}
+
 func ProjectsDir() string {
 	return filepath.Join(LpmDir(), "projects")
+}
+
+func LoadGlobal() *GlobalConfig {
+	data, err := os.ReadFile(GlobalPath())
+	if err != nil {
+		return &GlobalConfig{}
+	}
+	var cfg GlobalConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return &GlobalConfig{}
+	}
+	for name, act := range cfg.Actions {
+		if act.Cwd != "" {
+			act.Cwd = expandHome(act.Cwd)
+			cfg.Actions[name] = act
+		}
+	}
+	for name, term := range cfg.Terminals {
+		if term.Cwd != "" {
+			term.Cwd = expandHome(term.Cwd)
+			cfg.Terminals[name] = term
+		}
+	}
+	return &cfg
 }
 
 func EnsureDirs() error {
@@ -150,6 +183,30 @@ func LoadProject(name string) (*ProjectConfig, error) {
 			cfg.Terminals[name] = term
 		}
 	}
+
+	// Merge global actions/terminals (project entries take precedence)
+	global := LoadGlobal()
+	if len(global.Actions) > 0 {
+		if cfg.Actions == nil {
+			cfg.Actions = make(map[string]Action)
+		}
+		for k, v := range global.Actions {
+			if _, exists := cfg.Actions[k]; !exists {
+				cfg.Actions[k] = v
+			}
+		}
+	}
+	if len(global.Terminals) > 0 {
+		if cfg.Terminals == nil {
+			cfg.Terminals = make(map[string]Terminal)
+		}
+		for k, v := range global.Terminals {
+			if _, exists := cfg.Terminals[k]; !exists {
+				cfg.Terminals[k] = v
+			}
+		}
+	}
+
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { Settings } from "./components/Settings";
+import { GlobalConfigEditor } from "./components/GlobalConfigEditor";
 import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
 import { TmuxInstaller } from "./components/TmuxInstaller";
 import type { ProjectInfo } from "./types";
@@ -15,7 +16,7 @@ export default function App() {
   const [tmuxReady, setTmuxReady] = useState<boolean | null>(null);
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [view, setView] = useState<"projects" | "settings">("projects");
+  const [view, setView] = useState<"projects" | "settings" | "global-config">("projects");
   const [error, setError] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -223,7 +224,7 @@ export default function App() {
               setError(`Failed to reorder: ${err}`);
             }
           }}
-          showSettings={view === "settings"}
+          showSettings={view === "settings" || view === "global-config"}
         />
         <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">
           <div className="wails-drag flex h-2 shrink-0 items-center">
@@ -238,7 +239,8 @@ export default function App() {
               </button>
             )}
           </div>
-          {view === "settings" && <Settings />}
+          {view === "settings" && <Settings onEditGlobalConfig={() => setView("global-config")} />}
+          {view === "global-config" && <GlobalConfigEditor onBack={() => setView("settings")} />}
           {visitedProjects.map((project) => {
             const isSelected = view === "projects" && selected === project.name;
             return (
