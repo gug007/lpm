@@ -86,142 +86,83 @@ function ActionTerminal({ label, onClose }: { label: string; onClose: () => void
   );
 }
 
-function QuickPopover({ actions, terminals, projectName, running, onClose, onError, onRunTerminal, onRestart, onRemove }: {
+function QuickPopover({ actions, terminals, running, actionBusy, onClose, onRunAction, onRunTerminal, onRestart, onRemove }: {
   actions: ActionInfo[];
   terminals: TerminalConfigInfo[];
-  projectName: string;
   running: boolean;
+  actionBusy: boolean;
   onClose: () => void;
-  onError: (msg: string) => void;
+  onRunAction: (action: ActionInfo) => void;
   onRunTerminal: (term: TerminalConfigInfo) => void;
   onRestart: () => void;
   onRemove: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [runningAction, setRunningAction] = useState<ActionInfo | null>(null);
-  const [confirmAction, setConfirmAction] = useState<ActionInfo | null>(null);
-  const confirmRef = useRef(confirmAction);
-  const runningRef = useRef(runningAction);
-  confirmRef.current = confirmAction;
-  runningRef.current = runningAction;
 
   useEffect(() => {
     const handle = (e: MouseEvent) => {
-      if (confirmRef.current || runningRef.current) return;
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     };
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, [onClose]);
 
-  const run = (action: ActionInfo) => {
-    if (action.confirm) {
-      setConfirmAction(action);
-      return;
-    }
-    execute(action);
-  };
-
-  const execute = async (action: ActionInfo) => {
-    setConfirmAction(null);
-    try {
-      await RunAction(projectName, action.name);
-      setRunningAction(action);
-    } catch (err) {
-      onError(`${action.label}: ${err}`);
-    }
-  };
-
   return (
-    <>
-      <div ref={ref} className="absolute right-0 top-full z-50 mt-1 w-52 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
-        {actions.length > 0 && (
-          <>
-            <div className="px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-              Actions
-            </div>
-            {actions.map((action) => (
-              <button
-                key={action.name}
-                onClick={() => run(action)}
-                disabled={runningAction !== null}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
-              >
-                <span className="flex-1 font-mono truncate">{action.label}</span>
-                <PlayIcon />
-              </button>
-            ))}
-          </>
-        )}
-        {terminals.length > 0 && (
-          <>
-            {actions.length > 0 && <div className="my-1 border-t border-[var(--border)]" />}
-            <div className="px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-              Terminals
-            </div>
-            {terminals.map((term) => (
-              <button
-                key={term.name}
-                onClick={() => { onRunTerminal(term); onClose(); }}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
-              >
-                <span className="flex-1 font-mono truncate">{term.label}</span>
-                <TerminalIcon />
-              </button>
-            ))}
-          </>
-        )}
-        {(actions.length > 0 || terminals.length > 0) && <div className="my-1 border-t border-[var(--border)]" />}
-        {running && (
-          <button
-            onClick={() => { onRestart(); onClose(); }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
-          >
-            <span className="flex-1 truncate">Restart</span>
-            <RefreshIcon />
-          </button>
-        )}
-        <button
-          onClick={() => { onRemove(); onClose(); }}
-          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--accent-red)] transition-colors hover:bg-[var(--bg-hover)]"
-        >
-          <span className="flex-1 truncate">Remove</span>
-          <TrashIcon />
-        </button>
-      </div>
-
-      {confirmAction && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmAction(null)} />
-          <div className="relative w-72 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-5 shadow-xl">
-            <p className="text-sm text-[var(--text-secondary)]">
-              Run <span className="font-medium text-[var(--text-primary)]">{confirmAction.label}</span>?
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={() => setConfirmAction(null)}
-                className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => execute(confirmAction)}
-                className="rounded-lg bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] hover:opacity-90"
-              >
-                Run
-              </button>
-            </div>
+    <div ref={ref} className="absolute right-0 top-full z-50 mt-1 w-52 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
+      {actions.length > 0 && (
+        <>
+          <div className="px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
+            Actions
           </div>
-        </div>
+          {actions.map((action) => (
+            <button
+              key={action.name}
+              onClick={() => onRunAction(action)}
+              disabled={actionBusy}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
+            >
+              <span className="flex-1 font-mono truncate">{action.label}</span>
+              <PlayIcon />
+            </button>
+          ))}
+        </>
       )}
-
-      {runningAction && (
-        <ActionTerminal
-          label={runningAction.label}
-          onClose={() => { setRunningAction(null); onClose(); }}
-        />
+      {terminals.length > 0 && (
+        <>
+          {actions.length > 0 && <div className="my-1 border-t border-[var(--border)]" />}
+          <div className="px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
+            Terminals
+          </div>
+          {terminals.map((term) => (
+            <button
+              key={term.name}
+              onClick={() => { onRunTerminal(term); onClose(); }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
+            >
+              <span className="flex-1 font-mono truncate">{term.label}</span>
+              <TerminalIcon />
+            </button>
+          ))}
+        </>
       )}
-    </>
+      {(actions.length > 0 || terminals.length > 0) && <div className="my-1 border-t border-[var(--border)]" />}
+      {running && (
+        <button
+          onClick={() => { onRestart(); onClose(); }}
+          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
+        >
+          <span className="flex-1 truncate">Restart</span>
+          <RefreshIcon />
+        </button>
+      )}
+      <button
+        onClick={() => { onRemove(); onClose(); }}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--accent-red)] transition-colors hover:bg-[var(--bg-hover)]"
+      >
+        <span className="flex-1 truncate">Remove</span>
+        <TrashIcon />
+      </button>
+    </div>
   );
 }
 
@@ -280,6 +221,32 @@ export function ProjectDetail({
 
   const terminalViewRef = useRef<TerminalViewHandle>(null);
 
+  const buttonActions = (project.actions ?? []).filter((a) => a.display === "button");
+  const menuActions = (project.actions ?? []).filter((a) => a.display !== "button");
+  const buttonTerminals = (project.terminals ?? []).filter((t) => t.display === "button");
+  const menuTerminals = (project.terminals ?? []).filter((t) => t.display !== "button");
+
+  const [runningAction, setRunningAction] = useState<ActionInfo | null>(null);
+  const [confirmAction, setConfirmAction] = useState<ActionInfo | null>(null);
+
+  const handleRunAction = (action: ActionInfo) => {
+    if (action.confirm) {
+      setConfirmAction(action);
+      return;
+    }
+    executeAction(action);
+  };
+
+  const executeAction = async (action: ActionInfo) => {
+    setConfirmAction(null);
+    try {
+      await RunAction(project.name, action.name);
+      setRunningAction(action);
+    } catch (err) {
+      onError(`${action.label}: ${err}`);
+    }
+  };
+
   const hasProfiles = project.profiles && project.profiles.length > 0;
   const [detailView, setDetailView] = useState<"terminal" | "config">(() => {
     const saved = getProjectTerminals(project.name).detailView;
@@ -291,6 +258,15 @@ export function ProjectDetail({
     const state = getProjectTerminals(project.name);
     saveProjectTerminals(project.name, { ...state, detailView: view });
   }, [project.name]);
+
+  const handleRunTerminal = useCallback(async (term: TerminalConfigInfo) => {
+    switchDetailView("terminal");
+    try {
+      await terminalViewRef.current?.createTerminalWithCmd(term.label, term.name, term.cmd);
+    } catch (err) {
+      onError(`${term.label}: ${err}`);
+    }
+  }, [switchDetailView, onError]);
 
   return (
     <div className="flex h-full flex-col">
@@ -341,6 +317,24 @@ export function ProjectDetail({
           )}
         </div>
         <div className="flex items-center gap-2" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
+          {buttonActions.map((action) => (
+            <ActionButton
+              key={action.name}
+              onClick={() => handleRunAction(action)}
+              disabled={runningAction !== null}
+              variant="secondary"
+              label={action.label}
+            />
+          ))}
+          {buttonTerminals.map((term) => (
+            <ActionButton
+              key={term.name}
+              onClick={() => handleRunTerminal(term)}
+              disabled={false}
+              variant="secondary"
+              label={term.label}
+            />
+          ))}
           <div className="relative">
             <button
               onClick={() => setShowQuickMenu((v) => !v)}
@@ -355,20 +349,13 @@ export function ProjectDetail({
             </button>
             {showQuickMenu && (
               <QuickPopover
-                actions={project.actions ?? []}
-                terminals={project.terminals ?? []}
-                projectName={project.name}
+                actions={menuActions}
+                terminals={menuTerminals}
                 running={project.running}
+                actionBusy={runningAction !== null}
                 onClose={() => setShowQuickMenu(false)}
-                onError={onError}
-                onRunTerminal={async (term) => {
-                  switchDetailView("terminal");
-                  try {
-                    await terminalViewRef.current?.createTerminalWithCmd(term.label, term.name, term.cmd);
-                  } catch (err) {
-                    onError(`${term.label}: ${err}`);
-                  }
-                }}
+                onRunAction={handleRunAction}
+                onRunTerminal={handleRunTerminal}
                 onRestart={() => withLoading(() => onRestart(project.name, activeProfile))}
                 onRemove={() => setConfirmRemove(true)}
               />
@@ -423,6 +410,38 @@ export function ProjectDetail({
             onSaved={onRefresh}
           />
         </div>
+      )}
+
+      {confirmAction && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmAction(null)} />
+          <div className="relative w-72 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-5 shadow-xl">
+            <p className="text-sm text-[var(--text-secondary)]">
+              Run <span className="font-medium text-[var(--text-primary)]">{confirmAction.label}</span>?
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmAction(null)}
+                className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => executeAction(confirmAction)}
+                className="rounded-lg bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] hover:opacity-90"
+              >
+                Run
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {runningAction && (
+        <ActionTerminal
+          label={runningAction.label}
+          onClose={() => { setRunningAction(null); setShowQuickMenu(false); }}
+        />
       )}
 
       {confirmRemove && (

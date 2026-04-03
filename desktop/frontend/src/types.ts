@@ -9,12 +9,14 @@ export interface ActionInfo {
   name: string;
   label: string;
   confirm: boolean;
+  display: string;
 }
 
 export interface TerminalConfigInfo {
   name: string;
   label: string;
   cmd: string;
+  display: string;
 }
 
 export interface ProjectInfo {

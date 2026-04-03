@@ -33,6 +33,7 @@ type Action struct {
 	Cwd     string            `yaml:"cwd,omitempty"`
 	Env     map[string]string `yaml:"env,omitempty"`
 	Confirm bool              `yaml:"confirm,omitempty"`
+	Display string            `yaml:"display,omitempty"`
 }
 
 func (a *Action) UnmarshalYAML(value *yaml.Node) error {
@@ -45,10 +46,11 @@ func (a *Action) UnmarshalYAML(value *yaml.Node) error {
 }
 
 type Terminal struct {
-	Cmd   string            `yaml:"cmd"`
-	Label string            `yaml:"label,omitempty"`
-	Cwd   string            `yaml:"cwd,omitempty"`
-	Env   map[string]string `yaml:"env,omitempty"`
+	Cmd     string            `yaml:"cmd"`
+	Label   string            `yaml:"label,omitempty"`
+	Cwd     string            `yaml:"cwd,omitempty"`
+	Env     map[string]string `yaml:"env,omitempty"`
+	Display string            `yaml:"display,omitempty"`
 }
 
 func (t *Terminal) UnmarshalYAML(value *yaml.Node) error {

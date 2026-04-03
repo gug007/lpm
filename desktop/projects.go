@@ -35,12 +35,14 @@ type ActionInfo struct {
 	Name    string `json:"name"`
 	Label   string `json:"label"`
 	Confirm bool   `json:"confirm"`
+	Display string `json:"display"`
 }
 
 type TerminalConfigInfo struct {
-	Name  string `json:"name"`
-	Label string `json:"label"`
-	Cmd   string `json:"cmd"`
+	Name    string `json:"name"`
+	Label   string `json:"label"`
+	Cmd     string `json:"cmd"`
+	Display string `json:"display"`
 }
 
 func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, activeProfile string) ProjectInfo {
@@ -79,6 +81,7 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, activeP
 			Name:    aName,
 			Label:   label,
 			Confirm: act.Confirm,
+			Display: act.Display,
 		})
 	}
 
@@ -96,9 +99,10 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, activeP
 			label = tName
 		}
 		terminalConfigs = append(terminalConfigs, TerminalConfigInfo{
-			Name:  tName,
-			Label: label,
-			Cmd:   term.Cmd,
+			Name:    tName,
+			Label:   label,
+			Cmd:     term.Cmd,
+			Display: term.Display,
 		})
 	}
 
