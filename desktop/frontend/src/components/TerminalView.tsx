@@ -294,6 +294,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
     setShowSearch(false);
     setSearchQuery("");
     getActivePane()?.clearSearch();
+    setTimeout(() => getActivePane()?.focus?.(), 0);
   }, [getActivePane]);
 
   const persistFontSize = useCallback((size: number) => {

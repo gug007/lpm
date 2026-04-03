@@ -141,6 +141,8 @@ export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePane
 
       // Visibility-gated write: when hidden, buffer data; flush on visible.
       // Capped to prevent unbounded memory growth from long-running background output.
+      // Don't ack while hidden — let backend flow control pause naturally.
+      // Ack on flush so xterm.js renders before backend resumes sending.
       let hiddenBuf: string[] = [];
       let hiddenBufLen = 0;
       const writeData = (data: string) => {
@@ -149,8 +151,6 @@ export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePane
             hiddenBuf.push(data);
             hiddenBufLen += data.length;
           }
-          // Always ack so flow control doesn't permanently stall
-          ackData(data.length);
           return;
         }
         term.write(data, () => ackData(data.length));
@@ -160,7 +160,7 @@ export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePane
         const joined = hiddenBuf.join("");
         hiddenBuf = [];
         hiddenBufLen = 0;
-        term.write(joined);
+        term.write(joined, () => ackData(joined.length));
       };
       flushRef.current = flushHiddenBuf;
 

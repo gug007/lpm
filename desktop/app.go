@@ -168,6 +168,7 @@ func (a *App) shutdown(ctx context.Context) {
 
 	a.ptyMu.Lock()
 	for id, sess := range a.ptySessions {
+		sess.wake()
 		_ = sess.cmd.Process.Signal(syscall.SIGHUP)
 		_ = sess.pty.Close()
 		delete(a.ptySessions, id)

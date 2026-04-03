@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/creack/pty"
 	"github.com/gug007/lpm/internal/config"
@@ -29,38 +30,37 @@ type ptySession struct {
 
 	// Flow control
 	mu      sync.Mutex
+	cond    *sync.Cond
 	unacked int
 	paused  bool
-	readCh  chan struct{} // signaled to resume reading after pause
 }
 
-func (s *ptySession) addUnacked(n int) bool {
+func (s *ptySession) addUnacked(n int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.unacked += n
 	if !s.paused && s.unacked > ptyHighWatermark {
 		s.paused = true
-		return true // caller should pause
 	}
-	return false
+}
+
+func (s *ptySession) wake() {
+	s.mu.Lock()
+	s.paused = false
+	s.cond.Signal()
+	s.mu.Unlock()
 }
 
 func (s *ptySession) ack(n int) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.unacked -= n
 	if s.unacked < 0 {
 		s.unacked = 0
 	}
-	shouldResume := s.paused && s.unacked < ptyLowWatermark
-	if shouldResume {
+	if s.paused && s.unacked < ptyLowWatermark {
 		s.paused = false
-	}
-	s.mu.Unlock()
-	if shouldResume {
-		select {
-		case s.readCh <- struct{}{}:
-		default:
-		}
+		s.cond.Signal()
 	}
 }
 
@@ -94,11 +94,11 @@ func (a *App) StartTerminal(projectName string) (string, error) {
 	}
 
 	sess := &ptySession{
-		id:     id,
-		pty:    ptmx,
-		cmd:    cmd,
-		readCh: make(chan struct{}, 1),
+		id:  id,
+		pty: ptmx,
+		cmd: cmd,
 	}
+	sess.cond = sync.NewCond(&sess.mu)
 
 	a.ptyMu.Lock()
 	a.ptySessions[id] = sess
@@ -129,11 +129,10 @@ func (a *App) StartTerminal(projectName string) (string, error) {
 				}
 				// Flow control: block if paused until ack resumes us
 				sess.mu.Lock()
-				paused := sess.paused
-				sess.mu.Unlock()
-				if paused {
-					<-sess.readCh
+				for sess.paused {
+					sess.cond.Wait()
 				}
+				sess.mu.Unlock()
 			}
 		}()
 
@@ -155,7 +154,7 @@ func (a *App) StartTerminal(projectName string) (string, error) {
 			runtime.EventsEmit(a.ctx, "pty-output-"+id, text)
 			pending = pending[:0]
 			timerRunning = false
-			sess.addUnacked(len(text))
+			sess.addUnacked(utf8.RuneCountInString(text))
 		}
 
 	loop:
@@ -255,6 +254,7 @@ func (a *App) StopTerminal(id string) error {
 		return nil
 	}
 
+	sess.wake()
 	_ = sess.pty.Close()
 	if sess.cmd.Process != nil {
 		_ = sess.cmd.Process.Kill()
