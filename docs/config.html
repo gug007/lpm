@@ -91,6 +91,61 @@
             </p>
           </div>
 
+          <!-- Project -->
+          <div class="mb-12">
+            <h2 class="text-lg font-semibold mb-2">Project</h2>
+            <p
+              class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed mb-4"
+            >
+              Top-level fields that identify the project.
+            </p>
+            <div
+              class="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden mb-4"
+            >
+              <pre
+                class="px-4 py-3 text-xs font-mono text-gray-700 dark:text-gray-300 leading-relaxed overflow-x-auto"
+              ><code>name: myapp
+root: ~/Projects/myapp</code></pre>
+            </div>
+            <div
+              class="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800"
+            >
+              <table
+                class="w-full text-xs text-left text-gray-700 dark:text-gray-300"
+              >
+                <thead
+                  class="bg-gray-50 dark:bg-gray-900/80 text-gray-500 dark:text-gray-400 uppercase tracking-wider text-[10px]"
+                >
+                  <tr>
+                    <th scope="col" class="px-4 py-2.5 font-semibold">Field</th>
+                    <th scope="col" class="px-4 py-2.5 font-semibold">Type</th>
+                    <th scope="col" class="px-4 py-2.5 font-semibold">Required</th>
+                    <th scope="col" class="px-4 py-2.5 font-semibold">Description</th>
+                  </tr>
+                </thead>
+                <tbody
+                  class="divide-y divide-gray-100 dark:divide-gray-800/60"
+                >
+                  <tr>
+                    <td class="px-4 py-2.5 font-mono">name</td>
+                    <td class="px-4 py-2.5">string</td>
+                    <td class="px-4 py-2.5">yes</td>
+                    <td class="px-4 py-2.5">Project name (used as identifier)</td>
+                  </tr>
+                  <tr>
+                    <td class="px-4 py-2.5 font-mono">root</td>
+                    <td class="px-4 py-2.5">string</td>
+                    <td class="px-4 py-2.5">yes</td>
+                    <td class="px-4 py-2.5">
+                      Project root directory. Supports
+                      <code class="font-mono">~</code>.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <!-- Services -->
           <div class="mb-12">
             <h2 class="text-lg font-semibold mb-2">Services</h2>
@@ -166,6 +221,14 @@
                     <td class="px-4 py-2.5">map</td>
                     <td class="px-4 py-2.5">no</td>
                     <td class="px-4 py-2.5">Environment variables</td>
+                  </tr>
+                  <tr>
+                    <td class="px-4 py-2.5 font-mono">profiles</td>
+                    <td class="px-4 py-2.5">[]string</td>
+                    <td class="px-4 py-2.5">no</td>
+                    <td class="px-4 py-2.5">
+                      Profiles this service belongs to
+                    </td>
                   </tr>
                 </tbody>
               </table>
