@@ -59,6 +59,8 @@ func (a *App) startup(ctx context.Context) {
 	settings := a.LoadSettings()
 	a.projectOrder = settings.ProjectOrder
 
+	SetTrafficLightPosition(14, 19)
+
 	go a.autoCheckForUpdate()
 }
 
