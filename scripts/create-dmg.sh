@@ -14,13 +14,24 @@ fi
 TEMP_DMG="$(mktemp -t lpm-dmg).dmg"
 DMG_DIR="$(mktemp -d -t lpm-dmg-src)"
 
+# Prevent Spotlight from indexing temp directories (causes "Resource busy")
+mdutil -i off "$DMG_DIR" 2>/dev/null || true
+touch "$DMG_DIR/.metadata_never_index"
+
 # Prepare DMG contents
 cp -R "$APP_PATH" "$DMG_DIR/"
 ln -s /Applications "$DMG_DIR/Applications"
 
-# Create a read-write DMG first so we can style it
-hdiutil create -volname "$VOLUME_NAME" -srcfolder "$DMG_DIR" \
-  -ov -format UDRW "$TEMP_DMG"
+# Wait for any FS events to settle
+sleep 1
+
+# Create a read-write DMG first so we can style it (retry on "Resource busy")
+for i in 1 2 3; do
+  hdiutil create -volname "$VOLUME_NAME" -srcfolder "$DMG_DIR" \
+    -ov -format UDRW "$TEMP_DMG" && break
+  echo "hdiutil create attempt $i failed, retrying in 3s..."
+  sleep 3
+done
 
 # Mount the DMG
 MOUNT_DIR=$(hdiutil attach -readwrite -noverify "$TEMP_DMG" | grep "/Volumes/" | sed 's/.*\/Volumes/\/Volumes/')
@@ -52,8 +63,12 @@ sleep 2
 # Remove any .DS_Store leftovers from temp, keep the one in the volume
 sync
 
-# Unmount
-hdiutil detach "$MOUNT_DIR"
+# Unmount (retry if busy)
+for i in 1 2 3; do
+  hdiutil detach "$MOUNT_DIR" && break
+  echo "hdiutil detach attempt $i failed, retrying in 3s..."
+  sleep 3
+done
 
 # Convert to compressed read-only DMG
 hdiutil convert "$TEMP_DMG" -format UDZO -o "$OUTPUT_DMG"
