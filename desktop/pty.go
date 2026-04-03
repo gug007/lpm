@@ -28,11 +28,16 @@ type ptySession struct {
 	pty *os.File
 	cmd *exec.Cmd
 
-	// Flow control
+	// Flow control (mu protects unacked/paused only)
 	mu      sync.Mutex
 	cond    *sync.Cond
 	unacked int
 	paused  bool
+
+	// Close protection: RLock during I/O, Lock to close.
+	// Separate from mu so writes don't block the reader's flow control.
+	closeMu sync.RWMutex
+	closed  bool
 }
 
 func (s *ptySession) addUnacked(n int) {
@@ -49,19 +54,6 @@ func (s *ptySession) wake() {
 	s.paused = false
 	s.cond.Signal()
 	s.mu.Unlock()
-}
-
-func (s *ptySession) ack(n int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.unacked -= n
-	if s.unacked < 0 {
-		s.unacked = 0
-	}
-	if s.paused && s.unacked < ptyLowWatermark {
-		s.paused = false
-		s.cond.Signal()
-	}
 }
 
 // StartTerminal launches an interactive shell in the project's root directory
@@ -208,6 +200,11 @@ func (a *App) WriteTerminal(id string, data string) error {
 		return fmt.Errorf("terminal not found: %s", id)
 	}
 
+	sess.closeMu.RLock()
+	defer sess.closeMu.RUnlock()
+	if sess.closed {
+		return fmt.Errorf("terminal closed: %s", id)
+	}
 	_, err := sess.pty.Write([]byte(data))
 	return err
 }
@@ -222,7 +219,16 @@ func (a *App) AckTerminalData(id string, charCount int) error {
 		return nil
 	}
 
-	sess.ack(charCount)
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	sess.unacked -= charCount
+	if sess.unacked < 0 {
+		sess.unacked = 0
+	}
+	if sess.paused && sess.unacked < ptyLowWatermark {
+		sess.paused = false
+		sess.cond.Signal()
+	}
 	return nil
 }
 
@@ -235,6 +241,11 @@ func (a *App) ResizeTerminal(id string, cols int, rows int) error {
 		return fmt.Errorf("terminal not found: %s", id)
 	}
 
+	sess.closeMu.RLock()
+	defer sess.closeMu.RUnlock()
+	if sess.closed {
+		return fmt.Errorf("terminal closed: %s", id)
+	}
 	return pty.Setsize(sess.pty, &pty.Winsize{
 		Rows: uint16(rows),
 		Cols: uint16(cols),
@@ -254,7 +265,17 @@ func (a *App) StopTerminal(id string) error {
 		return nil
 	}
 
-	sess.wake()
+	// Wake the reader goroutine so it can exit
+	sess.mu.Lock()
+	sess.paused = false
+	sess.cond.Signal()
+	sess.mu.Unlock()
+
+	// Wait for in-flight writes/resizes to drain, then mark closed
+	sess.closeMu.Lock()
+	sess.closed = true
+	sess.closeMu.Unlock()
+
 	_ = sess.pty.Close()
 	if sess.cmd.Process != nil {
 		_ = sess.cmd.Process.Kill()

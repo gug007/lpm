@@ -14,6 +14,7 @@ export interface PaneHandle {
   findPrevious: (query: string) => boolean;
   clearSearch: () => void;
   scrollToBottom: () => void;
+  focus: () => void;
 }
 
 interface PaneProps {
@@ -62,6 +63,9 @@ export const Pane = forwardRef<PaneHandle, PaneProps>(
           stickToBottomRef.current = true;
           scrollCallbackRef.current?.(true);
         }
+      },
+      focus() {
+        termRef.current?.focus();
       },
     }));
 

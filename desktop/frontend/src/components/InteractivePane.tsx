@@ -167,14 +167,25 @@ export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePane
       // Sync initial size to PTY
       ResizeTerminal(terminalId, term.cols, term.rows).catch(() => {});
 
+      let sessionDead = false;
+      const markDead = (msg: string, ansiColor: string) => {
+        if (sessionDead) return;
+        sessionDead = true;
+        term.options.disableStdin = true;
+        term.options.cursorBlink = false;
+        term.write(`\r\n\x1b[${ansiColor}m${msg}\x1b[0m\r\n`);
+      };
+
+      const handleWriteError = () => markDead("[Session disconnected]", "91");
+
       // Send keystrokes to PTY as raw strings (no encoding needed)
       term.onData((data) => {
-        WriteTerminal(terminalId, data).catch(() => {});
+        WriteTerminal(terminalId, data).catch(handleWriteError);
       });
 
       // Send binary data (mouse events, etc.) to PTY
       term.onBinary((data) => {
-        WriteTerminal(terminalId, data).catch(() => {});
+        WriteTerminal(terminalId, data).catch(handleWriteError);
       });
 
       // Sync resize to PTY
@@ -212,9 +223,7 @@ export const InteractivePane = forwardRef<InteractivePaneHandle, InteractivePane
 
       // Handle PTY exit
       const cleanupExit = EventsOn("pty-exit-" + terminalId, (exitCode: number) => {
-        term.write(`\r\n\x1b[90m[Process exited with code ${exitCode}]\x1b[0m\r\n`);
-        term.options.disableStdin = true;
-        term.options.cursorBlink = false;
+        markDead(`[Process exited with code ${exitCode}]`, "90");
         onExitRef.current?.(exitCode);
       });
 
