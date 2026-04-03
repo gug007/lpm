@@ -169,7 +169,7 @@ export default function App() {
   };
 
   if (tmuxReady === null) {
-    return <div className="flex h-screen bg-[var(--bg-primary)]"><div className="wails-drag absolute inset-x-0 top-0 h-8" /></div>;
+    return <div className="flex h-screen bg-[var(--bg-primary)]"><div className="wails-drag absolute inset-x-0 top-0 h-10" /></div>;
   }
 
   if (tmuxReady === false) {
@@ -231,7 +231,7 @@ export default function App() {
               <button
                 onClick={() => setSidebarCollapsed(false)}
                 style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}
-                className="absolute left-[75px] top-[7px] z-10 flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                className="absolute left-[80px] top-[16px] z-10 flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                 title="Expand sidebar (⌘B)"
               >
                 <SidebarIcon />

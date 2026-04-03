@@ -98,7 +98,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
       className={`relative flex shrink-0 flex-col bg-[var(--bg-sidebar)] transition-[width] duration-200 ${collapsed ? "" : "border-r border-[var(--border)]"}`}
       style={{ width: collapsed ? 0 : width, overflow: collapsed ? "hidden" : undefined }}
     >
-      <div className="wails-drag flex h-8 shrink-0 items-center pl-[75px]">
+      <div className="wails-drag flex h-11 shrink-0 items-center pl-[80px] pt-[7px]">
         <button
           onClick={() => onCollapsedChange(true)}
           style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}
