@@ -13,14 +13,15 @@ import (
 )
 
 type ProjectInfo struct {
-	Name          string        `json:"name"`
-	Session       string        `json:"session"`
-	Root          string        `json:"root"`
-	Running       bool          `json:"running"`
-	Services      []ServiceInfo `json:"services"`
-	Actions       []ActionInfo  `json:"actions"`
-	Profiles      []string      `json:"profiles"`
-	ActiveProfile string        `json:"activeProfile"`
+	Name          string               `json:"name"`
+	Session       string               `json:"session"`
+	Root          string               `json:"root"`
+	Running       bool                 `json:"running"`
+	Services      []ServiceInfo        `json:"services"`
+	Actions       []ActionInfo         `json:"actions"`
+	Terminals     []TerminalConfigInfo `json:"terminals"`
+	Profiles      []string             `json:"profiles"`
+	ActiveProfile string               `json:"activeProfile"`
 }
 
 type ServiceInfo struct {
@@ -34,6 +35,12 @@ type ActionInfo struct {
 	Name    string `json:"name"`
 	Label   string `json:"label"`
 	Confirm bool   `json:"confirm"`
+}
+
+type TerminalConfigInfo struct {
+	Name  string `json:"name"`
+	Label string `json:"label"`
+	Cmd   string `json:"cmd"`
 }
 
 func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, activeProfile string) ProjectInfo {
@@ -75,6 +82,26 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, activeP
 		})
 	}
 
+	termNames := make([]string, 0, len(cfg.Terminals))
+	for tName := range cfg.Terminals {
+		termNames = append(termNames, tName)
+	}
+	sort.Strings(termNames)
+
+	terminalConfigs := make([]TerminalConfigInfo, 0, len(termNames))
+	for _, tName := range termNames {
+		term := cfg.Terminals[tName]
+		label := term.Label
+		if label == "" {
+			label = tName
+		}
+		terminalConfigs = append(terminalConfigs, TerminalConfigInfo{
+			Name:  tName,
+			Label: label,
+			Cmd:   term.Cmd,
+		})
+	}
+
 	return ProjectInfo{
 		Name:          name,
 		Session:       cfg.Name,
@@ -82,6 +109,7 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, activeP
 		Running:       running,
 		Services:      services,
 		Actions:       actions,
+		Terminals:     terminalConfigs,
 		Profiles:      profiles,
 		ActiveProfile: activeProfile,
 	}

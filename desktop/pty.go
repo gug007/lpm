@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -63,8 +64,35 @@ func (a *App) StartTerminal(projectName string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("load project: %w", err)
 	}
+	return a.startTerminalInternal(cfg, projectName, cfg.Root, nil)
+}
 
+// StartTerminalWithConfig launches a terminal using settings from a named
+// terminal config (cwd, env). Returns the terminal ID.
+func (a *App) StartTerminalWithConfig(projectName string, terminalName string) (string, error) {
+	cfg, err := config.LoadProject(projectName)
+	if err != nil {
+		return "", fmt.Errorf("load project: %w", err)
+	}
+	term, ok := cfg.Terminals[terminalName]
+	if !ok {
+		return "", fmt.Errorf("terminal %q not found in project %q", terminalName, projectName)
+	}
 	dir := cfg.Root
+	if term.Cwd != "" {
+		if filepath.IsAbs(term.Cwd) {
+			dir = term.Cwd
+		} else {
+			dir = filepath.Join(cfg.Root, term.Cwd)
+		}
+	}
+	return a.startTerminalInternal(cfg, projectName, dir, term.Env)
+}
+
+func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName string, dir string, extraEnv map[string]string) (string, error) {
+	if dir == "" {
+		dir = cfg.Root
+	}
 	if dir == "" {
 		return "", fmt.Errorf("project has no root directory")
 	}
@@ -79,6 +107,9 @@ func (a *App) StartTerminal(projectName string) (string, error) {
 	cmd := exec.Command(shell, "-l")
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+	for k, v := range extraEnv {
+		cmd.Env = append(cmd.Env, k+"="+v)
+	}
 
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 24, Cols: 80})
 	if err != nil {

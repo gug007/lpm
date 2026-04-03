@@ -44,12 +44,29 @@ func (a *Action) UnmarshalYAML(value *yaml.Node) error {
 	return value.Decode((*plain)(a))
 }
 
+type Terminal struct {
+	Cmd   string            `yaml:"cmd"`
+	Label string            `yaml:"label,omitempty"`
+	Cwd   string            `yaml:"cwd,omitempty"`
+	Env   map[string]string `yaml:"env,omitempty"`
+}
+
+func (t *Terminal) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind == yaml.ScalarNode {
+		t.Cmd = value.Value
+		return nil
+	}
+	type plain Terminal
+	return value.Decode((*plain)(t))
+}
+
 type ProjectConfig struct {
-	Name     string              `yaml:"name"`
-	Root     string              `yaml:"root"`
-	Services map[string]Service  `yaml:"services"`
-	Actions  map[string]Action   `yaml:"actions,omitempty"`
-	Profiles map[string][]string `yaml:"profiles,omitempty"`
+	Name      string              `yaml:"name"`
+	Root      string              `yaml:"root"`
+	Services  map[string]Service  `yaml:"services"`
+	Actions   map[string]Action   `yaml:"actions,omitempty"`
+	Terminals map[string]Terminal `yaml:"terminals,omitempty"`
+	Profiles  map[string][]string `yaml:"profiles,omitempty"`
 }
 
 func LpmDir() string {
@@ -125,6 +142,12 @@ func LoadProject(name string) (*ProjectConfig, error) {
 			cfg.Actions[name] = act
 		}
 	}
+	for name, term := range cfg.Terminals {
+		if term.Cwd != "" {
+			term.Cwd = expandHome(term.Cwd)
+			cfg.Terminals[name] = term
+		}
+	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -178,6 +201,21 @@ func (p *ProjectConfig) Validate() error {
 		}
 	}
 
+	for name, term := range p.Terminals {
+		if strings.TrimSpace(term.Cmd) == "" {
+			errs = append(errs, fmt.Sprintf("terminal %q: missing cmd", name))
+		}
+		if term.Cwd != "" {
+			abs := term.Cwd
+			if !filepath.IsAbs(abs) {
+				abs = filepath.Join(p.Root, abs)
+			}
+			if info, err := os.Stat(abs); err != nil || !info.IsDir() {
+				errs = append(errs, fmt.Sprintf("terminal %q: cwd %q does not exist", name, term.Cwd))
+			}
+		}
+	}
+
 	for pName, services := range p.Profiles {
 		for _, svcName := range services {
 			if _, ok := p.Services[svcName]; !ok {
@@ -224,6 +262,7 @@ func SaveProject(cfg *ProjectConfig) error {
 	out := string(data)
 	out = strings.Replace(out, "\nservices:\n", "\n\nservices:\n", 1)
 	out = strings.Replace(out, "\nactions:\n", "\n\nactions:\n", 1)
+	out = strings.Replace(out, "\nterminals:\n", "\n\nterminals:\n", 1)
 	out = strings.Replace(out, "\nprofiles:\n", "\n\nprofiles:\n", 1)
 
 	path := filepath.Join(ProjectsDir(), cfg.Name+".yml")

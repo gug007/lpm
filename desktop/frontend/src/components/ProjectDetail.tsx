@@ -1,14 +1,14 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { ActionButton } from "./ActionButton";
-import { TerminalView } from "./TerminalView";
+import { TerminalView, type TerminalViewHandle } from "./TerminalView";
 import { ConfigEditor } from "./ConfigEditor";
 import { RunAction } from "../../wailsjs/go/main/App";
 import { getSettings, saveSettings } from "../settings";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
-import type { ProjectInfo, ActionInfo } from "../types";
-import { iconProps, XIcon } from "./icons";
+import type { ProjectInfo, ActionInfo, TerminalConfigInfo } from "../types";
+import { iconProps, XIcon, TrashIcon, RefreshIcon, TerminalIcon } from "./icons";
 
 const EMPTY_SERVICES: { name: string }[] = [];
 
@@ -86,11 +86,16 @@ function ActionTerminal({ label, onClose }: { label: string; onClose: () => void
   );
 }
 
-function ActionsPopover({ actions, projectName, onClose, onError }: {
+function QuickPopover({ actions, terminals, projectName, running, onClose, onError, onRunTerminal, onRestart, onRemove }: {
   actions: ActionInfo[];
+  terminals: TerminalConfigInfo[];
   projectName: string;
+  running: boolean;
   onClose: () => void;
   onError: (msg: string) => void;
+  onRunTerminal: (term: TerminalConfigInfo) => void;
+  onRestart: () => void;
+  onRemove: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [runningAction, setRunningAction] = useState<ActionInfo | null>(null);
@@ -130,20 +135,59 @@ function ActionsPopover({ actions, projectName, onClose, onError }: {
   return (
     <>
       <div ref={ref} className="absolute right-0 top-full z-50 mt-1 w-52 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
-        <div className="px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-          Actions
-        </div>
-        {actions.map((action) => (
+        {actions.length > 0 && (
+          <>
+            <div className="px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
+              Actions
+            </div>
+            {actions.map((action) => (
+              <button
+                key={action.name}
+                onClick={() => run(action)}
+                disabled={runningAction !== null}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
+              >
+                <span className="flex-1 font-mono truncate">{action.label}</span>
+                <PlayIcon />
+              </button>
+            ))}
+          </>
+        )}
+        {terminals.length > 0 && (
+          <>
+            {actions.length > 0 && <div className="my-1 border-t border-[var(--border)]" />}
+            <div className="px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
+              Terminals
+            </div>
+            {terminals.map((term) => (
+              <button
+                key={term.name}
+                onClick={() => { onRunTerminal(term); onClose(); }}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
+              >
+                <span className="flex-1 font-mono truncate">{term.label}</span>
+                <TerminalIcon />
+              </button>
+            ))}
+          </>
+        )}
+        {(actions.length > 0 || terminals.length > 0) && <div className="my-1 border-t border-[var(--border)]" />}
+        {running && (
           <button
-            key={action.name}
-            onClick={() => run(action)}
-            disabled={runningAction !== null}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
+            onClick={() => { onRestart(); onClose(); }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
           >
-            <span className="flex-1 font-mono truncate">{action.label}</span>
-            <PlayIcon />
+            <span className="flex-1 truncate">Restart</span>
+            <RefreshIcon />
           </button>
-        ))}
+        )}
+        <button
+          onClick={() => { onRemove(); onClose(); }}
+          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--accent-red)] transition-colors hover:bg-[var(--bg-hover)]"
+        >
+          <span className="flex-1 truncate">Remove</span>
+          <TrashIcon />
+        </button>
       </div>
 
       {confirmAction && (
@@ -212,7 +256,7 @@ export function ProjectDetail({
     if (project.activeProfile) setActiveProfile(project.activeProfile);
   }, [project.activeProfile]);
   const [confirmRemove, setConfirmRemove] = useState(false);
-  const [showActions, setShowActions] = useState(false);
+  const [showQuickMenu, setShowQuickMenu] = useState(false);
 
   const saved = getSettings().terminalTheme;
   const [termTheme, setTermTheme] = useState<TerminalThemeName>(
@@ -234,8 +278,9 @@ export function ProjectDetail({
     }
   };
 
+  const terminalViewRef = useRef<TerminalViewHandle>(null);
+
   const hasProfiles = project.profiles && project.profiles.length > 0;
-  const hasActions = project.actions && project.actions.length > 0;
   const [detailView, setDetailView] = useState<"terminal" | "config">(() => {
     const saved = getProjectTerminals(project.name).detailView;
     return saved === "config" ? "config" : "terminal";
@@ -296,76 +341,66 @@ export function ProjectDetail({
           )}
         </div>
         <div className="flex items-center gap-2" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
-          {hasActions && (
-            <div className="relative">
-              <button
-                onClick={() => setShowActions((v) => !v)}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                  showActions
-                    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                    : "border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                }`}
-              >
-                <ZapIcon />
-                Actions
-              </button>
-              {showActions && (
-                <ActionsPopover
-                  actions={project.actions}
-                  projectName={project.name}
-                  onClose={() => setShowActions(false)}
-                  onError={onError}
-                />
-              )}
-            </div>
-          )}
+          <div className="relative">
+            <button
+              onClick={() => setShowQuickMenu((v) => !v)}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                showQuickMenu
+                  ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                  : "border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              }`}
+            >
+              <ZapIcon />
+              Actions
+            </button>
+            {showQuickMenu && (
+              <QuickPopover
+                actions={project.actions ?? []}
+                terminals={project.terminals ?? []}
+                projectName={project.name}
+                running={project.running}
+                onClose={() => setShowQuickMenu(false)}
+                onError={onError}
+                onRunTerminal={async (term) => {
+                  switchDetailView("terminal");
+                  try {
+                    await terminalViewRef.current?.createTerminalWithCmd(term.label, term.name, term.cmd);
+                  } catch (err) {
+                    onError(`${term.label}: ${err}`);
+                  }
+                }}
+                onRestart={() => withLoading(() => onRestart(project.name, activeProfile))}
+                onRemove={() => setConfirmRemove(true)}
+              />
+            )}
+          </div>
           {project.running ? (
-            <>
-              <ActionButton
-                onClick={() =>
-                  withLoading(() =>
-                    onRestart(project.name, activeProfile)
-                  )
-                }
-                disabled={loading}
-                variant="secondary"
-                label="Restart"
-              />
-              <ActionButton
-                onClick={() =>
-                  withLoading(async () => {
-                    await onStop(project.name);
-                    const saved = getProjectTerminals(project.name).terminals;
-                    if (!saved || saved.length === 0) {
-                      switchDetailView("config");
-                    }
-                  })
-                }
-                disabled={loading}
-                variant="destructive"
-                label="Stop"
-              />
-            </>
+            <ActionButton
+              onClick={() =>
+                withLoading(async () => {
+                  await onStop(project.name);
+                  const saved = getProjectTerminals(project.name).terminals;
+                  if (!saved || saved.length === 0) {
+                    switchDetailView("config");
+                  }
+                })
+              }
+              disabled={loading}
+              variant="destructive"
+              label="Stop"
+            />
           ) : (
-            <>
-              <ActionButton
-                onClick={() => setConfirmRemove(true)}
-                disabled={false}
-                variant="secondary"
-                label="Remove"
-              />
-              <ActionButton
-                onClick={() =>
-                  withLoading(async () => {
-                    await onStart(project.name, activeProfile);
-                    setDetailView("terminal");
-                  })
-                }
-                disabled={loading}
-                variant="primary"
-                label="Start"
-              />
-            </>
+            <ActionButton
+              onClick={() =>
+                withLoading(async () => {
+                  await onStart(project.name, activeProfile);
+                  setDetailView("terminal");
+                })
+              }
+              disabled={loading}
+              variant="primary"
+              label="Start"
+            />
           )}
         </div>
       </div>
@@ -373,6 +408,7 @@ export function ProjectDetail({
       {detailView === "terminal" ? (
         <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden">
           <TerminalView
+            ref={terminalViewRef}
             projectName={project.name}
             services={project.running ? project.services : EMPTY_SERVICES}
             terminalTheme={termTheme}

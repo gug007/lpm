@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { GetServiceLogs, StartLogStreaming, StopLogStreaming, StartTerminal, StopTerminal } from "../../wailsjs/go/main/App";
+import { GetServiceLogs, StartLogStreaming, StopLogStreaming, StartTerminal, StartTerminalWithConfig, StopTerminal, WriteTerminal } from "../../wailsjs/go/main/App";
 import type { ITheme } from "@xterm/xterm";
 import { Pane, PaneHandle } from "./Pane";
 import { InteractivePane, InteractivePaneHandle } from "./InteractivePane";
@@ -8,7 +8,7 @@ import { getSettings, saveSettings } from "../settings";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
 import { ansiColors } from "./terminal-utils";
-import { iconProps, XIcon } from "./icons";
+import { iconProps, XIcon, TrashIcon } from "./icons";
 
 interface TerminalViewProps {
   projectName: string;
@@ -19,7 +19,6 @@ interface TerminalViewProps {
 }
 
 function SearchIcon() { return <svg {...iconProps}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>; }
-function TrashIcon() { return <svg {...iconProps}><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>; }
 function ArrowDownIcon() { return <svg {...iconProps}><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></svg>; }
 function MinusIcon() { return <svg {...iconProps}><path d="M5 12h14" /></svg>; }
 function PlusIcon() { return <svg {...iconProps}><path d="M12 5v14" /><path d="M5 12h14" /></svg>; }
@@ -178,7 +177,11 @@ interface InteractiveTerminal {
   label: string;
 }
 
-export function TerminalView({ projectName, services, terminalTheme, onTerminalThemeChange, visible = true }: TerminalViewProps) {
+export interface TerminalViewHandle {
+  createTerminalWithCmd(label: string, terminalConfigName: string, cmd: string): void;
+}
+
+export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ projectName, services, terminalTheme, onTerminalThemeChange, visible = true }, ref) {
   const [activePane, setActivePane] = useState<ActivePane>(() =>
     deserializeActivePane(getProjectTerminals(projectName).activeTab)
   );
@@ -418,17 +421,22 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
   }, [toggleSearch, zoomIn, zoomOut, closeSearch]);
 
   // New terminal management
+  const pendingTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+
+  const addTerminal = useCallback((id: string, label: string) => {
+    const index = terminalsRef.current.length;
+    const next = [...terminalsRef.current, { id, label }];
+    setTerminals(next);
+    setActivePane({ type: "terminal", index });
+    persistTerminals(next);
+  }, [persistTerminals]);
+
   const handleNewTerminal = useCallback(async () => {
     try {
       const id = await StartTerminal(projectName);
-      const index = terminalsRef.current.length;
-      const label = `Terminal ${index + 1}`;
-      const next = [...terminalsRef.current, { id, label }];
-      setTerminals(next);
-      setActivePane({ type: "terminal", index });
-      persistTerminals(next);
+      addTerminal(id, `Terminal ${terminalsRef.current.length + 1}`);
     } catch {}
-  }, [projectName, persistTerminals]);
+  }, [projectName, addTerminal]);
 
   const handleCloseTerminal = useCallback((index: number) => {
     const term = terminalsRef.current[index];
@@ -455,9 +463,22 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
     persistTerminals(next);
   }, [persistTerminals]);
 
-  // Cleanup all terminals on unmount
+  const createTerminalWithCmd = useCallback(async (label: string, terminalConfigName: string, cmd: string) => {
+    const id = await StartTerminalWithConfig(projectName, terminalConfigName);
+    addTerminal(id, label);
+    const timer = setTimeout(() => {
+      pendingTimers.current.delete(timer);
+      WriteTerminal(id, cmd + "\n").catch(() => {});
+    }, 300);
+    pendingTimers.current.add(timer);
+  }, [projectName, addTerminal]);
+
+  useImperativeHandle(ref, () => ({ createTerminalWithCmd }), [createTerminalWithCmd]);
+
+  // Cleanup all terminals and pending timers on unmount
   useEffect(() => {
     return () => {
+      pendingTimers.current.forEach(clearTimeout);
       terminalsRef.current.forEach((t) => {
         StopTerminal(t.id).catch(() => {});
       });
@@ -613,4 +634,4 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
       </div>
     </div>
   );
-}
+});
