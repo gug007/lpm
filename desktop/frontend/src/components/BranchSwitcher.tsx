@@ -4,6 +4,7 @@ import {
   ListBranches,
   CheckoutBranch,
   CreateBranch,
+  SyncBranch,
 } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 
@@ -105,21 +106,49 @@ export function BranchSwitcher({ projectPath, onError }: {
     }
   };
 
+  const sync = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await SyncBranch(projectPath);
+      await refresh();
+    } catch (err) {
+      onError(`Sync: ${err}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const needsSync = status.hasUpstream && (status.ahead > 0 || status.behind > 0);
+
   return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        title={busy ? "Switching branch…" : "Switch branch"}
-        disabled={busy}
-        className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] shadow-sm transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
-      >
-        <BranchIcon />
-        <span className="max-w-32 truncate">{status.branch || "detached"}</span>
-        {status.uncommitted > 0 && (
-          <span className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--text-muted)]" title={`${status.uncommitted} uncommitted file${status.uncommitted === 1 ? "" : "s"}`} />
-        )}
-        <ChevronDown />
-      </button>
+    <div className="flex items-center gap-1.5">
+      {needsSync && (
+        <button
+          onClick={sync}
+          disabled={busy}
+          title={busy ? "Syncing…" : `Pull ${status.behind}, push ${status.ahead}`}
+          className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)] shadow-sm transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
+        >
+          <SyncIcon spinning={busy} />
+          {status.behind > 0 && <span>{status.behind}↓</span>}
+          {status.ahead > 0 && <span>{status.ahead}↑</span>}
+        </button>
+      )}
+      <div ref={ref} className="relative">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          title={busy ? "Switching branch…" : "Switch branch"}
+          disabled={busy}
+          className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] shadow-sm transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
+        >
+          <BranchIcon />
+          <span className="max-w-32 truncate">{status.branch || "detached"}</span>
+          {status.uncommitted > 0 && (
+            <span className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--text-muted)]" title={`${status.uncommitted} uncommitted file${status.uncommitted === 1 ? "" : "s"}`} />
+          )}
+          <ChevronDown />
+        </button>
 
       {open && (
         <div className="absolute bottom-full right-0 z-50 mb-1 w-72 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] shadow-lg">
@@ -198,6 +227,7 @@ export function BranchSwitcher({ projectPath, onError }: {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -209,6 +239,26 @@ function BranchIcon() {
       <circle cx="18" cy="6" r="3" />
       <circle cx="6" cy="18" r="3" />
       <path d="M18 9a9 9 0 0 1-9 9" />
+    </svg>
+  );
+}
+
+function SyncIcon({ spinning }: { spinning: boolean }) {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={spinning ? "animate-spin" : undefined}
+    >
+      <polyline points="23 4 23 10 17 10" />
+      <polyline points="1 20 1 14 7 14" />
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
     </svg>
   );
 }

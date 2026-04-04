@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -12,6 +13,9 @@ type GitStatus struct {
 	Detached    bool   `json:"detached"`
 	Uncommitted int    `json:"uncommitted"`
 	IsGitRepo   bool   `json:"isGitRepo"`
+	HasUpstream bool   `json:"hasUpstream"`
+	Ahead       int    `json:"ahead"`
+	Behind      int    `json:"behind"`
 }
 
 func runGit(cwd string, args ...string) (string, error) {
@@ -49,6 +53,8 @@ func (a *App) GitStatus(cwd string) GitStatus {
 			s.Branch = header[len("No commits yet on "):]
 		} else if i := strings.Index(header, "..."); i >= 0 {
 			s.Branch = header[:i]
+			s.HasUpstream = true
+			s.Ahead, s.Behind = parseAheadBehind(header[i+3:])
 		} else if i := strings.IndexByte(header, ' '); i >= 0 {
 			s.Branch = header[:i]
 		} else {
@@ -80,6 +86,36 @@ func (a *App) GitStatus(cwd string) GitStatus {
 		s.Uncommitted = unstaged + untracked
 	}
 	return s
+}
+
+// parseAheadBehind reads the " [ahead N, behind M]" suffix that follows the
+// upstream ref in the porcelain --branch header.
+func parseAheadBehind(tail string) (ahead, behind int) {
+	lb := strings.IndexByte(tail, '[')
+	rb := strings.IndexByte(tail, ']')
+	if lb < 0 || rb < 0 || rb < lb {
+		return 0, 0
+	}
+	for _, part := range strings.Split(tail[lb+1:rb], ",") {
+		part = strings.TrimSpace(part)
+		if n, ok := strings.CutPrefix(part, "ahead "); ok {
+			v, _ := strconv.Atoi(n)
+			ahead = v
+		} else if n, ok := strings.CutPrefix(part, "behind "); ok {
+			v, _ := strconv.Atoi(n)
+			behind = v
+		}
+	}
+	return ahead, behind
+}
+
+// SyncBranch pulls then pushes to bring the current branch in sync with its upstream.
+func (a *App) SyncBranch(cwd string) error {
+	if _, err := runGit(cwd, "pull", "--ff-only"); err != nil {
+		return err
+	}
+	_, err := runGit(cwd, "push")
+	return err
 }
 
 func (a *App) ListBranches(cwd string) ([]string, error) {
