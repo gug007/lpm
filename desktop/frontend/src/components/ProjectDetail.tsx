@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { ActionButton } from "./ActionButton";
+import { OpenInDropdown } from "./OpenInDropdown";
 import { TerminalView, type TerminalViewHandle } from "./TerminalView";
 import { ConfigEditor } from "./ConfigEditor";
 import { RunAction } from "../../wailsjs/go/main/App";
@@ -328,6 +329,7 @@ export function ProjectDetail({
               label={term.label}
             />
           ))}
+          <OpenInDropdown projectPath={project.root} onError={onError} />
           <div className="relative">
             <button
               onClick={() => { setShowProfileMenu(false); setShowQuickMenu((v) => !v); }}

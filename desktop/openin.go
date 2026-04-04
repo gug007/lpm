@@ -1,0 +1,260 @@
+package main
+
+import (
+	"embed"
+	"encoding/base64"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"sync"
+)
+
+//go:embed assets/apps/*.png
+var openInIcons embed.FS
+
+type OpenInTarget struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Icon  string `json:"icon"`
+}
+
+type targetDef struct {
+	id      string
+	label   string
+	iconPng string
+	detect  func() string
+	launch  func(appPath, projectPath string) error
+}
+
+func iconDataURI(name string) string {
+	data, err := openInIcons.ReadFile("assets/apps/" + name)
+	if err != nil {
+		return ""
+	}
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(data)
+}
+
+func appDirs() []string {
+	home, _ := os.UserHomeDir()
+	return []string{"/Applications", filepath.Join(home, "Applications")}
+}
+
+// expandAppCandidates maps /Applications/X.app → [/Applications/X.app, ~/Applications/X.app]
+// so user-installed apps are checked alongside system-wide ones.
+func expandAppCandidates(path string) []string {
+	if strings.HasPrefix(path, "/Applications/") {
+		home, _ := os.UserHomeDir()
+		return []string{path, filepath.Join(home, "Applications", path[len("/Applications/"):])}
+	}
+	return []string{path}
+}
+
+func detectByPaths(paths ...string) string {
+	for _, p := range paths {
+		for _, cand := range expandAppCandidates(p) {
+			if _, err := os.Stat(cand); err == nil {
+				return cand
+			}
+		}
+	}
+	return ""
+}
+
+// detectByPrefix is a fallback for apps with variant bundle names (e.g. "Cursor Nightly.app").
+func detectByPrefix(prefix string) string {
+	needle := strings.ToLower(prefix)
+	for _, dir := range appDirs() {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			n := strings.ToLower(e.Name())
+			if strings.HasPrefix(n, needle) && strings.HasSuffix(n, ".app") {
+				return filepath.Join(dir, e.Name())
+			}
+		}
+	}
+	return ""
+}
+
+func launchOpenA(appName, projectPath string) error {
+	return exec.Command("open", "-a", appName, projectPath).Run()
+}
+
+func launchAppleScript(script string) error {
+	return exec.Command("osascript", "-e", script).Run()
+}
+
+// appleScriptEscape escapes a string for embedding inside an AppleScript double-quoted literal.
+func appleScriptEscape(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, `\`, `\\`), `"`, `\"`)
+}
+
+func launchTerminalApp(_ string, projectPath string) error {
+	script := fmt.Sprintf(`tell application "Terminal" to do script "cd %s; clear"`,
+		appleScriptEscape(projectPath))
+	if err := launchAppleScript(script); err != nil {
+		return err
+	}
+	return launchAppleScript(`tell application "Terminal" to activate`)
+}
+
+func launchITerm(_ string, projectPath string) error {
+	script := fmt.Sprintf(`tell application "iTerm"
+  activate
+  create window with default profile
+  tell current session of current window to write text "cd %s; clear"
+end tell`, appleScriptEscape(projectPath))
+	return launchAppleScript(script)
+}
+
+func launchGhostty(_ string, projectPath string) error {
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = "/bin/zsh"
+	}
+	return exec.Command("open", "-na", "Ghostty.app", "--args",
+		"-e", shell, "-lc", fmt.Sprintf("cd %q && exec %s", projectPath, shell)).Run()
+}
+
+// Registry order is the display order.
+var targets = []targetDef{
+	{
+		id: "cursor", label: "Cursor", iconPng: "cursor.png",
+		detect: func() string {
+			if p := detectByPaths(
+				"/Applications/Cursor.app",
+				"/Applications/Cursor Nightly.app",
+			); p != "" {
+				return p
+			}
+			return detectByPrefix("Cursor")
+		},
+		launch: func(_, path string) error { return launchOpenA("Cursor", path) },
+	},
+	{
+		id: "vscode", label: "VS Code", iconPng: "vscode.png",
+		detect: func() string {
+			return detectByPaths(
+				"/Applications/Visual Studio Code.app",
+				"/Applications/Code.app",
+			)
+		},
+		launch: func(_, path string) error { return launchOpenA("Visual Studio Code", path) },
+	},
+	{
+		id: "vscode-insiders", label: "VS Code Insiders", iconPng: "vscode-insiders.png",
+		detect: func() string {
+			return detectByPaths(
+				"/Applications/Visual Studio Code - Insiders.app",
+				"/Applications/Code - Insiders.app",
+			)
+		},
+		launch: func(_, path string) error { return launchOpenA("Visual Studio Code - Insiders", path) },
+	},
+	{
+		id: "windsurf", label: "Windsurf", iconPng: "windsurf.png",
+		detect: func() string { return detectByPaths("/Applications/Windsurf.app") },
+		launch: func(_, path string) error { return launchOpenA("Windsurf", path) },
+	},
+	{
+		id: "zed", label: "Zed", iconPng: "zed.png",
+		detect: func() string { return detectByPaths("/Applications/Zed.app", "/Applications/Zed Preview.app") },
+		launch: func(_, path string) error { return launchOpenA("Zed", path) },
+	},
+	{
+		id: "xcode", label: "Xcode", iconPng: "xcode.png",
+		detect: func() string { return detectByPaths("/Applications/Xcode.app") },
+		launch: func(_, path string) error { return launchOpenA("Xcode", path) },
+	},
+	{
+		id: "sublime-text", label: "Sublime Text", iconPng: "sublime-text.png",
+		detect: func() string { return detectByPaths("/Applications/Sublime Text.app") },
+		launch: func(_, path string) error { return launchOpenA("Sublime Text", path) },
+	},
+	{
+		id: "terminal", label: "Terminal", iconPng: "terminal.png",
+		detect: func() string {
+			return detectByPaths("/System/Applications/Utilities/Terminal.app", "/Applications/Utilities/Terminal.app")
+		},
+		launch: launchTerminalApp,
+	},
+	{
+		id: "iterm2", label: "iTerm2", iconPng: "iterm2.png",
+		detect: func() string { return detectByPaths("/Applications/iTerm.app", "/Applications/iTerm2.app") },
+		launch: launchITerm,
+	},
+	{
+		id: "ghostty", label: "Ghostty", iconPng: "ghostty.png",
+		detect: func() string { return detectByPaths("/Applications/Ghostty.app") },
+		launch: launchGhostty,
+	},
+	{
+		id: "warp", label: "Warp", iconPng: "warp.png",
+		detect: func() string { return detectByPaths("/Applications/Warp.app") },
+		launch: func(_, path string) error { return launchOpenA("Warp", path) },
+	},
+	{
+		id: "finder", label: "Finder", iconPng: "finder.png",
+		detect: func() string { return "/System/Library/CoreServices/Finder.app" },
+		launch: func(_, path string) error { return exec.Command("open", path).Run() },
+	},
+}
+
+var targetsByID = func() map[string]*targetDef {
+	m := make(map[string]*targetDef, len(targets))
+	for i := range targets {
+		m[targets[i].id] = &targets[i]
+	}
+	return m
+}()
+
+// Detection runs once per session — new app installs require an app restart.
+var (
+	listCacheMu sync.Mutex
+	listCache   []OpenInTarget
+)
+
+func (a *App) ListOpenInTargets() []OpenInTarget {
+	listCacheMu.Lock()
+	defer listCacheMu.Unlock()
+	if listCache != nil {
+		return listCache
+	}
+
+	out := make([]OpenInTarget, 0, len(targets))
+	for _, t := range targets {
+		if t.detect() == "" {
+			continue
+		}
+		out = append(out, OpenInTarget{
+			ID:    t.id,
+			Label: t.label,
+			Icon:  iconDataURI(t.iconPng),
+		})
+	}
+	listCache = out
+	return out
+}
+
+func (a *App) OpenIn(targetID, projectPath string) error {
+	t, ok := targetsByID[targetID]
+	if !ok {
+		return fmt.Errorf("unknown open-in target: %s", targetID)
+	}
+	appPath := t.detect()
+	if appPath == "" {
+		return fmt.Errorf("%s is not installed", t.label)
+	}
+	if projectPath == "" {
+		return fmt.Errorf("empty project path")
+	}
+	if strings.HasPrefix(projectPath, "~/") {
+		home, _ := os.UserHomeDir()
+		projectPath = filepath.Join(home, projectPath[2:])
+	}
+	return t.launch(appPath, projectPath)
+}
