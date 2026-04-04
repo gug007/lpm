@@ -7,6 +7,7 @@ extern void quitApp(void);
 
 static NSMutableArray<NSString *> *_projectNames = nil;
 static NSMutableArray<NSNumber *> *_projectRunning = nil;
+static BOOL _forceTerminate = NO;
 
 @interface LPMDockMenuHandler : NSObject
 + (instancetype)shared;
@@ -29,8 +30,18 @@ static NSMutableArray<NSNumber *> *_projectRunning = nil;
 @end
 
 static NSApplicationTerminateReply lpm_applicationShouldTerminate(id self, SEL _cmd, NSApplication *sender) {
+	if (_forceTerminate) {
+		return NSTerminateNow;
+	}
 	quitApp();
 	return NSTerminateCancel;
+}
+
+void forceTerminateApp(void) {
+	_forceTerminate = YES;
+	dispatch_async(dispatch_get_main_queue(), ^{
+		[[NSApplication sharedApplication] terminate:nil];
+	});
 }
 
 static BOOL lpm_applicationShouldHandleReopen(id self, SEL _cmd, NSApplication *sender, BOOL hasVisibleWindows) {

@@ -207,7 +207,7 @@ func (a *App) InstallUpdate() error {
 	// then launches the updated app. This avoids two simultaneous
 	// instances fighting over the same Wails port / dock icon.
 	script := fmt.Sprintf(
-		`while kill -0 %d 2>/dev/null; do sleep 0.2; done; open %q`,
+		`while kill -0 %d 2>/dev/null; do sleep 0.2; done; sleep 0.5; open %q`,
 		os.Getpid(), dstApp,
 	)
 	relaunch := exec.Command("bash", "-c", script)
@@ -216,6 +216,10 @@ func (a *App) InstallUpdate() error {
 		return fmt.Errorf("failed to schedule relaunch: %w", err)
 	}
 	a.shutdown(a.ctx)
+	// Terminate through Cocoa so the dock icon is properly released.
+	forceTerminate()
+	// Fallback if the main run-loop can't process the terminate in time.
+	time.Sleep(3 * time.Second)
 	os.Exit(0)
 	return nil // unreachable; satisfies compiler
 }

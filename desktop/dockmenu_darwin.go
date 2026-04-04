@@ -6,6 +6,7 @@ package main
 
 extern void setupDockMenu(void);
 extern void updateDockMenuProjects(const char **names, const int *running, int count);
+extern void forceTerminateApp(void);
 */
 import "C"
 
@@ -53,6 +54,12 @@ func quitApp() {
 		}
 		os.Exit(0)
 	}()
+}
+
+// forceTerminate triggers a proper Cocoa termination so the dock icon
+// is cleaned up before the updated app instance launches.
+func forceTerminate() {
+	C.forceTerminateApp()
 }
 
 func initDockMenu(app *App) {
