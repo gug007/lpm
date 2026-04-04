@@ -199,6 +199,7 @@ func (a *App) ReorderProjects(order []string) error {
 	a.cacheMu.Lock()
 	a.projectOrder = order
 	a.cacheMu.Unlock()
+	go a.ListProjects()
 	return nil
 }
 
