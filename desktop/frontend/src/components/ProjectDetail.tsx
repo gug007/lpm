@@ -330,7 +330,7 @@ export function ProjectDetail({
               }`}
             >
               <ZapIcon />
-              Actions
+              Menu
             </button>
             {showQuickMenu && (
               <QuickPopover
