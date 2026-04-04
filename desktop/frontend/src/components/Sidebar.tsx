@@ -147,9 +147,6 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
             >
               <StatusDot running={project.running} />
               <span className="truncate">{project.name}</span>
-              <span className="ml-auto text-xs text-[var(--text-muted)]">
-                {project.services?.length || 0}
-              </span>
             </button>
             {showDropBelow(idx) && (
               <div className="absolute inset-x-3 bottom-0 h-px bg-[var(--accent-cyan)]" />
