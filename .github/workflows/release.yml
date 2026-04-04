@@ -80,6 +80,15 @@ jobs:
         working-directory: desktop
         run: wails build -platform darwin/arm64 -ldflags "-X main.Version=${GITHUB_REF_NAME#v}"
 
+      - name: Build dock tile plugin (arm64)
+        run: |
+          PLUGIN_DIR="desktop/build/bin/lpm.app/Contents/PlugIns/LPMDockTile.docktileplugin/Contents"
+          mkdir -p "$PLUGIN_DIR/MacOS"
+          clang -arch arm64 -mmacosx-version-min=10.15 -framework Cocoa -bundle \
+            -o "$PLUGIN_DIR/MacOS/LPMDockTile" \
+            desktop/docktileplugin/LPMDockTilePlugin.m
+          cp desktop/docktileplugin/Info.plist "$PLUGIN_DIR/"
+
       - name: Sign arm64
         run: |
           codesign --deep --force --options runtime \
@@ -110,6 +119,15 @@ jobs:
       - name: Build amd64
         working-directory: desktop
         run: wails build -platform darwin/amd64 -ldflags "-X main.Version=${GITHUB_REF_NAME#v}"
+
+      - name: Build dock tile plugin (amd64)
+        run: |
+          PLUGIN_DIR="desktop/build/bin/lpm.app/Contents/PlugIns/LPMDockTile.docktileplugin/Contents"
+          mkdir -p "$PLUGIN_DIR/MacOS"
+          clang -arch x86_64 -mmacosx-version-min=10.15 -framework Cocoa -bundle \
+            -o "$PLUGIN_DIR/MacOS/LPMDockTile" \
+            desktop/docktileplugin/LPMDockTilePlugin.m
+          cp desktop/docktileplugin/Info.plist "$PLUGIN_DIR/"
 
       - name: Sign amd64
         run: |
