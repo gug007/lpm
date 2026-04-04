@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -82,22 +83,34 @@ func (a *App) GitStatus(cwd string) GitStatus {
 	return s
 }
 
-func (a *App) ListBranches(cwd string) ([]string, error) {
+type Branch struct {
+	Name          string `json:"name"`
+	CommitterDate int64  `json:"committerDate"`
+}
+
+func (a *App) ListBranches(cwd string) ([]Branch, error) {
 	out, err := runGit(cwd, "for-each-ref",
 		"--count=100", "--sort=-committerdate", "refs/heads",
-		"--format=%(refname:short)")
+		"--format=%(refname:short)%00%(committerdate:unix)")
 	if err != nil {
 		return nil, err
 	}
 	if out == "" {
-		return []string{}, nil
+		return []Branch{}, nil
 	}
 	lines := strings.Split(out, "\n")
-	branches := make([]string, 0, len(lines))
+	branches := make([]Branch, 0, len(lines))
 	for _, line := range lines {
-		if trimmed := strings.TrimSpace(line); trimmed != "" {
-			branches = append(branches, trimmed)
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
 		}
+		name, dateStr, ok := strings.Cut(line, "\x00")
+		if !ok {
+			continue
+		}
+		date, _ := strconv.ParseInt(dateStr, 10, 64)
+		branches = append(branches, Branch{Name: name, CommitterDate: date})
 	}
 	return branches, nil
 }
