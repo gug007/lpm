@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { ActionButton } from "./ActionButton";
 import { OpenInDropdown } from "./OpenInDropdown";
+import { BranchSwitcher } from "./BranchSwitcher";
 import { TerminalView, type TerminalViewHandle } from "./TerminalView";
 import { ConfigEditor } from "./ConfigEditor";
 import { RunAction } from "../../wailsjs/go/main/App";
@@ -442,7 +443,7 @@ export function ProjectDetail({
           </div>
         </div>
       )}
-      <div className={detailView === "terminal" && !showEmptyState ? "mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden" : "hidden"}>
+      <div className={detailView === "terminal" && !showEmptyState ? "relative mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden" : "hidden"}>
         <TerminalView
           ref={terminalViewRef}
           projectName={project.name}
@@ -452,6 +453,11 @@ export function ProjectDetail({
           onTerminalCountChange={setTerminalCount}
           visible={visible && detailView === "terminal" && !showEmptyState}
         />
+        <div className="pointer-events-none absolute bottom-3 right-3 z-20">
+          <div className="pointer-events-auto">
+            <BranchSwitcher projectPath={project.root} onError={onError} />
+          </div>
+        </div>
       </div>
       {detailView === "config" && (
         <div className="mt-1.5 -mx-6 -mb-6 flex flex-1 flex-col overflow-hidden">
