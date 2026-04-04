@@ -8,9 +8,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
 	goruntime "runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gug007/lpm/internal/version"
