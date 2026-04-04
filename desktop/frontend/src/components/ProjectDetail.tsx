@@ -418,7 +418,7 @@ export function ProjectDetail({
       </div>
 
       {showEmptyState && (
-        <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden rounded-t-lg border-x border-[var(--border)] bg-[var(--terminal-bg)]">
+        <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden">
           <div className="flex flex-col items-center gap-4">
             <p className="text-sm text-[var(--text-muted)]">No active terminals</p>
             <div className="flex items-center gap-3">
