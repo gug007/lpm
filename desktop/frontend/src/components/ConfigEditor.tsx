@@ -33,14 +33,15 @@ export function ConfigEditor({ projectName, onSaved, onBack }: ConfigEditorProps
   return (
     <div className="flex h-full flex-col">
       {onBack && (
-        <div className="flex items-center px-6 pt-3 pb-1">
+        <div className="flex items-center gap-3 px-6 pt-3 pb-2">
           <button
             onClick={onBack}
-            className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
+            className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            title="Back to terminal"
           >
             <ChevronLeftIcon />
-            Back
           </button>
+          <span className="text-sm font-medium text-[var(--text-primary)]">Config</span>
         </div>
       )}
       <div className="relative flex-1 overflow-hidden">
