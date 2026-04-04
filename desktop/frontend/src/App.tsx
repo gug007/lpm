@@ -71,6 +71,11 @@ export default function App() {
 
     const cancelEvent = EventsOn("projects-changed", refresh);
 
+    const cancelDock = EventsOn("dock-project-selected", (name: string) => {
+      setSelected(name);
+      setView("projects");
+    });
+
     const onVisibility = () => {
       if (document.hidden) {
         if (interval) { clearInterval(interval); interval = null; }
@@ -85,6 +90,7 @@ export default function App() {
       if (interval) clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisibility);
       if (typeof cancelEvent === "function") cancelEvent();
+      if (typeof cancelDock === "function") cancelDock();
     };
   }, [refresh]);
 

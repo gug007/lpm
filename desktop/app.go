@@ -60,6 +60,7 @@ func (a *App) startup(ctx context.Context) {
 	a.projectOrder = settings.ProjectOrder
 
 	SetTrafficLightPosition(14, 19)
+	initDockMenu(a)
 
 	go a.autoCheckForUpdate()
 }

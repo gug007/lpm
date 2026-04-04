@@ -148,6 +148,8 @@ func (a *App) ListProjects() ([]ProjectInfo, error) {
 		projects = append(projects, toProjectInfo(name, cfg, running, profile))
 	}
 
+	refreshDockMenu(projects)
+
 	return projects, nil
 }
 
