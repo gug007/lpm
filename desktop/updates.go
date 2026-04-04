@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	goruntime "runtime"
 	"strings"
 	"time"
@@ -202,10 +203,17 @@ func (a *App) InstallUpdate() error {
 	os.Remove(dmgPath)
 	os.Remove(mountPoint)
 
-	// Launch the updated app as a new instance, then exit immediately
-	// so macOS doesn't show two dock icons during the transition.
-	if err := exec.Command("open", "-n", dstApp).Run(); err != nil {
-		return fmt.Errorf("failed to launch updated app: %w", err)
+	// Spawn a detached process that waits for this process to exit,
+	// then launches the updated app. This avoids two simultaneous
+	// instances fighting over the same Wails port / dock icon.
+	script := fmt.Sprintf(
+		`while kill -0 %d 2>/dev/null; do sleep 0.2; done; open %q`,
+		os.Getpid(), dstApp,
+	)
+	relaunch := exec.Command("bash", "-c", script)
+	relaunch.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := relaunch.Start(); err != nil {
+		return fmt.Errorf("failed to schedule relaunch: %w", err)
 	}
 	a.shutdown(a.ctx)
 	os.Exit(0)
