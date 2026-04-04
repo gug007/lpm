@@ -12,6 +12,7 @@ import { iconProps, XIcon, TrashIcon, RefreshIcon, TerminalIcon, CheckIcon } fro
 
 const EMPTY_SERVICES: { name: string }[] = [];
 
+function ChevronDownIcon({ size = 14 }: { size?: number }) { return <svg {...iconProps} width={size} height={size}><path d="m6 9 6 6 6-6" /></svg>; }
 function ZapIcon() { return <svg {...iconProps}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>; }
 function PlayIcon() { return <svg {...iconProps} width={12} height={12} fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3" /></svg>; }
 function SpinnerIcon() {
@@ -197,6 +198,8 @@ export function ProjectDetail({
   }, [project.activeProfile]);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [showQuickMenu, setShowQuickMenu] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
 
   const saved = getSettings().terminalTheme;
   const [termTheme, setTermTheme] = useState<TerminalThemeName>(
@@ -217,6 +220,15 @@ export function ProjectDetail({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!showProfileMenu) return;
+    const handle = (e: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) setShowProfileMenu(false);
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [showProfileMenu]);
 
   const terminalViewRef = useRef<TerminalViewHandle>(null);
 
@@ -296,24 +308,6 @@ export function ProjectDetail({
               Config
             </button>
           </div>
-          {hasProfiles && (
-            <div className="flex items-center rounded border border-[var(--border)] p-px" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
-              {project.profiles.map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setActiveProfile(p)}
-                  disabled={project.running}
-                  className={`rounded-sm px-2 py-0.5 text-[10px] font-medium transition-colors disabled:cursor-default ${
-                    activeProfile === p
-                      ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                      : "text-[var(--text-muted)] hover:text-[var(--text-secondary)] disabled:hover:text-[var(--text-muted)]"
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
         <div className="flex items-center gap-2" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
           {buttonActions.map((action) => (
@@ -375,6 +369,53 @@ export function ProjectDetail({
               variant="destructive"
               label="Stop"
             />
+          ) : hasProfiles ? (
+            <div ref={profileMenuRef} className="relative flex">
+              <button
+                onClick={() =>
+                  withLoading(async () => {
+                    await onStart(project.name, activeProfile);
+                    setDetailView("terminal");
+                  })
+                }
+                disabled={loading}
+                className="rounded-l-lg px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-85"
+              >
+                Start
+              </button>
+              <button
+                onClick={() => setShowProfileMenu((v) => !v)}
+                disabled={loading}
+                className="rounded-r-lg border-l border-[var(--bg-primary)]/20 px-1.5 py-1.5 transition-all disabled:opacity-40 bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-85"
+              >
+                <ChevronDownIcon size={12} />
+              </button>
+              {showProfileMenu && (
+                <div className="absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
+                  {project.profiles.map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => {
+                        setActiveProfile(p);
+                        setShowProfileMenu(false);
+                      }}
+                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)] ${
+                        activeProfile === p
+                          ? "text-[var(--text-primary)] font-medium"
+                          : "text-[var(--text-secondary)]"
+                      }`}
+                    >
+                      <span className="flex-1">{p}</span>
+                      {activeProfile === p && (
+                        <svg {...iconProps} width={12} height={12} stroke="var(--accent-green)" strokeWidth={2}>
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           ) : (
             <ActionButton
               onClick={() =>
