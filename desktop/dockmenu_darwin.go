@@ -40,13 +40,6 @@ func showMainWindow() {
 	}
 }
 
-//export hideMainWindow
-func hideMainWindow() {
-	if dockApp != nil && dockApp.ctx != nil {
-		go wailsRuntime.WindowHide(dockApp.ctx)
-	}
-}
-
 //export quitApp
 func quitApp() {
 	go func() {

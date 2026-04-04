@@ -2,7 +2,6 @@
 #import <objc/runtime.h>
 
 extern void dockMenuItemClicked(char *name);
-extern void hideMainWindow(void);
 extern void showMainWindow(void);
 extern void quitApp(void);
 
@@ -27,14 +26,10 @@ static NSMutableArray<NSNumber *> *_projectRunning = nil;
 - (void)projectSelected:(NSMenuItem *)sender {
 	dockMenuItemClicked((char *)[sender.representedObject UTF8String]);
 }
-
-- (void)doQuit:(NSMenuItem *)sender {
-	quitApp();
-}
 @end
 
 static NSApplicationTerminateReply lpm_applicationShouldTerminate(id self, SEL _cmd, NSApplication *sender) {
-	hideMainWindow();
+	quitApp();
 	return NSTerminateCancel;
 }
 
@@ -61,13 +56,6 @@ static NSMenu *lpm_applicationDockMenu(id self, SEL _cmd, NSApplication *sender)
 		[item setRepresentedObject:name];
 		[dockMenu addItem:item];
 	}
-
-	[dockMenu addItem:[NSMenuItem separatorItem]];
-	NSMenuItem *quitItem = [[NSMenuItem alloc] initWithTitle:@"Quit lpm"
-	                                                 action:@selector(doQuit:)
-	                                          keyEquivalent:@""];
-	[quitItem setTarget:[LPMDockMenuHandler shared]];
-	[dockMenu addItem:quitItem];
 
 	return dockMenu;
 }
