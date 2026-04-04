@@ -21,8 +21,6 @@
         <string>10.13.0</string>
         <key>NSHighResolutionCapable</key>
         <string>true</string>
-        <key>NSDockTilePlugIn</key>
-        <string>LPMDockTile.docktileplugin</string>
         <key>NSHumanReadableCopyright</key>
         <string>{{.Info.Copyright}}</string>
         {{if .Info.FileAssociations}}
