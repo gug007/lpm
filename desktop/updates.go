@@ -197,12 +197,17 @@ func (a *App) InstallUpdate() error {
 		return fmt.Errorf("failed to finalize update: %w", err)
 	}
 
-	// Cleanup explicitly before quit (defers may not run after Quit)
+	// Cleanup explicitly before exit (defers won't run after os.Exit)
 	exec.Command("hdiutil", "detach", mountPoint, "-quiet").Run()
 	os.Remove(dmgPath)
+	os.Remove(mountPoint)
 
-	exec.Command("open", dstApp).Start()
-	runtime.Quit(a.ctx)
-
-	return nil
+	// Launch the updated app as a new instance, then exit immediately
+	// so macOS doesn't show two dock icons during the transition.
+	if err := exec.Command("open", "-n", dstApp).Run(); err != nil {
+		return fmt.Errorf("failed to launch updated app: %w", err)
+	}
+	a.shutdown(a.ctx)
+	os.Exit(0)
+	return nil // unreachable; satisfies compiler
 }
