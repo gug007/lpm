@@ -8,7 +8,7 @@ import { getSettings, saveSettings } from "../settings";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
 import type { ProjectInfo, ActionInfo, TerminalConfigInfo } from "../types";
-import { iconProps, XIcon, TrashIcon, RefreshIcon, TerminalIcon, CheckIcon, ChevronDownIcon } from "./icons";
+import { iconProps, XIcon, TrashIcon, RefreshIcon, TerminalIcon, CheckIcon, ChevronDownIcon, PencilIcon } from "./icons";
 
 const EMPTY_SERVICES: { name: string }[] = [];
 
@@ -287,33 +287,9 @@ export function ProjectDetail({
   return (
     <div className="flex h-full flex-col">
       <div className={`wails-drag flex items-center justify-between -mx-3 py-1 transition-[padding] duration-200 ${sidebarCollapsed ? "pl-[100px]" : ""}`}>
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold tracking-tight">
-            {project.name}
-          </h1>
-          <div className="flex items-center rounded border border-[var(--border)] p-px" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
-            <button
-              onClick={() => switchDetailView("terminal")}
-              className={`rounded-sm px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                detailView === "terminal"
-                  ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-              }`}
-            >
-              Terminal
-            </button>
-            <button
-              onClick={() => switchDetailView("config")}
-              className={`rounded-sm px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                detailView === "config"
-                  ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-              }`}
-            >
-              Config
-            </button>
-          </div>
-        </div>
+        <h1 className="text-xl font-semibold tracking-tight">
+          {project.name}
+        </h1>
         <div className="flex items-center gap-2" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
           {buttonActions.map((action) => (
             <ActionButton
@@ -333,6 +309,17 @@ export function ProjectDetail({
               label={term.label}
             />
           ))}
+          <button
+            onClick={() => switchDetailView(detailView === "config" ? "terminal" : "config")}
+            title={detailView === "config" ? "Switch to terminal" : "Edit configuration"}
+            className={`rounded-lg p-1.5 transition-colors ${
+              detailView === "config"
+                ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+            }`}
+          >
+            {detailView === "config" ? <TerminalIcon /> : <PencilIcon />}
+          </button>
           <div className="relative">
             <button
               onClick={() => { setShowProfileMenu(false); setShowQuickMenu((v) => !v); }}
