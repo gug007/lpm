@@ -8,11 +8,10 @@ import { getSettings, saveSettings } from "../settings";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
 import type { ProjectInfo, ActionInfo, TerminalConfigInfo } from "../types";
-import { iconProps, XIcon, TrashIcon, RefreshIcon, TerminalIcon, CheckIcon } from "./icons";
+import { iconProps, XIcon, TrashIcon, RefreshIcon, TerminalIcon, CheckIcon, ChevronDownIcon } from "./icons";
 
 const EMPTY_SERVICES: { name: string }[] = [];
 
-function ChevronDownIcon({ size = 14 }: { size?: number }) { return <svg {...iconProps} width={size} height={size}><path d="m6 9 6 6 6-6" /></svg>; }
 function ZapIcon() { return <svg {...iconProps}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>; }
 function PlayIcon() { return <svg {...iconProps} width={12} height={12} fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3" /></svg>; }
 function SpinnerIcon() {
@@ -221,6 +220,12 @@ export function ProjectDetail({
     }
   };
 
+  const handleStart = () =>
+    withLoading(async () => {
+      await onStart(project.name, activeProfile);
+      setDetailView("terminal");
+    });
+
   useEffect(() => {
     if (!showProfileMenu) return;
     const handle = (e: MouseEvent) => {
@@ -330,7 +335,7 @@ export function ProjectDetail({
           ))}
           <div className="relative">
             <button
-              onClick={() => setShowQuickMenu((v) => !v)}
+              onClick={() => { setShowProfileMenu(false); setShowQuickMenu((v) => !v); }}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                 showQuickMenu
                   ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
@@ -372,23 +377,18 @@ export function ProjectDetail({
           ) : hasProfiles ? (
             <div ref={profileMenuRef} className="relative flex">
               <button
-                onClick={() =>
-                  withLoading(async () => {
-                    await onStart(project.name, activeProfile);
-                    setDetailView("terminal");
-                  })
-                }
+                onClick={handleStart}
                 disabled={loading}
                 className="rounded-l-lg px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-85"
               >
                 Start
               </button>
               <button
-                onClick={() => setShowProfileMenu((v) => !v)}
+                onClick={() => { setShowQuickMenu(false); setShowProfileMenu((v) => !v); }}
                 disabled={loading}
                 className="rounded-r-lg border-l border-[var(--bg-primary)]/20 px-1.5 py-1.5 transition-all disabled:opacity-40 bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-85"
               >
-                <ChevronDownIcon size={12} />
+                <ChevronDownIcon />
               </button>
               {showProfileMenu && (
                 <div className="absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
@@ -407,9 +407,7 @@ export function ProjectDetail({
                     >
                       <span className="flex-1">{p}</span>
                       {activeProfile === p && (
-                        <svg {...iconProps} width={12} height={12} stroke="var(--accent-green)" strokeWidth={2}>
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
+                        <span className="text-[var(--accent-green)]"><CheckIcon /></span>
                       )}
                     </button>
                   ))}
@@ -418,12 +416,7 @@ export function ProjectDetail({
             </div>
           ) : (
             <ActionButton
-              onClick={() =>
-                withLoading(async () => {
-                  await onStart(project.name, activeProfile);
-                  setDetailView("terminal");
-                })
-              }
+              onClick={handleStart}
               disabled={loading}
               variant="primary"
               label="Start"
