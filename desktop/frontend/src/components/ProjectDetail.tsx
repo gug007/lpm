@@ -84,7 +84,7 @@ function ActionTerminal({ label, onClose }: { label: string; onClose: () => void
   );
 }
 
-function QuickPopover({ actions, terminals, running, actionBusy, onClose, onRunAction, onRunTerminal, onRestart, onRemove }: {
+function QuickPopover({ actions, terminals, running, actionBusy, onClose, onRunAction, onRunTerminal, onEditConfig, onRestart, onRemove }: {
   actions: ActionInfo[];
   terminals: TerminalConfigInfo[];
   running: boolean;
@@ -92,6 +92,7 @@ function QuickPopover({ actions, terminals, running, actionBusy, onClose, onRunA
   onClose: () => void;
   onRunAction: (action: ActionInfo) => void;
   onRunTerminal: (term: TerminalConfigInfo) => void;
+  onEditConfig: () => void;
   onRestart: () => void;
   onRemove: () => void;
 }) {
@@ -144,6 +145,13 @@ function QuickPopover({ actions, terminals, running, actionBusy, onClose, onRunA
         </>
       )}
       {(actions.length > 0 || terminals.length > 0) && <div className="my-1 border-t border-[var(--border)]" />}
+      <button
+        onClick={() => { onEditConfig(); onClose(); }}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
+      >
+        <span className="flex-1 truncate">Edit Config</span>
+        <PencilIcon />
+      </button>
       {running && (
         <button
           onClick={() => { onRestart(); onClose(); }}
@@ -153,6 +161,7 @@ function QuickPopover({ actions, terminals, running, actionBusy, onClose, onRunA
           <RefreshIcon />
         </button>
       )}
+      <div className="my-1 border-t border-[var(--border)]" />
       <button
         onClick={() => { onRemove(); onClose(); }}
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--accent-red)] transition-colors hover:bg-[var(--bg-hover)]"
@@ -319,17 +328,6 @@ export function ProjectDetail({
               label={term.label}
             />
           ))}
-          <button
-            onClick={() => switchDetailView(detailView === "config" ? "terminal" : "config")}
-            title={detailView === "config" ? "Switch to terminal" : "Edit configuration"}
-            className={`rounded-lg p-1.5 transition-colors ${
-              detailView === "config"
-                ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
-            }`}
-          >
-            {detailView === "config" ? <TerminalIcon /> : <PencilIcon />}
-          </button>
           <div className="relative">
             <button
               onClick={() => { setShowProfileMenu(false); setShowQuickMenu((v) => !v); }}
@@ -350,6 +348,7 @@ export function ProjectDetail({
                 onClose={() => setShowQuickMenu(false)}
                 onRunAction={handleRunAction}
                 onRunTerminal={handleRunTerminal}
+                onEditConfig={() => switchDetailView("config")}
                 onRestart={() => withLoading(() => onRestart(project.name, activeProfile))}
                 onRemove={() => setConfirmRemove(true)}
               />
@@ -419,7 +418,7 @@ export function ProjectDetail({
       </div>
 
       {showEmptyState && (
-        <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden rounded-t-lg border-t border-x border-[var(--border)] bg-[var(--terminal-bg)]">
+        <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden rounded-t-lg border-x border-[var(--border)] bg-[var(--terminal-bg)]">
           <div className="flex flex-col items-center gap-4">
             <p className="text-sm text-[var(--text-muted)]">No active terminals</p>
             <div className="flex items-center gap-3">
