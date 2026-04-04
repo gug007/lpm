@@ -12,7 +12,6 @@ import { iconProps, XIcon, TrashIcon, RefreshIcon, TerminalIcon, CheckIcon, Chev
 
 const EMPTY_SERVICES: { name: string }[] = [];
 
-function ZapIcon() { return <svg {...iconProps}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>; }
 function PlayIcon() { return <svg {...iconProps} width={12} height={12} fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3" /></svg>; }
 function SpinnerIcon() {
   return (
@@ -329,7 +328,6 @@ export function ProjectDetail({
                   : "border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
               }`}
             >
-              <ZapIcon />
               Menu
             </button>
             {showQuickMenu && (
