@@ -13,6 +13,7 @@ import (
 	"os"
 	"strings"
 	"sync/atomic"
+	"time"
 	"unsafe"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -32,6 +33,13 @@ func dockMenuItemClicked(name *C.char) {
 	}
 }
 
+//export showMainWindow
+func showMainWindow() {
+	if dockApp != nil && dockApp.ctx != nil {
+		go wailsRuntime.WindowShow(dockApp.ctx)
+	}
+}
+
 //export hideMainWindow
 func hideMainWindow() {
 	if dockApp != nil && dockApp.ctx != nil {
@@ -43,6 +51,11 @@ func hideMainWindow() {
 func quitApp() {
 	go func() {
 		if dockApp != nil && dockApp.ctx != nil {
+			// Hard deadline: exit even if shutdown hangs.
+			go func() {
+				time.Sleep(3 * time.Second)
+				os.Exit(0)
+			}()
 			dockApp.shutdown(dockApp.ctx)
 		}
 		os.Exit(0)

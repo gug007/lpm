@@ -3,6 +3,7 @@
 
 extern void dockMenuItemClicked(char *name);
 extern void hideMainWindow(void);
+extern void showMainWindow(void);
 extern void quitApp(void);
 
 static NSMutableArray<NSString *> *_projectNames = nil;
@@ -35,6 +36,13 @@ static NSMutableArray<NSNumber *> *_projectRunning = nil;
 static NSApplicationTerminateReply lpm_applicationShouldTerminate(id self, SEL _cmd, NSApplication *sender) {
 	hideMainWindow();
 	return NSTerminateCancel;
+}
+
+static BOOL lpm_applicationShouldHandleReopen(id self, SEL _cmd, NSApplication *sender, BOOL hasVisibleWindows) {
+	if (!hasVisibleWindows) {
+		showMainWindow();
+	}
+	return NO;
 }
 
 static NSMenu *lpm_applicationDockMenu(id self, SEL _cmd, NSApplication *sender) {
@@ -81,6 +89,14 @@ void setupDockMenu(void) {
 			method_setImplementation(existing, (IMP)lpm_applicationShouldTerminate);
 		} else {
 			class_addMethod(cls, termSel, (IMP)lpm_applicationShouldTerminate, "Q@:@");
+		}
+
+		SEL reopenSel = @selector(applicationShouldHandleReopen:hasVisibleWindows:);
+		Method reopenMethod = class_getInstanceMethod(cls, reopenSel);
+		if (reopenMethod) {
+			method_setImplementation(reopenMethod, (IMP)lpm_applicationShouldHandleReopen);
+		} else {
+			class_addMethod(cls, reopenSel, (IMP)lpm_applicationShouldHandleReopen, "B@:@B");
 		}
 	});
 }
