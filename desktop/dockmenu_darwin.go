@@ -25,8 +25,10 @@ var lastDockSig atomic.Value // string — skip CGo when unchanged
 func dockMenuItemClicked(name *C.char) {
 	if dockApp != nil && dockApp.ctx != nil {
 		projectName := C.GoString(name)
-		wailsRuntime.WindowShow(dockApp.ctx)
-		wailsRuntime.EventsEmit(dockApp.ctx, "dock-project-selected", projectName)
+		go func() {
+			wailsRuntime.WindowShow(dockApp.ctx)
+			wailsRuntime.EventsEmit(dockApp.ctx, "dock-project-selected", projectName)
+		}()
 	}
 }
 
