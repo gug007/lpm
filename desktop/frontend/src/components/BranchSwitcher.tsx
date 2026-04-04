@@ -9,13 +9,26 @@ import {
 import { main } from "../../wailsjs/go/models";
 
 type GitStatus = main.GitStatus;
+type Branch = main.Branch;
+
+function relativeTime(unix: number): string {
+  if (!unix) return "";
+  const s = Math.max(0, Math.floor(Date.now() / 1000) - unix);
+  if (s < 60) return "now";
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  if (s < 604800) return `${Math.floor(s / 86400)}d`;
+  if (s < 2592000) return `${Math.floor(s / 604800)}w`;
+  if (s < 31536000) return `${Math.floor(s / 2592000)}mo`;
+  return `${Math.floor(s / 31536000)}y`;
+}
 
 export function BranchSwitcher({ projectPath, onError }: {
   projectPath: string;
   onError: (msg: string) => void;
 }) {
   const [status, setStatus] = useState<GitStatus | null>(null);
-  const [branches, setBranches] = useState<string[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
@@ -30,7 +43,7 @@ export function BranchSwitcher({ projectPath, onError }: {
     try {
       const [s, b] = await Promise.all([
         ApiGitStatus(projectPath),
-        ListBranches(projectPath).catch(() => [] as string[]),
+        ListBranches(projectPath).catch(() => [] as Branch[]),
       ]);
       setStatus(s);
       setBranches(b);
@@ -68,7 +81,7 @@ export function BranchSwitcher({ projectPath, onError }: {
   const filtered = useMemo(() => {
     if (!query) return branches;
     const q = query.toLowerCase();
-    return branches.filter((b) => b.toLowerCase().includes(q));
+    return branches.filter((b) => b.name.toLowerCase().includes(q));
   }, [branches, query]);
 
   if (!status?.isGitRepo) return null;
@@ -158,6 +171,10 @@ export function BranchSwitcher({ projectPath, onError }: {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search branches"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               className="w-full rounded-md bg-[var(--bg-hover)] px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
             />
           </div>
@@ -169,23 +186,25 @@ export function BranchSwitcher({ projectPath, onError }: {
               <div className="px-3 py-2 text-[11px] text-[var(--text-muted)]">No matches</div>
             )}
             {filtered.map((b) => {
-              const isCurrent = b === status.branch;
+              const isCurrent = b.name === status.branch;
+              const age = relativeTime(b.committerDate);
               return (
                 <button
-                  key={b}
-                  onClick={() => checkout(b)}
+                  key={b.name}
+                  onClick={() => checkout(b.name)}
                   disabled={busy}
                   className="flex w-full items-start gap-2 px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
                 >
                   <BranchIcon />
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className={`truncate ${isCurrent ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}>{b}</span>
+                    <span className={`truncate ${isCurrent ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}>{b.name}</span>
                     {isCurrent && status.uncommitted > 0 && (
                       <span className="text-[10px] text-[var(--text-muted)]">
                         Uncommitted: {status.uncommitted} file{status.uncommitted === 1 ? "" : "s"}
                       </span>
                     )}
                   </span>
+                  {age && <span className="shrink-0 self-center text-[10px] text-[var(--text-muted)]">{age}</span>}
                   {isCurrent && <CheckIcon />}
                 </button>
               );
@@ -204,6 +223,10 @@ export function BranchSwitcher({ projectPath, onError }: {
                   }}
                   placeholder="new-branch-name"
                   disabled={busy}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                   className="flex-1 rounded-md bg-[var(--bg-hover)] px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none disabled:opacity-50"
                 />
                 <button
