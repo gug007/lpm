@@ -1,13 +1,15 @@
 import { useRef, useEffect, useCallback } from "react";
 import { ReadConfig, SaveConfig } from "../../wailsjs/go/main/App";
 import { useYamlEditor } from "../hooks/useYamlEditor";
+import { ChevronLeftIcon } from "./icons";
 
 interface ConfigEditorProps {
   projectName: string;
   onSaved: (newName: string) => void;
+  onBack?: () => void;
 }
 
-export function ConfigEditor({ projectName, onSaved }: ConfigEditorProps) {
+export function ConfigEditor({ projectName, onSaved, onBack }: ConfigEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const onSavedRef = useRef(onSaved);
   onSavedRef.current = onSaved;
@@ -30,6 +32,17 @@ export function ConfigEditor({ projectName, onSaved }: ConfigEditorProps) {
 
   return (
     <div className="flex h-full flex-col">
+      {onBack && (
+        <div className="flex items-center px-6 pt-3 pb-1">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
+          >
+            <ChevronLeftIcon />
+            Back
+          </button>
+        </div>
+      )}
       <div className="relative flex-1 overflow-hidden">
         <textarea
           ref={textareaRef}

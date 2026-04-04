@@ -457,6 +457,7 @@ export function ProjectDetail({
           <ConfigEditor
             projectName={project.name}
             onSaved={onRefresh}
+            onBack={() => switchDetailView("terminal")}
           />
         </div>
       )}
