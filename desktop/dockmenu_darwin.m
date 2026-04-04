@@ -2,6 +2,8 @@
 #import <objc/runtime.h>
 
 extern void dockMenuItemClicked(char *name);
+extern void hideMainWindow(void);
+extern void quitApp(void);
 
 static NSMutableArray<NSString *> *_projectNames = nil;
 static NSMutableArray<NSNumber *> *_projectRunning = nil;
@@ -24,7 +26,16 @@ static NSMutableArray<NSNumber *> *_projectRunning = nil;
 - (void)projectSelected:(NSMenuItem *)sender {
 	dockMenuItemClicked((char *)[sender.representedObject UTF8String]);
 }
+
+- (void)doQuit:(NSMenuItem *)sender {
+	quitApp();
+}
 @end
+
+static NSApplicationTerminateReply lpm_applicationShouldTerminate(id self, SEL _cmd, NSApplication *sender) {
+	hideMainWindow();
+	return NSTerminateCancel;
+}
 
 static NSMenu *lpm_applicationDockMenu(id self, SEL _cmd, NSApplication *sender) {
 	if (!_projectNames || _projectNames.count == 0) return nil;
@@ -43,6 +54,13 @@ static NSMenu *lpm_applicationDockMenu(id self, SEL _cmd, NSApplication *sender)
 		[dockMenu addItem:item];
 	}
 
+	[dockMenu addItem:[NSMenuItem separatorItem]];
+	NSMenuItem *quitItem = [[NSMenuItem alloc] initWithTitle:@"Quit lpm"
+	                                                 action:@selector(doQuit:)
+	                                          keyEquivalent:@""];
+	[quitItem setTarget:[LPMDockMenuHandler shared]];
+	[dockMenu addItem:quitItem];
+
 	return dockMenu;
 }
 
@@ -55,6 +73,14 @@ void setupDockMenu(void) {
 		SEL sel = @selector(applicationDockMenu:);
 		if (![delegate respondsToSelector:sel]) {
 			class_addMethod(cls, sel, (IMP)lpm_applicationDockMenu, "@@:@");
+		}
+
+		SEL termSel = @selector(applicationShouldTerminate:);
+		Method existing = class_getInstanceMethod(cls, termSel);
+		if (existing) {
+			method_setImplementation(existing, (IMP)lpm_applicationShouldTerminate);
+		} else {
+			class_addMethod(cls, termSel, (IMP)lpm_applicationShouldTerminate, "Q@:@");
 		}
 	});
 }

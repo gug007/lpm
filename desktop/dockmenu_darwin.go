@@ -10,6 +10,7 @@ extern void updateDockMenuProjects(const char **names, const int *running, int c
 import "C"
 
 import (
+	"os"
 	"strings"
 	"sync/atomic"
 	"unsafe"
@@ -27,6 +28,23 @@ func dockMenuItemClicked(name *C.char) {
 		wailsRuntime.WindowShow(dockApp.ctx)
 		wailsRuntime.EventsEmit(dockApp.ctx, "dock-project-selected", projectName)
 	}
+}
+
+//export hideMainWindow
+func hideMainWindow() {
+	if dockApp != nil && dockApp.ctx != nil {
+		go wailsRuntime.WindowHide(dockApp.ctx)
+	}
+}
+
+//export quitApp
+func quitApp() {
+	go func() {
+		if dockApp != nil && dockApp.ctx != nil {
+			dockApp.shutdown(dockApp.ctx)
+		}
+		os.Exit(0)
+	}()
 }
 
 func initDockMenu(app *App) {

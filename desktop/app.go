@@ -160,7 +160,7 @@ func (a *App) SaveWindowSize(width, height int) {
 	}
 }
 
-// beforeClose hides instead of quitting so the dock menu can re-show the window.
+// beforeClose hides instead of closing so the window-close button keeps the app alive.
 func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 	runtime.WindowHide(ctx)
 	return true
