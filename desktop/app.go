@@ -160,6 +160,12 @@ func (a *App) SaveWindowSize(width, height int) {
 	}
 }
 
+// beforeClose hides instead of quitting so the dock menu can re-show the window.
+func (a *App) beforeClose(ctx context.Context) (prevent bool) {
+	runtime.WindowHide(ctx)
+	return true
+}
+
 func (a *App) shutdown(ctx context.Context) {
 	a.streamMu.Lock()
 	for name, cancel := range a.streams {
