@@ -15,6 +15,7 @@ interface TerminalViewProps {
   services: { name: string }[];
   terminalTheme: TerminalThemeName;
   onTerminalThemeChange: (theme: TerminalThemeName) => void;
+  onTerminalCountChange?: (count: number) => void;
   visible?: boolean;
 }
 
@@ -200,10 +201,11 @@ interface InteractiveTerminal {
 }
 
 export interface TerminalViewHandle {
+  createTerminal(): void;
   createTerminalWithCmd(label: string, terminalConfigName: string, cmd: string): void;
 }
 
-export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ projectName, services, terminalTheme, onTerminalThemeChange, visible = true }, ref) {
+export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ projectName, services, terminalTheme, onTerminalThemeChange, onTerminalCountChange, visible = true }, ref) {
   const [activePane, setActivePane] = useState<ActivePane>(() =>
     deserializeActivePane(getProjectTerminals(projectName).activeTab)
   );
@@ -215,6 +217,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(fu
   const [showSettings, setShowSettings] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [terminals, setTerminals] = useState<InteractiveTerminal[]>([]);
+  useEffect(() => { onTerminalCountChange?.(terminals.length); }, [terminals.length, onTerminalCountChange]);
   const paneRefs = useRef<(PaneHandle | null)[]>([]);
   const interactivePaneRefs = useRef<(InteractivePaneHandle | null)[]>([]);
   const paneScrollState = useRef<Record<string, boolean>>({});
@@ -255,8 +258,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(fu
   // Restore saved terminals on mount (or create a default if no tabs at all)
   useEffect(() => {
     const saved = getProjectTerminals(projectName).terminals;
-    const hasServices = services.length > 0;
-    const entries = saved && saved.length > 0 ? saved : !hasServices ? [{ label: "Terminal 1" }] : null;
+    const entries = saved && saved.length > 0 ? saved : null;
     if (!entries) return;
     let cancelled = false;
     const startedIds: string[] = [];
@@ -495,7 +497,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(fu
     pendingTimers.current.add(timer);
   }, [projectName, addTerminal]);
 
-  useImperativeHandle(ref, () => ({ createTerminalWithCmd }), [createTerminalWithCmd]);
+  useImperativeHandle(ref, () => ({ createTerminal: handleNewTerminal, createTerminalWithCmd }), [handleNewTerminal, createTerminalWithCmd]);
 
   // Cleanup all terminals and pending timers on unmount
   useEffect(() => {

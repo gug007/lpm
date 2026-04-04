@@ -268,11 +268,22 @@ export function ProjectDetail({
     return saved === "config" ? "config" : "terminal";
   });
 
+  const [terminalCount, setTerminalCount] = useState(() => {
+    const saved = getProjectTerminals(project.name).terminals;
+    return saved?.length ?? 0;
+  });
+  const showEmptyState = !project.running && detailView === "terminal" && terminalCount === 0;
+
   const switchDetailView = useCallback((view: "terminal" | "config") => {
     setDetailView(view);
     const state = getProjectTerminals(project.name);
     saveProjectTerminals(project.name, { ...state, detailView: view });
   }, [project.name]);
+
+  const handleNewTerminal = useCallback(() => {
+    switchDetailView("terminal");
+    terminalViewRef.current?.createTerminal();
+  }, [switchDetailView]);
 
   const handleRunTerminal = useCallback(async (term: TerminalConfigInfo) => {
     switchDetailView("terminal");
@@ -349,10 +360,7 @@ export function ProjectDetail({
               onClick={() =>
                 withLoading(async () => {
                   await onStop(project.name);
-                  const saved = getProjectTerminals(project.name).terminals;
-                  if (!saved || saved.length === 0) {
-                    switchDetailView("config");
-                  }
+                  switchDetailView("terminal");
                 })
               }
               disabled={loading}
@@ -410,14 +418,38 @@ export function ProjectDetail({
         </div>
       </div>
 
-      <div className={detailView === "terminal" ? "mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden" : "hidden"}>
+      {showEmptyState && (
+        <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden rounded-t-lg border-t border-x border-[var(--border)] bg-[var(--terminal-bg)]">
+          <div className="flex flex-col items-center gap-4">
+            <p className="text-sm text-[var(--text-muted)]">No active terminals</p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleNewTerminal}
+                className="flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-85"
+              >
+                <TerminalIcon />
+                New Terminal
+              </button>
+              <button
+                onClick={() => switchDetailView("config")}
+                className="flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              >
+                <PencilIcon />
+                Edit Config
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className={detailView === "terminal" && !showEmptyState ? "mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden" : "hidden"}>
         <TerminalView
           ref={terminalViewRef}
           projectName={project.name}
           services={project.running ? project.services : EMPTY_SERVICES}
           terminalTheme={termTheme}
           onTerminalThemeChange={handleTerminalThemeChange}
-          visible={visible && detailView === "terminal"}
+          onTerminalCountChange={setTerminalCount}
+          visible={visible && detailView === "terminal" && !showEmptyState}
         />
       </div>
       {detailView === "config" && (
