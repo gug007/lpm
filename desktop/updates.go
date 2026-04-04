@@ -201,7 +201,7 @@ func (a *App) InstallUpdate() error {
 	exec.Command("hdiutil", "detach", mountPoint, "-quiet").Run()
 	os.Remove(dmgPath)
 
-	exec.Command("open", "-n", dstApp).Start()
+	exec.Command("open", dstApp).Start()
 	runtime.Quit(a.ctx)
 
 	return nil
