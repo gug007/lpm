@@ -8,7 +8,7 @@ import { getSettings, saveSettings } from "../settings";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
 import { ansiColors } from "./terminal-utils";
-import { iconProps, XIcon, TrashIcon } from "./icons";
+import { iconProps, XIcon, TrashIcon, SettingsIcon, CheckIcon } from "./icons";
 
 interface TerminalViewProps {
   projectName: string;
@@ -24,7 +24,6 @@ function MinusIcon() { return <svg {...iconProps}><path d="M5 12h14" /></svg>; }
 function PlusIcon() { return <svg {...iconProps}><path d="M12 5v14" /><path d="M5 12h14" /></svg>; }
 function ChevronUpIcon() { return <svg {...iconProps}><path d="m18 15-6-6-6 6" /></svg>; }
 function ChevronDownIcon() { return <svg {...iconProps}><path d="m6 9 6 6 6-6" /></svg>; }
-function PaletteIcon() { return <svg {...iconProps}><circle cx="13.5" cy="6.5" r="0.5" fill="currentColor" /><circle cx="17.5" cy="10.5" r="0.5" fill="currentColor" /><circle cx="8.5" cy="7.5" r="0.5" fill="currentColor" /><circle cx="6.5" cy="12" r="0.5" fill="currentColor" /><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.5-.7 1.5-1.5 0-.4-.1-.7-.4-1-.3-.3-.4-.6-.4-1 0-.8.7-1.5 1.5-1.5H16c3.3 0 6-2.7 6-6 0-5.5-4.5-9-10-9z" /></svg>; }
 function ExpandIcon() { return <svg {...iconProps}><polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" /><line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" /></svg>; }
 function ShrinkIcon() { return <svg {...iconProps}><polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" /><line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" /></svg>; }
 function IconBtn({ onClick, title, children, active, className = "" }: {
@@ -105,44 +104,67 @@ function HeaderTab({ label, active, onClick, onClose, onRename }: { label: strin
   );
 }
 
-function ThemePicker({ current, onChange, onClose }: {
-  current: TerminalThemeName;
-  onChange: (t: TerminalThemeName) => void;
-  onClose: () => void;
+function TerminalSettingsPanel({ fontSize, onZoomIn, onZoomOut, terminalTheme, onTerminalThemeChange }: {
+  fontSize: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  terminalTheme: TerminalThemeName;
+  onTerminalThemeChange: (theme: TerminalThemeName) => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [onClose]);
-
   return (
-    <div
-      ref={ref}
-      className="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg"
-    >
-      {terminalThemeNames.map((name) => {
-        const colors = getTerminalThemeColors(name);
-        return (
-          <button
-            key={name}
-            onClick={() => { onChange(name); onClose(); }}
-            className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)] ${
-              current === name ? "font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
-            }`}
-          >
-            <span
-              className="inline-block h-3 w-3 shrink-0 rounded-full border border-[var(--border)]"
-              style={{ background: colors?.bg ?? "var(--terminal-bg)" }}
-            />
-            {name === "default" ? "Default" : name}
-          </button>
-        );
-      })}
+    <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[var(--bg-primary)] p-6">
+      <div className="mx-auto w-full max-w-sm space-y-6">
+        <div className="space-y-1.5">
+          <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
+            Font Size
+          </h2>
+          <div className="flex items-center gap-3 rounded-lg border border-[var(--border)] px-4 py-3">
+            <button
+              onClick={onZoomOut}
+              className="flex items-center justify-center rounded p-1 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              <MinusIcon />
+            </button>
+            <span className="min-w-[2rem] text-center font-mono text-sm tabular-nums text-[var(--text-primary)]">
+              {fontSize}
+            </span>
+            <button
+              onClick={onZoomIn}
+              className="flex items-center justify-center rounded p-1 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              <PlusIcon />
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
+            Terminal Theme
+          </h2>
+          <div className="rounded-lg border border-[var(--border)] divide-y divide-[var(--border)]">
+            {terminalThemeNames.map((name) => {
+              const colors = getTerminalThemeColors(name);
+              const selected = terminalTheme === name;
+              return (
+                <button
+                  key={name}
+                  onClick={() => onTerminalThemeChange(name)}
+                  className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-xs transition-colors hover:bg-[var(--bg-hover)] ${
+                    selected ? "font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
+                  }`}
+                >
+                  <span
+                    className="inline-block h-4 w-4 shrink-0 rounded-full border border-[var(--border)]"
+                    style={{ background: colors?.bg ?? "var(--terminal-bg)" }}
+                  />
+                  <span className="flex-1">{name === "default" ? "Default" : name}</span>
+                  {selected && <CheckIcon />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -190,7 +212,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(fu
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [atBottom, setAtBottom] = useState(true);
-  const [showThemePicker, setShowThemePicker] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [terminals, setTerminals] = useState<InteractiveTerminal[]>([]);
   const paneRefs = useRef<(PaneHandle | null)[]>([]);
@@ -538,19 +560,13 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(fu
         </div>
 
         <div className="relative flex shrink-0 items-center gap-0.5">
-          <IconBtn onClick={zoomOut} title="Zoom out"><MinusIcon /></IconBtn>
-          <span className="min-w-[1.25rem] text-center font-mono text-[10px] tabular-nums text-[var(--terminal-header-text)]">
-            {fontSize}
-          </span>
-          <IconBtn onClick={zoomIn} title="Zoom in"><PlusIcon /></IconBtn>
-          <div className="mx-1 h-3.5 w-px bg-[var(--terminal-header-hover)]" />
-          <IconBtn onClick={() => setShowThemePicker((v) => !v)} title="Terminal theme" active={showThemePicker}><PaletteIcon /></IconBtn>
           <IconBtn onClick={toggleSearch} title="Search (Cmd+F)" active={showSearch}><SearchIcon /></IconBtn>
           <IconBtn onClick={() => forActivePanes((p) => p.clear())} title="Clear"><TrashIcon /></IconBtn>
+          <IconBtn onClick={() => setShowSettings((v) => !v)} title="Terminal settings" active={showSettings}><SettingsIcon /></IconBtn>
           <IconBtn onClick={() => setFullscreen((v) => !v)} title={fullscreen ? "Exit fullscreen (Esc)" : "Fullscreen"}>
             {fullscreen ? <ShrinkIcon /> : <ExpandIcon />}
           </IconBtn>
-          {!atBottom && (
+          {!atBottom && !showSettings && (
             <IconBtn
               onClick={() => {
                 forActivePanes((p) => p.scrollToBottom());
@@ -562,13 +578,6 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(fu
             >
               <ArrowDownIcon />
             </IconBtn>
-          )}
-          {showThemePicker && (
-            <ThemePicker
-              current={terminalTheme}
-              onChange={onTerminalThemeChange}
-              onClose={() => setShowThemePicker(false)}
-            />
           )}
         </div>
       </div>
@@ -593,9 +602,18 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(fu
         </div>
       )}
 
-      <div className={`flex min-h-0 flex-1 overflow-hidden ${showAll && hasMultiple && activeTermIdx === null ? "divide-x divide-[var(--border)]" : ""}`}>
+      {showSettings && (
+        <TerminalSettingsPanel
+          fontSize={fontSize}
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
+          terminalTheme={terminalTheme}
+          onTerminalThemeChange={onTerminalThemeChange}
+        />
+      )}
+      <div className={showSettings ? "hidden" : `flex min-h-0 flex-1 overflow-hidden ${showAll && hasMultiple && activeTermIdx === null ? "divide-x divide-[var(--border)]" : ""}`}>
         {stableServices.map((svc, i) => {
-          const paneVisible = visible && activeTermIdx === null && (showAll || activePane === i);
+          const paneVisible = visible && !showSettings && activeTermIdx === null && (showAll || activePane === i);
           return (
             <div
               key={svc.name}
@@ -614,7 +632,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(fu
           );
         })}
         {terminals.map((term, i) => {
-          const paneVisible = visible && activeTermIdx === i;
+          const paneVisible = visible && !showSettings && activeTermIdx === i;
           return (
             <div
               key={term.id}

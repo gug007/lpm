@@ -8,7 +8,7 @@ import { getSettings, saveSettings } from "../settings";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
 import type { ProjectInfo, ActionInfo, TerminalConfigInfo } from "../types";
-import { iconProps, XIcon, TrashIcon, RefreshIcon, TerminalIcon } from "./icons";
+import { iconProps, XIcon, TrashIcon, RefreshIcon, TerminalIcon, CheckIcon } from "./icons";
 
 const EMPTY_SERVICES: { name: string }[] = [];
 
@@ -21,7 +21,6 @@ function SpinnerIcon() {
     </svg>
   );
 }
-function CheckCircleIcon() { return <svg {...iconProps} width={12} height={12} stroke="var(--accent-green)" strokeWidth={2}><polyline points="20 6 9 17 4 12" /></svg>; }
 function ErrorCircleIcon() { return <svg {...iconProps} width={12} height={12} stroke="var(--accent-red)" strokeWidth={2}><circle cx="12" cy="12" r="10" /><path d="m15 9-6 6" /><path d="m9 9 6 6" /></svg>; }
 
 function ActionTerminal({ label, onClose }: { label: string; onClose: () => void }) {
@@ -53,7 +52,7 @@ function ActionTerminal({ label, onClose }: { label: string; onClose: () => void
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border)] bg-[var(--bg-secondary)]">
           <div className="flex items-center gap-2">
             {!done && <SpinnerIcon />}
-            {done?.success && <CheckCircleIcon />}
+            {done?.success && <span className="text-[var(--accent-green)]"><CheckIcon /></span>}
             {done && !done.success && <ErrorCircleIcon />}
             <span className="text-xs font-medium text-[var(--text-primary)]">{label}</span>
             {done && (
