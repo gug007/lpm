@@ -4,9 +4,24 @@ import { getSettings } from "../settings";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { InstallUpdate } from "../../wailsjs/go/main/App";
 import type { ProjectInfo } from "../types";
-import { SidebarIcon } from "./icons";
+import { SidebarIcon, TerminalIcon } from "./icons";
 import { useDragReorder } from "../hooks/useDragReorder";
 import { useSidebarResize } from "../hooks/useSidebarResize";
+import { useBusyTerminalCount } from "../terminal-status";
+
+function BusyTerminalsBadge({ projectName }: { projectName: string }) {
+  const count = useBusyTerminalCount(projectName);
+  if (count === 0) return null;
+  return (
+    <span
+      className="ml-auto flex shrink-0 items-center gap-1 text-[10px] tabular-nums text-[var(--accent-green)] [&_svg]:h-3 [&_svg]:w-3"
+      title={`${count} terminal${count === 1 ? "" : "s"} running a command`}
+    >
+      <TerminalIcon />
+      {count}
+    </span>
+  );
+}
 
 interface SidebarProps {
   projects: ProjectInfo[];
@@ -98,7 +113,8 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
               } ${dragIdx === idx ? "opacity-30" : ""}`}
             >
               <StatusDot running={project.running} />
-              <span className="truncate">{project.name}</span>
+              <span className="min-w-0 flex-1 truncate">{project.name}</span>
+              <BusyTerminalsBadge projectName={project.name} />
             </button>
             {showDropBelow(idx) && (
               <div className="absolute inset-x-3 bottom-0 h-px bg-[var(--accent-cyan)]" />

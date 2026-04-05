@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { XIcon } from "../icons";
 
-export function HeaderTab({ label, active, onClick, onClose, onRename }: {
+export function HeaderTab({ label, active, onClick, onClose, onRename, busy }: {
   label: string;
   active: boolean;
   onClick: () => void;
   onClose?: () => void;
   onRename?: (name: string) => void;
+  busy?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(label);
@@ -49,7 +50,14 @@ export function HeaderTab({ label, active, onClick, onClose, onRename }: {
           ? "bg-[var(--terminal-header-active)] text-[var(--terminal-tab-active)]"
           : "text-[var(--terminal-header-text)] hover:text-[var(--terminal-tab-active)]"
       }`}
+      title={busy ? `${label} (running)` : undefined}
     >
+      {busy && (
+        <span
+          aria-hidden
+          className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-[var(--accent-green)]"
+        />
+      )}
       {label}
       {onClose && (
         <span

@@ -14,6 +14,7 @@ import (
 	"github.com/creack/pty"
 	"github.com/gug007/lpm/internal/config"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"golang.org/x/sys/unix"
 )
 
 var ptyCounter atomic.Uint64
@@ -39,6 +40,18 @@ type ptySession struct {
 	// Separate from mu so writes don't block the reader's flow control.
 	closeMu sync.RWMutex
 	closed  bool
+
+	// Busy monitor lifecycle — closed exactly once to stop monitorBusyState.
+	busyDone chan struct{}
+	busyOnce sync.Once
+
+	// Unix nanos of the most recent PTY read; read by monitorBusyState
+	// to separate an idle TUI from one producing output.
+	lastOutputNano atomic.Int64
+}
+
+func (s *ptySession) stopBusyMonitor() {
+	s.busyOnce.Do(func() { close(s.busyDone) })
 }
 
 func (s *ptySession) addUnacked(n int) {
@@ -117,15 +130,18 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 	}
 
 	sess := &ptySession{
-		id:  id,
-		pty: ptmx,
-		cmd: cmd,
+		id:       id,
+		pty:      ptmx,
+		cmd:      cmd,
+		busyDone: make(chan struct{}),
 	}
 	sess.cond = sync.NewCond(&sess.mu)
 
 	a.ptyMu.Lock()
 	a.ptySessions[id] = sess
 	a.ptyMu.Unlock()
+
+	go a.monitorBusyState(sess)
 
 	// Read goroutine: PTY bytes → UTF-8 strings → Wails events.
 	// Uses a reader → channel → coalescer pattern with flow control.
@@ -142,6 +158,7 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 			for {
 				n, err := ptmx.Read(buf)
 				if n > 0 {
+					sess.lastOutputNano.Store(time.Now().UnixNano())
 					cp := make([]byte, n)
 					copy(cp, buf[:n])
 					ch <- readResult{data: cp}
@@ -212,6 +229,7 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 				exitCode = exitErr.ExitCode()
 			}
 		}
+		sess.stopBusyMonitor()
 		runtime.EventsEmit(a.ctx, "pty-exit-"+id, exitCode)
 
 		a.ptyMu.Lock()
@@ -296,6 +314,8 @@ func (a *App) StopTerminal(id string) error {
 		return nil
 	}
 
+	sess.stopBusyMonitor()
+
 	// Wake the reader goroutine so it can exit
 	sess.mu.Lock()
 	sess.paused = false
@@ -312,4 +332,48 @@ func (a *App) StopTerminal(id string) error {
 		_ = sess.cmd.Process.Kill()
 	}
 	return nil
+}
+
+// monitorBusyState emits `pty-busy-{id}` on transitions. A terminal is busy
+// when a child command holds the foreground pgrp AND the PTY has produced
+// output recently — the recency check distinguishes a running command from
+// an idle interactive app (vim, claude) that owns the foreground but is
+// waiting for input.
+func (a *App) monitorBusyState(sess *ptySession) {
+	const (
+		pollInterval   = 250 * time.Millisecond
+		activityWindow = 1500 * time.Millisecond
+	)
+	shellPid := sess.cmd.Process.Pid
+	fd := int(sess.pty.Fd())
+
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	var lastBusy bool
+	for {
+		select {
+		case <-sess.busyDone:
+			return
+		case <-ticker.C:
+			// RLock prevents a concurrent StopTerminal from closing fd mid-syscall.
+			sess.closeMu.RLock()
+			if sess.closed {
+				sess.closeMu.RUnlock()
+				return
+			}
+			pgid, err := unix.IoctlGetInt(fd, unix.TIOCGPGRP)
+			sess.closeMu.RUnlock()
+			if err != nil {
+				return
+			}
+			busy := pgid != shellPid &&
+				time.Since(time.Unix(0, sess.lastOutputNano.Load())) < activityWindow
+			if busy == lastBusy {
+				continue
+			}
+			lastBusy = busy
+			runtime.EventsEmit(a.ctx, "pty-busy-"+sess.id, busy)
+		}
+	}
 }

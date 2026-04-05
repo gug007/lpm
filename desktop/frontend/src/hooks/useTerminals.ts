@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { StartTerminal, StartTerminalWithConfig, StopTerminal, WriteTerminal } from "../../wailsjs/go/main/App";
+import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
+import { setBusyTerminalCount } from "../terminal-status";
 
 export interface InteractiveTerminal {
   id: string;
   label: string;
+  busy: boolean;
 }
 
 export interface UseTerminalsResult {
@@ -54,7 +57,7 @@ export function useTerminals(projectName: string, onTerminalClosed: (index: numb
       results.forEach((r, i) => {
         if (r.status === "fulfilled") {
           startedIds.push(r.value);
-          restored.push({ id: r.value, label: saved[i].label });
+          restored.push({ id: r.value, label: saved[i].label, busy: false });
         }
       });
       if (cancelled) {
@@ -71,7 +74,7 @@ export function useTerminals(projectName: string, onTerminalClosed: (index: numb
 
   const addTerminal = (id: string, label: string) => {
     const index = terminalsRef.current.length;
-    const next = [...terminalsRef.current, { id, label }];
+    const next = [...terminalsRef.current, { id, label, busy: false }];
     setTerminals(next);
     persist(next);
     onTerminalCreated(index);
@@ -112,16 +115,54 @@ export function useTerminals(projectName: string, onTerminalClosed: (index: numb
     persist(next);
   };
 
-  // Cleanup all terminals and pending timers on unmount
+  // Maintain per-terminal subscriptions to pty-busy / pty-exit events.
+  // Diffs against the current terminal set so adding or closing one
+  // terminal doesn't churn subscriptions for the others.
+  const subsRef = useRef<Map<string, () => void>>(new Map());
+  useEffect(() => {
+    const subs = subsRef.current;
+    const liveIds = new Set(terminals.map((t) => t.id));
+    const setBusy = (id: string, busy: boolean) => {
+      setTerminals((prev) => {
+        const t = prev.find((x) => x.id === id);
+        if (!t || t.busy === busy) return prev;
+        return prev.map((x) => (x.id === id ? { ...x, busy } : x));
+      });
+    };
+    for (const id of liveIds) {
+      if (subs.has(id)) continue;
+      const offs = [
+        EventsOn(`pty-busy-${id}`, (busy: boolean) => setBusy(id, busy)),
+        EventsOn(`pty-exit-${id}`, () => setBusy(id, false)),
+      ];
+      subs.set(id, () => offs.forEach((o) => typeof o === "function" && o()));
+    }
+    for (const [id, off] of subs) {
+      if (!liveIds.has(id)) {
+        off();
+        subs.delete(id);
+      }
+    }
+  }, [terminals]);
+
+  const busyCount = terminals.reduce((n, t) => n + (t.busy ? 1 : 0), 0);
+  useEffect(() => {
+    setBusyTerminalCount(projectName, busyCount);
+  }, [projectName, busyCount]);
+
   useEffect(() => {
     const timers = pendingTimers.current;
+    const subs = subsRef.current;
     return () => {
       timers.forEach(clearTimeout);
       terminalsRef.current.forEach((t) => {
         StopTerminal(t.id).catch(() => {});
       });
+      subs.forEach((off) => off());
+      subs.clear();
+      setBusyTerminalCount(projectName, 0);
     };
-  }, []);
+  }, [projectName]);
 
   return {
     terminals,

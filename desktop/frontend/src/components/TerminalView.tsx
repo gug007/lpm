@@ -386,6 +386,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
               key={term.id}
               label={term.label}
               active={activeTermIdx === i}
+              busy={term.busy}
               onClick={() => setActivePane({ type: "terminal", index: i })}
               onClose={() => closeTerminal(i)}
               onRename={(name) => renameTerminal(i, name)}
