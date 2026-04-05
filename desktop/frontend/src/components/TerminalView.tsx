@@ -517,7 +517,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
                 label={showLabel ? svc.name : undefined}
                 onLabelClick={showLabel ? () => setActivePane(i) : undefined}
                 labelActions={showLabel ? (
-                  <Tooltip content={stopped ? `Start ${svc.name}` : `Stop ${svc.name}`}>
+                  <Tooltip content={stopped ? `Start ${svc.name}` : `Stop ${svc.name}`} side="bottom" align="end">
                     <button
                       onClick={() => (stopped ? handleStartService(i) : handleStopService(i))}
                       className={`rounded p-0.5 transition-colors hover:bg-[var(--terminal-header-hover)] ${
