@@ -1,18 +1,6 @@
 ---
 name: lpm-config
-description: >-
-  Create, modify, and delete lpm project configs. Use when the user asks to
-  set up lpm, add/remove services, actions, or terminals, or manage
-  ~/.lpm/projects/*.yml files. Triggers on "lpm", "create lpm config",
-  "add service to lpm", "lpm setup".
-version: 1.0.0
-license: MIT
-author: "@gug007"
-tags:
-  - devtools
-  - config
-  - process-manager
-  - yaml
+description: Create, modify, and delete lpm (Local Project Manager) project configs at ~/.lpm/projects/*.yml. Use whenever the user mentions lpm, asks to set up lpm, create/edit/delete an lpm config, add or remove services, actions, or terminals from lpm, or says "lpm setup", "create lpm config", "add service to lpm", "configure lpm". Also use when the user wants to manage dev project processes, one-shot commands, or interactive terminals through YAML config files.
 ---
 
 ## Instructions
