@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { StartTerminal, StartTerminalWithConfig, StopTerminal, WriteTerminal } from "../../wailsjs/go/main/App";
+import { StartTerminal, StartTerminalWithConfig, StopTerminal } from "../../wailsjs/go/main/App";
+import { writeTerminal } from "../terminal-io";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 
 export interface InteractiveTerminal {
@@ -89,7 +90,7 @@ export function useTerminals(projectName: string, onTerminalClosed: (index: numb
     addTerminal(id, label);
     const timer = setTimeout(() => {
       pendingTimers.current.delete(timer);
-      WriteTerminal(id, cmd + "\n").catch(() => {});
+      writeTerminal(id, cmd + "\n").catch(() => {});
     }, 300);
     pendingTimers.current.add(timer);
   };
