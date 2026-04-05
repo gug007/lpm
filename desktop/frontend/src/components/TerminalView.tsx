@@ -149,6 +149,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
   const activePaneRef = useRef(activePane);
   const visibleRef = useRef(visible);
   const mountedRef = useRef(false);
+  const stoppedServicesRef = useRef<Set<string>>(new Set());
 
   activePaneRef.current = activePane;
   visibleRef.current = visible;
@@ -192,6 +193,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
   const stableServices = useMemo(() => services, [servicesKey]);
 
   const [stoppedServices, setStoppedServices] = useState<Set<string>>(() => new Set());
+  stoppedServicesRef.current = stoppedServices;
   // Reset stopped-service tracking when the service set changes (profile switch, project (re)start)
   useEffect(() => { setStoppedServices(new Set()); }, [servicesKey]);
 
@@ -211,6 +213,15 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
     const name = stableServices[idx]?.name;
     if (!name) return;
     setStoppedServices((prev) => new Set(prev).add(name));
+    // Clear the xterm display and local buffer immediately; the backend clears
+    // tmux pane + scrollback so old logs don't resurface on next start.
+    paneRefs.current[idx]?.clear();
+    setOutputs((prev) => {
+      if (prev[idx] === "") return prev;
+      const next = [...prev];
+      next[idx] = "";
+      return next;
+    });
     try {
       await StopService(projectName, idx);
     } catch (err) {
@@ -286,12 +297,18 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
     let pollInterval: ReturnType<typeof setInterval> | null = null;
     let streaming = false;
 
+    const isStopped = (i: number) => {
+      const name = stableServices[i]?.name;
+      return !!name && stoppedServicesRef.current.has(name);
+    };
+
     try {
       StartLogStreaming(projectName).catch(() => {});
       const cancel = EventsOn("log-update", (update: { project: string; pane: number; content: string }) => {
         if (update?.project !== projectName) return;
         setOutputs((prev) => {
           if (update.pane < 0 || update.pane >= prev.length) return prev;
+          if (isStopped(update.pane)) return prev;
           if (prev[update.pane] === update.content) return prev;
           const next = [...prev];
           next[update.pane] = update.content;
@@ -311,10 +328,13 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
             GetServiceLogs(projectName, i, 1000).catch(() => "(no output)")
           )
         );
-        const changed = results.some((r, i) => r !== prevOutputs.current[i]);
+        const filtered = stoppedServicesRef.current.size === 0
+          ? results
+          : results.map((r, i) => (isStopped(i) ? "" : r));
+        const changed = filtered.some((r, i) => r !== prevOutputs.current[i]);
         if (changed) {
-          prevOutputs.current = results;
-          setOutputs(results);
+          prevOutputs.current = filtered;
+          setOutputs(filtered);
         }
       } catch {}
     };
@@ -503,7 +523,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
                       className={`rounded p-0.5 transition-colors hover:bg-[var(--terminal-header-hover)] ${
                         stopped
                           ? "text-[var(--accent-green)]"
-                          : "text-[var(--terminal-header-text)] hover:text-[var(--terminal-tab-active)]"
+                          : "text-[var(--accent-red)]"
                       }`}
                     >
                       {stopped ? <PlayIcon /> : <StopIcon />}

@@ -81,10 +81,18 @@ func KillSession(name string) error {
 	return cmd.Run()
 }
 
-// StopServicePane sends Ctrl-C to the pane, killing whatever command is running.
-// The pane itself is left open so the command can later be restarted.
+// StopServicePane sends Ctrl-C to the pane, killing whatever command is running,
+// then clears the pane's visible content and scrollback so it reads as fresh the
+// next time the service is started. The pane itself is left open.
 func StopServicePane(paneID string) error {
-	return exec.Command("tmux", "send-keys", "-t", paneID, "C-c").Run()
+	if err := exec.Command("tmux", "send-keys", "-t", paneID, "C-c").Run(); err != nil {
+		return err
+	}
+	// Clearing the pane is best-effort: reset the terminal state (-R) to clear
+	// the visible area, then drop the scrollback buffer.
+	_ = exec.Command("tmux", "send-keys", "-R", "-t", paneID, "C-l").Run()
+	_ = exec.Command("tmux", "clear-history", "-t", paneID).Run()
+	return nil
 }
 
 // StartServicePane runs the service's command in the given (already-existing) pane.
