@@ -61,6 +61,7 @@ func (a *App) startup(ctx context.Context) {
 
 	SetTrafficLightPosition(14, 19)
 	initDockMenu(a)
+	installAppMenuExtras()
 
 	go a.ListProjects() // populate dock menu before frontend loads
 	go a.autoCheckForUpdate()

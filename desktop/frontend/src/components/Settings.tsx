@@ -8,7 +8,7 @@ import { SetDarkMode, GetVersion, CheckForUpdate, InstallUpdate } from '../../wa
 
 const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
-export function Settings({ onEditGlobalConfig }: { onEditGlobalConfig: () => void }) {
+export function Settings({ onEditGlobalConfig, pendingUpdateCheck = false, onConsumedUpdateCheck }: { onEditGlobalConfig: () => void; pendingUpdateCheck?: boolean; onConsumedUpdateCheck?: () => void }) {
   const settings = getSettings();
   const [theme, setTheme] = useState<Theme>(settings.theme);
   const [dblClick, setDblClick] = useState(settings.doubleClickToToggle);
@@ -55,6 +55,13 @@ export function Settings({ onEditGlobalConfig }: { onEditGlobalConfig: () => voi
       setUpdateError(String(err));
     }
   };
+
+  useEffect(() => {
+    if (pendingUpdateCheck) {
+      handleCheckUpdate();
+      onConsumedUpdateCheck?.();
+    }
+  }, [pendingUpdateCheck]);
 
   const handleInstallUpdate = async () => {
     setUpdateStatus("installing");

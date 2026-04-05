@@ -19,6 +19,7 @@ export default function App() {
   const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<"projects" | "settings" | "global-config">("projects");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [pendingUpdateCheck, setPendingUpdateCheck] = useState(false);
 
   const { projects, setProjects, refresh } = useProjectsRefresh();
   useWindowResizeSaver();
@@ -36,8 +37,13 @@ export default function App() {
       setSelected(name);
       setView("projects");
     });
+    const cancelUpdates = EventsOn("menu-check-for-updates", () => {
+      setView("settings");
+      setPendingUpdateCheck(true);
+    });
     return () => {
       if (typeof cancelDock === "function") cancelDock();
+      if (typeof cancelUpdates === "function") cancelUpdates();
     };
   }, []);
 
@@ -197,7 +203,7 @@ export default function App() {
               </button>
             )}
           </div>
-          {view === "settings" && <Settings onEditGlobalConfig={() => setView("global-config")} />}
+          {view === "settings" && <Settings onEditGlobalConfig={() => setView("global-config")} pendingUpdateCheck={pendingUpdateCheck} onConsumedUpdateCheck={() => setPendingUpdateCheck(false)} />}
           {view === "global-config" && <GlobalConfigEditor onBack={() => setView("settings")} />}
           {visitedProjects.map((project) => {
             const isSelected = view === "projects" && selected === project.name;
