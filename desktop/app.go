@@ -160,12 +160,6 @@ func (a *App) SaveWindowSize(width, height int) {
 	}
 }
 
-// beforeClose hides instead of closing so the window-close button keeps the app alive.
-func (a *App) beforeClose(ctx context.Context) (prevent bool) {
-	runtime.WindowHide(ctx)
-	return true
-}
-
 func (a *App) shutdown(ctx context.Context) {
 	a.streamMu.Lock()
 	for name, cancel := range a.streams {

@@ -10,6 +10,7 @@ import {
 import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useEventListener } from "../hooks/useEventListener";
+import { CreateBranchModal } from "./CreateBranchModal";
 
 type GitStatus = main.GitStatus;
 type Branch = main.Branch;
@@ -35,22 +36,19 @@ export function BranchSwitcher({ projectPath }: {
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
-  const createRef = useRef<HTMLInputElement>(null);
 
   const ref = useOutsideClick<HTMLDivElement>(() => {
     setOpen(false);
-    setCreating(false);
-  }, open);
+  }, open && !creating);
 
   useEventListener(
     "keydown",
     (e) => {
-      if (e.key === "Escape") { setOpen(false); setCreating(false); }
+      if (e.key === "Escape") setOpen(false);
     },
     document,
-    open,
+    open && !creating,
   );
 
   const refresh = useCallback(async () => {
@@ -71,7 +69,6 @@ export function BranchSwitcher({ projectPath }: {
 
   useEffect(() => {
     if (open && !creating) searchRef.current?.focus();
-    if (creating) createRef.current?.focus();
   }, [open, creating]);
 
   const filtered = useMemo(() => {
@@ -97,8 +94,7 @@ export function BranchSwitcher({ projectPath }: {
     }
   };
 
-  const create = async () => {
-    const name = newName.trim();
+  const create = async (name: string) => {
     if (!name || busy) return;
     setBusy(true);
     try {
@@ -106,7 +102,6 @@ export function BranchSwitcher({ projectPath }: {
       await refresh();
       setOpen(false);
       setCreating(false);
-      setNewName("");
       setQuery("");
     } catch (err) {
       toast.error(`Create ${name}: ${err}`);
@@ -212,46 +207,24 @@ export function BranchSwitcher({ projectPath }: {
             })}
           </div>
           <div className="border-t border-[var(--border)]">
-            {creating ? (
-              <div className="flex items-center gap-2 p-2">
-                <input
-                  ref={createRef}
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") create();
-                    if (e.key === "Escape") { setCreating(false); setNewName(""); }
-                  }}
-                  placeholder="new-branch-name"
-                  disabled={busy}
-                  autoComplete="off"
-                  autoCorrect="off"
-                  autoCapitalize="off"
-                  spellCheck={false}
-                  className="flex-1 rounded-md bg-[var(--bg-hover)] px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none disabled:opacity-50"
-                />
-                <button
-                  onClick={create}
-                  disabled={busy || !newName.trim()}
-                  className="rounded-md bg-[var(--text-primary)] px-2 py-1 text-[11px] font-medium text-[var(--bg-primary)] hover:opacity-90 disabled:opacity-50"
-                >
-                  Create
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setCreating(true)}
-                disabled={busy}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
-              >
-                <PlusIcon />
-                <span>Create and checkout new branch…</span>
-              </button>
-            )}
+            <button
+              onClick={() => setCreating(true)}
+              disabled={busy}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
+            >
+              <PlusIcon />
+              <span>Create and checkout new branch…</span>
+            </button>
           </div>
         </div>
       )}
       </div>
+      <CreateBranchModal
+        open={creating}
+        busy={busy}
+        onClose={() => setCreating(false)}
+        onCreate={create}
+      />
     </div>
   );
 }
