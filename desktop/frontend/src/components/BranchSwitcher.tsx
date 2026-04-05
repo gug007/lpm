@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   GitStatus as ApiGitStatus,
   ListBranches,
@@ -23,9 +24,8 @@ function relativeTime(unix: number): string {
   return `${Math.floor(s / 31536000)}y`;
 }
 
-export function BranchSwitcher({ projectPath, onError }: {
+export function BranchSwitcher({ projectPath }: {
   projectPath: string;
-  onError: (msg: string) => void;
 }) {
   const [status, setStatus] = useState<GitStatus | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -95,7 +95,7 @@ export function BranchSwitcher({ projectPath, onError }: {
       setOpen(false);
       setQuery("");
     } catch (err) {
-      onError(`Checkout ${branch}: ${err}`);
+      toast.error(`Checkout ${branch}: ${err}`);
     } finally {
       setBusy(false);
     }
@@ -113,7 +113,7 @@ export function BranchSwitcher({ projectPath, onError }: {
       setNewName("");
       setQuery("");
     } catch (err) {
-      onError(`Create ${name}: ${err}`);
+      toast.error(`Create ${name}: ${err}`);
     } finally {
       setBusy(false);
     }
@@ -126,7 +126,7 @@ export function BranchSwitcher({ projectPath, onError }: {
       await SyncBranch(projectPath);
       await refresh();
     } catch (err) {
-      onError(`Sync: ${err}`);
+      toast.error(`Sync: ${err}`);
     } finally {
       setBusy(false);
     }

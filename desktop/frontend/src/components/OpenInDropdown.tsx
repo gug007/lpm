@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { ListOpenInTargets, OpenIn } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 
@@ -9,9 +10,8 @@ const SELECTED_KEY = "lpm.openIn.selectedId";
 // Cached across component remounts — the target list doesn't change until app restart.
 let targetsCache: OpenInTarget[] | null = null;
 
-export function OpenInDropdown({ projectPath, onError }: {
+export function OpenInDropdown({ projectPath }: {
   projectPath: string;
-  onError: (msg: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [targets, setTargets] = useState<OpenInTarget[]>(targetsCache ?? []);
@@ -46,7 +46,7 @@ export function OpenInDropdown({ projectPath, onError }: {
     try {
       await OpenIn(t.id, projectPath);
     } catch (err) {
-      onError(`Open in ${t.label}: ${err}`);
+      toast.error(`Open in ${t.label}: ${err}`);
     }
   };
 

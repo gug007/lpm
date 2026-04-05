@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { ActionButton } from "./ActionButton";
 import { OpenInDropdown } from "./OpenInDropdown";
@@ -184,7 +185,6 @@ interface ProjectDetailProps {
   onRestart: (name: string, profile: string) => Promise<void>;
   onRefresh: (newName?: string) => void;
   onRemove: (name: string) => Promise<void>;
-  onError: (msg: string) => void;
 }
 
 export function ProjectDetail({
@@ -196,7 +196,6 @@ export function ProjectDetail({
   onRestart,
   onRefresh,
   onRemove,
-  onError,
 }: ProjectDetailProps) {
   const [loading, setLoading] = useState(false);
   const [activeProfile, setActiveProfile] = useState(
@@ -269,7 +268,7 @@ export function ProjectDetail({
       await RunAction(project.name, action.name);
       setRunningAction(action);
     } catch (err) {
-      onError(`${action.label}: ${err}`);
+      toast.error(`${action.label}: ${err}`);
     }
   };
 
@@ -301,9 +300,9 @@ export function ProjectDetail({
     try {
       await terminalViewRef.current?.createTerminalWithCmd(term.label, term.name, term.cmd);
     } catch (err) {
-      onError(`${term.label}: ${err}`);
+      toast.error(`${term.label}: ${err}`);
     }
-  }, [switchDetailView, onError]);
+  }, [switchDetailView]);
 
   return (
     <div className="flex h-full flex-col">
@@ -330,7 +329,7 @@ export function ProjectDetail({
               label={term.label}
             />
           ))}
-          <OpenInDropdown projectPath={project.root} onError={onError} />
+          <OpenInDropdown projectPath={project.root} />
           <div className="relative">
             <button
               onClick={() => { setShowProfileMenu(false); setShowQuickMenu((v) => !v); }}
@@ -455,7 +454,7 @@ export function ProjectDetail({
         />
         <div className="pointer-events-none absolute bottom-3 right-3 z-20">
           <div className="pointer-events-auto">
-            <BranchSwitcher projectPath={project.root} onError={onError} />
+            <BranchSwitcher projectPath={project.root} />
           </div>
         </div>
       </div>

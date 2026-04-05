@@ -5,6 +5,7 @@ import { Settings } from "./components/Settings";
 import { GlobalConfigEditor } from "./components/GlobalConfigEditor";
 import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
 import { TmuxInstaller } from "./components/TmuxInstaller";
+import { Toaster, toast } from "sonner";
 import type { ProjectInfo } from "./types";
 import { SidebarIcon } from "./components/icons";
 
@@ -17,7 +18,6 @@ export default function App() {
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<"projects" | "settings" | "global-config">("projects");
-  const [error, setError] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
@@ -59,7 +59,6 @@ export default function App() {
         const next = list || [];
         return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
       });
-      setError(null);
     } catch (err) {
       console.error("Failed to load projects:", err);
     }
@@ -123,7 +122,7 @@ export default function App() {
       await api.StartProject(name, profile);
       await refresh();
     } catch (err) {
-      setError(`Failed to start ${name}: ${err}`);
+      toast.error(`Failed to start ${name}: ${err}`);
     }
   };
 
@@ -132,7 +131,7 @@ export default function App() {
       await api.StopProject(name);
       await refresh();
     } catch (err) {
-      setError(`Failed to stop ${name}: ${err}`);
+      toast.error(`Failed to stop ${name}: ${err}`);
     }
   };
 
@@ -142,7 +141,7 @@ export default function App() {
       await api.StartProject(name, profile);
       await refresh();
     } catch (err) {
-      setError(`Failed to restart ${name}: ${err}`);
+      toast.error(`Failed to restart ${name}: ${err}`);
     }
   };
 
@@ -156,7 +155,7 @@ export default function App() {
       setSelected(name);
       setView("projects");
     } catch (err) {
-      setError(`Failed to add project: ${err}`);
+      toast.error(`Failed to add project: ${err}`);
     }
   };
 
@@ -171,7 +170,7 @@ export default function App() {
       setSelected(null);
       await refresh();
     } catch (err) {
-      setError(`Failed to remove ${name}: ${err}`);
+      toast.error(`Failed to remove ${name}: ${err}`);
     }
   };
 
@@ -185,14 +184,14 @@ export default function App() {
 
   return (
     <div className="flex h-screen">
-      {error && (
-        <div className="absolute left-0 right-0 top-0 z-50 bg-[var(--accent-red)] px-4 py-2 text-sm text-white">
-          {error}
-          <button onClick={() => setError(null)} className="ml-2 font-bold">
-            ×
-          </button>
-        </div>
-      )}
+      <Toaster
+        position="top-right"
+        theme="system"
+        offset={56}
+        closeButton
+        richColors
+        toastOptions={{ duration: 5000 }}
+      />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           projects={projects}
@@ -214,7 +213,7 @@ export default function App() {
               }
               await refresh();
             } catch (err) {
-              setError(`${err}`);
+              toast.error(`Failed to toggle ${name}: ${err}`);
             }
           }}
           onSettings={() => setView("settings")}
@@ -227,7 +226,7 @@ export default function App() {
             try {
               await api.ReorderProjects(order);
             } catch (err) {
-              setError(`Failed to reorder: ${err}`);
+              toast.error(`Failed to reorder: ${err}`);
             }
           }}
           showSettings={view === "settings" || view === "global-config"}
@@ -260,7 +259,6 @@ export default function App() {
                   onRestart={handleRestart}
                   onRefresh={handleRefresh}
                   onRemove={handleRemove}
-                  onError={setError}
                 />
               </div>
             );
