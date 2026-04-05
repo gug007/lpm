@@ -75,6 +75,7 @@ export function Settings({ onEditGlobalConfig, pendingUpdateCheck = false, onCon
 
   return (
     <div className="mx-auto max-w-lg pt-6">
+      {updateStatus === "installing" && <InstallingOverlay />}
       <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
 
       <div className="mt-6 space-y-1">
@@ -279,11 +280,11 @@ function MonitorIcon() {
   );
 }
 
-function RefreshIcon({ spinning }: { spinning?: boolean }) {
+function RefreshIcon({ spinning, size = 12 }: { spinning?: boolean; size?: number }) {
   return (
     <svg
-      width="12"
-      height="12"
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -295,6 +296,22 @@ function RefreshIcon({ spinning }: { spinning?: boolean }) {
       <polyline points="23 4 23 10 17 10" />
       <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
     </svg>
+  );
+}
+
+function InstallingOverlay() {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="flex flex-col items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-6 py-5 shadow-lg">
+        <RefreshIcon spinning size={24} />
+        <p className="text-sm font-medium text-[var(--text-primary)]">
+          Installing update...
+        </p>
+        <p className="text-xs text-[var(--text-muted)]">
+          The app will restart when finished
+        </p>
+      </div>
+    </div>
   );
 }
 
