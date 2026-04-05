@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-
 	"github.com/gug007/lpm/internal/config"
 	"github.com/spf13/cobra"
 )

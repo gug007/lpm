@@ -21,4 +21,5 @@ export function SettingsIcon() { return <svg {...iconProps}><path d="M12.22 2h-.
 export function PencilIcon() { return <svg {...iconProps}><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /></svg>; }
 export function CheckIcon() { return <svg {...iconProps} width={12} height={12} strokeWidth={2}><polyline points="20 6 9 17 4 12" /></svg>; }
 export function PlayIcon() { return <svg {...iconProps} fill="currentColor" stroke="none"><path d="M6 4v16l14-8z" /></svg>; }
+export function SparkleIcon() { return <svg {...iconProps}><path d="M9.9 15.5A2 2 0 0 0 8.5 14.1l-6.1-1.6a.5.5 0 0 1 0-1L8.5 9.9A2 2 0 0 0 9.9 8.5l1.6-6.1a.5.5 0 0 1 1 0l1.6 6.1A2 2 0 0 0 15.5 9.9l6.1 1.6a.5.5 0 0 1 0 1l-6.1 1.6a2 2 0 0 0-1.4 1.4l-1.6 6.1a.5.5 0 0 1-1 0z"/><path d="M20 3v4M22 5h-4M4 17v2M5 18H3"/></svg>; }
 export function StopIcon() { return <svg {...iconProps} fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" rx="1" /></svg>; }

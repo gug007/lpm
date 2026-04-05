@@ -1,7 +1,8 @@
-import { useRef, useEffect, useCallback } from "react";
-import { ReadConfig, SaveConfig } from "../../wailsjs/go/main/App";
+import { useRef, useEffect, useCallback, useState } from "react";
+import { ReadConfig, SaveConfig, GenerateProjectConfig } from "../../wailsjs/go/main/App";
 import { useYamlEditor } from "../hooks/useYamlEditor";
-import { ChevronLeftIcon } from "./icons";
+import { ChevronLeftIcon, SparkleIcon } from "./icons";
+import { AIGenerateModal, type AICLI } from "./AIGenerateModal";
 
 interface ConfigEditorProps {
   projectName: string;
@@ -26,22 +27,43 @@ export function ConfigEditor({ projectName, onSaved, onBack }: ConfigEditorProps
   const { content, setContent, dirty, saving, error, handleSave, handleTab } =
     useYamlEditor(load, save);
 
+  const [aiOpen, setAiOpen] = useState(false);
+
   useEffect(() => {
     textareaRef.current?.focus();
   }, [projectName]);
 
+  const handleAIGenerate = async (cli: AICLI, extraPrompt: string) => {
+    const yaml = await GenerateProjectConfig(projectName, cli, extraPrompt);
+    setContent(yaml);
+    setAiOpen(false);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
   return (
     <div className="flex h-full flex-col">
       {onBack && (
-        <div className="flex items-center gap-3 px-6 pt-3 pb-2">
+        <div className="flex items-center justify-between gap-3 px-6 pt-3 pb-2">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onBack}
+              className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              title="Back to terminal"
+            >
+              <ChevronLeftIcon />
+            </button>
+            <span className="text-sm font-medium text-[var(--text-primary)]">Config</span>
+          </div>
           <button
-            onClick={onBack}
-            className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            title="Back to terminal"
+            onClick={() => setAiOpen(true)}
+            className="group relative inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 p-[1px] text-xs font-medium shadow-sm transition-all hover:shadow-md hover:shadow-purple-500/20 active:scale-[0.98]"
+            title="Generate config with AI"
           >
-            <ChevronLeftIcon />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--bg-primary)] px-3 py-1 text-[var(--text-primary)] transition-colors group-hover:bg-transparent group-hover:text-white">
+              <SparkleIcon />
+              Generate with AI
+            </span>
           </button>
-          <span className="text-sm font-medium text-[var(--text-primary)]">Config</span>
         </div>
       )}
       <div className="relative flex-1 overflow-hidden">
@@ -70,6 +92,11 @@ export function ConfigEditor({ projectName, onSaved, onBack }: ConfigEditorProps
           </div>
         )}
       </div>
+      <AIGenerateModal
+        open={aiOpen}
+        onCancel={() => setAiOpen(false)}
+        onGenerate={handleAIGenerate}
+      />
     </div>
   );
 }
