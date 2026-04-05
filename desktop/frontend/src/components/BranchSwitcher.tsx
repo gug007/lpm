@@ -115,6 +115,11 @@ export function BranchSwitcher({ projectPath }: {
     }
   };
 
+  const toggleOpen = () => {
+    if (!open) refresh();
+    setOpen(!open);
+  };
+
   const sync = async () => {
     if (busy) return;
     setBusy(true);
@@ -146,7 +151,7 @@ export function BranchSwitcher({ projectPath }: {
       )}
       <div ref={ref} className="relative">
         <button
-          onClick={() => setOpen((v) => !v)}
+          onClick={toggleOpen}
           title={busy ? "Switching branch…" : "Switch branch"}
           disabled={busy}
           className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] shadow-sm transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
