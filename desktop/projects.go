@@ -306,13 +306,54 @@ func (a *App) invalidateSessionCache(projectName string) {
 	a.cacheMu.Unlock()
 }
 
-func (a *App) GetServiceLogs(projectName string, paneIndex int, lines int) (string, error) {
+// resolvePaneID returns the tmux pane ID for the given service pane index, or
+// an error if the index is out of range.
+func (a *App) resolvePaneID(projectName string, paneIndex int) (string, error) {
 	session := a.cachedSessionName(projectName)
 	panes := a.cachedPaneIDs(session)
-	if paneIndex >= len(panes) {
+	if paneIndex < 0 || paneIndex >= len(panes) {
 		return "", fmt.Errorf("pane index %d out of range", paneIndex)
 	}
-	return tmux.CapturePaneByID(panes[paneIndex], lines)
+	return panes[paneIndex], nil
+}
+
+func (a *App) GetServiceLogs(projectName string, paneIndex int, lines int) (string, error) {
+	paneID, err := a.resolvePaneID(projectName, paneIndex)
+	if err != nil {
+		return "", err
+	}
+	return tmux.CapturePaneByID(paneID, lines)
+}
+
+// StopService sends Ctrl-C to the given service's pane, killing its command
+// but leaving the pane (and its log history) intact.
+func (a *App) StopService(projectName string, paneIndex int) error {
+	paneID, err := a.resolvePaneID(projectName, paneIndex)
+	if err != nil {
+		return err
+	}
+	return tmux.StopServicePane(paneID)
+}
+
+// StartService re-runs the service's command in its existing pane.
+func (a *App) StartService(projectName string, paneIndex int) error {
+	cfg, err := config.LoadProject(projectName)
+	if err != nil {
+		return err
+	}
+	serviceNames := cfg.ServicesForProfile(a.getRunningProfile(projectName))
+	if paneIndex < 0 || paneIndex >= len(serviceNames) {
+		return fmt.Errorf("service index %d out of range", paneIndex)
+	}
+	svc, ok := cfg.Services[serviceNames[paneIndex]]
+	if !ok {
+		return fmt.Errorf("service %q not found", serviceNames[paneIndex])
+	}
+	paneID, err := a.resolvePaneID(projectName, paneIndex)
+	if err != nil {
+		return err
+	}
+	return tmux.StartServicePane(paneID, cfg.Root, svc)
 }
 
 func (a *App) ReadConfig(name string) (string, error) {

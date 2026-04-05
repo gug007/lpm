@@ -15,7 +15,10 @@ export function TrashIcon() { return <svg {...iconProps}><path d="M3 6h18" /><pa
 export function RefreshIcon() { return <svg {...iconProps}><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>; }
 export function TerminalIcon() { return <svg {...iconProps}><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>; }
 export function ChevronLeftIcon() { return <svg {...iconProps}><polyline points="15 18 9 12 15 6" /></svg>; }
+export function ChevronRightIcon() { return <svg {...iconProps}><polyline points="9 18 15 12 9 6" /></svg>; }
 export function ChevronDownIcon() { return <svg {...iconProps}><path d="m6 9 6 6 6-6" /></svg>; }
 export function SettingsIcon() { return <svg {...iconProps}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></svg>; }
 export function PencilIcon() { return <svg {...iconProps}><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /></svg>; }
 export function CheckIcon() { return <svg {...iconProps} width={12} height={12} strokeWidth={2}><polyline points="20 6 9 17 4 12" /></svg>; }
+export function PlayIcon() { return <svg {...iconProps} fill="currentColor" stroke="none"><path d="M6 4v16l14-8z" /></svg>; }
+export function StopIcon() { return <svg {...iconProps} fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" rx="1" /></svg>; }

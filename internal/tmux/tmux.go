@@ -81,6 +81,18 @@ func KillSession(name string) error {
 	return cmd.Run()
 }
 
+// StopServicePane sends Ctrl-C to the pane, killing whatever command is running.
+// The pane itself is left open so the command can later be restarted.
+func StopServicePane(paneID string) error {
+	return exec.Command("tmux", "send-keys", "-t", paneID, "C-c").Run()
+}
+
+// StartServicePane runs the service's command in the given (already-existing) pane.
+func StartServicePane(paneID, root string, svc config.Service) error {
+	cwd := resolveWorkDir(root, svc.Cwd)
+	return sendKeys(paneID, buildCommand(cwd, svc))
+}
+
 func StartProject(cfg *config.ProjectConfig, profile string) error {
 	serviceNames := cfg.ServicesForProfile(profile)
 	if len(serviceNames) == 0 {

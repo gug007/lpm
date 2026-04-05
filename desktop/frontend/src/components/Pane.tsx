@@ -1,4 +1,4 @@
-import { useRef, useEffect, useImperativeHandle, type Ref } from "react";
+import { useRef, useEffect, useImperativeHandle, type Ref, type ReactNode } from "react";
 import { Terminal, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
@@ -6,7 +6,10 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { getTerminalTheme } from "./terminal-utils";
+import { ChevronRightIcon } from "./icons";
 import "@xterm/xterm/css/xterm.css";
+
+const labelBarClass = "flex items-center justify-between gap-1 border-b border-[var(--terminal-header-hover)] bg-[var(--terminal-header)] px-3 py-0.5 font-mono text-[10px] font-medium text-[var(--terminal-header-text)]";
 
 export interface PaneHandle {
   clear: () => void;
@@ -19,6 +22,8 @@ export interface PaneHandle {
 
 interface PaneProps {
   label?: string;
+  onLabelClick?: () => void;
+  labelActions?: ReactNode;
   output: string;
   visible?: boolean;
   fontSize?: number;
@@ -27,7 +32,7 @@ interface PaneProps {
   ref?: Ref<PaneHandle>;
 }
 
-export function Pane({ label, output, visible = true, fontSize = 12, onScrollStateChange, themeOverride, ref }: PaneProps) {
+export function Pane({ label, onLabelClick, labelActions, output, visible = true, fontSize = 12, onScrollStateChange, themeOverride, ref }: PaneProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const termRef = useRef<Terminal | null>(null);
     const fitRef = useRef<FitAddon | null>(null);
@@ -208,10 +213,24 @@ export function Pane({ label, output, visible = true, fontSize = 12, onScrollSta
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {label && (
-          <div className="border-b border-[var(--terminal-header-hover)] bg-[var(--terminal-header)] px-3 py-0.5">
-            <span className="font-mono text-[10px] font-medium text-[var(--terminal-header-text)]">
-              {label}
-            </span>
+          <div className={labelBarClass}>
+            {onLabelClick ? (
+              <button
+                onClick={onLabelClick}
+                title={`Open ${label} tab`}
+                className="group -ml-1 flex min-w-0 flex-1 items-center gap-1 rounded px-1 text-left transition-colors hover:text-[var(--terminal-tab-active)]"
+              >
+                <span className="truncate">{label}</span>
+                <span className="shrink-0 opacity-50 transition-opacity group-hover:opacity-100">
+                  <ChevronRightIcon />
+                </span>
+              </button>
+            ) : (
+              <span className="truncate">{label}</span>
+            )}
+            {labelActions && (
+              <span className="flex shrink-0 items-center gap-0.5">{labelActions}</span>
+            )}
           </div>
         )}
         <div className="relative min-h-0 min-w-0 flex-1">

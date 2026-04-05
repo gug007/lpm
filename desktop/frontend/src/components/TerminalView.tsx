@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, useImperativeHandle } from "react";
+import { toast } from "sonner";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { GetServiceLogs, StartLogStreaming, StopLogStreaming } from "../../wailsjs/go/main/App";
+import { GetServiceLogs, StartLogStreaming, StopLogStreaming, StartService, StopService } from "../../wailsjs/go/main/App";
 import type { ITheme } from "@xterm/xterm";
 import { Pane, PaneHandle } from "./Pane";
 import { InteractivePane, InteractivePaneHandle } from "./InteractivePane";
@@ -8,9 +9,10 @@ import { getSettings, saveSettings } from "../settings";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
 import { ansiColors } from "./terminal-utils";
-import { XIcon, TrashIcon, SettingsIcon, CheckIcon, ChevronDownIcon } from "./icons";
+import { XIcon, TrashIcon, SettingsIcon, CheckIcon, ChevronDownIcon, PlayIcon, StopIcon } from "./icons";
 import { HeaderTab } from "./terminal/HeaderTab";
 import { IconBtn } from "./terminal/IconBtn";
+import { Tooltip } from "./ui/Tooltip";
 import {
   SearchIcon,
   ArrowDownIcon,
@@ -188,6 +190,34 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
 
   const servicesKey = services.map((s) => s.name).join(",");
   const stableServices = useMemo(() => services, [servicesKey]);
+
+  const [stoppedServices, setStoppedServices] = useState<Set<string>>(() => new Set());
+  // Reset stopped-service tracking when the service set changes (profile switch, project (re)start)
+  useEffect(() => { setStoppedServices(new Set()); }, [servicesKey]);
+
+  const handleStartService = async (idx: number) => {
+    const name = stableServices[idx]?.name;
+    if (!name) return;
+    setStoppedServices((prev) => { const next = new Set(prev); next.delete(name); return next; });
+    try {
+      await StartService(projectName, idx);
+    } catch (err) {
+      setStoppedServices((prev) => new Set(prev).add(name));
+      toast.error(`Start ${name}: ${err}`);
+    }
+  };
+
+  const handleStopService = async (idx: number) => {
+    const name = stableServices[idx]?.name;
+    if (!name) return;
+    setStoppedServices((prev) => new Set(prev).add(name));
+    try {
+      await StopService(projectName, idx);
+    } catch (err) {
+      setStoppedServices((prev) => { const next = new Set(prev); next.delete(name); return next; });
+      toast.error(`Stop ${name}: ${err}`);
+    }
+  };
 
   const activeTermIdx = terminalIndex(activePane);
   const showAll = activePane === "all";
@@ -455,6 +485,8 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
       <div className={showSettings ? "hidden" : `flex min-h-0 flex-1 overflow-hidden ${showAll && hasMultiple && activeTermIdx === null ? "divide-x divide-[var(--border)]" : ""}`}>
         {stableServices.map((svc, i) => {
           const paneVisible = visible && !showSettings && activeTermIdx === null && (showAll || activePane === i);
+          const showLabel = showAll && hasMultiple;
+          const stopped = stoppedServices.has(svc.name);
           return (
             <div
               key={svc.name}
@@ -462,7 +494,22 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
             >
               <Pane
                 ref={(el) => { paneRefs.current[i] = el; }}
-                label={showAll && hasMultiple ? svc.name : undefined}
+                label={showLabel ? svc.name : undefined}
+                onLabelClick={showLabel ? () => setActivePane(i) : undefined}
+                labelActions={showLabel ? (
+                  <Tooltip content={stopped ? `Start ${svc.name}` : `Stop ${svc.name}`}>
+                    <button
+                      onClick={() => (stopped ? handleStartService(i) : handleStopService(i))}
+                      className={`rounded p-0.5 transition-colors hover:bg-[var(--terminal-header-hover)] ${
+                        stopped
+                          ? "text-[var(--accent-green)]"
+                          : "text-[var(--terminal-header-text)] hover:text-[var(--terminal-tab-active)]"
+                      }`}
+                    >
+                      {stopped ? <PlayIcon /> : <StopIcon />}
+                    </button>
+                  </Tooltip>
+                ) : undefined}
                 output={outputs[i] || ""}
                 visible={paneVisible}
                 fontSize={fontSize}
