@@ -21,6 +21,17 @@ func checkForUpdatesClicked() {
 	}
 }
 
+//export openSettingsClicked
+func openSettingsClicked() {
+	if dockApp != nil && dockApp.ctx != nil {
+		ctx := dockApp.ctx
+		go func() {
+			wailsRuntime.WindowShow(ctx)
+			wailsRuntime.EventsEmit(ctx, "menu-open-settings")
+		}()
+	}
+}
+
 func installAppMenuExtras() {
 	C.installCheckForUpdatesMenuItem()
 }

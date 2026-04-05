@@ -1,10 +1,12 @@
 #import <Cocoa/Cocoa.h>
 
 extern void checkForUpdatesClicked(void);
+extern void openSettingsClicked(void);
 
 @interface LPMAppMenuHandler : NSObject
 + (instancetype)shared;
 - (void)checkForUpdates:(NSMenuItem *)sender;
+- (void)openSettings:(NSMenuItem *)sender;
 @end
 
 @implementation LPMAppMenuHandler
@@ -20,30 +22,29 @@ extern void checkForUpdatesClicked(void);
 - (void)checkForUpdates:(NSMenuItem *)sender {
     checkForUpdatesClicked();
 }
+
+- (void)openSettings:(NSMenuItem *)sender {
+    openSettingsClicked();
+}
 @end
 
-static void insertCheckForUpdatesItem(void) {
-    NSMenu *mainMenu = [[NSApplication sharedApplication] mainMenu];
-    if (!mainMenu || mainMenu.numberOfItems == 0) return;
+static NSInteger indexAfterAbout(NSMenu *appSubmenu) {
+    for (NSInteger i = 0; i < appSubmenu.numberOfItems; i++) {
+        NSMenuItem *item = [appSubmenu itemAtIndex:i];
+        if ([item.title hasPrefix:@"About "]) {
+            return i + 1;
+        }
+    }
+    return 0;
+}
 
-    NSMenuItem *appMenuItem = [mainMenu itemAtIndex:0];
-    NSMenu *appSubmenu = appMenuItem.submenu;
-    if (!appSubmenu) return;
-
+static void insertCheckForUpdatesItem(NSMenu *appSubmenu) {
     // Idempotent: skip if already present
     for (NSMenuItem *item in appSubmenu.itemArray) {
         if (item.action == @selector(checkForUpdates:)) return;
     }
 
-    // Anchor after the "About …" item; fall back to top of menu
-    NSInteger insertIndex = 0;
-    for (NSInteger i = 0; i < appSubmenu.numberOfItems; i++) {
-        NSMenuItem *item = [appSubmenu itemAtIndex:i];
-        if ([item.title hasPrefix:@"About "]) {
-            insertIndex = i + 1;
-            break;
-        }
-    }
+    NSInteger insertIndex = indexAfterAbout(appSubmenu);
 
     [appSubmenu insertItem:[NSMenuItem separatorItem] atIndex:insertIndex];
     NSMenuItem *checkItem = [[NSMenuItem alloc] initWithTitle:@"Check for Updates…"
@@ -53,10 +54,41 @@ static void insertCheckForUpdatesItem(void) {
     [appSubmenu insertItem:checkItem atIndex:insertIndex + 1];
 }
 
+static void insertSettingsItem(NSMenu *appSubmenu) {
+    // Idempotent: skip if already present
+    for (NSMenuItem *item in appSubmenu.itemArray) {
+        if (item.action == @selector(openSettings:)) return;
+    }
+
+    NSInteger insertIndex = indexAfterAbout(appSubmenu);
+
+    [appSubmenu insertItem:[NSMenuItem separatorItem] atIndex:insertIndex];
+    NSMenuItem *settingsItem = [[NSMenuItem alloc] initWithTitle:@"Settings…"
+                                                          action:@selector(openSettings:)
+                                                   keyEquivalent:@","];
+    [settingsItem setKeyEquivalentModifierMask:NSEventModifierFlagCommand];
+    [settingsItem setTarget:[LPMAppMenuHandler shared]];
+    [appSubmenu insertItem:settingsItem atIndex:insertIndex + 1];
+}
+
+static void insertAppMenuItems(void) {
+    NSMenu *mainMenu = [[NSApplication sharedApplication] mainMenu];
+    if (!mainMenu || mainMenu.numberOfItems == 0) return;
+
+    NSMenuItem *appMenuItem = [mainMenu itemAtIndex:0];
+    NSMenu *appSubmenu = appMenuItem.submenu;
+    if (!appSubmenu) return;
+
+    // Insert Check for Updates first, then Settings — Settings lands
+    // immediately after About, pushing Check for Updates below it.
+    insertCheckForUpdatesItem(appSubmenu);
+    insertSettingsItem(appSubmenu);
+}
+
 static void installWithRetry(int remaining) {
     NSMenu *mainMenu = [[NSApplication sharedApplication] mainMenu];
     if (mainMenu && mainMenu.numberOfItems > 0) {
-        insertCheckForUpdatesItem();
+        insertAppMenuItems();
         return;
     }
     if (remaining <= 0) return;

@@ -41,9 +41,13 @@ export default function App() {
       setView("settings");
       setPendingUpdateCheck(true);
     });
+    const cancelSettings = EventsOn("menu-open-settings", () => {
+      setView("settings");
+    });
     return () => {
       if (typeof cancelDock === "function") cancelDock();
       if (typeof cancelUpdates === "function") cancelUpdates();
+      if (typeof cancelSettings === "function") cancelSettings();
     };
   }, []);
 
