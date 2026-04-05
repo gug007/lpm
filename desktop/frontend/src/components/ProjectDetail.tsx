@@ -146,9 +146,9 @@ export function ProjectDetail({
         <h1 className="shrink-0 text-xl font-semibold tracking-tight">
           {project.name}
         </h1>
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-2" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
           {(buttonActions.length > 0 || buttonTerminals.length > 0) && (
-            <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
+            <div className="flex min-w-0 items-center gap-2 overflow-x-auto" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
               {buttonActions.map((action) => (
                 <ActionButton
                   key={action.name}
@@ -169,8 +169,10 @@ export function ProjectDetail({
               ))}
             </div>
           )}
-          <OpenInDropdown projectPath={project.root} />
-          <div className="relative">
+          <div style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
+            <OpenInDropdown projectPath={project.root} />
+          </div>
+          <div className="relative" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
             <button
               onClick={() => { setShowProfileMenu(false); setShowQuickMenu((v) => !v); }}
               aria-label="Project actions"
@@ -198,19 +200,21 @@ export function ProjectDetail({
             )}
           </div>
           {project.running ? (
-            <ActionButton
-              onClick={() =>
-                withLoading(async () => {
-                  await onStop(project.name);
-                  switchDetailView("terminal");
-                })
-              }
-              disabled={loading}
-              variant="destructive"
-              label="Stop"
-            />
+            <div style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
+              <ActionButton
+                onClick={() =>
+                  withLoading(async () => {
+                    await onStop(project.name);
+                    switchDetailView("terminal");
+                  })
+                }
+                disabled={loading}
+                variant="destructive"
+                label="Stop"
+              />
+            </div>
           ) : hasProfiles ? (
-            <div ref={profileMenuRef} className="relative flex">
+            <div ref={profileMenuRef} className="relative flex" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
               <button
                 onClick={handleStart}
                 disabled={loading}
@@ -250,12 +254,14 @@ export function ProjectDetail({
               )}
             </div>
           ) : (
-            <ActionButton
-              onClick={handleStart}
-              disabled={loading}
-              variant="primary"
-              label="Start"
-            />
+            <div style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
+              <ActionButton
+                onClick={handleStart}
+                disabled={loading}
+                variant="primary"
+                label="Start"
+              />
+            </div>
           )}
         </div>
       </div>
