@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -16,11 +15,6 @@ import (
 	"github.com/gug007/lpm/internal/config"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
-
-// Wails v2 WKWebView IPC drops certain high bytes (notably 0xD1) in JS→Go
-// string transit on some macOS configs. Frontend hex-encodes input containing
-// non-ASCII bytes with this marker prefix; ASCII passes through unchanged.
-const writeTerminalHexMarker = "\x00HEX:"
 
 var ptyCounter atomic.Uint64
 
@@ -242,18 +236,7 @@ func (a *App) WriteTerminal(id string, data string) error {
 	if sess.closed {
 		return fmt.Errorf("terminal closed: %s", id)
 	}
-
-	var buf []byte
-	if strings.HasPrefix(data, writeTerminalHexMarker) {
-		decoded, err := hex.DecodeString(data[len(writeTerminalHexMarker):])
-		if err != nil {
-			return fmt.Errorf("decode hex: %w", err)
-		}
-		buf = decoded
-	} else {
-		buf = []byte(data)
-	}
-	_, err := sess.pty.Write(buf)
+	_, err := sess.pty.Write([]byte(data))
 	return err
 }
 
