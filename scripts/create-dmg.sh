@@ -63,12 +63,34 @@ sleep 2
 # Remove any .DS_Store leftovers from temp, keep the one in the volume
 sync
 
-# Unmount (retry if busy)
-for i in 1 2 3; do
-  hdiutil detach "$MOUNT_DIR" && break
+# Tell Finder to release the volume before detaching
+osascript -e "tell application \"Finder\" to eject disk \"$VOLUME_NAME\"" 2>/dev/null || true
+sleep 2
+
+# Unmount (retry with -force if busy)
+DETACHED=0
+for i in 1 2 3 4 5; do
+  if hdiutil detach "$MOUNT_DIR" -force 2>/dev/null; then
+    DETACHED=1
+    break
+  fi
   echo "hdiutil detach attempt $i failed, retrying in 3s..."
   sleep 3
 done
+
+# If MOUNT_DIR is already gone (auto-ejected), that's fine too
+if [ "$DETACHED" -eq 0 ] && [ ! -d "$MOUNT_DIR" ]; then
+  echo "Mount point $MOUNT_DIR no longer exists — treating as detached"
+  DETACHED=1
+fi
+
+# Ensure no stale attachments to the image file remain
+sleep 2
+hdiutil info | grep -q "$TEMP_DMG" && {
+  echo "Image still attached, forcing detach by image path..."
+  hdiutil detach "$(hdiutil info | grep -B1 "$TEMP_DMG" | head -1 | awk '{print $1}')" -force 2>/dev/null || true
+  sleep 2
+}
 
 # Convert to compressed read-only DMG
 hdiutil convert "$TEMP_DMG" -format UDZO -o "$OUTPUT_DMG"
