@@ -8,7 +8,7 @@ export function isDarkTheme(theme: Theme): boolean {
   );
 }
 
-export function applyTheme(theme: Theme) {
+export function applyTheme(theme: Theme): boolean {
   const dark = isDarkTheme(theme);
   document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
   return dark;

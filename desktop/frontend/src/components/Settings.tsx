@@ -2,8 +2,11 @@ import { useState, useEffect } from "react";
 import { getSettings, saveSettings } from "../settings";
 
 import { applyTheme, type Theme } from "../theme";
+import { useEventListener } from "../hooks/useEventListener";
 
 import { SetDarkMode, GetVersion, CheckForUpdate, InstallUpdate } from '../../wailsjs/go/main/App';
+
+const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
 export function Settings({ onEditGlobalConfig }: { onEditGlobalConfig: () => void }) {
   const settings = getSettings();
@@ -26,16 +29,15 @@ export function Settings({ onEditGlobalConfig }: { onEditGlobalConfig: () => voi
     SetDarkMode(dark);
   }, [theme]);
 
-  useEffect(() => {
-    if (theme !== "system") return;
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = () => {
+  useEventListener(
+    "change",
+    () => {
       const dark = applyTheme("system");
       SetDarkMode(dark);
-    };
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, [theme]);
+    },
+    darkModeQuery,
+    theme === "system",
+  );
 
   const handleCheckUpdate = async () => {
     setUpdateStatus("checking");

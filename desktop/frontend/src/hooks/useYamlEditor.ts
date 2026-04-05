@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useKeyboardShortcut } from "./useKeyboardShortcut";
 
 export function useYamlEditor(
   load: () => Promise<string>,
@@ -8,7 +9,6 @@ export function useYamlEditor(
   const [original, setOriginal] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const saveRef = useRef<() => void>(() => {});
 
   const dirty = content !== original;
 
@@ -31,20 +31,9 @@ export function useYamlEditor(
     }
   }, [content, save]);
 
-  const dirtyRef = useRef(false);
-  dirtyRef.current = dirty;
-  saveRef.current = handleSave;
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-        e.preventDefault();
-        if (dirtyRef.current) saveRef.current();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
+  useKeyboardShortcut({ key: "s", meta: true }, () => {
+    if (dirty) handleSave();
+  });
 
   const handleTab = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Tab") {

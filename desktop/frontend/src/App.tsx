@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { Settings } from "./components/Settings";
@@ -6,96 +6,46 @@ import { GlobalConfigEditor } from "./components/GlobalConfigEditor";
 import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
 import { TmuxInstaller } from "./components/TmuxInstaller";
 import { Toaster, toast } from "sonner";
-import type { ProjectInfo } from "./types";
 import { SidebarIcon } from "./components/icons";
+import { useProjectsRefresh } from "./hooks/useProjectsRefresh";
+import { useWindowResizeSaver } from "./hooks/useWindowResizeSaver";
+import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
 
-import { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects, TmuxInstalled, InstallTmux, SaveWindowSize } from '../wailsjs/go/main/App';
-import { EventsOn, WindowGetSize } from '../wailsjs/runtime/runtime';
-const api = { ListProjects, StartProject, StopProject, GetProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects };
+import { StartProject, StopProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects, TmuxInstalled, InstallTmux } from '../wailsjs/go/main/App';
+import { EventsOn } from '../wailsjs/runtime/runtime';
 
 export default function App() {
   const [tmuxReady, setTmuxReady] = useState<boolean | null>(null);
-  const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<"projects" | "settings" | "global-config">("projects");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const { projects, setProjects, refresh } = useProjectsRefresh();
+  useWindowResizeSaver();
 
   useEffect(() => {
     TmuxInstalled().then(setTmuxReady);
   }, []);
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "b") {
-        e.preventDefault();
-        setSidebarCollapsed((v) => !v);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  useKeyboardShortcut({ key: "b", meta: true }, () => {
+    setSidebarCollapsed((v) => !v);
+  });
 
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    const onResize = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        WindowGetSize().then(({ w, h }) => SaveWindowSize(w, h));
-      }, 500);
-    };
-    window.addEventListener("resize", onResize);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener("resize", onResize);
-    };
-  }, []);
-
-  const handleTmuxInstalled = useCallback(() => setTmuxReady(true), []);
-
-  const refresh = useCallback(async () => {
-    try {
-      const list = await api.ListProjects();
-      setProjects((prev) => {
-        const next = list || [];
-        return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
-      });
-    } catch (err) {
-      console.error("Failed to load projects:", err);
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-    let interval: ReturnType<typeof setInterval> | null = setInterval(refresh, 10_000);
-
-    const cancelEvent = EventsOn("projects-changed", refresh);
-
     const cancelDock = EventsOn("dock-project-selected", (name: string) => {
       setSelected(name);
       setView("projects");
     });
-
-    const onVisibility = () => {
-      if (document.hidden) {
-        if (interval) { clearInterval(interval); interval = null; }
-      } else {
-        refresh();
-        if (!interval) interval = setInterval(refresh, 10_000);
-      }
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-
     return () => {
-      if (interval) clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVisibility);
-      if (typeof cancelEvent === "function") cancelEvent();
       if (typeof cancelDock === "function") cancelDock();
     };
-  }, [refresh]);
+  }, []);
+
+  const handleTmuxInstalled = () => setTmuxReady(true);
 
   const selectedProject = projects.find((p) => p.name === selected) || null;
 
-  // Track projects that have been opened so their components stay mounted
+  // Track projects that have been opened so their components stay mounted.
   const [visited, setVisited] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -112,14 +62,11 @@ export default function App() {
     });
   }, [projects]);
 
-  const visitedProjects = useMemo(
-    () => projects.filter((p) => p.name === selected || visited.has(p.name)),
-    [projects, visited, selected],
-  );
+  const visitedProjects = projects.filter((p) => p.name === selected || visited.has(p.name));
 
   const handleStart = async (name: string, profile: string) => {
     try {
-      await api.StartProject(name, profile);
+      await StartProject(name, profile);
       await refresh();
     } catch (err) {
       toast.error(`Failed to start ${name}: ${err}`);
@@ -128,7 +75,7 @@ export default function App() {
 
   const handleStop = async (name: string) => {
     try {
-      await api.StopProject(name);
+      await StopProject(name);
       await refresh();
     } catch (err) {
       toast.error(`Failed to stop ${name}: ${err}`);
@@ -137,8 +84,8 @@ export default function App() {
 
   const handleRestart = async (name: string, profile: string) => {
     try {
-      await api.StopProject(name);
-      await api.StartProject(name, profile);
+      await StopProject(name);
+      await StartProject(name, profile);
       await refresh();
     } catch (err) {
       toast.error(`Failed to restart ${name}: ${err}`);
@@ -147,10 +94,10 @@ export default function App() {
 
   const handleAddProject = async () => {
     try {
-      const dir = await api.BrowseFolder();
+      const dir = await BrowseFolder();
       if (!dir) return;
       const name = dir.split("/").pop() || "new-project";
-      await api.CreateProject(name, dir);
+      await CreateProject(name, dir);
       await refresh();
       setSelected(name);
       setView("projects");
@@ -159,18 +106,50 @@ export default function App() {
     }
   };
 
-  const handleRefresh = useCallback(async (newName?: string) => {
+  const handleRefresh = async (newName?: string) => {
     await refresh();
     if (newName && newName !== selected) setSelected(newName);
-  }, [refresh, selected]);
+  };
 
   const handleRemove = async (name: string) => {
     try {
-      await api.RemoveProject(name);
+      await RemoveProject(name);
       setSelected(null);
       await refresh();
     } catch (err) {
       toast.error(`Failed to remove ${name}: ${err}`);
+    }
+  };
+
+  const handleSelect = (name: string) => {
+    setSelected(name);
+    setView("projects");
+  };
+
+  const handleToggle = async (name: string) => {
+    const project = projects.find((p) => p.name === name);
+    if (!project) return;
+    try {
+      if (project.running) {
+        await StopProject(name);
+      } else {
+        await StartProject(name, "");
+      }
+      await refresh();
+    } catch (err) {
+      toast.error(`Failed to toggle ${name}: ${err}`);
+    }
+  };
+
+  const handleReorder = async (order: string[]) => {
+    const orderMap = new Map(order.map((n, i) => [n, i]));
+    setProjects((prev) =>
+      [...prev].sort((a, b) => (orderMap.get(a.name) ?? 0) - (orderMap.get(b.name) ?? 0))
+    );
+    try {
+      await ReorderProjects(order);
+    } catch (err) {
+      toast.error(`Failed to reorder: ${err}`);
     }
   };
 
@@ -198,37 +177,11 @@ export default function App() {
           selected={view === "projects" ? selected : null}
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}
-          onSelect={(name) => {
-            setSelected(name);
-            setView("projects");
-          }}
-          onToggle={async (name) => {
-            const project = projects.find((p) => p.name === name);
-            if (!project) return;
-            try {
-              if (project.running) {
-                await api.StopProject(name);
-              } else {
-                await api.StartProject(name, "");
-              }
-              await refresh();
-            } catch (err) {
-              toast.error(`Failed to toggle ${name}: ${err}`);
-            }
-          }}
+          onSelect={handleSelect}
+          onToggle={handleToggle}
           onSettings={() => setView("settings")}
           onAddProject={handleAddProject}
-          onReorder={async (order) => {
-            const orderMap = new Map(order.map((n, i) => [n, i]));
-            setProjects((prev) =>
-              [...prev].sort((a, b) => (orderMap.get(a.name) ?? 0) - (orderMap.get(b.name) ?? 0))
-            );
-            try {
-              await api.ReorderProjects(order);
-            } catch (err) {
-              toast.error(`Failed to reorder: ${err}`);
-            }
-          }}
+          onReorder={handleReorder}
           showSettings={view === "settings" || view === "global-config"}
         />
         <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">
@@ -272,4 +225,3 @@ export default function App() {
     </div>
   );
 }
-
