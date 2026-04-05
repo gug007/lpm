@@ -62,18 +62,93 @@ func (t *Terminal) UnmarshalYAML(value *yaml.Node) error {
 	return value.Decode((*plain)(t))
 }
 
+// decodeNamedMap decodes a YAML node into a name-keyed map, accepting either
+// the canonical mapping form (`name: {...}`) or a sequence of entries each
+// carrying a `name:` field. yaml.v3 silently ignores the `name` key during
+// struct decode, so sequence items decode straight into T with no rewriting.
+func decodeNamedMap[T any](value *yaml.Node, section string) (map[string]T, error) {
+	out := map[string]T{}
+	switch value.Kind {
+	case yaml.MappingNode:
+		if err := value.Decode(&out); err != nil {
+			return nil, err
+		}
+		return out, nil
+	case yaml.SequenceNode:
+		for i, item := range value.Content {
+			if item.Kind != yaml.MappingNode {
+				return nil, fmt.Errorf("%s[%d]: expected mapping", section, i)
+			}
+			var name string
+			for j := 0; j+1 < len(item.Content); j += 2 {
+				if item.Content[j].Value == "name" {
+					name = item.Content[j+1].Value
+					break
+				}
+			}
+			if name == "" {
+				return nil, fmt.Errorf("%s[%d]: missing name", section, i)
+			}
+			if _, dup := out[name]; dup {
+				return nil, fmt.Errorf("%s[%d]: duplicate name %q", section, i, name)
+			}
+			var v T
+			if err := item.Decode(&v); err != nil {
+				return nil, fmt.Errorf("%s[%d]: %w", section, i, err)
+			}
+			out[name] = v
+		}
+		return out, nil
+	default:
+		return nil, fmt.Errorf("%s: expected mapping or sequence at line %d", section, value.Line)
+	}
+}
+
+type ServiceMap map[string]Service
+
+func (m *ServiceMap) UnmarshalYAML(value *yaml.Node) error {
+	out, err := decodeNamedMap[Service](value, "services")
+	if err != nil {
+		return err
+	}
+	*m = out
+	return nil
+}
+
+type ActionMap map[string]Action
+
+func (m *ActionMap) UnmarshalYAML(value *yaml.Node) error {
+	out, err := decodeNamedMap[Action](value, "actions")
+	if err != nil {
+		return err
+	}
+	*m = out
+	return nil
+}
+
+type TerminalMap map[string]Terminal
+
+func (m *TerminalMap) UnmarshalYAML(value *yaml.Node) error {
+	out, err := decodeNamedMap[Terminal](value, "terminals")
+	if err != nil {
+		return err
+	}
+	*m = out
+	return nil
+}
+
 type ProjectConfig struct {
 	Name      string              `yaml:"name"`
 	Root      string              `yaml:"root"`
-	Services  map[string]Service  `yaml:"services"`
-	Actions   map[string]Action   `yaml:"actions,omitempty"`
-	Terminals map[string]Terminal `yaml:"terminals,omitempty"`
+	Services  ServiceMap          `yaml:"services"`
+	Actions   ActionMap           `yaml:"actions,omitempty"`
+	Terminals TerminalMap         `yaml:"terminals,omitempty"`
 	Profiles  map[string][]string `yaml:"profiles,omitempty"`
 }
 
 type GlobalConfig struct {
-	Actions   map[string]Action   `yaml:"actions,omitempty"`
-	Terminals map[string]Terminal `yaml:"terminals,omitempty"`
+	Actions   ActionMap   `yaml:"actions,omitempty"`
+	Terminals TerminalMap `yaml:"terminals,omitempty"`
 }
 
 func LpmDir() string {
@@ -188,7 +263,7 @@ func LoadProject(name string) (*ProjectConfig, error) {
 	global := LoadGlobal()
 	if len(global.Actions) > 0 {
 		if cfg.Actions == nil {
-			cfg.Actions = make(map[string]Action)
+			cfg.Actions = make(ActionMap)
 		}
 		for k, v := range global.Actions {
 			if _, exists := cfg.Actions[k]; !exists {
@@ -198,7 +273,7 @@ func LoadProject(name string) (*ProjectConfig, error) {
 	}
 	if len(global.Terminals) > 0 {
 		if cfg.Terminals == nil {
-			cfg.Terminals = make(map[string]Terminal)
+			cfg.Terminals = make(TerminalMap)
 		}
 		for k, v := range global.Terminals {
 			if _, exists := cfg.Terminals[k]; !exists {
