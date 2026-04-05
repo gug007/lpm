@@ -10,7 +10,7 @@ import { getSettings, saveSettings } from "../settings";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
 import type { ProjectInfo, ActionInfo, TerminalConfigInfo } from "../types";
-import { TerminalIcon, CheckIcon, ChevronDownIcon, PencilIcon } from "./icons";
+import { TerminalIcon, CheckIcon, ChevronDownIcon, PencilIcon, MenuIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { ActionTerminal } from "./project-detail/ActionTerminal";
@@ -169,13 +169,14 @@ export function ProjectDetail({
           <div className="relative">
             <button
               onClick={() => { setShowProfileMenu(false); setShowQuickMenu((v) => !v); }}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+              aria-label="Project actions"
+              className={`flex items-center justify-center rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors ${
                 showQuickMenu
-                  ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                  : "border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                  ? "border-transparent bg-[var(--bg-active)] text-[var(--text-primary)]"
+                  : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
               }`}
             >
-              Menu
+              <MenuIcon />
             </button>
             {showQuickMenu && (
               <QuickPopover
