@@ -6,7 +6,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { EventsOn, BrowserOpenURL, OnFileDrop } from "../../wailsjs/runtime/runtime";
 import { ResizeTerminal, AckTerminalData } from "../../wailsjs/go/main/App";
-import { writeTerminal } from "../terminal-io";
+import { sendTerminalInput } from "../terminal-io";
 import { getTerminalTheme } from "./terminal-utils";
 import "@xterm/xterm/css/xterm.css";
 
@@ -46,7 +46,7 @@ function initFileDrop() {
     }
     if (!id) return;
     const quoted = paths.map((p) => /[^a-zA-Z0-9_./:~-]/.test(p) ? "'" + p.replace(/'/g, "'\\''") + "'" : p);
-    writeTerminal(id, quoted.join(" ")).catch(() => {});
+    sendTerminalInput(id, quoted.join(" ")).catch(() => {});
   }, false);
 }
 
@@ -179,14 +179,13 @@ export function InteractivePane({ terminalId, visible = true, fontSize = 12, onS
 
     const handleWriteError = () => markDead("[Session disconnected]", "91");
 
-    // Send keystrokes to PTY (hex-encoded if non-ASCII, see terminal-io.ts)
     term.onData((data) => {
-      writeTerminal(terminalId, data).catch(handleWriteError);
+      sendTerminalInput(terminalId, data).catch(handleWriteError);
     });
 
     // Send binary data (mouse events, etc.) to PTY
     term.onBinary((data) => {
-      writeTerminal(terminalId, data).catch(handleWriteError);
+      sendTerminalInput(terminalId, data).catch(handleWriteError);
     });
 
     // Sync resize to PTY
