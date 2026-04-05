@@ -24,7 +24,7 @@ export function ActionButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 ${actionStyles[variant]}`}
+      className={`shrink-0 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 ${actionStyles[variant]}`}
     >
       {label}
     </button>

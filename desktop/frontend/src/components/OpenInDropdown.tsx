@@ -50,14 +50,14 @@ export function OpenInDropdown({ projectPath }: {
   };
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative shrink-0">
       <div className="inline-flex items-stretch rounded-lg border border-[var(--border)]">
         <button
           onClick={() => launch(selected)}
           title={`Open in ${selected.label}`}
           className="flex items-center rounded-l-lg border-r border-[var(--border)] px-2 py-1 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
         >
-          <img src={selected.icon} alt="" className="h-4 w-4" />
+          <img src={selected.icon} alt="" className="h-4 w-4 shrink-0" />
         </button>
         <button
           onClick={() => setOpen((v) => !v)}

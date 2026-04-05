@@ -142,29 +142,33 @@ export function ProjectDetail({
 
   return (
     <div className="flex h-full flex-col">
-      <div className={`wails-drag flex items-center justify-between -mx-3 py-1 transition-[padding] duration-200 ${sidebarCollapsed ? "pl-[100px]" : ""}`}>
-        <h1 className="text-xl font-semibold tracking-tight">
+      <div className={`wails-drag flex items-center gap-4 -mx-3 py-1 transition-[padding] duration-200 ${sidebarCollapsed ? "pl-[100px]" : ""}`}>
+        <h1 className="shrink-0 text-xl font-semibold tracking-tight">
           {project.name}
         </h1>
-        <div className="flex items-center gap-2" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
-          {buttonActions.map((action) => (
-            <ActionButton
-              key={action.name}
-              onClick={() => handleRunAction(action)}
-              disabled={runningAction !== null}
-              variant="secondary"
-              label={action.label}
-            />
-          ))}
-          {buttonTerminals.map((term) => (
-            <ActionButton
-              key={term.name}
-              onClick={() => handleRunTerminal(term)}
-              disabled={false}
-              variant="secondary"
-              label={term.label}
-            />
-          ))}
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
+          {(buttonActions.length > 0 || buttonTerminals.length > 0) && (
+            <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
+              {buttonActions.map((action) => (
+                <ActionButton
+                  key={action.name}
+                  onClick={() => handleRunAction(action)}
+                  disabled={runningAction !== null}
+                  variant="secondary"
+                  label={action.label}
+                />
+              ))}
+              {buttonTerminals.map((term) => (
+                <ActionButton
+                  key={term.name}
+                  onClick={() => handleRunTerminal(term)}
+                  disabled={false}
+                  variant="secondary"
+                  label={term.label}
+                />
+              ))}
+            </div>
+          )}
           <OpenInDropdown projectPath={project.root} />
           <div className="relative">
             <button
