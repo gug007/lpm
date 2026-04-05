@@ -1,4 +1,5 @@
 import { LoadTerminals, SaveTerminals } from "../wailsjs/go/main/App";
+import { main } from "../wailsjs/go/models";
 
 export interface TerminalEntry {
   label: string;
@@ -38,5 +39,5 @@ export async function saveProjectTerminals(
     ...cached,
     projects: { ...cached.projects, [projectName]: state },
   };
-  await SaveTerminals(cached as any);
+  await SaveTerminals(main.TerminalsConfig.createFrom(cached));
 }

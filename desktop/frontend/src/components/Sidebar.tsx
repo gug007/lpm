@@ -1,13 +1,12 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { StatusDot } from "./StatusDot";
-import { getSettings, saveSettings } from "../settings";
+import { getSettings } from "../settings";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { InstallUpdate } from "../../wailsjs/go/main/App";
 import type { ProjectInfo } from "../types";
 import { SidebarIcon } from "./icons";
-
-const MIN_WIDTH = 160;
-const MAX_WIDTH = 400;
+import { useDragReorder } from "../hooks/useDragReorder";
+import { useSidebarResize } from "../hooks/useSidebarResize";
 
 interface SidebarProps {
   projects: ProjectInfo[];
@@ -23,38 +22,19 @@ interface SidebarProps {
 }
 
 export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onSettings, onAddProject, onReorder, showSettings }: SidebarProps) {
-  const [dragIdx, setDragIdx] = useState<number | null>(null);
-  const [overIdx, setOverIdx] = useState<number | null>(null);
-  const dragRef = useRef(false);
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
-  const [width, setWidth] = useState(() => getSettings().sidebarWidth || 260);
-  const widthRef = useRef(width);
-  widthRef.current = width;
+  const { width, handleResizeStart } = useSidebarResize();
+  const {
+    dragIdx,
+    handleDragStart,
+    handleDragEnd,
+    handleDragOver,
+    showDropAbove,
+    showDropBelow,
+  } = useDragReorder(projects, (p) => p.name, onReorder);
 
   useEffect(() => EventsOn("update-available", setUpdateInfo), []);
-
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    const startX = e.clientX;
-    const startWidth = widthRef.current;
-    const onMove = (ev: MouseEvent) => {
-      setWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + ev.clientX - startX)));
-    };
-    const onUp = () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      const w = widthRef.current;
-      const s = getSettings();
-      if (s.sidebarWidth !== w) saveSettings({ ...s, sidebarWidth: w });
-    };
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  }, []);
 
   const handleUpdate = async () => {
     setInstalling(true);
@@ -64,34 +44,6 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
       setInstalling(false);
     }
   };
-
-  const handleDragStart = (e: React.DragEvent<HTMLButtonElement>, idx: number) => {
-    setDragIdx(idx);
-    dragRef.current = true;
-    e.dataTransfer.effectAllowed = "move";
-  };
-
-  const handleDragEnd = () => {
-    if (dragIdx !== null && overIdx !== null && dragIdx !== overIdx) {
-      const newOrder = projects.map((p) => p.name);
-      const [moved] = newOrder.splice(dragIdx, 1);
-      newOrder.splice(overIdx, 0, moved);
-      onReorder(newOrder);
-    }
-    setDragIdx(null);
-    setOverIdx(null);
-    dragRef.current = false;
-  };
-
-  const handleDragOver = (e: React.DragEvent<HTMLButtonElement>, idx: number) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    if (idx !== overIdx) setOverIdx(idx);
-  };
-
-  const isDragging = dragIdx !== null;
-  const showDropAbove = (idx: number) => isDragging && overIdx === idx && dragIdx !== idx && dragIdx! > idx;
-  const showDropBelow = (idx: number) => isDragging && overIdx === idx && dragIdx !== idx && dragIdx! < idx;
 
   return (
     <aside

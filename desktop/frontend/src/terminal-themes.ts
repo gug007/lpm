@@ -1,12 +1,15 @@
-export type TerminalThemeName =
-  | "default"
-  | "one-dark"
-  | "monokai"
-  | "dracula"
-  | "nord"
-  | "solarized-dark"
-  | "github-dark"
-  | "claude-dark";
+export const terminalThemeNames = [
+  "default",
+  "one-dark",
+  "monokai",
+  "dracula",
+  "nord",
+  "solarized-dark",
+  "github-dark",
+  "claude-dark",
+] as const;
+
+export type TerminalThemeName = (typeof terminalThemeNames)[number];
 
 export interface TerminalThemeColors {
   bg: string;
@@ -20,18 +23,7 @@ export interface TerminalThemeColors {
   tabActive: string;
 }
 
-export const terminalThemeNames: TerminalThemeName[] = [
-  "default",
-  "one-dark",
-  "monokai",
-  "dracula",
-  "nord",
-  "solarized-dark",
-  "github-dark",
-  "claude-dark",
-];
-
-const themes: Record<Exclude<TerminalThemeName, "default">, TerminalThemeColors> = {
+const themes: Readonly<Record<Exclude<TerminalThemeName, "default">, TerminalThemeColors>> = {
   "one-dark": {
     bg: "#282c34", fg: "#abb2bf", selection: "#3e4451", cursor: "#528bff",
     header: "#21252b", headerText: "#636d83", headerHover: "rgba(255,255,255,0.04)",

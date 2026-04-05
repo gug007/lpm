@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ListOpenInTargets, OpenIn } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
+import { useOutsideClick } from "../hooks/useOutsideClick";
 
 type OpenInTarget = main.OpenInTarget;
 
@@ -16,7 +17,7 @@ export function OpenInDropdown({ projectPath }: {
   const [open, setOpen] = useState(false);
   const [targets, setTargets] = useState<OpenInTarget[]>(targetsCache ?? []);
   const [selectedId, setSelectedId] = useState<string>(() => localStorage.getItem(SELECTED_KEY) ?? "");
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
 
   useEffect(() => {
     if (targetsCache) return;
@@ -25,15 +26,6 @@ export function OpenInDropdown({ projectPath }: {
       setTargets(list);
     }).catch(() => {});
   }, []);
-
-  useEffect(() => {
-    if (!open) return;
-    const handle = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
-  }, [open]);
 
   const selected = useMemo(() => {
     if (targets.length === 0) return null;

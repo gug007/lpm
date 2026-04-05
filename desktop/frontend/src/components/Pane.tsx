@@ -1,4 +1,4 @@
-import { useRef, useEffect, useImperativeHandle, forwardRef } from "react";
+import { useRef, useEffect, useImperativeHandle, type Ref } from "react";
 import { Terminal, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
@@ -24,10 +24,10 @@ interface PaneProps {
   fontSize?: number;
   onScrollStateChange?: (atBottom: boolean) => void;
   themeOverride?: ITheme | null;
+  ref?: Ref<PaneHandle>;
 }
 
-export const Pane = forwardRef<PaneHandle, PaneProps>(
-  function Pane({ label, output, visible = true, fontSize = 12, onScrollStateChange, themeOverride }, ref) {
+export function Pane({ label, output, visible = true, fontSize = 12, onScrollStateChange, themeOverride, ref }: PaneProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const termRef = useRef<Terminal | null>(null);
     const fitRef = useRef<FitAddon | null>(null);
@@ -219,5 +219,4 @@ export const Pane = forwardRef<PaneHandle, PaneProps>(
         </div>
       </div>
     );
-  }
-);
+}

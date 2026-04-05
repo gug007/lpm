@@ -8,6 +8,8 @@ import {
   SyncBranch,
 } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
+import { useOutsideClick } from "../hooks/useOutsideClick";
+import { useEventListener } from "../hooks/useEventListener";
 
 type GitStatus = main.GitStatus;
 type Branch = main.Branch;
@@ -34,9 +36,22 @@ export function BranchSwitcher({ projectPath }: {
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const createRef = useRef<HTMLInputElement>(null);
+
+  const ref = useOutsideClick<HTMLDivElement>(() => {
+    setOpen(false);
+    setCreating(false);
+  }, open);
+
+  useEventListener(
+    "keydown",
+    (e) => {
+      if (e.key === "Escape") { setOpen(false); setCreating(false); }
+    },
+    document,
+    open,
+  );
 
   const refresh = useCallback(async () => {
     if (!projectPath) return;
@@ -53,25 +68,6 @@ export function BranchSwitcher({ projectPath }: {
   }, [projectPath]);
 
   useEffect(() => { refresh(); }, [refresh]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handle = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-        setCreating(false);
-      }
-    };
-    const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { setOpen(false); setCreating(false); }
-    };
-    document.addEventListener("mousedown", handle);
-    document.addEventListener("keydown", key);
-    return () => {
-      document.removeEventListener("mousedown", handle);
-      document.removeEventListener("keydown", key);
-    };
-  }, [open]);
 
   useEffect(() => {
     if (open && !creating) searchRef.current?.focus();
@@ -119,6 +115,11 @@ export function BranchSwitcher({ projectPath }: {
     }
   };
 
+  const toggleOpen = () => {
+    if (!open) refresh();
+    setOpen(!open);
+  };
+
   const sync = async () => {
     if (busy) return;
     setBusy(true);
@@ -150,7 +151,7 @@ export function BranchSwitcher({ projectPath }: {
       )}
       <div ref={ref} className="relative">
         <button
-          onClick={() => setOpen((v) => !v)}
+          onClick={toggleOpen}
           title={busy ? "Switching branch…" : "Switch branch"}
           disabled={busy}
           className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] shadow-sm transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"

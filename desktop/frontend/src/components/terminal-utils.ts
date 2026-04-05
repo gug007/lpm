@@ -16,9 +16,18 @@ export const ansiColors = {
   brightMagenta: "#ff77ff",
   brightCyan: "#60fdff",
   brightWhite: "#ffffff",
-};
+} as const;
 
-export function getTerminalTheme(el?: Element | null) {
+export interface TerminalThemeStyle {
+  background: string;
+  foreground: string;
+  selectionBackground: string;
+  cursor: string;
+}
+
+export function getTerminalTheme(
+  el?: Element | null,
+): TerminalThemeStyle & typeof ansiColors {
   const style = getComputedStyle(el || document.documentElement);
   return {
     background: style.getPropertyValue("--terminal-bg").trim() || "#0d0d0d",
