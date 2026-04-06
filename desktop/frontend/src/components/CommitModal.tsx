@@ -1,0 +1,236 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { Modal } from "./ui/Modal";
+import { XIcon } from "./icons";
+import {
+  GitChangedFiles,
+  GitCommit,
+} from "../../wailsjs/go/main/App";
+import { main } from "../../wailsjs/go/models";
+
+type ChangedFile = main.ChangedFile;
+
+const STATUS_DISPLAY: Record<string, { label: string; color: string }> = {
+  added:     { label: "A", color: "text-[var(--accent-green)]" },
+  untracked: { label: "U", color: "text-[var(--accent-green)]" },
+  deleted:   { label: "D", color: "text-[var(--accent-red)]" },
+  renamed:   { label: "R", color: "text-[var(--accent-cyan)]" },
+  modified:  { label: "M", color: "text-[var(--accent-blue)]" },
+};
+const DEFAULT_STATUS = STATUS_DISPLAY.modified;
+
+interface CommitModalProps {
+  open: boolean;
+  projectPath: string;
+  onClose: () => void;
+  onCommitted: () => void;
+}
+
+export function CommitModal({ open, projectPath, onClose, onCommitted }: CommitModalProps) {
+  const [files, setFiles] = useState<ChangedFile[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const msgRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setMessage("");
+    setFiles([]);
+    setSelected(new Set());
+    setLoading(true);
+    GitChangedFiles(projectPath)
+      .then((f) => {
+        if (cancelled) return;
+        const list = f || [];
+        setFiles(list);
+        setSelected(new Set(list.map((x) => x.path)));
+      })
+      .catch(() => { if (!cancelled) setFiles([]); })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+        setTimeout(() => msgRef.current?.focus(), 50);
+      });
+    return () => { cancelled = true; };
+  }, [open, projectPath]);
+
+  const toggleFile = (path: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selected.size === files.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(files.map((f) => f.path)));
+    }
+  };
+
+  const parsed = useMemo(() => files.map((f) => {
+    const i = f.path.lastIndexOf("/");
+    return { file: f, name: i < 0 ? f.path : f.path.slice(i + 1), dir: i < 0 ? "" : f.path.slice(0, i) };
+  }), [files]);
+
+  const canCommit = !busy && message.trim().length > 0 && selected.size > 0;
+
+  const submit = async () => {
+    if (!canCommit) return;
+    setBusy(true);
+    try {
+      await GitCommit(projectPath, message.trim(), Array.from(selected));
+      toast.success("Committed successfully");
+      onCommitted();
+      onClose();
+    } catch (err) {
+      toast.error(`Commit failed: ${err}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      closeOnBackdrop={!busy}
+      closeOnEscape={!busy}
+      zIndexClassName="z-[60]"
+      contentClassName="w-[520px] max-h-[80vh] flex flex-col rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl"
+    >
+      {/* Header */}
+      <div className="flex items-start justify-between p-5 pb-0">
+        <h3 className="text-base font-semibold text-[var(--text-primary)]">
+          Commit Changes
+        </h3>
+        <button
+          onClick={onClose}
+          disabled={busy}
+          aria-label="Close"
+          className="-mr-1 -mt-1 rounded p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+        >
+          <XIcon />
+        </button>
+      </div>
+
+      {/* Commit message */}
+      <div className="px-5 pt-4">
+        <label className="mb-2 block text-xs font-medium text-[var(--text-secondary)]">
+          Commit message
+        </label>
+        <textarea
+          ref={msgRef}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
+          }}
+          placeholder="Describe your changes..."
+          disabled={busy}
+          rows={3}
+          className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--text-muted)] disabled:opacity-60"
+        />
+      </div>
+
+      {/* File list */}
+      <div className="mx-5 mt-4 flex items-center justify-between">
+        <label className="text-xs font-medium text-[var(--text-secondary)]">
+          Files ({selected.size}/{files.length})
+        </label>
+        {files.length > 0 && (
+          <button
+            onClick={toggleAll}
+            disabled={busy}
+            className="text-[10px] font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
+          >
+            {selected.size === files.length ? "Deselect all" : "Select all"}
+          </button>
+        )}
+      </div>
+
+      <div className="mx-5 mt-2 min-h-0 flex-1 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+        {loading && (
+          <div className="px-3 py-6 text-center text-xs text-[var(--text-muted)]">
+            Loading files...
+          </div>
+        )}
+        {!loading && files.length === 0 && (
+          <div className="px-3 py-6 text-center text-xs text-[var(--text-muted)]">
+            No changes found
+          </div>
+        )}
+        {!loading &&
+          parsed.map(({ file, name: fileName, dir }) => {
+            const checked = selected.has(file.path);
+            const { label: statusLabel, color: statusClr } = STATUS_DISPLAY[file.status] ?? DEFAULT_STATUS;
+            return (
+              <label
+                key={file.path}
+                className="flex cursor-pointer items-center gap-2.5 px-3 py-1 transition-colors hover:bg-[var(--bg-hover)]"
+              >
+                <span
+                  className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border transition-colors ${
+                    checked
+                      ? "border-[var(--accent-blue)] bg-[var(--accent-blue)]"
+                      : "border-[var(--text-muted)] bg-transparent"
+                  } ${busy ? "opacity-40" : ""}`}
+                >
+                  {checked && (
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </span>
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggleFile(file.path)}
+                  disabled={busy}
+                  className="sr-only"
+                />
+                <span className="min-w-0 flex-1 truncate text-[11px] text-[var(--text-primary)]">
+                  <span className="font-medium">{fileName}</span>
+                  {dir && <span className="text-[var(--text-muted)]"> {dir}</span>}
+                </span>
+                <span className={`shrink-0 text-[11px] font-semibold ${statusClr}`} title={file.status}>
+                  {statusLabel}
+                </span>
+              </label>
+            );
+          })}
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between p-5 pt-4">
+        <span className="text-[10px] text-[var(--text-muted)]">
+          {canCommit ? "Cmd+Enter to commit" : ""}
+        </span>
+        <div className="flex gap-2">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={!canCommit}
+            className="rounded-lg bg-[var(--text-primary)] px-4 py-2 text-sm font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-40"
+          >
+            {busy ? "Committing..." : "Commit"}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}

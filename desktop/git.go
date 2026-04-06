@@ -158,6 +158,89 @@ func (a *App) CheckoutBranch(cwd, branch string) error {
 	return err
 }
 
+// ChangedFile represents a single file from git status output.
+type ChangedFile struct {
+	Path   string `json:"path"`
+	Status string `json:"status"` // "modified", "added", "deleted", "renamed", "untracked"
+	Staged bool   `json:"staged"`
+}
+
+// GitChangedFiles returns the list of uncommitted files in the working tree.
+// Files that appear in both the index and worktree are deduplicated into a
+// single entry so the UI shows one row per path.
+func (a *App) GitChangedFiles(cwd string) []ChangedFile {
+	out, err := runGit(cwd, "status", "--porcelain=v1", "-z")
+	if err != nil {
+		return nil
+	}
+	seen := make(map[string]int) // path → index in files
+	var files []ChangedFile
+	entries := strings.Split(out, "\x00")
+	for _, entry := range entries {
+		if len(entry) < 4 {
+			continue
+		}
+		x, y := entry[0], entry[1]
+		path := entry[3:]
+
+		if x == '?' && y == '?' {
+			seen[path] = len(files)
+			files = append(files, ChangedFile{Path: path, Status: "untracked", Staged: false})
+			continue
+		}
+
+		status := "modified"
+		staged := false
+
+		// Prefer the index (staged) status as the label.
+		if x != ' ' && x != '?' {
+			staged = true
+			switch x {
+			case 'A':
+				status = "added"
+			case 'D':
+				status = "deleted"
+			case 'R':
+				status = "renamed"
+			}
+		} else if y != ' ' {
+			switch y {
+			case 'D':
+				status = "deleted"
+			}
+		}
+
+		if idx, ok := seen[path]; ok {
+			// Already recorded — keep as unstaged so git-add picks up working tree changes.
+			files[idx].Staged = false
+		} else {
+			seen[path] = len(files)
+			files = append(files, ChangedFile{Path: path, Status: status, Staged: staged})
+		}
+	}
+	return files
+}
+
+// GitCommit stages the given files (or all if empty) and creates a commit.
+func (a *App) GitCommit(cwd, message string, files []string) error {
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return fmt.Errorf("commit message required")
+	}
+	if len(files) == 0 {
+		return fmt.Errorf("no files selected")
+	}
+	// Reset staging area so we only commit what's selected.
+	runGit(cwd, "reset", "HEAD") // ignore error on initial commit (no HEAD yet)
+	// Stage selected files in one call.
+	addArgs := append([]string{"add", "--"}, files...)
+	if _, err := runGit(cwd, addArgs...); err != nil {
+		return fmt.Errorf("staging files: %w", err)
+	}
+	_, err := runGit(cwd, "commit", "-m", message)
+	return err
+}
+
 func (a *App) CreateBranch(cwd, name string) error {
 	name = strings.TrimSpace(name)
 	if name == "" {

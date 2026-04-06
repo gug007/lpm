@@ -11,6 +11,7 @@ import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useEventListener } from "../hooks/useEventListener";
 import { CreateBranchModal } from "./CreateBranchModal";
+import { CommitModal } from "./CommitModal";
 
 type GitStatus = main.GitStatus;
 type Branch = main.Branch;
@@ -36,6 +37,7 @@ export function BranchSwitcher({ projectPath }: {
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [committing, setCommitting] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const ref = useOutsideClick<HTMLDivElement>(() => {
@@ -219,11 +221,28 @@ export function BranchSwitcher({ projectPath }: {
         </div>
       )}
       </div>
+      {status.uncommitted > 0 && (
+        <button
+          onClick={() => setCommitting(true)}
+          disabled={busy}
+          title="Commit changes"
+          className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)] shadow-sm transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
+        >
+          <CommitIcon />
+          <span>Commit</span>
+        </button>
+      )}
       <CreateBranchModal
         open={creating}
         busy={busy}
         onClose={() => setCreating(false)}
         onCreate={create}
+      />
+      <CommitModal
+        open={committing}
+        projectPath={projectPath}
+        onClose={() => setCommitting(false)}
+        onCommitted={refresh}
       />
     </div>
   );
@@ -272,6 +291,16 @@ function CheckIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0 text-[var(--text-primary)]">
       <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+function CommitIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <line x1="3" y1="12" x2="9" y2="12" />
+      <line x1="15" y1="12" x2="21" y2="12" />
     </svg>
   );
 }
