@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { StatusDot } from "./StatusDot";
 import { getSettings } from "../settings";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { InstallUpdate, ClearDoneStatus } from "../../wailsjs/go/main/App";
+import { InstallUpdate } from "../../wailsjs/go/main/App";
 import type { ProjectInfo } from "../types";
 import { SidebarIcon, CheckIcon } from "./icons";
 import { useDragReorder } from "../hooks/useDragReorder";
@@ -50,12 +50,6 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
   };
 
   const handleSelect = (name: string) => {
-    if (selected && selected !== name) {
-      const prev = projects.find(p => p.name === selected);
-      if (prev && hasStatus(prev, "Done")) ClearDoneStatus(selected);
-    }
-    const project = projects.find(p => p.name === name);
-    if (project && hasStatus(project, "Done")) ClearDoneStatus(name);
     onSelect(name);
   };
 

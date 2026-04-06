@@ -162,7 +162,7 @@ func (a *App) enableCodexHooksFeature(configPath string) {
 // --- Shared helpers ---
 
 func sendCmd(cmd string) string {
-	return `{ [ -n "$LPM_SOCKET_PATH" ] && [ -S "$LPM_SOCKET_PATH" ] && echo "` + cmd + `" | nc -w1 -U "$LPM_SOCKET_PATH" & } 2>/dev/null; ` + lpmHookMarker
+	return `{ [ -n "$LPM_SOCKET_PATH" ] && [ -S "$LPM_SOCKET_PATH" ] && echo "` + cmd + `" | nc -w1 -U "$LPM_SOCKET_PATH" & } >/dev/null 2>&1; ` + lpmHookMarker
 }
 
 func hasMarker(hooks map[string]any) bool {

@@ -182,6 +182,15 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
 
   useEffect(() => { onTerminalCountChange?.(terminals.length); }, [terminals.length, onTerminalCountChange]);
 
+  // Auto-clear Done only when the user is actively viewing the done terminal
+  useEffect(() => {
+    if (!visible) return;
+    const ti = terminalIndex(activePane);
+    if (ti !== null && terminals[ti] && donePaneIDs?.has(terminals[ti].id)) {
+      ClearDoneStatus(projectName);
+    }
+  }, [visible, activePane, donePaneIDs, terminals, projectName]);
+
   // Persist active tab to config whenever it changes
   useEffect(() => {
     const key = serializeActivePane(activePane);
