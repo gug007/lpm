@@ -31,8 +31,7 @@ func NewStatusStore() *StatusStore {
 }
 
 func shouldReplace(existing, incoming StatusEntry) bool {
-	return existing.Key != incoming.Key ||
-		existing.Value != incoming.Value ||
+	return existing.Value != incoming.Value ||
 		existing.Icon != incoming.Icon ||
 		existing.Color != incoming.Color ||
 		existing.Priority != incoming.Priority
@@ -104,7 +103,7 @@ func (s *StatusStore) List(project string) []StatusEntry {
 
 	bucket, ok := s.entries[project]
 	if !ok {
-		return nil
+		return []StatusEntry{}
 	}
 
 	out := make([]StatusEntry, 0, len(bucket))

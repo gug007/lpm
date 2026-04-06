@@ -52,7 +52,7 @@ export function HeaderTab({ label, active, onClick, onClose, onRename, shimmer, 
           : "text-[var(--terminal-header-text)] hover:text-[var(--terminal-tab-active)]"
       }`}
     >
-      <span className={shimmer ? "sidebar-shimmer" : ""} style={done && !shimmer ? { color: "#3b82f6" } : undefined}>{label}</span>
+      <span className={shimmer ? "sidebar-shimmer" : ""} style={done && !shimmer ? { color: "var(--accent-blue)" } : undefined}>{label}</span>
       {onClose && (
         <span
           onClick={(e) => { e.stopPropagation(); onClose(); }}

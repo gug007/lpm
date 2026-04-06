@@ -117,13 +117,13 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                 <StatusDot running={project.running} />
                 <span
                   className="truncate"
-                  style={isDone ? { color: "#3b82f6" } : undefined}
+                  style={isDone ? { color: "var(--accent-blue)" } : undefined}
                 >
                   {isRunning ? (
                     <span className="sidebar-shimmer">{project.name}</span>
                   ) : project.name}
                 </span>
-                {isDone && <span className="shrink-0 text-[#3b82f6]"><CheckIcon /></span>}
+                {isDone && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
               </button>
               {showDropBelow(idx) && (
                 <div className="absolute inset-x-3 bottom-0 h-px bg-[var(--accent-cyan)]" />

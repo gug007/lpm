@@ -45,12 +45,7 @@ func NewSocketServer(app *App) *SocketServer {
 // Start removes any stale socket file, binds a Unix listener, sets permissions
 // to 0600, and launches the accept loop in a goroutine.
 func (s *SocketServer) Start() error {
-	// Remove stale socket file if it exists.
-	if _, err := os.Stat(s.socketPath); err == nil {
-		if err := os.Remove(s.socketPath); err != nil {
-			return fmt.Errorf("failed to remove stale socket: %w", err)
-		}
-	}
+	os.Remove(s.socketPath) // clean up stale socket if present
 
 	ln, err := net.Listen("unix", s.socketPath)
 	if err != nil {

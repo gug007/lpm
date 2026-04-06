@@ -201,10 +201,6 @@ func (a *App) shutdown(ctx context.Context) {
 	a.ptyMu.Unlock()
 }
 
-func (a *App) GetStatusEntries(project string) []StatusEntry {
-	return a.statusStore.List(project)
-}
-
 func (a *App) ClearDoneStatus(project string) {
 	if a.statusStore.ClearByValue(project, "Done") {
 		runtime.EventsEmit(a.ctx, "status-changed", project)

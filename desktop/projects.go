@@ -148,9 +148,6 @@ func (a *App) ListProjects() ([]ProjectInfo, error) {
 		}
 		info := toProjectInfo(name, cfg, running, profile)
 		info.StatusEntries = a.statusStore.List(name)
-		if info.StatusEntries == nil {
-			info.StatusEntries = []StatusEntry{}
-		}
 		projects = append(projects, info)
 	}
 

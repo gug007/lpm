@@ -36,6 +36,7 @@ export function useProjectsRefresh() {
     let interval: ReturnType<typeof setInterval> | null = setInterval(refresh, POLL_INTERVAL_MS);
 
     const cancelEvent = EventsOn("projects-changed", refresh);
+    const cancelStatus = EventsOn("status-changed", refresh);
 
     const onVisibility = () => {
       if (document.hidden) {
@@ -54,6 +55,7 @@ export function useProjectsRefresh() {
       if (interval) clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisibility);
       if (typeof cancelEvent === "function") cancelEvent();
+      if (typeof cancelStatus === "function") cancelStatus();
     };
   }, [refresh]);
 
