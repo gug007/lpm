@@ -81,7 +81,7 @@ func (a *App) startup(ctx context.Context) {
 		runtime.EventsEmit(a.ctx, "status-changed", project)
 	})
 
-	// Auto-install agent hooks (e.g., Claude Code) for running indicator
+	// Auto-install agent hooks (Claude Code, Codex) for running indicator
 	go a.installAgentHooks()
 }
 
