@@ -69,6 +69,8 @@ export function BranchSwitcher({ projectPath }: {
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  useEventListener("focus", refresh);
+
   useEffect(() => {
     if (open && !creating) searchRef.current?.focus();
   }, [open, creating]);
