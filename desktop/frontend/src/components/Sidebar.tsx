@@ -91,7 +91,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
         {projects.map((project, idx) => {
           const isSelected = selected === project.name;
           const isRunning = hasStatus(project, "Running");
-          const isDone = !isSelected && hasStatus(project, "Done");
+          const isDone = hasStatus(project, "Done");
 
           return (
             <div key={project.name} className="relative">
