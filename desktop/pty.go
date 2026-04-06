@@ -31,9 +31,10 @@ const (
 )
 
 type ptySession struct {
-	id  string
-	pty *os.File
-	cmd *exec.Cmd
+	id          string
+	projectName string
+	pty         *os.File
+	cmd         *exec.Cmd
 
 	// Flow control (mu protects unacked/paused only)
 	mu      sync.Mutex
@@ -113,6 +114,10 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 	cmd := exec.Command(shell, "-l")
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+	// Inject LPM environment variables for external tool integration
+	cmd.Env = append(cmd.Env, "LPM_SOCKET_PATH="+SocketPath())
+	cmd.Env = append(cmd.Env, "LPM_PROJECT_NAME="+projectName)
+	cmd.Env = append(cmd.Env, "LPM_PANE_ID="+id)
 	for k, v := range extraEnv {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
@@ -123,9 +128,10 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 	}
 
 	sess := &ptySession{
-		id:  id,
-		pty: ptmx,
-		cmd: cmd,
+		id:          id,
+		projectName: projectName,
+		pty:         ptmx,
+		cmd:         cmd,
 	}
 	sess.cond = sync.NewCond(&sess.mu)
 

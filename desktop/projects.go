@@ -13,15 +13,16 @@ import (
 )
 
 type ProjectInfo struct {
-	Name          string               `json:"name"`
-	Session       string               `json:"session"`
-	Root          string               `json:"root"`
-	Running       bool                 `json:"running"`
-	Services      []ServiceInfo        `json:"services"`
-	Actions       []ActionInfo         `json:"actions"`
-	Terminals     []TerminalConfigInfo `json:"terminals"`
-	Profiles      []string             `json:"profiles"`
-	ActiveProfile string               `json:"activeProfile"`
+	Name              string               `json:"name"`
+	Session           string               `json:"session"`
+	Root              string               `json:"root"`
+	Running           bool                 `json:"running"`
+	Services          []ServiceInfo        `json:"services"`
+	Actions           []ActionInfo         `json:"actions"`
+	Terminals         []TerminalConfigInfo `json:"terminals"`
+	Profiles          []string             `json:"profiles"`
+	ActiveProfile     string               `json:"activeProfile"`
+	StatusEntries []StatusEntry `json:"statusEntries"`
 }
 
 type ServiceInfo struct {
@@ -145,7 +146,12 @@ func (a *App) ListProjects() ([]ProjectInfo, error) {
 		if running {
 			profile = profiles[name]
 		}
-		projects = append(projects, toProjectInfo(name, cfg, running, profile))
+		info := toProjectInfo(name, cfg, running, profile)
+		info.StatusEntries = a.statusStore.List(name)
+		if info.StatusEntries == nil {
+			info.StatusEntries = []StatusEntry{}
+		}
+		projects = append(projects, info)
 	}
 
 	refreshDockMenu(projects)
@@ -259,6 +265,10 @@ func (a *App) GetProject(name string) (*ProjectInfo, error) {
 		profile = a.getRunningProfile(name)
 	}
 	info := toProjectInfo(name, cfg, running, profile)
+	info.StatusEntries = a.statusStore.List(name)
+	if info.StatusEntries == nil {
+		info.StatusEntries = []StatusEntry{}
+	}
 	return &info, nil
 }
 

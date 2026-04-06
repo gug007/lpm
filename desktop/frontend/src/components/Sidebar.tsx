@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { StatusDot } from "./StatusDot";
+import { StatusPill } from "./StatusPill";
 import { getSettings } from "../settings";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { InstallUpdate } from "../../wailsjs/go/main/App";
@@ -98,7 +99,12 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
               } ${dragIdx === idx ? "opacity-30" : ""}`}
             >
               <StatusDot running={project.running} />
-              <span className="truncate">{project.name}</span>
+              <div className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate">{project.name}</span>
+                {project.statusEntries && project.statusEntries.length > 0 && (
+                  <StatusPill entries={project.statusEntries} />
+                )}
+              </div>
             </button>
             {showDropBelow(idx) && (
               <div className="absolute inset-x-3 bottom-0 h-px bg-[var(--accent-cyan)]" />

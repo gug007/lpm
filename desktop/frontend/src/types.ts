@@ -29,4 +29,14 @@ export interface ProjectInfo {
   terminals: TerminalConfigInfo[];
   profiles: string[];
   activeProfile: string;
+  statusEntries: StatusEntry[];
+}
+
+export interface StatusEntry {
+  key: string;
+  value: string;
+  icon?: string;
+  color?: string;
+  priority: number;
+  timestamp: number;
 }

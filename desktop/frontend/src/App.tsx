@@ -44,10 +44,14 @@ export default function App() {
     const cancelSettings = EventsOn("menu-open-settings", () => {
       setView("settings");
     });
+    const cancelStatus = EventsOn("status-changed", () => {
+      refresh();
+    });
     return () => {
       if (typeof cancelDock === "function") cancelDock();
       if (typeof cancelUpdates === "function") cancelUpdates();
       if (typeof cancelSettings === "function") cancelSettings();
+      if (typeof cancelStatus === "function") cancelStatus();
     };
   }, []);
 
