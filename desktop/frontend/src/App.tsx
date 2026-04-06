@@ -48,10 +48,14 @@ export default function App() {
     const cancelSettings = EventsOn("menu-open-settings", () => {
       setView("settings");
     });
+    const cancelCommitInstr = EventsOn("navigate-commit-instructions", () => {
+      setView("commit-instructions");
+    });
     return () => {
       if (typeof cancelDock === "function") cancelDock();
       if (typeof cancelUpdates === "function") cancelUpdates();
       if (typeof cancelSettings === "function") cancelSettings();
+      if (typeof cancelCommitInstr === "function") cancelCommitInstr();
     };
   }, []);
 

@@ -13,6 +13,7 @@ import {
 import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { AI_CLI_OPTIONS } from "../types";
+import { EventsEmit } from "../../wailsjs/runtime/runtime";
 
 type ChangedFile = main.ChangedFile;
 
@@ -352,12 +353,18 @@ export function CommitModal({
 
       {/* Footer */}
       <div className="flex items-center justify-between border-t border-[var(--border)] px-5 py-3">
-        <span className="text-[10px] text-[var(--text-muted)]/60">
+        <span className="flex items-center gap-2 text-[10px] text-[var(--text-muted)]/60">
           {canCommit && (
             <kbd className="rounded bg-[var(--bg-hover)] px-1 py-0.5 text-[9px] font-medium">
               &#8984;&#9166;
             </kbd>
           )}
+          <button
+            onClick={() => { EventsEmit("navigate-commit-instructions"); onClose(); }}
+            className="text-[10px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+          >
+            Edit AI Instructions
+          </button>
         </span>
         <div className="flex gap-2">
           <button
