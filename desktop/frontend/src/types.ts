@@ -39,4 +39,5 @@ export interface StatusEntry {
   color?: string;
   priority: number;
   timestamp: number;
+  paneID?: string;
 }

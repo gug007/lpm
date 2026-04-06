@@ -30,6 +30,7 @@ interface TerminalViewProps {
   terminalTheme: TerminalThemeName;
   onTerminalThemeChange: (theme: TerminalThemeName) => void;
   onTerminalCountChange?: (count: number) => void;
+  runningPaneIDs?: Set<string>;
   visible?: boolean;
   ref?: React.Ref<TerminalViewHandle>;
 }
@@ -129,7 +130,7 @@ export interface TerminalViewHandle {
   createTerminalWithCmd(label: string, terminalConfigName: string, cmd: string): void;
 }
 
-export function TerminalView({ projectName, services, terminalTheme, onTerminalThemeChange, onTerminalCountChange, visible = true, ref }: TerminalViewProps) {
+export function TerminalView({ projectName, services, terminalTheme, onTerminalThemeChange, onTerminalCountChange, runningPaneIDs, visible = true, ref }: TerminalViewProps) {
   const [activePane, setActivePane] = useState<ActivePane>(() =>
     deserializeActivePane(getProjectTerminals(projectName).activeTab)
   );
@@ -436,6 +437,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
               key={term.id}
               label={term.label}
               active={activeTermIdx === i}
+              shimmer={runningPaneIDs?.has(term.id)}
               onClick={() => setActivePane({ type: "terminal", index: i })}
               onClose={() => closeTerminal(i)}
               onRename={(name) => renameTerminal(i, name)}

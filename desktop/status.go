@@ -16,6 +16,7 @@ type StatusEntry struct {
 	Priority  int    `json:"priority"`
 	Timestamp int64  `json:"timestamp"`
 	AgentPID  int    `json:"agentPID,omitempty"`
+	PaneID    string `json:"paneID,omitempty"`
 }
 
 type StatusStore struct {

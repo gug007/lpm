@@ -297,6 +297,7 @@ export function ProjectDetail({
           terminalTheme={termTheme}
           onTerminalThemeChange={handleTerminalThemeChange}
           onTerminalCountChange={setTerminalCount}
+          runningPaneIDs={new Set(project.statusEntries?.filter(e => e.value === "Running" && e.paneID).map(e => e.paneID!))}
           visible={visible && detailView === "terminal" && !showEmptyState}
         />
         <div className="pointer-events-none absolute bottom-3 right-3 z-20">

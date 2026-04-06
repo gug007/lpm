@@ -169,6 +169,9 @@ func (s *SocketServer) cmdSetStatus(args []string) string {
 			entry.AgentPID = n
 		}
 	}
+	if p, ok := options["pane"]; ok {
+		entry.PaneID = p
+	}
 
 	changed := s.app.statusStore.Set(project, entry)
 	if changed {

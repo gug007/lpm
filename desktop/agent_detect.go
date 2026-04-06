@@ -38,8 +38,8 @@ func (a *App) installAgentHooks() {
 	}
 
 	// Socket commands that match the protocol in socket.go
-	setRunning := sendCmd(`set_status $LPM_PROJECT_NAME claude_code Running --icon=bolt --color=#4C8DFF`)
-	setDone := sendCmd(`set_status $LPM_PROJECT_NAME claude_code Done --icon=checkmark --color=#4ade80`)
+	setRunning := sendCmd(`set_status $LPM_PROJECT_NAME claude_code Running --icon=bolt --color=#4C8DFF --pane=$LPM_PANE_ID`)
+	setDone := sendCmd(`set_status $LPM_PROJECT_NAME claude_code Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID`)
 	clearStatus := sendCmd(`clear_status $LPM_PROJECT_NAME claude_code`)
 
 	lpmHook := func(cmd string) map[string]any {
