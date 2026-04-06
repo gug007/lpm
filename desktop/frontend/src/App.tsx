@@ -3,6 +3,7 @@ import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { Settings } from "./components/Settings";
 import { GlobalConfigEditor } from "./components/GlobalConfigEditor";
+import { CommitInstructionsEditor } from "./components/CommitInstructionsEditor";
 import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
 import { TmuxInstaller } from "./components/TmuxInstaller";
 import { Toaster, toast } from "sonner";
@@ -14,10 +15,13 @@ import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
 import { StartProject, StopProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects, TmuxInstalled, InstallTmux } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 
+type View = "projects" | "settings" | "global-config" | "commit-instructions";
+
 export default function App() {
   const [tmuxReady, setTmuxReady] = useState<boolean | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const [view, setView] = useState<"projects" | "settings" | "global-config">("projects");
+  const [view, setView] = useState<View>("projects");
+  const isSettingsView = view !== "projects";
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [pendingUpdateCheck, setPendingUpdateCheck] = useState(false);
 
@@ -192,7 +196,7 @@ export default function App() {
           onSettings={() => setView("settings")}
           onAddProject={handleAddProject}
           onReorder={handleReorder}
-          showSettings={view === "settings" || view === "global-config"}
+          showSettings={isSettingsView}
         />
         <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">
           <div className="wails-drag flex h-2 shrink-0 items-center">
@@ -207,8 +211,9 @@ export default function App() {
               </button>
             )}
           </div>
-          {view === "settings" && <Settings onEditGlobalConfig={() => setView("global-config")} pendingUpdateCheck={pendingUpdateCheck} onConsumedUpdateCheck={() => setPendingUpdateCheck(false)} />}
+          {view === "settings" && <Settings onEditGlobalConfig={() => setView("global-config")} onEditCommitInstructions={() => setView("commit-instructions")} pendingUpdateCheck={pendingUpdateCheck} onConsumedUpdateCheck={() => setPendingUpdateCheck(false)} />}
           {view === "global-config" && <GlobalConfigEditor onBack={() => setView("settings")} />}
+          {view === "commit-instructions" && <CommitInstructionsEditor onBack={() => setView("settings")} />}
           {visitedProjects.map((project) => {
             const isSelected = view === "projects" && selected === project.name;
             return (

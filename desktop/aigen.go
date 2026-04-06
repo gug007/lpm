@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/gug007/lpm/internal/aigen"
@@ -45,16 +47,43 @@ func (a *App) GenerateCommitMessage(cwd, cli string, files []string) (string, er
 		diff = diff[:maxDiffSize] + "\n... (truncated)"
 	}
 
+	prompt := commitMsgPrompt
+	if instr, _ := a.ReadCommitInstructions(); instr != "" {
+		prompt += "Additional instructions from the user:\n" + instr + "\n\n"
+	}
+
 	selected, err := aigen.Detect(aigen.CLI(cli))
 	if err != nil {
 		return "", err
 	}
-	return aigen.GenerateText(a.ctx, selected, cwd, commitMsgPrompt+diff, func(msg string) {
+	return aigen.GenerateText(a.ctx, selected, cwd, prompt+diff, func(msg string) {
 		runtime.EventsEmit(a.ctx, commitMsgProgressEvent, msg)
 	})
 }
 
 const commitMsgProgressEvent = "commit-msg-progress"
+
+func commitInstructionsPath() string {
+	return filepath.Join(config.LpmDir(), "commit-instructions.txt")
+}
+
+func (a *App) ReadCommitInstructions() (string, error) {
+	data, err := os.ReadFile(commitInstructionsPath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return string(data), nil
+}
+
+func (a *App) SaveCommitInstructions(content string) error {
+	if err := config.EnsureDirs(); err != nil {
+		return err
+	}
+	return os.WriteFile(commitInstructionsPath(), []byte(content), 0644)
+}
 
 const commitMsgPrompt = `Given the following git diff, write a concise commit message.
 Use conventional commit format: type(scope): description

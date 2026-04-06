@@ -8,7 +8,7 @@ import { SetDarkMode, GetVersion, CheckForUpdate, InstallUpdate } from '../../wa
 
 const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
-export function Settings({ onEditGlobalConfig, pendingUpdateCheck = false, onConsumedUpdateCheck }: { onEditGlobalConfig: () => void; pendingUpdateCheck?: boolean; onConsumedUpdateCheck?: () => void }) {
+export function Settings({ onEditGlobalConfig, onEditCommitInstructions, pendingUpdateCheck = false, onConsumedUpdateCheck }: { onEditGlobalConfig: () => void; onEditCommitInstructions: () => void; pendingUpdateCheck?: boolean; onConsumedUpdateCheck?: () => void }) {
   const settings = getSettings();
   const [theme, setTheme] = useState<Theme>(settings.theme);
   const [dblClick, setDblClick] = useState(settings.doubleClickToToggle);
@@ -129,6 +129,26 @@ export function Settings({ onEditGlobalConfig, pendingUpdateCheck = false, onCon
                 onClick={() => setTheme("system")}
               />
             </div>
+          </SettingsRow>
+        </div>
+      </div>
+
+      <div className="mt-6 space-y-1">
+        <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
+          AI
+        </h2>
+
+        <div className="rounded-lg border border-[var(--border)] divide-y divide-[var(--border)]">
+          <SettingsRow
+            label="Commit Instructions"
+            description="Custom instructions for AI commit messages"
+          >
+            <button
+              onClick={onEditCommitInstructions}
+              className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-active)]"
+            >
+              Edit
+            </button>
           </SettingsRow>
         </div>
       </div>
