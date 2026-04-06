@@ -169,10 +169,15 @@ type ChangedFile struct {
 // Files that appear in both the index and worktree are deduplicated into a
 // single entry so the UI shows one row per path.
 func (a *App) GitChangedFiles(cwd string) []ChangedFile {
-	out, err := runGit(cwd, "status", "--porcelain=v1", "-z")
+	// Don't use runGit here — it calls TrimSpace which strips the leading
+	// space from porcelain status entries like " M file.txt", corrupting paths.
+	cmd := exec.Command("git", "status", "--porcelain=v1", "-z")
+	cmd.Dir = cwd
+	raw, err := cmd.Output()
 	if err != nil {
 		return nil
 	}
+	out := string(raw)
 	seen := make(map[string]int) // path → index in files
 	var files []ChangedFile
 	entries := strings.Split(out, "\x00")

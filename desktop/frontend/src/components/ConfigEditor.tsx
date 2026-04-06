@@ -1,7 +1,8 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { ReadConfig, SaveConfig, GenerateProjectConfig } from "../../wailsjs/go/main/App";
 import { useYamlEditor } from "../hooks/useYamlEditor";
-import { ChevronLeftIcon, SparkleIcon } from "./icons";
+import { ChevronLeftIcon } from "./icons";
+import { AIButton } from "./ui/AIButton";
 import { AIGenerateModal } from "./AIGenerateModal";
 import { type AICLI } from "../types";
 
@@ -55,16 +56,9 @@ export function ConfigEditor({ projectName, onSaved, onBack }: ConfigEditorProps
             </button>
             <span className="text-sm font-medium text-[var(--text-primary)]">Config</span>
           </div>
-          <button
-            onClick={() => setAiOpen(true)}
-            className="group relative inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 p-[1px] text-xs font-medium shadow-sm transition-all hover:shadow-md hover:shadow-purple-500/20 active:scale-[0.98]"
-            title="Generate config with AI"
-          >
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--bg-primary)] px-3 py-1 text-[var(--text-primary)] transition-colors group-hover:bg-transparent group-hover:text-white">
-              <SparkleIcon />
-              Generate with AI
-            </span>
-          </button>
+          <AIButton onClick={() => setAiOpen(true)} title="Generate config with AI">
+            Generate with AI
+          </AIButton>
         </div>
       )}
       <div className="relative flex-1 overflow-hidden">

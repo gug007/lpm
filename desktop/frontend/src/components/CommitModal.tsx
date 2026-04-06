@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
 import { XIcon, ChevronDownIcon } from "./icons";
+import { AIButton } from "./ui/AIButton";
 import {
   CheckAICLIs,
   GenerateCommitMessage,
@@ -192,55 +193,29 @@ export function CommitModal({
               Message
             </span>
             {anyAiAvailable && (
-              <div ref={cliRef} className="relative flex items-center">
-                <button
+              <div ref={cliRef} className="relative">
+                <AIButton
                   onClick={generateMessage}
                   disabled={generating || busy || selected.size === 0}
+                  loading={generating}
                   title={`Generate with ${selectedCLILabel}`}
-                  className="flex items-center gap-1 rounded-l-full bg-[var(--bg-hover)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)] transition-all hover:bg-[var(--bg-active)] hover:text-[var(--text-primary)] disabled:opacity-40"
+                  trailing={<button onClick={() => setCLIMenuOpen(!cliMenuOpen)} disabled={generating || busy} title="Select AI CLI"><ChevronDownIcon /></button>}
                 >
-                  <span
-                    className={`text-xs ${generating ? "animate-spin" : ""}`}
-                  >
-                    ✨
-                  </span>
                   {generating ? "Generating..." : "Generate With AI"}
-                </button>
-                <button
-                  onClick={() => setCLIMenuOpen(!cliMenuOpen)}
-                  disabled={generating || busy}
-                  className="flex items-center rounded-r-full border-l border-[var(--border)] bg-[var(--bg-hover)] px-1.5 py-0.5 text-[var(--text-muted)] transition-all hover:bg-[var(--bg-active)] hover:text-[var(--text-primary)] disabled:opacity-40"
-                >
-                  <ChevronDownIcon />
-                </button>
+                </AIButton>
                 {cliMenuOpen && (
                   <div className="absolute right-0 top-full z-10 mt-1 w-36 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
                     {AI_CLI_OPTIONS.filter((o) => aiCLIs[o.value]).map((o) => (
                       <button
                         key={o.value}
-                        onClick={() => {
-                          setSelectedCLI(o.value);
-                          setCLIMenuOpen(false);
-                        }}
+                        onClick={() => { setSelectedCLI(o.value); setCLIMenuOpen(false); }}
                         className={`flex w-full items-center px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)] ${
-                          selectedCLI === o.value
-                            ? "text-[var(--text-primary)] font-medium"
-                            : "text-[var(--text-secondary)]"
+                          selectedCLI === o.value ? "text-[var(--text-primary)] font-medium" : "text-[var(--text-secondary)]"
                         }`}
                       >
                         {o.label}
                         {selectedCLI === o.value && (
-                          <svg
-                            width="10"
-                            height="10"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="3"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="ml-auto"
-                          >
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="ml-auto">
                             <polyline points="20 6 9 17 4 12" />
                           </svg>
                         )}
