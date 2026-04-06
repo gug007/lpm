@@ -2,8 +2,6 @@ package main
 
 import (
 	"embed"
-	"fmt"
-	"time"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -16,17 +14,6 @@ var assets embed.FS
 
 //go:embed build/appicon.png
 var appIcon []byte
-
-func aboutMessage() string {
-	return fmt.Sprintf(
-		"Version %s\n\n"+
-			"Start, stop, and switch between dev projects.\n"+
-			"Built-in terminals and AI, all in one app.\n\n"+
-			"https://lpm.cx\n"+
-			"© %d",
-		Version, time.Now().Year(),
-	)
-}
 
 func main() {
 	app := NewApp()
@@ -70,7 +57,7 @@ func main() {
 			WindowIsTranslucent:  true,
 			About: &mac.AboutInfo{
 				Title:   "lpm — Local Project Manager",
-				Message: aboutMessage(),
+				Message: "",
 				Icon:    appIcon,
 			},
 		},
