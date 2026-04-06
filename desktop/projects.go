@@ -22,7 +22,7 @@ type ProjectInfo struct {
 	Terminals         []TerminalConfigInfo `json:"terminals"`
 	Profiles          []string             `json:"profiles"`
 	ActiveProfile     string               `json:"activeProfile"`
-	StatusEntries []StatusEntry `json:"statusEntries"`
+	StatusEntries     []StatusEntry        `json:"statusEntries"`
 }
 
 type ServiceInfo struct {
@@ -263,9 +263,6 @@ func (a *App) GetProject(name string) (*ProjectInfo, error) {
 	}
 	info := toProjectInfo(name, cfg, running, profile)
 	info.StatusEntries = a.statusStore.List(name)
-	if info.StatusEntries == nil {
-		info.StatusEntries = []StatusEntry{}
-	}
 	return &info, nil
 }
 

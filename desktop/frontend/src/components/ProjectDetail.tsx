@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { toast } from "sonner";
 import { ActionButton } from "./ActionButton";
 import { OpenInDropdown } from "./OpenInDropdown";
@@ -9,7 +9,7 @@ import { RunAction } from "../../wailsjs/go/main/App";
 import { getSettings, saveSettings } from "../settings";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
-import type { ProjectInfo, ActionInfo, TerminalConfigInfo } from "../types";
+import { type ProjectInfo, type ActionInfo, type TerminalConfigInfo, STATUS_RUNNING, STATUS_DONE } from "../types";
 import { TerminalIcon, CheckIcon, ChevronDownIcon, PencilIcon, MenuIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { useOutsideClick } from "../hooks/useOutsideClick";
@@ -139,6 +139,15 @@ export function ProjectDetail({
       toast.error(`${term.label}: ${err}`);
     }
   };
+
+  const runningPaneIDs = useMemo(
+    () => new Set(project.statusEntries?.filter(e => e.value === STATUS_RUNNING && e.paneID).map(e => e.paneID!)),
+    [project.statusEntries],
+  );
+  const donePaneIDs = useMemo(
+    () => new Set(project.statusEntries?.filter(e => e.value === STATUS_DONE && e.paneID).map(e => e.paneID!)),
+    [project.statusEntries],
+  );
 
   return (
     <div className="flex h-full flex-col">
@@ -297,8 +306,8 @@ export function ProjectDetail({
           terminalTheme={termTheme}
           onTerminalThemeChange={handleTerminalThemeChange}
           onTerminalCountChange={setTerminalCount}
-          runningPaneIDs={new Set(project.statusEntries?.filter(e => e.value === "Running" && e.paneID).map(e => e.paneID!))}
-          donePaneIDs={new Set(project.statusEntries?.filter(e => e.value === "Done" && e.paneID).map(e => e.paneID!))}
+          runningPaneIDs={runningPaneIDs}
+          donePaneIDs={donePaneIDs}
           visible={visible && detailView === "terminal" && !showEmptyState}
         />
         <div className="pointer-events-none absolute bottom-3 right-3 z-20">

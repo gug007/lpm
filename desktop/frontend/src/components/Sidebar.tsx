@@ -3,7 +3,7 @@ import { StatusDot } from "./StatusDot";
 import { getSettings } from "../settings";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { InstallUpdate } from "../../wailsjs/go/main/App";
-import type { ProjectInfo } from "../types";
+import { type ProjectInfo, STATUS_RUNNING, STATUS_DONE } from "../types";
 import { SidebarIcon, CheckIcon } from "./icons";
 import { useDragReorder } from "../hooks/useDragReorder";
 import { useSidebarResize } from "../hooks/useSidebarResize";
@@ -49,10 +49,6 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
     }
   };
 
-  const handleSelect = (name: string) => {
-    onSelect(name);
-  };
-
   return (
     <aside
       className={`relative flex shrink-0 flex-col bg-[var(--bg-sidebar)] transition-[width] duration-200 ${collapsed ? "" : "border-r border-[var(--border)]"}`}
@@ -84,8 +80,8 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
       <nav className="flex-1 overflow-y-auto px-2">
         {projects.map((project, idx) => {
           const isSelected = selected === project.name;
-          const isRunning = hasStatus(project, "Running");
-          const isDone = hasStatus(project, "Done");
+          const isRunning = hasStatus(project, STATUS_RUNNING);
+          const isDone = hasStatus(project, STATUS_DONE);
 
           return (
             <div key={project.name} className="relative">
@@ -98,7 +94,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                 onDragEnd={handleDragEnd}
                 onDragOver={(e) => handleDragOver(e, idx)}
                 onDragEnter={(e) => e.preventDefault()}
-                onClick={() => handleSelect(project.name)}
+                onClick={() => onSelect(project.name)}
                 onDoubleClick={() => {
                   if (getSettings().doubleClickToToggle) onToggle(project.name);
                 }}

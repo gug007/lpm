@@ -71,7 +71,6 @@ body {
   background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: shimmer 4s ease-in-out infinite, shimmer-glow 2s ease-in-out infinite;
-  filter: brightness(1.1);
 }
 
 @keyframes shimmer {

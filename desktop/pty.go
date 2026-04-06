@@ -31,10 +31,9 @@ const (
 )
 
 type ptySession struct {
-	id          string
-	projectName string
-	pty         *os.File
-	cmd         *exec.Cmd
+	id  string
+	pty *os.File
+	cmd *exec.Cmd
 
 	// Flow control (mu protects unacked/paused only)
 	mu      sync.Mutex
@@ -128,10 +127,9 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 	}
 
 	sess := &ptySession{
-		id:          id,
-		projectName: projectName,
-		pty:         ptmx,
-		cmd:         cmd,
+		id:  id,
+		pty: ptmx,
+		cmd: cmd,
 	}
 	sess.cond = sync.NewCond(&sess.mu)
 

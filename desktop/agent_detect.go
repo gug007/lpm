@@ -127,14 +127,11 @@ func (a *App) installCodexHooks() {
 		}
 	}
 
-	// Also add SessionEnd via clear (Codex hooks.json doesn't have SessionEnd,
-	// but we use the notify config for cleanup)
 	out, err := json.MarshalIndent(hooksData, "", "  ")
 	if err != nil {
 		return
 	}
 	_ = os.WriteFile(hooksPath, out, 0644)
-
 }
 
 func (a *App) enableCodexHooksFeature(configPath string) {
@@ -157,7 +154,6 @@ func (a *App) enableCodexHooksFeature(configPath string) {
 
 	_ = os.WriteFile(configPath, []byte(content), 0644)
 }
-
 
 // --- Shared helpers ---
 

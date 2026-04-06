@@ -202,7 +202,7 @@ func (a *App) shutdown(ctx context.Context) {
 }
 
 func (a *App) ClearDoneStatus(project string, paneID string) {
-	if a.statusStore.ClearByPaneValue(project, paneID, "Done") {
+	if a.statusStore.ClearByPaneValue(project, paneID, StatusDone) {
 		runtime.EventsEmit(a.ctx, "status-changed", project)
 	}
 }

@@ -32,6 +32,9 @@ export interface ProjectInfo {
   statusEntries: StatusEntry[];
 }
 
+export const STATUS_RUNNING = "Running";
+export const STATUS_DONE = "Done";
+
 export interface StatusEntry {
   key: string;
   value: string;

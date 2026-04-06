@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+const (
+	StatusRunning = "Running"
+	StatusDone    = "Done"
+)
+
 type StatusEntry struct {
 	Key       string `json:"key"`
 	Value     string `json:"value"`
