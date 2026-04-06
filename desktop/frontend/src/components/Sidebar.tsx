@@ -3,8 +3,8 @@ import { StatusDot } from "./StatusDot";
 import { getSettings } from "../settings";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { InstallUpdate } from "../../wailsjs/go/main/App";
-import type { ProjectInfo } from "../types";
-import { SidebarIcon } from "./icons";
+import { type ProjectInfo, STATUS_RUNNING, STATUS_DONE } from "../types";
+import { SidebarIcon, CheckIcon } from "./icons";
 import { useDragReorder } from "../hooks/useDragReorder";
 import { useSidebarResize } from "../hooks/useSidebarResize";
 
@@ -19,6 +19,10 @@ interface SidebarProps {
   onAddProject: () => void;
   onReorder: (order: string[]) => void;
   showSettings: boolean;
+}
+
+function hasStatus(project: ProjectInfo, value: string): boolean {
+  return project.statusEntries?.some(e => e.value === value) ?? false;
 }
 
 export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onSettings, onAddProject, onReorder, showSettings }: SidebarProps) {
@@ -74,37 +78,49 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2">
-        {projects.map((project, idx) => (
-          <div key={project.name} className="relative">
-            {showDropAbove(idx) && (
-              <div className="absolute inset-x-3 top-0 h-px bg-[var(--accent-cyan)]" />
-            )}
-            <button
-              draggable
-              onDragStart={(e) => handleDragStart(e, idx)}
-              onDragEnd={handleDragEnd}
-              onDragOver={(e) => handleDragOver(e, idx)}
-              onDragEnter={(e) => e.preventDefault()}
-              onClick={() => onSelect(project.name)}
-              onDoubleClick={() => {
-                if (getSettings().doubleClickToToggle) {
-                  onToggle(project.name);
-                }
-              }}
-              className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                selected === project.name
-                  ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                  : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-              } ${dragIdx === idx ? "opacity-30" : ""}`}
-            >
-              <StatusDot running={project.running} />
-              <span className="truncate">{project.name}</span>
-            </button>
-            {showDropBelow(idx) && (
-              <div className="absolute inset-x-3 bottom-0 h-px bg-[var(--accent-cyan)]" />
-            )}
-          </div>
-        ))}
+        {projects.map((project, idx) => {
+          const isSelected = selected === project.name;
+          const isRunning = hasStatus(project, STATUS_RUNNING);
+          const isDone = hasStatus(project, STATUS_DONE);
+
+          return (
+            <div key={project.name} className="relative">
+              {showDropAbove(idx) && (
+                <div className="absolute inset-x-3 top-0 h-px bg-[var(--accent-cyan)]" />
+              )}
+              <button
+                draggable
+                onDragStart={(e) => handleDragStart(e, idx)}
+                onDragEnd={handleDragEnd}
+                onDragOver={(e) => handleDragOver(e, idx)}
+                onDragEnter={(e) => e.preventDefault()}
+                onClick={() => onSelect(project.name)}
+                onDoubleClick={() => {
+                  if (getSettings().doubleClickToToggle) onToggle(project.name);
+                }}
+                className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                  isSelected
+                    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                } ${dragIdx === idx ? "opacity-30" : ""}`}
+              >
+                <StatusDot running={project.running} />
+                <span
+                  className="truncate"
+                  style={isDone ? { color: "var(--accent-blue)" } : undefined}
+                >
+                  {isRunning ? (
+                    <span className="sidebar-shimmer">{project.name}</span>
+                  ) : project.name}
+                </span>
+                {isDone && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
+              </button>
+              {showDropBelow(idx) && (
+                <div className="absolute inset-x-3 bottom-0 h-px bg-[var(--accent-cyan)]" />
+              )}
+            </div>
+          );
+        })}
       </nav>
 
       {updateInfo && (
@@ -152,7 +168,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
               <path d="M21 12a9 9 0 1 1-6.219-8.56" />
             </svg>
             <div className="flex flex-col items-center gap-1">
-              <p className="text-sm font-medium text-[var(--text-primary)]">Installing update…</p>
+              <p className="text-sm font-medium text-[var(--text-primary)]">Installing update...</p>
               <p className="text-[11px] text-[var(--text-muted)]">The app will restart automatically</p>
             </div>
           </div>

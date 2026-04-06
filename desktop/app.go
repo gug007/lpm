@@ -41,6 +41,9 @@ type App struct {
 	pendingDownloadURL string // set by CheckForUpdate, used by InstallUpdate
 
 	lastWinW, lastWinH int // cached to skip redundant saves
+
+	statusStore  *StatusStore
+	socketServer *SocketServer
 }
 
 func NewApp() *App {
@@ -50,6 +53,7 @@ func NewApp() *App {
 		streams:         make(map[string]context.CancelFunc),
 		ptySessions:     make(map[string]*ptySession),
 		runningProfiles: make(map[string]string),
+		statusStore:     NewStatusStore(),
 	}
 }
 
@@ -65,6 +69,20 @@ func (a *App) startup(ctx context.Context) {
 
 	go a.ListProjects() // populate dock menu before frontend loads
 	go a.autoCheckForUpdate()
+
+	// Start Unix socket server for external tool integration
+	a.socketServer = NewSocketServer(a)
+	if err := a.socketServer.Start(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to start socket server: %v\n", err)
+	}
+
+	// Start PID sweep to clear stale agent status entries
+	a.statusStore.StartPIDSweep(ctx, func(project, key string) {
+		runtime.EventsEmit(a.ctx, "status-changed", project)
+	})
+
+	// Auto-install agent hooks (Claude Code, Codex) for running indicator
+	go a.installAgentHooks()
 }
 
 // TmuxInstalled reports whether tmux is available on the system.
@@ -162,6 +180,10 @@ func (a *App) SaveWindowSize(width, height int) {
 }
 
 func (a *App) shutdown(ctx context.Context) {
+	if a.socketServer != nil {
+		a.socketServer.Stop()
+	}
+
 	a.streamMu.Lock()
 	for name, cancel := range a.streams {
 		cancel()
@@ -177,6 +199,12 @@ func (a *App) shutdown(ctx context.Context) {
 		delete(a.ptySessions, id)
 	}
 	a.ptyMu.Unlock()
+}
+
+func (a *App) ClearDoneStatus(project string, paneID string) {
+	if a.statusStore.ClearByPaneValue(project, paneID, StatusDone) {
+		runtime.EventsEmit(a.ctx, "status-changed", project)
+	}
 }
 
 func (a *App) SetDarkMode(dark bool) {

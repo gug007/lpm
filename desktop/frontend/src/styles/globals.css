@@ -14,6 +14,7 @@
   --accent-green: #22c55e;
   --accent-red: #ef4444;
   --accent-cyan: #06b6d4;
+  --accent-blue: #3b82f6;
   --terminal-bg: #fafafa;
   --terminal-fg: #383a42;
   --terminal-selection: rgba(0, 122, 204, 0.2);
@@ -38,6 +39,7 @@
   --accent-green: #4ade80;
   --accent-red: #f87171;
   --accent-cyan: #22d3ee;
+  --accent-blue: #60a5fa;
   --terminal-bg: #1a1a1a;
   --terminal-fg: #cccccc;
   --terminal-selection: #444444;
@@ -60,4 +62,24 @@ body {
 
 .wails-drag {
   --wails-draggable: drag;
+}
+
+.sidebar-shimmer {
+  background: linear-gradient(90deg, var(--accent-blue), #8b5cf6, #ec4899, #06b6d4, #6366f1, var(--accent-blue));
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 4s ease-in-out infinite, shimmer-glow 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 150% 50%; }
+  100% { background-position: 300% 50%; }
+}
+
+@keyframes shimmer-glow {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.3); }
 }
