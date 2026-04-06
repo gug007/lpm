@@ -15,11 +15,11 @@ import { AI_CLI_OPTIONS } from "../types";
 type ChangedFile = main.ChangedFile;
 
 const STATUS_DISPLAY: Record<string, { label: string; color: string }> = {
-  added:     { label: "A", color: "text-[var(--accent-green)]" },
+  added: { label: "A", color: "text-[var(--accent-green)]" },
   untracked: { label: "U", color: "text-[var(--accent-green)]" },
-  deleted:   { label: "D", color: "text-[var(--accent-red)]" },
-  renamed:   { label: "R", color: "text-[var(--accent-cyan)]" },
-  modified:  { label: "M", color: "text-[var(--accent-blue)]" },
+  deleted: { label: "D", color: "text-[var(--accent-red)]" },
+  renamed: { label: "R", color: "text-[var(--accent-cyan)]" },
+  modified: { label: "M", color: "text-[var(--accent-blue)]" },
 };
 const DEFAULT_STATUS = STATUS_DISPLAY.modified;
 
@@ -30,7 +30,12 @@ interface CommitModalProps {
   onCommitted: () => void;
 }
 
-export function CommitModal({ open, projectPath, onClose, onCommitted }: CommitModalProps) {
+export function CommitModal({
+  open,
+  projectPath,
+  onClose,
+  onCommitted,
+}: CommitModalProps) {
   const [files, setFiles] = useState<ChangedFile[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState("");
@@ -41,7 +46,10 @@ export function CommitModal({ open, projectPath, onClose, onCommitted }: CommitM
   const [selectedCLI, setSelectedCLI] = useState("claude");
   const [cliMenuOpen, setCLIMenuOpen] = useState(false);
   const msgRef = useRef<HTMLTextAreaElement>(null);
-  const cliRef = useOutsideClick<HTMLDivElement>(() => setCLIMenuOpen(false), cliMenuOpen);
+  const cliRef = useOutsideClick<HTMLDivElement>(
+    () => setCLIMenuOpen(false),
+    cliMenuOpen,
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -57,7 +65,9 @@ export function CommitModal({ open, projectPath, onClose, onCommitted }: CommitM
         setFiles(list);
         setSelected(new Set(list.map((x) => x.path)));
       })
-      .catch(() => { if (!cancelled) setFiles([]); })
+      .catch(() => {
+        if (!cancelled) setFiles([]);
+      })
       .finally(() => {
         if (cancelled) return;
         setLoading(false);
@@ -66,13 +76,20 @@ export function CommitModal({ open, projectPath, onClose, onCommitted }: CommitM
     CheckAICLIs()
       .then((a) => {
         if (cancelled) return;
-        const avail: Record<string, boolean> = { claude: a.claude, codex: a.codex, gemini: a.gemini, opencode: a.opencode };
+        const avail: Record<string, boolean> = {
+          claude: a.claude,
+          codex: a.codex,
+          gemini: a.gemini,
+          opencode: a.opencode,
+        };
         setAiCLIs(avail);
         const first = AI_CLI_OPTIONS.find((o) => avail[o.value]);
         if (first) setSelectedCLI(first.value);
       })
       .catch(() => {});
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [open, projectPath]);
 
   const toggleFile = (path: string) => {
@@ -92,16 +109,28 @@ export function CommitModal({ open, projectPath, onClose, onCommitted }: CommitM
     }
   };
 
-  const parsed = useMemo(() => files.map((f) => {
-    const i = f.path.lastIndexOf("/");
-    return { file: f, name: i < 0 ? f.path : f.path.slice(i + 1), dir: i < 0 ? "" : f.path.slice(0, i) };
-  }), [files]);
+  const parsed = useMemo(
+    () =>
+      files.map((f) => {
+        const i = f.path.lastIndexOf("/");
+        return {
+          file: f,
+          name: i < 0 ? f.path : f.path.slice(i + 1),
+          dir: i < 0 ? "" : f.path.slice(0, i),
+        };
+      }),
+    [files],
+  );
 
   const generateMessage = async () => {
     if (generating || selected.size === 0) return;
     setGenerating(true);
     try {
-      const msg = await GenerateCommitMessage(projectPath, selectedCLI, Array.from(selected));
+      const msg = await GenerateCommitMessage(
+        projectPath,
+        selectedCLI,
+        Array.from(selected),
+      );
       if (msg) setMessage(msg);
     } catch (err) {
       toast.error(`AI generate failed: ${err}`);
@@ -111,9 +140,11 @@ export function CommitModal({ open, projectPath, onClose, onCommitted }: CommitM
   };
 
   const anyAiAvailable = AI_CLI_OPTIONS.some((o) => aiCLIs[o.value]);
-  const selectedCLILabel = AI_CLI_OPTIONS.find((o) => o.value === selectedCLI)?.label ?? selectedCLI;
+  const selectedCLILabel =
+    AI_CLI_OPTIONS.find((o) => o.value === selectedCLI)?.label ?? selectedCLI;
 
-  const canCommit = !busy && !generating && message.trim().length > 0 && selected.size > 0;
+  const canCommit =
+    !busy && !generating && message.trim().length > 0 && selected.size > 0;
 
   const submit = async () => {
     if (!canCommit) return;
@@ -137,169 +168,214 @@ export function CommitModal({ open, projectPath, onClose, onCommitted }: CommitM
       closeOnBackdrop={!busy && !generating}
       closeOnEscape={!busy && !generating}
       zIndexClassName="z-[60]"
-      contentClassName="w-[520px] max-h-[80vh] flex flex-col rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl"
+      contentClassName="w-[500px] max-h-[80vh] flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >
-      {/* Header */}
-      <div className="flex items-start justify-between p-5 pb-0">
-        <h3 className="text-base font-semibold text-[var(--text-primary)]">
-          Commit Changes
-        </h3>
-        <button
-          onClick={onClose}
-          disabled={busy}
-          aria-label="Close"
-          className="-mr-1 -mt-1 rounded p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
-        >
-          <XIcon />
-        </button>
-      </div>
+      <div className="flex flex-col gap-4 p-5">
+        {/* Header — minimal, no separator */}
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+            Commit
+          </h3>
+          <button
+            onClick={onClose}
+            disabled={busy}
+            aria-label="Close"
+            className="rounded-md p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+          >
+            <XIcon />
+          </button>
+        </div>
 
-      {/* Commit message */}
-      <div className="px-5 pt-4">
-        <div className="mb-2 flex items-center justify-between">
-          <label className="text-xs font-medium text-[var(--text-secondary)]">
-            Commit message
-          </label>
-          {anyAiAvailable && (
-            <div ref={cliRef} className="relative flex items-center">
+        <div>
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-[11px] font-medium text-[var(--text-muted)]">
+              Message
+            </span>
+            {anyAiAvailable && (
+              <div ref={cliRef} className="relative flex items-center">
+                <button
+                  onClick={generateMessage}
+                  disabled={generating || busy || selected.size === 0}
+                  title={`Generate with ${selectedCLILabel}`}
+                  className="flex items-center gap-1 rounded-l-full bg-[var(--bg-hover)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)] transition-all hover:bg-[var(--bg-active)] hover:text-[var(--text-primary)] disabled:opacity-40"
+                >
+                  <span
+                    className={`text-xs ${generating ? "animate-spin" : ""}`}
+                  >
+                    ✨
+                  </span>
+                  {generating ? "Generating..." : "Generate With AI"}
+                </button>
+                <button
+                  onClick={() => setCLIMenuOpen(!cliMenuOpen)}
+                  disabled={generating || busy}
+                  className="flex items-center rounded-r-full border-l border-[var(--border)] bg-[var(--bg-hover)] px-1.5 py-0.5 text-[var(--text-muted)] transition-all hover:bg-[var(--bg-active)] hover:text-[var(--text-primary)] disabled:opacity-40"
+                >
+                  <ChevronDownIcon />
+                </button>
+                {cliMenuOpen && (
+                  <div className="absolute right-0 top-full z-10 mt-1 w-36 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
+                    {AI_CLI_OPTIONS.filter((o) => aiCLIs[o.value]).map((o) => (
+                      <button
+                        key={o.value}
+                        onClick={() => {
+                          setSelectedCLI(o.value);
+                          setCLIMenuOpen(false);
+                        }}
+                        className={`flex w-full items-center px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)] ${
+                          selectedCLI === o.value
+                            ? "text-[var(--text-primary)] font-medium"
+                            : "text-[var(--text-secondary)]"
+                        }`}
+                      >
+                        {o.label}
+                        {selectedCLI === o.value && (
+                          <svg
+                            width="10"
+                            height="10"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="ml-auto"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <textarea
+            ref={msgRef}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
+            }}
+            placeholder="Describe your changes..."
+            disabled={busy}
+            rows={2}
+            className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--text-muted)] disabled:opacity-60"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-medium text-[var(--text-muted)]">
+              Changes
+              <span className="ml-1 text-[var(--text-muted)]/60">
+                {selected.size}/{files.length}
+              </span>
+            </span>
+            {files.length > 0 && (
               <button
-                onClick={generateMessage}
-                disabled={generating || busy || selected.size === 0}
-                title={`Generate with ${selectedCLILabel}`}
-                className="flex items-center gap-1 rounded-l-md bg-gradient-to-r from-violet-500/10 to-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-400 transition-all hover:from-violet-500/20 hover:to-blue-500/20 hover:text-violet-300 disabled:opacity-40"
+                onClick={toggleAll}
+                disabled={busy}
+                className="text-[10px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
               >
-                <span className={generating ? "animate-spin" : ""}>✨</span>
-                {generating ? "Generating..." : "Generate With AI"}
+                {selected.size === files.length ? "None" : "All"}
               </button>
-              <button
-                onClick={() => setCLIMenuOpen(!cliMenuOpen)}
-                disabled={generating || busy}
-                className="flex items-center rounded-r-md border-l border-violet-500/20 bg-gradient-to-r from-violet-500/10 to-blue-500/10 px-1 py-0.5 text-violet-400 transition-all hover:from-violet-500/20 hover:to-blue-500/20 hover:text-violet-300 disabled:opacity-40"
-              >
-                <ChevronDownIcon />
-              </button>
-              {cliMenuOpen && (
-                <div className="absolute right-0 top-full z-10 mt-1 w-36 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
-                  {AI_CLI_OPTIONS.filter((o) => aiCLIs[o.value]).map((o) => (
-                    <button
-                      key={o.value}
-                      onClick={() => { setSelectedCLI(o.value); setCLIMenuOpen(false); }}
-                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)] ${
-                        selectedCLI === o.value ? "text-[var(--text-primary)] font-medium" : "text-[var(--text-secondary)]"
+            )}
+          </div>
+
+          <div className="max-h-[200px] min-h-0 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+            {loading && (
+              <div className="py-5 text-center text-[11px] text-[var(--text-muted)]">
+                Loading...
+              </div>
+            )}
+            {!loading && files.length === 0 && (
+              <div className="py-5 text-center text-[11px] text-[var(--text-muted)]">
+                No changes
+              </div>
+            )}
+            {!loading &&
+              parsed.map(({ file, name: fileName, dir }) => {
+                const checked = selected.has(file.path);
+                const { label: statusLabel, color: statusClr } =
+                  STATUS_DISPLAY[file.status] ?? DEFAULT_STATUS;
+                return (
+                  <label
+                    key={file.path}
+                    className={`flex cursor-pointer items-center gap-2 px-2.5 py-[5px] transition-colors hover:bg-[var(--bg-hover)] ${
+                      !checked ? "opacity-50" : ""
+                    }`}
+                  >
+                    <span
+                      className={`flex h-3 w-3 shrink-0 items-center justify-center rounded-[3px] transition-colors ${
+                        checked
+                          ? "bg-[var(--accent-blue)]"
+                          : "border border-[var(--text-muted)]/40"
                       }`}
                     >
-                      {o.label}
-                      {selectedCLI === o.value && (
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="ml-auto">
+                      {checked && (
+                        <svg
+                          width="8"
+                          height="8"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="white"
+                          strokeWidth="3.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
                           <polyline points="20 6 9 17 4 12" />
                         </svg>
                       )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleFile(file.path)}
+                      disabled={busy}
+                      className="sr-only"
+                    />
+                    <span
+                      className={`shrink-0 w-3 text-center text-[10px] font-bold ${statusClr}`}
+                      title={file.status}
+                    >
+                      {statusLabel}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[11px] text-[var(--text-primary)]">
+                      {fileName}
+                      {dir && (
+                        <span className="text-[var(--text-muted)]"> {dir}</span>
+                      )}
+                    </span>
+                  </label>
+                );
+              })}
+          </div>
         </div>
-        <textarea
-          ref={msgRef}
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
-          }}
-          placeholder="Describe your changes..."
-          disabled={busy}
-          rows={3}
-          className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--text-muted)] disabled:opacity-60"
-        />
-      </div>
-
-      {/* File list */}
-      <div className="mx-5 mt-4 flex items-center justify-between">
-        <label className="text-xs font-medium text-[var(--text-secondary)]">
-          Files ({selected.size}/{files.length})
-        </label>
-        {files.length > 0 && (
-          <button
-            onClick={toggleAll}
-            disabled={busy}
-            className="text-[10px] font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
-          >
-            {selected.size === files.length ? "Deselect all" : "Select all"}
-          </button>
-        )}
-      </div>
-
-      <div className="mx-5 mt-2 min-h-0 flex-1 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-        {loading && (
-          <div className="px-3 py-6 text-center text-xs text-[var(--text-muted)]">
-            Loading files...
-          </div>
-        )}
-        {!loading && files.length === 0 && (
-          <div className="px-3 py-6 text-center text-xs text-[var(--text-muted)]">
-            No changes found
-          </div>
-        )}
-        {!loading &&
-          parsed.map(({ file, name: fileName, dir }) => {
-            const checked = selected.has(file.path);
-            const { label: statusLabel, color: statusClr } = STATUS_DISPLAY[file.status] ?? DEFAULT_STATUS;
-            return (
-              <label
-                key={file.path}
-                className="flex cursor-pointer items-center gap-2.5 px-3 py-1 transition-colors hover:bg-[var(--bg-hover)]"
-              >
-                <span
-                  className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border transition-colors ${
-                    checked
-                      ? "border-[var(--accent-blue)] bg-[var(--accent-blue)]"
-                      : "border-[var(--text-muted)] bg-transparent"
-                  } ${busy ? "opacity-40" : ""}`}
-                >
-                  {checked && (
-                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  )}
-                </span>
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => toggleFile(file.path)}
-                  disabled={busy}
-                  className="sr-only"
-                />
-                <span className="min-w-0 flex-1 truncate text-[11px] text-[var(--text-primary)]">
-                  <span className="font-medium">{fileName}</span>
-                  {dir && <span className="text-[var(--text-muted)]"> {dir}</span>}
-                </span>
-                <span className={`shrink-0 text-[11px] font-semibold ${statusClr}`} title={file.status}>
-                  {statusLabel}
-                </span>
-              </label>
-            );
-          })}
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between p-5 pt-4">
-        <span className="text-[10px] text-[var(--text-muted)]">
-          {canCommit ? "Cmd+Enter to commit" : ""}
+      <div className="flex items-center justify-between border-t border-[var(--border)] px-5 py-3">
+        <span className="text-[10px] text-[var(--text-muted)]/60">
+          {canCommit && (
+            <kbd className="rounded bg-[var(--bg-hover)] px-1 py-0.5 text-[9px] font-medium">
+              &#8984;&#9166;
+            </kbd>
+          )}
         </span>
         <div className="flex gap-2">
           <button
             onClick={onClose}
             disabled={busy}
-            className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
+            className="rounded-lg px-3.5 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
           >
             Cancel
           </button>
           <button
             onClick={submit}
             disabled={!canCommit}
-            className="rounded-lg bg-[var(--text-primary)] px-4 py-2 text-sm font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-40"
+            className="rounded-lg bg-[var(--text-primary)] px-4 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-30"
           >
             {busy ? "Committing..." : "Commit"}
           </button>
