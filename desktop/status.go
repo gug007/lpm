@@ -77,7 +77,7 @@ func (s *StatusStore) Clear(project, key string) bool {
 	return true
 }
 
-func (s *StatusStore) ClearByValue(project, value string) bool {
+func (s *StatusStore) ClearByPaneValue(project, paneID, value string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	bucket, ok := s.entries[project]
@@ -86,7 +86,7 @@ func (s *StatusStore) ClearByValue(project, value string) bool {
 	}
 	changed := false
 	for key, entry := range bucket {
-		if entry.Value == value {
+		if entry.Value == value && entry.PaneID == paneID {
 			delete(bucket, key)
 			changed = true
 		}

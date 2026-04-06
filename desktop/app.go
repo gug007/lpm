@@ -201,8 +201,8 @@ func (a *App) shutdown(ctx context.Context) {
 	a.ptyMu.Unlock()
 }
 
-func (a *App) ClearDoneStatus(project string) {
-	if a.statusStore.ClearByValue(project, "Done") {
+func (a *App) ClearDoneStatus(project string, paneID string) {
+	if a.statusStore.ClearByPaneValue(project, paneID, "Done") {
 		runtime.EventsEmit(a.ctx, "status-changed", project)
 	}
 }

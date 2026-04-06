@@ -187,7 +187,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
     if (!visible) return;
     const ti = terminalIndex(activePane);
     if (ti !== null && terminals[ti] && donePaneIDs?.has(terminals[ti].id)) {
-      ClearDoneStatus(projectName);
+      ClearDoneStatus(projectName, terminals[ti].id);
     }
   }, [visible, activePane, donePaneIDs, terminals, projectName]);
 
@@ -450,7 +450,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
               shimmer={runningPaneIDs?.has(term.id)}
               done={activeTermIdx !== i && donePaneIDs?.has(term.id)}
               onClick={() => {
-                if (donePaneIDs?.has(term.id)) ClearDoneStatus(projectName);
+                if (donePaneIDs?.has(term.id)) ClearDoneStatus(projectName, term.id);
                 setActivePane({ type: "terminal", index: i });
               }}
               onClose={() => closeTerminal(i)}
