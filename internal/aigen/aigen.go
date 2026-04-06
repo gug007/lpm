@@ -149,6 +149,121 @@ func Generate(ctx context.Context, opts Options) (string, error) {
 	}
 }
 
+// GenerateText runs the CLI with the given prompt and streams progress via the
+// callback. Returns the raw text output (no YAML extraction).
+func GenerateText(ctx context.Context, cli CLI, cwd, prompt string, progress ProgressFunc) (string, error) {
+	switch cli {
+	case CLIClaude:
+		return runClaudeStream(ctx, cwd, prompt, progress)
+	case CLICodex:
+		cmd := exec.CommandContext(ctx, "codex", "exec", "--sandbox", "read-only", "--skip-git-repo-check", prompt)
+		return streamOutput(ctx, cwd, cmd, progress, codexProgressLine)
+	case CLIGemini:
+		cmd := exec.CommandContext(ctx, "gemini", "-p", prompt, "--approval-mode", "yolo")
+		return streamOutput(ctx, cwd, cmd, progress, nil)
+	case CLIOpencode:
+		cmd := exec.CommandContext(ctx, "opencode", "run", prompt)
+		return streamOutput(ctx, cwd, cmd, progress, nil)
+	default:
+		return "", fmt.Errorf("unsupported CLI %q", cli)
+	}
+}
+
+// runClaudeStream runs Claude with stream-json, emits progress, and returns the raw result text.
+func runClaudeStream(ctx context.Context, cwd, prompt string, progress ProgressFunc) (string, error) {
+	name := CLIClaude.displayName()
+	cmd := exec.CommandContext(ctx, "claude", "-p",
+		"--verbose",
+		"--output-format", "stream-json",
+		"--permission-mode", "bypassPermissions",
+		"--disallowedTools=Edit,Write,NotebookEdit",
+		prompt)
+	cmd.Dir = cwd
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", fmt.Errorf("%s: stdout pipe: %w", name, err)
+	}
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
+
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("%s: start: %w", name, err)
+	}
+	emitProgress(progress, "Starting "+name+"…")
+
+	var result string
+	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, scannerInitialSize), scannerMaxSize)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var event map[string]any
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			continue
+		}
+		handleClaudeEvent(event, progress, &result)
+	}
+	if err := scanner.Err(); err != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		return "", fmt.Errorf("%s: reading output: %w", name, err)
+	}
+	if err := cmd.Wait(); err != nil {
+		return "", runError(ctx, name, err, &stderrBuf)
+	}
+	return strings.TrimSpace(result), nil
+}
+
+// streamOutput streams stdout line-by-line, emitting progress, and returns the
+// full collected output. Shared by streamAndExtract and GenerateText paths.
+func streamOutput(ctx context.Context, cwd string, cmd *exec.Cmd, progress ProgressFunc, filter func(string) string) (string, error) {
+	name := cmd.Args[0]
+	cmd.Dir = cwd
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", fmt.Errorf("%s: stdout pipe: %w", name, err)
+	}
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
+
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("%s: start: %w", name, err)
+	}
+	emitProgress(progress, "Starting "+name+"…")
+
+	var fullOut bytes.Buffer
+	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, scannerInitialSize), scannerMaxSize)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if fullOut.Len() < maxOutputBytes {
+			fullOut.WriteString(line)
+			fullOut.WriteByte('\n')
+		}
+		if filter != nil {
+			if msg := filter(line); msg != "" {
+				emitProgress(progress, msg)
+			}
+		} else if trimmed := strings.TrimSpace(line); trimmed != "" {
+			emitProgress(progress, truncate(trimmed, 100))
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		return "", fmt.Errorf("%s: reading output: %w", name, err)
+	}
+	if err := cmd.Wait(); err != nil {
+		return "", runError(ctx, name, err, &stderrBuf)
+	}
+	emitProgress(progress, "Done.")
+	return strings.TrimSpace(fullOut.String()), nil
+}
+
 func emitProgress(fn ProgressFunc, msg string) {
 	if fn != nil && msg != "" {
 		fn(msg)
@@ -175,57 +290,14 @@ func truncForError(s string) string {
 	return s
 }
 
-// generateClaude uses stream-json so we can surface tool_use events as progress.
 func generateClaude(ctx context.Context, opts Options, prompt string) (string, error) {
-	name := CLIClaude.displayName()
-	cmd := exec.CommandContext(ctx, "claude", "-p",
-		"--verbose",
-		"--output-format", "stream-json",
-		"--permission-mode", "bypassPermissions",
-		"--disallowedTools=Edit,Write,NotebookEdit",
-		prompt)
-	cmd.Dir = opts.ProjectDir
-
-	stdout, err := cmd.StdoutPipe()
+	result, err := runClaudeStream(ctx, opts.ProjectDir, prompt, opts.Progress)
 	if err != nil {
-		return "", fmt.Errorf("%s: stdout pipe: %w", name, err)
+		return "", err
 	}
-	var stderrBuf bytes.Buffer
-	cmd.Stderr = &stderrBuf
-
-	if err := cmd.Start(); err != nil {
-		return "", fmt.Errorf("%s: start: %w", name, err)
-	}
-
-	emitProgress(opts.Progress, "Starting "+name+"…")
-
-	var result string
-	scanner := bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, scannerInitialSize), scannerMaxSize)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-		var event map[string]any
-		if err := json.Unmarshal([]byte(line), &event); err != nil {
-			continue
-		}
-		handleClaudeEvent(event, opts.Progress, &result)
-	}
-	if err := scanner.Err(); err != nil {
-		_ = cmd.Process.Kill() // don't block Wait on a stuck child
-		_ = cmd.Wait()
-		return "", fmt.Errorf("%s: reading output: %w", name, err)
-	}
-
-	if err := cmd.Wait(); err != nil {
-		return "", runError(ctx, name, err, &stderrBuf)
-	}
-
 	yamlContent := extractYAML(result)
 	if yamlContent == "" {
-		return "", fmt.Errorf("no YAML found in %s output:\n%s", name, truncForError(result))
+		return "", fmt.Errorf("no YAML found in %s output:\n%s", CLIClaude.displayName(), truncForError(result))
 	}
 	return yamlContent, nil
 }
@@ -293,55 +365,15 @@ func truncate(s string, n int) string {
 	return s[:n] + "…"
 }
 
-// streamAndExtract handles CLIs that print free-form text (no structured event
-// stream). filter selects which lines become progress messages.
 func streamAndExtract(ctx context.Context, opts Options, cmd *exec.Cmd, filter func(string) string) (string, error) {
-	name := opts.CLI.displayName()
-	cmd.Dir = opts.ProjectDir
-
-	stdout, err := cmd.StdoutPipe()
+	result, err := streamOutput(ctx, opts.ProjectDir, cmd, opts.Progress, filter)
 	if err != nil {
-		return "", fmt.Errorf("%s: stdout pipe: %w", name, err)
+		return "", err
 	}
-	var stderrBuf bytes.Buffer
-	cmd.Stderr = &stderrBuf
-
-	if err := cmd.Start(); err != nil {
-		return "", fmt.Errorf("%s: start: %w", name, err)
-	}
-
-	emitProgress(opts.Progress, "Starting "+name+"…")
-
-	var fullOut bytes.Buffer
-	scanner := bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, scannerInitialSize), scannerMaxSize)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if fullOut.Len() < maxOutputBytes {
-			fullOut.WriteString(line)
-			fullOut.WriteByte('\n')
-		}
-		if filter != nil {
-			if msg := filter(line); msg != "" {
-				emitProgress(opts.Progress, msg)
-			}
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		_ = cmd.Process.Kill() // don't block Wait on a stuck child
-		_ = cmd.Wait()
-		return "", fmt.Errorf("%s: reading output: %w", name, err)
-	}
-
-	if err := cmd.Wait(); err != nil {
-		return "", runError(ctx, name, err, &stderrBuf)
-	}
-
-	yamlContent := extractYAML(fullOut.String())
+	yamlContent := extractYAML(result)
 	if yamlContent == "" {
-		return "", fmt.Errorf("no YAML found in %s output:\n%s", name, truncForError(fullOut.String()))
+		return "", fmt.Errorf("no YAML found in %s output:\n%s", opts.CLI.displayName(), truncForError(result))
 	}
-	emitProgress(opts.Progress, "Done.")
 	return yamlContent, nil
 }
 

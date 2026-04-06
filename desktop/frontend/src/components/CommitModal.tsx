@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
-import { XIcon } from "./icons";
+import { XIcon, ChevronDownIcon } from "./icons";
 import {
+  CheckAICLIs,
+  GenerateCommitMessage,
   GitChangedFiles,
   GitCommit,
 } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
+import { useOutsideClick } from "../hooks/useOutsideClick";
+import { AI_CLI_OPTIONS } from "../types";
 
 type ChangedFile = main.ChangedFile;
 
@@ -32,7 +36,12 @@ export function CommitModal({ open, projectPath, onClose, onCommitted }: CommitM
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [aiCLIs, setAiCLIs] = useState<Record<string, boolean>>({});
+  const [selectedCLI, setSelectedCLI] = useState("claude");
+  const [cliMenuOpen, setCLIMenuOpen] = useState(false);
   const msgRef = useRef<HTMLTextAreaElement>(null);
+  const cliRef = useOutsideClick<HTMLDivElement>(() => setCLIMenuOpen(false), cliMenuOpen);
 
   useEffect(() => {
     if (!open) return;
@@ -54,6 +63,15 @@ export function CommitModal({ open, projectPath, onClose, onCommitted }: CommitM
         setLoading(false);
         setTimeout(() => msgRef.current?.focus(), 50);
       });
+    CheckAICLIs()
+      .then((a) => {
+        if (cancelled) return;
+        const avail: Record<string, boolean> = { claude: a.claude, codex: a.codex, gemini: a.gemini, opencode: a.opencode };
+        setAiCLIs(avail);
+        const first = AI_CLI_OPTIONS.find((o) => avail[o.value]);
+        if (first) setSelectedCLI(first.value);
+      })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [open, projectPath]);
 
@@ -79,7 +97,23 @@ export function CommitModal({ open, projectPath, onClose, onCommitted }: CommitM
     return { file: f, name: i < 0 ? f.path : f.path.slice(i + 1), dir: i < 0 ? "" : f.path.slice(0, i) };
   }), [files]);
 
-  const canCommit = !busy && message.trim().length > 0 && selected.size > 0;
+  const generateMessage = async () => {
+    if (generating || selected.size === 0) return;
+    setGenerating(true);
+    try {
+      const msg = await GenerateCommitMessage(projectPath, selectedCLI, Array.from(selected));
+      if (msg) setMessage(msg);
+    } catch (err) {
+      toast.error(`AI generate failed: ${err}`);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const anyAiAvailable = AI_CLI_OPTIONS.some((o) => aiCLIs[o.value]);
+  const selectedCLILabel = AI_CLI_OPTIONS.find((o) => o.value === selectedCLI)?.label ?? selectedCLI;
+
+  const canCommit = !busy && !generating && message.trim().length > 0 && selected.size > 0;
 
   const submit = async () => {
     if (!canCommit) return;
@@ -96,14 +130,12 @@ export function CommitModal({ open, projectPath, onClose, onCommitted }: CommitM
     }
   };
 
-
-
   return (
     <Modal
       open={open}
       onClose={onClose}
-      closeOnBackdrop={!busy}
-      closeOnEscape={!busy}
+      closeOnBackdrop={!busy && !generating}
+      closeOnEscape={!busy && !generating}
       zIndexClassName="z-[60]"
       contentClassName="w-[520px] max-h-[80vh] flex flex-col rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl"
     >
@@ -124,9 +156,51 @@ export function CommitModal({ open, projectPath, onClose, onCommitted }: CommitM
 
       {/* Commit message */}
       <div className="px-5 pt-4">
-        <label className="mb-2 block text-xs font-medium text-[var(--text-secondary)]">
-          Commit message
-        </label>
+        <div className="mb-2 flex items-center justify-between">
+          <label className="text-xs font-medium text-[var(--text-secondary)]">
+            Commit message
+          </label>
+          {anyAiAvailable && (
+            <div ref={cliRef} className="relative flex items-center">
+              <button
+                onClick={generateMessage}
+                disabled={generating || busy || selected.size === 0}
+                title={`Generate with ${selectedCLILabel}`}
+                className="flex items-center gap-1 rounded-l-md bg-gradient-to-r from-violet-500/10 to-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-400 transition-all hover:from-violet-500/20 hover:to-blue-500/20 hover:text-violet-300 disabled:opacity-40"
+              >
+                <span className={generating ? "animate-spin" : ""}>✨</span>
+                {generating ? "Generating..." : "Generate With AI"}
+              </button>
+              <button
+                onClick={() => setCLIMenuOpen(!cliMenuOpen)}
+                disabled={generating || busy}
+                className="flex items-center rounded-r-md border-l border-violet-500/20 bg-gradient-to-r from-violet-500/10 to-blue-500/10 px-1 py-0.5 text-violet-400 transition-all hover:from-violet-500/20 hover:to-blue-500/20 hover:text-violet-300 disabled:opacity-40"
+              >
+                <ChevronDownIcon />
+              </button>
+              {cliMenuOpen && (
+                <div className="absolute right-0 top-full z-10 mt-1 w-36 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
+                  {AI_CLI_OPTIONS.filter((o) => aiCLIs[o.value]).map((o) => (
+                    <button
+                      key={o.value}
+                      onClick={() => { setSelectedCLI(o.value); setCLIMenuOpen(false); }}
+                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)] ${
+                        selectedCLI === o.value ? "text-[var(--text-primary)] font-medium" : "text-[var(--text-secondary)]"
+                      }`}
+                    >
+                      {o.label}
+                      {selectedCLI === o.value && (
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="ml-auto">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         <textarea
           ref={msgRef}
           value={message}

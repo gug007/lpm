@@ -2,7 +2,8 @@ import { useRef, useEffect, useCallback, useState } from "react";
 import { ReadConfig, SaveConfig, GenerateProjectConfig } from "../../wailsjs/go/main/App";
 import { useYamlEditor } from "../hooks/useYamlEditor";
 import { ChevronLeftIcon, SparkleIcon } from "./icons";
-import { AIGenerateModal, type AICLI } from "./AIGenerateModal";
+import { AIGenerateModal } from "./AIGenerateModal";
+import { type AICLI } from "../types";
 
 interface ConfigEditorProps {
   projectName: string;

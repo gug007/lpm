@@ -241,6 +241,39 @@ func (a *App) GitCommit(cwd, message string, files []string) error {
 	return err
 }
 
+// GitDiff returns the combined diff for the given files.
+// For untracked files it shows the full content as an "add" diff.
+func (a *App) GitDiff(cwd string, files []string) (string, error) {
+	if len(files) == 0 {
+		return "", fmt.Errorf("no files")
+	}
+	// Diff for tracked files (staged + unstaged).
+	args := append([]string{"diff", "HEAD", "--"}, files...)
+	tracked, _ := runGit(cwd, args...)
+
+	// Detect untracked files in one call instead of per-file.
+	lsArgs := append([]string{"ls-files", "--"}, files...)
+	lsOut, _ := runGit(cwd, lsArgs...)
+	trackedSet := make(map[string]bool)
+	for _, line := range strings.Split(lsOut, "\n") {
+		if line != "" {
+			trackedSet[line] = true
+		}
+	}
+
+	var buf strings.Builder
+	buf.WriteString(tracked)
+	for _, f := range files {
+		if !trackedSet[f] {
+			if patch, _ := runGit(cwd, "diff", "--no-index", "--", "/dev/null", f); patch != "" {
+				buf.WriteString(patch)
+				buf.WriteByte('\n')
+			}
+		}
+	}
+	return buf.String(), nil
+}
+
 func (a *App) CreateBranch(cwd, name string) error {
 	name = strings.TrimSpace(name)
 	if name == "" {

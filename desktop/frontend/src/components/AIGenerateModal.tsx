@@ -5,17 +5,10 @@ import { CheckAICLIs } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import type { main } from "../../wailsjs/go/models";
 
-export type AICLI = "claude" | "codex" | "gemini" | "opencode";
+import { type AICLI, AI_CLI_OPTIONS } from "../types";
 
 const DEFAULT_PROMPT = "Detect services and add useful actions, keep it simple.";
 const MAX_PROGRESS_LINES = 500;
-
-const CLI_OPTIONS: { value: AICLI; label: string }[] = [
-  { value: "claude", label: "Claude Code" },
-  { value: "codex", label: "Codex" },
-  { value: "gemini", label: "Gemini" },
-  { value: "opencode", label: "OpenCode" },
-];
 
 interface AIGenerateModalProps {
   open: boolean;
@@ -54,7 +47,7 @@ export function AIGenerateModal({ open, onCancel, onGenerate }: AIGenerateModalP
     CheckAICLIs()
       .then((a) => {
         setAvailability(a);
-        const firstAvailable = CLI_OPTIONS.find((o) => a[o.value]);
+        const firstAvailable = AI_CLI_OPTIONS.find((o) => a[o.value]);
         if (firstAvailable) setCli(firstAvailable.value);
       })
       .catch((err) => setError(`Failed to check CLIs: ${err}`));
@@ -62,7 +55,7 @@ export function AIGenerateModal({ open, onCancel, onGenerate }: AIGenerateModalP
 
   const selectedAvailable = availability?.[cli] ?? false;
   const noneAvailable =
-    availability && CLI_OPTIONS.every((o) => !availability[o.value]);
+    availability && AI_CLI_OPTIONS.every((o) => !availability[o.value]);
 
   const handleGenerate = async () => {
     setRunning(true);
@@ -97,7 +90,7 @@ export function AIGenerateModal({ open, onCancel, onGenerate }: AIGenerateModalP
           CLI
         </label>
         <div className="grid grid-cols-2 gap-2">
-          {CLI_OPTIONS.map((opt) => (
+          {AI_CLI_OPTIONS.map((opt) => (
             <CLIOption
               key={opt.value}
               label={opt.label}

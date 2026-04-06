@@ -35,6 +35,15 @@ export interface ProjectInfo {
 export const STATUS_RUNNING = "Running";
 export const STATUS_DONE = "Done";
 
+export type AICLI = "claude" | "codex" | "gemini" | "opencode";
+
+export const AI_CLI_OPTIONS: { value: AICLI; label: string }[] = [
+  { value: "claude", label: "Claude Code" },
+  { value: "codex", label: "Codex" },
+  { value: "gemini", label: "Gemini" },
+  { value: "opencode", label: "OpenCode" },
+];
+
 export interface StatusEntry {
   key: string;
   value: string;

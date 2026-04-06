@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/gug007/lpm/internal/aigen"
 	"github.com/gug007/lpm/internal/config"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -24,6 +27,43 @@ func (a *App) CheckAICLIs() AICLIAvailability {
 		Opencode: avail[aigen.CLIOpencode],
 	}
 }
+
+const maxDiffSize = 30_000
+
+// GenerateCommitMessage uses an AI CLI to generate a commit message from the
+// diff of the given files.
+func (a *App) GenerateCommitMessage(cwd, cli string, files []string) (string, error) {
+	diff, err := a.GitDiff(cwd, files)
+	if err != nil {
+		return "", fmt.Errorf("no diff to summarize")
+	}
+	diff = strings.TrimSpace(diff)
+	if diff == "" {
+		return "", fmt.Errorf("no diff to summarize")
+	}
+	if len(diff) > maxDiffSize {
+		diff = diff[:maxDiffSize] + "\n... (truncated)"
+	}
+
+	selected, err := aigen.Detect(aigen.CLI(cli))
+	if err != nil {
+		return "", err
+	}
+	return aigen.GenerateText(a.ctx, selected, cwd, commitMsgPrompt+diff, func(msg string) {
+		runtime.EventsEmit(a.ctx, commitMsgProgressEvent, msg)
+	})
+}
+
+const commitMsgProgressEvent = "commit-msg-progress"
+
+const commitMsgPrompt = `Given the following git diff, write a concise commit message.
+Use conventional commit format: type(scope): description
+Types: feat, fix, refactor, docs, test, chore, style, perf
+Keep the first line under 72 characters.
+If needed, add a blank line then a brief body paragraph.
+Output ONLY the commit message text. No code fences. No explanation.
+
+`
 
 // GenerateProjectConfig runs the CLI in the project root and streams progress
 // lines to the frontend via the aiProgressEvent event.
