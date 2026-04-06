@@ -77,11 +77,24 @@ func (s *StatusStore) Clear(project, key string) bool {
 	return true
 }
 
-func (s *StatusStore) ClearAll(project string) {
+func (s *StatusStore) ClearByValue(project, value string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	delete(s.entries, project)
+	bucket, ok := s.entries[project]
+	if !ok {
+		return false
+	}
+	changed := false
+	for key, entry := range bucket {
+		if entry.Value == value {
+			delete(bucket, key)
+			changed = true
+		}
+	}
+	if changed && len(bucket) == 0 {
+		delete(s.entries, project)
+	}
+	return changed
 }
 
 func (s *StatusStore) List(project string) []StatusEntry {

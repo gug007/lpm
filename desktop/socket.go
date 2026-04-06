@@ -187,8 +187,9 @@ func (s *SocketServer) cmdClearStatus(args []string) string {
 	project := positional[0]
 	key := positional[1]
 
-	s.app.statusStore.Clear(project, key)
-	wailsRuntime.EventsEmit(s.app.ctx, "status-changed", project)
+	if s.app.statusStore.Clear(project, key) {
+		wailsRuntime.EventsEmit(s.app.ctx, "status-changed", project)
+	}
 	return "OK"
 }
 

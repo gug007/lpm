@@ -39,7 +39,7 @@ func (a *App) installAgentHooks() {
 
 	// Socket commands that match the protocol in socket.go
 	setRunning := sendCmd(`set_status $LPM_PROJECT_NAME claude_code Running --icon=bolt --color=#4C8DFF`)
-	setIdle := sendCmd(`set_status $LPM_PROJECT_NAME claude_code Idle --icon=circle --color=#888888`)
+	setDone := sendCmd(`set_status $LPM_PROJECT_NAME claude_code Done --icon=checkmark --color=#4ade80`)
 	clearStatus := sendCmd(`clear_status $LPM_PROJECT_NAME claude_code`)
 
 	lpmHook := func(cmd string) map[string]any {
@@ -56,7 +56,7 @@ func (a *App) installAgentHooks() {
 
 	appendHook(hooks, "UserPromptSubmit", lpmHook(setRunning))
 	appendHook(hooks, "PreToolUse", lpmHook(setRunning))
-	appendHook(hooks, "Stop", lpmHook(setIdle))
+	appendHook(hooks, "Stop", lpmHook(setDone))
 	appendHook(hooks, "SessionEnd", lpmHook(clearStatus))
 
 	out, err := json.MarshalIndent(settings, "", "  ")
