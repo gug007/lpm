@@ -246,6 +246,12 @@ func (a *App) GitCommit(cwd, message string, files []string) error {
 	return err
 }
 
+// GitPush pushes the current branch to its upstream remote.
+func (a *App) GitPush(cwd string) error {
+	_, err := runGit(cwd, "push")
+	return err
+}
+
 // GitDiff returns the combined diff for the given files.
 // For untracked files it shows the full content as an "add" diff.
 func (a *App) GitDiff(cwd string, files []string) (string, error) {

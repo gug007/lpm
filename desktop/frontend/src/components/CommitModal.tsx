@@ -8,6 +8,7 @@ import {
   GenerateCommitMessage,
   GitChangedFiles,
   GitCommit,
+  GitPush,
 } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
@@ -40,16 +41,21 @@ export function CommitModal({
   const [files, setFiles] = useState<ChangedFile[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<false | "commit" | "push">(false);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [aiCLIs, setAiCLIs] = useState<Record<string, boolean>>({});
   const [selectedCLI, setSelectedCLI] = useState("claude");
   const [cliMenuOpen, setCLIMenuOpen] = useState(false);
+  const [commitMenuOpen, setCommitMenuOpen] = useState(false);
   const msgRef = useRef<HTMLTextAreaElement>(null);
   const cliRef = useOutsideClick<HTMLDivElement>(
     () => setCLIMenuOpen(false),
     cliMenuOpen,
+  );
+  const commitMenuRef = useOutsideClick<HTMLDivElement>(
+    () => setCommitMenuOpen(false),
+    commitMenuOpen,
   );
 
   useEffect(() => {
@@ -147,16 +153,22 @@ export function CommitModal({
   const canCommit =
     !busy && !generating && message.trim().length > 0 && selected.size > 0;
 
-  const submit = async () => {
+  const submit = async (andPush = false) => {
     if (!canCommit) return;
-    setBusy(true);
+    setBusy("commit");
     try {
       await GitCommit(projectPath, message.trim(), Array.from(selected));
-      toast.success("Committed successfully");
+      if (andPush) {
+        setBusy("push");
+        await GitPush(projectPath);
+        toast.success("Committed and pushed");
+      } else {
+        toast.success("Committed successfully");
+      }
       onCommitted();
       onClose();
     } catch (err) {
-      toast.error(`Commit failed: ${err}`);
+      toast.error(`${andPush ? "Commit & push" : "Commit"} failed: ${err}`);
     } finally {
       setBusy(false);
     }
@@ -172,14 +184,13 @@ export function CommitModal({
       contentClassName="w-[500px] max-h-[80vh] flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >
       <div className="flex flex-col gap-4 p-5">
-        {/* Header — minimal, no separator */}
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-[var(--text-primary)]">
             Commit
           </h3>
           <button
             onClick={onClose}
-            disabled={busy}
+            disabled={!!busy}
             aria-label="Close"
             className="rounded-md p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
           >
@@ -196,10 +207,10 @@ export function CommitModal({
               <div ref={cliRef} className="relative">
                 <AIButton
                   onClick={generateMessage}
-                  disabled={generating || busy || selected.size === 0}
+                  disabled={generating || !!busy || selected.size === 0}
                   loading={generating}
                   title={`Generate with ${selectedCLILabel}`}
-                  trailing={<button onClick={() => setCLIMenuOpen(!cliMenuOpen)} disabled={generating || busy} title="Select AI CLI"><ChevronDownIcon /></button>}
+                  trailing={<button onClick={() => setCLIMenuOpen(!cliMenuOpen)} disabled={generating || !!busy} title="Select AI CLI"><ChevronDownIcon /></button>}
                 >
                   {generating ? "Generating..." : "Generate With AI"}
                 </AIButton>
@@ -234,7 +245,7 @@ export function CommitModal({
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
             }}
             placeholder="Describe your changes..."
-            disabled={busy}
+            disabled={!!busy}
             rows={2}
             className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--text-muted)] disabled:opacity-60"
           />
@@ -251,7 +262,7 @@ export function CommitModal({
             {files.length > 0 && (
               <button
                 onClick={toggleAll}
-                disabled={busy}
+                disabled={!!busy}
                 className="text-[10px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
               >
                 {selected.size === files.length ? "None" : "All"}
@@ -308,7 +319,7 @@ export function CommitModal({
                       type="checkbox"
                       checked={checked}
                       onChange={() => toggleFile(file.path)}
-                      disabled={busy}
+                      disabled={!!busy}
                       className="sr-only"
                     />
                     <span
@@ -342,18 +353,43 @@ export function CommitModal({
         <div className="flex gap-2">
           <button
             onClick={onClose}
-            disabled={busy}
+            disabled={!!busy}
             className="rounded-lg px-3.5 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
           >
             Cancel
           </button>
-          <button
-            onClick={submit}
-            disabled={!canCommit}
-            className="rounded-lg bg-[var(--text-primary)] px-4 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-30"
-          >
-            {busy ? "Committing..." : "Commit"}
-          </button>
+          <div ref={commitMenuRef} className="relative flex">
+            <button
+              onClick={() => submit(false)}
+              disabled={!canCommit}
+              className="rounded-l-lg bg-[var(--text-primary)] px-4 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-30"
+            >
+              {busy === "push" ? "Pushing..." : busy === "commit" ? "Committing..." : "Commit"}
+            </button>
+            <button
+              onClick={() => setCommitMenuOpen(!commitMenuOpen)}
+              disabled={!canCommit}
+              className="rounded-r-lg border-l border-[var(--bg-primary)]/20 bg-[var(--text-primary)] px-1.5 py-1.5 text-[var(--bg-primary)]/70 transition-all hover:text-[var(--bg-primary)] hover:opacity-90 disabled:opacity-30"
+            >
+              <ChevronDownIcon />
+            </button>
+            {commitMenuOpen && (
+              <div className="absolute bottom-full right-0 z-10 mb-1 w-40 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
+                {([
+                  { label: "Commit", push: false },
+                  { label: "Commit and Push", push: true },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.label}
+                    onClick={() => { setCommitMenuOpen(false); submit(opt.push); }}
+                    className="flex w-full items-center px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </Modal>
