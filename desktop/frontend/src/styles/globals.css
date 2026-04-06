@@ -63,15 +63,22 @@ body {
 }
 
 .sidebar-shimmer {
-  background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899, #6366f1, #3b82f6);
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899, #06b6d4, #6366f1, #3b82f6);
   background-size: 300% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: shimmer 3s linear infinite;
+  animation: shimmer 4s ease-in-out infinite, shimmer-glow 2s ease-in-out infinite;
+  filter: brightness(1.1);
 }
 
 @keyframes shimmer {
   0% { background-position: 0% 50%; }
+  50% { background-position: 150% 50%; }
   100% { background-position: 300% 50%; }
+}
+
+@keyframes shimmer-glow {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.3); }
 }
