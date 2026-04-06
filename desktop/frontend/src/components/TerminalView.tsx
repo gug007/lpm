@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, useImperativeHandle } from "react";
 import { toast } from "sonner";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { GetServiceLogs, StartLogStreaming, StopLogStreaming, StartService, StopService } from "../../wailsjs/go/main/App";
+import { GetServiceLogs, StartLogStreaming, StopLogStreaming, StartService, StopService, ClearDoneStatus } from "../../wailsjs/go/main/App";
 import type { ITheme } from "@xterm/xterm";
 import { Pane, PaneHandle } from "./Pane";
 import { InteractivePane, InteractivePaneHandle } from "./InteractivePane";
@@ -31,6 +31,7 @@ interface TerminalViewProps {
   onTerminalThemeChange: (theme: TerminalThemeName) => void;
   onTerminalCountChange?: (count: number) => void;
   runningPaneIDs?: Set<string>;
+  donePaneIDs?: Set<string>;
   visible?: boolean;
   ref?: React.Ref<TerminalViewHandle>;
 }
@@ -130,7 +131,7 @@ export interface TerminalViewHandle {
   createTerminalWithCmd(label: string, terminalConfigName: string, cmd: string): void;
 }
 
-export function TerminalView({ projectName, services, terminalTheme, onTerminalThemeChange, onTerminalCountChange, runningPaneIDs, visible = true, ref }: TerminalViewProps) {
+export function TerminalView({ projectName, services, terminalTheme, onTerminalThemeChange, onTerminalCountChange, runningPaneIDs, donePaneIDs, visible = true, ref }: TerminalViewProps) {
   const [activePane, setActivePane] = useState<ActivePane>(() =>
     deserializeActivePane(getProjectTerminals(projectName).activeTab)
   );
@@ -438,7 +439,11 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
               label={term.label}
               active={activeTermIdx === i}
               shimmer={runningPaneIDs?.has(term.id)}
-              onClick={() => setActivePane({ type: "terminal", index: i })}
+              done={activeTermIdx !== i && donePaneIDs?.has(term.id)}
+              onClick={() => {
+                if (donePaneIDs?.has(term.id)) ClearDoneStatus(projectName);
+                setActivePane({ type: "terminal", index: i });
+              }}
               onClose={() => closeTerminal(i)}
               onRename={(name) => renameTerminal(i, name)}
             />
