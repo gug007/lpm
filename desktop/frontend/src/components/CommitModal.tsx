@@ -24,6 +24,7 @@ const STATUS_DISPLAY: Record<string, { label: string; color: string }> = {
   modified: { label: "M", color: "text-[var(--accent-blue)]" },
 };
 const DEFAULT_STATUS = STATUS_DISPLAY.modified;
+const MSG_MAX_HEIGHT = { maxHeight: "calc(5 * 1.5em + 1rem)" };
 
 interface CommitModalProps {
   open: boolean;
@@ -98,6 +99,13 @@ export function CommitModal({
       cancelled = true;
     };
   }, [open, projectPath]);
+
+  useEffect(() => {
+    const el = msgRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }, [message]);
 
   const toggleFile = (path: string) => {
     setSelected((prev) => {
@@ -247,7 +255,8 @@ export function CommitModal({
             placeholder="Describe your changes..."
             disabled={!!busy}
             rows={2}
-            className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--text-muted)] disabled:opacity-60"
+            style={MSG_MAX_HEIGHT}
+            className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-[13px] leading-[1.5] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--text-muted)] disabled:opacity-60"
           />
         </div>
 
