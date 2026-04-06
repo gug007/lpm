@@ -123,7 +123,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                     <span className="sidebar-shimmer">{project.name}</span>
                   ) : project.name}
                 </span>
-                {isDone && <span className="shrink-0 ml-auto text-[#3b82f6]"><CheckIcon /></span>}
+                {isDone && <span className="shrink-0 text-[#3b82f6]"><CheckIcon /></span>}
               </button>
               {showDropBelow(idx) && (
                 <div className="absolute inset-x-3 bottom-0 h-px bg-[var(--accent-cyan)]" />
