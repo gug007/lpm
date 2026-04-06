@@ -62,12 +62,16 @@ body {
   --wails-draggable: drag;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-2px); }
-  to { opacity: 1; transform: translateY(0); }
+.sidebar-shimmer {
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899, #6366f1, #3b82f6);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 3s linear infinite;
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
+@keyframes shimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
 }
