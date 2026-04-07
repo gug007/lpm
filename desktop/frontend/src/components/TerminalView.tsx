@@ -8,7 +8,7 @@ import { InteractivePane, InteractivePaneHandle } from "./InteractivePane";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
 import { ansiColors } from "./terminal-utils";
-import { XIcon, TrashIcon, ChevronDownIcon, PlayIcon, StopIcon } from "./icons";
+import { XIcon, ChevronDownIcon, PlayIcon, StopIcon } from "./icons";
 import { HeaderTab } from "./terminal/HeaderTab";
 import { IconBtn } from "./terminal/IconBtn";
 import { Tooltip } from "./ui/Tooltip";
@@ -19,6 +19,7 @@ import {
   ChevronUpIcon,
   ExpandIcon,
   ShrinkIcon,
+  ClearIcon,
 } from "./terminal/icons";
 import { useTerminals } from "../hooks/useTerminals";
 
@@ -402,7 +403,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
 
         <div className="relative flex shrink-0 items-center gap-0.5">
           <IconBtn onClick={toggleSearch} title="Search (Cmd+F)" active={showSearch}><SearchIcon /></IconBtn>
-          <IconBtn onClick={() => forActivePanes((p) => p.clear())} title="Clear"><TrashIcon /></IconBtn>
+          <IconBtn onClick={() => forActivePanes((p) => p.clear())} title="Clear"><ClearIcon /></IconBtn>
           <IconBtn onClick={() => setFullscreen((v) => !v)} title={fullscreen ? "Exit fullscreen (Esc)" : "Fullscreen"}>
             {fullscreen ? <ShrinkIcon /> : <ExpandIcon />}
           </IconBtn>
