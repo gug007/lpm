@@ -11,6 +11,7 @@ import (
 const (
 	StatusRunning = "Running"
 	StatusDone    = "Done"
+	StatusWaiting = "Waiting"
 )
 
 type StatusEntry struct {

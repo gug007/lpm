@@ -3,7 +3,7 @@ import { StatusDot } from "./StatusDot";
 import { getSettings } from "../settings";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { InstallUpdate } from "../../wailsjs/go/main/App";
-import { type ProjectInfo, STATUS_RUNNING, STATUS_DONE } from "../types";
+import { type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING } from "../types";
 import { SidebarIcon, CheckIcon } from "./icons";
 import { useDragReorder } from "../hooks/useDragReorder";
 import { useSidebarResize } from "../hooks/useSidebarResize";
@@ -82,6 +82,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           const isSelected = selected === project.name;
           const isRunning = hasStatus(project, STATUS_RUNNING);
           const isDone = hasStatus(project, STATUS_DONE);
+          const isWaiting = hasStatus(project, STATUS_WAITING);
 
           return (
             <div key={project.name} className="relative">
@@ -109,7 +110,9 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                   className="truncate"
                   style={isDone ? { color: "var(--accent-blue)" } : undefined}
                 >
-                  {isRunning ? (
+                  {isWaiting ? (
+                    <span className="sidebar-waiting">{project.name}</span>
+                  ) : isRunning ? (
                     <span className="sidebar-shimmer">{project.name}</span>
                   ) : project.name}
                 </span>

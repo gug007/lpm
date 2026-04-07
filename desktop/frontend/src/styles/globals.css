@@ -83,3 +83,13 @@ body {
   0%, 100% { filter: brightness(1); }
   50% { filter: brightness(1.3); }
 }
+
+.sidebar-waiting {
+  color: #f59e0b;
+  animation: waiting-pulse 2s ease-in-out infinite;
+}
+
+@keyframes waiting-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}

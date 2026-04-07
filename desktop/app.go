@@ -207,6 +207,12 @@ func (a *App) ClearDoneStatus(project string, paneID string) {
 	}
 }
 
+func (a *App) ClearWaitingStatus(project string, paneID string) {
+	if a.statusStore.ClearByPaneValue(project, paneID, StatusWaiting) {
+		runtime.EventsEmit(a.ctx, "status-changed", project)
+	}
+}
+
 func (a *App) SetDarkMode(dark bool) {
 	if dark {
 		runtime.WindowSetDarkTheme(a.ctx)

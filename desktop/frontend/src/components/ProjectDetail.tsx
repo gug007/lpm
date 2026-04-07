@@ -9,7 +9,7 @@ import { RunAction } from "../../wailsjs/go/main/App";
 import { getSettings, saveSettings } from "../settings";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
-import { type ProjectInfo, type ActionInfo, type TerminalConfigInfo, STATUS_RUNNING, STATUS_DONE } from "../types";
+import { type ProjectInfo, type ActionInfo, type TerminalConfigInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING } from "../types";
 import { TerminalIcon, CheckIcon, ChevronDownIcon, PencilIcon, MenuIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { useOutsideClick } from "../hooks/useOutsideClick";
@@ -140,14 +140,18 @@ export function ProjectDetail({
     }
   };
 
-  const runningPaneIDs = useMemo(
-    () => new Set(project.statusEntries?.filter(e => e.value === STATUS_RUNNING && e.paneID).map(e => e.paneID!)),
-    [project.statusEntries],
-  );
-  const donePaneIDs = useMemo(
-    () => new Set(project.statusEntries?.filter(e => e.value === STATUS_DONE && e.paneID).map(e => e.paneID!)),
-    [project.statusEntries],
-  );
+  const [runningPaneIDs, donePaneIDs, waitingPaneIDs] = useMemo(() => {
+    const running = new Set<string>();
+    const done = new Set<string>();
+    const waiting = new Set<string>();
+    for (const e of project.statusEntries ?? []) {
+      if (!e.paneID) continue;
+      if (e.value === STATUS_RUNNING) running.add(e.paneID);
+      else if (e.value === STATUS_DONE) done.add(e.paneID);
+      else if (e.value === STATUS_WAITING) waiting.add(e.paneID);
+    }
+    return [running, done, waiting] as const;
+  }, [project.statusEntries]);
 
   return (
     <div className="flex h-full flex-col">
@@ -308,6 +312,7 @@ export function ProjectDetail({
           onTerminalCountChange={setTerminalCount}
           runningPaneIDs={runningPaneIDs}
           donePaneIDs={donePaneIDs}
+          waitingPaneIDs={waitingPaneIDs}
           visible={visible && detailView === "terminal" && !showEmptyState}
         />
         <div className="pointer-events-none absolute bottom-3 right-3 z-20">

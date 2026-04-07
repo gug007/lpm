@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, useImperativeHandle } from "react";
 import { toast } from "sonner";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { GetServiceLogs, StartLogStreaming, StopLogStreaming, StartService, StopService, ClearDoneStatus } from "../../wailsjs/go/main/App";
+import { GetServiceLogs, StartLogStreaming, StopLogStreaming, StartService, StopService, ClearDoneStatus, ClearWaitingStatus } from "../../wailsjs/go/main/App";
 import type { ITheme } from "@xterm/xterm";
 import { Pane, PaneHandle } from "./Pane";
 import { InteractivePane, InteractivePaneHandle } from "./InteractivePane";
@@ -32,6 +32,7 @@ interface TerminalViewProps {
   onTerminalCountChange?: (count: number) => void;
   runningPaneIDs?: Set<string>;
   donePaneIDs?: Set<string>;
+  waitingPaneIDs?: Set<string>;
   visible?: boolean;
   ref?: React.Ref<TerminalViewHandle>;
 }
@@ -131,7 +132,7 @@ export interface TerminalViewHandle {
   createTerminalWithCmd(label: string, terminalConfigName: string, cmd: string): void;
 }
 
-export function TerminalView({ projectName, services, terminalTheme, onTerminalThemeChange, onTerminalCountChange, runningPaneIDs, donePaneIDs, visible = true, ref }: TerminalViewProps) {
+export function TerminalView({ projectName, services, terminalTheme, onTerminalThemeChange, onTerminalCountChange, runningPaneIDs, donePaneIDs, waitingPaneIDs, visible = true, ref }: TerminalViewProps) {
   const [activePane, setActivePane] = useState<ActivePane>(() =>
     deserializeActivePane(getProjectTerminals(projectName).activeTab)
   );
@@ -182,14 +183,16 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
 
   useEffect(() => { onTerminalCountChange?.(terminals.length); }, [terminals.length, onTerminalCountChange]);
 
-  // Auto-clear Done only when the user is actively viewing the done terminal
+  // Auto-clear Done/Waiting only when the user is actively viewing the terminal
   useEffect(() => {
     if (!visible) return;
     const ti = terminalIndex(activePane);
-    if (ti !== null && terminals[ti] && donePaneIDs?.has(terminals[ti].id)) {
-      ClearDoneStatus(projectName, terminals[ti].id);
+    if (ti !== null && terminals[ti]) {
+      const id = terminals[ti].id;
+      if (donePaneIDs?.has(id)) ClearDoneStatus(projectName, id);
+      if (waitingPaneIDs?.has(id)) ClearWaitingStatus(projectName, id);
     }
-  }, [visible, activePane, donePaneIDs, terminals, projectName]);
+  }, [visible, activePane, donePaneIDs, waitingPaneIDs, terminals, projectName]);
 
   // Persist active tab to config whenever it changes
   useEffect(() => {
@@ -449,8 +452,10 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
               active={activeTermIdx === i}
               shimmer={runningPaneIDs?.has(term.id)}
               done={activeTermIdx !== i && donePaneIDs?.has(term.id)}
+              waiting={activeTermIdx !== i && waitingPaneIDs?.has(term.id)}
               onClick={() => {
                 if (donePaneIDs?.has(term.id)) ClearDoneStatus(projectName, term.id);
+                if (waitingPaneIDs?.has(term.id)) ClearWaitingStatus(projectName, term.id);
                 setActivePane({ type: "terminal", index: i });
               }}
               onClose={() => closeTerminal(i)}
