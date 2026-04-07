@@ -105,6 +105,7 @@ export function InteractivePane({ terminalId, visible = true, fontSize = 12, onS
       scrollback: 10000,
       theme: themeOverride ?? getTerminalTheme(el),
       allowProposedApi: true,
+      vtExtensions: { kittyKeyboard: true },
     });
 
     const fit = new FitAddon();
