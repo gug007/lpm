@@ -42,21 +42,24 @@ func (a *App) installClaudeCodeHooks() {
 
 	setRunning := sendCmd(`set_status $LPM_PROJECT_NAME claude_code Running --icon=bolt --color=#4C8DFF --pane=$LPM_PANE_ID`)
 	setDone := sendCmd(`set_status $LPM_PROJECT_NAME claude_code Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID`)
+	setWaiting := sendCmd(`set_status $LPM_PROJECT_NAME claude_code Waiting --icon=bell --color=#f59e0b --pane=$LPM_PANE_ID`)
 	clearStatus := sendCmd(`clear_status $LPM_PROJECT_NAME claude_code`)
 
-	hook := func(cmd string) map[string]any {
+	hook := func(cmd, matcher string) map[string]any {
 		return map[string]any{
-			"matcher": "",
+			"matcher": matcher,
 			"hooks": []any{
 				map[string]any{"type": "command", "command": cmd},
 			},
 		}
 	}
 
-	appendHook(hooks, "UserPromptSubmit", hook(setRunning))
-	appendHook(hooks, "PreToolUse", hook(setRunning))
-	appendHook(hooks, "Stop", hook(setDone))
-	appendHook(hooks, "SessionEnd", hook(clearStatus))
+	appendHook(hooks, "UserPromptSubmit", hook(setRunning, ""))
+	appendHook(hooks, "PreToolUse", hook(setRunning, ""))
+	appendHook(hooks, "Notification", hook(setWaiting, "permission_prompt"))
+	appendHook(hooks, "Stop", hook(setDone, ""))
+	appendHook(hooks, "StopFailure", hook(setDone, ""))
+	appendHook(hooks, "SessionEnd", hook(clearStatus, ""))
 
 	out, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {

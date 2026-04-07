@@ -34,6 +34,7 @@ export interface ProjectInfo {
 
 export const STATUS_RUNNING = "Running";
 export const STATUS_DONE = "Done";
+export const STATUS_WAITING = "Waiting";
 
 export type AICLI = "claude" | "codex" | "gemini" | "opencode";
 

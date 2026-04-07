@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { XIcon } from "../icons";
 
-export function HeaderTab({ label, active, onClick, onClose, onRename, shimmer, done }: {
+export function HeaderTab({ label, active, onClick, onClose, onRename, shimmer, done, waiting }: {
   label: string;
   active: boolean;
   onClick: () => void;
@@ -9,6 +9,7 @@ export function HeaderTab({ label, active, onClick, onClose, onRename, shimmer, 
   onRename?: (name: string) => void;
   shimmer?: boolean;
   done?: boolean;
+  waiting?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(label);
@@ -52,7 +53,7 @@ export function HeaderTab({ label, active, onClick, onClose, onRename, shimmer, 
           : "text-[var(--terminal-header-text)] hover:text-[var(--terminal-tab-active)]"
       }`}
     >
-      <span className={shimmer ? "sidebar-shimmer" : ""} style={done && !shimmer ? { color: "var(--accent-blue)" } : undefined}>{label}</span>
+      <span className={waiting ? "sidebar-waiting" : shimmer ? "sidebar-shimmer" : ""} style={done && !shimmer && !waiting ? { color: "var(--accent-blue)" } : undefined}>{label}</span>
       {onClose && (
         <span
           onClick={(e) => { e.stopPropagation(); onClose(); }}

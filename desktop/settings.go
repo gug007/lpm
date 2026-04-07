@@ -9,14 +9,15 @@ import (
 )
 
 type Settings struct {
-	Theme             string            `json:"theme"`
-	DoubleClickToggle bool              `json:"doubleClickToToggle"`
-	ProjectOrder      []string          `json:"projectOrder,omitempty"`
-	TerminalTheme     string            `json:"terminalTheme,omitempty"`
-	TerminalFontSize  int               `json:"terminalFontSize,omitempty"`
-	WindowWidth       int               `json:"windowWidth,omitempty"`
-	WindowHeight      int               `json:"windowHeight,omitempty"`
-	SidebarWidth      int               `json:"sidebarWidth,omitempty"`
+	Theme              string            `json:"theme"`
+	DoubleClickToggle  bool              `json:"doubleClickToToggle"`
+	SoundNotifications bool              `json:"soundNotifications,omitempty"`
+	ProjectOrder       []string          `json:"projectOrder,omitempty"`
+	TerminalTheme      string            `json:"terminalTheme,omitempty"`
+	TerminalFontSize   int               `json:"terminalFontSize,omitempty"`
+	WindowWidth        int               `json:"windowWidth,omitempty"`
+	WindowHeight       int               `json:"windowHeight,omitempty"`
+	SidebarWidth       int               `json:"sidebarWidth,omitempty"`
 }
 
 func defaultSettings() Settings {
