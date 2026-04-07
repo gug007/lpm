@@ -1,12 +1,19 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { createHighlighter, type Highlighter, type BundledLanguage } from "shiki";
 import { Modal } from "./ui/Modal";
 import { XIcon } from "./icons";
 import { GitDiff } from "../../wailsjs/go/main/App";
+
+interface Token {
+  content: string;
+  color?: string;
+}
 
 interface DiffLine {
   type: "context" | "add" | "del" | "empty";
   content: string;
   lineNo?: number;
+  tokens?: Token[];
 }
 
 interface DiffRow {
@@ -18,6 +25,8 @@ interface FileDiff {
   path: string;
   rows: DiffRow[];
 }
+
+/* ── Diff parser ───────────────────────────────────────────────── */
 
 function parseSideBySide(raw: string): FileDiff[] {
   const files: FileDiff[] = [];
@@ -99,6 +108,133 @@ function parseSideBySide(raw: string): FileDiff[] {
   return files;
 }
 
+/* ── Syntax highlighting ───────────────────────────────────────── */
+
+const EXT_LANG: Record<string, string> = {
+  ts: "typescript",
+  tsx: "tsx",
+  js: "javascript",
+  jsx: "jsx",
+  mjs: "javascript",
+  cjs: "javascript",
+  go: "go",
+  py: "python",
+  rs: "rust",
+  rb: "ruby",
+  css: "css",
+  scss: "scss",
+  html: "html",
+  json: "json",
+  yaml: "yaml",
+  yml: "yaml",
+  md: "markdown",
+  mdx: "mdx",
+  sh: "bash",
+  bash: "bash",
+  zsh: "bash",
+  sql: "sql",
+  java: "java",
+  kt: "kotlin",
+  swift: "swift",
+  c: "c",
+  cpp: "cpp",
+  h: "c",
+  hpp: "cpp",
+  cs: "csharp",
+  php: "php",
+  toml: "toml",
+  xml: "xml",
+  vue: "vue",
+  svelte: "svelte",
+  graphql: "graphql",
+  dockerfile: "dockerfile",
+  makefile: "makefile",
+};
+
+function getLang(path: string): string {
+  const name = path.split("/").pop()?.toLowerCase() ?? "";
+  if (name === "dockerfile") return "dockerfile";
+  if (name === "makefile") return "makefile";
+  const ext = name.split(".").pop() ?? "";
+  return EXT_LANG[ext] ?? "";
+}
+
+let hlPromise: Promise<Highlighter> | null = null;
+function getHL(): Promise<Highlighter> {
+  if (!hlPromise) {
+    hlPromise = createHighlighter({ themes: ["github-dark"], langs: [] });
+  }
+  return hlPromise;
+}
+
+async function highlightDiffs(diffs: FileDiff[]): Promise<FileDiff[]> {
+  const hl = await getHL();
+
+  return Promise.all(
+    diffs.map(async (file) => {
+      const lang = getLang(file.path);
+      if (!lang) return file;
+
+      if (!hl.getLoadedLanguages().includes(lang)) {
+        try {
+          await hl.loadLanguage(lang as Parameters<typeof hl.loadLanguage>[0]);
+        } catch {
+          return file;
+        }
+      }
+
+      // Collect code lines per side with row index mapping
+      const leftLines: string[] = [];
+      const rightLines: string[] = [];
+      const leftIdx: number[] = [];
+      const rightIdx: number[] = [];
+
+      file.rows.forEach((row, i) => {
+        if (row.left.type !== "empty") {
+          leftIdx.push(i);
+          leftLines.push(row.left.content);
+        }
+        if (row.right.type !== "empty") {
+          rightIdx.push(i);
+          rightLines.push(row.right.content);
+        }
+      });
+
+      const opts = { lang: lang as BundledLanguage, theme: "github-dark" as const };
+      const leftTokens = hl.codeToTokens(leftLines.join("\n"), opts).tokens;
+      const rightTokens = hl.codeToTokens(rightLines.join("\n"), opts).tokens;
+
+      // Map tokens back to rows
+      const newRows: DiffRow[] = file.rows.map((r) => ({
+        left: { ...r.left },
+        right: { ...r.right },
+      }));
+
+      leftTokens.forEach((lineTokens, i) => {
+        if (i < leftIdx.length) {
+          newRows[leftIdx[i]].left.tokens = lineTokens.map((t) => ({
+            content: t.content,
+            color: t.color,
+          }));
+        }
+      });
+
+      rightTokens.forEach((lineTokens, i) => {
+        if (i < rightIdx.length) {
+          newRows[rightIdx[i]].right.tokens = lineTokens.map((t) => ({
+            content: t.content,
+            color: t.color,
+          }));
+        }
+      });
+
+      return { ...file, rows: newRows };
+    }),
+  );
+}
+
+/* ── Rendering helpers ─────────────────────────────────────────── */
+
 const rowBg = (type: DiffLine["type"]) => {
   switch (type) {
     case "add":
@@ -112,16 +248,19 @@ const rowBg = (type: DiffLine["type"]) => {
   }
 };
 
-const lineColor = (type: DiffLine["type"]) => {
-  switch (type) {
-    case "add":
-      return "text-green-400";
-    case "del":
-      return "text-red-400";
-    default:
-      return "text-[var(--text-primary)]";
+function renderContent(line: DiffLine): ReactNode {
+  if (line.type === "empty") return " ";
+  if (line.tokens && line.tokens.length > 0) {
+    return line.tokens.map((t, i) => (
+      <span key={i} style={t.color ? { color: t.color } : undefined}>
+        {t.content}
+      </span>
+    ));
   }
-};
+  return line.content || " ";
+}
+
+/* ── Component ─────────────────────────────────────────────────── */
 
 interface Props {
   open: boolean;
@@ -144,14 +283,20 @@ export function SideBySideDiffModal({
     let cancelled = false;
     setLoading(true);
     GitDiff(projectPath, files)
-      .then((raw) => {
-        if (!cancelled) setFileDiffs(parseSideBySide(raw));
+      .then(async (raw) => {
+        if (cancelled) return;
+        const parsed = parseSideBySide(raw);
+        setFileDiffs(parsed);
+        setLoading(false);
+        // Highlight in background, update when ready
+        const highlighted = await highlightDiffs(parsed);
+        if (!cancelled) setFileDiffs(highlighted);
       })
       .catch(() => {
-        if (!cancelled) setFileDiffs([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setFileDiffs([]);
+          setLoading(false);
+        }
       });
     return () => {
       cancelled = true;
@@ -210,10 +355,8 @@ export function SideBySideDiffModal({
                       <span className="w-10 shrink-0 select-none pr-2 text-right text-[10px] text-[var(--text-muted)]/40">
                         {row.left.lineNo ?? ""}
                       </span>
-                      <span
-                        className={`flex-1 whitespace-pre ${lineColor(row.left.type)}`}
-                      >
-                        {row.left.content || " "}
+                      <span className="flex-1 whitespace-pre">
+                        {renderContent(row.left)}
                       </span>
                     </div>
                     <div
@@ -222,10 +365,8 @@ export function SideBySideDiffModal({
                       <span className="w-10 shrink-0 select-none pr-2 text-right text-[10px] text-[var(--text-muted)]/40">
                         {row.right.lineNo ?? ""}
                       </span>
-                      <span
-                        className={`flex-1 whitespace-pre ${lineColor(row.right.type)}`}
-                      >
-                        {row.right.content || " "}
+                      <span className="flex-1 whitespace-pre">
+                        {renderContent(row.right)}
                       </span>
                     </div>
                   </Fragment>

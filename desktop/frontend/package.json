@@ -17,6 +17,7 @@
     "@xterm/xterm": "^6.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "shiki": "^4.0.2",
     "sonner": "^2.0.7"
   },
   "devDependencies": {
