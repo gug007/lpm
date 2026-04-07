@@ -123,7 +123,7 @@ export function InteractivePane({
       scrollback: 10000,
       theme: themeOverride ?? getTerminalTheme(el),
       allowProposedApi: true,
-      vtExtensions: { kittyKeyboard: true },
+      // vtExtensions: { kittyKeyboard: true },
     });
 
     const fit = new FitAddon();
