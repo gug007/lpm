@@ -12,6 +12,7 @@ export function Settings({ onEditGlobalConfig, onEditCommitInstructions, pending
   const settings = getSettings();
   const [theme, setTheme] = useState<Theme>(settings.theme);
   const [dblClick, setDblClick] = useState(settings.doubleClickToToggle);
+  const [soundEnabled, setSoundEnabled] = useState(settings.soundNotifications ?? false);
   const [version, setVersion] = useState("");
   const [updateStatus, setUpdateStatus] = useState<
     "idle" | "checking" | "available" | "up-to-date" | "installing" | "error"
@@ -93,6 +94,18 @@ export function Settings({ onEditGlobalConfig, onEditCommitInstructions, pending
               onChange={(v) => {
                 setDblClick(v);
                 saveSettings({ ...getSettings(), doubleClickToToggle: v });
+              }}
+            />
+          </SettingsRow>
+          <SettingsRow
+            label="Sound notifications"
+            description="Play sounds when agents finish or need approval"
+          >
+            <Toggle
+              enabled={soundEnabled}
+              onChange={(v) => {
+                setSoundEnabled(v);
+                saveSettings({ ...getSettings(), soundNotifications: v });
               }}
             />
           </SettingsRow>

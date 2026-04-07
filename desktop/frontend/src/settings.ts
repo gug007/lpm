@@ -4,6 +4,7 @@ import type { Theme } from "./theme";
 export interface Settings {
   theme: Theme;
   doubleClickToToggle: boolean;
+  soundNotifications?: boolean;
   projectOrder?: string[];
   terminalTheme?: string;
   terminalFontSize?: number;
@@ -25,6 +26,7 @@ export async function loadSettings(): Promise<Settings> {
     cached = {
       theme: (s.theme as Theme) || defaults.theme,
       doubleClickToToggle: s.doubleClickToToggle ?? defaults.doubleClickToToggle,
+      soundNotifications: s.soundNotifications,
       projectOrder: s.projectOrder,
       terminalTheme: s.terminalTheme,
       terminalFontSize: s.terminalFontSize,

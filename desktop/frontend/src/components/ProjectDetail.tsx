@@ -7,6 +7,7 @@ import { TerminalView, type TerminalViewHandle } from "./TerminalView";
 import { ConfigEditor } from "./ConfigEditor";
 import { RunAction } from "../../wailsjs/go/main/App";
 import { getSettings, saveSettings } from "../settings";
+import { playDoneSound, playWaitingSound } from "../sounds";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
 import { type ProjectInfo, type ActionInfo, type TerminalConfigInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING } from "../types";
@@ -152,6 +153,15 @@ export function ProjectDetail({
     }
     return [running, done, waiting] as const;
   }, [project.statusEntries]);
+
+  const prevDoneCount = useRef(donePaneIDs.size);
+  const prevWaitingCount = useRef(waitingPaneIDs.size);
+  useEffect(() => {
+    if (donePaneIDs.size > prevDoneCount.current) playDoneSound();
+    if (waitingPaneIDs.size > prevWaitingCount.current) playWaitingSound();
+    prevDoneCount.current = donePaneIDs.size;
+    prevWaitingCount.current = waitingPaneIDs.size;
+  }, [donePaneIDs, waitingPaneIDs]);
 
   return (
     <div className="flex h-full flex-col">
