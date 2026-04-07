@@ -113,7 +113,7 @@ export function ProjectDetail({
   const [detailView, setDetailView] = useState<"terminal" | "config">("terminal");
 
   useEffect(() => {
-    if (visible) setDetailView("terminal");
+    if (!visible) setDetailView("terminal");
   }, [visible]);
 
   const [terminalCount, setTerminalCount] = useState(() => {
