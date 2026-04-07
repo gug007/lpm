@@ -396,7 +396,7 @@ export function CommitModal({
                       </span>
                     </div>
                     {isExpanded && (
-                      <DiffViewer diff={diffContent} loading={diffLoading} />
+                      <DiffViewer diff={diffContent} loading={diffLoading} filePath={file.path} />
                     )}
                   </div>
                 );
