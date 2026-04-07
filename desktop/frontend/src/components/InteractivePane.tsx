@@ -4,7 +4,11 @@ import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
-import { EventsOn, BrowserOpenURL, OnFileDrop } from "../../wailsjs/runtime/runtime";
+import {
+  EventsOn,
+  BrowserOpenURL,
+  OnFileDrop,
+} from "../../wailsjs/runtime/runtime";
 import { ResizeTerminal, AckTerminalData } from "../../wailsjs/go/main/App";
 import { sendTerminalInput } from "../terminal-io";
 import { getTerminalTheme } from "./terminal-utils";
@@ -39,18 +43,32 @@ function initFileDrop() {
   if (fileDropInitialized) return;
   fileDropInitialized = true;
   OnFileDrop((_x, _y, paths) => {
-    const candidates = document.querySelectorAll<HTMLElement>("[data-terminal-id]");
+    const candidates =
+      document.querySelectorAll<HTMLElement>("[data-terminal-id]");
     let id: string | undefined;
     for (const el of candidates) {
-      if (el.offsetParent !== null) { id = el.dataset.terminalId; break; }
+      if (el.offsetParent !== null) {
+        id = el.dataset.terminalId;
+        break;
+      }
     }
     if (!id) return;
-    const quoted = paths.map((p) => /[^a-zA-Z0-9_./:~-]/.test(p) ? "'" + p.replace(/'/g, "'\\''") + "'" : p);
+    const quoted = paths.map((p) =>
+      /[^a-zA-Z0-9_./:~-]/.test(p) ? "'" + p.replace(/'/g, "'\\''") + "'" : p,
+    );
     sendTerminalInput(id, quoted.join(" ")).catch(() => {});
   }, false);
 }
 
-export function InteractivePane({ terminalId, visible = true, fontSize = 12, onScrollStateChange, themeOverride, onExit, ref }: InteractivePaneProps) {
+export function InteractivePane({
+  terminalId,
+  visible = true,
+  fontSize = 12,
+  onScrollStateChange,
+  themeOverride,
+  onExit,
+  ref,
+}: InteractivePaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -111,25 +129,39 @@ export function InteractivePane({ terminalId, visible = true, fontSize = 12, onS
     const fit = new FitAddon();
     term.loadAddon(fit);
 
-    try { const s = new SearchAddon(); term.loadAddon(s); searchRef.current = s; } catch {}
-    try { term.loadAddon(new WebLinksAddon((_e, uri) => BrowserOpenURL(uri))); } catch {}
-    try { const u = new Unicode11Addon(); term.loadAddon(u); term.unicode.activeVersion = "11"; } catch {}
+    try {
+      const s = new SearchAddon();
+      term.loadAddon(s);
+      searchRef.current = s;
+    } catch {}
+    try {
+      term.loadAddon(new WebLinksAddon((_e, uri) => BrowserOpenURL(uri)));
+    } catch {}
+    try {
+      const u = new Unicode11Addon();
+      term.loadAddon(u);
+      term.unicode.activeVersion = "11";
+    } catch {}
 
     term.open(el);
     termRef.current = term;
     fitRef.current = fit;
 
     // Load WebGL addon for GPU-accelerated rendering
-    import("@xterm/addon-webgl").then(({ WebglAddon }) => {
-      if (!termRef.current) return;
-      try {
-        const webgl = new WebglAddon();
-        webgl.onContextLoss(() => webgl.dispose());
-        term.loadAddon(webgl);
-      } catch {}
-    }).catch(() => {});
+    import("@xterm/addon-webgl")
+      .then(({ WebglAddon }) => {
+        if (!termRef.current) return;
+        try {
+          const webgl = new WebglAddon();
+          webgl.onContextLoss(() => webgl.dispose());
+          term.loadAddon(webgl);
+        } catch {}
+      })
+      .catch(() => {});
 
-    try { fit.fit(); } catch {}
+    try {
+      fit.fit();
+    } catch {}
 
     // Flow control: batch acks to reduce IPC calls
     let unsentAck = 0;
@@ -180,19 +212,6 @@ export function InteractivePane({ terminalId, visible = true, fontSize = 12, onS
 
     const handleWriteError = () => markDead("[Session disconnected]", "91");
 
-    // Ensure Shift+Enter always sends the Kitty keyboard CSI sequence for
-    // "Enter with Shift" so applications like Claude Code can distinguish it
-    // from plain Enter.  Without this, the Kitty protocol negotiation can
-    // fail in production Wails builds (WKWebView IPC vs dev WebSocket IPC),
-    // leaving kittyKeyboard.flags at 0 and making Shift+Enter identical to Enter.
-    term.attachCustomKeyEventHandler((e) => {
-      if (e.type === "keydown" && e.key === "Enter" && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        sendTerminalInput(terminalId, "\x1b[13;2u").catch(handleWriteError);
-        return false;
-      }
-      return true;
-    });
-
     term.onData((data) => {
       sendTerminalInput(terminalId, data).catch(handleWriteError);
     });
@@ -231,15 +250,21 @@ export function InteractivePane({ terminalId, visible = true, fontSize = 12, onS
     });
 
     // Receive PTY output as plain strings, write with callback for flow control
-    const cleanupOutput = EventsOn("pty-output-" + terminalId, (data: string) => {
-      writeData(data);
-    });
+    const cleanupOutput = EventsOn(
+      "pty-output-" + terminalId,
+      (data: string) => {
+        writeData(data);
+      },
+    );
 
     // Handle PTY exit
-    const cleanupExit = EventsOn("pty-exit-" + terminalId, (exitCode: number) => {
-      markDead(`[Process exited with code ${exitCode}]`, "90");
-      onExitRef.current?.(exitCode);
-    });
+    const cleanupExit = EventsOn(
+      "pty-exit-" + terminalId,
+      (exitCode: number) => {
+        markDead(`[Process exited with code ${exitCode}]`, "90");
+        onExitRef.current?.(exitCode);
+      },
+    );
 
     // Resize observer — debounced at 200ms to avoid garbled redraws during
     // the sidebar's CSS transition (transition-[width] duration-200)
@@ -249,7 +274,9 @@ export function InteractivePane({ terminalId, visible = true, fontSize = 12, onS
       resizeTimer = window.setTimeout(() => {
         resizeTimer = 0;
         if (!el.clientWidth || !el.clientHeight) return;
-        try { fit.fit(); } catch {}
+        try {
+          fit.fit();
+        } catch {}
       }, 200);
     });
     ro.observe(el);
@@ -273,7 +300,8 @@ export function InteractivePane({ terminalId, visible = true, fontSize = 12, onS
   useEffect(() => {
     const term = termRef.current;
     if (!term) return;
-    term.options.theme = themeOverride ?? getTerminalTheme(containerRef.current);
+    term.options.theme =
+      themeOverride ?? getTerminalTheme(containerRef.current);
   }, [themeOverride]);
 
   useEffect(() => {
@@ -281,7 +309,9 @@ export function InteractivePane({ terminalId, visible = true, fontSize = 12, onS
     const fit = fitRef.current;
     if (term && fit) {
       term.options.fontSize = fontSize;
-      try { fit.fit(); } catch {}
+      try {
+        fit.fit();
+      } catch {}
     }
   }, [fontSize]);
 
@@ -292,8 +322,12 @@ export function InteractivePane({ terminalId, visible = true, fontSize = 12, onS
     if (!term || !fit) return;
     requestAnimationFrame(() => {
       flushRef.current?.();
-      try { fit.fit(); } catch {}
-      try { term.refresh(0, term.rows - 1); } catch {}
+      try {
+        fit.fit();
+      } catch {}
+      try {
+        term.refresh(0, term.rows - 1);
+      } catch {}
       term.focus();
     });
   }, [visible]);
