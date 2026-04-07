@@ -112,7 +112,7 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 
 	cmd := exec.Command(shell, "-l")
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "TERM_PROGRAM=kitty")
 	// Inject LPM environment variables for external tool integration
 	cmd.Env = append(cmd.Env, "LPM_SOCKET_PATH="+SocketPath())
 	cmd.Env = append(cmd.Env, "LPM_PROJECT_NAME="+projectName)
