@@ -75,7 +75,8 @@ export function Settings({ onEditGlobalConfig, onEditCommitInstructions, pending
   };
 
   return (
-    <div className="mx-auto max-w-lg pt-6">
+    <div className="-mx-6 flex-1 overflow-y-auto">
+    <div className="mx-auto max-w-lg pt-6 pb-6 px-6">
       {updateStatus === "installing" && <InstallingOverlay />}
       <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
 
@@ -235,6 +236,7 @@ export function Settings({ onEditGlobalConfig, onEditCommitInstructions, pending
           </SettingsRow>
         </div>
       </div>
+    </div>
     </div>
   );
 }
