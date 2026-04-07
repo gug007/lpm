@@ -276,8 +276,12 @@ func (a *App) GitDiff(cwd string, files []string) (string, error) {
 	buf.WriteString(tracked)
 	for _, f := range files {
 		if !trackedSet[f] {
-			if patch, _ := runGit(cwd, "diff", "--no-index", "--", "/dev/null", f); patch != "" {
-				buf.WriteString(patch)
+			// git diff --no-index exits 1 when differences exist (always true
+			// for new files), so we capture stdout directly instead of runGit.
+			cmd := exec.Command("git", "diff", "--no-index", "--", "/dev/null", f)
+			cmd.Dir = cwd
+			if out, _ := cmd.Output(); len(out) > 0 {
+				buf.Write(out)
 				buf.WriteByte('\n')
 			}
 		}

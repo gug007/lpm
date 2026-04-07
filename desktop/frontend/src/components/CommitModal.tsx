@@ -8,12 +8,14 @@ import {
   GenerateCommitMessage,
   GitChangedFiles,
   GitCommit,
+  GitDiff,
   GitPush,
 } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { AI_CLI_OPTIONS } from "../types";
 import { EventsEmit } from "../../wailsjs/runtime/runtime";
+import { DiffViewer } from "./DiffViewer";
 
 type ChangedFile = main.ChangedFile;
 
@@ -59,6 +61,9 @@ export function CommitModal({
     () => setCommitMenuOpen(false),
     commitMenuOpen,
   );
+  const [expandedFile, setExpandedFile] = useState<string | null>(null);
+  const [diffContent, setDiffContent] = useState("");
+  const [diffLoading, setDiffLoading] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -66,6 +71,7 @@ export function CommitModal({
     setMessage("");
     setFiles([]);
     setSelected(new Set());
+    setExpandedFile(null);
     setLoading(true);
     GitChangedFiles(projectPath)
       .then((f) => {
@@ -122,6 +128,23 @@ export function CommitModal({
       setSelected(new Set());
     } else {
       setSelected(new Set(files.map((f) => f.path)));
+    }
+  };
+
+  const toggleDiff = async (path: string) => {
+    if (expandedFile === path) {
+      setExpandedFile(null);
+      return;
+    }
+    setExpandedFile(path);
+    setDiffLoading(true);
+    try {
+      const diff = await GitDiff(projectPath, [path]);
+      setDiffContent(diff);
+    } catch {
+      setDiffContent("Failed to load diff");
+    } finally {
+      setDiffLoading(false);
     }
   };
 
@@ -190,7 +213,7 @@ export function CommitModal({
       closeOnBackdrop={!busy && !generating}
       closeOnEscape={!busy && !generating}
       zIndexClassName="z-[60]"
-      contentClassName="w-[500px] max-h-[80vh] flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
+      contentClassName="w-[640px] max-h-[80vh] flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >
       <div className="flex flex-col gap-4 p-5">
         <div className="flex items-center justify-between">
@@ -280,7 +303,7 @@ export function CommitModal({
             )}
           </div>
 
-          <div className="max-h-[200px] min-h-0 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+          <div className="max-h-[300px] min-h-0 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
             {loading && (
               <div className="py-5 text-center text-[11px] text-[var(--text-muted)]">
                 Loading...
@@ -296,55 +319,70 @@ export function CommitModal({
                 const checked = selected.has(file.path);
                 const { label: statusLabel, color: statusClr } =
                   STATUS_DISPLAY[file.status] ?? DEFAULT_STATUS;
+                const isExpanded = expandedFile === file.path;
                 return (
-                  <label
-                    key={file.path}
-                    className={`flex cursor-pointer items-center gap-2 px-2.5 py-[5px] transition-colors hover:bg-[var(--bg-hover)] ${
-                      !checked ? "opacity-50" : ""
-                    }`}
-                  >
-                    <span
-                      className={`flex h-3 w-3 shrink-0 items-center justify-center rounded-[3px] transition-colors ${
-                        checked
-                          ? "bg-[var(--accent-blue)]"
-                          : "border border-[var(--text-muted)]/40"
+                  <div key={file.path}>
+                    <div
+                      className={`flex items-center gap-2 px-2.5 py-[5px] transition-colors hover:bg-[var(--bg-hover)] ${
+                        !checked ? "opacity-50" : ""
                       }`}
                     >
-                      {checked && (
-                        <svg
-                          width="8"
-                          height="8"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="white"
-                          strokeWidth="3.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
+                      <label className="flex shrink-0 cursor-pointer items-center">
+                        <span
+                          className={`flex h-3 w-3 items-center justify-center rounded-[3px] transition-colors ${
+                            checked
+                              ? "bg-[var(--accent-blue)]"
+                              : "border border-[var(--text-muted)]/40"
+                          }`}
                         >
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      )}
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleFile(file.path)}
-                      disabled={!!busy}
-                      className="sr-only"
-                    />
-                    <span
-                      className={`shrink-0 w-3 text-center text-[10px] font-bold ${statusClr}`}
-                      title={file.status}
-                    >
-                      {statusLabel}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-[11px] text-[var(--text-primary)]">
-                      {fileName}
-                      {dir && (
-                        <span className="text-[var(--text-muted)]"> {dir}</span>
-                      )}
-                    </span>
-                  </label>
+                          {checked && (
+                            <svg
+                              width="8"
+                              height="8"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="white"
+                              strokeWidth="3.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          )}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleFile(file.path)}
+                          disabled={!!busy}
+                          className="sr-only"
+                        />
+                      </label>
+                      <span
+                        className={`shrink-0 w-3 text-center text-[10px] font-bold ${statusClr}`}
+                        title={file.status}
+                      >
+                        {statusLabel}
+                      </span>
+                      <span
+                        onClick={() => toggleDiff(file.path)}
+                        className="min-w-0 flex-1 cursor-pointer truncate text-[11px] text-[var(--text-primary)]"
+                      >
+                        {fileName}
+                        {dir && (
+                          <span className="text-[var(--text-muted)]"> {dir}</span>
+                        )}
+                      </span>
+                      <span
+                        className={`shrink-0 text-[9px] text-[var(--text-muted)] transition-transform duration-150 ${isExpanded ? "rotate-90" : ""}`}
+                      >
+                        &#9654;
+                      </span>
+                    </div>
+                    {isExpanded && (
+                      <DiffViewer diff={diffContent} loading={diffLoading} />
+                    )}
+                  </div>
                 );
               })}
           </div>
