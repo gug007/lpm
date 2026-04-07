@@ -16,8 +16,10 @@ import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { AI_CLI_OPTIONS } from "../types";
 import { EventsEmit } from "../../wailsjs/runtime/runtime";
+import { getSettings, saveSettings } from "../settings";
 import { DiffViewer } from "./DiffViewer";
 import { SideBySideDiffModal } from "./SideBySideDiffModal";
+import { Tooltip } from "./ui/Tooltip";
 
 type ChangedFile = main.ChangedFile;
 
@@ -62,6 +64,9 @@ export function CommitModal({
   const commitMenuRef = useOutsideClick<HTMLDivElement>(
     () => setCommitMenuOpen(false),
     commitMenuOpen,
+  );
+  const [autoGenerate, setAutoGenerate] = useState(
+    () => getSettings().autoGenerateCommitMessage ?? false,
   );
   const [reviewOpen, setReviewOpen] = useState(false);
   const [expandedFile, setExpandedFile] = useState<string | null>(null);
@@ -110,6 +115,21 @@ export function CommitModal({
       cancelled = true;
     };
   }, [open, projectPath]);
+
+  const anyAiAvailable = AI_CLI_OPTIONS.some((o) => aiCLIs[o.value]);
+  const autoGenTriggered = useRef(false);
+
+  useEffect(() => {
+    if (!open) {
+      autoGenTriggered.current = false;
+      return;
+    }
+    if (autoGenTriggered.current || !autoGenerate) return;
+    if (loading || files.length === 0) return;
+    if (!anyAiAvailable) return;
+    autoGenTriggered.current = true;
+    generateMessage();
+  }, [open, loading, files, anyAiAvailable, autoGenerate]);
 
   useEffect(() => {
     const el = msgRef.current;
@@ -182,7 +202,13 @@ export function CommitModal({
     }
   };
 
-  const anyAiAvailable = AI_CLI_OPTIONS.some((o) => aiCLIs[o.value]);
+  const toggleAutoGenerate = () => {
+    const next = !autoGenerate;
+    setAutoGenerate(next);
+    const s = getSettings();
+    saveSettings({ ...s, autoGenerateCommitMessage: next });
+  };
+
   const selectedCLILabel =
     AI_CLI_OPTIONS.find((o) => o.value === selectedCLI)?.label ?? selectedCLI;
 
@@ -407,11 +433,24 @@ export function CommitModal({
 
       {/* Footer */}
       <div className="flex items-center justify-between border-t border-[var(--border)] px-5 py-3">
-        <span className="flex items-center gap-2 text-[10px] text-[var(--text-muted)]/60">
+        <span className="flex items-center gap-3 text-[10px] text-[var(--text-muted)]/60">
           {canCommit && (
             <kbd className="rounded bg-[var(--bg-hover)] px-1 py-0.5 text-[9px] font-medium">
               &#8984;&#9166;
             </kbd>
+          )}
+          {anyAiAvailable && (
+            <Tooltip content="Auto-generate commit message on open" side="top" align="start">
+              <label className="flex cursor-pointer items-center gap-1.5 text-[10px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]">
+                <input
+                  type="checkbox"
+                  checked={autoGenerate}
+                  onChange={toggleAutoGenerate}
+                  className="accent-[var(--accent-blue)] h-3 w-3"
+                />
+                Auto-generate
+              </label>
+            </Tooltip>
           )}
           <button
             onClick={() => { EventsEmit("navigate-commit-instructions"); onClose(); }}

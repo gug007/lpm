@@ -11,6 +11,7 @@ export interface Settings {
   windowWidth?: number;
   windowHeight?: number;
   sidebarWidth?: number;
+  autoGenerateCommitMessage?: boolean;
 }
 
 const defaults: Settings = {
@@ -33,6 +34,7 @@ export async function loadSettings(): Promise<Settings> {
       windowWidth: s.windowWidth,
       windowHeight: s.windowHeight,
       sidebarWidth: s.sidebarWidth,
+      autoGenerateCommitMessage: s.autoGenerateCommitMessage,
     };
   } catch {
     cached = { ...defaults };

@@ -96,11 +96,16 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
   visibleRef.current = visible;
 
   // Active-pane shift when a terminal tab closes
-  const handleTerminalClosed = useCallback((index: number) => {
+  const handleTerminalClosed = useCallback((index: number, remainingCount: number) => {
     interactivePaneRefs.current.splice(index, 1);
     setActivePane((ap) => {
       if (typeof ap === "object" && ap.type === "terminal") {
-        if (ap.index === index) return "all";
+        if (ap.index === index) {
+          // Activate an adjacent terminal if any remain, otherwise fall back to "all"
+          if (remainingCount === 0) return "all";
+          const newIndex = index >= remainingCount ? remainingCount - 1 : index;
+          return { type: "terminal", index: newIndex };
+        }
         if (ap.index > index) return { type: "terminal", index: ap.index - 1 };
       }
       return ap;

@@ -26,7 +26,7 @@ export interface UseTerminalsResult {
  * active-pane state and wires `onTerminalClosed` to update it when a
  * tab is removed, because active-pane shape lives in the view.
  */
-export function useTerminals(projectName: string, onTerminalClosed: (index: number) => void, onTerminalCreated: (index: number) => void): UseTerminalsResult {
+export function useTerminals(projectName: string, onTerminalClosed: (index: number, remainingCount: number) => void, onTerminalCreated: (index: number) => void): UseTerminalsResult {
   const [terminals, setTerminals] = useState<InteractiveTerminal[]>([]);
   const terminalsRef = useRef(terminals);
   terminalsRef.current = terminals;
@@ -102,7 +102,7 @@ export function useTerminals(projectName: string, onTerminalClosed: (index: numb
     const next = terminalsRef.current.filter((_, i) => i !== index);
     setTerminals(next);
     persist(next);
-    onTerminalClosed(index);
+    onTerminalClosed(index, next.length);
   };
 
   const renameTerminal = (index: number, name: string) => {
