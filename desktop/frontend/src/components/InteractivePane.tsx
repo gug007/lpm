@@ -180,6 +180,19 @@ export function InteractivePane({ terminalId, visible = true, fontSize = 12, onS
 
     const handleWriteError = () => markDead("[Session disconnected]", "91");
 
+    // Ensure Shift+Enter always sends the Kitty keyboard CSI sequence for
+    // "Enter with Shift" so applications like Claude Code can distinguish it
+    // from plain Enter.  Without this, the Kitty protocol negotiation can
+    // fail in production Wails builds (WKWebView IPC vs dev WebSocket IPC),
+    // leaving kittyKeyboard.flags at 0 and making Shift+Enter identical to Enter.
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type === "keydown" && e.key === "Enter" && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        sendTerminalInput(terminalId, "\x1b[13;2u").catch(handleWriteError);
+        return false;
+      }
+      return true;
+    });
+
     term.onData((data) => {
       sendTerminalInput(terminalId, data).catch(handleWriteError);
     });
