@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { ActionButton } from "./ActionButton";
 import { OpenInDropdown } from "./OpenInDropdown";
@@ -16,6 +16,7 @@ import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { ActionTerminal } from "./project-detail/ActionTerminal";
 import { QuickPopover } from "./project-detail/QuickPopover";
+import { TerminalSettingsModal } from "./project-detail/TerminalSettingsModal";
 
 const EMPTY_SERVICES: { name: string }[] = [];
 
@@ -49,6 +50,7 @@ export function ProjectDetail({
   }, [project.activeProfile]);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [showQuickMenu, setShowQuickMenu] = useState(false);
+  const [showTerminalSettings, setShowTerminalSettings] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileMenuRef = useOutsideClick<HTMLDivElement>(
     () => setShowProfileMenu(false),
@@ -65,6 +67,14 @@ export function ProjectDetail({
     const s = getSettings();
     saveSettings({ ...s, terminalTheme: theme === "default" ? undefined : theme });
   };
+
+  const [fontSize, setFontSize] = useState(() => getSettings().terminalFontSize || 12);
+  useEffect(() => {
+    const s = getSettings();
+    if (s.terminalFontSize !== fontSize) saveSettings({ ...s, terminalFontSize: fontSize });
+  }, [fontSize]);
+  const zoomIn = useCallback(() => setFontSize((s) => Math.min(s + 1, 24)), []);
+  const zoomOut = useCallback(() => setFontSize((s) => Math.max(s - 1, 8)), []);
 
   const withLoading = async (fn: () => Promise<void>) => {
     setLoading(true);
@@ -220,6 +230,7 @@ export function ProjectDetail({
                 onEditConfig={() => switchDetailView("config")}
                 onRestart={() => withLoading(() => onRestart(project.name, activeProfile))}
                 onRemove={() => setConfirmRemove(true)}
+                onTerminalSettings={() => setShowTerminalSettings(true)}
               />
             )}
           </div>
@@ -319,8 +330,10 @@ export function ProjectDetail({
           projectName={project.name}
           services={project.running ? project.services : EMPTY_SERVICES}
           terminalTheme={termTheme}
-          onTerminalThemeChange={handleTerminalThemeChange}
           onTerminalCountChange={setTerminalCount}
+          fontSize={fontSize}
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
           runningPaneIDs={runningPaneIDs}
           donePaneIDs={donePaneIDs}
           waitingPaneIDs={waitingPaneIDs}
@@ -360,6 +373,16 @@ export function ProjectDetail({
           onClose={() => { setRunningAction(null); setShowQuickMenu(false); }}
         />
       )}
+
+      <TerminalSettingsModal
+        open={showTerminalSettings}
+        onClose={() => setShowTerminalSettings(false)}
+        fontSize={fontSize}
+        onZoomIn={zoomIn}
+        onZoomOut={zoomOut}
+        terminalTheme={termTheme}
+        onTerminalThemeChange={handleTerminalThemeChange}
+      />
 
       <ConfirmDialog
         open={confirmRemove}

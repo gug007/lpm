@@ -1,6 +1,6 @@
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import type { ActionInfo, TerminalConfigInfo } from "../../types";
-import { TrashIcon, RefreshIcon, TerminalIcon, PencilIcon } from "../icons";
+import { TrashIcon, RefreshIcon, TerminalIcon, PencilIcon, SettingsIcon } from "../icons";
 import { PlayIcon } from "./icons";
 
 interface QuickPopoverProps {
@@ -14,6 +14,7 @@ interface QuickPopoverProps {
   onEditConfig: () => void;
   onRestart: () => void;
   onRemove: () => void;
+  onTerminalSettings: () => void;
 }
 
 export function QuickPopover({
@@ -27,6 +28,7 @@ export function QuickPopover({
   onEditConfig,
   onRestart,
   onRemove,
+  onTerminalSettings,
 }: QuickPopoverProps) {
   const ref = useOutsideClick<HTMLDivElement>(onClose);
 
@@ -75,6 +77,13 @@ export function QuickPopover({
       >
         <span className="flex-1 truncate">Edit Config</span>
         <PencilIcon />
+      </button>
+      <button
+        onClick={() => { onTerminalSettings(); onClose(); }}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
+      >
+        <span className="flex-1 truncate">Terminal Settings</span>
+        <SettingsIcon />
       </button>
       {running && (
         <button

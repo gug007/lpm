@@ -5,18 +5,16 @@ import { GetServiceLogs, StartLogStreaming, StopLogStreaming, StartService, Stop
 import type { ITheme } from "@xterm/xterm";
 import { Pane, PaneHandle } from "./Pane";
 import { InteractivePane, InteractivePaneHandle } from "./InteractivePane";
-import { getSettings, saveSettings } from "../settings";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
-import { type TerminalThemeName, terminalThemeNames, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
+import { type TerminalThemeName, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
 import { ansiColors } from "./terminal-utils";
-import { XIcon, TrashIcon, SettingsIcon, CheckIcon, ChevronDownIcon, PlayIcon, StopIcon } from "./icons";
+import { XIcon, TrashIcon, ChevronDownIcon, PlayIcon, StopIcon } from "./icons";
 import { HeaderTab } from "./terminal/HeaderTab";
 import { IconBtn } from "./terminal/IconBtn";
 import { Tooltip } from "./ui/Tooltip";
 import {
   SearchIcon,
   ArrowDownIcon,
-  MinusIcon,
   PlusIcon,
   ChevronUpIcon,
   ExpandIcon,
@@ -28,78 +26,15 @@ interface TerminalViewProps {
   projectName: string;
   services: { name: string }[];
   terminalTheme: TerminalThemeName;
-  onTerminalThemeChange: (theme: TerminalThemeName) => void;
   onTerminalCountChange?: (count: number) => void;
+  fontSize: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
   runningPaneIDs?: Set<string>;
   donePaneIDs?: Set<string>;
   waitingPaneIDs?: Set<string>;
   visible?: boolean;
   ref?: React.Ref<TerminalViewHandle>;
-}
-
-function TerminalSettingsPanel({ fontSize, onZoomIn, onZoomOut, terminalTheme, onTerminalThemeChange }: {
-  fontSize: number;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  terminalTheme: TerminalThemeName;
-  onTerminalThemeChange: (theme: TerminalThemeName) => void;
-}) {
-  return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[var(--bg-primary)] p-6">
-      <div className="mx-auto w-full max-w-sm space-y-6">
-        <div className="space-y-1.5">
-          <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
-            Font Size
-          </h2>
-          <div className="flex items-center gap-3 rounded-lg border border-[var(--border)] px-4 py-3">
-            <button
-              onClick={onZoomOut}
-              className="flex items-center justify-center rounded p-1 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              <MinusIcon />
-            </button>
-            <span className="min-w-[2rem] text-center font-mono text-sm tabular-nums text-[var(--text-primary)]">
-              {fontSize}
-            </span>
-            <button
-              onClick={onZoomIn}
-              className="flex items-center justify-center rounded p-1 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              <PlusIcon />
-            </button>
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
-            Terminal Theme
-          </h2>
-          <div className="rounded-lg border border-[var(--border)] divide-y divide-[var(--border)]">
-            {terminalThemeNames.map((name) => {
-              const colors = getTerminalThemeColors(name);
-              const selected = terminalTheme === name;
-              return (
-                <button
-                  key={name}
-                  onClick={() => onTerminalThemeChange(name)}
-                  className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-xs transition-colors hover:bg-[var(--bg-hover)] ${
-                    selected ? "font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
-                  }`}
-                >
-                  <span
-                    className="inline-block h-4 w-4 shrink-0 rounded-full border border-[var(--border)]"
-                    style={{ background: colors?.bg ?? "var(--terminal-bg)" }}
-                  />
-                  <span className="flex-1">{name === "default" ? "Default" : name}</span>
-                  {selected && <CheckIcon />}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 type ActivePane = number | "all" | { type: "terminal"; index: number };
@@ -132,16 +67,14 @@ export interface TerminalViewHandle {
   createTerminalWithCmd(label: string, terminalConfigName: string, cmd: string): void;
 }
 
-export function TerminalView({ projectName, services, terminalTheme, onTerminalThemeChange, onTerminalCountChange, runningPaneIDs, donePaneIDs, waitingPaneIDs, visible = true, ref }: TerminalViewProps) {
+export function TerminalView({ projectName, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, runningPaneIDs, donePaneIDs, waitingPaneIDs, visible = true, ref }: TerminalViewProps) {
   const [activePane, setActivePane] = useState<ActivePane>(() =>
     deserializeActivePane(getProjectTerminals(projectName).activeTab)
   );
   const [outputs, setOutputs] = useState<string[]>([]);
-  const [fontSize, setFontSize] = useState(() => getSettings().terminalFontSize || 12);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [atBottom, setAtBottom] = useState(true);
-  const [showSettings, setShowSettings] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
 
   const paneRefs = useRef<(PaneHandle | null)[]>([]);
@@ -151,6 +84,10 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
   const prevOutputs = useRef<string[]>([]);
   const activePaneRef = useRef(activePane);
   const visibleRef = useRef(visible);
+  const onZoomInRef = useRef(onZoomIn);
+  const onZoomOutRef = useRef(onZoomOut);
+  onZoomInRef.current = onZoomIn;
+  onZoomOutRef.current = onZoomOut;
   const mountedRef = useRef(false);
   const stoppedServicesRef = useRef<Set<string>>(new Set());
 
@@ -280,14 +217,6 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
     setTimeout(() => getActivePane()?.focus?.(), 0);
   };
 
-  const persistFontSize = (size: number) => {
-    const s = getSettings();
-    if (s.terminalFontSize !== size) saveSettings({ ...s, terminalFontSize: size });
-  };
-
-  const zoomIn = () => setFontSize((s) => { const n = Math.min(s + 1, 24); if (n !== s) persistFontSize(n); return n; });
-  const zoomOut = () => setFontSize((s) => { const n = Math.max(s - 1, 8); if (n !== s) persistFontSize(n); return n; });
-
   const forActivePanes = (fn: (p: PaneHandle | InteractivePaneHandle) => void) => {
     const ap = activePaneRef.current;
     const ti = terminalIndex(ap);
@@ -398,8 +327,8 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
       if (!visibleRef.current) return;
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.key === "f") { e.preventDefault(); toggleSearch(); }
-      if (mod && (e.key === "=" || e.key === "+")) { e.preventDefault(); zoomIn(); }
-      if (mod && e.key === "-") { e.preventDefault(); zoomOut(); }
+      if (mod && (e.key === "=" || e.key === "+")) { e.preventDefault(); onZoomInRef.current(); }
+      if (mod && e.key === "-") { e.preventDefault(); onZoomOutRef.current(); }
       if (e.key === "Escape") {
         setFullscreen((fs) => { if (fs) { e.preventDefault(); return false; } return fs; });
         closeSearch();
@@ -474,11 +403,10 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
         <div className="relative flex shrink-0 items-center gap-0.5">
           <IconBtn onClick={toggleSearch} title="Search (Cmd+F)" active={showSearch}><SearchIcon /></IconBtn>
           <IconBtn onClick={() => forActivePanes((p) => p.clear())} title="Clear"><TrashIcon /></IconBtn>
-          <IconBtn onClick={() => setShowSettings((v) => !v)} title="Terminal settings" active={showSettings}><SettingsIcon /></IconBtn>
           <IconBtn onClick={() => setFullscreen((v) => !v)} title={fullscreen ? "Exit fullscreen (Esc)" : "Fullscreen"}>
             {fullscreen ? <ShrinkIcon /> : <ExpandIcon />}
           </IconBtn>
-          {!atBottom && !showSettings && (
+          {!atBottom && (
             <IconBtn
               onClick={() => {
                 forActivePanes((p) => p.scrollToBottom());
@@ -514,18 +442,9 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
         </div>
       )}
 
-      {showSettings && (
-        <TerminalSettingsPanel
-          fontSize={fontSize}
-          onZoomIn={zoomIn}
-          onZoomOut={zoomOut}
-          terminalTheme={terminalTheme}
-          onTerminalThemeChange={onTerminalThemeChange}
-        />
-      )}
-      <div className={showSettings ? "hidden" : `flex min-h-0 flex-1 overflow-hidden ${showAll && hasMultiple && activeTermIdx === null ? "divide-x divide-[var(--border)]" : ""}`}>
+      <div className={`flex min-h-0 flex-1 overflow-hidden ${showAll && hasMultiple && activeTermIdx === null ? "divide-x divide-[var(--border)]" : ""}`}>
         {stableServices.map((svc, i) => {
-          const paneVisible = visible && !showSettings && activeTermIdx === null && (showAll || activePane === i);
+          const paneVisible = visible && activeTermIdx === null && (showAll || activePane === i);
           const showLabel = showAll && hasMultiple;
           const stopped = stoppedServices.has(svc.name);
           return (
@@ -561,7 +480,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalT
           );
         })}
         {terminals.map((term, i) => {
-          const paneVisible = visible && !showSettings && activeTermIdx === i;
+          const paneVisible = visible && activeTermIdx === i;
           return (
             <div
               key={term.id}
