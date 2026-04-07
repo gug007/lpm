@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   type Token,
+  DIFF_META_PREFIXES,
   getLang,
   ensureLang,
   tokenizeLines,
@@ -11,20 +12,6 @@ interface DiffViewerProps {
   loading?: boolean;
   filePath?: string;
 }
-
-const SKIP_PREFIXES = [
-  "diff --git",
-  "index ",
-  "new file mode",
-  "old mode",
-  "new mode",
-  "deleted file mode",
-  "similarity index",
-  "rename from",
-  "rename to",
-  "--- ",
-  "+++ ",
-];
 
 async function highlightUnifiedDiff(
   lines: string[],
@@ -39,7 +26,6 @@ async function highlightUnifiedDiff(
   const newCode: string[] = [];
 
   lines.forEach((line, i) => {
-    if (line.startsWith("@@")) return;
     const code =
       line.startsWith("+") || line.startsWith("-") || line.startsWith(" ")
         ? line.slice(1)
@@ -109,7 +95,7 @@ export function DiffViewer({ diff, loading, filePath }: DiffViewerProps) {
         .filter(
           (l) =>
             !l.startsWith("@@") &&
-            !SKIP_PREFIXES.some((p) => l.startsWith(p)),
+            !DIFF_META_PREFIXES.some((p) => l.startsWith(p)),
         ),
     [diff],
   );

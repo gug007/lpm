@@ -110,10 +110,11 @@ export function ProjectDetail({
   };
 
   const hasProfiles = project.profiles && project.profiles.length > 0;
-  const [detailView, setDetailView] = useState<"terminal" | "config">(() => {
-    const saved = getProjectTerminals(project.name).detailView;
-    return saved === "config" ? "config" : "terminal";
-  });
+  const [detailView, setDetailView] = useState<"terminal" | "config">("terminal");
+
+  useEffect(() => {
+    if (visible) setDetailView("terminal");
+  }, [visible]);
 
   const [terminalCount, setTerminalCount] = useState(() => {
     const saved = getProjectTerminals(project.name).terminals;

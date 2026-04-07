@@ -2,7 +2,13 @@ import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { Modal } from "./ui/Modal";
 import { XIcon } from "./icons";
 import { GitDiff } from "../../wailsjs/go/main/App";
-import { type Token, getLang, ensureLang, tokenizeLines } from "../highlight";
+import {
+  type Token,
+  DIFF_META_PREFIXES,
+  getLang,
+  ensureLang,
+  tokenizeLines,
+} from "../highlight";
 
 interface DiffLine {
   type: "context" | "add" | "del" | "empty";
@@ -57,21 +63,6 @@ function parseSideBySide(raw: string): FileDiff[] {
     };
 
     for (const line of lines) {
-      if (
-        line.startsWith("diff --git") ||
-        line.startsWith("index ") ||
-        line.startsWith("new file") ||
-        line.startsWith("deleted file") ||
-        line.startsWith("old mode") ||
-        line.startsWith("new mode") ||
-        line.startsWith("similarity") ||
-        line.startsWith("rename from") ||
-        line.startsWith("rename to") ||
-        line.startsWith("--- ") ||
-        line.startsWith("+++ ")
-      )
-        continue;
-
       if (line.startsWith("@@")) {
         flush();
         const m = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
@@ -81,6 +72,7 @@ function parseSideBySide(raw: string): FileDiff[] {
         }
         continue;
       }
+      if (DIFF_META_PREFIXES.some((p) => line.startsWith(p))) continue;
 
       if (line.startsWith("-")) {
         dels.push(line);

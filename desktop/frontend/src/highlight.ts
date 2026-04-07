@@ -50,17 +50,30 @@ const EXT_LANG: Record<string, string> = {
   makefile: "makefile",
 };
 
+/** Prefixes of unified-diff metadata lines that viewers should skip. */
+export const DIFF_META_PREFIXES = [
+  "diff --git",
+  "index ",
+  "new file mode",
+  "old mode",
+  "new mode",
+  "deleted file mode",
+  "similarity index",
+  "rename from",
+  "rename to",
+  "--- ",
+  "+++ ",
+];
+
 export function getLang(path: string): string {
   const name = path.split("/").pop()?.toLowerCase() ?? "";
-  if (name === "dockerfile") return "dockerfile";
-  if (name === "makefile") return "makefile";
   const ext = name.split(".").pop() ?? "";
   return EXT_LANG[ext] ?? "";
 }
 
 let hlPromise: Promise<Highlighter> | null = null;
 
-export function getHL(): Promise<Highlighter> {
+function getHL(): Promise<Highlighter> {
   if (!hlPromise) {
     hlPromise = createHighlighter({
       themes: ["github-dark", "github-light"],

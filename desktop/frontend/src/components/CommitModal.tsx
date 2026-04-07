@@ -214,7 +214,7 @@ export function CommitModal({
 
   return (
     <>
-    <Modal
+      <Modal
       open={open}
       onClose={onClose}
       closeOnBackdrop={!busy && !generating}
