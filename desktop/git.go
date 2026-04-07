@@ -274,6 +274,9 @@ func (a *App) GitDiff(cwd string, files []string) (string, error) {
 
 	var buf strings.Builder
 	buf.WriteString(tracked)
+	if tracked != "" {
+		buf.WriteByte('\n')
+	}
 	for _, f := range files {
 		if !trackedSet[f] {
 			// git diff --no-index exits 1 when differences exist (always true

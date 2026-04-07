@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
 import { XIcon, ChevronDownIcon } from "./icons";
@@ -16,6 +17,7 @@ import { useOutsideClick } from "../hooks/useOutsideClick";
 import { AI_CLI_OPTIONS } from "../types";
 import { EventsEmit } from "../../wailsjs/runtime/runtime";
 import { DiffViewer } from "./DiffViewer";
+import { SideBySideDiffModal } from "./SideBySideDiffModal";
 
 type ChangedFile = main.ChangedFile;
 
@@ -61,6 +63,7 @@ export function CommitModal({
     () => setCommitMenuOpen(false),
     commitMenuOpen,
   );
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [expandedFile, setExpandedFile] = useState<string | null>(null);
   const [diffContent, setDiffContent] = useState("");
   const [diffLoading, setDiffLoading] = useState(false);
@@ -72,6 +75,7 @@ export function CommitModal({
     setFiles([]);
     setSelected(new Set());
     setExpandedFile(null);
+    setReviewOpen(false);
     setLoading(true);
     GitChangedFiles(projectPath)
       .then((f) => {
@@ -182,6 +186,8 @@ export function CommitModal({
   const selectedCLILabel =
     AI_CLI_OPTIONS.find((o) => o.value === selectedCLI)?.label ?? selectedCLI;
 
+  const selectedFiles = useMemo(() => Array.from(selected), [selected]);
+
   const canCommit =
     !busy && !generating && message.trim().length > 0 && selected.size > 0;
 
@@ -207,6 +213,7 @@ export function CommitModal({
   };
 
   return (
+    <>
     <Modal
       open={open}
       onClose={onClose}
@@ -293,13 +300,22 @@ export function CommitModal({
               </span>
             </span>
             {files.length > 0 && (
-              <button
-                onClick={toggleAll}
-                disabled={!!busy}
-                className="text-[10px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
-              >
-                {selected.size === files.length ? "None" : "All"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setReviewOpen(true)}
+                  disabled={!!busy || selected.size === 0}
+                  className="text-[10px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
+                >
+                  Review
+                </button>
+                <button
+                  onClick={toggleAll}
+                  disabled={!!busy}
+                  className="text-[10px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
+                >
+                  {selected.size === files.length ? "None" : "All"}
+                </button>
+              </div>
             )}
           </div>
 
@@ -447,5 +463,15 @@ export function CommitModal({
         </div>
       </div>
     </Modal>
+    {createPortal(
+      <SideBySideDiffModal
+        open={reviewOpen}
+        onClose={() => setReviewOpen(false)}
+        projectPath={projectPath}
+        files={selectedFiles}
+      />,
+      document.body,
+    )}
+    </>
   );
 }
