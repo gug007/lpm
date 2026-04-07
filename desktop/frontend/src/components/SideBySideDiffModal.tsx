@@ -1,13 +1,8 @@
 import { Fragment, useEffect, useState, type ReactNode } from "react";
-import { createHighlighter, type Highlighter, type BundledLanguage } from "shiki";
 import { Modal } from "./ui/Modal";
 import { XIcon } from "./icons";
 import { GitDiff } from "../../wailsjs/go/main/App";
-
-interface Token {
-  content: string;
-  color?: string;
-}
+import { type Token, getLang, ensureLang, tokenizeLines } from "../highlight";
 
 interface DiffLine {
   type: "context" | "add" | "del" | "empty";
@@ -110,80 +105,12 @@ function parseSideBySide(raw: string): FileDiff[] {
 
 /* ── Syntax highlighting ───────────────────────────────────────── */
 
-const EXT_LANG: Record<string, string> = {
-  ts: "typescript",
-  tsx: "tsx",
-  js: "javascript",
-  jsx: "jsx",
-  mjs: "javascript",
-  cjs: "javascript",
-  go: "go",
-  py: "python",
-  rs: "rust",
-  rb: "ruby",
-  css: "css",
-  scss: "scss",
-  html: "html",
-  json: "json",
-  yaml: "yaml",
-  yml: "yaml",
-  md: "markdown",
-  mdx: "mdx",
-  sh: "bash",
-  bash: "bash",
-  zsh: "bash",
-  sql: "sql",
-  java: "java",
-  kt: "kotlin",
-  swift: "swift",
-  c: "c",
-  cpp: "cpp",
-  h: "c",
-  hpp: "cpp",
-  cs: "csharp",
-  php: "php",
-  toml: "toml",
-  xml: "xml",
-  vue: "vue",
-  svelte: "svelte",
-  graphql: "graphql",
-  dockerfile: "dockerfile",
-  makefile: "makefile",
-};
-
-function getLang(path: string): string {
-  const name = path.split("/").pop()?.toLowerCase() ?? "";
-  if (name === "dockerfile") return "dockerfile";
-  if (name === "makefile") return "makefile";
-  const ext = name.split(".").pop() ?? "";
-  return EXT_LANG[ext] ?? "";
-}
-
-let hlPromise: Promise<Highlighter> | null = null;
-function getHL(): Promise<Highlighter> {
-  if (!hlPromise) {
-    hlPromise = createHighlighter({ themes: ["github-dark"], langs: [] });
-  }
-  return hlPromise;
-}
-
 async function highlightDiffs(diffs: FileDiff[]): Promise<FileDiff[]> {
-  const hl = await getHL();
-
   return Promise.all(
     diffs.map(async (file) => {
       const lang = getLang(file.path);
-      if (!lang) return file;
+      if (!lang || !(await ensureLang(lang))) return file;
 
-      if (!hl.getLoadedLanguages().includes(lang)) {
-        try {
-          await hl.loadLanguage(lang as Parameters<typeof hl.loadLanguage>[0]);
-        } catch {
-          return file;
-        }
-      }
-
-      // Collect code lines per side with row index mapping
       const leftLines: string[] = [];
       const rightLines: string[] = [];
       const leftIdx: number[] = [];
@@ -200,32 +127,19 @@ async function highlightDiffs(diffs: FileDiff[]): Promise<FileDiff[]> {
         }
       });
 
-      const opts = { lang: lang as BundledLanguage, theme: "github-dark" as const };
-      const leftTokens = hl.codeToTokens(leftLines.join("\n"), opts).tokens;
-      const rightTokens = hl.codeToTokens(rightLines.join("\n"), opts).tokens;
+      const leftTokens = await tokenizeLines(leftLines.join("\n"), lang);
+      const rightTokens = await tokenizeLines(rightLines.join("\n"), lang);
 
-      // Map tokens back to rows
       const newRows: DiffRow[] = file.rows.map((r) => ({
         left: { ...r.left },
         right: { ...r.right },
       }));
 
-      leftTokens.forEach((lineTokens, i) => {
-        if (i < leftIdx.length) {
-          newRows[leftIdx[i]].left.tokens = lineTokens.map((t) => ({
-            content: t.content,
-            color: t.color,
-          }));
-        }
+      leftTokens.forEach((tokens, i) => {
+        if (i < leftIdx.length) newRows[leftIdx[i]].left.tokens = tokens;
       });
-
-      rightTokens.forEach((lineTokens, i) => {
-        if (i < rightIdx.length) {
-          newRows[rightIdx[i]].right.tokens = lineTokens.map((t) => ({
-            content: t.content,
-            color: t.color,
-          }));
-        }
+      rightTokens.forEach((tokens, i) => {
+        if (i < rightIdx.length) newRows[rightIdx[i]].right.tokens = tokens;
       });
 
       return { ...file, rows: newRows };
