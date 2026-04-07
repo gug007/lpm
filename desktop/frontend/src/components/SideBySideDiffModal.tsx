@@ -104,7 +104,7 @@ function parseSideBySide(raw: string): FileDiff[] {
 }
 
 /* ── Syntax highlighting ───────────────────────────────────────── */
-
+ 
 async function highlightDiffs(diffs: FileDiff[]): Promise<FileDiff[]> {
   return Promise.all(
     diffs.map(async (file) => {

@@ -62,9 +62,18 @@ let hlPromise: Promise<Highlighter> | null = null;
 
 export function getHL(): Promise<Highlighter> {
   if (!hlPromise) {
-    hlPromise = createHighlighter({ themes: ["github-dark"], langs: [] });
+    hlPromise = createHighlighter({
+      themes: ["github-dark", "github-light"],
+      langs: [],
+    });
   }
   return hlPromise;
+}
+
+function currentTheme(): "github-dark" | "github-light" {
+  return document.documentElement.getAttribute("data-theme") === "light"
+    ? "github-light"
+    : "github-dark";
 }
 
 export async function ensureLang(lang: string): Promise<boolean> {
@@ -86,7 +95,7 @@ export async function tokenizeLines(
   return hl
     .codeToTokens(code, {
       lang: lang as BundledLanguage,
-      theme: "github-dark" as const,
+      theme: currentTheme(),
     })
     .tokens.map((line) => line.map((t) => ({ content: t.content, color: t.color })));
 }
