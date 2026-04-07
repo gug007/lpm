@@ -2,12 +2,93 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
 const lpmHookMarker = "# lpm-hook"
+
+// ClaudeHooksStatus reports whether Claude Code hooks are installed.
+type ClaudeHooksStatus struct {
+	SettingsExists bool `json:"settingsExists"`
+	HooksInstalled bool `json:"hooksInstalled"`
+}
+
+// CheckClaudeHooks reads ~/.claude/settings.json and checks for lpm hooks.
+func (a *App) CheckClaudeHooks() ClaudeHooksStatus {
+	settingsPath := filepath.Join(os.Getenv("HOME"), ".claude", "settings.json")
+
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		return ClaudeHooksStatus{}
+	}
+
+	var settings map[string]any
+	if err := json.Unmarshal(data, &settings); err != nil {
+		return ClaudeHooksStatus{SettingsExists: true}
+	}
+
+	hooks, _ := settings["hooks"].(map[string]any)
+	return ClaudeHooksStatus{
+		SettingsExists: true,
+		HooksInstalled: hooks != nil && hasMarker(hooks),
+	}
+}
+
+// ResetClaudeHooks removes existing lpm hooks from ~/.claude/settings.json
+// and reinstalls them.
+func (a *App) ResetClaudeHooks() error {
+	settingsPath := filepath.Join(os.Getenv("HOME"), ".claude", "settings.json")
+
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		return fmt.Errorf("cannot read Claude settings: %w", err)
+	}
+
+	var settings map[string]any
+	if err := json.Unmarshal(data, &settings); err != nil {
+		return fmt.Errorf("invalid JSON in Claude settings: %w", err)
+	}
+
+	// Remove all entries containing the lpm-hook marker.
+	if hooks, _ := settings["hooks"].(map[string]any); hooks != nil {
+		for event, entries := range hooks {
+			arr, ok := entries.([]any)
+			if !ok {
+				continue
+			}
+			var kept []any
+			for _, entry := range arr {
+				raw, _ := json.Marshal(entry)
+				if !strings.Contains(string(raw), lpmHookMarker) {
+					kept = append(kept, entry)
+				}
+			}
+			if len(kept) > 0 {
+				hooks[event] = kept
+			} else {
+				delete(hooks, event)
+			}
+		}
+		if len(hooks) == 0 {
+			delete(settings, "hooks")
+		}
+	}
+
+	out, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(settingsPath, out, 0644); err != nil {
+		return err
+	}
+
+	// Reinstall fresh hooks.
+	a.installClaudeCodeHooks()
+	return nil
+}
 
 // installAgentHooks auto-configures hooks for supported AI agents.
 func (a *App) installAgentHooks() {

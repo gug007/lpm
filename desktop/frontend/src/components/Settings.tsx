@@ -1,12 +1,22 @@
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { getSettings, saveSettings } from "../settings";
-
 import { applyTheme, type Theme } from "../theme";
 import { useEventListener } from "../hooks/useEventListener";
-
-import { SetDarkMode, GetVersion, CheckForUpdate, InstallUpdate } from '../../wailsjs/go/main/App';
+import { SetDarkMode, GetVersion, CheckForUpdate, InstallUpdate, CheckClaudeHooks, ResetClaudeHooks } from "../../wailsjs/go/main/App";
+import { ConfirmDialog } from "./ui/ConfirmDialog";
 
 const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+const HOOKS_DESCRIPTION: Record<string, string> = {
+  idle: "Verify status tracking hooks",
+  checking: "Checking...",
+  installed: "Hooks installed correctly",
+  missing: "Hooks not configured",
+  "no-settings": "Claude Code settings not found",
+};
+
+const BTN_SECONDARY = "rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-active)] disabled:opacity-50";
 
 export function Settings({ onEditGlobalConfig, onEditCommitInstructions, pendingUpdateCheck = false, onConsumedUpdateCheck }: { onEditGlobalConfig: () => void; onEditCommitInstructions: () => void; pendingUpdateCheck?: boolean; onConsumedUpdateCheck?: () => void }) {
   const settings = getSettings();
@@ -19,6 +29,9 @@ export function Settings({ onEditGlobalConfig, onEditCommitInstructions, pending
   >("idle");
   const [latestVersion, setLatestVersion] = useState("");
   const [updateError, setUpdateError] = useState("");
+  const [hooksStatus, setHooksStatus] = useState<"idle" | "checking" | "installed" | "missing" | "no-settings">("idle");
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [resettingHooks, setResettingHooks] = useState(false);
 
   useEffect(() => {
     GetVersion().then(setVersion);
@@ -74,10 +87,41 @@ export function Settings({ onEditGlobalConfig, onEditCommitInstructions, pending
     }
   };
 
+  const handleCheckHooks = async () => {
+    setHooksStatus("checking");
+    try {
+      const status = await CheckClaudeHooks();
+      if (!status.settingsExists) {
+        setHooksStatus("no-settings");
+      } else if (status.hooksInstalled) {
+        setHooksStatus("installed");
+      } else {
+        setHooksStatus("missing");
+        setShowResetDialog(true);
+      }
+    } catch {
+      setHooksStatus("idle");
+    }
+  };
+
+  const handleResetHooks = async () => {
+    setResettingHooks(true);
+    try {
+      await ResetClaudeHooks();
+      setHooksStatus("installed");
+      setShowResetDialog(false);
+      toast.success("Claude Code hooks reinstalled");
+    } catch (err) {
+      toast.error(`Failed to reset hooks: ${err}`);
+    } finally {
+      setResettingHooks(false);
+    }
+  };
+
   return (
     <div className="-mx-6 flex-1 overflow-y-auto">
-    <div className="mx-auto max-w-lg pt-6 pb-6 px-6">
-      {updateStatus === "installing" && <InstallingOverlay />}
+      <div className="mx-auto max-w-lg px-6 pt-6 pb-6">
+        {updateStatus === "installing" && <InstallingOverlay />}
       <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
 
       <div className="mt-6 space-y-1">
@@ -159,9 +203,34 @@ export function Settings({ onEditGlobalConfig, onEditCommitInstructions, pending
           >
             <button
               onClick={onEditCommitInstructions}
-              className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-active)]"
+              className={BTN_SECONDARY}
             >
               Edit
+            </button>
+          </SettingsRow>
+        </div>
+      </div>
+
+      <div className="mt-6 space-y-1">
+        <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
+          Integrations
+        </h2>
+
+        <div className="rounded-lg border border-[var(--border)] divide-y divide-[var(--border)]">
+          <SettingsRow
+            label="Claude Code Hooks"
+            description={HOOKS_DESCRIPTION[hooksStatus]}
+          >
+            <button
+              onClick={handleCheckHooks}
+              disabled={hooksStatus === "checking"}
+              className={BTN_SECONDARY}
+            >
+              {hooksStatus === "checking" ? (
+                <RefreshIcon spinning />
+              ) : (
+                "Check"
+              )}
             </button>
           </SettingsRow>
         </div>
@@ -179,7 +248,7 @@ export function Settings({ onEditGlobalConfig, onEditCommitInstructions, pending
           >
             <button
               onClick={onEditGlobalConfig}
-              className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-active)]"
+              className={BTN_SECONDARY}
             >
               Edit
             </button>
@@ -224,7 +293,7 @@ export function Settings({ onEditGlobalConfig, onEditCommitInstructions, pending
               <button
                 onClick={handleCheckUpdate}
                 disabled={updateStatus === "checking" || updateStatus === "installing"}
-                className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-active)] disabled:opacity-50"
+                className={BTN_SECONDARY}
               >
                 {updateStatus === "checking" || updateStatus === "installing" ? (
                   <RefreshIcon spinning />
@@ -236,7 +305,16 @@ export function Settings({ onEditGlobalConfig, onEditCommitInstructions, pending
           </SettingsRow>
         </div>
       </div>
-    </div>
+        <ConfirmDialog
+          open={showResetDialog}
+          title="Reset Claude Code Hooks"
+          body="Claude Code hooks are not configured correctly. Would you like to reinstall them?"
+          confirmLabel="Reset"
+          disabled={resettingHooks}
+          onCancel={() => setShowResetDialog(false)}
+          onConfirm={handleResetHooks}
+        />
+      </div>
     </div>
   );
 }
