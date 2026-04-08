@@ -19,11 +19,17 @@ func main() {
 	app := NewApp()
 
 	width, height := 960, 640
-	if s := app.LoadSettings(); s.WindowWidth >= minWindowWidth && s.WindowHeight >= minWindowHeight &&
+	s := app.LoadSettings()
+	if s.WindowWidth >= minWindowWidth && s.WindowHeight >= minWindowHeight &&
 		s.WindowWidth <= maxWindowWidth && s.WindowHeight <= maxWindowHeight {
 		width = s.WindowWidth
 		height = s.WindowHeight
 	}
+	// Set project order before wails.Run so the first frontend ListProjects
+	// call sees the saved order even if startup() hasn't completed yet.
+	app.cacheMu.Lock()
+	app.projectOrder = s.ProjectOrder
+	app.cacheMu.Unlock()
 
 	err := wails.Run(&options.App{
 		Title:            "lpm",

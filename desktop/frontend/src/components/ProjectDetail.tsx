@@ -69,7 +69,7 @@ export function ProjectDetail({
 
   const [fontSize, setFontSize] = useState(() => getSettings().terminalFontSize || 12);
   useEffect(() => {
-    saveSettings({ terminalFontSize: fontSize });
+    if (getSettings().terminalFontSize !== fontSize) saveSettings({ terminalFontSize: fontSize });
   }, [fontSize]);
   const zoomIn = useCallback(() => setFontSize((s) => Math.min(s + 1, 24)), []);
   const zoomOut = useCallback(() => setFontSize((s) => Math.max(s - 1, 8)), []);

@@ -50,20 +50,7 @@ export function getSettings(): Settings {
 
 export async function saveSettings(partial: Partial<Settings>): Promise<void> {
   const fresh = await LoadSettings();
-  const merged: Settings = {
-    theme: (partial.theme ?? fresh.theme ?? defaults.theme) as Theme,
-    doubleClickToToggle:
-      partial.doubleClickToToggle ?? fresh.doubleClickToToggle ?? defaults.doubleClickToToggle,
-    soundNotifications: partial.soundNotifications ?? fresh.soundNotifications,
-    projectOrder: partial.projectOrder ?? fresh.projectOrder,
-    terminalTheme: partial.terminalTheme ?? fresh.terminalTheme,
-    terminalFontSize: partial.terminalFontSize ?? fresh.terminalFontSize,
-    windowWidth: partial.windowWidth ?? fresh.windowWidth,
-    windowHeight: partial.windowHeight ?? fresh.windowHeight,
-    sidebarWidth: partial.sidebarWidth ?? fresh.sidebarWidth,
-    autoGenerateCommitMessage: partial.autoGenerateCommitMessage ?? fresh.autoGenerateCommitMessage,
-    autoGeneratePRDescription: partial.autoGeneratePRDescription ?? fresh.autoGeneratePRDescription,
-  };
+  const merged = { ...defaults, ...fresh, ...partial } as Settings;
   cached = merged;
   await SaveSettings(merged);
 }

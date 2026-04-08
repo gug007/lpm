@@ -62,8 +62,6 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	resolveUserPath()
-	settings := a.LoadSettings()
-	a.projectOrder = settings.ProjectOrder
 
 	SetTrafficLightPosition(14, 19)
 	initDockMenu(a)
