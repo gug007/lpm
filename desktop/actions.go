@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/gug007/lpm/internal/config"
@@ -37,14 +36,7 @@ func (a *App) RunAction(projectName string, actionName string) error {
 		return fmt.Errorf("action %q not found in project %q", actionName, projectName)
 	}
 
-	cwd := cfg.Root
-	if action.Cwd != "" {
-		if filepath.IsAbs(action.Cwd) {
-			cwd = action.Cwd
-		} else {
-			cwd = filepath.Join(cfg.Root, action.Cwd)
-		}
-	}
+	cwd := config.ResolveCwd(cfg.Root, action.Cwd)
 
 	cmdStr := action.Cmd
 	if len(action.Env) > 0 {

@@ -34,12 +34,14 @@ type ServiceInfo struct {
 }
 
 type ActionInfo struct {
-	Name    string `json:"name"`
-	Label   string `json:"label"`
-	Cmd     string `json:"cmd"`
-	Confirm bool   `json:"confirm"`
-	Display string `json:"display"`
-	Type    string `json:"type"`
+	Name    string            `json:"name"`
+	Label   string            `json:"label"`
+	Cmd     string            `json:"cmd"`
+	Cwd     string            `json:"cwd"`
+	Env     map[string]string `json:"env,omitempty"`
+	Confirm bool              `json:"confirm"`
+	Display string            `json:"display"`
+	Type    string            `json:"type"`
 }
 
 type TerminalConfigInfo struct {
@@ -85,6 +87,8 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, activeP
 			Name:    aName,
 			Label:   label,
 			Cmd:     act.Cmd,
+			Cwd:     act.Cwd,
+			Env:     act.Env,
 			Confirm: act.Confirm,
 			Display: act.Display,
 			Type:    act.Type,

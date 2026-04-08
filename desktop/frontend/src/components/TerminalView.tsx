@@ -21,7 +21,7 @@ import {
   ShrinkIcon,
   ClearIcon,
 } from "./terminal/icons";
-import { useTerminals } from "../hooks/useTerminals";
+import { useTerminals, type TerminalStartOpts } from "../hooks/useTerminals";
 
 interface TerminalViewProps {
   projectName: string;
@@ -65,7 +65,7 @@ function deserializeActivePane(s: string | undefined): ActivePane {
 
 export interface TerminalViewHandle {
   createTerminal(): void;
-  createTerminalWithCmd(label: string, cmd: string, configName?: string): void;
+  createTerminalWithCmd(label: string, cmd: string, opts?: TerminalStartOpts): void;
 }
 
 export function TerminalView({ projectName, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, runningPaneIDs, donePaneIDs, waitingPaneIDs, visible = true, ref }: TerminalViewProps) {

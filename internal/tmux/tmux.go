@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/gug007/lpm/internal/config"
@@ -97,7 +96,7 @@ func StopServicePane(paneID string) error {
 
 // StartServicePane runs the service's command in the given (already-existing) pane.
 func StartServicePane(paneID, root string, svc config.Service) error {
-	cwd := resolveWorkDir(root, svc.Cwd)
+	cwd := config.ResolveCwd(root, svc.Cwd)
 	return sendKeys(paneID, buildCommand(cwd, svc))
 }
 
@@ -114,7 +113,7 @@ func StartProject(cfg *config.ProjectConfig, profile string) error {
 	if !ok {
 		return fmt.Errorf("service %q not found in project config", firstService)
 	}
-	cwd := resolveWorkDir(cfg.Root, svc.Cwd)
+	cwd := config.ResolveCwd(cfg.Root, svc.Cwd)
 
 	createCmd := exec.Command("tmux", "new-session", "-d", "-s", cfg.Name, "-P", "-F", "#{pane_id}")
 	createCmd.Dir = cwd
@@ -135,7 +134,7 @@ func StartProject(cfg *config.ProjectConfig, profile string) error {
 		if !ok {
 			return fmt.Errorf("service %q not found in project config", name)
 		}
-		cwd := resolveWorkDir(cfg.Root, svc.Cwd)
+		cwd := config.ResolveCwd(cfg.Root, svc.Cwd)
 
 		splitType := "-h" // horizontal split
 		if i > 0 {
@@ -186,12 +185,3 @@ func buildCommand(cwd string, svc config.Service) string {
 	return strings.Join(parts, " && ")
 }
 
-func resolveWorkDir(root, cwd string) string {
-	if cwd == "" {
-		return root
-	}
-	if filepath.IsAbs(cwd) {
-		return cwd
-	}
-	return filepath.Join(root, cwd)
-}

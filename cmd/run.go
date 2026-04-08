@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -38,14 +37,7 @@ var runCmd = &cobra.Command{
 			fatalf("action %q not found in project %q\nAvailable actions: %s", actionName, projectName, strings.Join(available, ", "))
 		}
 
-		cwd := cfg.Root
-		if action.Cwd != "" {
-			if filepath.IsAbs(action.Cwd) {
-				cwd = action.Cwd
-			} else {
-				cwd = filepath.Join(cfg.Root, action.Cwd)
-			}
-		}
+		cwd := config.ResolveCwd(cfg.Root, action.Cwd)
 
 		cmdStr := action.Cmd
 		if len(action.Env) > 0 {

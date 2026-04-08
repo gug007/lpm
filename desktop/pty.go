@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -74,6 +73,16 @@ func (a *App) StartTerminal(projectName string) (string, error) {
 	return a.startTerminalInternal(cfg, projectName, cfg.Root, nil)
 }
 
+// StartTerminalWithCwdEnv launches a terminal with explicit cwd and env overrides.
+// Used by terminal-type actions that specify their own cwd/env.
+func (a *App) StartTerminalWithCwdEnv(projectName string, cwd string, env map[string]string) (string, error) {
+	cfg, err := config.LoadProject(projectName)
+	if err != nil {
+		return "", fmt.Errorf("load project: %w", err)
+	}
+	return a.startTerminalInternal(cfg, projectName, config.ResolveCwd(cfg.Root, cwd), env)
+}
+
 // StartTerminalWithConfig launches a terminal using settings from a named
 // terminal config (cwd, env). Returns the terminal ID.
 func (a *App) StartTerminalWithConfig(projectName string, terminalName string) (string, error) {
@@ -85,15 +94,7 @@ func (a *App) StartTerminalWithConfig(projectName string, terminalName string) (
 	if !ok {
 		return "", fmt.Errorf("terminal %q not found in project %q", terminalName, projectName)
 	}
-	dir := cfg.Root
-	if term.Cwd != "" {
-		if filepath.IsAbs(term.Cwd) {
-			dir = term.Cwd
-		} else {
-			dir = filepath.Join(cfg.Root, term.Cwd)
-		}
-	}
-	return a.startTerminalInternal(cfg, projectName, dir, term.Env)
+	return a.startTerminalInternal(cfg, projectName, config.ResolveCwd(cfg.Root, term.Cwd), term.Env)
 }
 
 func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName string, dir string, extraEnv map[string]string) (string, error) {

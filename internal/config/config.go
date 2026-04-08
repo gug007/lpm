@@ -10,6 +10,17 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// ResolveCwd resolves cwd relative to root. Returns root when cwd is empty.
+func ResolveCwd(root, cwd string) string {
+	if cwd == "" {
+		return root
+	}
+	if filepath.IsAbs(cwd) {
+		return cwd
+	}
+	return filepath.Join(root, cwd)
+}
+
 type Service struct {
 	Cmd      string            `yaml:"cmd"`
 	Cwd      string            `yaml:"cwd,omitempty"`

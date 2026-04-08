@@ -114,7 +114,8 @@ export function ProjectDetail({
     if (action.type === "terminal") {
       switchDetailView("terminal");
       try {
-        await terminalViewRef.current?.createTerminalWithCmd(action.label, action.cmd);
+        const opts = (action.cwd || action.env) ? { cwd: action.cwd, env: action.env } : undefined;
+        await terminalViewRef.current?.createTerminalWithCmd(action.label, action.cmd, opts);
       } catch (err) {
         toast.error(`${action.label}: ${err}`);
       }
@@ -155,7 +156,7 @@ export function ProjectDetail({
   const handleRunTerminal = async (term: TerminalConfigInfo) => {
     switchDetailView("terminal");
     try {
-      await terminalViewRef.current?.createTerminalWithCmd(term.label, term.cmd, term.name);
+      await terminalViewRef.current?.createTerminalWithCmd(term.label, term.cmd, { configName: term.name });
     } catch (err) {
       toast.error(`${term.label}: ${err}`);
     }

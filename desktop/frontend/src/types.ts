@@ -11,6 +11,8 @@ export interface ActionInfo {
   name: string;
   label: string;
   cmd: string;
+  cwd?: string;
+  env?: Record<string, string>;
   confirm: boolean;
   display: string;
   type?: ActionType;

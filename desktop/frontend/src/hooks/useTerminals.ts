@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { StartTerminal, StartTerminalWithConfig, StopTerminal } from "../../wailsjs/go/main/App";
+import { StartTerminal, StartTerminalWithConfig, StartTerminalWithCwdEnv, StopTerminal } from "../../wailsjs/go/main/App";
 import { sendTerminalInput } from "../terminal-io";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 
@@ -8,10 +8,16 @@ export interface InteractiveTerminal {
   label: string;
 }
 
+export interface TerminalStartOpts {
+  configName?: string;
+  cwd?: string;
+  env?: Record<string, string>;
+}
+
 export interface UseTerminalsResult {
   terminals: InteractiveTerminal[];
   createTerminal: () => Promise<void>;
-  createTerminalWithCmd: (label: string, cmd: string, configName?: string) => Promise<void>;
+  createTerminalWithCmd: (label: string, cmd: string, opts?: TerminalStartOpts) => Promise<void>;
   closeTerminal: (index: number) => void;
   renameTerminal: (index: number, name: string) => void;
 }
@@ -85,10 +91,15 @@ export function useTerminals(projectName: string, onTerminalClosed: (index: numb
     } catch {}
   };
 
-  const createTerminalWithCmd = async (label: string, cmd: string, configName?: string) => {
-    const id = configName
-      ? await StartTerminalWithConfig(projectName, configName)
-      : await StartTerminal(projectName);
+  const createTerminalWithCmd = async (label: string, cmd: string, opts?: TerminalStartOpts) => {
+    let id: string;
+    if (opts?.configName) {
+      id = await StartTerminalWithConfig(projectName, opts.configName);
+    } else if (opts?.cwd || opts?.env) {
+      id = await StartTerminalWithCwdEnv(projectName, opts.cwd ?? "", opts.env ?? {});
+    } else {
+      id = await StartTerminal(projectName);
+    }
     addTerminal(id, label);
     const timer = setTimeout(() => {
       pendingTimers.current.delete(timer);
