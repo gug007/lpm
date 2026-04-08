@@ -9,7 +9,12 @@ import {
   BrowserOpenURL,
   OnFileDrop,
 } from "../../wailsjs/runtime/runtime";
-import { ResizeTerminal, AckTerminalData } from "../../wailsjs/go/main/App";
+import {
+  ResizeTerminal,
+  AckTerminalData,
+  ReadClipboardFiles,
+  SaveClipboardImage,
+} from "../../wailsjs/go/main/App";
 import { sendTerminalInput } from "../terminal-io";
 import { getTerminalTheme } from "./terminal-utils";
 import "@xterm/xterm/css/xterm.css";
@@ -123,7 +128,7 @@ export function InteractivePane({
       scrollback: 10000,
       theme: themeOverride ?? getTerminalTheme(el),
       allowProposedApi: true,
-      // vtExtensions: { kittyKeyboard: true },
+      vtExtensions: { kittyKeyboard: true },
     });
 
     const fit = new FitAddon();
@@ -142,6 +147,23 @@ export function InteractivePane({
       term.loadAddon(u);
       term.unicode.activeVersion = "11";
     } catch {}
+
+    // Intercept Cmd+key combos before kitty keyboard protocol encodes them.
+    // Without this, Cmd+V/C/etc. are sent as CSI u sequences instead of
+    // triggering paste/copy/other OS-level shortcuts.
+    term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+      if (!e.metaKey) return true;
+      if (e.key === "v") {
+        return false;
+      }
+      if (e.key === "c" && e.type === "keydown") {
+        const selection = term.getSelection();
+        if (selection) navigator.clipboard.writeText(selection).catch(() => {});
+        return false;
+      }
+      // Let all other Cmd+key combos fall through to the browser
+      return false;
+    });
 
     term.open(el);
     termRef.current = term;
@@ -240,6 +262,72 @@ export function InteractivePane({
     };
     el.addEventListener("mouseup", handleMouseUp);
 
+    // Paste handler for files and images from clipboard.
+    // Files (from Finder): reads paths via Go/macOS pasteboard, pastes them.
+    // Images (screenshots): saves to a temp file, pastes the path.
+    // Text: left to xterm.js's built-in handler.
+    // Must attach to term.textarea — that's where xterm.js focuses and receives paste events.
+    const handlePaste = (e: ClipboardEvent) => {
+      if (!e.clipboardData) return;
+
+      const hasFiles =
+        e.clipboardData.types.includes("Files") ||
+        e.clipboardData.files.length > 0;
+
+      // Files copied from Finder — read real paths from macOS pasteboard
+      if (hasFiles) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const textFallback = e.clipboardData.getData("text/plain");
+        ReadClipboardFiles()
+          .then((paths) => {
+            if (paths && paths.length > 0) {
+              const quoted = paths.map((p) =>
+                /[^a-zA-Z0-9_./:~-]/.test(p)
+                  ? "'" + p.replace(/'/g, "'\\''") + "'"
+                  : p,
+              );
+              sendTerminalInput(terminalId, quoted.join(" "));
+            } else if (textFallback) {
+              sendTerminalInput(terminalId, textFallback);
+            }
+          })
+          .catch(() => {
+            if (textFallback) sendTerminalInput(terminalId, textFallback);
+          });
+        return;
+      }
+
+      // Image data (screenshots) — save to temp file, paste path
+      for (const item of e.clipboardData.items) {
+        if (item.type.startsWith("image/")) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          const blob = item.getAsFile();
+          if (!blob) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUrl = reader.result as string;
+            const b64 = dataUrl.split(",")[1];
+            if (!b64) return;
+            SaveClipboardImage(b64, item.type)
+              .then((filePath) => {
+                const quoted = /[^a-zA-Z0-9_./:~-]/.test(filePath)
+                  ? "'" + filePath.replace(/'/g, "'\\''") + "'"
+                  : filePath;
+                sendTerminalInput(terminalId, quoted);
+              })
+              .catch(() => {});
+          };
+          reader.readAsDataURL(blob);
+          return;
+        }
+      }
+      // No files or images — let the event propagate so xterm.js handles text paste
+    };
+    const textarea = term.textarea;
+    textarea?.addEventListener("paste", handlePaste, true);
+
     // Theme sync
     const globalObserver = new MutationObserver(() => {
       if (!themeOverrideRef.current) term.options.theme = getTerminalTheme(el);
@@ -286,6 +374,7 @@ export function InteractivePane({
     return () => {
       if (resizeTimer) clearTimeout(resizeTimer);
       el.removeEventListener("mouseup", handleMouseUp);
+      textarea?.removeEventListener("paste", handlePaste, true);
       globalObserver.disconnect();
       ro.disconnect();
       if (typeof cleanupOutput === "function") cleanupOutput();

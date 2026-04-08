@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"os"
@@ -112,7 +113,7 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 
 	cmd := exec.Command(shell, "-l")
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "TERM_PROGRAM=vscode")
+	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "TERM_PROGRAM=kitty")
 	// Inject LPM environment variables for external tool integration
 	cmd.Env = append(cmd.Env, "LPM_SOCKET_PATH="+SocketPath())
 	cmd.Env = append(cmd.Env, "LPM_PROJECT_NAME="+projectName)
@@ -333,4 +334,65 @@ func (a *App) StopTerminal(id string) error {
 		_ = sess.cmd.Process.Kill()
 	}
 	return nil
+}
+
+// ReadClipboardFiles returns file paths currently on the macOS clipboard.
+// Returns nil when the clipboard does not contain file references.
+func (a *App) ReadClipboardFiles() ([]string, error) {
+	script := `use framework "AppKit"
+set pb to current application's NSPasteboard's generalPasteboard()
+set fileType to current application's NSPasteboardTypeFileURL
+if not (pb's canReadItemWithDataConformingToTypes:{fileType}) as boolean then return ""
+set urls to pb's readObjectsForClasses:{current application's NSURL} options:(missing value)
+if urls is missing value or (count of urls) = 0 then return ""
+set paths to {}
+repeat with u in urls
+if (u's isFileURL() as boolean) then copy (u's |path|() as text) to end of paths
+end repeat
+set AppleScript's text item delimiters to (character id 10)
+return paths as text`
+
+	out, err := exec.Command("osascript", "-e", script).Output()
+	if err != nil {
+		return nil, nil
+	}
+	text := strings.TrimSpace(string(out))
+	if text == "" {
+		return nil, nil
+	}
+	return strings.Split(text, "\n"), nil
+}
+
+// SaveClipboardImage writes base64-encoded image data to a temp file and
+// returns the file path. The frontend uses this to turn clipboard image
+// paste into a file path that can be inserted into the terminal.
+func (a *App) SaveClipboardImage(b64Data string, mimeType string) (string, error) {
+	data, err := base64.StdEncoding.DecodeString(b64Data)
+	if err != nil {
+		return "", fmt.Errorf("decode base64: %w", err)
+	}
+
+	ext := ".png"
+	switch mimeType {
+	case "image/jpeg":
+		ext = ".jpg"
+	case "image/gif":
+		ext = ".gif"
+	case "image/webp":
+		ext = ".webp"
+	case "image/bmp":
+		ext = ".bmp"
+	}
+
+	f, err := os.CreateTemp("", "clipboard-*"+ext)
+	if err != nil {
+		return "", fmt.Errorf("create temp file: %w", err)
+	}
+	defer f.Close()
+
+	if _, err := f.Write(data); err != nil {
+		os.Remove(f.Name())
+		return "", fmt.Errorf("write temp file: %w", err)
+	}
+	return f.Name(), nil
 }
