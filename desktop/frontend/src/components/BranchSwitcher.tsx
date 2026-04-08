@@ -13,7 +13,7 @@ import { useEventListener } from "../hooks/useEventListener";
 import { CreateBranchModal } from "./CreateBranchModal";
 import { CommitModal } from "./CommitModal";
 import { PRModal } from "./PRModal";
-import { BranchIcon, PRIcon } from "./icons";
+import { BranchIcon } from "./icons";
 
 type GitStatus = main.GitStatus;
 type Branch = main.Branch;
@@ -41,7 +41,12 @@ export function BranchSwitcher({ projectPath }: {
   const [creating, setCreating] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [creatingPR, setCreatingPR] = useState(false);
+  const [commitMenuOpen, setCommitMenuOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const commitMenuRef = useOutsideClick<HTMLDivElement>(
+    () => setCommitMenuOpen(false),
+    commitMenuOpen,
+  );
 
   const ref = useOutsideClick<HTMLDivElement>(() => {
     setOpen(false);
@@ -226,28 +231,46 @@ export function BranchSwitcher({ projectPath }: {
         </div>
       )}
       </div>
-      {status.uncommitted > 0 && (
+      <div ref={commitMenuRef} className="relative flex">
         <button
           onClick={() => setCommitting(true)}
-          disabled={busy}
-          title="Commit changes"
-          className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)] shadow-sm transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
+          disabled={busy || status.uncommitted === 0}
+          title={status.uncommitted > 0 ? "Commit changes" : "No changes to commit"}
+          className="flex items-center gap-1 rounded-l-lg border border-r-0 border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)] shadow-sm transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
         >
           <CommitIcon />
           <span>Commit</span>
+          {status.uncommitted > 0 && (
+            <span className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--accent-blue)]" />
+          )}
         </button>
-      )}
-      {!status.detached && status.branch && (
         <button
-          onClick={() => setCreatingPR(true)}
+          onClick={() => setCommitMenuOpen(!commitMenuOpen)}
           disabled={busy}
-          title="Create pull request"
-          className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)] shadow-sm transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
+          className="flex items-center rounded-r-lg border border-[var(--border)] bg-[var(--bg-primary)] px-1 py-1 text-[var(--text-muted)] shadow-sm transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
         >
-          <PRIcon />
-          <span>PR</span>
+          <ChevronDown />
         </button>
-      )}
+        {commitMenuOpen && (
+          <div className="absolute bottom-full right-0 z-10 mb-1 w-40 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
+            <button
+              onClick={() => { setCommitMenuOpen(false); setCommitting(true); }}
+              disabled={status.uncommitted === 0}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+            >
+              <CommitIcon />
+              Commit
+            </button>
+            <button
+              onClick={() => { setCommitMenuOpen(false); setCreatingPR(true); }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              <PRMenuIcon />
+              Create PR
+            </button>
+          </div>
+        )}
+      </div>
       <CreateBranchModal
         open={creating}
         busy={busy}
@@ -313,6 +336,17 @@ function CommitIcon() {
       <circle cx="12" cy="12" r="3" />
       <line x1="3" y1="12" x2="9" y2="12" />
       <line x1="15" y1="12" x2="21" y2="12" />
+    </svg>
+  );
+}
+
+function PRMenuIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="18" cy="18" r="3" />
+      <circle cx="6" cy="6" r="3" />
+      <path d="M13 6h3a2 2 0 0 1 2 2v7" />
+      <line x1="6" y1="9" x2="6" y2="21" />
     </svg>
   );
 }
