@@ -32,6 +32,36 @@ export function QuickPopover({
 }: QuickPopoverProps) {
   const ref = useOutsideClick<HTMLDivElement>(onClose);
 
+  const handleRunAction = (action: ActionInfo) => {
+    onRunAction(action);
+    onClose();
+  };
+
+  const handleRunTerminal = (term: TerminalConfigInfo) => {
+    onRunTerminal(term);
+    onClose();
+  };
+
+  const handleEditConfig = () => {
+    onEditConfig();
+    onClose();
+  };
+
+  const handleTerminalSettings = () => {
+    onTerminalSettings();
+    onClose();
+  };
+
+  const handleRestart = () => {
+    onRestart();
+    onClose();
+  };
+
+  const handleRemove = () => {
+    onRemove();
+    onClose();
+  };
+
   return (
     <div ref={ref} className="absolute right-0 top-full z-50 mt-1 w-52 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
       {actions.length > 0 && (
@@ -42,7 +72,7 @@ export function QuickPopover({
           {actions.map((action) => (
             <button
               key={action.name}
-              onClick={() => onRunAction(action)}
+              onClick={() => handleRunAction(action)}
               disabled={actionBusy}
               className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
             >
@@ -61,7 +91,7 @@ export function QuickPopover({
           {terminals.map((term) => (
             <button
               key={term.name}
-              onClick={() => { onRunTerminal(term); onClose(); }}
+              onClick={() => handleRunTerminal(term)}
               className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
             >
               <span className="flex-1 font-mono truncate">{term.label}</span>
@@ -72,14 +102,14 @@ export function QuickPopover({
       )}
       {(actions.length > 0 || terminals.length > 0) && <div className="my-1 border-t border-[var(--border)]" />}
       <button
-        onClick={() => { onEditConfig(); onClose(); }}
+        onClick={handleEditConfig}
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
       >
         <span className="flex-1 truncate">Edit Config</span>
         <PencilIcon />
       </button>
       <button
-        onClick={() => { onTerminalSettings(); onClose(); }}
+        onClick={handleTerminalSettings}
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
       >
         <span className="flex-1 truncate">Terminal Settings</span>
@@ -87,7 +117,7 @@ export function QuickPopover({
       </button>
       {running && (
         <button
-          onClick={() => { onRestart(); onClose(); }}
+          onClick={handleRestart}
           className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
         >
           <span className="flex-1 truncate">Restart</span>
@@ -96,7 +126,7 @@ export function QuickPopover({
       )}
       <div className="my-1 border-t border-[var(--border)]" />
       <button
-        onClick={() => { onRemove(); onClose(); }}
+        onClick={handleRemove}
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--accent-red)] transition-colors hover:bg-[var(--bg-hover)]"
       >
         <span className="flex-1 truncate">Remove</span>

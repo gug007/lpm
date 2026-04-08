@@ -5,11 +5,15 @@ export interface ServiceInfo {
   port: number;
 }
 
+export type ActionType = "terminal";
+
 export interface ActionInfo {
   name: string;
   label: string;
+  cmd: string;
   confirm: boolean;
   display: string;
+  type?: ActionType;
 }
 
 export interface TerminalConfigInfo {

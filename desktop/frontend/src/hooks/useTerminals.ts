@@ -11,7 +11,7 @@ export interface InteractiveTerminal {
 export interface UseTerminalsResult {
   terminals: InteractiveTerminal[];
   createTerminal: () => Promise<void>;
-  createTerminalWithCmd: (label: string, terminalConfigName: string, cmd: string) => Promise<void>;
+  createTerminalWithCmd: (label: string, cmd: string, configName?: string) => Promise<void>;
   closeTerminal: (index: number) => void;
   renameTerminal: (index: number, name: string) => void;
 }
@@ -85,8 +85,10 @@ export function useTerminals(projectName: string, onTerminalClosed: (index: numb
     } catch {}
   };
 
-  const createTerminalWithCmd = async (label: string, terminalConfigName: string, cmd: string) => {
-    const id = await StartTerminalWithConfig(projectName, terminalConfigName);
+  const createTerminalWithCmd = async (label: string, cmd: string, configName?: string) => {
+    const id = configName
+      ? await StartTerminalWithConfig(projectName, configName)
+      : await StartTerminal(projectName);
     addTerminal(id, label);
     const timer = setTimeout(() => {
       pendingTimers.current.delete(timer);

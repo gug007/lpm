@@ -35,8 +35,10 @@ type ServiceInfo struct {
 type ActionInfo struct {
 	Name    string `json:"name"`
 	Label   string `json:"label"`
+	Cmd     string `json:"cmd"`
 	Confirm bool   `json:"confirm"`
 	Display string `json:"display"`
+	Type    string `json:"type"`
 }
 
 type TerminalConfigInfo struct {
@@ -81,8 +83,10 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, activeP
 		actions = append(actions, ActionInfo{
 			Name:    aName,
 			Label:   label,
+			Cmd:     act.Cmd,
 			Confirm: act.Confirm,
 			Display: act.Display,
+			Type:    act.Type,
 		})
 	}
 

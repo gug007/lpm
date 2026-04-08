@@ -34,6 +34,7 @@ type Action struct {
 	Env     map[string]string `yaml:"env,omitempty"`
 	Confirm bool              `yaml:"confirm,omitempty"`
 	Display string            `yaml:"display,omitempty"`
+	Type    string            `yaml:"type,omitempty"`
 }
 
 func (a *Action) UnmarshalYAML(value *yaml.Node) error {

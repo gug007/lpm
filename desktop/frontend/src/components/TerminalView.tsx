@@ -65,7 +65,7 @@ function deserializeActivePane(s: string | undefined): ActivePane {
 
 export interface TerminalViewHandle {
   createTerminal(): void;
-  createTerminalWithCmd(label: string, terminalConfigName: string, cmd: string): void;
+  createTerminalWithCmd(label: string, cmd: string, configName?: string): void;
 }
 
 export function TerminalView({ projectName, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, runningPaneIDs, donePaneIDs, waitingPaneIDs, visible = true, ref }: TerminalViewProps) {
