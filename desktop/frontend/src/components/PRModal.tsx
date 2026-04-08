@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
-import { XIcon, ChevronDownIcon, BranchIcon } from "./icons";
+import { XIcon, ChevronDownIcon, BranchIcon, CheckIcon } from "./icons";
 import { AIButton } from "./ui/AIButton";
 import {
   CheckAICLIs,
@@ -11,6 +11,7 @@ import {
   GeneratePRDescription,
   GitDefaultBranch,
   GitLogBranch,
+  ListBranches,
 } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
@@ -20,6 +21,7 @@ import { getSettings, saveSettings } from "../settings";
 import { Tooltip } from "./ui/Tooltip";
 
 type BranchCommit = main.BranchCommit;
+type Branch = main.Branch;
 
 const DESC_MAX_HEIGHT = { maxHeight: "calc(8 * 1.5em + 1rem)" };
 
@@ -50,6 +52,9 @@ export function PRModal({
   const [aiCLIs, setAiCLIs] = useState<Record<string, boolean>>({});
   const [selectedCLI, setSelectedCLI] = useState("claude");
   const [cliMenuOpen, setCLIMenuOpen] = useState(false);
+  const [baseMenuOpen, setBaseMenuOpen] = useState(false);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [baseQuery, setBaseQuery] = useState("");
   const [autoGenerate, setAutoGenerate] = useState(
     () => getSettings().autoGeneratePRDescription ?? false,
   );
@@ -61,6 +66,15 @@ export function PRModal({
     () => setCLIMenuOpen(false),
     cliMenuOpen,
   );
+  const baseSearchRef = useRef<HTMLInputElement>(null);
+  const baseRef = useOutsideClick<HTMLDivElement>(
+    () => { setBaseMenuOpen(false); setBaseQuery(""); },
+    baseMenuOpen,
+  );
+
+  useEffect(() => {
+    if (baseMenuOpen) baseSearchRef.current?.focus();
+  }, [baseMenuOpen]);
 
   useEffect(() => {
     if (!open) return;
@@ -69,19 +83,22 @@ export function PRModal({
     setDescription("");
     setBase("");
     setCommits([]);
+    setBranches([]);
     setPrURL("");
     setLoading(true);
 
     (async () => {
       try {
-        const [defaultBranch, ghOk, cliAvail] = await Promise.all([
+        const [defaultBranch, ghOk, cliAvail, branchList] = await Promise.all([
           GitDefaultBranch(projectPath),
           CheckGHCLI(),
           CheckAICLIs().catch(() => null),
+          ListBranches(projectPath).catch(() => [] as Branch[]),
         ]);
         if (cancelled) return;
         setBase(defaultBranch);
         setGhAvailable(ghOk);
+        setBranches(branchList.filter((b) => b.name !== currentBranch));
         if (cliAvail) {
           const avail: Record<string, boolean> = {
             claude: cliAvail.claude,
@@ -110,7 +127,7 @@ export function PRModal({
     return () => {
       cancelled = true;
     };
-  }, [open, projectPath]);
+  }, [open, projectPath, currentBranch]);
 
   const anyAiAvailable = AI_CLI_OPTIONS.some((o) => aiCLIs[o.value]);
   const autoGenTriggered = useRef(false);
@@ -136,6 +153,28 @@ export function PRModal({
     el.style.height = "auto";
     el.style.height = el.scrollHeight + "px";
   }, [description]);
+
+  const filteredBranches = useMemo(
+    () => baseQuery
+      ? branches.filter((b) => b.name.toLowerCase().includes(baseQuery.toLowerCase()))
+      : branches,
+    [branches, baseQuery],
+  );
+
+  const changeBase = async (newBase: string) => {
+    setBase(newBase);
+    setBaseMenuOpen(false);
+    setBaseQuery("");
+    setLoading(true);
+    try {
+      const log = await GitLogBranch(projectPath, newBase);
+      setCommits(log || []);
+    } catch {
+      setCommits([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const generateTitle = async () => {
     if (generatingTitle || !base) return;
@@ -248,9 +287,53 @@ export function PRModal({
                 <BranchIcon size={10} /> {currentBranch}
               </span>
               <span className="text-[var(--text-muted)]">&rarr;</span>
-              <span className="inline-flex items-center gap-1 text-[var(--text-muted)]">
-                <BranchIcon size={10} /> {base || "..."}
-              </span>
+              <div ref={baseRef} className="relative">
+                <button
+                  onClick={() => setBaseMenuOpen(!baseMenuOpen)}
+                  disabled={busy}
+                  className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                >
+                  <BranchIcon size={10} /> {base || "..."}
+                  <ChevronDownIcon />
+                </button>
+                {baseMenuOpen && (
+                  <div className="absolute left-0 top-full z-10 mt-1 w-56 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] shadow-lg">
+                    <div className="border-b border-[var(--border)] p-2">
+                      <input
+                        ref={baseSearchRef}
+                        value={baseQuery}
+                        onChange={(e) => setBaseQuery(e.target.value)}
+                        placeholder="Search branches"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
+                        className="w-full rounded-md bg-[var(--bg-hover)] px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
+                      />
+                    </div>
+                    <div className="max-h-[200px] overflow-y-auto py-1">
+                      {filteredBranches.map((b) => (
+                        <button
+                          key={b.name}
+                          onClick={() => changeBase(b.name)}
+                          className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)] ${
+                            b.name === base
+                              ? "font-medium text-[var(--text-primary)]"
+                              : "text-[var(--text-secondary)]"
+                          }`}
+                        >
+                          <BranchIcon size={10} />
+                          <span className="truncate">{b.name}</span>
+                          {b.name === base && <CheckIcon />}
+                        </button>
+                      ))}
+                      {filteredBranches.length === 0 && (
+                        <div className="px-3 py-2 text-[11px] text-[var(--text-muted)]">No matches</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Title */}
@@ -296,19 +379,7 @@ export function PRModal({
                             >
                               {o.label}
                               {selectedCLI === o.value && (
-                                <svg
-                                  width="10"
-                                  height="10"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="3"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  className="ml-auto"
-                                >
-                                  <polyline points="20 6 9 17 4 12" />
-                                </svg>
+                                <CheckIcon />
                               )}
                             </button>
                           ),
