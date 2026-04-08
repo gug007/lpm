@@ -29,9 +29,10 @@ const HOOKS_DESCRIPTION: Record<HooksStatus, string> = {
 const BTN_SECONDARY =
   "rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-active)] disabled:opacity-50";
 
+import type { View } from "../App";
+
 interface SettingsProps {
-  onEditGlobalConfig: () => void;
-  onEditCommitInstructions: () => void;
+  onNavigate: (view: View) => void;
   pendingUpdateCheck?: boolean;
   onConsumedUpdateCheck?: () => void;
 }
@@ -58,8 +59,7 @@ function getUpdateDescription(
 }
 
 export function Settings({
-  onEditGlobalConfig,
-  onEditCommitInstructions,
+  onNavigate,
   pendingUpdateCheck = false,
   onConsumedUpdateCheck,
 }: SettingsProps) {
@@ -216,7 +216,15 @@ export function Settings({
             label="Commit Instructions"
             description="Custom instructions for AI commit messages"
           >
-            <button onClick={onEditCommitInstructions} className={BTN_SECONDARY}>
+            <button onClick={() => onNavigate("commit-instructions")} className={BTN_SECONDARY}>
+              Edit
+            </button>
+          </SettingsRow>
+          <SettingsRow
+            label="PR Instructions"
+            description="Custom instructions for AI-generated PR titles and descriptions"
+          >
+            <button onClick={() => onNavigate("pr-instructions")} className={BTN_SECONDARY}>
               Edit
             </button>
           </SettingsRow>
@@ -227,7 +235,7 @@ export function Settings({
             label="Actions & Terminals"
             description="Shared across all projects"
           >
-            <button onClick={onEditGlobalConfig} className={BTN_SECONDARY}>
+            <button onClick={() => onNavigate("global-config")} className={BTN_SECONDARY}>
               Edit
             </button>
           </SettingsRow>
