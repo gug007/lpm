@@ -8,6 +8,9 @@ import { SidebarIcon, CheckIcon } from "./icons";
 import { useDragReorder } from "../hooks/useDragReorder";
 import { useSidebarResize } from "../hooks/useSidebarResize";
 
+const MUTED_STYLE = { color: "var(--text-muted)" } as const;
+const DONE_STYLE = { color: "var(--accent-blue)" } as const;
+
 interface SidebarProps {
   projects: ProjectInfo[];
   selected: string | null;
@@ -105,10 +108,15 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                     : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                 } ${dragIdx === idx ? "opacity-30" : ""}`}
               >
-                <StatusDot running={project.running} />
+                {project.configError ? (
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Config error" />
+                ) : (
+                  <StatusDot running={project.running} />
+                )}
                 <span
                   className="truncate"
-                  style={isDone ? { color: "var(--accent-blue)" } : undefined}
+                  style={project.configError ? MUTED_STYLE : isDone ? DONE_STYLE : undefined}
+                  title={project.configError || undefined}
                 >
                   {isWaiting ? (
                     <span className="sidebar-waiting">{project.name}</span>

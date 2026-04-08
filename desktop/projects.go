@@ -23,6 +23,7 @@ type ProjectInfo struct {
 	Profiles          []string             `json:"profiles"`
 	ActiveProfile     string               `json:"activeProfile"`
 	StatusEntries     []StatusEntry        `json:"statusEntries"`
+	ConfigError       string               `json:"configError,omitempty"`
 }
 
 type ServiceInfo struct {
@@ -143,6 +144,10 @@ func (a *App) ListProjects() ([]ProjectInfo, error) {
 	for _, name := range names {
 		cfg, err := config.LoadProject(name)
 		if err != nil {
+			projects = append(projects, ProjectInfo{
+				Name:        name,
+				ConfigError: err.Error(),
+			})
 			continue
 		}
 		running := sessions[cfg.Name]

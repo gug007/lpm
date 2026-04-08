@@ -11,7 +11,7 @@ import { playDoneSound, playWaitingSound } from "../sounds";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
 import { type ProjectInfo, type ActionInfo, type TerminalConfigInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING } from "../types";
-import { TerminalIcon, CheckIcon, ChevronDownIcon, PencilIcon, MenuIcon } from "./icons";
+import { TerminalIcon, CheckIcon, ChevronDownIcon, PencilIcon, MenuIcon, AlertCircleIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { ActionTerminal } from "./project-detail/ActionTerminal";
@@ -182,6 +182,52 @@ export function ProjectDetail({
     prevDoneCount.current = donePaneIDs.size;
     prevWaitingCount.current = waitingPaneIDs.size;
   }, [donePaneIDs, waitingPaneIDs]);
+
+  if (project.configError) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className={`wails-drag flex items-center gap-4 -mx-3 py-1 transition-[padding] duration-200 ${sidebarCollapsed ? "pl-[100px]" : ""}`}>
+          <h1 className="shrink-0 text-xl font-semibold tracking-tight">
+            {project.name}
+          </h1>
+        </div>
+        {detailView === "config" ? (
+          <div className="mt-1.5 -mx-6 -mb-6 flex flex-1 flex-col overflow-hidden">
+            <ConfigEditor
+              projectName={project.name}
+              onSaved={onRefresh}
+              onBack={() => switchDetailView("terminal")}
+            />
+          </div>
+        ) : (
+          <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden">
+            <div className="flex flex-col items-center gap-4 max-w-md text-center">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/10 text-red-500">
+                <AlertCircleIcon />
+              </div>
+              <p className="text-sm font-medium text-[var(--text-primary)]">Invalid configuration</p>
+              <pre className="whitespace-pre-wrap rounded-lg bg-[var(--bg-sidebar)] p-4 text-left text-xs text-red-400 w-full">{project.configError}</pre>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => switchDetailView("config")}
+                  className="flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-85"
+                >
+                  <PencilIcon />
+                  Edit Config
+                </button>
+                <button
+                  onClick={() => onRefresh()}
+                  className="flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col">
