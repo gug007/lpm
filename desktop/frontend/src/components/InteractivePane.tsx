@@ -123,7 +123,7 @@ export function InteractivePane({
       scrollback: 10000,
       theme: themeOverride ?? getTerminalTheme(el),
       allowProposedApi: true,
-      // vtExtensions: { kittyKeyboard: true },
+      vtExtensions: { kittyKeyboard: true },
     });
 
     const fit = new FitAddon();
@@ -142,6 +142,23 @@ export function InteractivePane({
       term.loadAddon(u);
       term.unicode.activeVersion = "11";
     } catch {}
+
+    // Intercept Cmd+key combos before kitty keyboard protocol encodes them.
+    // Without this, Cmd+V/C/etc. are sent as CSI u sequences instead of
+    // triggering paste/copy/other OS-level shortcuts.
+    term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+      if (!e.metaKey) return true;
+      if (e.key === "v") {
+        return false;
+      }
+      if (e.key === "c" && e.type === "keydown") {
+        const selection = term.getSelection();
+        if (selection) navigator.clipboard.writeText(selection).catch(() => {});
+        return false;
+      }
+      // Let all other Cmd+key combos fall through to the browser
+      return false;
+    });
 
     term.open(el);
     termRef.current = term;
