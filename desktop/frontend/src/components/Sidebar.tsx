@@ -185,7 +185,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
       </div>
       <div
         onMouseDown={handleResizeStart}
-        className="absolute inset-y-0 -right-1 w-1 cursor-col-resize hover:bg-[var(--accent-cyan)]/20 active:bg-[var(--accent-cyan)]/30"
+        className="absolute inset-y-0 -right-2 w-4 cursor-col-resize before:absolute before:inset-y-0 before:left-1/2 before:-translate-x-1/2 before:w-1 hover:before:bg-[var(--accent-cyan)]/20 active:before:bg-[var(--accent-cyan)]/30"
       />
       {updateError && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
