@@ -5,7 +5,7 @@ export interface ServiceInfo {
   port: number;
 }
 
-export type ActionType = "terminal";
+export type ActionType = "terminal" | (string & {});
 
 export interface ActionInfo {
   name: string;
