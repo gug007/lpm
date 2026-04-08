@@ -302,19 +302,23 @@ export function CommitModal({
               </div>
             )}
           </div>
-          <textarea
-            ref={msgRef}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
-            }}
-            placeholder="Describe your changes..."
-            disabled={!!busy}
-            rows={2}
-            style={MSG_MAX_HEIGHT}
-            className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-[13px] leading-[1.5] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--text-muted)] disabled:opacity-60"
-          />
+          <div className={generating ? "relative rounded-lg p-[1.5px] [background:conic-gradient(from_var(--gradient-angle),#3b82f6,#8b5cf6,#ec4899,#06b6d4,#6366f1,#3b82f6)] animate-[gradient-spin_2s_linear_infinite]" : ""}>
+            <textarea
+              ref={msgRef}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
+              }}
+              placeholder="Describe your changes..."
+              disabled={!!busy}
+              rows={2}
+              style={MSG_MAX_HEIGHT}
+              className={`w-full resize-none bg-[var(--bg-secondary)] px-3 py-2 text-[13px] leading-[1.5] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] disabled:opacity-60 ${
+                generating ? "block rounded-[calc(0.5rem-1.5px)] border-none" : "rounded-lg border border-[var(--border)] focus:border-[var(--text-muted)]"
+              }`}
+            />
+          </div>
         </div>
 
         <div className="flex flex-col gap-1.5">
