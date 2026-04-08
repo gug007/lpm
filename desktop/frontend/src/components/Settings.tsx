@@ -3,6 +3,8 @@ import { toast } from "sonner";
 import { getSettings, saveSettings } from "../settings";
 import { applyTheme, type Theme } from "../theme";
 import { useEventListener } from "../hooks/useEventListener";
+import { ProgressBar } from "./ui/ProgressBar";
+import { EventsOn } from "../../wailsjs/runtime/runtime";
 import {
   SetDarkMode,
   GetVersion,
@@ -74,10 +76,18 @@ export function Settings({
   const [hooksStatus, setHooksStatus] = useState<HooksStatus>("idle");
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [resettingHooks, setResettingHooks] = useState(false);
+  const [installProgress, setInstallProgress] = useState(-1);
+  const [installPhase, setInstallPhase] = useState<"downloading" | "installing">("downloading");
 
   useEffect(() => {
     GetVersion().then(setVersion);
   }, []);
+
+  useEffect(() => EventsOn("update-progress", (pct: number) => setInstallProgress(pct)), []);
+  useEffect(() => EventsOn("update-status", (status: string) => {
+    if (status === "downloading") setInstallPhase("downloading");
+    else if (status === "installing") setInstallPhase("installing");
+  }), []);
 
   useEffect(() => {
     const dark = applyTheme(theme);
@@ -117,6 +127,8 @@ export function Settings({
 
   const handleInstallUpdate = async () => {
     setUpdateStatus("installing");
+    setInstallProgress(-1);
+    setInstallPhase("downloading");
     try {
       await InstallUpdate();
     } catch (err) {
@@ -159,7 +171,7 @@ export function Settings({
   return (
     <div className="-mx-6 flex-1 overflow-y-auto">
       <div className="mx-auto max-w-lg px-6 pt-6 pb-6">
-        {updateStatus === "installing" && <InstallingOverlay />}
+        {updateStatus === "installing" && <InstallingOverlay phase={installPhase} progress={installProgress} />}
         <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
 
         <SettingsSection title="General">
@@ -377,13 +389,19 @@ function RefreshIcon({ spinning, size = 12 }: { spinning?: boolean; size?: numbe
   );
 }
 
-function InstallingOverlay() {
+function InstallingOverlay({ phase, progress }: { phase: "downloading" | "installing"; progress: number }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="flex flex-col items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-6 py-5 shadow-lg">
         <RefreshIcon spinning size={24} />
-        <p className="text-sm font-medium text-[var(--text-primary)]">Installing update...</p>
-        <p className="text-xs text-[var(--text-muted)]">The app will restart when finished</p>
+        <p className="text-sm font-medium text-[var(--text-primary)]">
+          {phase === "downloading" ? "Downloading update..." : "Installing update..."}
+        </p>
+        {phase === "downloading" && progress >= 0 ? (
+          <ProgressBar value={progress} />
+        ) : (
+          <p className="text-xs text-[var(--text-muted)]">The app will restart when finished</p>
+        )}
       </div>
     </div>
   );

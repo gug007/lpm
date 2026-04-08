@@ -4,7 +4,8 @@ import { getSettings } from "../settings";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { InstallUpdate } from "../../wailsjs/go/main/App";
 import { type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING } from "../types";
-import { SidebarIcon, CheckIcon } from "./icons";
+import { SidebarIcon, CheckIcon, AlertCircleIcon } from "./icons";
+import { ProgressBar } from "./ui/ProgressBar";
 import { useDragReorder } from "../hooks/useDragReorder";
 import { useSidebarResize } from "../hooks/useSidebarResize";
 
@@ -31,6 +32,9 @@ function hasStatus(project: ProjectInfo, value: string): boolean {
 export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onSettings, onAddProject, onReorder, showSettings }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
+  const [progress, setProgress] = useState(-1); // -1 = no progress yet
+  const [updatePhase, setUpdatePhase] = useState<"downloading" | "installing">("downloading");
+  const [updateError, setUpdateError] = useState("");
   const { width, handleResizeStart } = useSidebarResize();
   const {
     dragIdx,
@@ -42,15 +46,26 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
   } = useDragReorder(projects, (p) => p.name, onReorder);
 
   useEffect(() => EventsOn("update-available", setUpdateInfo), []);
+  useEffect(() => EventsOn("update-progress", (pct: number) => setProgress(pct)), []);
+  useEffect(() => EventsOn("update-status", (status: string) => {
+    if (status === "downloading") setUpdatePhase("downloading");
+    else if (status === "installing") setUpdatePhase("installing");
+  }), []);
 
   const handleUpdate = async () => {
     setInstalling(true);
+    setUpdateError("");
+    setProgress(-1);
+    setUpdatePhase("downloading");
     try {
       await InstallUpdate();
-    } catch {
+    } catch (err) {
       setInstalling(false);
+      setUpdateError(String(err));
     }
   };
+
+  const dismissError = () => setUpdateError("");
 
   return (
     <aside
@@ -172,6 +187,25 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
         onMouseDown={handleResizeStart}
         className="absolute inset-y-0 -right-1 w-1 cursor-col-resize hover:bg-[var(--accent-cyan)]/20 active:bg-[var(--accent-cyan)]/30"
       />
+      {updateError && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-8 py-6 shadow-2xl">
+            <span className="text-red-400"><AlertCircleIcon /></span>
+            <div className="flex flex-col items-center gap-1">
+              <p className="text-sm font-medium text-[var(--text-primary)]">Update failed</p>
+              <p className="max-w-[240px] text-center text-[11px] text-[var(--text-muted)]">{updateError}</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={dismissError} className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]">
+                Dismiss
+              </button>
+              <button onClick={handleUpdate} className="rounded-md bg-[var(--accent-green)] px-3 py-1.5 text-xs text-black transition-opacity hover:opacity-80">
+                Retry
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {installing && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-8 py-6 shadow-2xl">
@@ -179,8 +213,14 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
               <path d="M21 12a9 9 0 1 1-6.219-8.56" />
             </svg>
             <div className="flex flex-col items-center gap-1">
-              <p className="text-sm font-medium text-[var(--text-primary)]">Installing update...</p>
-              <p className="text-[11px] text-[var(--text-muted)]">The app will restart automatically</p>
+              <p className="text-sm font-medium text-[var(--text-primary)]">
+                {updatePhase === "downloading" ? "Downloading update..." : "Installing update..."}
+              </p>
+              {updatePhase === "downloading" && progress >= 0 ? (
+                <ProgressBar value={progress} />
+              ) : (
+                <p className="text-[11px] text-[var(--text-muted)]">The app will restart automatically</p>
+              )}
             </div>
           </div>
         </div>

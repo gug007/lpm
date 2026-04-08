@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,6 +17,27 @@ import (
 	"github.com/gug007/lpm/internal/version"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+type progressWriter struct {
+	dst     io.Writer
+	total   int64
+	written int64
+	lastPct int
+	emit    func(pct int)
+}
+
+func (pw *progressWriter) Write(p []byte) (int, error) {
+	n, err := pw.dst.Write(p)
+	pw.written += int64(n)
+	if pw.total > 0 {
+		pct := int(pw.written * 100 / pw.total)
+		if pct != pw.lastPct {
+			pw.lastPct = pct
+			pw.emit(pct)
+		}
+	}
+	return n, err
+}
 
 var httpClient = &http.Client{Timeout: 30 * time.Second}
 
@@ -121,6 +143,13 @@ func (a *App) InstallUpdate() error {
 		return fmt.Errorf("no update available — check for updates first")
 	}
 
+	emitProgress := func(pct int) {
+		runtime.EventsEmit(a.ctx, "update-progress", pct)
+	}
+	emitStatus := func(status string) {
+		runtime.EventsEmit(a.ctx, "update-status", status)
+	}
+
 	appPath, err := appBundlePath()
 	if err != nil {
 		return err
@@ -128,6 +157,7 @@ func (a *App) InstallUpdate() error {
 	appDir := filepath.Dir(appPath)
 
 	// Download DMG to temp file
+	emitStatus("downloading")
 	tmpFile, err := os.CreateTemp("", "lpm-update-*.dmg")
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
@@ -147,19 +177,29 @@ func (a *App) InstallUpdate() error {
 		return fmt.Errorf("download returned status %d", resp.StatusCode)
 	}
 
-	if _, err := io.Copy(tmpFile, resp.Body); err != nil {
+	pw := &progressWriter{
+		dst:   tmpFile,
+		total: resp.ContentLength,
+		emit:  emitProgress,
+	}
+	if _, err := io.Copy(pw, resp.Body); err != nil {
 		return fmt.Errorf("failed to save update: %w", err)
 	}
 	tmpFile.Close()
 
 	// Mount DMG to a known temp path
+	emitStatus("installing")
 	mountPoint, err := os.MkdirTemp("", "lpm-mount-*")
 	if err != nil {
 		return fmt.Errorf("failed to create mount dir: %w", err)
 	}
 	defer os.Remove(mountPoint)
 
-	if out, err := exec.Command("hdiutil", "attach", dmgPath, "-nobrowse", "-mountpoint", mountPoint).CombinedOutput(); err != nil {
+	cmdTimeout := 60 * time.Second
+
+	ctx, cancel := context.WithTimeout(context.Background(), cmdTimeout)
+	defer cancel()
+	if out, err := exec.CommandContext(ctx, "hdiutil", "attach", dmgPath, "-nobrowse", "-mountpoint", mountPoint).CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to mount DMG: %s", string(out))
 	}
 	defer exec.Command("hdiutil", "detach", mountPoint, "-quiet").Run()
@@ -186,7 +226,10 @@ func (a *App) InstallUpdate() error {
 	// Copy new app to a staging path, then atomically swap
 	stagingApp := dstApp + ".new"
 	os.RemoveAll(stagingApp)
-	if out, err := exec.Command("ditto", srcApp, stagingApp).CombinedOutput(); err != nil {
+
+	ctx2, cancel2 := context.WithTimeout(context.Background(), cmdTimeout)
+	defer cancel2()
+	if out, err := exec.CommandContext(ctx2, "ditto", srcApp, stagingApp).CombinedOutput(); err != nil {
 		os.RemoveAll(stagingApp)
 		return fmt.Errorf("failed to copy new app: %s", string(out))
 	}
