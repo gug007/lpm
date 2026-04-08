@@ -255,12 +255,6 @@ export function InteractivePane({
       scrollCallbackRef.current?.(atBottom);
     });
 
-    // Copy on select
-    const handleMouseUp = () => {
-      const selection = term.getSelection();
-      if (selection) navigator.clipboard.writeText(selection).catch(() => {});
-    };
-    el.addEventListener("mouseup", handleMouseUp);
 
     // Paste handler for files and images from clipboard.
     // Files (from Finder): reads paths via Go/macOS pasteboard, pastes them.
@@ -373,7 +367,6 @@ export function InteractivePane({
 
     return () => {
       if (resizeTimer) clearTimeout(resizeTimer);
-      el.removeEventListener("mouseup", handleMouseUp);
       textarea?.removeEventListener("paste", handlePaste, true);
       globalObserver.disconnect();
       ro.disconnect();
