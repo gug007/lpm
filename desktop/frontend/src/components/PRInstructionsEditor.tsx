@@ -16,8 +16,10 @@ export function PRInstructionsEditor({ onBack }: { onBack: () => void }) {
   const error = title.error || desc.error;
 
   const handleSave = async () => {
-    if (title.dirty) await title.handleSave();
-    if (desc.dirty) await desc.handleSave();
+    await Promise.all([
+      title.dirty ? title.handleSave() : undefined,
+      desc.dirty ? desc.handleSave() : undefined,
+    ]);
   };
 
   return (

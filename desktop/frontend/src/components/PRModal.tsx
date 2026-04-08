@@ -213,7 +213,7 @@ export function PRModal({
     AI_CLI_OPTIONS.find((o) => o.value === selectedCLI)?.label ?? selectedCLI;
 
   const canCreate =
-    !busy && !generating && title.trim().length > 0 && ghAvailable && commits.length > 0;
+    !busy && !loading && !generating && title.trim().length > 0 && ghAvailable && commits.length > 0;
 
   const submit = async () => {
     if (!canCreate) return;

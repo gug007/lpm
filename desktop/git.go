@@ -319,6 +319,9 @@ func (a *App) GitDefaultBranch(cwd string) string {
 
 // GitLogBranch returns commits on the current branch that are not on the base branch.
 func (a *App) GitLogBranch(cwd, base string) ([]BranchCommit, error) {
+	if base == "" {
+		return nil, fmt.Errorf("base branch required")
+	}
 	out, err := runGit(cwd, "log", "--format=%h%x00%s%x00%an%x00%ar", base+"..HEAD")
 	if err != nil {
 		return nil, err
@@ -345,6 +348,9 @@ func (a *App) GitLogBranch(cwd, base string) ([]BranchCommit, error) {
 
 // GitDiffBranch returns the diff between the current branch and the base branch.
 func (a *App) GitDiffBranch(cwd, base string) (string, error) {
+	if base == "" {
+		return "", fmt.Errorf("base branch required")
+	}
 	return runGit(cwd, "diff", base+"...HEAD")
 }
 
@@ -357,6 +363,9 @@ func (a *App) CheckGHCLI() bool {
 // CreatePullRequest pushes the current branch and creates a PR via the gh CLI.
 // Returns the PR URL on success.
 func (a *App) CreatePullRequest(cwd, title, body, base string) (string, error) {
+	if strings.TrimSpace(title) == "" {
+		return "", fmt.Errorf("title required")
+	}
 	branch, err := runGit(cwd, "rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
 		return "", fmt.Errorf("failed to get current branch: %w", err)
