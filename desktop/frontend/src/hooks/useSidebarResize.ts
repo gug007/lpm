@@ -27,8 +27,7 @@ export function useSidebarResize() {
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
       const w = widthRef.current;
-      const s = getSettings();
-      if (s.sidebarWidth !== w) saveSettings({ ...s, sidebarWidth: w });
+      saveSettings({ sidebarWidth: w });
     };
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";

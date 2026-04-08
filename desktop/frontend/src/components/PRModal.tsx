@@ -205,8 +205,7 @@ export function PRModal({
   const toggleAutoGenerate = () => {
     const next = !autoGenerate;
     setAutoGenerate(next);
-    const s = getSettings();
-    saveSettings({ ...s, autoGeneratePRDescription: next });
+    saveSettings({ autoGeneratePRDescription: next });
   };
 
   const selectedCLILabel =

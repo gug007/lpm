@@ -64,14 +64,12 @@ export function ProjectDetail({
 
   const handleTerminalThemeChange = (theme: TerminalThemeName) => {
     setTermTheme(theme);
-    const s = getSettings();
-    saveSettings({ ...s, terminalTheme: theme === "default" ? undefined : theme });
+    saveSettings({ terminalTheme: theme === "default" ? undefined : theme });
   };
 
   const [fontSize, setFontSize] = useState(() => getSettings().terminalFontSize || 12);
   useEffect(() => {
-    const s = getSettings();
-    if (s.terminalFontSize !== fontSize) saveSettings({ ...s, terminalFontSize: fontSize });
+    saveSettings({ terminalFontSize: fontSize });
   }, [fontSize]);
   const zoomIn = useCallback(() => setFontSize((s) => Math.min(s + 1, 24)), []);
   const zoomOut = useCallback(() => setFontSize((s) => Math.max(s - 1, 8)), []);

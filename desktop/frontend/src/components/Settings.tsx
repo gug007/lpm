@@ -81,7 +81,7 @@ export function Settings({
 
   useEffect(() => {
     const dark = applyTheme(theme);
-    saveSettings({ ...getSettings(), theme });
+    saveSettings({ theme });
     SetDarkMode(dark);
   }, [theme]);
 
@@ -178,7 +178,7 @@ export function Settings({
               enabled={dblClick}
               onChange={(v) => {
                 setDblClick(v);
-                saveSettings({ ...getSettings(), doubleClickToToggle: v });
+                saveSettings({ doubleClickToToggle: v });
               }}
             />
           </SettingsRow>
@@ -190,7 +190,7 @@ export function Settings({
               enabled={soundEnabled}
               onChange={(v) => {
                 setSoundEnabled(v);
-                saveSettings({ ...getSettings(), soundNotifications: v });
+                saveSettings({ soundNotifications: v });
               }}
             />
           </SettingsRow>

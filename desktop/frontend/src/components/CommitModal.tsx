@@ -205,8 +205,7 @@ export function CommitModal({
   const toggleAutoGenerate = () => {
     const next = !autoGenerate;
     setAutoGenerate(next);
-    const s = getSettings();
-    saveSettings({ ...s, autoGenerateCommitMessage: next });
+    saveSettings({ autoGenerateCommitMessage: next });
   };
 
   const selectedCLILabel =

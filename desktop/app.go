@@ -40,6 +40,8 @@ type App struct {
 
 	pendingDownloadURL string // set by CheckForUpdate, used by InstallUpdate
 
+	settingsMu sync.Mutex // protects read-modify-write cycles on settings.json
+
 	lastWinW, lastWinH int // cached to skip redundant saves
 
 	statusStore  *StatusStore
@@ -170,10 +172,12 @@ func (a *App) SaveWindowSize(width, height int) {
 	if width == a.lastWinW && height == a.lastWinH {
 		return
 	}
-	s := a.LoadSettings()
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	s := a.loadSettingsLocked()
 	s.WindowWidth = width
 	s.WindowHeight = height
-	if err := a.SaveSettings(s); err == nil {
+	if err := a.saveSettingsLocked(s); err == nil {
 		a.lastWinW = width
 		a.lastWinH = height
 	}

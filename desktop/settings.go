@@ -34,6 +34,19 @@ func settingsPath() string {
 }
 
 func (a *App) LoadSettings() Settings {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	return a.loadSettingsLocked()
+}
+
+func (a *App) SaveSettings(s Settings) error {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	return a.saveSettingsLocked(s)
+}
+
+// loadSettingsLocked reads settings from disk. Caller must hold settingsMu.
+func (a *App) loadSettingsLocked() Settings {
 	data, err := os.ReadFile(settingsPath())
 	if err != nil {
 		return defaultSettings()
@@ -45,7 +58,8 @@ func (a *App) LoadSettings() Settings {
 	return s
 }
 
-func (a *App) SaveSettings(s Settings) error {
+// saveSettingsLocked writes settings to disk. Caller must hold settingsMu.
+func (a *App) saveSettingsLocked(s Settings) error {
 	if err := config.EnsureDirs(); err != nil {
 		return err
 	}

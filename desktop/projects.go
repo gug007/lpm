@@ -207,9 +207,12 @@ func (a *App) ReorderProjects(order []string) error {
 		return nil
 	}
 
-	settings := a.LoadSettings()
+	a.settingsMu.Lock()
+	settings := a.loadSettingsLocked()
 	settings.ProjectOrder = order
-	if err := a.SaveSettings(settings); err != nil {
+	err := a.saveSettingsLocked(settings)
+	a.settingsMu.Unlock()
+	if err != nil {
 		return err
 	}
 	a.cacheMu.Lock()
