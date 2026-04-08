@@ -162,7 +162,14 @@ export function Settings({
         {updateStatus === "installing" && <InstallingOverlay />}
         <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
 
-        <SettingsSection title="Behavior">
+        <SettingsSection title="General">
+          <SettingsRow label="Theme" description="Choose your preferred look">
+            <div className="flex rounded-lg border border-[var(--border)] p-0.5">
+              <ThemeButton label="Light" icon={<SunIcon />} active={theme === "light"} onClick={() => setTheme("light")} />
+              <ThemeButton label="Dark" icon={<MoonIcon />} active={theme === "dark"} onClick={() => setTheme("dark")} />
+              <ThemeButton label="System" icon={<MonitorIcon />} active={theme === "system"} onClick={() => setTheme("system")} />
+            </div>
+          </SettingsRow>
           <SettingsRow
             label="Double-click to start/stop"
             description="Double-click a project in sidebar to toggle it"
@@ -187,6 +194,9 @@ export function Settings({
               }}
             />
           </SettingsRow>
+        </SettingsSection>
+
+        <SettingsSection title="Integrations">
           <SettingsRow
             label="Claude Code Hooks"
             description={HOOKS_DESCRIPTION[hooksStatus]}
@@ -199,19 +209,6 @@ export function Settings({
               {hooksStatus === "checking" ? <RefreshIcon spinning /> : "Check"}
             </button>
           </SettingsRow>
-        </SettingsSection>
-
-        <SettingsSection title="Appearance">
-          <SettingsRow label="Theme" description="Choose your preferred look">
-            <div className="flex rounded-lg border border-[var(--border)] p-0.5">
-              <ThemeButton label="Light" icon={<SunIcon />} active={theme === "light"} onClick={() => setTheme("light")} />
-              <ThemeButton label="Dark" icon={<MoonIcon />} active={theme === "dark"} onClick={() => setTheme("dark")} />
-              <ThemeButton label="System" icon={<MonitorIcon />} active={theme === "system"} onClick={() => setTheme("system")} />
-            </div>
-          </SettingsRow>
-        </SettingsSection>
-
-        <SettingsSection title="AI">
           <SettingsRow
             label="Commit Instructions"
             description="Custom instructions for AI commit messages"
@@ -228,12 +225,9 @@ export function Settings({
               Edit
             </button>
           </SettingsRow>
-        </SettingsSection>
-
-        <SettingsSection title="Global Config">
           <SettingsRow
-            label="Actions & Terminals"
-            description="Shared across all projects"
+            label="Global Config"
+            description="Shared actions and terminals across all projects"
           >
             <button onClick={() => onNavigate("global-config")} className={BTN_SECONDARY}>
               Edit
