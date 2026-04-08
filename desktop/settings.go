@@ -19,6 +19,7 @@ type Settings struct {
 	WindowHeight       int               `json:"windowHeight,omitempty"`
 	SidebarWidth       int               `json:"sidebarWidth,omitempty"`
 	AutoGenCommitMsg   bool              `json:"autoGenerateCommitMessage,omitempty"`
+	AutoGenPRDesc      bool              `json:"autoGeneratePRDescription,omitempty"`
 }
 
 func defaultSettings() Settings {

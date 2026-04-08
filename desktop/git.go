@@ -292,6 +292,106 @@ func (a *App) GitDiff(cwd string, files []string) (string, error) {
 	return buf.String(), nil
 }
 
+// BranchCommit represents a single commit in a branch log.
+type BranchCommit struct {
+	Hash    string `json:"hash"`
+	Subject string `json:"subject"`
+	Author  string `json:"author"`
+	Date    string `json:"date"`
+}
+
+// GitDefaultBranch returns the name of the default branch (main or master).
+func (a *App) GitDefaultBranch(cwd string) string {
+	if out, err := runGit(cwd, "symbolic-ref", "refs/remotes/origin/HEAD"); err == nil {
+		parts := strings.Split(out, "/")
+		if len(parts) > 0 {
+			return parts[len(parts)-1]
+		}
+	}
+	if _, err := runGit(cwd, "show-ref", "--verify", "--quiet", "refs/heads/main"); err == nil {
+		return "main"
+	}
+	if _, err := runGit(cwd, "show-ref", "--verify", "--quiet", "refs/heads/master"); err == nil {
+		return "master"
+	}
+	return "main"
+}
+
+// GitLogBranch returns commits on the current branch that are not on the base branch.
+func (a *App) GitLogBranch(cwd, base string) ([]BranchCommit, error) {
+	if base == "" {
+		return nil, fmt.Errorf("base branch required")
+	}
+	out, err := runGit(cwd, "log", "--format=%h%x00%s%x00%an%x00%ar", base+"..HEAD")
+	if err != nil {
+		return nil, err
+	}
+	if out == "" {
+		return []BranchCommit{}, nil
+	}
+	lines := strings.Split(out, "\n")
+	commits := make([]BranchCommit, 0, len(lines))
+	for _, line := range lines {
+		parts := strings.SplitN(line, "\x00", 4)
+		if len(parts) < 4 {
+			continue
+		}
+		commits = append(commits, BranchCommit{
+			Hash:    parts[0],
+			Subject: parts[1],
+			Author:  parts[2],
+			Date:    parts[3],
+		})
+	}
+	return commits, nil
+}
+
+// GitDiffBranch returns the diff between the current branch and the base branch.
+func (a *App) GitDiffBranch(cwd, base string) (string, error) {
+	if base == "" {
+		return "", fmt.Errorf("base branch required")
+	}
+	return runGit(cwd, "diff", base+"...HEAD")
+}
+
+// CheckGHCLI returns true if the GitHub CLI (gh) is available in PATH.
+func (a *App) CheckGHCLI() bool {
+	_, err := exec.LookPath("gh")
+	return err == nil
+}
+
+// CreatePullRequest pushes the current branch and creates a PR via the gh CLI.
+// Returns the PR URL on success.
+func (a *App) CreatePullRequest(cwd, title, body, base string) (string, error) {
+	if strings.TrimSpace(title) == "" {
+		return "", fmt.Errorf("title required")
+	}
+	branch, err := runGit(cwd, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("failed to get current branch: %w", err)
+	}
+	// Push the branch to origin (sets upstream if needed).
+	if _, err := runGit(cwd, "push", "-u", "origin", branch); err != nil {
+		return "", fmt.Errorf("push failed: %w", err)
+	}
+	args := []string{"pr", "create", "--title", title, "--body", body}
+	if base != "" {
+		args = append(args, "--base", base)
+	}
+	cmd := exec.Command("gh", args...)
+	cmd.Dir = cwd
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if s := strings.TrimSpace(stderr.String()); s != "" {
+			return "", fmt.Errorf("%s", s)
+		}
+		return "", err
+	}
+	return strings.TrimSpace(stdout.String()), nil
+}
+
 func (a *App) CreateBranch(cwd, name string) error {
 	name = strings.TrimSpace(name)
 	if name == "" {

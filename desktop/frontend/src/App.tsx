@@ -4,6 +4,7 @@ import { ProjectDetail } from "./components/ProjectDetail";
 import { Settings } from "./components/Settings";
 import { GlobalConfigEditor } from "./components/GlobalConfigEditor";
 import { CommitInstructionsEditor } from "./components/CommitInstructionsEditor";
+import { PRInstructionsEditor } from "./components/PRInstructionsEditor";
 import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
 import { TmuxInstaller } from "./components/TmuxInstaller";
 import { Toaster, toast } from "sonner";
@@ -15,7 +16,7 @@ import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
 import { StartProject, StopProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects, TmuxInstalled, InstallTmux } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 
-type View = "projects" | "settings" | "global-config" | "commit-instructions";
+export type View = "projects" | "settings" | "global-config" | "commit-instructions" | "pr-instructions";
 
 export default function App() {
   const [tmuxReady, setTmuxReady] = useState<boolean | null>(null);
@@ -51,11 +52,15 @@ export default function App() {
     const cancelCommitInstr = EventsOn("navigate-commit-instructions", () => {
       setView("commit-instructions");
     });
+    const cancelPRInstr = EventsOn("navigate-pr-instructions", () => {
+      setView("pr-instructions");
+    });
     return () => {
       if (typeof cancelDock === "function") cancelDock();
       if (typeof cancelUpdates === "function") cancelUpdates();
       if (typeof cancelSettings === "function") cancelSettings();
       if (typeof cancelCommitInstr === "function") cancelCommitInstr();
+      if (typeof cancelPRInstr === "function") cancelPRInstr();
     };
   }, []);
 
@@ -215,9 +220,10 @@ export default function App() {
               </button>
             )}
           </div>
-          {view === "settings" && <Settings onEditGlobalConfig={() => setView("global-config")} onEditCommitInstructions={() => setView("commit-instructions")} pendingUpdateCheck={pendingUpdateCheck} onConsumedUpdateCheck={() => setPendingUpdateCheck(false)} />}
+          {view === "settings" && <Settings onNavigate={setView} pendingUpdateCheck={pendingUpdateCheck} onConsumedUpdateCheck={() => setPendingUpdateCheck(false)} />}
           {view === "global-config" && <GlobalConfigEditor onBack={() => setView("settings")} />}
           {view === "commit-instructions" && <CommitInstructionsEditor onBack={() => setView("settings")} />}
+          {view === "pr-instructions" && <PRInstructionsEditor onBack={() => setView("settings")} />}
           {visitedProjects.map((project) => {
             const isSelected = view === "projects" && selected === project.name;
             return (
