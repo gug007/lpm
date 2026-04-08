@@ -19,10 +19,10 @@
   <strong>Start a project</strong> — one click, live terminal output for every service<br><br>
   <img src="docs/videos/start-project-1.5x.gif" alt="Starting a project in lpm desktop app" width="700">
   <br><br>
-  <a href="https://lpm.cx">Download lpm for macOS or Linux</a><br>
+  <a href="https://lpm.cx">Download lpm for macOS</a><br>
 </p>
 
-A lightweight local project manager for macOS and Linux. Define your project services in a simple YAML config, then start, stop, and switch between dev projects with a single command. Built for developers who juggle multiple services — Rails, Next.js, Go, Django, Docker Compose, and more.
+A lightweight local project manager for macOS. Define your project services in a simple YAML config, then start, stop, and switch between dev projects with a single command. Built for developers who juggle multiple services — Rails, Next.js, Go, Django, Docker Compose, and more.
 
 **Two ways to use it — CLI and desktop app.** Both have the same functionality, share the same config and state, and stay fully in sync. Start a project from the app, stop it from the terminal. Use whichever fits your workflow, or both.
 
@@ -47,7 +47,7 @@ curl -fsSL https://raw.githubusercontent.com/gug007/lpm/main/install.sh | bash
 
 **Desktop app:** download the `.dmg` from [Releases](https://github.com/gug007/lpm/releases/latest), open it, and drag to Applications.
 
-Supports macOS (Apple Silicon & Intel) and Linux (amd64 & arm64).
+Supports macOS (Apple Silicon & Intel).
 
 ## Quick start
 
