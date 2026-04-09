@@ -20,7 +20,7 @@ func checkForUpdatesClicked() {
 		ctx := dockApp.ctx
 		go func() {
 			wailsRuntime.WindowShow(ctx)
-			wailsRuntime.EventsEmit(ctx, "menu-check-for-updates")
+			dockApp.checkForUpdateAndEmit()
 		}()
 	}
 }

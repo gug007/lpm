@@ -25,7 +25,6 @@ export default function App() {
   const [view, setView] = useState<View>("projects");
   const isSettingsView = view !== "projects";
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [pendingUpdateCheck, setPendingUpdateCheck] = useState(false);
 
   const { projects, setProjects, refresh } = useProjectsRefresh();
   useWindowResizeSaver();
@@ -43,10 +42,6 @@ export default function App() {
       setSelected(name);
       setView("projects");
     });
-    const cancelUpdates = EventsOn("menu-check-for-updates", () => {
-      setView("settings");
-      setPendingUpdateCheck(true);
-    });
     const cancelSettings = EventsOn("menu-open-settings", () => {
       setView("settings");
     });
@@ -63,7 +58,6 @@ export default function App() {
     });
     return () => {
       if (typeof cancelDock === "function") cancelDock();
-      if (typeof cancelUpdates === "function") cancelUpdates();
       if (typeof cancelSettings === "function") cancelSettings();
       if (typeof cancelCommitInstr === "function") cancelCommitInstr();
       if (typeof cancelPRInstr === "function") cancelPRInstr();
@@ -227,7 +221,7 @@ export default function App() {
               </button>
             )}
           </div>
-          {view === "settings" && <Settings onNavigate={setView} pendingUpdateCheck={pendingUpdateCheck} onConsumedUpdateCheck={() => setPendingUpdateCheck(false)} />}
+          {view === "settings" && <Settings onNavigate={setView} />}
           {view === "global-config" && <GlobalConfigEditor onBack={() => setView("settings")} />}
           {view === "commit-instructions" && <CommitInstructionsEditor onBack={() => setView("settings")} />}
           {view === "pr-instructions" && <PRInstructionsEditor onBack={() => setView("settings")} />}

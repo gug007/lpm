@@ -53,22 +53,12 @@ func (a *App) GetVersion() string {
 	return Version
 }
 
-func (a *App) checkAndEmitUpdate() {
-	info, err := a.CheckForUpdate()
-	if err != nil {
-		return
-	}
-	if info.UpdateAvail {
-		runtime.EventsEmit(a.ctx, "update-available", info)
-	}
-}
-
 func (a *App) autoCheckForUpdate() {
 	if Version == "dev" {
 		return
 	}
 
-	a.checkAndEmitUpdate()
+	a.checkForUpdateAndEmit()
 
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
@@ -77,8 +67,18 @@ func (a *App) autoCheckForUpdate() {
 		case <-a.ctx.Done():
 			return
 		case <-ticker.C:
-			a.checkAndEmitUpdate()
+			a.checkForUpdateAndEmit()
 		}
+	}
+}
+
+func (a *App) checkForUpdateAndEmit() {
+	info, err := a.CheckForUpdate()
+	if err != nil {
+		return
+	}
+	if info.UpdateAvail {
+		runtime.EventsEmit(a.ctx, "update-available", info)
 	}
 }
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, useImperativeHandle } from "react";
 import { toast } from "sonner";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { GetServiceLogs, StartLogStreaming, StopLogStreaming, StartService, StopService, ClearDoneStatus, ClearWaitingStatus, ClearErrorStatus } from "../../wailsjs/go/main/App";
+import { GetServiceLogs, StartLogStreaming, StopLogStreaming, StartService, StopService, ClearStatus } from "../../wailsjs/go/main/App";
 import type { ITheme } from "@xterm/xterm";
 import { Pane, PaneHandle } from "./Pane";
 import { InteractivePane, InteractivePaneHandle } from "./InteractivePane";
@@ -134,8 +134,8 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
     const ti = terminalIndex(activePane);
     if (ti !== null && terminals[ti]) {
       const id = terminals[ti].id;
-      if (donePaneIDs?.has(id)) ClearDoneStatus(projectName, id);
-      if (errorPaneIDs?.has(id)) ClearErrorStatus(projectName, id);
+      if (donePaneIDs?.has(id)) ClearStatus(projectName, id, "Done");
+      if (errorPaneIDs?.has(id)) ClearStatus(projectName, id, "Error");
     }
   }, [visible, activePane, donePaneIDs, errorPaneIDs, terminals, projectName]);
 
@@ -392,9 +392,9 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
               waiting={waitingPaneIDs?.has(term.id)}
               error={activeTermIdx !== i && errorPaneIDs?.has(term.id)}
               onClick={() => {
-                if (donePaneIDs?.has(term.id)) ClearDoneStatus(projectName, term.id);
-                if (waitingPaneIDs?.has(term.id)) ClearWaitingStatus(projectName, term.id);
-                if (errorPaneIDs?.has(term.id)) ClearErrorStatus(projectName, term.id);
+                if (donePaneIDs?.has(term.id)) ClearStatus(projectName, term.id, "Done");
+                if (waitingPaneIDs?.has(term.id)) ClearStatus(projectName, term.id, "Waiting");
+                if (errorPaneIDs?.has(term.id)) ClearStatus(projectName, term.id, "Error");
                 setActivePane({ type: "terminal", index: i });
               }}
               onClose={() => closeTerminal(i)}
