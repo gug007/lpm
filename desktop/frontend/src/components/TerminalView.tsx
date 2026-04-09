@@ -125,6 +125,9 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
     renameTerminal,
   } = useTerminals(projectName, handleTerminalClosed, handleTerminalCreated);
 
+  const closeTerminalRef = useRef(closeTerminal);
+  closeTerminalRef.current = closeTerminal;
+
   useEffect(() => { onTerminalCountChange?.(terminals.length); }, [terminals.length, onTerminalCountChange]);
 
   // Auto-clear Done/Error when the user is actively viewing the terminal
@@ -337,6 +340,10 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
       if (mod && e.key === "f") { e.preventDefault(); toggleSearch(); }
       if (mod && (e.key === "=" || e.key === "+")) { e.preventDefault(); onZoomInRef.current(); }
       if (mod && e.key === "-") { e.preventDefault(); onZoomOutRef.current(); }
+      if (mod && e.key === "w") {
+        const ti = terminalIndex(activePaneRef.current);
+        if (ti !== null) { e.preventDefault(); closeTerminalRef.current(ti); }
+      }
       if (e.key === "Escape") {
         setFullscreen((fs) => { if (fs) { e.preventDefault(); return false; } return fs; });
         closeSearch();

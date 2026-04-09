@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { XIcon } from "../icons";
+import { Tooltip } from "../ui/Tooltip";
 
 export function HeaderTab({ label, active, onClick, onClose, onRename, shimmer, done, waiting, error }: {
   label: string;
@@ -56,12 +57,14 @@ export function HeaderTab({ label, active, onClick, onClose, onRename, shimmer, 
     >
       <span className={error ? "text-red-400" : waiting ? "sidebar-waiting" : shimmer ? "sidebar-shimmer" : ""} style={done && !shimmer && !waiting && !error ? { color: "var(--accent-blue)" } : undefined}>{label}</span>
       {onClose && (
-        <span
-          onClick={(e) => { e.stopPropagation(); onClose(); }}
-          className="ml-0.5 rounded p-0.5 opacity-60 hover:bg-[var(--terminal-header-hover)] hover:opacity-100"
-        >
-          <XIcon />
-        </span>
+        <Tooltip content="Close (Cmd+W)" side="bottom">
+          <span
+            onClick={(e) => { e.stopPropagation(); onClose(); }}
+            className="ml-0.5 rounded p-0.5 opacity-60 hover:bg-[var(--terminal-header-hover)] hover:opacity-100"
+          >
+            <XIcon />
+          </span>
+        </Tooltip>
       )}
     </button>
   );
