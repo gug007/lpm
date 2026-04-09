@@ -18,7 +18,7 @@ export function ConfigEditor({ projectName, onSaved, onBack }: ConfigEditorProps
   const onSavedRef = useRef(onSaved);
   onSavedRef.current = onSaved;
 
-  const [mode, setMode] = useState<"visual" | "yaml">("visual");
+  const [mode, setMode] = useState<"visual" | "yaml">("yaml");
 
   const load = useCallback(() => ReadConfig(projectName), [projectName]);
   const save = useCallback(
