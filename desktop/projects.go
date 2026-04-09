@@ -33,6 +33,15 @@ type ServiceInfo struct {
 	Port int    `json:"port"`
 }
 
+type ActionInputInfo struct {
+	Key         string `json:"key"`
+	Label       string `json:"label"`
+	Type        string `json:"type"`
+	Required    bool   `json:"required"`
+	Placeholder string `json:"placeholder"`
+	Default     string `json:"default"`
+}
+
 type ActionInfo struct {
 	Name    string            `json:"name"`
 	Label   string            `json:"label"`
@@ -42,6 +51,7 @@ type ActionInfo struct {
 	Confirm bool              `json:"confirm"`
 	Display string            `json:"display"`
 	Type    string            `json:"type"`
+	Inputs  []ActionInputInfo `json:"inputs,omitempty"`
 }
 
 type TerminalConfigInfo struct {
@@ -83,6 +93,35 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, activeP
 		if label == "" {
 			label = aName
 		}
+
+		var inputs []ActionInputInfo
+		if len(act.Inputs) > 0 {
+			inputKeys := make([]string, 0, len(act.Inputs))
+			for k := range act.Inputs {
+				inputKeys = append(inputKeys, k)
+			}
+			sort.Strings(inputKeys)
+			for _, k := range inputKeys {
+				inp := act.Inputs[k]
+				typ := inp.Type
+				if typ == "" {
+					typ = "text"
+				}
+				lbl := inp.Label
+				if lbl == "" {
+					lbl = k
+				}
+				inputs = append(inputs, ActionInputInfo{
+					Key:         k,
+					Label:       lbl,
+					Type:        typ,
+					Required:    inp.Required,
+					Placeholder: inp.Placeholder,
+					Default:     inp.Default,
+				})
+			}
+		}
+
 		actions = append(actions, ActionInfo{
 			Name:    aName,
 			Label:   label,
@@ -92,6 +131,7 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, activeP
 			Confirm: act.Confirm,
 			Display: act.Display,
 			Type:    act.Type,
+			Inputs:  inputs,
 		})
 	}
 

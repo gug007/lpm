@@ -15,6 +15,7 @@ import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { ActionTerminal } from "./project-detail/ActionTerminal";
+import { ActionInputsModal } from "./project-detail/ActionInputsModal";
 import { QuickPopover } from "./project-detail/QuickPopover";
 import { TerminalSettingsModal } from "./project-detail/TerminalSettingsModal";
 
@@ -98,8 +99,14 @@ export function ProjectDetail({
 
   const [runningAction, setRunningAction] = useState<ActionInfo | null>(null);
   const [confirmAction, setConfirmAction] = useState<ActionInfo | null>(null);
+  const [inputsAction, setInputsAction] = useState<ActionInfo | null>(null);
+  const [pendingInputValues, setPendingInputValues] = useState<Record<string, string> | null>(null);
 
   const handleRunAction = (action: ActionInfo) => {
+    if (action.inputs && action.inputs.length > 0) {
+      setInputsAction(action);
+      return;
+    }
     if (action.confirm) {
       setConfirmAction(action);
       return;
@@ -107,20 +114,37 @@ export function ProjectDetail({
     executeAction(action);
   };
 
-  const executeAction = async (action: ActionInfo) => {
+  const handleInputsSubmit = (values: Record<string, string>) => {
+    const action = inputsAction;
+    if (!action) return;
+    setInputsAction(null);
+    if (action.confirm) {
+      setPendingInputValues(values);
+      setConfirmAction(action);
+      return;
+    }
+    executeAction(action, values);
+  };
+
+  const executeAction = async (action: ActionInfo, inputValues: Record<string, string> = {}) => {
     setConfirmAction(null);
+    setPendingInputValues(null);
     if (action.type === "terminal") {
       switchDetailView("terminal");
       try {
+        let cmd = action.cmd;
+        for (const [k, v] of Object.entries(inputValues)) {
+          cmd = cmd.replaceAll(`{{${k}}}`, v);
+        }
         const opts = (action.cwd || action.env) ? { cwd: action.cwd, env: action.env } : undefined;
-        await terminalViewRef.current?.createTerminalWithCmd(action.label, action.cmd, opts);
+        await terminalViewRef.current?.createTerminalWithCmd(action.label, cmd, opts);
       } catch (err) {
         toast.error(`${action.label}: ${err}`);
       }
       return;
     }
     try {
-      await RunAction(project.name, action.name);
+      await RunAction(project.name, action.name, inputValues);
       setRunningAction(action);
     } catch (err) {
       toast.error(`${action.label}: ${err}`);
@@ -418,9 +442,17 @@ export function ProjectDetail({
           </>
         }
         confirmLabel="Run"
-        onCancel={() => setConfirmAction(null)}
-        onConfirm={() => confirmAction && executeAction(confirmAction)}
+        onCancel={() => { setConfirmAction(null); setPendingInputValues(null); }}
+        onConfirm={() => confirmAction && executeAction(confirmAction, pendingInputValues ?? undefined)}
       />
+
+      {inputsAction && (
+        <ActionInputsModal
+          action={inputsAction}
+          onCancel={() => setInputsAction(null)}
+          onSubmit={handleInputsSubmit}
+        />
+      )}
 
       {runningAction && (
         <ActionTerminal

@@ -25,7 +25,8 @@ func shellQuote(s string) string {
 }
 
 // RunAction starts an action and streams output via events. Returns immediately.
-func (a *App) RunAction(projectName string, actionName string) error {
+// inputValues supplies user-provided values for {{key}} placeholders defined in the action's inputs.
+func (a *App) RunAction(projectName string, actionName string, inputValues map[string]string) error {
 	cfg, err := config.LoadProject(projectName)
 	if err != nil {
 		return err
@@ -39,6 +40,13 @@ func (a *App) RunAction(projectName string, actionName string) error {
 	cwd := config.ResolveCwd(cfg.Root, action.Cwd)
 
 	cmdStr := action.Cmd
+	if len(inputValues) > 0 {
+		pairs := make([]string, 0, len(inputValues)*2)
+		for k, v := range inputValues {
+			pairs = append(pairs, "{{"+k+"}}", v)
+		}
+		cmdStr = strings.NewReplacer(pairs...).Replace(cmdStr)
+	}
 	if len(action.Env) > 0 {
 		var parts []string
 		for k, v := range action.Env {
