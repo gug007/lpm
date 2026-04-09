@@ -389,7 +389,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
               active={activeTermIdx === i}
               shimmer={runningPaneIDs?.has(term.id)}
               done={activeTermIdx !== i && donePaneIDs?.has(term.id)}
-              waiting={activeTermIdx !== i && waitingPaneIDs?.has(term.id)}
+              waiting={waitingPaneIDs?.has(term.id)}
               error={activeTermIdx !== i && errorPaneIDs?.has(term.id)}
               onClick={() => {
                 if (donePaneIDs?.has(term.id)) ClearDoneStatus(projectName, term.id);
