@@ -281,7 +281,7 @@ export function ProjectDetail({
               />
             )}
           </div>
-          {project.running ? (
+          {project.services.length === 0 ? null : project.running ? (
             <div style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
               <ActionButton
                 onClick={() =>

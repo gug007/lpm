@@ -303,10 +303,6 @@ func LoadProject(name string) (*ProjectConfig, error) {
 func (p *ProjectConfig) Validate() error {
 	var errs []string
 
-	if len(p.Services) == 0 {
-		errs = append(errs, "no services defined")
-	}
-
 	ports := map[int]string{}
 	for name, svc := range p.Services {
 		if strings.TrimSpace(svc.Cmd) == "" {
