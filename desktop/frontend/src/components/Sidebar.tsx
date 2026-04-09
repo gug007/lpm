@@ -3,7 +3,7 @@ import { StatusDot } from "./StatusDot";
 import { getSettings } from "../settings";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { InstallUpdate } from "../../wailsjs/go/main/App";
-import { type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING } from "../types";
+import { type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
 import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon } from "./icons";
 import { ProgressBar } from "./ui/ProgressBar";
 import { useDragReorder } from "../hooks/useDragReorder";
@@ -101,6 +101,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           const isRunning = hasStatus(project, STATUS_RUNNING);
           const isDone = hasStatus(project, STATUS_DONE);
           const isWaiting = hasStatus(project, STATUS_WAITING);
+          const isError = hasStatus(project, STATUS_ERROR);
 
           return (
             <div key={project.name} className="relative">
@@ -133,13 +134,16 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                   style={project.configError ? MUTED_STYLE : isDone ? DONE_STYLE : undefined}
                   title={project.configError || undefined}
                 >
-                  {isWaiting ? (
+                  {isError ? (
+                    <span className="text-red-400">{project.name}</span>
+                  ) : isWaiting ? (
                     <span className="sidebar-waiting">{project.name}</span>
                   ) : isRunning ? (
                     <span className="sidebar-shimmer">{project.name}</span>
                   ) : project.name}
                 </span>
-                {isDone && !isWaiting && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
+                {isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
+                {isDone && !isWaiting && !isError && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
               </button>
               {showDropBelow(idx) && (
                 <div className="absolute inset-x-3 bottom-0 h-px bg-[var(--accent-cyan)]" />

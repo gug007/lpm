@@ -109,7 +109,7 @@ func (s *SocketServer) handleClient(conn net.Conn) {
 // processCommand parses and executes a single command line, returning the
 // response string.
 func (s *SocketServer) processCommand(line string) string {
-	parts := strings.Fields(line)
+	parts := shellSplit(line)
 	if len(parts) == 0 {
 		return "ERROR: empty command"
 	}
@@ -171,7 +171,7 @@ func (s *SocketServer) cmdSetStatus(args []string) string {
 	changed := s.app.statusStore.Set(project, entry)
 	if changed {
 		wailsRuntime.EventsEmit(s.app.ctx, "status-changed", project)
-		if (value == "Done" || value == "Waiting") && s.app.LoadSettings().SoundNotifications {
+		if (value == StatusDone || value == StatusWaiting || value == StatusError) && s.app.LoadSettings().SoundNotifications {
 			wailsRuntime.EventsEmit(s.app.ctx, "play-sound", value)
 		}
 	}
@@ -209,6 +209,33 @@ func (s *SocketServer) cmdListStatus(args []string) string {
 		return fmt.Sprintf("ERROR: %v", err)
 	}
 	return string(data)
+}
+
+// shellSplit splits a string into tokens, respecting single and double quotes.
+func shellSplit(s string) []string {
+	var parts []string
+	var current strings.Builder
+	inSingle, inDouble := false, false
+
+	for _, r := range s {
+		switch {
+		case r == '\'' && !inDouble:
+			inSingle = !inSingle
+		case r == '"' && !inSingle:
+			inDouble = !inDouble
+		case r == ' ' && !inSingle && !inDouble:
+			if current.Len() > 0 {
+				parts = append(parts, current.String())
+				current.Reset()
+			}
+		default:
+			current.WriteRune(r)
+		}
+	}
+	if current.Len() > 0 {
+		parts = append(parts, current.String())
+	}
+	return parts
 }
 
 // parseOptions separates positional arguments from --key=value or --key value

@@ -7,10 +7,10 @@ function getAudioCtx(): AudioContext {
   return audioCtx;
 }
 
-function playTone(frequency: number, duration: number) {
+async function playTone(frequency: number, duration: number) {
   if (!getSettings().soundNotifications) return;
   const ctx = getAudioCtx();
-  if (ctx.state === "suspended") ctx.resume();
+  if (ctx.state === "suspended") await ctx.resume();
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.frequency.value = frequency;
@@ -30,4 +30,9 @@ export function playDoneSound() {
 export function playWaitingSound() {
   playTone(660, 0.12);
   setTimeout(() => playTone(660, 0.12), 200);
+}
+
+export function playErrorSound() {
+  playTone(440, 0.15);
+  setTimeout(() => playTone(330, 0.25), 150);
 }

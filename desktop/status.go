@@ -12,6 +12,7 @@ const (
 	StatusRunning = "Running"
 	StatusDone    = "Done"
 	StatusWaiting = "Waiting"
+	StatusError   = "Error"
 )
 
 type StatusEntry struct {

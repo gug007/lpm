@@ -121,10 +121,11 @@ func (a *App) installClaudeCodeHooks() {
 		return
 	}
 
-	setRunning := sendCmd(`set_status $LPM_PROJECT_NAME claude_code Running --icon=bolt --color=#4C8DFF --pane=$LPM_PANE_ID`)
-	setDone := sendCmd(`set_status $LPM_PROJECT_NAME claude_code Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID`)
-	setWaiting := sendCmd(`set_status $LPM_PROJECT_NAME claude_code Waiting --icon=bell --color=#f59e0b --pane=$LPM_PANE_ID`)
-	clearStatus := sendCmd(`clear_status $LPM_PROJECT_NAME claude_code`)
+	setRunning := sendCmd(`set_status '$LPM_PROJECT_NAME' claude_code Running --icon=bolt --color=#4C8DFF --pane=$LPM_PANE_ID`)
+	setDone := sendCmd(`set_status '$LPM_PROJECT_NAME' claude_code Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID`)
+	setError := sendCmd(`set_status '$LPM_PROJECT_NAME' claude_code Error --icon=warning --color=#ef4444 --pane=$LPM_PANE_ID`)
+	setWaiting := sendCmd(`set_status '$LPM_PROJECT_NAME' claude_code Waiting --icon=bell --color=#f59e0b --pane=$LPM_PANE_ID`)
+	clearStatus := sendCmd(`clear_status '$LPM_PROJECT_NAME' claude_code`)
 
 	hook := func(cmd, matcher string) map[string]any {
 		return map[string]any{
@@ -139,7 +140,7 @@ func (a *App) installClaudeCodeHooks() {
 	appendHook(hooks, "PreToolUse", hook(setRunning, ""))
 	appendHook(hooks, "Notification", hook(setWaiting, "permission_prompt"))
 	appendHook(hooks, "Stop", hook(setDone, ""))
-	appendHook(hooks, "StopFailure", hook(setDone, ""))
+	appendHook(hooks, "StopFailure", hook(setError, ""))
 	appendHook(hooks, "SessionEnd", hook(clearStatus, ""))
 
 	out, err := json.MarshalIndent(settings, "", "  ")
@@ -172,8 +173,8 @@ func (a *App) installCodexHooks() {
 	a.enableCodexHooksFeature(configPath)
 
 	// Build hooks.json
-	setRunning := sendCmd(`set_status $LPM_PROJECT_NAME codex Running --icon=sparkle --color=#10A37F --pane=$LPM_PANE_ID`)
-	setDone := sendCmd(`set_status $LPM_PROJECT_NAME codex Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID`)
+	setRunning := sendCmd(`set_status '$LPM_PROJECT_NAME' codex Running --icon=sparkle --color=#10A37F --pane=$LPM_PANE_ID`)
+	setDone := sendCmd(`set_status '$LPM_PROJECT_NAME' codex Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID`)
 
 	hook := func(cmd string) []any {
 		return []any{

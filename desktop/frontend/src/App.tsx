@@ -12,7 +12,7 @@ import { SidebarIcon } from "./components/icons";
 import { useProjectsRefresh } from "./hooks/useProjectsRefresh";
 import { useWindowResizeSaver } from "./hooks/useWindowResizeSaver";
 import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
-import { playDoneSound, playWaitingSound } from "./sounds";
+import { playDoneSound, playWaitingSound, playErrorSound } from "./sounds";
 
 import { StartProject, StopProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects, TmuxInstalled, InstallTmux } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
@@ -59,6 +59,7 @@ export default function App() {
     const cancelSound = EventsOn("play-sound", (kind: string) => {
       if (kind === "Done") playDoneSound();
       else if (kind === "Waiting") playWaitingSound();
+      else if (kind === "Error") playErrorSound();
     });
     return () => {
       if (typeof cancelDock === "function") cancelDock();
