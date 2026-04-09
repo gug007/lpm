@@ -225,7 +225,6 @@ export function PRModal({
         base,
       );
       setPrURL(url);
-      toast.success("Pull request created");
       onCreated();
     } catch (err) {
       toast.error(`Create PR failed: ${err}`);
@@ -267,15 +266,35 @@ export function PRModal({
         )}
 
         {prURL ? (
-          <div className="flex flex-col gap-3 py-4 text-center">
-            <div className="text-sm font-medium text-[var(--text-primary)]">
-              Pull request created!
+          <div className="flex flex-col items-center gap-4 py-8">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--accent-green)]/10">
+              <svg
+                width={24}
+                height={24}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="var(--accent-green)"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="pr-check-animate"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-sm font-medium text-[var(--text-primary)]">
+                Pull request created
+              </span>
+              <span className="text-[11px] text-[var(--text-muted)]">
+                {currentBranch} &rarr; {base}
+              </span>
             </div>
             <button
               onClick={() => BrowserOpenURL(prURL)}
-              className="text-xs text-[var(--accent-blue)] underline underline-offset-2 hover:opacity-80"
+              className="rounded-lg bg-[var(--text-primary)] px-4 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-90"
             >
-              {prURL}
+              Open on GitHub
             </button>
           </div>
         ) : (
