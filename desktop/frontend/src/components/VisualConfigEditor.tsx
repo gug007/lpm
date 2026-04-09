@@ -13,6 +13,15 @@ interface ServiceEntry {
   env: [string, string][];
 }
 
+interface ActionInputEntry {
+  key: string;
+  label: string;
+  type: string;
+  required: boolean;
+  placeholder: string;
+  default: string;
+}
+
 interface ActionEntry {
   key: string;
   cmd: string;
@@ -22,6 +31,7 @@ interface ActionEntry {
   confirm: boolean;
   display: string;
   type: string;
+  inputs: ActionInputEntry[];
 }
 
 interface TerminalEntry {
@@ -73,12 +83,24 @@ function parseYaml(yaml: string): ConfigForm {
     actions: Object.entries((raw.actions as Record<string, unknown>) || {}).map(([key, v]) => {
       const base = parseEntry(key, v);
       const obj = typeof v === "string" ? {} : (v as Record<string, unknown>);
+      const rawInputs = (obj.inputs as Record<string, unknown>) || {};
       return {
         ...base,
         label: String(obj.label || ""),
         confirm: Boolean(obj.confirm),
         display: String(obj.display || ""),
         type: String(obj.type || ""),
+        inputs: Object.entries(rawInputs).map(([k, inp]) => {
+          const o = (inp as Record<string, unknown>) || {};
+          return {
+            key: k,
+            label: String(o.label || ""),
+            type: String(o.type || "text"),
+            required: Boolean(o.required),
+            placeholder: String(o.placeholder || ""),
+            default: String(o.default || ""),
+          };
+        }),
       };
     }),
     terminals: Object.entries((raw.terminals as Record<string, unknown>) || {}).map(([key, v]) => {
@@ -120,7 +142,21 @@ function serializeToYaml(form: ConfigForm): string {
     const acts: Record<string, unknown> = {};
     for (const a of form.actions) {
       if (!a.key) continue;
-      acts[a.key] = serializeEntry(a, { label: a.label, confirm: a.confirm || undefined, display: a.display, type: a.type });
+      let inputsObj: Record<string, unknown> | undefined;
+      if (a.inputs.length > 0) {
+        inputsObj = {};
+        for (const inp of a.inputs) {
+          if (!inp.key) continue;
+          const o: Record<string, unknown> = {};
+          if (inp.label) o.label = inp.label;
+          if (inp.type && inp.type !== "text") o.type = inp.type;
+          if (inp.required) o.required = true;
+          if (inp.placeholder) o.placeholder = inp.placeholder;
+          if (inp.default) o.default = inp.default;
+          inputsObj[inp.key] = o;
+        }
+      }
+      acts[a.key] = serializeEntry(a, { label: a.label, confirm: a.confirm || undefined, display: a.display, type: a.type, inputs: inputsObj });
     }
     doc.actions = acts;
   }
@@ -256,6 +292,104 @@ function EnvEditor({ entries, onChange }: { entries: [string, string][]; onChang
   );
 }
 
+function InputsEditor({ entries, onChange }: { entries: ActionInputEntry[]; onChange: (v: ActionInputEntry[]) => void }) {
+  return (
+    <Field label="Input prompts">
+      <div className="flex flex-col gap-3">
+        {entries.map((inp, i) => (
+          <div key={i} className="flex flex-col gap-2 rounded-md bg-[var(--bg-primary)] p-2.5">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={inp.key}
+                onChange={(e) => {
+                  const next = [...entries];
+                  next[i] = { ...inp, key: e.target.value };
+                  onChange(next);
+                }}
+                placeholder="key"
+                className="w-1/3 border-b border-[var(--border)] bg-transparent px-0.5 pb-1 font-mono text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)]"
+              />
+              <input
+                type="text"
+                value={inp.label}
+                onChange={(e) => {
+                  const next = [...entries];
+                  next[i] = { ...inp, label: e.target.value };
+                  onChange(next);
+                }}
+                placeholder="Label"
+                className="flex-1 border-b border-[var(--border)] bg-transparent px-0.5 pb-1 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)]"
+              />
+              <button
+                onClick={() => onChange(entries.filter((_, j) => j !== i))}
+                className="shrink-0 pb-1 text-[var(--text-muted)] transition-colors hover:text-[var(--accent-red)]"
+              >
+                <TrashIcon />
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                value={inp.type}
+                onChange={(e) => {
+                  const next = [...entries];
+                  next[i] = { ...inp, type: e.target.value };
+                  onChange(next);
+                }}
+                className="w-1/4 border-b border-[var(--border)] bg-transparent px-0.5 pb-1 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--text-secondary)]"
+              >
+                <option value="text">text</option>
+                <option value="password">password</option>
+              </select>
+              <input
+                type="text"
+                value={inp.placeholder}
+                onChange={(e) => {
+                  const next = [...entries];
+                  next[i] = { ...inp, placeholder: e.target.value };
+                  onChange(next);
+                }}
+                placeholder="Placeholder"
+                className="flex-1 border-b border-[var(--border)] bg-transparent px-0.5 pb-1 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)]"
+              />
+              <input
+                type="text"
+                value={inp.default}
+                onChange={(e) => {
+                  const next = [...entries];
+                  next[i] = { ...inp, default: e.target.value };
+                  onChange(next);
+                }}
+                placeholder="Default"
+                className="flex-1 border-b border-[var(--border)] bg-transparent px-0.5 pb-1 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)]"
+              />
+              <label className="flex items-center gap-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={inp.required}
+                  onChange={(e) => {
+                    const next = [...entries];
+                    next[i] = { ...inp, required: e.target.checked };
+                    onChange(next);
+                  }}
+                  className="accent-[var(--accent-blue)]"
+                />
+                <span className="text-[11px] text-[var(--text-muted)]">Req</span>
+              </label>
+            </div>
+          </div>
+        ))}
+        <button
+          onClick={() => onChange([...entries, { key: "", label: "", type: "text", required: false, placeholder: "", default: "" }])}
+          className="self-start text-[12px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
+        >
+          + Add input
+        </button>
+      </div>
+    </Field>
+  );
+}
+
 function CardHeader({
   label,
   subtitle,
@@ -341,7 +475,7 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
       update({ services: [...form.services, { key, cmd: "", cwd: "", port: "", env: [] }] });
     } else if (type === "action") {
       const key = uniqueKey("new-action", form.actions.map((a) => a.key));
-      update({ actions: [...form.actions, { key, cmd: "", label: "", cwd: "", env: [], confirm: false, display: "", type: "" }] });
+      update({ actions: [...form.actions, { key, cmd: "", label: "", cwd: "", env: [], confirm: false, display: "", type: "", inputs: [] }] });
     } else if (type === "terminal") {
       const key = uniqueKey("new-terminal", form.terminals.map((t) => t.key));
       update({ terminals: [...form.terminals, { key, cmd: "", label: "", cwd: "", env: [], display: "" }] });
@@ -454,6 +588,10 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
                     </div>
                     <Toggle checked={act.confirm} onChange={(v) => updateAction(i, { confirm: v })} label="Require confirmation" />
                     <EnvEditor entries={act.env} onChange={(v) => updateAction(i, { env: v })} />
+                    <InputsEditor
+                      entries={act.inputs}
+                      onChange={(v) => updateAction(i, { inputs: v })}
+                    />
                   </div>
                 )}
               </Card>

@@ -7,6 +7,15 @@ export interface ServiceInfo {
 
 export type ActionType = "terminal" | (string & {});
 
+export interface ActionInputInfo {
+  key: string;
+  label: string;
+  type: string;
+  required: boolean;
+  placeholder: string;
+  default: string;
+}
+
 export interface ActionInfo {
   name: string;
   label: string;
@@ -16,6 +25,7 @@ export interface ActionInfo {
   confirm: boolean;
   display: string;
   type?: ActionType;
+  inputs?: ActionInputInfo[];
 }
 
 export interface TerminalConfigInfo {

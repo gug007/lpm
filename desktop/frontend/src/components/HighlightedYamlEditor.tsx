@@ -38,12 +38,12 @@ export function HighlightedYamlEditor({ value, onChange, onKeyDown }: Highlighte
   }, []);
 
   return (
-    <div className="relative h-full w-full overflow-hidden">
+    <div className="relative h-full w-full">
       <pre
         ref={preRef}
         aria-hidden
-        className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre px-6 py-4 font-mono text-sm leading-relaxed"
-        style={{ tabSize: 2 }}
+        className="pointer-events-none absolute inset-0 overflow-auto whitespace-pre px-6 py-4 font-mono text-sm leading-relaxed"
+        style={{ tabSize: 2, scrollbarWidth: "none" }}
       >
         {tokens
           ? tokens.map((line, i) => (
@@ -64,7 +64,8 @@ export function HighlightedYamlEditor({ value, onChange, onKeyDown }: Highlighte
         onKeyDown={onKeyDown}
         onScroll={syncScroll}
         spellCheck={false}
-        className="absolute inset-0 h-full w-full resize-none bg-transparent px-6 py-4 font-mono text-sm leading-relaxed text-transparent caret-[var(--text-primary)] outline-none selection:bg-[var(--terminal-selection)]"
+        wrap="off"
+        className="absolute inset-0 h-full w-full resize-none overflow-auto whitespace-pre bg-transparent px-6 py-4 font-mono text-sm leading-relaxed text-transparent caret-[var(--text-primary)] outline-none selection:bg-[var(--terminal-selection)]"
         style={{ tabSize: 2, caretColor: "var(--text-primary)" }}
       />
     </div>

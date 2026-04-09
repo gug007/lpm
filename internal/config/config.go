@@ -38,14 +38,23 @@ func (s *Service) UnmarshalYAML(value *yaml.Node) error {
 	return value.Decode((*plain)(s))
 }
 
+type ActionInput struct {
+	Label       string `yaml:"label,omitempty"`
+	Type        string `yaml:"type,omitempty"`
+	Required    bool   `yaml:"required,omitempty"`
+	Placeholder string `yaml:"placeholder,omitempty"`
+	Default     string `yaml:"default,omitempty"`
+}
+
 type Action struct {
-	Cmd     string            `yaml:"cmd"`
-	Label   string            `yaml:"label,omitempty"`
-	Cwd     string            `yaml:"cwd,omitempty"`
-	Env     map[string]string `yaml:"env,omitempty"`
-	Confirm bool              `yaml:"confirm,omitempty"`
-	Display string            `yaml:"display,omitempty"`
-	Type    string            `yaml:"type,omitempty"`
+	Cmd     string                 `yaml:"cmd"`
+	Label   string                 `yaml:"label,omitempty"`
+	Cwd     string                 `yaml:"cwd,omitempty"`
+	Env     map[string]string      `yaml:"env,omitempty"`
+	Confirm bool                   `yaml:"confirm,omitempty"`
+	Display string                 `yaml:"display,omitempty"`
+	Type    string                 `yaml:"type,omitempty"`
+	Inputs  map[string]ActionInput `yaml:"inputs,omitempty"`
 }
 
 func (a *Action) UnmarshalYAML(value *yaml.Node) error {
