@@ -114,7 +114,7 @@ func (a *App) SyncBranch(cwd string) error {
 	if _, err := runGit(cwd, "pull", "--ff-only"); err != nil {
 		return err
 	}
-	_, err := runGit(cwd, "push", "-u")
+	_, err := runGit(cwd, "push")
 	return err
 }
 
@@ -249,7 +249,7 @@ func (a *App) GitCommit(cwd, message string, files []string) error {
 // GitPush pushes the current branch to its upstream remote,
 // automatically setting the upstream if this is the first push.
 func (a *App) GitPush(cwd string) error {
-	_, err := runGit(cwd, "push", "-u")
+	_, err := runGit(cwd, "push", "-u", "origin", "HEAD")
 	return err
 }
 
