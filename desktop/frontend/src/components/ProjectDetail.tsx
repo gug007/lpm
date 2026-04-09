@@ -13,6 +13,7 @@ import { type ProjectInfo, type ActionInfo, type TerminalConfigInfo, STATUS_RUNN
 import { TerminalIcon, CheckIcon, ChevronDownIcon, PencilIcon, MenuIcon, AlertCircleIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { useOutsideClick } from "../hooks/useOutsideClick";
+import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { ActionTerminal } from "./project-detail/ActionTerminal";
 import { QuickPopover } from "./project-detail/QuickPopover";
 import { TerminalSettingsModal } from "./project-detail/TerminalSettingsModal";
@@ -138,6 +139,12 @@ export function ProjectDetail({
     return saved?.length ?? 0;
   });
   const showEmptyState = !project.running && detailView === "terminal" && terminalCount === 0;
+
+  useKeyboardShortcut(
+    { key: "e", meta: true },
+    () => switchDetailView(detailView === "terminal" ? "config" : "terminal"),
+    visible,
+  );
 
   const switchDetailView = (view: "terminal" | "config") => {
     setDetailView(view);

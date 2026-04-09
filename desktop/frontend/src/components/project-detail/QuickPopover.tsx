@@ -106,7 +106,7 @@ export function QuickPopover({
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
       >
         <span className="flex-1 truncate">Edit Config</span>
-        <PencilIcon />
+        <kbd className="ml-auto text-[10px] text-[var(--text-muted)]">⌘E</kbd>
       </button>
       <button
         onClick={handleTerminalSettings}
