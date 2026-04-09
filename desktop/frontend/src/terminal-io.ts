@@ -12,6 +12,12 @@ const encoder = new TextEncoder();
 const HEX_TABLE: string[] = new Array(256);
 for (let i = 0; i < 256; i++) HEX_TABLE[i] = i.toString(16).padStart(2, "0");
 
+export function shellQuote(s: string): string {
+  return /[^a-zA-Z0-9_./:~-]/.test(s)
+    ? "'" + s.replace(/'/g, "'\\''") + "'"
+    : s;
+}
+
 export function sendTerminalInput(id: string, data: string): Promise<void> {
   for (let i = 0; i < data.length; i++) {
     if (data.charCodeAt(i) > 0x7f) {

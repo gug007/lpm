@@ -15,7 +15,7 @@ import {
   ReadClipboardFiles,
   SaveClipboardImage,
 } from "../../wailsjs/go/main/App";
-import { sendTerminalInput } from "../terminal-io";
+import { sendTerminalInput, shellQuote } from "../terminal-io";
 import { getTerminalTheme } from "./terminal-utils";
 import "@xterm/xterm/css/xterm.css";
 
@@ -58,10 +58,7 @@ function initFileDrop() {
       }
     }
     if (!id) return;
-    const quoted = paths.map((p) =>
-      /[^a-zA-Z0-9_./:~-]/.test(p) ? "'" + p.replace(/'/g, "'\\''") + "'" : p,
-    );
-    sendTerminalInput(id, quoted.join(" ")).catch(() => {});
+    sendTerminalInput(id, paths.map(shellQuote).join(" ")).catch(() => {});
   }, false);
 }
 
@@ -256,11 +253,35 @@ export function InteractivePane({
     });
 
 
-    // Paste handler for files and images from clipboard.
-    // Files (from Finder): reads paths via Go/macOS pasteboard, pastes them.
-    // Images (screenshots): saves to a temp file, pastes the path.
-    // Text: left to xterm.js's built-in handler.
-    // Must attach to term.textarea — that's where xterm.js focuses and receives paste events.
+    const saveImageBlob = (blob: File, mimeType: string) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        const b64 = dataUrl.split(",")[1];
+        if (!b64) return;
+        SaveClipboardImage(b64, mimeType)
+          .then((filePath) => {
+            sendTerminalInput(terminalId, shellQuote(filePath));
+          })
+          .catch((err) => console.warn("SaveClipboardImage failed:", err));
+      };
+      reader.readAsDataURL(blob);
+    };
+
+    // Must be called during the paste event — items are invalidated after.
+    const extractImageBlob = (
+      items: DataTransferItemList,
+    ): { blob: File; mimeType: string } | null => {
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          const blob = item.getAsFile();
+          if (blob) return { blob, mimeType: item.type };
+        }
+      }
+      return null;
+    };
+
+    // Attached to term.textarea — that's where xterm.js focuses and receives paste events.
     const handlePaste = (e: ClipboardEvent) => {
       if (!e.clipboardData) return;
 
@@ -268,54 +289,37 @@ export function InteractivePane({
         e.clipboardData.types.includes("Files") ||
         e.clipboardData.files.length > 0;
 
-      // Files copied from Finder — read real paths from macOS pasteboard
+      // Web-copied images also set "Files" but have no file URLs, so fall
+      // through to the image-save path when ReadClipboardFiles returns nothing.
       if (hasFiles) {
         e.preventDefault();
         e.stopImmediatePropagation();
         const textFallback = e.clipboardData.getData("text/plain");
+        // Capture blob synchronously — clipboardData.items is invalidated
+        // after the event handler returns.
+        const imageData = extractImageBlob(e.clipboardData.items);
+        const fallback = () => {
+          if (imageData) saveImageBlob(imageData.blob, imageData.mimeType);
+          else if (textFallback) sendTerminalInput(terminalId, textFallback);
+        };
         ReadClipboardFiles()
           .then((paths) => {
             if (paths && paths.length > 0) {
-              const quoted = paths.map((p) =>
-                /[^a-zA-Z0-9_./:~-]/.test(p)
-                  ? "'" + p.replace(/'/g, "'\\''") + "'"
-                  : p,
-              );
-              sendTerminalInput(terminalId, quoted.join(" "));
-            } else if (textFallback) {
-              sendTerminalInput(terminalId, textFallback);
+              sendTerminalInput(terminalId, paths.map(shellQuote).join(" "));
+            } else {
+              fallback();
             }
           })
-          .catch(() => {
-            if (textFallback) sendTerminalInput(terminalId, textFallback);
-          });
+          .catch(fallback);
         return;
       }
 
-      // Image data (screenshots) — save to temp file, paste path
-      for (const item of e.clipboardData.items) {
-        if (item.type.startsWith("image/")) {
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          const blob = item.getAsFile();
-          if (!blob) return;
-          const reader = new FileReader();
-          reader.onload = () => {
-            const dataUrl = reader.result as string;
-            const b64 = dataUrl.split(",")[1];
-            if (!b64) return;
-            SaveClipboardImage(b64, item.type)
-              .then((filePath) => {
-                const quoted = /[^a-zA-Z0-9_./:~-]/.test(filePath)
-                  ? "'" + filePath.replace(/'/g, "'\\''") + "'"
-                  : filePath;
-                sendTerminalInput(terminalId, quoted);
-              })
-              .catch(() => {});
-          };
-          reader.readAsDataURL(blob);
-          return;
-        }
+      const imgData = extractImageBlob(e.clipboardData.items);
+      if (imgData) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        saveImageBlob(imgData.blob, imgData.mimeType);
+        return;
       }
       // No files or images — let the event propagate so xterm.js handles text paste
     };
