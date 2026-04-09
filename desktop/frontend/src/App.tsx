@@ -12,6 +12,7 @@ import { SidebarIcon } from "./components/icons";
 import { useProjectsRefresh } from "./hooks/useProjectsRefresh";
 import { useWindowResizeSaver } from "./hooks/useWindowResizeSaver";
 import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
+import { playDoneSound, playWaitingSound } from "./sounds";
 
 import { StartProject, StopProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects, TmuxInstalled, InstallTmux } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
@@ -55,12 +56,17 @@ export default function App() {
     const cancelPRInstr = EventsOn("navigate-pr-instructions", () => {
       setView("pr-instructions");
     });
+    const cancelSound = EventsOn("play-sound", (kind: string) => {
+      if (kind === "Done") playDoneSound();
+      else if (kind === "Waiting") playWaitingSound();
+    });
     return () => {
       if (typeof cancelDock === "function") cancelDock();
       if (typeof cancelUpdates === "function") cancelUpdates();
       if (typeof cancelSettings === "function") cancelSettings();
       if (typeof cancelCommitInstr === "function") cancelCommitInstr();
       if (typeof cancelPRInstr === "function") cancelPRInstr();
+      if (typeof cancelSound === "function") cancelSound();
     };
   }, []);
 

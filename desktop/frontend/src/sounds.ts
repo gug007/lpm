@@ -10,6 +10,7 @@ function getAudioCtx(): AudioContext {
 function playTone(frequency: number, duration: number) {
   if (!getSettings().soundNotifications) return;
   const ctx = getAudioCtx();
+  if (ctx.state === "suspended") ctx.resume();
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.frequency.value = frequency;

@@ -171,6 +171,9 @@ func (s *SocketServer) cmdSetStatus(args []string) string {
 	changed := s.app.statusStore.Set(project, entry)
 	if changed {
 		wailsRuntime.EventsEmit(s.app.ctx, "status-changed", project)
+		if (value == "Done" || value == "Waiting") && s.app.LoadSettings().SoundNotifications {
+			wailsRuntime.EventsEmit(s.app.ctx, "play-sound", value)
+		}
 	}
 	return "OK"
 }
