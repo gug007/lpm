@@ -1,7 +1,5 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useMemo } from "react";
 import YAML from "yaml";
-import { ReadConfig, SaveConfig } from "../../wailsjs/go/main/App";
-import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { AddNewPicker, type NewItemType } from "./AddNewPicker";
 import { PlusIcon, TrashIcon, ChevronDownIcon, ChevronRightIcon } from "./icons";
 
@@ -49,7 +47,18 @@ interface ConfigForm {
   profiles: ProfileEntry[];
 }
 
-// ── parse / serialize ──
+// ── parse / serialize helpers ──
+
+function parseEntry(key: string, v: unknown): { key: string; cmd: string; cwd: string; env: [string, string][] } {
+  const isStr = typeof v === "string";
+  const obj = isStr ? {} : (v as Record<string, unknown>);
+  return {
+    key,
+    cmd: isStr ? (v as string) : String(obj.cmd || ""),
+    cwd: String(obj.cwd || ""),
+    env: Object.entries((obj.env as Record<string, string>) || {}),
+  };
+}
 
 function parseYaml(yaml: string): ConfigForm {
   const raw = YAML.parse(yaml) || {};
@@ -57,47 +66,40 @@ function parseYaml(yaml: string): ConfigForm {
     name: raw.name || "",
     root: raw.root || "",
     services: Object.entries((raw.services as Record<string, unknown>) || {}).map(([key, v]) => {
-      const isStr = typeof v === "string";
-      const obj = isStr ? {} : (v as Record<string, unknown>);
-      return {
-        key,
-        cmd: isStr ? (v as string) : String(obj.cmd || ""),
-        cwd: String(obj.cwd || ""),
-        port: obj.port ? String(obj.port) : "",
-        env: Object.entries((obj.env as Record<string, string>) || {}),
-      };
+      const base = parseEntry(key, v);
+      const obj = typeof v === "string" ? {} : (v as Record<string, unknown>);
+      return { ...base, port: obj.port ? String(obj.port) : "" };
     }),
     actions: Object.entries((raw.actions as Record<string, unknown>) || {}).map(([key, v]) => {
-      const isStr = typeof v === "string";
-      const obj = isStr ? {} : (v as Record<string, unknown>);
+      const base = parseEntry(key, v);
+      const obj = typeof v === "string" ? {} : (v as Record<string, unknown>);
       return {
-        key,
-        cmd: isStr ? (v as string) : String(obj.cmd || ""),
+        ...base,
         label: String(obj.label || ""),
-        cwd: String(obj.cwd || ""),
-        env: Object.entries((obj.env as Record<string, string>) || {}),
         confirm: Boolean(obj.confirm),
         display: String(obj.display || ""),
         type: String(obj.type || ""),
       };
     }),
     terminals: Object.entries((raw.terminals as Record<string, unknown>) || {}).map(([key, v]) => {
-      const isStr = typeof v === "string";
-      const obj = isStr ? {} : (v as Record<string, unknown>);
-      return {
-        key,
-        cmd: isStr ? (v as string) : String(obj.cmd || ""),
-        label: String(obj.label || ""),
-        cwd: String(obj.cwd || ""),
-        env: Object.entries((obj.env as Record<string, string>) || {}),
-        display: String(obj.display || ""),
-      };
+      const base = parseEntry(key, v);
+      const obj = typeof v === "string" ? {} : (v as Record<string, unknown>);
+      return { ...base, label: String(obj.label || ""), display: String(obj.display || "") };
     }),
     profiles: Object.entries((raw.profiles as Record<string, string[]>) || {}).map(([key, v]) => ({
       key,
       services: Array.isArray(v) ? v : [],
     })),
   };
+}
+
+function serializeEntry(entry: { cmd: string; cwd: string; env: [string, string][] }, extras: Record<string, unknown>): string | Record<string, unknown> {
+  const hasExtras = entry.cwd || entry.env.length > 0 || Object.values(extras).some(Boolean);
+  if (!hasExtras) return entry.cmd;
+  const obj: Record<string, unknown> = { cmd: entry.cmd };
+  if (entry.cwd) obj.cwd = entry.cwd;
+  if (entry.env.length > 0) obj.env = Object.fromEntries(entry.env.filter(([k]) => k));
+  return { ...obj, ...Object.fromEntries(Object.entries(extras).filter(([, v]) => v)) };
 }
 
 function serializeToYaml(form: ConfigForm): string {
@@ -109,16 +111,7 @@ function serializeToYaml(form: ConfigForm): string {
     const svcs: Record<string, unknown> = {};
     for (const s of form.services) {
       if (!s.key) continue;
-      const hasExtras = s.cwd || s.port || s.env.length > 0;
-      if (!hasExtras) {
-        svcs[s.key] = s.cmd;
-      } else {
-        const obj: Record<string, unknown> = { cmd: s.cmd };
-        if (s.cwd) obj.cwd = s.cwd;
-        if (s.port) obj.port = parseInt(s.port, 10) || 0;
-        if (s.env.length > 0) obj.env = Object.fromEntries(s.env.filter(([k]) => k));
-        svcs[s.key] = obj;
-      }
+      svcs[s.key] = serializeEntry(s, { port: s.port ? (parseInt(s.port, 10) || 0) : 0 });
     }
     doc.services = svcs;
   }
@@ -127,19 +120,7 @@ function serializeToYaml(form: ConfigForm): string {
     const acts: Record<string, unknown> = {};
     for (const a of form.actions) {
       if (!a.key) continue;
-      const hasExtras = a.label || a.cwd || a.env.length > 0 || a.confirm || a.display || a.type;
-      if (!hasExtras) {
-        acts[a.key] = a.cmd;
-      } else {
-        const obj: Record<string, unknown> = { cmd: a.cmd };
-        if (a.label) obj.label = a.label;
-        if (a.cwd) obj.cwd = a.cwd;
-        if (a.env.length > 0) obj.env = Object.fromEntries(a.env.filter(([k]) => k));
-        if (a.confirm) obj.confirm = true;
-        if (a.display) obj.display = a.display;
-        if (a.type) obj.type = a.type;
-        acts[a.key] = obj;
-      }
+      acts[a.key] = serializeEntry(a, { label: a.label, confirm: a.confirm || undefined, display: a.display, type: a.type });
     }
     doc.actions = acts;
   }
@@ -148,17 +129,7 @@ function serializeToYaml(form: ConfigForm): string {
     const terms: Record<string, unknown> = {};
     for (const t of form.terminals) {
       if (!t.key) continue;
-      const hasExtras = t.label || t.cwd || t.env.length > 0 || t.display;
-      if (!hasExtras) {
-        terms[t.key] = t.cmd;
-      } else {
-        const obj: Record<string, unknown> = { cmd: t.cmd };
-        if (t.label) obj.label = t.label;
-        if (t.cwd) obj.cwd = t.cwd;
-        if (t.env.length > 0) obj.env = Object.fromEntries(t.env.filter(([k]) => k));
-        if (t.display) obj.display = t.display;
-        terms[t.key] = obj;
-      }
+      terms[t.key] = serializeEntry(t, { label: t.label, display: t.display });
     }
     doc.terminals = terms;
   }
@@ -323,53 +294,18 @@ function CardHeader({
 // ── main component ──
 
 interface VisualConfigEditorProps {
-  projectName: string;
-  onSaved: (newName: string) => void;
+  content: string;
+  onChange: (yaml: string) => void;
 }
 
-export function VisualConfigEditor({ projectName, onSaved }: VisualConfigEditorProps) {
-  const [form, setForm] = useState<ConfigForm | null>(null);
-  const [original, setOriginal] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProps) {
+  const form = useMemo(() => parseYaml(content), [content]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
-  const load = useCallback(async () => {
-    try {
-      const yaml = await ReadConfig(projectName);
-      setOriginal(yaml);
-      setForm(parseYaml(yaml));
-      setError(null);
-    } catch (err) {
-      setError(`Failed to load: ${err}`);
-    }
-  }, [projectName]);
+  const update = (patch: Partial<ConfigForm>) => onChange(serializeToYaml({ ...form, ...patch }));
 
-  useEffect(() => { load(); }, [load]);
-
-  const currentYaml = form ? serializeToYaml(form) : "";
-  const dirty = currentYaml !== "" && currentYaml !== serializeToYaml(parseYaml(original));
-
-  const handleSave = useCallback(async () => {
-    if (!form || !dirty) return;
-    setSaving(true);
-    setError(null);
-    try {
-      const yaml = serializeToYaml(form);
-      const newName = await SaveConfig(projectName, yaml);
-      setOriginal(yaml);
-      onSaved(newName);
-    } catch (err) {
-      setError(`${err}`);
-    } finally {
-      setSaving(false);
-    }
-  }, [form, dirty, projectName, onSaved]);
-
-  useKeyboardShortcut({ key: "s", meta: true }, () => { if (dirty) handleSave(); });
-
-  const toggleExpand = (id: string) => {
+  const toggleExpand = (id: number) => {
     setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -381,63 +317,53 @@ export function VisualConfigEditor({ projectName, onSaved }: VisualConfigEditorP
   // ── updaters ──
 
   const updateService = (i: number, patch: Partial<ServiceEntry>) =>
-    setForm((f) => f && { ...f, services: f.services.map((s, j) => (j === i ? { ...s, ...patch } : s)) });
+    update({ services: form.services.map((s, j) => (j === i ? { ...s, ...patch } : s)) });
 
   const updateAction = (i: number, patch: Partial<ActionEntry>) =>
-    setForm((f) => f && { ...f, actions: f.actions.map((a, j) => (j === i ? { ...a, ...patch } : a)) });
+    update({ actions: form.actions.map((a, j) => (j === i ? { ...a, ...patch } : a)) });
 
   const updateTerminal = (i: number, patch: Partial<TerminalEntry>) =>
-    setForm((f) => f && { ...f, terminals: f.terminals.map((t, j) => (j === i ? { ...t, ...patch } : t)) });
+    update({ terminals: form.terminals.map((t, j) => (j === i ? { ...t, ...patch } : t)) });
 
   const updateProfile = (i: number, patch: Partial<ProfileEntry>) =>
-    setForm((f) => f && { ...f, profiles: f.profiles.map((p, j) => (j === i ? { ...p, ...patch } : p)) });
+    update({ profiles: form.profiles.map((p, j) => (j === i ? { ...p, ...patch } : p)) });
 
-  const deleteItem = (section: keyof ConfigForm, i: number) =>
-    setForm((f) => f && { ...f, [section]: (f[section] as unknown[]).filter((_, j) => j !== i) });
+  const deleteItem = (section: "services" | "actions" | "terminals" | "profiles", i: number) =>
+    update({ [section]: (form[section] as unknown[]).filter((_, j) => j !== i) });
 
   const handleAddNew = (type: NewItemType) => {
-    if (!form) return;
-    const id = `new-${Date.now()}`;
-    setExpanded((prev) => new Set(prev).add(id));
+    // Use a stable numeric ID based on total item count
+    const nextId = form.services.length + form.actions.length + form.terminals.length + form.profiles.length;
+    setExpanded((prev) => new Set(prev).add(nextId));
 
     if (type === "service") {
       const key = uniqueKey("new-service", form.services.map((s) => s.key));
-      setForm({ ...form, services: [...form.services, { key, cmd: "", cwd: "", port: "", env: [] }] });
+      update({ services: [...form.services, { key, cmd: "", cwd: "", port: "", env: [] }] });
     } else if (type === "action") {
       const key = uniqueKey("new-action", form.actions.map((a) => a.key));
-      setForm({ ...form, actions: [...form.actions, { key, cmd: "", label: "", cwd: "", env: [], confirm: false, display: "", type: "" }] });
+      update({ actions: [...form.actions, { key, cmd: "", label: "", cwd: "", env: [], confirm: false, display: "", type: "" }] });
     } else if (type === "terminal") {
       const key = uniqueKey("new-terminal", form.terminals.map((t) => t.key));
-      setForm({ ...form, terminals: [...form.terminals, { key, cmd: "", label: "", cwd: "", env: [], display: "" }] });
+      update({ terminals: [...form.terminals, { key, cmd: "", label: "", cwd: "", env: [], display: "" }] });
     } else if (type === "profile") {
       const key = uniqueKey("new-profile", form.profiles.map((p) => p.key));
-      setForm({ ...form, profiles: [...form.profiles, { key, services: [] }] });
+      update({ profiles: [...form.profiles, { key, services: [] }] });
     }
   };
 
-  if (!form) {
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        {error ? (
-          <span className="text-xs text-[var(--accent-red)]">{error}</span>
-        ) : (
-          <span className="text-xs text-[var(--text-secondary)]">Loading...</span>
-        )}
-      </div>
-    );
-  }
-
   const serviceKeys = form.services.map((s) => s.key);
+  // Running index counter for stable card IDs across sections
+  let cardIdx = 0;
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto px-6 py-5">
       {/* Project basics */}
       <div className="grid grid-cols-2 gap-6">
         <Field label="Project name">
-          <Input value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="my-project" />
+          <Input value={form.name} onChange={(v) => update({ name: v })} placeholder="my-project" />
         </Field>
         <Field label="Root directory">
-          <Input value={form.root} onChange={(v) => setForm({ ...form, root: v })} placeholder="~/Projects/my-app" mono />
+          <Input value={form.root} onChange={(v) => update({ root: v })} placeholder="~/Projects/my-app" mono />
         </Field>
       </div>
 
@@ -445,18 +371,17 @@ export function VisualConfigEditor({ projectName, onSaved }: VisualConfigEditorP
       {form.services.length > 0 && (
         <Section title="Services" count={form.services.length}>
           {form.services.map((svc, i) => {
-            const id = `svc-${svc.key}-${i}`;
-            const isExpanded = expanded.has(id);
+            const id = cardIdx++;
             return (
               <Card key={id}>
                 <CardHeader
                   label={svc.key}
                   subtitle={svc.cmd}
-                  expanded={isExpanded}
+                  expanded={expanded.has(id)}
                   onToggle={() => toggleExpand(id)}
                   onDelete={() => deleteItem("services", i)}
                 />
-                {isExpanded && (
+                {expanded.has(id) && (
                   <div className="mt-4 flex flex-col gap-4 pl-6">
                     <Field label="Name (key)">
                       <Input value={svc.key} onChange={(v) => updateService(i, { key: v })} placeholder="frontend" />
@@ -485,18 +410,17 @@ export function VisualConfigEditor({ projectName, onSaved }: VisualConfigEditorP
       {form.actions.length > 0 && (
         <Section title="Actions" count={form.actions.length}>
           {form.actions.map((act, i) => {
-            const id = `act-${act.key}-${i}`;
-            const isExpanded = expanded.has(id);
+            const id = cardIdx++;
             return (
               <Card key={id}>
                 <CardHeader
                   label={act.key}
                   subtitle={act.cmd}
-                  expanded={isExpanded}
+                  expanded={expanded.has(id)}
                   onToggle={() => toggleExpand(id)}
                   onDelete={() => deleteItem("actions", i)}
                 />
-                {isExpanded && (
+                {expanded.has(id) && (
                   <div className="mt-4 flex flex-col gap-4 pl-6">
                     <Field label="Name (key)">
                       <Input value={act.key} onChange={(v) => updateAction(i, { key: v })} placeholder="deploy" />
@@ -542,18 +466,17 @@ export function VisualConfigEditor({ projectName, onSaved }: VisualConfigEditorP
       {form.terminals.length > 0 && (
         <Section title="Terminals" count={form.terminals.length}>
           {form.terminals.map((term, i) => {
-            const id = `term-${term.key}-${i}`;
-            const isExpanded = expanded.has(id);
+            const id = cardIdx++;
             return (
               <Card key={id}>
                 <CardHeader
                   label={term.key}
                   subtitle={term.cmd}
-                  expanded={isExpanded}
+                  expanded={expanded.has(id)}
                   onToggle={() => toggleExpand(id)}
                   onDelete={() => deleteItem("terminals", i)}
                 />
-                {isExpanded && (
+                {expanded.has(id) && (
                   <div className="mt-4 flex flex-col gap-4 pl-6">
                     <Field label="Name (key)">
                       <Input value={term.key} onChange={(v) => updateTerminal(i, { key: v })} placeholder="logs" />
@@ -589,18 +512,17 @@ export function VisualConfigEditor({ projectName, onSaved }: VisualConfigEditorP
       {form.profiles.length > 0 && (
         <Section title="Profiles" count={form.profiles.length}>
           {form.profiles.map((prof, i) => {
-            const id = `prof-${prof.key}-${i}`;
-            const isExpanded = expanded.has(id);
+            const id = cardIdx++;
             return (
               <Card key={id}>
                 <CardHeader
                   label={prof.key}
                   subtitle={prof.services.length > 0 ? prof.services.join(", ") : undefined}
-                  expanded={isExpanded}
+                  expanded={expanded.has(id)}
                   onToggle={() => toggleExpand(id)}
                   onDelete={() => deleteItem("profiles", i)}
                 />
-                {isExpanded && (
+                {expanded.has(id) && (
                   <div className="mt-4 flex flex-col gap-4 pl-6">
                     <Field label="Name (key)">
                       <Input value={prof.key} onChange={(v) => updateProfile(i, { key: v })} placeholder="backend-only" />
@@ -637,8 +559,8 @@ export function VisualConfigEditor({ projectName, onSaved }: VisualConfigEditorP
         </Section>
       )}
 
-      {/* Add New + Save */}
-      <div className="mt-6 flex items-center justify-between pb-4">
+      {/* Add New */}
+      <div className="mt-6 pb-4">
         <button
           onClick={() => setPickerOpen(true)}
           className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
@@ -646,21 +568,6 @@ export function VisualConfigEditor({ projectName, onSaved }: VisualConfigEditorP
           <PlusIcon />
           Add new
         </button>
-        <div className="flex items-center gap-2">
-          {error && <span className="text-xs text-[var(--accent-red)]">{error}</span>}
-          {dirty && (
-            <>
-              <span className="text-[10px] text-[var(--text-muted)]">{"\u2318"}S</span>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="rounded-lg bg-[var(--text-primary)] px-3.5 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-85 disabled:opacity-40"
-              >
-                {saving ? "Saving..." : "Save"}
-              </button>
-            </>
-          )}
-        </div>
       </div>
 
       <AddNewPicker open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={handleAddNew} />

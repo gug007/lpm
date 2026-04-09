@@ -1,7 +1,8 @@
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useCallback, useState } from "react";
 import { ReadConfig, SaveConfig, GenerateProjectConfig } from "../../wailsjs/go/main/App";
 import { useYamlEditor } from "../hooks/useYamlEditor";
 import { VisualConfigEditor } from "./VisualConfigEditor";
+import { HighlightedYamlEditor } from "./HighlightedYamlEditor";
 import { ChevronLeftIcon } from "./icons";
 import { AIButton } from "./ui/AIButton";
 import { AIGenerateModal } from "./AIGenerateModal";
@@ -14,11 +15,10 @@ interface ConfigEditorProps {
 }
 
 export function ConfigEditor({ projectName, onSaved, onBack }: ConfigEditorProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const onSavedRef = useRef(onSaved);
   onSavedRef.current = onSaved;
 
-  const [mode, setMode] = useState<"visual" | "yaml">("yaml");
+  const [mode, setMode] = useState<"visual" | "yaml">("visual");
 
   const load = useCallback(() => ReadConfig(projectName), [projectName]);
   const save = useCallback(
@@ -34,16 +34,11 @@ export function ConfigEditor({ projectName, onSaved, onBack }: ConfigEditorProps
 
   const [aiOpen, setAiOpen] = useState(false);
 
-  useEffect(() => {
-    if (mode === "yaml") textareaRef.current?.focus();
-  }, [projectName, mode]);
-
   const handleAIGenerate = async (cli: AICLI, extraPrompt: string) => {
     const yaml = await GenerateProjectConfig(projectName, cli, extraPrompt);
     setContent(yaml);
     setMode("yaml");
     setAiOpen(false);
-    requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
   return (
@@ -93,36 +88,30 @@ export function ConfigEditor({ projectName, onSaved, onBack }: ConfigEditorProps
       )}
 
       {mode === "visual" ? (
-        <VisualConfigEditor
-          projectName={projectName}
-          onSaved={onSaved}
-        />
+        <VisualConfigEditor content={content} onChange={setContent} />
       ) : (
         <div className="relative flex-1 overflow-hidden">
-          <textarea
-            ref={textareaRef}
+          <HighlightedYamlEditor
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={setContent}
             onKeyDown={handleTab}
-            spellCheck={false}
-            className="h-full w-full resize-none bg-[var(--bg-primary)] px-6 py-4 font-mono text-sm leading-relaxed text-[var(--text-primary)] outline-none"
-            style={{ tabSize: 2 }}
           />
-          {(dirty || error) && (
-            <div className="absolute bottom-4 right-4 flex items-center gap-2">
-              {error && (
-                <span className="text-xs text-[var(--accent-red)]">{error}</span>
-              )}
-              <span className="text-[10px] text-[var(--text-muted)]">{"\u2318"}S</span>
-              <button
-                onClick={handleSave}
-                disabled={!dirty || saving}
-                className="rounded-lg bg-[var(--text-primary)] px-3.5 py-1.5 text-xs font-medium text-[var(--bg-primary)] shadow-lg transition-all hover:opacity-85 disabled:opacity-40"
-              >
-                {saving ? "Saving..." : "Save"}
-              </button>
-            </div>
+        </div>
+      )}
+
+      {(dirty || error) && (
+        <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2">
+          {error && (
+            <span className="text-xs text-[var(--accent-red)]">{error}</span>
           )}
+          <span className="text-[10px] text-[var(--text-muted)]">{"\u2318"}S</span>
+          <button
+            onClick={handleSave}
+            disabled={!dirty || saving}
+            className="rounded-lg bg-[var(--text-primary)] px-3.5 py-1.5 text-xs font-medium text-[var(--bg-primary)] shadow-lg transition-all hover:opacity-85 disabled:opacity-40"
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
         </div>
       )}
 
