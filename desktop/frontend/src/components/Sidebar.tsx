@@ -4,7 +4,7 @@ import { getSettings } from "../settings";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { InstallUpdate } from "../../wailsjs/go/main/App";
 import { type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING } from "../types";
-import { SidebarIcon, CheckIcon, AlertCircleIcon } from "./icons";
+import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon } from "./icons";
 import { ProgressBar } from "./ui/ProgressBar";
 import { useDragReorder } from "../hooks/useDragReorder";
 import { useSidebarResize } from "../hooks/useSidebarResize";
@@ -125,6 +125,8 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
               >
                 {project.configError ? (
                   <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Config error" />
+                ) : isWaiting ? (
+                  <span className="shrink-0 sidebar-waiting" style={{ color: project.running ? "var(--accent-green)" : "var(--text-muted)" }}><BellIcon /></span>
                 ) : (
                   <StatusDot running={project.running} />
                 )}
@@ -139,7 +141,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                     <span className="sidebar-shimmer">{project.name}</span>
                   ) : project.name}
                 </span>
-                {isDone && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
+                {isDone && !isWaiting && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
               </button>
               {showDropBelow(idx) && (
                 <div className="absolute inset-x-3 bottom-0 h-px bg-[var(--accent-cyan)]" />
