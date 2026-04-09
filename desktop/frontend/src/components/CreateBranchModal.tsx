@@ -23,7 +23,7 @@ export function CreateBranchModal({ open, busy, onClose, onCreate }: CreateBranc
 
   const submit = async () => {
     if (!canCreate) return;
-    await onCreate(name.trim());
+    await onCreate(name.trim().replace(/ +/g, "-"));
   };
 
   return (
@@ -56,7 +56,7 @@ export function CreateBranchModal({ open, busy, onClose, onCreate }: CreateBranc
         <input
           ref={nameRef}
           value={name}
-          onChange={(e) => setName(e.target.value.replace(/ /g, "-"))}
+          onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") submit();
           }}
