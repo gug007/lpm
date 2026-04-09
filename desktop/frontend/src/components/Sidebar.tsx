@@ -125,8 +125,6 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
               >
                 {project.configError ? (
                   <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Config error" />
-                ) : isWaiting ? (
-                  <span className="shrink-0 sidebar-waiting" style={{ color: project.running ? "var(--accent-green)" : "var(--text-muted)" }}><BellIcon /></span>
                 ) : (
                   <StatusDot running={project.running} />
                 )}
