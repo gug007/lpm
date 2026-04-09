@@ -126,16 +126,16 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
 
   useEffect(() => { onTerminalCountChange?.(terminals.length); }, [terminals.length, onTerminalCountChange]);
 
-  // Auto-clear Done/Waiting only when the user is actively viewing the terminal
+  // Auto-clear Done only when the user is actively viewing the terminal
+  // (Waiting is not cleared here — it persists until the user clicks the tab)
   useEffect(() => {
     if (!visible) return;
     const ti = terminalIndex(activePane);
     if (ti !== null && terminals[ti]) {
       const id = terminals[ti].id;
       if (donePaneIDs?.has(id)) ClearDoneStatus(projectName, id);
-      if (waitingPaneIDs?.has(id)) ClearWaitingStatus(projectName, id);
     }
-  }, [visible, activePane, donePaneIDs, waitingPaneIDs, terminals, projectName]);
+  }, [visible, activePane, donePaneIDs, terminals, projectName]);
 
   // Persist active tab to config whenever it changes
   useEffect(() => {
@@ -387,7 +387,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
               active={activeTermIdx === i}
               shimmer={runningPaneIDs?.has(term.id)}
               done={activeTermIdx !== i && donePaneIDs?.has(term.id)}
-              waiting={activeTermIdx !== i && waitingPaneIDs?.has(term.id)}
+              waiting={waitingPaneIDs?.has(term.id)}
               onClick={() => {
                 if (donePaneIDs?.has(term.id)) ClearDoneStatus(projectName, term.id);
                 if (waitingPaneIDs?.has(term.id)) ClearWaitingStatus(projectName, term.id);
