@@ -246,7 +246,7 @@ func (a *App) GitCommit(cwd, message string, files []string) error {
 	return err
 }
 
-// GitPush pushes the current branch to its upstream remote ,
+// GitPush pushes the current branch to its upstream remote,
 // automatically setting the upstream if this is the first push.
 func (a *App) GitPush(cwd string) error {
 	_, err := runGit(cwd, "push", "-u")
