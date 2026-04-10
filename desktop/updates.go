@@ -53,6 +53,10 @@ func (a *App) GetVersion() string {
 	return Version
 }
 
+func (a *App) GetPlatform() string {
+	return goruntime.GOOS + "/" + goruntime.GOARCH
+}
+
 func (a *App) autoCheckForUpdate() {
 	if Version == "dev" {
 		return

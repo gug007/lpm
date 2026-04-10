@@ -7,6 +7,7 @@ import { CommitInstructionsEditor } from "./components/CommitInstructionsEditor"
 import { PRInstructionsEditor } from "./components/PRInstructionsEditor";
 import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
 import { TmuxInstaller } from "./components/TmuxInstaller";
+import { FeedbackModal } from "./components/FeedbackModal";
 import { Toaster, toast } from "sonner";
 import { SidebarIcon } from "./components/icons";
 import { useProjectsRefresh } from "./hooks/useProjectsRefresh";
@@ -42,6 +43,7 @@ export default function App() {
   const [view, setView] = useState<View>("projects");
   const isSettingsView = view !== "projects";
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const { projects, setProjects, refresh } = useProjectsRefresh();
   useWindowResizeSaver();
@@ -76,6 +78,9 @@ export default function App() {
     const cancelPRInstr = EventsOn("navigate-pr-instructions", () => {
       setView("pr-instructions");
     });
+    const cancelFeedback = EventsOn("menu-open-feedback", () => {
+      setFeedbackOpen(true);
+    });
     const cancelSound = EventsOn("play-sound", (kind: string) => {
       if (kind === "Done") playDoneSound();
       else if (kind === "Waiting") playWaitingSound();
@@ -86,6 +91,7 @@ export default function App() {
       if (typeof cancelSettings === "function") cancelSettings();
       if (typeof cancelCommitInstr === "function") cancelCommitInstr();
       if (typeof cancelPRInstr === "function") cancelPRInstr();
+      if (typeof cancelFeedback === "function") cancelFeedback();
       if (typeof cancelSound === "function") cancelSound();
     };
   }, []);
@@ -272,6 +278,7 @@ export default function App() {
           onSelect={handleSelect}
           onToggle={handleToggle}
           onSettings={() => setView("settings")}
+          onFeedback={() => setFeedbackOpen(true)}
           onAddProject={handleAddProject}
           onReorder={handleReorder}
           showSettings={isSettingsView}
@@ -331,6 +338,7 @@ export default function App() {
           )}
         </main>
       </div>
+      {feedbackOpen && <FeedbackModal onClose={() => setFeedbackOpen(false)} />}
     </div>
   );
 }

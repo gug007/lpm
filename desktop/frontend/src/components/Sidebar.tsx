@@ -4,7 +4,7 @@ import { getSettings } from "../settings";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { InstallUpdate } from "../../wailsjs/go/main/App";
 import { type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
-import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon } from "./icons";
+import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon, HelpCircleIcon } from "./icons";
 import { ProgressBar } from "./ui/ProgressBar";
 import { SortableItem, SortableList } from "./ui/SortableList";
 import { useSidebarResize } from "../hooks/useSidebarResize";
@@ -20,6 +20,7 @@ interface SidebarProps {
   onSelect: (name: string) => void;
   onToggle: (name: string) => void;
   onSettings: () => void;
+  onFeedback: () => void;
   onAddProject: () => void;
   onReorder: (order: string[]) => void;
   showSettings: boolean;
@@ -29,7 +30,7 @@ function hasStatus(project: ProjectInfo, value: string): boolean {
   return project.statusEntries?.some(e => e.value === value) ?? false;
 }
 
-export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onSettings, onAddProject, onReorder, showSettings }: SidebarProps) {
+export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onSettings, onFeedback, onAddProject, onReorder, showSettings }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -158,7 +159,14 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
         </button>
       )}
 
-      <div className="p-2">
+      <div className="flex flex-col gap-0.5 p-2">
+        <button
+          onClick={onFeedback}
+          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        >
+          <HelpCircleIcon />
+          Feedback
+        </button>
         <button
           onClick={onSettings}
           className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${

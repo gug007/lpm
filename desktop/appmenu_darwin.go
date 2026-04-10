@@ -36,6 +36,17 @@ func openSettingsClicked() {
 	}
 }
 
+//export sendFeedbackClicked
+func sendFeedbackClicked() {
+	if dockApp != nil && dockApp.ctx != nil {
+		ctx := dockApp.ctx
+		go func() {
+			wailsRuntime.WindowShow(ctx)
+			wailsRuntime.EventsEmit(ctx, "menu-open-feedback")
+		}()
+	}
+}
+
 func installAppMenuExtras() {
 	cVersion := C.CString(Version)
 	C.setAboutVersion(cVersion)

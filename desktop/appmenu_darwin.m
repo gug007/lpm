@@ -2,6 +2,7 @@
 
 extern void checkForUpdatesClicked(void);
 extern void openSettingsClicked(void);
+extern void sendFeedbackClicked(void);
 
 static NSString *_aboutVersion = nil;
 
@@ -9,6 +10,7 @@ static NSString *_aboutVersion = nil;
 + (instancetype)shared;
 - (void)checkForUpdates:(NSMenuItem *)sender;
 - (void)openSettings:(NSMenuItem *)sender;
+- (void)sendFeedback:(NSMenuItem *)sender;
 - (void)showAbout:(NSMenuItem *)sender;
 @end
 
@@ -28,6 +30,10 @@ static NSString *_aboutVersion = nil;
 
 - (void)openSettings:(NSMenuItem *)sender {
     openSettingsClicked();
+}
+
+- (void)sendFeedback:(NSMenuItem *)sender {
+    sendFeedbackClicked();
 }
 
 - (void)showAbout:(NSMenuItem *)sender {
@@ -132,6 +138,22 @@ static void insertSettingsItem(NSMenu *appSubmenu) {
     [appSubmenu insertItem:settingsItem atIndex:insertIndex + 1];
 }
 
+static void insertSendFeedbackItem(NSMenu *appSubmenu) {
+    // Idempotent: skip if already present
+    for (NSMenuItem *item in appSubmenu.itemArray) {
+        if (item.action == @selector(sendFeedback:)) return;
+    }
+
+    NSInteger insertIndex = indexAfterAbout(appSubmenu);
+
+    [appSubmenu insertItem:[NSMenuItem separatorItem] atIndex:insertIndex];
+    NSMenuItem *feedbackItem = [[NSMenuItem alloc] initWithTitle:@"Send Feedback…"
+                                                          action:@selector(sendFeedback:)
+                                                   keyEquivalent:@""];
+    [feedbackItem setTarget:[LPMAppMenuHandler shared]];
+    [appSubmenu insertItem:feedbackItem atIndex:insertIndex + 1];
+}
+
 static void overrideAboutItem(NSMenu *appSubmenu) {
     for (NSMenuItem *item in appSubmenu.itemArray) {
         if ([item.title hasPrefix:@"About "]) {
@@ -152,9 +174,11 @@ static void insertAppMenuItems(void) {
 
     overrideAboutItem(appSubmenu);
 
-    // Insert Check for Updates first, then Settings — Settings lands
-    // immediately after About, pushing Check for Updates below it.
+    // Items are inserted right after "About". Each new insertion pushes
+    // the previous ones down, so the final order (top-down) is the
+    // reverse of the call order: Settings, Send Feedback, Check for Updates.
     insertCheckForUpdatesItem(appSubmenu);
+    insertSendFeedbackItem(appSubmenu);
     insertSettingsItem(appSubmenu);
 }
 

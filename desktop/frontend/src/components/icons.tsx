@@ -31,4 +31,5 @@ export function AlertCircleIcon() { return <svg {...iconProps} width={20} height
 export function BellIcon({ filled }: { filled?: boolean } = {}) { return <svg {...iconProps} width={14} height={14} strokeWidth={2} fill={filled ? "currentColor" : "none"}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>; }
 export function PlusIcon() { return <svg {...iconProps}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>; }
 export function ZapIcon() { return <svg {...iconProps}><path d="M13 2 3 14h9l-1 10 10-12h-9l1-10z" /></svg>; }
+export function HelpCircleIcon() { return <svg {...iconProps} strokeWidth={2}><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>; }
 export function LayersIcon() { return <svg {...iconProps}><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z" /><path d="m2 12 8.58 3.91a2 2 0 0 0 1.66 0L21 12" /><path d="m2 17 8.58 3.91a2 2 0 0 0 1.66 0L21 17" /></svg>; }
