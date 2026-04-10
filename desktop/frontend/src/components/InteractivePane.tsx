@@ -83,7 +83,6 @@ export function InteractivePane({
   scrollCallbackRef.current = onScrollStateChange;
   themeOverrideRef.current = themeOverride;
   onExitRef.current = onExit;
-  visibleRef.current = visible;
 
   useImperativeHandle(ref, () => ({
     clear() {
@@ -196,6 +195,8 @@ export function InteractivePane({
     // Capped to prevent unbounded memory growth from long-running background output.
     // Don't ack while hidden — let backend flow control pause naturally.
     // Ack on flush so xterm.js renders before backend resumes sending.
+    // Overflow: ack-and-drop so backend unacked doesn't get a permanent floor
+    // (otherwise the reader can stay paused forever after the next pause).
     let hiddenBuf: string[] = [];
     let hiddenBufLen = 0;
     const writeData = (data: string) => {
@@ -203,6 +204,8 @@ export function InteractivePane({
         if (hiddenBufLen < HIDDEN_BUF_CAP) {
           hiddenBuf.push(data);
           hiddenBufLen += data.length;
+        } else {
+          ackData(data.length);
         }
         return;
       }
@@ -380,6 +383,7 @@ export function InteractivePane({
       termRef.current = null;
       fitRef.current = null;
       searchRef.current = null;
+      flushRef.current = null;
     };
   }, [terminalId]);
 
@@ -402,12 +406,19 @@ export function InteractivePane({
   }, [fontSize]);
 
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      visibleRef.current = false;
+      return;
+    }
+    // Flush synchronously before flipping visibleRef so any pty-output
+    // events arriving after this point see an empty buffer and write
+    // directly in order — no flush/write race.
+    flushRef.current?.();
+    visibleRef.current = true;
     const term = termRef.current;
     const fit = fitRef.current;
     if (!term || !fit) return;
     requestAnimationFrame(() => {
-      flushRef.current?.();
       try {
         fit.fit();
       } catch {}
