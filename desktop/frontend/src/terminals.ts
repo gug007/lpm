@@ -1,7 +1,34 @@
 import { LoadTerminals, SaveTerminals } from "../wailsjs/go/main/App";
 import { main } from "../wailsjs/go/models";
 
-export interface TerminalEntry {
+// Persisted tab (one terminal inside a pane) — labels and optional
+// startCmd/resumeCmd so restore can re-inject them after a restart.
+export interface PersistedTab {
+  label: string;
+  startCmd?: string;
+  resumeCmd?: string;
+}
+
+// Persisted pane tree shape — mirrors the Go binding (main.PaneNode) so
+// it can round trip through the wails layer without type contortions.
+// Leaf nodes hold `tabs[]` + `activeTabIdx`; split nodes hold
+// `direction`/`ratio`/`a`/`b`.
+export interface PersistedPaneNode {
+  kind: string;
+  // leaf
+  tabs?: PersistedTab[];
+  activeTabIdx?: number;
+  activeServiceName?: string;
+  // split
+  direction?: string;
+  ratio?: number;
+  a?: PersistedPaneNode;
+  b?: PersistedPaneNode;
+}
+
+// Legacy terminal entry — kept only so `useTerminals` can migrate old
+// persisted data into the new pane tree model on load.
+export interface PersistedTerminalEntry {
   label: string;
   startCmd?: string;
   resumeCmd?: string;
@@ -10,7 +37,9 @@ export interface TerminalEntry {
 export interface ProjectTerminalState {
   detailView: string;
   activeTab?: string;
-  terminals?: TerminalEntry[];
+  panes?: PersistedPaneNode;
+  // Legacy field — read on load for migration, never written back.
+  terminals?: PersistedTerminalEntry[];
 }
 
 export interface TerminalsConfig {

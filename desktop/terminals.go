@@ -8,11 +8,32 @@ import (
 	"github.com/gug007/lpm/internal/config"
 )
 
-// TerminalEntry is one row of the per-project persisted terminal list.
-// StartCmd is the command typed into the shell on first launch; ResumeCmd
-// is typed on app-restart restore in place of StartCmd when it is set.
-// Both are the fully resolved strings (with any session ids already baked
-// in), so restoring a terminal never re-runs the registry resolver.
+// PersistedTab is one terminal saved inside a pane. StartCmd/ResumeCmd are
+// re-injected on restore; the PTY id is not persisted (it doesn't survive
+// a restart).
+type PersistedTab struct {
+	Label     string `json:"label"`
+	StartCmd  string `json:"startCmd,omitempty"`
+	ResumeCmd string `json:"resumeCmd,omitempty"`
+}
+
+// PaneNode is one node of a persisted pane layout tree. Leaves have
+// Kind="leaf" and carry Tabs/ActiveTabIdx; splits have Kind="split" with
+// Direction ("row"|"col"), Ratio, and two children.
+type PaneNode struct {
+	Kind              string         `json:"kind"`
+	Tabs              []PersistedTab `json:"tabs,omitempty"`
+	ActiveTabIdx      int            `json:"activeTabIdx,omitempty"`
+	ActiveServiceName string         `json:"activeServiceName,omitempty"`
+	Direction         string         `json:"direction,omitempty"`
+	Ratio             float64        `json:"ratio,omitempty"`
+	A                 *PaneNode      `json:"a,omitempty"`
+	B                 *PaneNode      `json:"b,omitempty"`
+}
+
+// TerminalEntry is the legacy pre-pane-tree flat list entry. Still loaded
+// by the frontend for one-time migration into the new pane tree on first
+// save — but never written back.
 type TerminalEntry struct {
 	Label     string `json:"label"`
 	StartCmd  string `json:"startCmd,omitempty"`
@@ -22,6 +43,7 @@ type TerminalEntry struct {
 type ProjectTerminalState struct {
 	DetailView string          `json:"detailView"`
 	ActiveTab  string          `json:"activeTab,omitempty"`
+	Panes      *PaneNode       `json:"panes,omitempty"`
 	Terminals  []TerminalEntry `json:"terminals,omitempty"`
 }
 
