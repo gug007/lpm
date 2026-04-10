@@ -26,14 +26,9 @@ interface SortableListProps {
   children: ReactNode;
 }
 
-/**
- * Wraps a list of `SortableItem`s with a configured drag-and-drop context.
- *
- * Uses a 5px pointer activation distance so a quick click on the item still
- * propagates to its onClick handler — only deliberate drags engage the
- * sortable. Keyboard sensor enables Tab + Space/Enter + arrow-key reorder
- * for accessibility.
- */
+// 5px pointer activation distance lets a quick click on a sortable item
+// pass through to its onClick handler — only deliberate drags engage the
+// sort.
 export function SortableList({ ids, direction = "vertical", onReorder, children }: SortableListProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -66,25 +61,19 @@ export function SortableList({ ids, direction = "vertical", onReorder, children 
 
 interface SortableItemProps {
   id: string;
-  className?: string;
-  children: ReactNode | ((state: { isDragging: boolean }) => ReactNode);
+  children: ReactNode;
 }
 
-/**
- * Renders a draggable list item. The wrapper div carries the drag listeners
- * and animated transform; consumers style the inner content however they
- * like and may inspect `isDragging` via the render-prop form to fade or
- * decorate the dragged item.
- */
-export function SortableItem({ id, className, children }: SortableItemProps) {
+export function SortableItem({ id, children }: SortableItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
+    opacity: isDragging ? 0.3 : undefined,
   };
   return (
-    <div ref={setNodeRef} style={style} className={className} {...attributes} {...listeners}>
-      {typeof children === "function" ? children({ isDragging }) : children}
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      {children}
     </div>
   );
 }

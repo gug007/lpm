@@ -133,25 +133,21 @@ function PaneViewImpl(props: PaneViewProps) {
               const isError = errorPaneIDs?.has(t.id) ?? false;
               return (
                 <SortableItem key={t.id} id={t.id}>
-                  {({ isDragging }) => (
-                    <div className={isDragging ? "opacity-30" : undefined}>
-                      <HeaderTab
-                        label={t.label}
-                        active={isActive}
-                        shimmer={runningPaneIDs?.has(t.id) ?? false}
-                        done={!isActive && isDone}
-                        waiting={isWaiting}
-                        error={!isActive && isError}
-                        onClick={() => {
-                          if (isDone) onClearStatus(t.id, "Done");
-                          if (isError) onClearStatus(t.id, "Error");
-                          onFocusTab(pane.id, i);
-                        }}
-                        onClose={() => onCloseTerminal(pane.id, i)}
-                        onRename={(name) => onRenameTerminal(pane.id, i, name)}
-                      />
-                    </div>
-                  )}
+                  <HeaderTab
+                    label={t.label}
+                    active={isActive}
+                    shimmer={runningPaneIDs?.has(t.id) ?? false}
+                    done={!isActive && isDone}
+                    waiting={isWaiting}
+                    error={!isActive && isError}
+                    onClick={() => {
+                      if (isDone) onClearStatus(t.id, "Done");
+                      if (isError) onClearStatus(t.id, "Error");
+                      onFocusTab(pane.id, i);
+                    }}
+                    onClose={() => onCloseTerminal(pane.id, i)}
+                    onRename={(name) => onRenameTerminal(pane.id, i, name)}
+                  />
                 </SortableItem>
               );
             })}

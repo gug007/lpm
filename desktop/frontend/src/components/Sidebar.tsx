@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StatusDot } from "./StatusDot";
 import { getSettings } from "../settings";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
@@ -36,7 +36,10 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
   const [updatePhase, setUpdatePhase] = useState<"downloading" | "installing">("downloading");
   const [updateError, setUpdateError] = useState("");
   const { width, handleResizeStart } = useSidebarResize();
-  const projectIds = projects.map((p) => p.name);
+  // Memoized so the SortableContext items reference is stable across the
+  // frequent status-update re-renders Sidebar gets — otherwise every status
+  // tick would churn the sortable subscriptions.
+  const projectIds = useMemo(() => projects.map((p) => p.name), [projects]);
 
   useEffect(() => EventsOn("update-available", setUpdateInfo), []);
   useEffect(() => EventsOn("update-progress", (pct: number) => setProgress(pct)), []);
@@ -99,40 +102,38 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
 
             return (
               <SortableItem key={project.name} id={project.name}>
-                {({ isDragging }) => (
-                  <button
-                    onClick={() => onSelect(project.name)}
-                    onDoubleClick={() => {
-                      if (getSettings().doubleClickToToggle) onToggle(project.name);
-                    }}
-                    className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                      isSelected
-                        ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                        : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                    } ${isDragging ? "opacity-30" : ""}`}
+                <button
+                  onClick={() => onSelect(project.name)}
+                  onDoubleClick={() => {
+                    if (getSettings().doubleClickToToggle) onToggle(project.name);
+                  }}
+                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                    isSelected
+                      ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                      : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  {project.configError ? (
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Config error" />
+                  ) : (
+                    <StatusDot running={project.running} />
+                  )}
+                  <span
+                    className="truncate"
+                    style={project.configError ? MUTED_STYLE : isDone ? DONE_STYLE : undefined}
+                    title={project.configError || undefined}
                   >
-                    {project.configError ? (
-                      <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Config error" />
-                    ) : (
-                      <StatusDot running={project.running} />
-                    )}
-                    <span
-                      className="truncate"
-                      style={project.configError ? MUTED_STYLE : isDone ? DONE_STYLE : undefined}
-                      title={project.configError || undefined}
-                    >
-                      {isError ? (
-                        <span className="text-red-400">{project.name}</span>
-                      ) : isWaiting ? (
-                        <span className="sidebar-waiting">{project.name}</span>
-                      ) : isRunning ? (
-                        <span className="sidebar-shimmer">{project.name}</span>
-                      ) : project.name}
-                    </span>
-                    {isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
-                    {isDone && !isWaiting && !isError && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
-                  </button>
-                )}
+                    {isError ? (
+                      <span className="text-red-400">{project.name}</span>
+                    ) : isWaiting ? (
+                      <span className="sidebar-waiting">{project.name}</span>
+                    ) : isRunning ? (
+                      <span className="sidebar-shimmer">{project.name}</span>
+                    ) : project.name}
+                  </span>
+                  {isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
+                  {isDone && !isWaiting && !isError && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
+                </button>
               </SortableItem>
             );
           })}
