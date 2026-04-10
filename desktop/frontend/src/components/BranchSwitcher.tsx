@@ -9,11 +9,12 @@ import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useEventListener } from "../hooks/useEventListener";
 import { useGitStatus } from "../hooks/useGitStatus";
+import { useBranchSearch } from "../hooks/useBranchSearch";
 import { CreateBranchModal } from "./CreateBranchModal";
 import { CommitModal } from "./CommitModal";
 import { PRModal } from "./PRModal";
 import { BranchIcon, CloudBranchIcon } from "./icons";
-import { branchKey, RemoteBadge } from "./branchUtils";
+import { branchKey, branchMatches, RemoteBadge } from "./branchUtils";
 
 function relativeTime(unix: number): string {
   if (!unix) return "";
@@ -33,6 +34,7 @@ export function BranchSwitcher({ projectPath }: {
   const { status, branches, refresh } = useGitStatus(projectPath);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const searchResults = useBranchSearch(projectPath, query, open);
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
   const [committing, setCommitting] = useState(false);
@@ -63,9 +65,10 @@ export function BranchSwitcher({ projectPath }: {
 
   const filtered = useMemo(() => {
     if (!query) return branches;
-    const q = query.toLowerCase();
-    return branches.filter((b) => b.name.toLowerCase().includes(q));
-  }, [branches, query]);
+    if (searchResults !== null) return searchResults;
+    // Fallback during the debounce window: filter the cached recent list.
+    return branches.filter((b) => branchMatches(b, query));
+  }, [branches, query, searchResults]);
 
   if (!status?.isGitRepo) return null;
 

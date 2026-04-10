@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
 import { XIcon, ChevronDownIcon, BranchIcon, CloudBranchIcon, CheckIcon } from "./icons";
-import { branchKey, RemoteBadge } from "./branchUtils";
+import { branchKey, branchMatches, RemoteBadge } from "./branchUtils";
 import { AIButton } from "./ui/AIButton";
 import {
   CheckAICLIs,
@@ -16,6 +16,7 @@ import {
 } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
+import { useBranchSearch } from "../hooks/useBranchSearch";
 import { AI_CLI_OPTIONS } from "../types";
 import { EventsEmit, BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { getSettings, saveSettings } from "../settings";
@@ -56,6 +57,11 @@ export function PRModal({
   const [baseMenuOpen, setBaseMenuOpen] = useState(false);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [baseQuery, setBaseQuery] = useState("");
+  const excludeCurrent = useCallback(
+    (b: Branch) => b.name !== currentBranch,
+    [currentBranch],
+  );
+  const baseSearchResults = useBranchSearch(projectPath, baseQuery, baseMenuOpen, excludeCurrent);
   const [autoGenerate, setAutoGenerate] = useState(
     () => getSettings().autoGeneratePRDescription ?? false,
   );
@@ -155,12 +161,12 @@ export function PRModal({
     el.style.height = el.scrollHeight + "px";
   }, [description]);
 
-  const filteredBranches = useMemo(
-    () => baseQuery
-      ? branches.filter((b) => b.name.toLowerCase().includes(baseQuery.toLowerCase()))
-      : branches,
-    [branches, baseQuery],
-  );
+  const filteredBranches = useMemo(() => {
+    if (!baseQuery) return branches;
+    if (baseSearchResults !== null) return baseSearchResults;
+    // Fallback during the debounce window: filter the cached recent list.
+    return branches.filter((b) => branchMatches(b, baseQuery));
+  }, [branches, baseQuery, baseSearchResults]);
 
   const changeBase = async (newBase: string) => {
     setBase(newBase);

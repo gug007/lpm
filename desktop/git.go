@@ -127,10 +127,58 @@ type Branch struct {
 	Remote string `json:"remote,omitempty"`
 }
 
-const branchListLimit = 100
+const (
+	// Default cap for ListBranches (the dropdown's recent-branches view).
+	branchListLocalLimit  = 100
+	branchListRemoteLimit = 200
+	branchListLimit       = 100
+	// Cap for SearchBranches results — higher than the recent-list cap so that
+	// older matches surface when the user is hunting for a specific branch.
+	branchSearchLimit = 200
+)
 
 func (a *App) ListBranches(cwd string) ([]Branch, error) {
-	locals, err := listLocalBranches(cwd)
+	branches, err := loadAllBranches(cwd, branchListLocalLimit, branchListRemoteLimit)
+	if err != nil {
+		return nil, err
+	}
+	if len(branches) > branchListLimit {
+		branches = branches[:branchListLimit]
+	}
+	return branches, nil
+}
+
+// SearchBranches returns branches whose short name contains query
+// (case-insensitive), across local heads and remote-tracking refs. It reads
+// every ref without the per-step cap that ListBranches applies, so it finds
+// matches older than the most recent branches.
+func (a *App) SearchBranches(cwd, query string) ([]Branch, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return a.ListBranches(cwd)
+	}
+	all, err := loadAllBranches(cwd, 0, 0)
+	if err != nil {
+		return nil, err
+	}
+	q := strings.ToLower(query)
+	matches := make([]Branch, 0)
+	for _, b := range all {
+		if strings.Contains(strings.ToLower(b.Name), q) {
+			matches = append(matches, b)
+		}
+	}
+	if len(matches) > branchSearchLimit {
+		matches = matches[:branchSearchLimit]
+	}
+	return matches, nil
+}
+
+// loadAllBranches returns local heads followed by remote-only branches, sorted
+// by committer date descending. Each `*Limit` argument caps the corresponding
+// git read; pass 0 to read every ref.
+func loadAllBranches(cwd string, localLimit, remoteLimit int) ([]Branch, error) {
+	locals, err := listLocalBranches(cwd, localLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -138,21 +186,27 @@ func (a *App) ListBranches(cwd string) ([]Branch, error) {
 	for _, b := range locals {
 		localNames[b.Name] = true
 	}
-
-	branches := append(locals, listRemoteOnlyBranches(cwd, localNames)...)
+	branches := append(locals, listRemoteOnlyBranches(cwd, remoteLimit, localNames)...)
 	sort.SliceStable(branches, func(i, j int) bool {
 		return branches[i].CommitterDate > branches[j].CommitterDate
 	})
-	if len(branches) > branchListLimit {
-		branches = branches[:branchListLimit]
-	}
 	return branches, nil
 }
 
-func listLocalBranches(cwd string) ([]Branch, error) {
-	out, err := runGit(cwd, "for-each-ref",
-		"--count=100", "--sort=-committerdate", "refs/heads",
-		"--format=%(refname:short)%00%(committerdate:unix)")
+// forEachRefBranches runs `git for-each-ref` against pattern, optionally
+// capped at count refs (0 = no cap), and returns the raw output. The format
+// is fixed: short name + NUL + committer date.
+func forEachRefBranches(cwd, pattern string, count int) (string, error) {
+	args := []string{"for-each-ref", "--sort=-committerdate", pattern,
+		"--format=%(refname:short)%00%(committerdate:unix)"}
+	if count > 0 {
+		args = append(args, "--count="+strconv.Itoa(count))
+	}
+	return runGit(cwd, args...)
+}
+
+func listLocalBranches(cwd string, count int) ([]Branch, error) {
+	out, err := forEachRefBranches(cwd, "refs/heads", count)
 	if err != nil {
 		return nil, err
 	}
@@ -171,10 +225,8 @@ func listLocalBranches(cwd string) ([]Branch, error) {
 // refs/remotes that does not already exist as a local head. When several
 // remotes carry the same short name, "origin" wins; otherwise the most
 // recently updated remote wins (first seen, given the committerdate sort).
-func listRemoteOnlyBranches(cwd string, localNames map[string]bool) []Branch {
-	out, err := runGit(cwd, "for-each-ref",
-		"--count=200", "--sort=-committerdate", "refs/remotes",
-		"--format=%(refname:short)%00%(committerdate:unix)")
+func listRemoteOnlyBranches(cwd string, count int, localNames map[string]bool) []Branch {
+	out, err := forEachRefBranches(cwd, "refs/remotes", count)
 	if err != nil || out == "" {
 		return nil
 	}
