@@ -79,13 +79,12 @@ function PaneViewImpl(props: PaneViewProps) {
   } = props;
 
   const hasMultipleServices = services.length > 1;
-  const activeServiceName: string | null =
-    pane.activeServiceName === ALL_SERVICES && hasMultipleServices
-      ? ALL_SERVICES
-      : pane.activeServiceName && services.some((s) => s.name === pane.activeServiceName)
-        ? pane.activeServiceName
-        : null;
-  const isAllActive = activeServiceName === ALL_SERVICES;
+  const isAllActive = pane.activeServiceName === ALL_SERVICES && hasMultipleServices;
+  const namedServiceName =
+    pane.activeServiceName && services.some((s) => s.name === pane.activeServiceName)
+      ? pane.activeServiceName
+      : null;
+  const activeServiceName: string | null = isAllActive ? ALL_SERVICES : namedServiceName;
   const terminalIdx = pane.tabs.length === 0 ? -1 : Math.min(pane.activeTabIdx, pane.tabs.length - 1);
   const activeTerm = terminalIdx >= 0 ? pane.tabs[terminalIdx] : null;
 
