@@ -21,7 +21,7 @@ export function Nav() {
             width={20}
             height={20}
             priority
-            className="h-5 w-5 rounded bg-gray-200 dark:bg-gray-700 p-0.5"
+            className="h-5 w-5 rounded bg-gray-700 p-0.5"
           />
           lpm
         </Link>
