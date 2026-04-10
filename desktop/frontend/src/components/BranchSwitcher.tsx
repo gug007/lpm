@@ -5,13 +5,15 @@ import {
   CreateBranch,
   SyncBranch,
 } from "../../wailsjs/go/main/App";
+import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useEventListener } from "../hooks/useEventListener";
 import { useGitStatus } from "../hooks/useGitStatus";
 import { CreateBranchModal } from "./CreateBranchModal";
 import { CommitModal } from "./CommitModal";
 import { PRModal } from "./PRModal";
-import { BranchIcon } from "./icons";
+import { BranchIcon, CloudBranchIcon } from "./icons";
+import { branchKey, RemoteBadge } from "./branchUtils";
 
 function relativeTime(unix: number): string {
   if (!unix) return "";
@@ -67,16 +69,16 @@ export function BranchSwitcher({ projectPath }: {
 
   if (!status?.isGitRepo) return null;
 
-  const checkout = async (branch: string) => {
-    if (busy || branch === status.branch) { setOpen(false); return; }
+  const checkout = async (branch: main.Branch) => {
+    if (busy || branch.name === status.branch) { setOpen(false); return; }
     setBusy(true);
     try {
-      await CheckoutBranch(projectPath, branch);
+      await CheckoutBranch(projectPath, branch.name, branch.remote ?? "");
       await refresh();
       setOpen(false);
       setQuery("");
     } catch (err) {
-      toast.error(`Checkout ${branch}: ${err}`);
+      toast.error(`Checkout ${branch.name}: ${err}`);
     } finally {
       setBusy(false);
     }
@@ -148,7 +150,7 @@ export function BranchSwitcher({ projectPath }: {
         </button>
 
       {open && (
-        <div className="absolute bottom-full right-0 z-50 mb-1 w-72 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] shadow-lg">
+        <div className="absolute bottom-full right-0 z-50 mb-1 w-96 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] shadow-lg">
           <div className="border-b border-[var(--border)] p-2">
             <input
               ref={searchRef}
@@ -174,14 +176,18 @@ export function BranchSwitcher({ projectPath }: {
               const age = relativeTime(b.committerDate);
               return (
                 <button
-                  key={b.name}
-                  onClick={() => checkout(b.name)}
+                  key={branchKey(b)}
+                  onClick={() => checkout(b)}
                   disabled={busy}
+                  title={b.remote ? `Create local tracking branch from ${b.remote}/${b.name}` : undefined}
                   className="flex w-full items-start gap-2 px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
                 >
-                  <BranchIcon size={12} />
+                  {b.remote ? <CloudBranchIcon size={12} /> : <BranchIcon size={12} />}
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className={`truncate ${isCurrent ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}>{b.name}</span>
+                    <span className={`flex min-w-0 items-center gap-1.5 ${isCurrent ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}>
+                      <span className="truncate">{b.name}</span>
+                      {b.remote && <RemoteBadge remote={b.remote} />}
+                    </span>
                     {isCurrent && status.uncommitted > 0 && (
                       <span className="text-[10px] text-[var(--text-muted)]">
                         Uncommitted: {status.uncommitted} file{status.uncommitted === 1 ? "" : "s"}
@@ -228,7 +234,7 @@ export function BranchSwitcher({ projectPath }: {
           <ChevronDown />
         </button>
         {commitMenuOpen && (
-          <div className="absolute bottom-full right-0 z-10 mb-1 w-40 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
+          <div className="absolute bottom-full right-0 z-10 mb-1 w-56 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
             <button
               onClick={() => { setCommitMenuOpen(false); setCommitting(true); }}
               disabled={status.uncommitted === 0}

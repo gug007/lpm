@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
-import { XIcon, ChevronDownIcon, BranchIcon, CheckIcon } from "./icons";
+import { XIcon, ChevronDownIcon, BranchIcon, CloudBranchIcon, CheckIcon } from "./icons";
+import { branchKey, RemoteBadge } from "./branchUtils";
 import { AIButton } from "./ui/AIButton";
 import {
   CheckAICLIs,
@@ -315,7 +316,7 @@ export function PRModal({
                   <ChevronDownIcon />
                 </button>
                 {baseMenuOpen && (
-                  <div className="absolute left-0 top-full z-10 mt-1 w-56 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] shadow-lg">
+                  <div className="absolute left-0 top-full z-10 mt-1 w-96 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] shadow-lg">
                     <div className="border-b border-[var(--border)] p-2">
                       <input
                         ref={baseSearchRef}
@@ -330,21 +331,25 @@ export function PRModal({
                       />
                     </div>
                     <div className="max-h-[200px] overflow-y-auto py-1">
-                      {filteredBranches.map((b) => (
-                        <button
-                          key={b.name}
-                          onClick={() => changeBase(b.name)}
-                          className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)] ${
-                            b.name === base
-                              ? "font-medium text-[var(--text-primary)]"
-                              : "text-[var(--text-secondary)]"
-                          }`}
-                        >
-                          <BranchIcon size={10} />
-                          <span className="truncate">{b.name}</span>
-                          {b.name === base && <CheckIcon />}
-                        </button>
-                      ))}
+                      {filteredBranches.map((b) => {
+                        const selected = b.name === base;
+                        return (
+                          <button
+                            key={branchKey(b)}
+                            onClick={() => changeBase(b.name)}
+                            className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)] ${
+                              selected
+                                ? "font-medium text-[var(--text-primary)]"
+                                : "text-[var(--text-secondary)]"
+                            }`}
+                          >
+                            {b.remote ? <CloudBranchIcon size={10} /> : <BranchIcon size={10} />}
+                            <span className="min-w-0 flex-1 truncate">{b.name}</span>
+                            {b.remote && <RemoteBadge remote={b.remote} />}
+                            {selected && <CheckIcon />}
+                          </button>
+                        );
+                      })}
                       {filteredBranches.length === 0 && (
                         <div className="px-3 py-2 text-[11px] text-[var(--text-muted)]">No matches</div>
                       )}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -121,38 +122,114 @@ func (a *App) SyncBranch(cwd string) error {
 type Branch struct {
 	Name          string `json:"name"`
 	CommitterDate int64  `json:"committerDate"`
+	// Remote is the remote name (e.g. "origin") when this entry represents a
+	// remote-only branch with no matching local head. Empty for local branches.
+	Remote string `json:"remote,omitempty"`
 }
 
+const branchListLimit = 100
+
 func (a *App) ListBranches(cwd string) ([]Branch, error) {
+	locals, err := listLocalBranches(cwd)
+	if err != nil {
+		return nil, err
+	}
+	localNames := make(map[string]bool, len(locals))
+	for _, b := range locals {
+		localNames[b.Name] = true
+	}
+
+	branches := append(locals, listRemoteOnlyBranches(cwd, localNames)...)
+	sort.SliceStable(branches, func(i, j int) bool {
+		return branches[i].CommitterDate > branches[j].CommitterDate
+	})
+	if len(branches) > branchListLimit {
+		branches = branches[:branchListLimit]
+	}
+	return branches, nil
+}
+
+func listLocalBranches(cwd string) ([]Branch, error) {
 	out, err := runGit(cwd, "for-each-ref",
 		"--count=100", "--sort=-committerdate", "refs/heads",
 		"--format=%(refname:short)%00%(committerdate:unix)")
 	if err != nil {
 		return nil, err
 	}
-	if out == "" {
-		return []Branch{}, nil
-	}
-	lines := strings.Split(out, "\n")
-	branches := make([]Branch, 0, len(lines))
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		name, dateStr, ok := strings.Cut(line, "\x00")
+	branches := make([]Branch, 0)
+	for _, line := range strings.Split(out, "\n") {
+		name, date, ok := parseBranchRefLine(line)
 		if !ok {
 			continue
 		}
-		date, _ := strconv.ParseInt(dateStr, 10, 64)
 		branches = append(branches, Branch{Name: name, CommitterDate: date})
 	}
 	return branches, nil
 }
 
-func (a *App) CheckoutBranch(cwd, branch string) error {
+// listRemoteOnlyBranches returns one entry per short name found under
+// refs/remotes that does not already exist as a local head. When several
+// remotes carry the same short name, "origin" wins; otherwise the most
+// recently updated remote wins (first seen, given the committerdate sort).
+func listRemoteOnlyBranches(cwd string, localNames map[string]bool) []Branch {
+	out, err := runGit(cwd, "for-each-ref",
+		"--count=200", "--sort=-committerdate", "refs/remotes",
+		"--format=%(refname:short)%00%(committerdate:unix)")
+	if err != nil || out == "" {
+		return nil
+	}
+	type entry struct {
+		remote string
+		date   int64
+	}
+	best := make(map[string]entry)
+	for _, line := range strings.Split(out, "\n") {
+		full, date, ok := parseBranchRefLine(line)
+		if !ok {
+			continue
+		}
+		remote, name, ok := strings.Cut(full, "/")
+		if !ok || name == "" || name == "HEAD" || localNames[name] {
+			continue
+		}
+		existing, has := best[name]
+		if has && (existing.remote == "origin" || remote != "origin") {
+			continue
+		}
+		best[name] = entry{remote: remote, date: date}
+	}
+	branches := make([]Branch, 0, len(best))
+	for name, e := range best {
+		branches = append(branches, Branch{Name: name, CommitterDate: e.date, Remote: e.remote})
+	}
+	return branches
+}
+
+func parseBranchRefLine(line string) (name string, date int64, ok bool) {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return "", 0, false
+	}
+	name, dateStr, ok := strings.Cut(line, "\x00")
+	if !ok {
+		return "", 0, false
+	}
+	date, _ = strconv.ParseInt(dateStr, 10, 64)
+	return name, date, true
+}
+
+// CheckoutBranch checks out an existing local branch, or — when remote is
+// non-empty and no local head exists — creates a tracking branch from
+// <remote>/<branch>. The remote hint disambiguates the case where multiple
+// remotes carry the same short name, which would otherwise make `git checkout`
+// DWIM fail.
+func (a *App) CheckoutBranch(cwd, branch, remote string) error {
 	if branch == "" {
 		return fmt.Errorf("branch name required")
+	}
+	if remote != "" && !branchExists(cwd, "refs/heads/"+branch) {
+		_, err := runGit(cwd, "checkout", "-b", branch, "--track", remote+"/"+branch)
+		return err
 	}
 	_, err := runGit(cwd, "checkout", branch)
 	return err
@@ -309,10 +386,10 @@ func (a *App) GitDefaultBranch(cwd string) string {
 			return parts[len(parts)-1]
 		}
 	}
-	if _, err := runGit(cwd, "show-ref", "--verify", "--quiet", "refs/heads/main"); err == nil {
+	if branchExists(cwd, "refs/heads/main") {
 		return "main"
 	}
-	if _, err := runGit(cwd, "show-ref", "--verify", "--quiet", "refs/heads/master"); err == nil {
+	if branchExists(cwd, "refs/heads/master") {
 		return "master"
 	}
 	return "main"
@@ -323,6 +400,7 @@ func (a *App) GitLogBranch(cwd, base string) ([]BranchCommit, error) {
 	if base == "" {
 		return nil, fmt.Errorf("base branch required")
 	}
+	base = resolveBranchRef(cwd, base)
 	out, err := runGit(cwd, "log", "--format=%h%x00%s%x00%an%x00%ar", base+"..HEAD")
 	if err != nil {
 		return nil, err
@@ -352,7 +430,48 @@ func (a *App) GitDiffBranch(cwd, base string) (string, error) {
 	if base == "" {
 		return "", fmt.Errorf("base branch required")
 	}
+	base = resolveBranchRef(cwd, base)
 	return runGit(cwd, "diff", base+"...HEAD")
+}
+
+// resolveBranchRef converts a branch short name into a git-usable revision,
+// preferring a local head, then origin, then any other remote. Returns the
+// input unchanged on miss so callers see git's native error.
+func resolveBranchRef(cwd, name string) string {
+	if name == "" {
+		return name
+	}
+	out, err := runGit(cwd, "for-each-ref", "--format=%(refname)",
+		"refs/heads/"+name, "refs/remotes/*/"+name)
+	if err != nil || out == "" {
+		return name
+	}
+	var origin, other string
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		switch {
+		case line == "refs/heads/"+name:
+			return name
+		case line == "refs/remotes/origin/"+name:
+			origin = "origin/" + name
+		case other == "":
+			if rest, ok := strings.CutPrefix(line, "refs/remotes/"); ok {
+				other = rest
+			}
+		}
+	}
+	if origin != "" {
+		return origin
+	}
+	if other != "" {
+		return other
+	}
+	return name
+}
+
+func branchExists(cwd, ref string) bool {
+	_, err := runGit(cwd, "show-ref", "--verify", "--quiet", ref)
+	return err == nil
 }
 
 // CheckGHCLI returns true if the GitHub CLI (gh) is available in PATH.
@@ -398,7 +517,7 @@ func (a *App) CreateBranch(cwd, name string) error {
 	if name == "" {
 		return fmt.Errorf("branch name required")
 	}
-	if _, err := runGit(cwd, "show-ref", "--verify", "--quiet", "refs/heads/"+name); err == nil {
+	if branchExists(cwd, "refs/heads/"+name) {
 		return fmt.Errorf("branch %q already exists", name)
 	}
 	if _, err := runGit(cwd, "branch", name); err != nil {
@@ -407,5 +526,5 @@ func (a *App) CreateBranch(cwd, name string) error {
 		}
 		return nil
 	}
-	return a.CheckoutBranch(cwd, name)
+	return a.CheckoutBranch(cwd, name, "")
 }
