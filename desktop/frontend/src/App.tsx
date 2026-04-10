@@ -14,10 +14,26 @@ import { useWindowResizeSaver } from "./hooks/useWindowResizeSaver";
 import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
 import { playDoneSound, playWaitingSound, playErrorSound } from "./sounds";
 
-import { StartProject, StopProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects, TmuxInstalled, InstallTmux, StartWatchingProject, StopWatchingProject } from '../wailsjs/go/main/App';
-import { EventsOn } from '../wailsjs/runtime/runtime';
+import {
+  StartProject,
+  StopProject,
+  RemoveProject,
+  BrowseFolder,
+  CreateProject,
+  ReorderProjects,
+  TmuxInstalled,
+  InstallTmux,
+  StartWatchingProject,
+  StopWatchingProject,
+} from "../wailsjs/go/main/App";
+import { EventsOn } from "../wailsjs/runtime/runtime";
 
-export type View = "projects" | "settings" | "global-config" | "commit-instructions" | "pr-instructions";
+export type View =
+  | "projects"
+  | "settings"
+  | "global-config"
+  | "commit-instructions"
+  | "pr-instructions";
 
 export default function App() {
   const [tmuxReady, setTmuxReady] = useState<boolean | null>(null);
@@ -36,6 +52,14 @@ export default function App() {
   useKeyboardShortcut({ key: "b", meta: true }, () => {
     setSidebarCollapsed((v) => !v);
   });
+
+  useKeyboardShortcut(
+    Array.from({ length: 9 }, (_, i) => ({ key: String(i + 1), meta: true })),
+    (_e, matched) => {
+      const project = projects[Number(matched.key) - 1];
+      if (project) handleSelect(project.name);
+    },
+  );
 
   useEffect(() => {
     const cancelDock = EventsOn("dock-project-selected", (name: string) => {
@@ -76,7 +100,9 @@ export default function App() {
       return;
     }
     StartWatchingProject(root).catch(() => {});
-    return () => { StopWatchingProject().catch(() => {}); };
+    return () => {
+      StopWatchingProject().catch(() => {});
+    };
   }, [selectedProject?.root, view]);
 
   // Track projects that have been opened so their components stay mounted.
@@ -84,7 +110,9 @@ export default function App() {
 
   useEffect(() => {
     if (selected) {
-      setVisited((prev) => (prev.has(selected) ? prev : new Set([...prev, selected])));
+      setVisited((prev) =>
+        prev.has(selected) ? prev : new Set([...prev, selected]),
+      );
     }
   }, [selected]);
 
@@ -96,7 +124,9 @@ export default function App() {
     });
   }, [projects]);
 
-  const visitedProjects = projects.filter((p) => p.name === selected || visited.has(p.name));
+  const visitedProjects = projects.filter(
+    (p) => p.name === selected || visited.has(p.name),
+  );
 
   const handleStart = async (name: string, profile: string) => {
     try {
@@ -178,7 +208,9 @@ export default function App() {
   const handleReorder = async (order: string[]) => {
     const orderMap = new Map(order.map((n, i) => [n, i]));
     setProjects((prev) =>
-      [...prev].sort((a, b) => (orderMap.get(a.name) ?? 0) - (orderMap.get(b.name) ?? 0))
+      [...prev].sort(
+        (a, b) => (orderMap.get(a.name) ?? 0) - (orderMap.get(b.name) ?? 0),
+      ),
     );
     try {
       await ReorderProjects(order);
@@ -188,11 +220,20 @@ export default function App() {
   };
 
   if (tmuxReady === null) {
-    return <div className="flex h-screen bg-[var(--bg-primary)]"><div className="wails-drag absolute inset-x-0 top-0 h-10" /></div>;
+    return (
+      <div className="flex h-screen bg-[var(--bg-primary)]">
+        <div className="wails-drag absolute inset-x-0 top-0 h-10" />
+      </div>
+    );
   }
 
   if (tmuxReady === false) {
-    return <TmuxInstaller installTmux={InstallTmux} onInstalled={handleTmuxInstalled} />;
+    return (
+      <TmuxInstaller
+        installTmux={InstallTmux}
+        onInstalled={handleTmuxInstalled}
+      />
+    );
   }
 
   return (
@@ -223,7 +264,9 @@ export default function App() {
             {sidebarCollapsed && (
               <button
                 onClick={() => setSidebarCollapsed(false)}
-                style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}
+                style={
+                  { "--wails-draggable": "no-drag" } as React.CSSProperties
+                }
                 className="absolute left-[85px] top-[16px] z-10 flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                 title="Expand sidebar (⌘B)"
               >
@@ -232,13 +275,24 @@ export default function App() {
             )}
           </div>
           {view === "settings" && <Settings onNavigate={setView} />}
-          {view === "global-config" && <GlobalConfigEditor onBack={() => setView("settings")} />}
-          {view === "commit-instructions" && <CommitInstructionsEditor onBack={() => setView("settings")} />}
-          {view === "pr-instructions" && <PRInstructionsEditor onBack={() => setView("settings")} />}
+          {view === "global-config" && (
+            <GlobalConfigEditor onBack={() => setView("settings")} />
+          )}
+          {view === "commit-instructions" && (
+            <CommitInstructionsEditor onBack={() => setView("settings")} />
+          )}
+          {view === "pr-instructions" && (
+            <PRInstructionsEditor onBack={() => setView("settings")} />
+          )}
           {visitedProjects.map((project) => {
             const isSelected = view === "projects" && selected === project.name;
             return (
-              <div key={project.name} className={isSelected ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
+              <div
+                key={project.name}
+                className={
+                  isSelected ? "flex min-h-0 flex-1 flex-col" : "hidden"
+                }
+              >
                 <ProjectDetail
                   project={project}
                   visible={isSelected}
@@ -255,7 +309,9 @@ export default function App() {
           {view === "projects" && !selectedProject && projects.length === 0 && (
             <EmptyStateNoProjects onAdd={handleAddProject} />
           )}
-          {view === "projects" && !selectedProject && projects.length > 0 && <EmptyState />}
+          {view === "projects" && !selectedProject && projects.length > 0 && (
+            <EmptyState />
+          )}
         </main>
       </div>
     </div>
