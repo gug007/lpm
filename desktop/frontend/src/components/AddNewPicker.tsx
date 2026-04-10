@@ -10,30 +10,34 @@ interface AddNewPickerProps {
   onPick: (type: NewItemType) => void;
 }
 
-const items: { type: NewItemType; icon: React.ReactNode; label: string; desc: string }[] = [
+const items: { type: NewItemType; icon: React.ReactNode; color: string; label: string; desc: string }[] = [
   {
     type: "service",
     icon: <ZapIcon />,
+    color: "#facc15",
     label: "Service",
-    desc: "Something that runs in the background while you work \u2014 like a frontend dev server, backend API, or a database",
+    desc: "Something that runs in the background while you work - like a frontend dev server, backend API, or a database",
   },
   {
     type: "action",
     icon: <PlayIcon />,
+    color: "#10b981",
     label: "Action",
-    desc: "A command you run once when you need it \u2014 like deploying, running tests, or resetting a database",
+    desc: "A command you run once when you need it - like deploying, running tests, or resetting a database",
   },
   {
     type: "terminal",
     icon: <TerminalIcon />,
+    color: "#22d3ee",
     label: "Terminal",
-    desc: "A ready-to-go terminal tab with a command already set up \u2014 like Claude Code, Codex, or a shell in a specific folder",
+    desc: "A ready-to-go terminal tab with a command already set up - like Claude Code, Codex, or a shell in a specific folder",
   },
   {
     type: "profile",
     icon: <LayersIcon />,
+    color: "#a78bfa",
     label: "Profile",
-    desc: "A group of services to start together \u2014 for example \"backend only\" or \"full stack\"",
+    desc: "A group of services to start together - for example \"backend only\" or \"full stack\"",
   },
 ];
 
@@ -55,7 +59,10 @@ export function AddNewPicker({ open, onClose, onPick }: AddNewPickerProps) {
             onClick={() => { onPick(item.type); onClose(); }}
             className="group flex items-start gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all hover:bg-[var(--bg-hover)]"
           >
-            <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-hover)] text-[var(--text-secondary)] transition-colors group-hover:bg-[var(--bg-active)] group-hover:text-[var(--text-primary)]">
+            <div
+              className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-hover)] transition-colors group-hover:bg-[var(--bg-active)] [&_svg]:h-[22px] [&_svg]:w-[22px]"
+              style={{ color: item.color }}
+            >
               {item.icon}
             </div>
             <div className="min-w-0 pt-0.5">

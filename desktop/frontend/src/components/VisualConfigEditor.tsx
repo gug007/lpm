@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import YAML from "yaml";
 import { AddNewPicker, type NewItemType } from "./AddNewPicker";
-import { PlusIcon, TrashIcon, ChevronDownIcon, ChevronRightIcon } from "./icons";
+import { PlusIcon, TrashIcon, ChevronDownIcon, ChevronRightIcon, ZapIcon, PlayIcon, TerminalIcon, LayersIcon } from "./icons";
 
 // ── form state types ──
 
@@ -503,7 +503,7 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
 
       {/* Services */}
       {form.services.length > 0 && (
-        <Section title="Services" count={form.services.length}>
+        <Section title="Services" count={form.services.length} icon={<span style={{ color: "#facc15" }}><ZapIcon /></span>}>
           {form.services.map((svc, i) => {
             const id = cardIdx++;
             return (
@@ -542,7 +542,7 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
 
       {/* Actions */}
       {form.actions.length > 0 && (
-        <Section title="Actions" count={form.actions.length}>
+        <Section title="Actions" count={form.actions.length} icon={<span style={{ color: "#10b981" }}><PlayIcon /></span>}>
           {form.actions.map((act, i) => {
             const id = cardIdx++;
             return (
@@ -602,7 +602,7 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
 
       {/* Terminals */}
       {form.terminals.length > 0 && (
-        <Section title="Terminals" count={form.terminals.length}>
+        <Section title="Terminals" count={form.terminals.length} icon={<span style={{ color: "#22d3ee" }}><TerminalIcon /></span>}>
           {form.terminals.map((term, i) => {
             const id = cardIdx++;
             return (
@@ -648,7 +648,7 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
 
       {/* Profiles */}
       {form.profiles.length > 0 && (
-        <Section title="Profiles" count={form.profiles.length}>
+        <Section title="Profiles" count={form.profiles.length} icon={<span style={{ color: "#a78bfa" }}><LayersIcon /></span>}>
           {form.profiles.map((prof, i) => {
             const id = cardIdx++;
             return (
@@ -715,10 +715,11 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
 
 // ── layout helpers ──
 
-function Section({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
+function Section({ title, count, icon, children }: { title: string; count: number; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="mt-7">
-      <div className="mb-2.5 flex items-baseline gap-2">
+      <div className="mb-2.5 flex items-center gap-2">
+        {icon}
         <span className="text-[11px] font-medium text-[var(--text-secondary)]">{title}</span>
         <span className="text-[11px] text-[var(--text-muted)]">{count}</span>
       </div>
