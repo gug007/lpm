@@ -8,7 +8,7 @@ import { PlusIcon, SplitRightIcon, SplitDownIcon, ClearIcon, ExpandIcon, ShrinkI
 import { XIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
 import { SortableItem, SortableList } from "./ui/SortableList";
-import type { PaneLeaf, SplitDirection } from "../paneTree";
+import { ALL_SERVICES, type PaneLeaf, type SplitDirection } from "../paneTree";
 
 export type StatusKind = "Done" | "Waiting" | "Error";
 
@@ -78,10 +78,14 @@ function PaneViewImpl(props: PaneViewProps) {
     onClearStatus,
   } = props;
 
-  const activeServiceName =
-    pane.activeServiceName && services.some((s) => s.name === pane.activeServiceName)
-      ? pane.activeServiceName
-      : null;
+  const hasMultipleServices = services.length > 1;
+  const activeServiceName: string | null =
+    pane.activeServiceName === ALL_SERVICES && hasMultipleServices
+      ? ALL_SERVICES
+      : pane.activeServiceName && services.some((s) => s.name === pane.activeServiceName)
+        ? pane.activeServiceName
+        : null;
+  const isAllActive = activeServiceName === ALL_SERVICES;
   const terminalIdx = pane.tabs.length === 0 ? -1 : Math.min(pane.activeTabIdx, pane.tabs.length - 1);
   const activeTerm = terminalIdx >= 0 ? pane.tabs[terminalIdx] : null;
 
@@ -112,6 +116,13 @@ function PaneViewImpl(props: PaneViewProps) {
     >
       <div className={headerClass}>
         <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
+          {hasMultipleServices && (
+            <HeaderTab
+              label="All"
+              active={isAllActive}
+              onClick={() => onFocusService(pane.id, ALL_SERVICES)}
+            />
+          )}
           {services.map((svc) => {
             const isActive = activeServiceName === svc.name;
             return (
@@ -188,21 +199,23 @@ function PaneViewImpl(props: PaneViewProps) {
           )}
         </div>
       </div>
-      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+      <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${isAllActive ? "divide-x divide-[var(--border)]" : ""}`}>
         {services.map((svc) => {
-          const isActive = activeServiceName === svc.name;
+          const isVisible = isAllActive || activeServiceName === svc.name;
           return (
             <div
               key={`svc:${svc.name}`}
-              className={isActive ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" : "hidden"}
+              className={isVisible ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" : "hidden"}
             >
               <Pane
                 ref={(el) => onRegisterServiceHandle(svc.name, el)}
                 sessionKey={svc.sessionKey}
                 output={svc.output}
-                visible={visible && isActive}
+                visible={visible && isVisible}
                 fontSize={fontSize}
                 themeOverride={themeOverride}
+                label={isAllActive ? svc.name : undefined}
+                onLabelClick={isAllActive ? () => onFocusService(pane.id, svc.name) : undefined}
               />
             </div>
           );

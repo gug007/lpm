@@ -1,5 +1,10 @@
 export type SplitDirection = "row" | "col";
 
+// Sentinel stored in `PaneLeaf.activeServiceName` when the primary pane is
+// displaying every service side-by-side. Reserved — a service with this
+// literal name collides.
+export const ALL_SERVICES = "__lpm_all__";
+
 export interface TerminalInstance {
   id: string;
   label: string;
