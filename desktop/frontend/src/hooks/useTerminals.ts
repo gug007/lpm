@@ -14,6 +14,7 @@ import {
   collectTerminals,
   findPane,
   firstPaneId,
+  siblingPaneId,
   mapPane,
   removePane,
   setRatioAtPath,
@@ -265,6 +266,17 @@ export function useTerminals(
     [projectName, addTerminal],
   );
 
+  // Drop a pane from the tree, moving focus to its visual neighbor (or the
+  // first remaining pane when the closed pane was the root).
+  const collapsePane = useCallback(
+    (current: PaneNode, paneId: string) => {
+      const sibling = siblingPaneId(current, paneId);
+      const next = removePane(current, paneId);
+      applyTree(next, next ? (sibling ?? firstPaneId(next)) : null);
+    },
+    [applyTree],
+  );
+
   const closeTerminal = useCallback(
     (paneId: string, tabIdx: number) => {
       const current = treeRef.current;
@@ -277,8 +289,7 @@ export function useTerminals(
       // that hold a persistent service tab stay alive even with no
       // interactive terminals.
       if (pane.tabs.length === 1 && !pane.activeServiceName) {
-        const next = removePane(current, paneId);
-        applyTree(next, next ? firstPaneId(next) : null);
+        collapsePane(current, paneId);
         return;
       }
 
@@ -287,7 +298,7 @@ export function useTerminals(
       const next = mapPane(current, paneId, (p) => ({ ...p, tabs: newTabs, activeTabIdx: newActive }));
       applyTree(next);
     },
-    [applyTree],
+    [applyTree, collapsePane],
   );
 
   const focusTerminal = useCallback(
@@ -408,10 +419,9 @@ export function useTerminals(
       const pane = findPane(current, paneId);
       if (!pane) return;
       pane.tabs.forEach((t) => StopTerminal(t.id).catch(() => {}));
-      const next = removePane(current, paneId);
-      applyTree(next, next ? firstPaneId(next) : null);
+      collapsePane(current, paneId);
     },
-    [applyTree],
+    [collapsePane],
   );
 
   // Divider drag mutates the tree on every frame. setRatioAtPath returns

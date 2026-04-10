@@ -64,6 +64,18 @@ export function firstPaneId(node: PaneNode): string {
   return node.kind === "leaf" ? node.id : firstPaneId(node.a);
 }
 
+export function lastPaneId(node: PaneNode): string {
+  return node.kind === "leaf" ? node.id : lastPaneId(node.b);
+}
+
+/** Id of the leaf visually adjacent to `paneId`, or null if it has no sibling. */
+export function siblingPaneId(node: PaneNode, paneId: string): string | null {
+  if (node.kind === "leaf") return null;
+  if (node.a.kind === "leaf" && node.a.id === paneId) return firstPaneId(node.b);
+  if (node.b.kind === "leaf" && node.b.id === paneId) return lastPaneId(node.a);
+  return siblingPaneId(node.a, paneId) ?? siblingPaneId(node.b, paneId);
+}
+
 export function mapPane(node: PaneNode, paneId: string, fn: (p: PaneLeaf) => PaneLeaf): PaneNode {
   if (node.kind === "leaf") return node.id === paneId ? fn(node) : node;
   const a = mapPane(node.a, paneId, fn);
