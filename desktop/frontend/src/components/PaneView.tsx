@@ -1,4 +1,4 @@
-import { memo, useEffect } from "react";
+import { memo, useCallback, useEffect } from "react";
 import type { ITheme } from "@xterm/xterm";
 import { InteractivePane, type InteractivePaneHandle } from "./InteractivePane";
 import { Pane, type PaneHandle } from "./Pane";
@@ -7,6 +7,7 @@ import { IconBtn } from "./terminal/IconBtn";
 import { PlusIcon, SplitRightIcon, SplitDownIcon, ClearIcon, ExpandIcon, ShrinkIcon } from "./terminal/icons";
 import { XIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
+import { useDragReorder } from "../hooks/useDragReorder";
 import type { PaneLeaf, SplitDirection } from "../paneTree";
 
 export type StatusKind = "Done" | "Waiting" | "Error";
@@ -36,6 +37,7 @@ export interface PaneViewProps {
   onAddTerminal: (paneId: string) => void;
   onCloseTerminal: (paneId: string, tabIdx: number) => void;
   onRenameTerminal: (paneId: string, tabIdx: number, label: string) => void;
+  onReorderTerminals: (paneId: string, order: string[]) => void;
   onSplit: (paneId: string, direction: SplitDirection) => void;
   onClosePane: (paneId: string) => void;
   onClearPane: (paneId: string) => void;
@@ -65,6 +67,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onAddTerminal,
     onCloseTerminal,
     onRenameTerminal,
+    onReorderTerminals,
     onSplit,
     onClosePane,
     onClearPane,
@@ -86,6 +89,18 @@ function PaneViewImpl(props: PaneViewProps) {
     if (donePaneIDs?.has(activeTerm.id)) onClearStatus(activeTerm.id, "Done");
     if (errorPaneIDs?.has(activeTerm.id)) onClearStatus(activeTerm.id, "Error");
   }, [visible, focused, activeServiceName, activeTerm, donePaneIDs, errorPaneIDs, onClearStatus]);
+
+  const handleReorder = useCallback(
+    (order: string[]) => onReorderTerminals(pane.id, order),
+    [pane.id, onReorderTerminals],
+  );
+  const {
+    handleDragStart,
+    handleDragEnd,
+    handleDragOver,
+    showDropAbove: showDropBefore,
+    showDropBelow: showDropAfter,
+  } = useDragReorder(pane.tabs, (t) => t.id, handleReorder);
 
   const containerClass = fullscreen
     ? "fixed inset-0 z-50 flex flex-col overflow-hidden bg-[var(--terminal-bg)]"
@@ -122,22 +137,37 @@ function PaneViewImpl(props: PaneViewProps) {
             const isWaiting = waitingPaneIDs?.has(t.id) ?? false;
             const isError = errorPaneIDs?.has(t.id) ?? false;
             return (
-              <HeaderTab
+              <div
                 key={t.id}
-                label={t.label}
-                active={isActive}
-                shimmer={runningPaneIDs?.has(t.id) ?? false}
-                done={!isActive && isDone}
-                waiting={isWaiting}
-                error={!isActive && isError}
-                onClick={() => {
-                  if (isDone) onClearStatus(t.id, "Done");
-                  if (isError) onClearStatus(t.id, "Error");
-                  onFocusTab(pane.id, i);
-                }}
-                onClose={() => onCloseTerminal(pane.id, i)}
-                onRename={(name) => onRenameTerminal(pane.id, i, name)}
-              />
+                className="relative"
+                draggable
+                onDragStart={(e) => handleDragStart(e, i)}
+                onDragEnd={handleDragEnd}
+                onDragOver={(e) => handleDragOver(e, i)}
+                onDragEnter={(e) => e.preventDefault()}
+              >
+                {showDropBefore(i) && (
+                  <div className="pointer-events-none absolute inset-y-0 left-0 w-px bg-[var(--accent-cyan)]" />
+                )}
+                <HeaderTab
+                  label={t.label}
+                  active={isActive}
+                  shimmer={runningPaneIDs?.has(t.id) ?? false}
+                  done={!isActive && isDone}
+                  waiting={isWaiting}
+                  error={!isActive && isError}
+                  onClick={() => {
+                    if (isDone) onClearStatus(t.id, "Done");
+                    if (isError) onClearStatus(t.id, "Error");
+                    onFocusTab(pane.id, i);
+                  }}
+                  onClose={() => onCloseTerminal(pane.id, i)}
+                  onRename={(name) => onRenameTerminal(pane.id, i, name)}
+                />
+                {showDropAfter(i) && (
+                  <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-[var(--accent-cyan)]" />
+                )}
+              </div>
             );
           })}
           <button

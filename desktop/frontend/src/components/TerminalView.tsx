@@ -55,6 +55,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
     focusTerminal,
     focusService,
     renameTerminal,
+    reorderTerminals,
     splitPane,
     closePane,
     setRatio,
@@ -286,6 +287,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
           onAddTerminal={addTerminalToPane}
           onCloseTerminal={closeTerminal}
           onRenameTerminal={renameTerminal}
+          onReorderTerminals={reorderTerminals}
           onSplit={splitPane}
           onClosePane={closePane}
           onClearPane={handleClearPane}

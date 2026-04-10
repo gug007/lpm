@@ -48,6 +48,7 @@ export interface UseTerminalsResult {
   focusTerminal: (paneId: string, tabIdx: number) => void;
   focusService: (paneId: string, serviceName: string) => void;
   renameTerminal: (paneId: string, tabIdx: number, label: string) => void;
+  reorderTerminals: (paneId: string, order: string[]) => void;
   splitPane: (paneId: string, direction: SplitDirection) => Promise<void>;
   closePane: (paneId: string) => void;
   setRatio: (path: number[], ratio: number) => void;
@@ -342,6 +343,41 @@ export function useTerminals(
     [applyTree],
   );
 
+  // Reorder follows the active terminal by id rather than by index so the
+  // user's focused tab stays focused after the drop, even if its position
+  // shifted.
+  const reorderTerminals = useCallback(
+    (paneId: string, order: string[]) => {
+      const current = treeRef.current;
+      if (!current) return;
+      const pane = findPane(current, paneId);
+      if (!pane || order.length !== pane.tabs.length) return;
+
+      const byId = new Map(pane.tabs.map((t) => [t.id, t]));
+      const newTabs: TerminalInstance[] = [];
+      for (const id of order) {
+        const t = byId.get(id);
+        if (!t) return;
+        newTabs.push(t);
+      }
+
+      const activeId = pane.tabs[pane.activeTabIdx]?.id;
+      const activeIdx = activeId ? newTabs.findIndex((t) => t.id === activeId) : -1;
+      const newActive = activeIdx >= 0 ? activeIdx : pane.activeTabIdx;
+      if (newActive === pane.activeTabIdx && newTabs.every((t, i) => t.id === pane.tabs[i].id)) {
+        return;
+      }
+
+      const next = mapPane(current, paneId, (p) => ({
+        ...p,
+        tabs: newTabs,
+        activeTabIdx: newActive,
+      }));
+      applyTree(next);
+    },
+    [applyTree],
+  );
+
   const splitPane = useCallback(
     async (paneId: string, direction: SplitDirection) => {
       if (!treeRef.current || !findPane(treeRef.current, paneId)) return;
@@ -446,6 +482,7 @@ export function useTerminals(
     focusTerminal,
     focusService,
     renameTerminal,
+    reorderTerminals,
     splitPane,
     closePane,
     setRatio,
