@@ -16,3 +16,19 @@ export function ClearIcon() {
     </svg>
   );
 }
+export function SplitRightIcon() {
+  return (
+    <svg {...iconProps}>
+      <rect x="3" y="4" width="18" height="16" rx="1" />
+      <line x1="12" y1="4" x2="12" y2="20" />
+    </svg>
+  );
+}
+export function SplitDownIcon() {
+  return (
+    <svg {...iconProps}>
+      <rect x="3" y="4" width="18" height="16" rx="1" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+    </svg>
+  );
+}
