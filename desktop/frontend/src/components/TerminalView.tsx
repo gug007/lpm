@@ -306,6 +306,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
             className="flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-85"
           >
             New Terminal
+            <kbd className="ml-1 text-[10px] opacity-70">⌘T</kbd>
           </button>
         </div>
       )}

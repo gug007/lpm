@@ -181,6 +181,12 @@ export function ProjectDetail({
     terminalViewRef.current?.createTerminal();
   };
 
+  useKeyboardShortcut(
+    { key: "t", meta: true },
+    handleNewTerminal,
+    visible,
+  );
+
   const handleRunTerminal = async (term: TerminalConfigInfo) => {
     switchDetailView("terminal");
     try {
@@ -390,6 +396,7 @@ export function ProjectDetail({
               >
                 <TerminalIcon />
                 New Terminal
+                <kbd className="ml-1 text-[10px] opacity-70">⌘T</kbd>
               </button>
               <button
                 onClick={() => switchDetailView("config")}
@@ -397,6 +404,7 @@ export function ProjectDetail({
               >
                 <PencilIcon />
                 Edit Config
+                <kbd className="ml-1 text-[10px] opacity-70">⌘E</kbd>
               </button>
             </div>
           </div>

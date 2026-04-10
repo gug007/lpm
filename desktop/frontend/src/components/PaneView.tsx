@@ -154,7 +154,7 @@ function PaneViewImpl(props: PaneViewProps) {
           </SortableList>
           <button
             onClick={() => onAddTerminal(pane.id)}
-            title="New terminal in this pane"
+            title="Open new terminal (⌘T)"
             className="flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[11px] font-medium text-[var(--terminal-header-text)] transition-colors hover:bg-[var(--terminal-header-hover)] hover:text-[var(--terminal-tab-active)]"
           >
             <PlusIcon />
