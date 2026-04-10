@@ -14,7 +14,7 @@ import { useWindowResizeSaver } from "./hooks/useWindowResizeSaver";
 import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
 import { playDoneSound, playWaitingSound, playErrorSound } from "./sounds";
 
-import { StartProject, StopProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects, TmuxInstalled, InstallTmux } from '../wailsjs/go/main/App';
+import { StartProject, StopProject, RemoveProject, BrowseFolder, CreateProject, ReorderProjects, TmuxInstalled, InstallTmux, StartWatchingProject, StopWatchingProject } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 
 export type View = "projects" | "settings" | "global-config" | "commit-instructions" | "pr-instructions";
@@ -68,6 +68,16 @@ export default function App() {
   const handleTmuxInstalled = () => setTmuxReady(true);
 
   const selectedProject = projects.find((p) => p.name === selected) || null;
+
+  useEffect(() => {
+    const root = view === "projects" ? selectedProject?.root : null;
+    if (!root) {
+      StopWatchingProject().catch(() => {});
+      return;
+    }
+    StartWatchingProject(root).catch(() => {});
+    return () => { StopWatchingProject().catch(() => {}); };
+  }, [selectedProject?.root, view]);
 
   // Track projects that have been opened so their components stay mounted.
   const [visited, setVisited] = useState<Set<string>>(new Set());

@@ -1,22 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
-  GitStatus as ApiGitStatus,
-  ListBranches,
   CheckoutBranch,
   CreateBranch,
   SyncBranch,
 } from "../../wailsjs/go/main/App";
-import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useEventListener } from "../hooks/useEventListener";
+import { useGitStatus } from "../hooks/useGitStatus";
 import { CreateBranchModal } from "./CreateBranchModal";
 import { CommitModal } from "./CommitModal";
 import { PRModal } from "./PRModal";
 import { BranchIcon } from "./icons";
-
-type GitStatus = main.GitStatus;
-type Branch = main.Branch;
 
 function relativeTime(unix: number): string {
   if (!unix) return "";
@@ -33,8 +28,7 @@ function relativeTime(unix: number): string {
 export function BranchSwitcher({ projectPath }: {
   projectPath: string;
 }) {
-  const [status, setStatus] = useState<GitStatus | null>(null);
-  const [branches, setBranches] = useState<Branch[]>([]);
+  const { status, branches, refresh } = useGitStatus(projectPath);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
@@ -60,24 +54,6 @@ export function BranchSwitcher({ projectPath }: {
     document,
     open && !creating,
   );
-
-  const refresh = useCallback(async () => {
-    if (!projectPath) return;
-    try {
-      const [s, b] = await Promise.all([
-        ApiGitStatus(projectPath),
-        ListBranches(projectPath).catch(() => [] as Branch[]),
-      ]);
-      setStatus(s);
-      setBranches(b);
-    } catch {
-      // Component hides itself when status.isGitRepo is false.
-    }
-  }, [projectPath]);
-
-  useEffect(() => { refresh(); }, [refresh]);
-
-  useEventListener("focus", refresh);
 
   useEffect(() => {
     if (open && !creating) searchRef.current?.focus();

@@ -46,6 +46,9 @@ type App struct {
 
 	statusStore  *StatusStore
 	socketServer *SocketServer
+
+	watcherMu sync.Mutex
+	watcher   *projectWatcher
 }
 
 func NewApp() *App {
@@ -182,6 +185,8 @@ func (a *App) SaveWindowSize(width, height int) {
 }
 
 func (a *App) shutdown(ctx context.Context) {
+	a.StopWatchingProject()
+
 	if a.socketServer != nil {
 		a.socketServer.Stop()
 	}

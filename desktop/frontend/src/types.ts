@@ -54,6 +54,8 @@ export const STATUS_DONE = "Done";
 export const STATUS_WAITING = "Waiting";
 export const STATUS_ERROR = "Error";
 
+export const GIT_CHANGED_EVENT = "git-changed";
+
 export type AICLI = "claude" | "codex" | "gemini" | "opencode";
 
 export const AI_CLI_OPTIONS: { value: AICLI; label: string }[] = [
