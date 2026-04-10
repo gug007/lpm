@@ -11,6 +11,73 @@ import "@xterm/xterm/css/xterm.css";
 
 const labelBarClass = "flex items-center justify-between gap-1 border-b border-[var(--terminal-header-hover)] bg-[var(--terminal-header)] px-3 py-0.5 font-mono text-[10px] font-medium text-[var(--terminal-header-text)]";
 
+// A session owns the xterm Terminal and the DOM element it's attached to.
+// Sessions survive Pane remounts (e.g. splitting reshuffles the React
+// tree) so scrollback and selection aren't lost. Callers that set
+// sessionKey are responsible for disposal via disposePaneSession.
+interface PaneSession {
+  term: Terminal;
+  fit: FitAddon;
+  search: SearchAddon | null;
+  host: HTMLDivElement;
+  prevLines: string[];
+  stickToBottom: boolean;
+  onScrollState?: (atBottom: boolean) => void;
+}
+
+const paneSessions = new Map<string, PaneSession>();
+
+function createPaneSession(opts: { fontSize: number; theme: ITheme }): PaneSession {
+  const host = document.createElement("div");
+  host.className = "absolute inset-0 overflow-hidden";
+
+  const term = new Terminal({
+    fontSize: opts.fontSize,
+    fontFamily: "'SF Mono', Menlo, Monaco, 'Courier New', monospace",
+    cursorBlink: false,
+    disableStdin: true,
+    convertEol: true,
+    scrollback: 10000,
+    theme: opts.theme,
+  });
+
+  const fit = new FitAddon();
+  term.loadAddon(fit);
+
+  let search: SearchAddon | null = null;
+  try { search = new SearchAddon(); term.loadAddon(search); } catch {}
+  try { term.loadAddon(new WebLinksAddon((_e, uri) => BrowserOpenURL(uri))); } catch {}
+  try { const u = new Unicode11Addon(); term.loadAddon(u); term.unicode.activeVersion = "11"; } catch {}
+
+  term.open(host);
+
+  const session: PaneSession = {
+    term,
+    fit,
+    search,
+    host,
+    prevLines: [],
+    stickToBottom: true,
+  };
+
+  term.onScroll(() => {
+    const buf = term.buffer.active;
+    const atBottom = buf.baseY + term.rows >= buf.length;
+    session.stickToBottom = atBottom;
+    session.onScrollState?.(atBottom);
+  });
+
+  return session;
+}
+
+export function disposePaneSession(key: string): void {
+  const session = paneSessions.get(key);
+  if (!session) return;
+  session.term.dispose();
+  session.host.remove();
+  paneSessions.delete(key);
+}
+
 export interface PaneHandle {
   clear: () => void;
   findNext: (query: string) => boolean;
@@ -29,16 +96,13 @@ interface PaneProps {
   fontSize?: number;
   onScrollStateChange?: (atBottom: boolean) => void;
   themeOverride?: ITheme | null;
+  sessionKey?: string;
   ref?: Ref<PaneHandle>;
 }
 
-export function Pane({ label, onLabelClick, labelActions, output, visible = true, fontSize = 12, onScrollStateChange, themeOverride, ref }: PaneProps) {
+export function Pane({ label, onLabelClick, labelActions, output, visible = true, fontSize = 12, onScrollStateChange, themeOverride, sessionKey, ref }: PaneProps) {
     const containerRef = useRef<HTMLDivElement>(null);
-    const termRef = useRef<Terminal | null>(null);
-    const fitRef = useRef<FitAddon | null>(null);
-    const searchRef = useRef<SearchAddon | null>(null);
-    const prevLinesRef = useRef<string[]>([]);
-    const stickToBottomRef = useRef(true);
+    const sessionRef = useRef<PaneSession | null>(null);
     const scrollCallbackRef = useRef(onScrollStateChange);
     const themeOverrideRef = useRef(themeOverride);
     scrollCallbackRef.current = onScrollStateChange;
@@ -46,31 +110,29 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
 
     useImperativeHandle(ref, () => ({
       clear() {
-        const term = termRef.current;
-        if (term) {
-          term.reset();
-          prevLinesRef.current = [];
-        }
+        const session = sessionRef.current;
+        if (!session) return;
+        session.term.reset();
+        session.prevLines = [];
       },
       findNext(query: string) {
-        return searchRef.current?.findNext(query) ?? false;
+        return sessionRef.current?.search?.findNext(query) ?? false;
       },
       findPrevious(query: string) {
-        return searchRef.current?.findPrevious(query) ?? false;
+        return sessionRef.current?.search?.findPrevious(query) ?? false;
       },
       clearSearch() {
-        searchRef.current?.clearDecorations();
+        sessionRef.current?.search?.clearDecorations();
       },
       scrollToBottom() {
-        const term = termRef.current;
-        if (term) {
-          term.scrollToBottom();
-          stickToBottomRef.current = true;
-          scrollCallbackRef.current?.(true);
-        }
+        const session = sessionRef.current;
+        if (!session) return;
+        session.term.scrollToBottom();
+        session.stickToBottom = true;
+        scrollCallbackRef.current?.(true);
       },
       focus() {
-        termRef.current?.focus();
+        sessionRef.current?.term.focus();
       },
     }));
 
@@ -78,44 +140,44 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
       const el = containerRef.current;
       if (!el) return;
 
-      const term = new Terminal({
-        fontSize,
-        fontFamily: "'SF Mono', Menlo, Monaco, 'Courier New', monospace",
-        cursorBlink: false,
-        disableStdin: true,
-        convertEol: true,
-        scrollback: 10000,
-        theme: themeOverride ?? getTerminalTheme(el),
-      });
+      const initialTheme = themeOverrideRef.current ?? getTerminalTheme(el);
 
-      const fit = new FitAddon();
-      term.loadAddon(fit);
+      let session: PaneSession;
+      if (sessionKey) {
+        const cached = paneSessions.get(sessionKey);
+        if (cached) {
+          session = cached;
+        } else {
+          session = createPaneSession({ fontSize, theme: initialTheme });
+          paneSessions.set(sessionKey, session);
+        }
+      } else {
+        session = createPaneSession({ fontSize, theme: initialTheme });
+      }
 
-      try { const s = new SearchAddon(); term.loadAddon(s); searchRef.current = s; } catch {}
-      try { term.loadAddon(new WebLinksAddon((_e, uri) => BrowserOpenURL(uri))); } catch {}
-      try { const u = new Unicode11Addon(); term.loadAddon(u); term.unicode.activeVersion = "11"; } catch {}
+      sessionRef.current = session;
 
-      term.open(el);
-      termRef.current = term;
-      fitRef.current = fit;
+      // A cached session may have been created earlier with different theme
+      // or fontSize — push the current values before attaching.
+      session.term.options.fontSize = fontSize;
+      session.term.options.theme = initialTheme;
 
-      try { fit.fit(); } catch {}
+      el.appendChild(session.host);
 
-      term.onScroll(() => {
-        const buf = term.buffer.active;
-        const atBottom = buf.baseY + term.rows >= buf.length;
-        stickToBottomRef.current = atBottom;
+      session.onScrollState = (atBottom) => {
         scrollCallbackRef.current?.(atBottom);
-      });
+      };
+
+      try { session.fit.fit(); } catch {}
 
       const handleMouseUp = () => {
-        const selection = term.getSelection();
+        const selection = session.term.getSelection();
         if (selection) navigator.clipboard.writeText(selection).catch(() => {});
       };
-      el.addEventListener("mouseup", handleMouseUp);
+      session.host.addEventListener("mouseup", handleMouseUp);
 
       const globalObserver = new MutationObserver(() => {
-        if (!themeOverrideRef.current) term.options.theme = getTerminalTheme(el);
+        if (!themeOverrideRef.current) session.term.options.theme = getTerminalTheme(el);
       });
       globalObserver.observe(document.documentElement, {
         attributes: true,
@@ -127,61 +189,69 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
         if (resizeTimer) clearTimeout(resizeTimer);
         resizeTimer = window.setTimeout(() => {
           resizeTimer = 0;
-          if (!el.clientWidth || !el.clientHeight) return;
-          try { fit.fit(); } catch {}
+          if (!session.host.clientWidth || !session.host.clientHeight) return;
+          try { session.fit.fit(); } catch {}
         }, 200);
       });
-      ro.observe(el);
+      ro.observe(session.host);
 
       return () => {
         if (resizeTimer) clearTimeout(resizeTimer);
-        el.removeEventListener("mouseup", handleMouseUp);
+        session.host.removeEventListener("mouseup", handleMouseUp);
         globalObserver.disconnect();
         ro.disconnect();
-        term.dispose();
-        termRef.current = null;
-        fitRef.current = null;
-        searchRef.current = null;
+        session.onScrollState = undefined;
+
+        if (sessionKey) {
+          // Detach host from this mount's container; the cached session
+          // (including xterm buffer) stays alive for the next mount.
+          if (session.host.parentNode) {
+            session.host.parentNode.removeChild(session.host);
+          }
+        } else {
+          session.term.dispose();
+          session.host.remove();
+        }
+
+        sessionRef.current = null;
       };
-    }, []);
+    }, [sessionKey]);
 
     useEffect(() => {
-      const term = termRef.current;
-      if (!term) return;
-      term.options.theme = themeOverride ?? getTerminalTheme(containerRef.current);
+      const session = sessionRef.current;
+      if (!session) return;
+      session.term.options.theme = themeOverride ?? getTerminalTheme(containerRef.current);
     }, [themeOverride]);
 
     useEffect(() => {
-      const term = termRef.current;
-      const fit = fitRef.current;
-      if (term && fit) {
-        term.options.fontSize = fontSize;
-        try { fit.fit(); } catch {}
-      }
+      const session = sessionRef.current;
+      if (!session) return;
+      session.term.options.fontSize = fontSize;
+      try { session.fit.fit(); } catch {}
     }, [fontSize]);
 
     useEffect(() => {
       if (!visible) return;
-      const term = termRef.current;
-      const fit = fitRef.current;
-      if (!term || !fit) return;
+      const session = sessionRef.current;
+      if (!session) return;
       requestAnimationFrame(() => {
-        try { fit.fit(); } catch {}
-        try { term.refresh(0, term.rows - 1); } catch {}
+        try { session.fit.fit(); } catch {}
+        try { session.term.refresh(0, session.term.rows - 1); } catch {}
       });
     }, [visible]);
 
     useEffect(() => {
-      const term = termRef.current;
-      if (!term) return;
+      const session = sessionRef.current;
+      if (!session) return;
+      const term = session.term;
 
       const newLines = output ? output.split("\n") : [];
-      const prevLines = prevLinesRef.current;
-      prevLinesRef.current = newLines;
+      const prevLines = session.prevLines;
+      session.prevLines = newLines;
 
       if (newLines.length === 0) return;
 
-      const wasStuck = stickToBottomRef.current;
+      const wasStuck = session.stickToBottom;
       const prevBaseY = term.buffer.active.baseY;
 
       if (prevLines.length === 0) {
@@ -233,9 +303,7 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
             )}
           </div>
         )}
-        <div className="relative min-h-0 min-w-0 flex-1">
-          <div ref={containerRef} className="absolute inset-0 overflow-hidden" />
-        </div>
+        <div ref={containerRef} className="relative min-h-0 min-w-0 flex-1" />
       </div>
     );
 }

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, useImperativeHandle 
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus } from "../../wailsjs/go/main/App";
 import type { ITheme } from "@xterm/xterm";
-import type { PaneHandle } from "./Pane";
+import { disposePaneSession, type PaneHandle } from "./Pane";
 import type { InteractivePaneHandle } from "./InteractivePane";
 import { PaneLayout } from "./PaneLayout";
 import type { ServiceTabInfo, StatusKind } from "./PaneView";
@@ -99,9 +99,35 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
   }, [terminalTheme]);
 
   const serviceTabInfos: ServiceTabInfo[] = useMemo(
-    () => stableServices.map((svc, idx) => ({ name: svc.name, output: outputs[idx] ?? "" })),
-    [stableServices, outputs],
+    () =>
+      stableServices.map((svc, idx) => ({
+        name: svc.name,
+        output: outputs[idx] ?? "",
+        sessionKey: `${projectName}:${svc.name}`,
+      })),
+    [stableServices, outputs, projectName],
   );
+
+  // Session keys for all service Panes owned by this TerminalView.
+  // Tracked in a ref so cleanup effects can dispose xterm instances
+  // without re-running on every services change.
+  const serviceKeysRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    const nextKeys = stableServices.map((svc) => `${projectName}:${svc.name}`);
+    const nextSet = new Set(nextKeys);
+    for (const oldKey of serviceKeysRef.current) {
+      if (!nextSet.has(oldKey)) disposePaneSession(oldKey);
+    }
+    serviceKeysRef.current = nextKeys;
+  }, [projectName, stableServices]);
+
+  useEffect(() => {
+    return () => {
+      for (const key of serviceKeysRef.current) disposePaneSession(key);
+      serviceKeysRef.current = [];
+    };
+  }, []);
 
   const registerTerminalHandle = useCallback((terminalId: string, handle: InteractivePaneHandle | null) => {
     if (handle) terminalHandles.current.set(terminalId, handle);

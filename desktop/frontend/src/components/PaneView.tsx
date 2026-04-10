@@ -16,6 +16,7 @@ export type StatusKind = "Done" | "Waiting" | "Error";
 export interface ServiceTabInfo {
   name: string;
   output: string;
+  sessionKey: string;
 }
 
 export interface PaneViewProps {
@@ -195,6 +196,7 @@ function PaneViewImpl(props: PaneViewProps) {
             >
               <Pane
                 ref={(el) => onRegisterServiceHandle(svc.name, el)}
+                sessionKey={svc.sessionKey}
                 output={svc.output}
                 visible={visible && isActive}
                 fontSize={fontSize}
