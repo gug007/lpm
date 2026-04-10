@@ -13,6 +13,7 @@ import { useProjectsRefresh } from "./hooks/useProjectsRefresh";
 import { useWindowResizeSaver } from "./hooks/useWindowResizeSaver";
 import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
 import { playDoneSound, playWaitingSound, playErrorSound } from "./sounds";
+import { getSettings, saveSettings } from "./settings";
 
 import {
   StartProject,
@@ -37,7 +38,7 @@ export type View =
 
 export default function App() {
   const [tmuxReady, setTmuxReady] = useState<boolean | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(() => getSettings().lastSelectedProject ?? null);
   const [view, setView] = useState<View>("projects");
   const isSettingsView = view !== "projects";
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -92,6 +93,22 @@ export default function App() {
   const handleTmuxInstalled = () => setTmuxReady(true);
 
   const selectedProject = projects.find((p) => p.name === selected) || null;
+
+  // Drop a stale saved selection if the project was deleted while lpm was
+  // closed, but only once projects has actually loaded — otherwise the
+  // empty initial array would clear a valid selection on every boot.
+  useEffect(() => {
+    if (selected && projects.length > 0 && !projects.some((p) => p.name === selected)) {
+      setSelected(null);
+    }
+  }, [projects, selected]);
+
+  useEffect(() => {
+    const next = selected ?? undefined;
+    if (getSettings().lastSelectedProject !== next) {
+      saveSettings({ lastSelectedProject: next });
+    }
+  }, [selected]);
 
   useEffect(() => {
     const root = view === "projects" ? selectedProject?.root : null;

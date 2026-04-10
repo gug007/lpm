@@ -14,6 +14,7 @@ export interface Settings {
   autoGenerateCommitMessage?: boolean;
   autoGeneratePRDescription?: boolean;
   configEditorMode?: "form" | "yaml";
+  lastSelectedProject?: string;
 }
 
 const defaults: Settings = {
@@ -39,6 +40,7 @@ export async function loadSettings(): Promise<Settings> {
       autoGenerateCommitMessage: s.autoGenerateCommitMessage,
       autoGeneratePRDescription: s.autoGeneratePRDescription,
       configEditorMode: s.configEditorMode === "form" || s.configEditorMode === "yaml" ? s.configEditorMode : undefined,
+      lastSelectedProject: s.lastSelectedProject,
     };
   } catch {
     cached = { ...defaults };
