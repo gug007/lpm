@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect } from "react";
+import { memo, useCallback, useEffect, useMemo } from "react";
 import type { ITheme } from "@xterm/xterm";
 import { InteractivePane, type InteractivePaneHandle } from "./InteractivePane";
 import { Pane, type PaneHandle } from "./Pane";
@@ -7,7 +7,7 @@ import { IconBtn } from "./terminal/IconBtn";
 import { PlusIcon, SplitRightIcon, SplitDownIcon, ClearIcon, ExpandIcon, ShrinkIcon } from "./terminal/icons";
 import { XIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
-import { useDragReorder } from "../hooks/useDragReorder";
+import { SortableItem, SortableList } from "./ui/SortableList";
 import type { PaneLeaf, SplitDirection } from "../paneTree";
 
 export type StatusKind = "Done" | "Waiting" | "Error";
@@ -94,13 +94,7 @@ function PaneViewImpl(props: PaneViewProps) {
     (order: string[]) => onReorderTerminals(pane.id, order),
     [pane.id, onReorderTerminals],
   );
-  const {
-    handleDragStart,
-    handleDragEnd,
-    handleDragOver,
-    showDropAbove: showDropBefore,
-    showDropBelow: showDropAfter,
-  } = useDragReorder(pane.tabs, (t) => t.id, handleReorder);
+  const tabIds = useMemo(() => pane.tabs.map((t) => t.id), [pane.tabs]);
 
   const containerClass = fullscreen
     ? "fixed inset-0 z-50 flex flex-col overflow-hidden bg-[var(--terminal-bg)]"
@@ -129,47 +123,39 @@ function PaneViewImpl(props: PaneViewProps) {
           {services.length > 0 && pane.tabs.length > 0 && (
             <div className="mx-1 h-3.5 w-px bg-[var(--terminal-header-hover)]" />
           )}
-          {pane.tabs.map((t, i) => {
-            const isActive = activeServiceName === null && i === terminalIdx;
-            const isDone = donePaneIDs?.has(t.id) ?? false;
-            // Waiting persists across tab clicks (user memory) so we don't
-            // auto-clear it here, unlike Done/Error.
-            const isWaiting = waitingPaneIDs?.has(t.id) ?? false;
-            const isError = errorPaneIDs?.has(t.id) ?? false;
-            return (
-              <div
-                key={t.id}
-                className="relative"
-                draggable
-                onDragStart={(e) => handleDragStart(e, i)}
-                onDragEnd={handleDragEnd}
-                onDragOver={(e) => handleDragOver(e, i)}
-                onDragEnter={(e) => e.preventDefault()}
-              >
-                {showDropBefore(i) && (
-                  <div className="pointer-events-none absolute inset-y-0 left-0 w-px bg-[var(--accent-cyan)]" />
-                )}
-                <HeaderTab
-                  label={t.label}
-                  active={isActive}
-                  shimmer={runningPaneIDs?.has(t.id) ?? false}
-                  done={!isActive && isDone}
-                  waiting={isWaiting}
-                  error={!isActive && isError}
-                  onClick={() => {
-                    if (isDone) onClearStatus(t.id, "Done");
-                    if (isError) onClearStatus(t.id, "Error");
-                    onFocusTab(pane.id, i);
-                  }}
-                  onClose={() => onCloseTerminal(pane.id, i)}
-                  onRename={(name) => onRenameTerminal(pane.id, i, name)}
-                />
-                {showDropAfter(i) && (
-                  <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-[var(--accent-cyan)]" />
-                )}
-              </div>
-            );
-          })}
+          <SortableList ids={tabIds} direction="horizontal" onReorder={handleReorder}>
+            {pane.tabs.map((t, i) => {
+              const isActive = activeServiceName === null && i === terminalIdx;
+              const isDone = donePaneIDs?.has(t.id) ?? false;
+              // Waiting persists across tab clicks (user memory) so we don't
+              // auto-clear it here, unlike Done/Error.
+              const isWaiting = waitingPaneIDs?.has(t.id) ?? false;
+              const isError = errorPaneIDs?.has(t.id) ?? false;
+              return (
+                <SortableItem key={t.id} id={t.id}>
+                  {({ isDragging }) => (
+                    <div className={isDragging ? "opacity-30" : undefined}>
+                      <HeaderTab
+                        label={t.label}
+                        active={isActive}
+                        shimmer={runningPaneIDs?.has(t.id) ?? false}
+                        done={!isActive && isDone}
+                        waiting={isWaiting}
+                        error={!isActive && isError}
+                        onClick={() => {
+                          if (isDone) onClearStatus(t.id, "Done");
+                          if (isError) onClearStatus(t.id, "Error");
+                          onFocusTab(pane.id, i);
+                        }}
+                        onClose={() => onCloseTerminal(pane.id, i)}
+                        onRename={(name) => onRenameTerminal(pane.id, i, name)}
+                      />
+                    </div>
+                  )}
+                </SortableItem>
+              );
+            })}
+          </SortableList>
           <button
             onClick={() => onAddTerminal(pane.id)}
             title="New terminal in this pane"

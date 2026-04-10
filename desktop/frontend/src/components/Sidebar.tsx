@@ -6,7 +6,7 @@ import { InstallUpdate } from "../../wailsjs/go/main/App";
 import { type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
 import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon } from "./icons";
 import { ProgressBar } from "./ui/ProgressBar";
-import { useDragReorder } from "../hooks/useDragReorder";
+import { SortableItem, SortableList } from "./ui/SortableList";
 import { useSidebarResize } from "../hooks/useSidebarResize";
 
 const MUTED_STYLE = { color: "var(--text-muted)" } as const;
@@ -36,14 +36,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
   const [updatePhase, setUpdatePhase] = useState<"downloading" | "installing">("downloading");
   const [updateError, setUpdateError] = useState("");
   const { width, handleResizeStart } = useSidebarResize();
-  const {
-    dragIdx,
-    handleDragStart,
-    handleDragEnd,
-    handleDragOver,
-    showDropAbove,
-    showDropBelow,
-  } = useDragReorder(projects, (p) => p.name, onReorder);
+  const projectIds = projects.map((p) => p.name);
 
   useEffect(() => EventsOn("update-available", setUpdateInfo), []);
   useEffect(() => EventsOn("update-progress", (pct: number) => setProgress(pct)), []);
@@ -96,61 +89,54 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2">
-        {projects.map((project, idx) => {
-          const isSelected = selected === project.name;
-          const isRunning = hasStatus(project, STATUS_RUNNING);
-          const isDone = hasStatus(project, STATUS_DONE);
-          const isWaiting = hasStatus(project, STATUS_WAITING);
-          const isError = hasStatus(project, STATUS_ERROR);
+        <SortableList ids={projectIds} onReorder={onReorder}>
+          {projects.map((project) => {
+            const isSelected = selected === project.name;
+            const isRunning = hasStatus(project, STATUS_RUNNING);
+            const isDone = hasStatus(project, STATUS_DONE);
+            const isWaiting = hasStatus(project, STATUS_WAITING);
+            const isError = hasStatus(project, STATUS_ERROR);
 
-          return (
-            <div key={project.name} className="relative">
-              {showDropAbove(idx) && (
-                <div className="absolute inset-x-3 top-0 h-px bg-[var(--accent-cyan)]" />
-              )}
-              <button
-                draggable
-                onDragStart={(e) => handleDragStart(e, idx)}
-                onDragEnd={handleDragEnd}
-                onDragOver={(e) => handleDragOver(e, idx)}
-                onDragEnter={(e) => e.preventDefault()}
-                onClick={() => onSelect(project.name)}
-                onDoubleClick={() => {
-                  if (getSettings().doubleClickToToggle) onToggle(project.name);
-                }}
-                className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                  isSelected
-                    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                } ${dragIdx === idx ? "opacity-30" : ""}`}
-              >
-                {project.configError ? (
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Config error" />
-                ) : (
-                  <StatusDot running={project.running} />
+            return (
+              <SortableItem key={project.name} id={project.name}>
+                {({ isDragging }) => (
+                  <button
+                    onClick={() => onSelect(project.name)}
+                    onDoubleClick={() => {
+                      if (getSettings().doubleClickToToggle) onToggle(project.name);
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                      isSelected
+                        ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                        : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                    } ${isDragging ? "opacity-30" : ""}`}
+                  >
+                    {project.configError ? (
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Config error" />
+                    ) : (
+                      <StatusDot running={project.running} />
+                    )}
+                    <span
+                      className="truncate"
+                      style={project.configError ? MUTED_STYLE : isDone ? DONE_STYLE : undefined}
+                      title={project.configError || undefined}
+                    >
+                      {isError ? (
+                        <span className="text-red-400">{project.name}</span>
+                      ) : isWaiting ? (
+                        <span className="sidebar-waiting">{project.name}</span>
+                      ) : isRunning ? (
+                        <span className="sidebar-shimmer">{project.name}</span>
+                      ) : project.name}
+                    </span>
+                    {isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
+                    {isDone && !isWaiting && !isError && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
+                  </button>
                 )}
-                <span
-                  className="truncate"
-                  style={project.configError ? MUTED_STYLE : isDone ? DONE_STYLE : undefined}
-                  title={project.configError || undefined}
-                >
-                  {isError ? (
-                    <span className="text-red-400">{project.name}</span>
-                  ) : isWaiting ? (
-                    <span className="sidebar-waiting">{project.name}</span>
-                  ) : isRunning ? (
-                    <span className="sidebar-shimmer">{project.name}</span>
-                  ) : project.name}
-                </span>
-                {isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
-                {isDone && !isWaiting && !isError && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
-              </button>
-              {showDropBelow(idx) && (
-                <div className="absolute inset-x-3 bottom-0 h-px bg-[var(--accent-cyan)]" />
-              )}
-            </div>
-          );
-        })}
+              </SortableItem>
+            );
+          })}
+        </SortableList>
       </nav>
 
       {updateInfo && (
