@@ -4,6 +4,7 @@ import { SectionHeader } from "@/components/section-header";
 import { CodeBlock, Comment } from "@/components/config/code-block";
 import { FieldTable, type Field } from "@/components/config/field-table";
 import { Section } from "@/components/config/section";
+import { TableOfContents } from "@/components/config/toc";
 
 export const metadata: Metadata = {
   title: "Configuration Reference",
@@ -175,7 +176,7 @@ function Bullet({ children }: { children: React.ReactNode }) {
 export default function ConfigPage() {
   return (
     <section className="pt-28 sm:pt-36 pb-20">
-      <div className="max-w-3xl mx-auto px-6">
+      <div className="max-w-5xl mx-auto px-6">
         <SectionHeader
           eyebrow="Reference"
           title="Configuration"
@@ -183,145 +184,184 @@ export default function ConfigPage() {
           as="h1"
         />
 
-        <Section
-          title="Project"
-          description="Top-level fields that identify the project."
-        >
-          <CodeBlock>{`name: myapp
+        <div className="lg:flex lg:gap-12">
+          <aside className="hidden lg:block lg:w-44 lg:flex-shrink-0">
+            <div className="sticky top-20">
+              <TableOfContents />
+            </div>
+          </aside>
+
+          <div className="lg:flex-1 lg:min-w-0 lg:max-w-3xl">
+            <Section
+              id="project"
+              title="Project"
+              description="Top-level fields that identify the project."
+            >
+              <CodeBlock>{`name: myapp
 root: ~/Projects/myapp`}</CodeBlock>
-          <FieldTable fields={projectFields} />
-        </Section>
+              <FieldTable fields={projectFields} />
+            </Section>
 
-        <Section
-          title="Services"
-          description="Long-running processes that lpm starts and stops together. At least one service is required."
-        >
-          <CodeBlock>
-            {`services:
+            <Section
+              id="services"
+              title="Services"
+              description="Long-running processes that the desktop app starts and stops together. At least one service is required."
+            >
+              <CodeBlock>
+                {`services:
   `}
-            <Comment># shorthand — just the command</Comment>
-            {`
-  worker: celery -A backend worker
+                <Comment># shorthand — just the command</Comment>
+                {`
+  web: npm run dev
 
   `}
-            <Comment># full form</Comment>
-            {`
-  api:
-    cmd: go run .
-    cwd: ./backend            `}
-            <Comment># working directory (relative to root)</Comment>
-            {`
-    port: 8080                `}
-            <Comment># port (0-65535, must be unique)</Comment>
-            {`
+                <Comment># full form</Comment>
+                {`
+  server:
+    cmd: node server.js
+    cwd: ./server             `}
+                <Comment># working directory (relative to root)</Comment>
+                {`
+    port: 4000                `}
+                <Comment># port (0-65535, must be unique)</Comment>
+                {`
     env:                      `}
-            <Comment># environment variables</Comment>
-            {`
-      DATABASE_URL: postgres://localhost/myapp`}
-          </CodeBlock>
-          <FieldTable fields={serviceFields} />
-        </Section>
+                <Comment># environment variables</Comment>
+                {`
+      API_KEY: dev-secret`}
+              </CodeBlock>
+              <FieldTable fields={serviceFields} />
+            </Section>
 
-        <Section
-          title="Actions"
-          description={
-            <>
-              One-shot commands like test runners, migrations, or deploy
-              scripts. Run from the app or CLI with{" "}
-              <code className="font-mono text-gray-600 dark:text-gray-300 text-xs">
-                lpm run &lt;project&gt; &lt;action&gt;
-              </code>
-              .
-            </>
-          }
-        >
-          <CodeBlock>
-            {`actions:
-  test: go test ./...         `}
-            <Comment># shorthand</Comment>
-            {`
+            <Section
+              id="actions"
+              title="Actions"
+              description="One-shot commands like test runners, migrations, or deploy scripts. Trigger them from the project panel in the desktop app."
+            >
+              <CodeBlock>
+                {`actions:
+  test: npm test              `}
+                <Comment># shorthand</Comment>
+                {`
 
-  migrate:                    `}
-            <Comment># full form</Comment>
-            {`
-    cmd: rails db:migrate
-    cwd: ./backend
-    label: Run Migrations     `}
-            <Comment># display name in the UI</Comment>
-            {`
+  deploy:                     `}
+                <Comment># full form</Comment>
+                {`
+    cmd: ./scripts/deploy.sh
+    label: Deploy to Production `}
+                <Comment># display name in the UI</Comment>
+                {`
     confirm: true             `}
-            <Comment># ask before running</Comment>
-            {`
+                <Comment># ask before running</Comment>
+                {`
     display: button           `}
-            <Comment># show as a button instead of in menu</Comment>
-            {`
+                <Comment># show as a button instead of in menu</Comment>
+                {`
     env:
-      RAILS_ENV: production`}
-          </CodeBlock>
-          <FieldTable fields={actionFields} />
-        </Section>
+      NODE_ENV: production`}
+              </CodeBlock>
+              <FieldTable fields={actionFields} />
 
-        <Section
-          title="Terminals"
-          description="Persistent interactive shells you can open from the app."
-        >
-          <CodeBlock>
-            {`terminals:
-  console: rails console     `}
-            <Comment># shorthand</Comment>
-            {`
+              <p className="mt-6 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                Shorthand form for common dev commands:
+              </p>
+              <CodeBlock>{`actions:
+  test: npm test
+  lint: npm run lint
+  build: npm run build
+  typecheck: npx tsc --noEmit
+  format: npx prettier --write .`}</CodeBlock>
 
-  psql:                       `}
-            <Comment># full form</Comment>
-            {`
-    cmd: psql myapp_dev
-    label: Database
-    cwd: ./backend
+              <p className="mt-6 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                Destructive operations use{" "}
+                <code className="font-mono">confirm</code> and typically display as
+                a button:
+              </p>
+              <CodeBlock>{`actions:
+  reset-cache:
+    cmd: rm -rf .next node_modules/.cache
+    label: Reset Cache
+    confirm: true
+    display: button
+  rollback:
+    cmd: ./scripts/rollback.sh
+    label: Rollback Deploy
+    confirm: true
+    env:
+      NODE_ENV: production`}</CodeBlock>
+            </Section>
+
+            <Section
+              id="terminals"
+              title="Terminals"
+              description="Persistent interactive shells you can open from the app."
+            >
+              <CodeBlock>
+                {`terminals:
+  codex: codex                `}
+                <Comment># shorthand</Comment>
+                {`
+
+  claude:                     `}
+                <Comment># full form</Comment>
+                {`
+    cmd: claude
+    label: Claude Code
     display: button`}
-          </CodeBlock>
-          <FieldTable fields={terminalFields} />
-        </Section>
+              </CodeBlock>
+              <FieldTable fields={terminalFields} />
 
-        <Section
-          title="Profiles"
-          description={
-            <>
-              Named subsets of services. Start a profile with{" "}
-              <code className="font-mono text-gray-600 dark:text-gray-300 text-xs">
-                lpm myapp -p &lt;profile&gt;
-              </code>{" "}
-              or pick one from the desktop app. If no profile is specified, all
-              services start.
-            </>
-          }
-        >
-          <CodeBlock>{`profiles:
-  frontend-only:
-    - frontend
-  full-stack:
-    - api
-    - frontend
-    - worker`}</CodeBlock>
-          <p className="mt-3 text-xs text-gray-400 dark:text-gray-500 leading-relaxed">
-            Each service name must reference a service defined in{" "}
-            <code className="font-mono">services</code>.
-          </p>
-        </Section>
+              <p className="mt-6 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                Keep your AI coding agents one click away:
+              </p>
+              <CodeBlock>{`terminals:
+  claude: claude
+  codex: codex
+  node: node
+  logs: tail -f ./logs/dev.log`}</CodeBlock>
+            </Section>
 
-        <Section
-          title="Global Config"
-          description={
-            <>
-              <code className="font-mono text-gray-600 dark:text-gray-300 text-xs">
-                ~/.lpm/global.yml
-              </code>{" "}
-              defines actions and terminals shared across all projects.
-              Project-level entries take precedence when names collide.
-            </>
-          }
-        >
-          <CodeBlock filename="~/.lpm/global.yml">
-            {`actions:
+            <Section
+              id="profiles"
+              title="Profiles"
+              description="Named subsets of services. Pick a profile from the project switcher in the desktop app. If no profile is selected, all services start."
+            >
+              <CodeBlock>{`profiles:
+  minimal:
+    - web
+  full:
+    - web
+    - server`}</CodeBlock>
+              <p className="mt-3 text-xs text-gray-400 dark:text-gray-500 leading-relaxed">
+                Each service name must reference a service defined in{" "}
+                <code className="font-mono">services</code>. Services can appear in
+                any number of profiles — overlap is fine.
+              </p>
+
+              <p className="mt-6 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                Define multiple profiles to match different workflows:
+              </p>
+              <CodeBlock>{`profiles:
+  minimal: [web]
+  local:   [web, server]
+  full:    [web, server, worker]`}</CodeBlock>
+            </Section>
+
+            <Section
+              id="global-config"
+              title="Global Config"
+              description={
+                <>
+                  <code className="font-mono text-gray-600 dark:text-gray-300 text-xs">
+                    ~/.lpm/global.yml
+                  </code>{" "}
+                  defines actions and terminals shared across all projects.
+                  Project-level entries take precedence when names collide.
+                </>
+              }
+            >
+              <CodeBlock filename="~/.lpm/global.yml">
+                {`actions:
   docker-prune:
     cmd: docker system prune -f
     label: Docker Prune
@@ -329,62 +369,151 @@ root: ~/Projects/myapp`}</CodeBlock>
 
 terminals:
   htop: htop`}
-          </CodeBlock>
-          <p className="mt-3 text-xs text-gray-400 dark:text-gray-500 leading-relaxed">
-            Global config only supports{" "}
-            <code className="font-mono">actions</code> and{" "}
-            <code className="font-mono">terminals</code> — not services or
-            profiles.
-          </p>
-        </Section>
+              </CodeBlock>
+              <p className="mt-3 text-xs text-gray-400 dark:text-gray-500 leading-relaxed">
+                Global config only supports{" "}
+                <code className="font-mono">actions</code> and{" "}
+                <code className="font-mono">terminals</code> — not services or
+                profiles.
+              </p>
 
-        <Section title="Path resolution">
-          <ul className="space-y-2 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
-            <Bullet>
-              <code className="font-mono text-gray-600 dark:text-gray-300">
-                ~
-              </code>{" "}
-              expands to your home directory
-            </Bullet>
-            <Bullet>
-              Relative{" "}
-              <code className="font-mono text-gray-600 dark:text-gray-300">
-                cwd
-              </code>{" "}
-              paths resolve relative to{" "}
-              <code className="font-mono text-gray-600 dark:text-gray-300">
-                root
-              </code>
-            </Bullet>
-            <Bullet>Absolute paths are used as-is</Bullet>
-          </ul>
-        </Section>
+              <p className="mt-6 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                System-wide utilities shared across every project:
+              </p>
+              <CodeBlock filename="~/.lpm/global.yml">
+                {`actions:
+  prune-branches:
+    cmd: git branch --merged main | grep -v main | xargs git branch -d
+    label: Prune merged branches
+    confirm: true
+  brew-upgrade:
+    cmd: brew update && brew upgrade
+    label: Brew upgrade
 
-        <Section
-          title="Validation"
-          description="Config is validated on load and save. Validation checks:"
-          last
-        >
-          <ul className="space-y-2 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
-            <Bullet>At least one service is defined</Bullet>
-            <Bullet>
-              All{" "}
-              <code className="font-mono text-gray-600 dark:text-gray-300">
-                cmd
-              </code>{" "}
-              fields are non-empty
-            </Bullet>
-            <Bullet>Ports are in range 0-65535 with no duplicates</Bullet>
-            <Bullet>
-              All{" "}
-              <code className="font-mono text-gray-600 dark:text-gray-300">
-                cwd
-              </code>{" "}
-              paths point to existing directories
-            </Bullet>
-            <Bullet>Profile entries reference existing services</Bullet>
-          </ul>
-        </Section>
+terminals:
+  htop: htop
+  btop: btop
+  ncdu: ncdu ~`}
+              </CodeBlock>
+            </Section>
+
+            <Section
+              id="recipes"
+              title="Recipes"
+              description="Common configurations combining services, actions, and terminals."
+            >
+              <p className="mb-2 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                Minimal Next.js app:
+              </p>
+              <CodeBlock>{`name: blog
+root: ~/Projects/blog
+services:
+  web: npm run dev`}</CodeBlock>
+
+              <p className="mt-6 mb-2 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                Next.js app with tests and linting:
+              </p>
+              <CodeBlock>{`name: blog
+root: ~/Projects/blog
+services:
+  web: npm run dev
+actions:
+  test: npm test
+  lint: npm run lint
+  build: npm run build`}</CodeBlock>
+
+              <p className="mt-6 mb-2 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                Next.js front-end paired with a Node server API:
+              </p>
+              <CodeBlock>{`services:
+  web: npm run dev
+  server:
+    cmd: node server.js
+    cwd: ./server
+    port: 4000
+actions:
+  deploy:
+    cmd: ./scripts/deploy.sh
+    confirm: true
+terminals:
+  logs: tail -f ./logs/server.log`}</CodeBlock>
+
+              <p className="mt-6 mb-2 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                Next.js with env vars for local dev:
+              </p>
+              <CodeBlock>{`services:
+  web:
+    cmd: npm run dev
+    port: 3000
+    env:
+      API_URL: http://localhost:4000
+      NEXTAUTH_SECRET: dev-secret
+      NODE_ENV: development`}</CodeBlock>
+
+              <p className="mt-6 mb-2 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                Monorepo with a Next.js app and a docs site:
+              </p>
+              <CodeBlock>{`services:
+  web:
+    cmd: npm run dev
+    cwd: ./apps/web
+    port: 3000
+  docs:
+    cmd: npm run dev
+    cwd: ./apps/docs
+    port: 3001`}</CodeBlock>
+            </Section>
+
+            <Section id="path-resolution" title="Path resolution">
+              <ul className="space-y-2 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                <Bullet>
+                  <code className="font-mono text-gray-600 dark:text-gray-300">
+                    ~
+                  </code>{" "}
+                  expands to your home directory
+                </Bullet>
+                <Bullet>
+                  Relative{" "}
+                  <code className="font-mono text-gray-600 dark:text-gray-300">
+                    cwd
+                  </code>{" "}
+                  paths resolve relative to{" "}
+                  <code className="font-mono text-gray-600 dark:text-gray-300">
+                    root
+                  </code>
+                </Bullet>
+                <Bullet>Absolute paths are used as-is</Bullet>
+              </ul>
+            </Section>
+
+            <Section
+              id="validation"
+              title="Validation"
+              description="Config is validated on load and save. Validation checks:"
+              last
+            >
+              <ul className="space-y-2 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                <Bullet>At least one service is defined</Bullet>
+                <Bullet>
+                  All{" "}
+                  <code className="font-mono text-gray-600 dark:text-gray-300">
+                    cmd
+                  </code>{" "}
+                  fields are non-empty
+                </Bullet>
+                <Bullet>Ports are in range 0-65535 with no duplicates</Bullet>
+                <Bullet>
+                  All{" "}
+                  <code className="font-mono text-gray-600 dark:text-gray-300">
+                    cwd
+                  </code>{" "}
+                  paths point to existing directories
+                </Bullet>
+                <Bullet>Profile entries reference existing services</Bullet>
+              </ul>
+            </Section>
+          </div>
+        </div>
       </div>
     </section>
   );
