@@ -85,11 +85,9 @@ export function ConfigEditor({ projectName, onSaved, onBack }: ConfigEditorProps
                 Source
               </button>
             </div>
-            {mode === "yaml" && (
-              <AIButton onClick={() => setAiOpen(true)} title="Generate config with AI">
-                Generate with AI
-              </AIButton>
-            )}
+            <AIButton onClick={() => setAiOpen(true)} title="Generate config with AI">
+              Generate with AI
+            </AIButton>
           </div>
         </div>
       )}
