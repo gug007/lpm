@@ -52,9 +52,6 @@ export const metadata: Metadata = {
     description:
       "Use the CLI or the desktop app — they stay in sync. Start, stop, and switch between local dev projects with one command.",
   },
-  icons: {
-    icon: "/icon.png",
-  },
 };
 
 const themeScript = `
