@@ -83,18 +83,40 @@ func (a *App) StartTerminalWithCwdEnv(projectName string, cwd string, env map[st
 	return a.startTerminalInternal(cfg, projectName, config.ResolveCwd(cfg.Root, cwd), env)
 }
 
-// StartTerminalWithConfig launches a terminal using settings from a named
-// terminal config (cwd, env). Returns the terminal ID.
-func (a *App) StartTerminalWithConfig(projectName string, terminalName string) (string, error) {
+// TerminalLaunch is what StartTerminalForConfig hands back: a fresh PTY
+// id, the command to type into it now, and — when the config opts into
+// restore — a resume command to type on the next app launch instead.
+type TerminalLaunch struct {
+	ID        string `json:"id"`
+	StartCmd  string `json:"startCmd"`
+	ResumeCmd string `json:"resumeCmd,omitempty"`
+}
+
+// StartTerminalForConfig launches a named terminal config in its own
+// cwd/env. When term.Restore is true, the cmd is run through the resume
+// registry so the caller receives a session-tagged start/resume pair
+// already baked with a fresh uuid; otherwise ResumeCmd is empty and the
+// frontend should not persist either field.
+func (a *App) StartTerminalForConfig(projectName string, terminalName string) (TerminalLaunch, error) {
 	cfg, err := config.LoadProject(projectName)
 	if err != nil {
-		return "", fmt.Errorf("load project: %w", err)
+		return TerminalLaunch{}, fmt.Errorf("load project: %w", err)
 	}
 	term, ok := cfg.Terminals[terminalName]
 	if !ok {
-		return "", fmt.Errorf("terminal %q not found in project %q", terminalName, projectName)
+		return TerminalLaunch{}, fmt.Errorf("terminal %q not found in project %q", terminalName, projectName)
 	}
-	return a.startTerminalInternal(cfg, projectName, config.ResolveCwd(cfg.Root, term.Cwd), term.Env)
+
+	id, err := a.startTerminalInternal(cfg, projectName, config.ResolveCwd(cfg.Root, term.Cwd), term.Env)
+	if err != nil {
+		return TerminalLaunch{}, err
+	}
+
+	launch := TerminalLaunch{ID: id, StartCmd: term.Cmd}
+	if term.Restore {
+		launch.StartCmd, launch.ResumeCmd = resolveRestoreCmds(term.Cmd)
+	}
+	return launch, nil
 }
 
 func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName string, dir string, extraEnv map[string]string) (string, error) {

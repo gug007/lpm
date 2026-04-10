@@ -33,6 +33,7 @@ export interface TerminalConfigInfo {
   label: string;
   cmd: string;
   display: string;
+  restore?: boolean;
 }
 
 export interface ProjectInfo {

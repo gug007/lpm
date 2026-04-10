@@ -72,6 +72,7 @@ type Terminal struct {
 	Cwd     string            `yaml:"cwd,omitempty"`
 	Env     map[string]string `yaml:"env,omitempty"`
 	Display string            `yaml:"display,omitempty"`
+	Restore bool              `yaml:"restore,omitempty"`
 }
 
 func (t *Terminal) UnmarshalYAML(value *yaml.Node) error {

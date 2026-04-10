@@ -59,6 +59,7 @@ type TerminalConfigInfo struct {
 	Label   string `json:"label"`
 	Cmd     string `json:"cmd"`
 	Display string `json:"display"`
+	Restore bool   `json:"restore,omitempty"`
 }
 
 func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, activeProfile string) ProjectInfo {
@@ -153,6 +154,7 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, activeP
 			Label:   label,
 			Cmd:     term.Cmd,
 			Display: term.Display,
+			Restore: term.Restore,
 		})
 	}
 

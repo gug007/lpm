@@ -3,6 +3,8 @@ import { main } from "../wailsjs/go/models";
 
 export interface TerminalEntry {
   label: string;
+  startCmd?: string;
+  resumeCmd?: string;
 }
 
 export interface ProjectTerminalState {

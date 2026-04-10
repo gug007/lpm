@@ -8,8 +8,15 @@ import (
 	"github.com/gug007/lpm/internal/config"
 )
 
+// TerminalEntry is one row of the per-project persisted terminal list.
+// StartCmd is the command typed into the shell on first launch; ResumeCmd
+// is typed on app-restart restore in place of StartCmd when it is set.
+// Both are the fully resolved strings (with any session ids already baked
+// in), so restoring a terminal never re-runs the registry resolver.
 type TerminalEntry struct {
-	Label string `json:"label"`
+	Label     string `json:"label"`
+	StartCmd  string `json:"startCmd,omitempty"`
+	ResumeCmd string `json:"resumeCmd,omitempty"`
 }
 
 type ProjectTerminalState struct {
