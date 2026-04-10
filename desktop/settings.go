@@ -20,6 +20,7 @@ type Settings struct {
 	SidebarWidth       int               `json:"sidebarWidth,omitempty"`
 	AutoGenCommitMsg   bool              `json:"autoGenerateCommitMessage,omitempty"`
 	AutoGenPRDesc      bool              `json:"autoGeneratePRDescription,omitempty"`
+	ConfigEditorMode   string            `json:"configEditorMode,omitempty"`
 }
 
 func defaultSettings() Settings {

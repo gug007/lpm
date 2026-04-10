@@ -13,6 +13,7 @@ export interface Settings {
   sidebarWidth?: number;
   autoGenerateCommitMessage?: boolean;
   autoGeneratePRDescription?: boolean;
+  configEditorMode?: "form" | "yaml";
 }
 
 const defaults: Settings = {
@@ -37,6 +38,7 @@ export async function loadSettings(): Promise<Settings> {
       sidebarWidth: s.sidebarWidth,
       autoGenerateCommitMessage: s.autoGenerateCommitMessage,
       autoGeneratePRDescription: s.autoGeneratePRDescription,
+      configEditorMode: s.configEditorMode === "form" || s.configEditorMode === "yaml" ? s.configEditorMode : undefined,
     };
   } catch {
     cached = { ...defaults };

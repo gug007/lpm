@@ -7,6 +7,7 @@ import { ChevronLeftIcon } from "./icons";
 import { AIButton } from "./ui/AIButton";
 import { AIGenerateModal } from "./AIGenerateModal";
 import { type AICLI } from "../types";
+import { getSettings, saveSettings } from "../settings";
 
 interface ConfigEditorProps {
   projectName: string;
@@ -18,7 +19,13 @@ export function ConfigEditor({ projectName, onSaved, onBack }: ConfigEditorProps
   const onSavedRef = useRef(onSaved);
   onSavedRef.current = onSaved;
 
-  const [mode, setMode] = useState<"visual" | "yaml">("yaml");
+  const [mode, setMode] = useState<"form" | "yaml">(() => getSettings().configEditorMode ?? "form");
+
+  const changeMode = (next: "form" | "yaml") => {
+    if (next === mode) return;
+    setMode(next);
+    saveSettings({ configEditorMode: next });
+  };
 
   const load = useCallback(() => ReadConfig(projectName), [projectName]);
   const save = useCallback(
@@ -37,7 +44,7 @@ export function ConfigEditor({ projectName, onSaved, onBack }: ConfigEditorProps
   const handleAIGenerate = async (cli: AICLI, extraPrompt: string) => {
     const yaml = await GenerateProjectConfig(projectName, cli, extraPrompt);
     setContent(yaml);
-    setMode("yaml");
+    changeMode("yaml");
     setAiOpen(false);
   };
 
@@ -58,24 +65,24 @@ export function ConfigEditor({ projectName, onSaved, onBack }: ConfigEditorProps
           <div className="flex items-center gap-2">
             <div className="flex rounded-md border border-[var(--border)] p-0.5">
               <button
-                onClick={() => setMode("visual")}
+                onClick={() => changeMode("form")}
                 className={`rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                  mode === "visual"
+                  mode === "form"
                     ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
                     : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
                 }`}
               >
-                Visual
+                Form
               </button>
               <button
-                onClick={() => setMode("yaml")}
+                onClick={() => changeMode("yaml")}
                 className={`rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${
                   mode === "yaml"
                     ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
                     : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
                 }`}
               >
-                YAML
+                Source
               </button>
             </div>
             {mode === "yaml" && (
@@ -87,7 +94,7 @@ export function ConfigEditor({ projectName, onSaved, onBack }: ConfigEditorProps
         </div>
       )}
 
-      {mode === "visual" ? (
+      {mode === "form" ? (
         <VisualConfigEditor content={content} onChange={setContent} />
       ) : (
         <div className="relative flex-1 overflow-hidden">
