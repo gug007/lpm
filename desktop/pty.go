@@ -84,8 +84,9 @@ func (a *App) StartTerminalWithCwdEnv(projectName string, cwd string, env map[st
 }
 
 // TerminalLaunch is what StartTerminalForConfig hands back: a fresh PTY
-// id, the command to type into it now, and — when the config opts into
-// restore — a resume command to type on the next app launch instead.
+// id, the command to type into it now, and — when the program is known
+// to the resume registry — a resume command to type on the next app
+// launch instead.
 type TerminalLaunch struct {
 	ID        string `json:"id"`
 	StartCmd  string `json:"startCmd"`
@@ -93,9 +94,10 @@ type TerminalLaunch struct {
 }
 
 // StartTerminalForConfig launches a named terminal config in its own
-// cwd/env. When term.Restore is true, the cmd is run through the resume
-// registry so the caller receives a session-tagged start/resume pair
-// already baked with a fresh uuid; otherwise ResumeCmd is empty and the
+// cwd/env and runs the cmd through the resume registry. If the leading
+// program is recognized (e.g. claude), StartCmd is rewritten with a
+// fresh session id and ResumeCmd carries the matching --resume form;
+// otherwise StartCmd is the original cmd and ResumeCmd is empty and the
 // frontend should not persist either field.
 func (a *App) StartTerminalForConfig(projectName string, terminalName string) (TerminalLaunch, error) {
 	cfg, err := config.LoadProject(projectName)
@@ -112,11 +114,8 @@ func (a *App) StartTerminalForConfig(projectName string, terminalName string) (T
 		return TerminalLaunch{}, err
 	}
 
-	launch := TerminalLaunch{ID: id, StartCmd: term.Cmd}
-	if term.Restore {
-		launch.StartCmd, launch.ResumeCmd = resolveRestoreCmds(term.Cmd)
-	}
-	return launch, nil
+	startCmd, resumeCmd := resolveRestoreCmds(term.Cmd)
+	return TerminalLaunch{ID: id, StartCmd: startCmd, ResumeCmd: resumeCmd}, nil
 }
 
 func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName string, dir string, extraEnv map[string]string) (string, error) {

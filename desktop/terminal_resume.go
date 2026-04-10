@@ -7,19 +7,29 @@ import (
 )
 
 // resumeRecipe describes how to transform a user's terminal command into
-// a pair of commands: one that starts a new resumable session tagged with
-// a given id, and one that resumes that same session later.
+// a pair of commands: one that starts a new resumable session tagged
+// with a given id, and one that resumes that same session later.
 //
-// Adding a new recipe is the only place lpm learns how to restore a new
-// kind of program. Recipes are matched by the leading program token of
-// the user's cmd (env-var assignments are skipped, so `FOO=1 claude` still
-// matches "claude").
+// Recipes are matched by the leading program token of the user's cmd
+// (env-var assignments are skipped, so `FOO=1 claude` still matches
+// "claude"). Cmds whose leading program is not in the registry are left
+// untouched and have no resume form — restore is a no-op for them.
 type resumeRecipe struct {
 	program string
 	start   func(userCmd, id string) string
 	resume  func(userCmd, id string) string
 }
 
+// resumeRegistry is the full list of programs lpm knows how to restore.
+// Add an entry here to teach lpm a new resumable CLI. Each recipe needs:
+//
+//   - program: the exact leading token in the user's cmd that triggers it
+//   - start:   rewrites the cmd so a fresh run creates session `id`
+//   - resume:  rewrites the cmd so a subsequent run reattaches to `id`
+//
+// The session id is a UUID minted once per terminal instance and then
+// persisted by the frontend, so both rewrites must round-trip the same
+// id unchanged.
 var resumeRegistry = []resumeRecipe{
 	{
 		program: "claude",
