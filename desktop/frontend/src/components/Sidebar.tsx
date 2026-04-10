@@ -159,7 +159,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
         </button>
       )}
 
-      <div className="flex flex-col gap-0.5 p-2">
+      <div className="flex flex-col p-2">
         <button
           onClick={onFeedback}
           className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
