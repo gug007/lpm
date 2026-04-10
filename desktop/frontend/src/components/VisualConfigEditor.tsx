@@ -297,7 +297,7 @@ function InputsEditor({ entries, onChange }: { entries: ActionInputEntry[]; onCh
     <Field label="Input prompts">
       <div className="flex flex-col gap-3">
         {entries.map((inp, i) => (
-          <div key={i} className="flex flex-col gap-2 rounded-md bg-[var(--bg-primary)] p-2.5">
+          <div key={i} className="flex flex-col gap-2 border-l border-[var(--border)] pl-3">
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -404,19 +404,19 @@ function CardHeader({
   onDelete: () => void;
 }) {
   return (
-    <div className="group flex items-center gap-2">
-      <button onClick={onToggle} className="flex flex-1 items-center gap-2 min-w-0 text-left">
-        <span className="shrink-0 text-[var(--text-muted)] transition-colors group-hover:text-[var(--text-secondary)]">
+    <div className="group flex items-center gap-3">
+      <button onClick={onToggle} className="flex flex-1 items-center gap-3 min-w-0 text-left">
+        <span className="shrink-0 text-[var(--text-muted)] opacity-50 transition-opacity group-hover:opacity-100">
           {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
         </span>
-        <span className="truncate text-[13px] font-medium text-[var(--text-primary)]">{label || "untitled"}</span>
+        <span className="shrink-0 truncate text-[13px] text-[var(--text-primary)]">{label || "untitled"}</span>
         {subtitle && !expanded && (
-          <span className="truncate text-[12px] text-[var(--text-muted)] font-mono">{subtitle}</span>
+          <span className="flex-1 min-w-0 truncate text-right text-[12px] font-mono text-[var(--text-muted)]">{subtitle}</span>
         )}
       </button>
       <button
         onClick={onDelete}
-        className="shrink-0 rounded p-1 text-[var(--text-muted)] opacity-0 transition-all group-hover:opacity-100 hover:text-[var(--accent-red)]"
+        className="shrink-0 p-1 text-[var(--text-muted)] opacity-0 transition-all group-hover:opacity-100 hover:text-[var(--accent-red)]"
         title="Remove"
       >
         <TrashIcon />
@@ -516,7 +516,7 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
                   onDelete={() => deleteItem("services", i)}
                 />
                 {expanded.has(id) && (
-                  <div className="mt-4 flex flex-col gap-4 pl-6">
+                  <div className="mt-4 mb-2 flex flex-col gap-4 pl-[26px]">
                     <Field label="Name (key)">
                       <Input value={svc.key} onChange={(v) => updateService(i, { key: v })} placeholder="frontend" />
                     </Field>
@@ -555,7 +555,7 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
                   onDelete={() => deleteItem("actions", i)}
                 />
                 {expanded.has(id) && (
-                  <div className="mt-4 flex flex-col gap-4 pl-6">
+                  <div className="mt-4 mb-2 flex flex-col gap-4 pl-[26px]">
                     <Field label="Name (key)">
                       <Input value={act.key} onChange={(v) => updateAction(i, { key: v })} placeholder="deploy" />
                     </Field>
@@ -615,7 +615,7 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
                   onDelete={() => deleteItem("terminals", i)}
                 />
                 {expanded.has(id) && (
-                  <div className="mt-4 flex flex-col gap-4 pl-6">
+                  <div className="mt-4 mb-2 flex flex-col gap-4 pl-[26px]">
                     <Field label="Name (key)">
                       <Input value={term.key} onChange={(v) => updateTerminal(i, { key: v })} placeholder="logs" />
                     </Field>
@@ -661,7 +661,7 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
                   onDelete={() => deleteItem("profiles", i)}
                 />
                 {expanded.has(id) && (
-                  <div className="mt-4 flex flex-col gap-4 pl-6">
+                  <div className="mt-4 mb-2 flex flex-col gap-4 pl-[26px]">
                     <Field label="Name (key)">
                       <Input value={prof.key} onChange={(v) => updateProfile(i, { key: v })} placeholder="backend-only" />
                     </Field>
@@ -717,20 +717,20 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
 
 function Section({ title, count, icon, children }: { title: string; count: number; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="mt-7">
-      <div className="mb-2.5 flex items-center gap-2">
+    <div className="mt-10">
+      <div className="mb-1 flex items-center gap-2 border-b border-[var(--border)] pb-2">
         {icon}
-        <span className="text-[11px] font-medium text-[var(--text-secondary)]">{title}</span>
-        <span className="text-[11px] text-[var(--text-muted)]">{count}</span>
+        <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">{title}</span>
+        <span className="text-[10px] text-[var(--text-muted)]">{count}</span>
       </div>
-      <div className="flex flex-col gap-2">{children}</div>
+      <div className="flex flex-col divide-y divide-[var(--border)]">{children}</div>
     </div>
   );
 }
 
 function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-lg bg-[var(--bg-secondary)] px-3.5 py-3">
+    <div className="py-3">
       {children}
     </div>
   );
