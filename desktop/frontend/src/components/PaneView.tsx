@@ -99,16 +99,18 @@ function PaneViewImpl(props: PaneViewProps) {
 
   const containerClass = fullscreen
     ? "fixed inset-0 z-50 flex flex-col overflow-hidden bg-[var(--terminal-bg)]"
-    : `flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-[var(--border)] ${
-        focused ? "ring-1 ring-inset ring-[var(--accent-cyan)]" : ""
-      }`;
+    : "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-[var(--border)]";
+
+  const headerClass = `flex items-center gap-0.5 bg-[var(--terminal-header)] px-2 py-1 border-b-1 ${
+    focused ? "border-b-[var(--accent-cyan)]" : "border-b-[var(--terminal-header-hover)]"
+  }`;
 
   return (
     <div
       className={containerClass}
       onMouseDownCapture={() => onFocusPane(pane.id)}
     >
-      <div className="flex items-center gap-0.5 bg-[var(--terminal-header)] px-2 py-1">
+      <div className={headerClass}>
         <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
           {services.map((svc) => {
             const isActive = activeServiceName === svc.name;
