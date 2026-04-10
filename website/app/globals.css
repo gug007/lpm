@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+.dark {
+  --background: #111111;
+  --foreground: #e5e7eb;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.dl-card {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+.dl-card:hover {
+  transform: translateY(-2px) scale(1.02);
+}
+.dl-card.recommended {
+  box-shadow:
+    0 0 0 2px rgba(99, 102, 241, 0.5),
+    0 0 16px -2px rgba(99, 102, 241, 0.15);
+  border-color: rgb(99, 102, 241) !important;
+  position: relative;
+}
+.dl-card.recommended::before {
+  content: "Recommended";
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: white;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  padding: 1px 10px;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+.dl-card.recommended:hover {
+  box-shadow:
+    0 0 0 2px rgba(99, 102, 241, 0.6),
+    0 0 24px -2px rgba(99, 102, 241, 0.25),
+    0 10px 25px -5px rgba(0, 0, 0, 0.08);
+}
