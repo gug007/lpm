@@ -106,7 +106,7 @@ function PaneViewImpl(props: PaneViewProps) {
     : "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-[var(--border)]";
 
   const headerClass = `flex items-center gap-0.5 bg-[var(--terminal-header)] px-2 py-1 border-b-1 ${
-    focused ? "border-b-[var(--accent-cyan)]" : "border-b-[var(--terminal-header-hover)]"
+    focused && canClose ? "border-b-[var(--accent-cyan)]" : "border-b-[var(--terminal-header-hover)]"
   }`;
 
   return (
