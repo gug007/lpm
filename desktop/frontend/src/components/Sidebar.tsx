@@ -51,45 +51,38 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
     ? projects.find((p) => p.name === contextMenu.name)
     : null;
 
-  const duplicatesByParent = useMemo(() => {
-    const map = new Map<string, ProjectInfo[]>();
-    for (const p of projects) {
-      if (!p.parentName) continue;
-      const existing = map.get(p.parentName);
-      if (existing) existing.push(p);
-      else map.set(p.parentName, [p]);
-    }
-    return map;
-  }, [projects]);
-
-  // Orphan duplicates (parent vanished) promote to the top level so they
-  // stay visible instead of disappearing from the sidebar.
+  // Projects arrive pre-grouped (backend normalizes duplicates to sit right
+  // after their parent). We expose only parents and orphaned duplicates as
+  // drag handles so the user reorders groups, not individual duplicates.
   const { rows, topLevelNames } = useMemo(() => {
     const nameSet = new Set(projects.map((p) => p.name));
     const outRows: { project: ProjectInfo; isChild: boolean }[] = [];
     const outTop: string[] = [];
     for (const p of projects) {
-      if (p.parentName && nameSet.has(p.parentName)) continue;
-      outRows.push({ project: p, isChild: false });
-      outTop.push(p.name);
-      const children = duplicatesByParent.get(p.name);
-      if (children) {
-        for (const child of children) {
-          outRows.push({ project: child, isChild: true });
-        }
-      }
+      const isChild = Boolean(p.parentName && nameSet.has(p.parentName));
+      outRows.push({ project: p, isChild });
+      if (!isChild) outTop.push(p.name);
     }
     return { rows: outRows, topLevelNames: outTop };
-  }, [projects, duplicatesByParent]);
+  }, [projects]);
 
-  // Backend stores a flat project order; expand the dragged top-level list
-  // with each parent's duplicates so they stay pinned after refresh.
+  // Backend stores a flat order; expand the dragged top-level list with
+  // each parent's duplicates so the optimistic client-side sort matches
+  // the normalized order the backend returns on next read.
   const handleReorder = (newTopOrder: string[]) => {
+    const childrenByParent = new Map<string, string[]>();
+    for (const { project, isChild } of rows) {
+      if (!isChild) continue;
+      const parent = project.parentName!;
+      const list = childrenByParent.get(parent);
+      if (list) list.push(project.name);
+      else childrenByParent.set(parent, [project.name]);
+    }
     const flat: string[] = [];
     for (const name of newTopOrder) {
       flat.push(name);
-      const children = duplicatesByParent.get(name);
-      if (children) for (const child of children) flat.push(child.name);
+      const kids = childrenByParent.get(name);
+      if (kids) flat.push(...kids);
     }
     onReorder(flat);
   };
@@ -153,6 +146,19 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
             const isWaiting = hasStatus(project, STATUS_WAITING);
             const isError = hasStatus(project, STATUS_ERROR);
             const isBusy = duplicatingName === project.name || removingName === project.name;
+            const dupSuffix =
+              project.parentName && project.name.startsWith(project.parentName + "-")
+                ? project.name.slice(project.parentName.length)
+                : null;
+            const mainName = dupSuffix ? project.parentName! : project.name;
+            const nameContent = dupSuffix ? (
+              <>
+                {mainName}
+                <span style={MUTED_STYLE}>{dupSuffix}</span>
+              </>
+            ) : (
+              project.name
+            );
 
             const rowButton = (
               <button
@@ -185,12 +191,12 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                   title={project.configError || (project.parentName ? `Duplicate of ${project.parentName}` : undefined)}
                 >
                   {isError ? (
-                    <span className="text-red-400">{project.name}</span>
+                    <span className="text-red-400">{nameContent}</span>
                   ) : isWaiting ? (
-                    <span className="sidebar-waiting">{project.name}</span>
+                    <span className="sidebar-waiting">{nameContent}</span>
                   ) : isRunning ? (
-                    <span className="sidebar-shimmer">{project.name}</span>
-                  ) : project.name}
+                    <span className="sidebar-shimmer">{nameContent}</span>
+                  ) : nameContent}
                 </span>
                 {isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
                 {isDone && !isWaiting && !isError && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
@@ -198,11 +204,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
             );
 
             if (isChild) {
-              return (
-                <div key={project.name} className="ml-4 border-l border-[var(--border)]">
-                  {rowButton}
-                </div>
-              );
+              return <div key={project.name}>{rowButton}</div>;
             }
             return (
               <SortableItem key={project.name} id={project.name}>

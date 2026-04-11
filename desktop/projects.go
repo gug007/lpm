@@ -258,28 +258,67 @@ func (a *App) applyProjectOrder(names []string) []string {
 	order := a.projectOrder
 	a.cacheMu.RUnlock()
 
-	if len(order) == 0 {
-		return names
-	}
-
 	nameSet := make(map[string]bool, len(names))
 	for _, n := range names {
 		nameSet[n] = true
 	}
 
-	ordered := make([]string, 0, len(names))
-	for _, n := range order {
-		if nameSet[n] {
-			ordered = append(ordered, n)
-			delete(nameSet, n)
+	var ordered []string
+	if len(order) == 0 {
+		ordered = append([]string(nil), names...)
+	} else {
+		ordered = make([]string, 0, len(names))
+		seen := make(map[string]bool, len(names))
+		for _, n := range order {
+			if nameSet[n] && !seen[n] {
+				ordered = append(ordered, n)
+				seen[n] = true
+			}
+		}
+		for _, n := range names {
+			if !seen[n] {
+				ordered = append(ordered, n)
+			}
 		}
 	}
-	for _, n := range names {
-		if nameSet[n] {
-			ordered = append(ordered, n)
+
+	return groupDuplicatesAfterParents(ordered)
+}
+
+// groupDuplicatesAfterParents moves each duplicate project so it sits
+// immediately after its parent in the list. Orphan duplicates (parent
+// missing) stay wherever they were. This enforces the "duplicate lives
+// next to its source" rule regardless of what's in the saved order, so
+// existing state self-heals and a dragged duplicate snaps back to its
+// parent on the next read.
+func groupDuplicatesAfterParents(ordered []string) []string {
+	if len(ordered) < 2 {
+		return ordered
+	}
+	nameSet := make(map[string]bool, len(ordered))
+	for _, n := range ordered {
+		nameSet[n] = true
+	}
+	children := make(map[string][]string)
+	stripped := make([]string, 0, len(ordered))
+	for _, n := range ordered {
+		if parent := config.PeekParent(n); parent != "" && nameSet[parent] {
+			children[parent] = append(children[parent], n)
+			continue
+		}
+		stripped = append(stripped, n)
+	}
+	if len(children) == 0 {
+		return ordered
+	}
+	result := make([]string, 0, len(ordered))
+	for _, n := range stripped {
+		result = append(result, n)
+		if kids, ok := children[n]; ok {
+			result = append(result, kids...)
 		}
 	}
-	return ordered
+	return result
 }
 
 func (a *App) ReorderProjects(order []string) error {
