@@ -7,6 +7,7 @@ interface ProjectContextMenuProps {
   y: number;
   busy: boolean;
   canRemove: boolean;
+  onRename: () => void;
   onDuplicate: () => void;
   onCopyPath: () => void;
   onRemove: () => void;
@@ -18,6 +19,7 @@ export function ProjectContextMenu({
   y,
   busy,
   canRemove,
+  onRename,
   onDuplicate,
   onCopyPath,
   onRemove,
@@ -39,6 +41,15 @@ export function ProjectContextMenu({
       className="fixed z-50 min-w-[180px] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg"
       style={{ left: x, top: y }}
     >
+      <button
+        onClick={() => {
+          onRename();
+          onClose();
+        }}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+      >
+        <span className="flex-1 truncate">Rename</span>
+      </button>
       <button
         onClick={() => {
           onDuplicate();

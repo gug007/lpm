@@ -6,6 +6,7 @@ import (
 	"os"
 	"slices"
 	"sort"
+	"strings"
 	"syscall"
 	"time"
 
@@ -27,6 +28,7 @@ type ProjectInfo struct {
 	Name          string               `json:"name"`
 	Session       string               `json:"session"`
 	Root          string               `json:"root"`
+	Label         string               `json:"label,omitempty"`
 	Running       bool                 `json:"running"`
 	Services      []ServiceInfo        `json:"services"`
 	AllServices   []ServiceInfo        `json:"allServices"`
@@ -202,6 +204,7 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state r
 		Name:          name,
 		Session:       cfg.Name,
 		Root:          cfg.Root,
+		Label:         cfg.Label,
 		Running:       running,
 		Services:      services,
 		AllServices:   allServices,
@@ -307,6 +310,26 @@ func groupDuplicatesAfterParents(ordered []ProjectInfo) []ProjectInfo {
 		}
 	}
 	return result
+}
+
+// SetProjectLabel writes a display-only label to the project's config.
+// The label is optional — an empty string (after trimming) clears it,
+// causing the UI to fall back to the project's identifier name.
+func (a *App) SetProjectLabel(name, label string) error {
+	cfg, err := config.LoadProject(name)
+	if err != nil {
+		return err
+	}
+	trimmed := strings.TrimSpace(label)
+	if cfg.Label == trimmed {
+		return nil
+	}
+	cfg.Label = trimmed
+	if err := config.SaveProject(cfg); err != nil {
+		return err
+	}
+	runtime.EventsEmit(a.ctx, "projects-changed")
+	return nil
 }
 
 func (a *App) ReorderProjects(order []string) error {

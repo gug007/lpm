@@ -161,6 +161,7 @@ func (m *TerminalMap) UnmarshalYAML(value *yaml.Node) error {
 type ProjectConfig struct {
 	Name       string              `yaml:"name"`
 	Root       string              `yaml:"root"`
+	Label      string              `yaml:"label,omitempty"`
 	ParentName string              `yaml:"parent_name,omitempty"`
 	Services   ServiceMap          `yaml:"services,omitempty"`
 	Actions    ActionMap           `yaml:"actions,omitempty"`

@@ -9,6 +9,8 @@ import { ProgressBar } from "./ui/ProgressBar";
 import { SortableItem, SortableList } from "./ui/SortableList";
 import { useSidebarResize } from "../hooks/useSidebarResize";
 import { ProjectContextMenu } from "./ProjectContextMenu";
+import { ProjectNameDisplay } from "./ProjectNameDisplay";
+import { RenameInput } from "./RenameInput";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { SpinnerIcon } from "./project-detail/icons";
 
@@ -27,17 +29,39 @@ interface SidebarProps {
   onAddProject: () => void;
   onDuplicateProject: (name: string) => void;
   onRemoveProject: (name: string) => void;
+  onRenameProject: (name: string, label: string) => void;
   onReorder: (order: string[]) => void;
   showSettings: boolean;
   duplicatingName: string | null;
   removingName: string | null;
 }
 
-function hasStatus(project: ProjectInfo, value: string): boolean {
-  return project.statusEntries?.some(e => e.value === value) ?? false;
+interface ProjectStatus {
+  isRunning: boolean;
+  isDone: boolean;
+  isWaiting: boolean;
+  isError: boolean;
+  className: string | null;
 }
 
-export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onSettings, onFeedback, onAddProject, onDuplicateProject, onRemoveProject, onReorder, showSettings, duplicatingName, removingName }: SidebarProps) {
+function computeStatus(project: ProjectInfo): ProjectStatus {
+  const entries = project.statusEntries ?? [];
+  const has = (v: string) => entries.some((e) => e.value === v);
+  const isRunning = has(STATUS_RUNNING);
+  const isDone = has(STATUS_DONE);
+  const isWaiting = has(STATUS_WAITING);
+  const isError = has(STATUS_ERROR);
+  const className = isError
+    ? "text-red-400"
+    : isWaiting
+    ? "sidebar-waiting"
+    : isRunning
+    ? "sidebar-shimmer"
+    : null;
+  return { isRunning, isDone, isWaiting, isError, className };
+}
+
+export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onSettings, onFeedback, onAddProject, onDuplicateProject, onRemoveProject, onRenameProject, onReorder, showSettings, duplicatingName, removingName }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -45,6 +69,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
   const [updateError, setUpdateError] = useState("");
   const [contextMenu, setContextMenu] = useState<{ name: string; x: number; y: number } | null>(null);
   const [confirmRemoveDuplicate, setConfirmRemoveDuplicate] = useState<string | null>(null);
+  const [renamingName, setRenamingName] = useState<string | null>(null);
   const { width, handleResizeStart } = useSidebarResize();
 
   const contextProject = contextMenu
@@ -53,16 +78,17 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
 
   // Backend guarantees duplicates sit immediately after their parent; we
   // only need to mark children so they render without a drag handle.
-  const { rows, topLevelNames } = useMemo(() => {
-    const nameSet = new Set(projects.map((p) => p.name));
+  const { rows, topLevelNames, projectByName } = useMemo(() => {
+    const byName = new Map<string, ProjectInfo>();
+    for (const p of projects) byName.set(p.name, p);
     const outRows: { project: ProjectInfo; isChild: boolean }[] = [];
     const outTop: string[] = [];
     for (const p of projects) {
-      const isChild = Boolean(p.parentName && nameSet.has(p.parentName));
+      const isChild = Boolean(p.parentName && byName.has(p.parentName));
       outRows.push({ project: p, isChild });
       if (!isChild) outTop.push(p.name);
     }
-    return { rows: outRows, topLevelNames: outTop };
+    return { rows: outRows, topLevelNames: outTop, projectByName: byName };
   }, [projects]);
 
   // Backend stores a flat order; expand the dragged top-level list with
@@ -70,12 +96,12 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
   // the normalized order the backend returns on next read.
   const handleReorder = (newTopOrder: string[]) => {
     const childrenByParent = new Map<string, string[]>();
-    for (const { project, isChild } of rows) {
-      if (!isChild) continue;
-      const parent = project.parentName!;
-      const list = childrenByParent.get(parent);
+    for (const { project } of rows) {
+      const parentName = project.parentName;
+      if (!parentName || !projectByName.has(parentName)) continue;
+      const list = childrenByParent.get(parentName);
       if (list) list.push(project.name);
-      else childrenByParent.set(parent, [project.name]);
+      else childrenByParent.set(parentName, [project.name]);
     }
     const flat: string[] = [];
     for (const name of newTopOrder) {
@@ -139,32 +165,13 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
       <nav className="flex-1 overflow-y-auto px-2">
         <SortableList ids={topLevelNames} onReorder={handleReorder}>
           {rows.map(({ project, isChild }) => {
+            const status = computeStatus(project);
             const isSelected = selected === project.name;
-            const isRunning = hasStatus(project, STATUS_RUNNING);
-            const isDone = hasStatus(project, STATUS_DONE);
-            const isWaiting = hasStatus(project, STATUS_WAITING);
-            const isError = hasStatus(project, STATUS_ERROR);
             const isBusy = duplicatingName === project.name || removingName === project.name;
-            const parent = project.parentName;
-            const dupSuffix =
-              parent && project.name.startsWith(parent + "-")
-                ? project.name.slice(parent.length)
-                : null;
-            const nameContent = dupSuffix ? (
-              <>
-                {parent}
-                <span style={MUTED_STYLE}>{dupSuffix}</span>
-              </>
-            ) : (
-              project.name
-            );
-            const statusClass = isError
-              ? "text-red-400"
-              : isWaiting
-              ? "sidebar-waiting"
-              : isRunning
-              ? "sidebar-shimmer"
-              : null;
+            const isRenaming = renamingName === project.name;
+            const parent = project.parentName ? projectByName.get(project.parentName) : undefined;
+            const name = <ProjectNameDisplay project={project} parent={parent} />;
+            const showCheck = status.isDone && !status.isWaiting && !status.isError;
 
             const rowButton = (
               <button
@@ -191,15 +198,26 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                 ) : (
                   <StatusDot running={project.running} />
                 )}
-                <span
-                  className="truncate"
-                  style={project.configError ? MUTED_STYLE : isDone ? DONE_STYLE : undefined}
-                  title={project.configError || (project.parentName ? `Duplicate of ${project.parentName}` : undefined)}
-                >
-                  {statusClass ? <span className={statusClass}>{nameContent}</span> : nameContent}
-                </span>
-                {isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
-                {isDone && !isWaiting && !isError && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
+                {isRenaming ? (
+                  <RenameInput
+                    initialValue={project.label ?? project.name}
+                    onCommit={(value) => {
+                      onRenameProject(project.name, value);
+                      setRenamingName(null);
+                    }}
+                    onCancel={() => setRenamingName(null)}
+                  />
+                ) : (
+                  <span
+                    className="truncate"
+                    style={project.configError ? MUTED_STYLE : status.isDone ? DONE_STYLE : undefined}
+                    title={project.configError || (project.parentName ? `Duplicate of ${project.parentName}` : undefined)}
+                  >
+                    {status.className ? <span className={status.className}>{name}</span> : name}
+                  </span>
+                )}
+                {status.isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
+                {showCheck && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
               </button>
             );
 
@@ -220,6 +238,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           y={contextMenu.y}
           busy={duplicatingName !== null || removingName !== null}
           canRemove={Boolean(contextProject?.parentName)}
+          onRename={() => setRenamingName(contextMenu.name)}
           onDuplicate={() => onDuplicateProject(contextMenu.name)}
           onCopyPath={() => {
             if (contextProject?.root) navigator.clipboard.writeText(contextProject.root);

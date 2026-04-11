@@ -8,6 +8,7 @@ import {
   ListProjects,
   RemoveProject,
   ReorderProjects,
+  SetProjectLabel,
   StartProject,
   StopProject,
   ToggleProjectService,
@@ -54,6 +55,7 @@ interface AppState {
   addProject: () => Promise<void>;
   duplicateProject: (name: string) => Promise<void>;
   removeProject: (name: string) => Promise<void>;
+  renameProject: (name: string, label: string) => Promise<void>;
   reorderProjects: (order: string[]) => Promise<void>;
   refreshAfterRename: (newName?: string) => Promise<void>;
 }
@@ -201,6 +203,23 @@ export const useAppStore = create<AppState>((set, get) => ({
       toast.error(`Failed to remove ${name}: ${err}`);
     } finally {
       set({ removingName: null });
+    }
+  },
+
+  renameProject: async (name, label) => {
+    const current = get().projects.find((p) => p.name === name)?.label ?? "";
+    const next = label.trim();
+    if (current === next) return;
+    set((s) => ({
+      projects: s.projects.map((p) =>
+        p.name === name ? { ...p, label: next || undefined } : p,
+      ),
+    }));
+    try {
+      await SetProjectLabel(name, next);
+    } catch (err) {
+      toast.error(`Failed to rename ${name}: ${err}`);
+      await get().refreshProjects();
     }
   },
 

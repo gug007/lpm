@@ -44,6 +44,7 @@ export interface ProjectInfo {
   name: string;
   session: string;
   root: string;
+  label?: string;
   running: boolean;
   services: ServiceInfo[];
   allServices: ServiceInfo[];

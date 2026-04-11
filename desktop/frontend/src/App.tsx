@@ -51,6 +51,7 @@ export default function App() {
   const addProject = useAppStore((s) => s.addProject);
   const duplicateProject = useAppStore((s) => s.duplicateProject);
   const removeProject = useAppStore((s) => s.removeProject);
+  const renameProject = useAppStore((s) => s.renameProject);
   const reorderProjects = useAppStore((s) => s.reorderProjects);
   const refreshAfterRename = useAppStore((s) => s.refreshAfterRename);
 
@@ -161,6 +162,7 @@ export default function App() {
           onAddProject={addProject}
           onDuplicateProject={duplicateProject}
           onRemoveProject={removeProject}
+          onRenameProject={renameProject}
           onReorder={reorderProjects}
           showSettings={isSettingsView}
           duplicatingName={duplicatingName}
