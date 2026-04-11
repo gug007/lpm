@@ -10,7 +10,7 @@ import { getSettings, saveSettings } from "../settings";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
 import { type ProjectInfo, type ActionInfo, type TerminalConfigInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
-import { TerminalIcon, CheckIcon, ChevronDownIcon, PencilIcon, MenuIcon, AlertCircleIcon } from "./icons";
+import { TerminalIcon, CheckIcon, ChevronDownIcon, PencilIcon, MenuIcon, AlertCircleIcon, PlayIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
@@ -349,26 +349,38 @@ export function ProjectDetail({
                 <ChevronDownIcon />
               </button>
               {showProfileMenu && (
-                <div className="absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
-                  {project.profiles.map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => {
-                        setActiveProfile(p);
-                        setShowProfileMenu(false);
-                      }}
-                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)] ${
-                        activeProfile === p
-                          ? "text-[var(--text-primary)] font-medium"
-                          : "text-[var(--text-secondary)]"
-                      }`}
-                    >
-                      <span className="flex-1">{p}</span>
-                      {activeProfile === p && (
-                        <span className="text-[var(--accent-green)]"><CheckIcon /></span>
-                      )}
-                    </button>
-                  ))}
+                <div className="absolute right-0 top-full z-50 mt-1.5 min-w-[180px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl">
+                  <div className="px-3 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                    Start with profile
+                  </div>
+                  <div className="pb-1">
+                    {project.profiles.map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => {
+                          setActiveProfile(p);
+                          setShowProfileMenu(false);
+                          withLoading(async () => {
+                            await onStart(project.name, p);
+                            setDetailView("terminal");
+                          });
+                        }}
+                        className={`group flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] transition-colors hover:bg-[var(--bg-hover)] ${
+                          activeProfile === p
+                            ? "text-[var(--text-primary)] font-medium"
+                            : "text-[var(--text-secondary)]"
+                        }`}
+                      >
+                        <span className="flex h-4 w-4 shrink-0 items-center justify-center text-[var(--accent-green)]">
+                          {activeProfile === p ? <CheckIcon /> : null}
+                        </span>
+                        <span className="flex-1 truncate">{p}</span>
+                        <span className="opacity-0 transition-opacity group-hover:opacity-60 text-[var(--text-muted)]">
+                          <PlayIcon />
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
