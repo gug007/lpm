@@ -31,9 +31,10 @@ const (
 )
 
 type ptySession struct {
-	id  string
-	pty *os.File
-	cmd *exec.Cmd
+	id          string
+	projectName string
+	pty         *os.File
+	cmd         *exec.Cmd
 
 	// Flow control (mu protects unacked/paused only)
 	mu      sync.Mutex
@@ -150,9 +151,10 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 	}
 
 	sess := &ptySession{
-		id:  id,
-		pty: ptmx,
-		cmd: cmd,
+		id:          id,
+		projectName: projectName,
+		pty:         ptmx,
+		cmd:         cmd,
 	}
 	sess.cond = sync.NewCond(&sess.mu)
 
@@ -327,6 +329,25 @@ func (a *App) ResizeTerminal(id string, cols int, rows int) error {
 	})
 }
 
+// close tears down a single session: wake any paused reader, block new
+// I/O via closeMu, then close the PTY and kill the shell. Safe to call
+// once the session has been removed from App.ptySessions.
+func (s *ptySession) close() {
+	s.mu.Lock()
+	s.paused = false
+	s.cond.Signal()
+	s.mu.Unlock()
+
+	s.closeMu.Lock()
+	s.closed = true
+	s.closeMu.Unlock()
+
+	_ = s.pty.Close()
+	if s.cmd.Process != nil {
+		_ = s.cmd.Process.Kill()
+	}
+}
+
 // StopTerminal closes a terminal session and kills the shell process.
 func (a *App) StopTerminal(id string) error {
 	a.ptyMu.Lock()
@@ -339,23 +360,26 @@ func (a *App) StopTerminal(id string) error {
 	if !ok {
 		return nil
 	}
-
-	// Wake the reader goroutine so it can exit
-	sess.mu.Lock()
-	sess.paused = false
-	sess.cond.Signal()
-	sess.mu.Unlock()
-
-	// Wait for in-flight writes/resizes to drain, then mark closed
-	sess.closeMu.Lock()
-	sess.closed = true
-	sess.closeMu.Unlock()
-
-	_ = sess.pty.Close()
-	if sess.cmd.Process != nil {
-		_ = sess.cmd.Process.Kill()
-	}
+	sess.close()
 	return nil
+}
+
+// stopProjectTerminals closes every PTY belonging to projectName so its
+// shells release file handles before the project's folder is deleted.
+func (a *App) stopProjectTerminals(projectName string) {
+	a.ptyMu.Lock()
+	matched := make([]*ptySession, 0)
+	for id, sess := range a.ptySessions {
+		if sess.projectName == projectName {
+			matched = append(matched, sess)
+			delete(a.ptySessions, id)
+		}
+	}
+	a.ptyMu.Unlock()
+
+	for _, sess := range matched {
+		sess.close()
+	}
 }
 
 // ReadClipboardFiles returns file paths currently on the macOS clipboard.

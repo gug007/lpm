@@ -1,10 +1,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"slices"
 	"sort"
+	"syscall"
+	"time"
 
 	"github.com/gug007/lpm/internal/config"
 	"github.com/gug007/lpm/internal/tmux"
@@ -735,11 +738,18 @@ func (a *App) RemoveProject(name string) error {
 		tmux.KillSession(cfg.Name)
 	}
 	a.invalidateSessionCache(name)
+	// Quiesce the tree before deletion: live shells writing into it
+	// (bundle, rails, spring) race RemoveAll's walk and surface as
+	// ENOTEMPTY on the final rmdir.
+	a.stopProjectTerminals(name)
+	if loadErr == nil {
+		a.stopWatcherIfRoot(cfg.Root)
+	}
 	// Duplicates own the copied folder (LPM created it), so remove the tree
 	// before dropping the pointer. If folder removal fails, bail out so the
 	// user can retry the whole operation instead of orphaning a directory.
 	if loadErr == nil && cfg.IsDuplicate() && cfg.Root != "" {
-		if err := os.RemoveAll(cfg.Root); err != nil {
+		if err := removeAllWithRetry(cfg.Root); err != nil {
 			return fmt.Errorf("failed to remove duplicate folder %q: %w", cfg.Root, err)
 		}
 	}
@@ -748,4 +758,24 @@ func (a *App) RemoveProject(name string) error {
 	}
 	runtime.EventsEmit(a.ctx, "projects-changed")
 	return nil
+}
+
+// removeAllWithRetry wraps os.RemoveAll with linear backoff on ENOTEMPTY.
+// Even after killing PTYs and detaching the watcher, Spotlight/mdworker
+// can drop metadata into the tree mid-walk and race the final rmdir;
+// these retries cover that without slowing the common case.
+func removeAllWithRetry(path string) error {
+	const (
+		maxAttempts = 5
+		baseDelay   = 100 * time.Millisecond
+	)
+	var err error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		err = os.RemoveAll(path)
+		if err == nil || !errors.Is(err, syscall.ENOTEMPTY) {
+			return err
+		}
+		time.Sleep(time.Duration(attempt+1) * baseDelay)
+	}
+	return err
 }

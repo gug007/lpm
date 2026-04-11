@@ -165,3 +165,24 @@ func (a *App) StopWatchingProject() {
 		a.watcher = nil
 	}
 }
+
+// stopWatcherIfRoot detaches the file watcher iff it is currently watching
+// path. Callers use this before deleting a project folder so FSEvents
+// isn't pumping into a tree we're tearing down. Paths that can't be
+// resolved to absolute form are compared as-is — watcher.path is already
+// absolute, so a mismatch just means no-op (safe).
+func (a *App) stopWatcherIfRoot(path string) {
+	if path == "" {
+		return
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		abs = path
+	}
+	a.watcherMu.Lock()
+	defer a.watcherMu.Unlock()
+	if a.watcher != nil && a.watcher.path == abs {
+		a.watcher.close()
+		a.watcher = nil
+	}
+}
