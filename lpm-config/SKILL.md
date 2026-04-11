@@ -196,11 +196,8 @@ terminals:
     display: button
 
 profiles:
-  frontend-only:
-    - frontend
-  full-stack:
-    - api
-    - frontend
+  frontend-only: [frontend]
+  full-stack:    [api, frontend]
 ```
 
 **Example 3: Modify an existing config**

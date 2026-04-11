@@ -154,12 +154,8 @@ Named subsets of services. Start a profile with `lpm myapp -p <profile>`.
 
 ```yaml
 profiles:
-  frontend-only:
-    - frontend
-  full-stack:
-    - api
-    - frontend
-    - worker
+  frontend-only: [frontend]
+  full-stack:    [api, frontend, worker]
 ```
 
 Each service name must reference a service defined in `services`.
@@ -301,10 +297,6 @@ terminals:
     label: Prod Logs
 
 profiles:
-  frontend-only:
-    - frontend
-  full-stack:
-    - api
-    - frontend
-    - worker
+  frontend-only: [frontend]
+  full-stack:    [api, frontend, worker]
 ```

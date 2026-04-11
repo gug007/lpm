@@ -327,11 +327,8 @@ root: ~/Projects/myapp`}</CodeBlock>
               description="Named subsets of services. Pick a profile from the project switcher in the desktop app. If no profile is selected, all services start."
             >
               <CodeBlock>{`profiles:
-  minimal:
-    - web
-  full:
-    - web
-    - server`}</CodeBlock>
+  minimal: [web]
+  full:    [web, server]`}</CodeBlock>
               <p className="mt-3 text-xs text-gray-400 dark:text-gray-500 leading-relaxed">
                 Each service name must reference a service defined in{" "}
                 <code className="font-mono">services</code>. Services can appear in
