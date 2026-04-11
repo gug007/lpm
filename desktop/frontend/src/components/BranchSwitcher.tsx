@@ -63,12 +63,20 @@ export function BranchSwitcher({ projectPath }: {
     if (open && !creating) searchRef.current?.focus();
   }, [open, creating]);
 
+  const current = status?.branch ?? "";
   const filtered = useMemo(() => {
-    if (!query) return branches;
-    if (searchResults !== null) return searchResults;
-    // Fallback during the debounce window: filter the cached recent list.
-    return branches.filter((b) => branchMatches(b, query));
-  }, [branches, query, searchResults]);
+    const base = !query
+      ? branches
+      : searchResults !== null
+        ? searchResults
+        // Fallback during the debounce window: filter the cached recent list.
+        : branches.filter((b) => branchMatches(b, query));
+    const rank = (b: main.Branch) =>
+      b.name === current && !b.remote ? 0 : b.remote ? 2 : 1;
+    // Relies on Array.prototype.sort being stable, so committer-date order
+    // from the backend is preserved within each rank group.
+    return [...base].sort((a, b) => rank(a) - rank(b));
+  }, [branches, query, searchResults, current]);
 
   if (!status?.isGitRepo) return null;
 
