@@ -8,6 +8,9 @@ import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon, HelpCircleIcon } fro
 import { ProgressBar } from "./ui/ProgressBar";
 import { SortableItem, SortableList } from "./ui/SortableList";
 import { useSidebarResize } from "../hooks/useSidebarResize";
+import { ProjectContextMenu } from "./ProjectContextMenu";
+import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { SpinnerIcon } from "./project-detail/icons";
 
 const MUTED_STYLE = { color: "var(--text-muted)" } as const;
 const DONE_STYLE = { color: "var(--accent-blue)" } as const;
@@ -22,21 +25,30 @@ interface SidebarProps {
   onSettings: () => void;
   onFeedback: () => void;
   onAddProject: () => void;
+  onDuplicateProject: (name: string) => void;
+  onRemoveProject: (name: string) => void;
   onReorder: (order: string[]) => void;
   showSettings: boolean;
+  duplicatingName: string | null;
 }
 
 function hasStatus(project: ProjectInfo, value: string): boolean {
   return project.statusEntries?.some(e => e.value === value) ?? false;
 }
 
-export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onSettings, onFeedback, onAddProject, onReorder, showSettings }: SidebarProps) {
+export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onSettings, onFeedback, onAddProject, onDuplicateProject, onRemoveProject, onReorder, showSettings, duplicatingName }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
   const [updatePhase, setUpdatePhase] = useState<"downloading" | "installing">("downloading");
   const [updateError, setUpdateError] = useState("");
+  const [contextMenu, setContextMenu] = useState<{ name: string; x: number; y: number } | null>(null);
+  const [confirmRemoveDuplicate, setConfirmRemoveDuplicate] = useState<string | null>(null);
   const { width, handleResizeStart } = useSidebarResize();
+
+  const contextProject = contextMenu
+    ? projects.find((p) => p.name === contextMenu.name)
+    : null;
   // Memoized so the SortableContext items reference is stable across the
   // frequent status-update re-renders Sidebar gets — otherwise every status
   // tick would churn the sortable subscriptions.
@@ -100,6 +112,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
             const isDone = hasStatus(project, STATUS_DONE);
             const isWaiting = hasStatus(project, STATUS_WAITING);
             const isError = hasStatus(project, STATUS_ERROR);
+            const isDuplicating = duplicatingName === project.name;
 
             return (
               <SortableItem key={project.name} id={project.name}>
@@ -108,29 +121,44 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                   onDoubleClick={() => {
                     if (getSettings().doubleClickToToggle) onToggle(project.name);
                   }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setContextMenu({ name: project.name, x: e.clientX, y: e.clientY });
+                  }}
                   className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
                     isSelected
                       ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
                       : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                   }`}
                 >
-                  {project.configError ? (
+                  {isDuplicating ? (
+                    <span className="shrink-0 text-[var(--text-muted)]">
+                      <SpinnerIcon />
+                    </span>
+                  ) : project.configError ? (
                     <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Config error" />
                   ) : (
                     <StatusDot running={project.running} />
                   )}
                   <span
-                    className="truncate"
+                    className="flex min-w-0 flex-1 items-baseline gap-1.5 truncate"
                     style={project.configError ? MUTED_STYLE : isDone ? DONE_STYLE : undefined}
-                    title={project.configError || undefined}
+                    title={project.configError || (project.parentName ? `Duplicate of ${project.parentName}` : undefined)}
                   >
-                    {isError ? (
-                      <span className="text-red-400">{project.name}</span>
-                    ) : isWaiting ? (
-                      <span className="sidebar-waiting">{project.name}</span>
-                    ) : isRunning ? (
-                      <span className="sidebar-shimmer">{project.name}</span>
-                    ) : project.name}
+                    <span className="truncate">
+                      {isError ? (
+                        <span className="text-red-400">{project.name}</span>
+                      ) : isWaiting ? (
+                        <span className="sidebar-waiting">{project.name}</span>
+                      ) : isRunning ? (
+                        <span className="sidebar-shimmer">{project.name}</span>
+                      ) : project.name}
+                    </span>
+                    {project.parentName && (
+                      <span className="shrink-0 truncate text-[10px] text-[var(--text-muted)]">
+                        ↳ {project.parentName}
+                      </span>
+                    )}
                   </span>
                   {isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
                   {isDone && !isWaiting && !isError && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
@@ -140,6 +168,37 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           })}
         </SortableList>
       </nav>
+      {contextMenu && (
+        <ProjectContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          busy={duplicatingName !== null}
+          canRemove={Boolean(contextProject?.parentName)}
+          onDuplicate={() => onDuplicateProject(contextMenu.name)}
+          onRemove={() => setConfirmRemoveDuplicate(contextMenu.name)}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+      <ConfirmDialog
+        open={confirmRemoveDuplicate !== null}
+        title="Remove duplicate"
+        variant="destructive"
+        confirmLabel="Remove"
+        body={
+          <>
+            Remove{" "}
+            <span className="font-medium text-[var(--text-primary)]">
+              {confirmRemoveDuplicate}
+            </span>
+            ? Its folder will be deleted from disk.
+          </>
+        }
+        onCancel={() => setConfirmRemoveDuplicate(null)}
+        onConfirm={() => {
+          if (confirmRemoveDuplicate) onRemoveProject(confirmRemoveDuplicate);
+          setConfirmRemoveDuplicate(null);
+        }}
+      />
 
       {updateInfo && (
         <button

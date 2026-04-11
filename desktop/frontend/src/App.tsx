@@ -32,6 +32,7 @@ export default function App() {
   const feedbackOpen = useAppStore((s) => s.feedbackOpen);
   const tmuxReady = useAppStore((s) => s.tmuxReady);
   const visited = useAppStore((s) => s.visited);
+  const duplicatingName = useAppStore((s) => s.duplicatingName);
 
   const setView = useAppStore((s) => s.setView);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
@@ -47,6 +48,7 @@ export default function App() {
   const toggleProjectRunning = useAppStore((s) => s.toggleProjectRunning);
   const toggleService = useAppStore((s) => s.toggleService);
   const addProject = useAppStore((s) => s.addProject);
+  const duplicateProject = useAppStore((s) => s.duplicateProject);
   const removeProject = useAppStore((s) => s.removeProject);
   const reorderProjects = useAppStore((s) => s.reorderProjects);
   const refreshAfterRename = useAppStore((s) => s.refreshAfterRename);
@@ -156,8 +158,11 @@ export default function App() {
           onSettings={() => setView("settings")}
           onFeedback={() => setFeedbackOpen(true)}
           onAddProject={addProject}
+          onDuplicateProject={duplicateProject}
+          onRemoveProject={removeProject}
           onReorder={reorderProjects}
           showSettings={isSettingsView}
+          duplicatingName={duplicatingName}
         />
         <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">
           <div className="wails-drag flex h-2 shrink-0 items-center">

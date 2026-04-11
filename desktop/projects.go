@@ -21,18 +21,19 @@ type runState struct {
 }
 
 type ProjectInfo struct {
-	Name              string               `json:"name"`
-	Session           string               `json:"session"`
-	Root              string               `json:"root"`
-	Running           bool                 `json:"running"`
-	Services          []ServiceInfo        `json:"services"`
-	AllServices       []ServiceInfo        `json:"allServices"`
-	Actions           []ActionInfo         `json:"actions"`
-	Terminals         []TerminalConfigInfo `json:"terminals"`
-	Profiles          []ProfileInfo        `json:"profiles"`
-	ActiveProfile     string               `json:"activeProfile"`
-	StatusEntries     []StatusEntry        `json:"statusEntries"`
-	ConfigError       string               `json:"configError,omitempty"`
+	Name          string               `json:"name"`
+	Session       string               `json:"session"`
+	Root          string               `json:"root"`
+	Running       bool                 `json:"running"`
+	Services      []ServiceInfo        `json:"services"`
+	AllServices   []ServiceInfo        `json:"allServices"`
+	Actions       []ActionInfo         `json:"actions"`
+	Terminals     []TerminalConfigInfo `json:"terminals"`
+	Profiles      []ProfileInfo        `json:"profiles"`
+	ActiveProfile string               `json:"activeProfile"`
+	StatusEntries []StatusEntry        `json:"statusEntries"`
+	ConfigError   string               `json:"configError,omitempty"`
+	ParentName    string               `json:"parentName,omitempty"`
 }
 
 type ServiceInfo struct {
@@ -205,6 +206,7 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state r
 		Terminals:     terminalConfigs,
 		Profiles:      profiles,
 		ActiveProfile: activeProfile,
+		ParentName:    cfg.ParentName,
 	}
 }
 
@@ -221,13 +223,15 @@ func (a *App) ListProjects() ([]ProjectInfo, error) {
 	projects := make([]ProjectInfo, 0, len(names))
 
 	stateSnapshot := a.snapshotRunningState()
+	cache := make(map[string]*config.ProjectConfig, len(names))
 
 	for _, name := range names {
-		cfg, err := config.LoadProject(name)
+		cfg, err := config.LoadProjectCached(name, cache)
 		if err != nil {
 			projects = append(projects, ProjectInfo{
 				Name:        name,
 				ConfigError: err.Error(),
+				ParentName:  config.PeekParent(name),
 			})
 			continue
 		}
@@ -589,15 +593,23 @@ func (a *App) StartService(projectName string, paneIndex int) error {
 }
 
 func (a *App) ReadConfig(name string) (string, error) {
-	path := config.ProjectPath(name)
-	data, err := os.ReadFile(path)
+	// Duplicates share the original's config; show the parent file so edits
+	// operate on the canonical settings rather than the pointer stub.
+	target := name
+	if parent := config.PeekParent(name); parent != "" {
+		target = parent
+	}
+	data, err := os.ReadFile(config.ProjectPath(target))
 	if err != nil {
 		return "", err
 	}
 	return string(data), nil
 }
 
-// SaveConfig returns the new project name (may differ from input if name: field changed).
+// SaveConfig returns the project name the frontend should stay on. Edits on
+// a duplicate are routed to the parent file; edits on an original can rename
+// via the `name:` field (unless the original has duplicates, in which case
+// the cascade rename isn't supported yet).
 func (a *App) SaveConfig(name string, content string) (string, error) {
 	var parsed config.ProjectConfig
 	if err := yaml.Unmarshal([]byte(content), &parsed); err != nil {
@@ -607,35 +619,57 @@ func (a *App) SaveConfig(name string, content string) (string, error) {
 		return "", err
 	}
 
-	oldPath := config.ProjectPath(name)
-	mode := os.FileMode(0644)
-	if info, err := os.Stat(oldPath); err == nil {
-		mode = info.Mode()
+	if parent := config.PeekParent(name); parent != "" {
+		if err := writeConfigFile(config.ProjectPath(parent), content); err != nil {
+			return "", err
+		}
+		a.invalidateSessionCache(parent)
+		a.invalidateSessionCache(name)
+		return name, nil
 	}
 
+	oldPath := config.ProjectPath(name)
 	newName := parsed.Name
 	if newName == "" {
 		newName = name
 	}
 
-	if newName != name {
-		if err := config.ValidateName(newName); err != nil {
+	if newName == name {
+		if err := writeConfigFile(oldPath, content); err != nil {
 			return "", err
 		}
-		newPath := config.ProjectPath(newName)
-		if _, err := os.Stat(newPath); err == nil {
-			return "", fmt.Errorf("project %q already exists", newName)
-		}
-		if err := os.WriteFile(newPath, []byte(content), mode); err != nil {
-			return "", err
-		}
-		os.Remove(oldPath)
 		a.invalidateSessionCache(name)
-		return newName, nil
+		return name, nil
 	}
 
+	dups, err := config.DuplicatesOf(name)
+	if err != nil {
+		return "", err
+	}
+	if len(dups) > 0 {
+		return "", fmt.Errorf("cannot rename %q while duplicates exist", name)
+	}
+	if err := config.ValidateName(newName); err != nil {
+		return "", err
+	}
+	newPath := config.ProjectPath(newName)
+	if _, err := os.Stat(newPath); err == nil {
+		return "", fmt.Errorf("project %q already exists", newName)
+	}
+	if err := writeConfigFile(newPath, content); err != nil {
+		return "", err
+	}
+	os.Remove(oldPath)
 	a.invalidateSessionCache(name)
-	return name, os.WriteFile(oldPath, []byte(content), mode)
+	return newName, nil
+}
+
+func writeConfigFile(path, content string) error {
+	mode := os.FileMode(0644)
+	if info, err := os.Stat(path); err == nil {
+		mode = info.Mode()
+	}
+	return os.WriteFile(path, []byte(content), mode)
 }
 
 func (a *App) CreateProject(name string, root string) error {
@@ -691,10 +725,24 @@ func (a *App) BrowseFolder() (string, error) {
 }
 
 func (a *App) RemoveProject(name string) error {
-	if cfg, err := config.LoadProject(name); err == nil {
+	// Removing an original that has duplicates would break config resolution
+	// for all of them; force the user to remove duplicates first.
+	if dups, err := config.DuplicatesOf(name); err == nil && len(dups) > 0 {
+		return fmt.Errorf("cannot remove %q while duplicates exist: %v", name, dups)
+	}
+	cfg, loadErr := config.LoadProject(name)
+	if loadErr == nil {
 		tmux.KillSession(cfg.Name)
 	}
 	a.invalidateSessionCache(name)
+	// Duplicates own the copied folder (LPM created it), so remove the tree
+	// before dropping the pointer. If folder removal fails, bail out so the
+	// user can retry the whole operation instead of orphaning a directory.
+	if loadErr == nil && cfg.IsDuplicate() && cfg.Root != "" {
+		if err := os.RemoveAll(cfg.Root); err != nil {
+			return fmt.Errorf("failed to remove duplicate folder %q: %w", cfg.Root, err)
+		}
+	}
 	if err := os.Remove(config.ProjectPath(name)); err != nil {
 		return err
 	}

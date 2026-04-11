@@ -159,12 +159,17 @@ func (m *TerminalMap) UnmarshalYAML(value *yaml.Node) error {
 }
 
 type ProjectConfig struct {
-	Name      string              `yaml:"name"`
-	Root      string              `yaml:"root"`
-	Services  ServiceMap          `yaml:"services"`
-	Actions   ActionMap           `yaml:"actions,omitempty"`
-	Terminals TerminalMap         `yaml:"terminals,omitempty"`
-	Profiles  map[string][]string `yaml:"profiles,omitempty"`
+	Name       string              `yaml:"name"`
+	Root       string              `yaml:"root"`
+	ParentName string              `yaml:"parent_name,omitempty"`
+	Services   ServiceMap          `yaml:"services,omitempty"`
+	Actions    ActionMap           `yaml:"actions,omitempty"`
+	Terminals  TerminalMap         `yaml:"terminals,omitempty"`
+	Profiles   map[string][]string `yaml:"profiles,omitempty"`
+}
+
+func (p *ProjectConfig) IsDuplicate() bool {
+	return p.ParentName != ""
 }
 
 type GlobalConfig struct {
@@ -240,6 +245,18 @@ func SessionName(name string) string {
 }
 
 func LoadProject(name string) (*ProjectConfig, error) {
+	return LoadProjectCached(name, nil)
+}
+
+// LoadProjectCached behaves like LoadProject but shares resolved parent
+// configs through the supplied cache so a batch load resolves each parent
+// once. Pass nil to disable sharing.
+func LoadProjectCached(name string, cache map[string]*ProjectConfig) (*ProjectConfig, error) {
+	if cache != nil {
+		if hit, ok := cache[name]; ok {
+			return hit, nil
+		}
+	}
 	if err := ValidateName(name); err != nil {
 		return nil, err
 	}
@@ -261,6 +278,27 @@ func LoadProject(name string) (*ProjectConfig, error) {
 		cfg.Name = name
 	}
 	cfg.Root = expandHome(cfg.Root)
+
+	// Parent already applied expandHome and global merge during its own load;
+	// reuse its resolved maps and skip both passes below for duplicates.
+	if cfg.ParentName != "" {
+		parent, err := LoadProjectCached(cfg.ParentName, cache)
+		if err != nil {
+			return nil, fmt.Errorf("duplicate %q: cannot load parent %q: %w", name, cfg.ParentName, err)
+		}
+		cfg.Services = parent.Services
+		cfg.Actions = parent.Actions
+		cfg.Terminals = parent.Terminals
+		cfg.Profiles = parent.Profiles
+		if err := cfg.Validate(); err != nil {
+			return nil, err
+		}
+		if cache != nil {
+			cache[name] = &cfg
+		}
+		return &cfg, nil
+	}
+
 	for name, svc := range cfg.Services {
 		if svc.Cwd != "" {
 			svc.Cwd = expandHome(svc.Cwd)
@@ -305,6 +343,9 @@ func LoadProject(name string) (*ProjectConfig, error) {
 
 	if err := cfg.Validate(); err != nil {
 		return nil, err
+	}
+	if cache != nil {
+		cache[name] = &cfg
 	}
 	return &cfg, nil
 }
@@ -397,6 +438,39 @@ func ListProjects() ([]string, error) {
 		}
 	}
 	return names, nil
+}
+
+// PeekParent returns the parent_name field from the given project's YAML
+// without fully loading or validating. Empty when the project has no parent
+// or the file cannot be read.
+func PeekParent(name string) string {
+	data, err := os.ReadFile(ProjectPath(name))
+	if err != nil {
+		return ""
+	}
+	var partial struct {
+		ParentName string `yaml:"parent_name"`
+	}
+	if err := yaml.Unmarshal(data, &partial); err != nil {
+		return ""
+	}
+	return partial.ParentName
+}
+
+// DuplicatesOf returns the names of all projects whose parent_name points at
+// the given project.
+func DuplicatesOf(name string) ([]string, error) {
+	names, err := ListProjects()
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, n := range names {
+		if PeekParent(n) == name {
+			out = append(out, n)
+		}
+	}
+	return out, nil
 }
 
 func SaveProject(cfg *ProjectConfig) error {

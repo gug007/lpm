@@ -53,6 +53,7 @@ export interface ProjectInfo {
   activeProfile: string;
   statusEntries: StatusEntry[];
   configError?: string;
+  parentName?: string;
 }
 
 export const STATUS_RUNNING = "Running";

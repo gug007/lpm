@@ -4,6 +4,7 @@ import type { ProjectInfo } from "../types";
 import {
   BrowseFolder,
   CreateProject,
+  DuplicateProject,
   ListProjects,
   RemoveProject,
   ReorderProjects,
@@ -29,6 +30,7 @@ interface AppState {
   feedbackOpen: boolean;
   tmuxReady: boolean | null;
   visited: Set<string>;
+  duplicatingName: string | null;
 
   setView: (view: View) => void;
   setSidebarCollapsed: (next: boolean | ((prev: boolean) => boolean)) => void;
@@ -49,6 +51,7 @@ interface AppState {
   toggleProjectRunning: (name: string) => Promise<void>;
   toggleService: (name: string, service: string) => Promise<void>;
   addProject: () => Promise<void>;
+  duplicateProject: (name: string) => Promise<void>;
   removeProject: (name: string) => Promise<void>;
   reorderProjects: (order: string[]) => Promise<void>;
   refreshAfterRename: (newName?: string) => Promise<void>;
@@ -67,6 +70,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   feedbackOpen: false,
   tmuxReady: null,
   visited: new Set<string>(),
+  duplicatingName: null,
 
   setView: (view) => set({ view }),
 
@@ -167,6 +171,20 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ selected: name, view: "projects" });
     } catch (err) {
       toast.error(`Failed to add project: ${err}`);
+    }
+  },
+
+  duplicateProject: async (name) => {
+    if (get().duplicatingName) return;
+    set({ duplicatingName: name });
+    try {
+      const newName = await DuplicateProject(name);
+      await get().refreshProjects();
+      if (newName) set({ selected: newName, view: "projects" });
+    } catch (err) {
+      toast.error(`Failed to duplicate ${name}: ${err}`);
+    } finally {
+      set({ duplicatingName: null });
     }
   },
 
