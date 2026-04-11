@@ -603,6 +603,9 @@ func (a *App) SaveConfig(name string, content string) (string, error) {
 	if err := yaml.Unmarshal([]byte(content), &parsed); err != nil {
 		return "", fmt.Errorf("invalid YAML: %w", err)
 	}
+	if err := parsed.Validate(); err != nil {
+		return "", err
+	}
 
 	oldPath := config.ProjectPath(name)
 	mode := os.FileMode(0644)

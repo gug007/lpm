@@ -105,11 +105,13 @@ export function ConfigEditor({ projectName, onSaved, onBack }: ConfigEditorProps
       )}
 
       {(dirty || error) && (
-        <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2">
+        <div className="absolute bottom-4 right-4 z-10 flex items-end gap-2">
           {error && (
-            <span className="text-xs text-[var(--accent-red)]">{error}</span>
+            <pre className="max-w-[420px] whitespace-pre-wrap rounded-lg border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/10 px-3 py-2 text-left text-[11px] leading-relaxed text-[var(--accent-red)] shadow-lg">
+              {error}
+            </pre>
           )}
-          <span className="text-[10px] text-[var(--text-muted)]">{"\u2318"}S</span>
+          <span className="mb-2 text-[10px] text-[var(--text-muted)]">{"\u2318"}S</span>
           <button
             onClick={handleSave}
             disabled={!dirty || saving}
