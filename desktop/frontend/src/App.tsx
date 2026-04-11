@@ -18,7 +18,7 @@ import { getSettings, saveSettings } from "./settings";
 
 import {
   StartProject,
-  StartProjectService,
+  ToggleProjectService,
   StopProject,
   RemoveProject,
   BrowseFolder,
@@ -161,12 +161,12 @@ export default function App() {
     }
   };
 
-  const handleStartService = async (name: string, serviceName: string) => {
+  const handleToggleService = async (name: string, serviceName: string) => {
     try {
-      await StartProjectService(name, serviceName);
+      await ToggleProjectService(name, serviceName);
       await refresh();
     } catch (err) {
-      toast.error(`Failed to start ${serviceName}: ${err}`);
+      toast.error(`Failed to toggle ${serviceName}: ${err}`);
     }
   };
 
@@ -332,7 +332,7 @@ export default function App() {
                   visible={isSelected}
                   sidebarCollapsed={sidebarCollapsed}
                   onStart={handleStart}
-                  onStartService={handleStartService}
+                  onToggleService={handleToggleService}
                   onStop={handleStop}
                   onRestart={handleRestart}
                   onRefresh={handleRefresh}

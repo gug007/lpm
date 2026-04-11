@@ -85,11 +85,7 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state r
 		return out
 	}
 
-	serviceNames := state.services
-	if len(serviceNames) == 0 {
-		serviceNames = cfg.ServicesForProfile(state.profile)
-	}
-	services := buildServiceInfos(serviceNames)
+	services := buildServiceInfos(resolveRunningServices(cfg, state))
 
 	allSvcNames := make([]string, 0, len(cfg.Services))
 	for svcName := range cfg.Services {
@@ -299,23 +295,85 @@ func (a *App) StartProject(name, profile string) error {
 	return nil
 }
 
-// StartProjectService starts the tmux session with a single service,
-// bypassing profile resolution.
-func (a *App) StartProjectService(name, serviceName string) error {
+// StartProjectWithServices starts the tmux session with an explicit service
+// list, bypassing profile resolution.
+func (a *App) StartProjectWithServices(name string, services []string) error {
 	cfg, err := config.LoadProject(name)
 	if err != nil {
 		return err
 	}
-	if _, ok := cfg.Services[serviceName]; !ok {
-		return fmt.Errorf("service %q not found", serviceName)
+	if len(services) == 0 {
+		return fmt.Errorf("no services selected")
+	}
+	for _, svc := range services {
+		if _, ok := cfg.Services[svc]; !ok {
+			return fmt.Errorf("service %q not found", svc)
+		}
 	}
 	a.invalidateSessionCache(name)
-	if err := tmux.StartProjectServices(cfg, []string{serviceName}); err != nil {
+	if err := tmux.StartProjectServices(cfg, services); err != nil {
 		return err
 	}
-	a.setRunningState(name, runState{services: []string{serviceName}})
+	a.setRunningState(name, runState{services: slices.Clone(services)})
 	runtime.EventsEmit(a.ctx, "projects-changed")
 	return nil
+}
+
+// ToggleProjectService adds or removes a single service from the running
+// session without disturbing the others. Starts a fresh session when the
+// project isn't running, and stops the project when the last service is
+// removed.
+func (a *App) ToggleProjectService(name, serviceName string) error {
+	cfg, err := config.LoadProject(name)
+	if err != nil {
+		return err
+	}
+	svc, ok := cfg.Services[serviceName]
+	if !ok {
+		return fmt.Errorf("service %q not found", serviceName)
+	}
+
+	if !tmux.SessionExists(cfg.Name) {
+		return a.StartProjectWithServices(name, []string{serviceName})
+	}
+
+	running := resolveRunningServices(cfg, a.getRunningState(name))
+	idx := slices.Index(running, serviceName)
+
+	var next []string
+	switch {
+	case idx < 0:
+		if _, err := tmux.SplitSessionPane(cfg, svc); err != nil {
+			return err
+		}
+		next = append(slices.Clone(running), serviceName)
+	case len(running) == 1:
+		return a.StopProject(name)
+	default:
+		paneID, err := a.resolvePaneID(name, idx)
+		if err != nil {
+			return err
+		}
+		if err := tmux.KillPane(paneID); err != nil {
+			return err
+		}
+		next = slices.Delete(slices.Clone(running), idx, idx+1)
+	}
+
+	a.setRunningState(name, runState{services: next})
+	a.invalidateSessionCache(name)
+	runtime.EventsEmit(a.ctx, "projects-changed")
+	return nil
+}
+
+// resolveRunningServices returns the ordered list of services actually running
+// in the session, falling back to the profile's resolved list when the
+// session was started via StartProject rather than StartProjectWithServices.
+func resolveRunningServices(cfg *config.ProjectConfig, state runState) []string {
+	if len(state.services) > 0 {
+		return state.services
+	}
+	return cfg.ServicesForProfile(state.profile)
 }
 
 func (a *App) StopProject(name string) error {
@@ -461,11 +519,7 @@ func (a *App) StartService(projectName string, paneIndex int) error {
 	if err != nil {
 		return err
 	}
-	state := a.getRunningState(projectName)
-	serviceNames := state.services
-	if len(serviceNames) == 0 {
-		serviceNames = cfg.ServicesForProfile(state.profile)
-	}
+	serviceNames := resolveRunningServices(cfg, a.getRunningState(projectName))
 	if paneIndex < 0 || paneIndex >= len(serviceNames) {
 		return fmt.Errorf("service index %d out of range", paneIndex)
 	}

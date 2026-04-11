@@ -164,6 +164,30 @@ func StartProjectServices(cfg *config.ProjectConfig, serviceNames []string) erro
 	return nil
 }
 
+// SplitSessionPane splits the project's tmux window, runs the service command
+// in the new pane, and rebalances the layout. Returns the new pane ID.
+func SplitSessionPane(cfg *config.ProjectConfig, svc config.Service) (string, error) {
+	cwd := config.ResolveCwd(cfg.Root, svc.Cwd)
+	split := exec.Command("tmux", "split-window", "-t", cfg.Name, "-P", "-F", "#{pane_id}")
+	split.Dir = cwd
+	out, err := split.Output()
+	if err != nil {
+		return "", fmt.Errorf("split-window: %w", err)
+	}
+	paneID := strings.TrimSpace(string(out))
+	if err := sendKeys(paneID, buildCommand(cwd, svc)); err != nil {
+		return "", fmt.Errorf("send-keys to %s: %w", paneID, err)
+	}
+	_ = exec.Command("tmux", "select-layout", "-t", cfg.Name, "tiled").Run()
+	return paneID, nil
+}
+
+// KillPane removes the given pane from its tmux window. Killing the last pane
+// in a session destroys the session.
+func KillPane(paneID string) error {
+	return exec.Command("tmux", "kill-pane", "-t", paneID).Run()
+}
+
 func Attach(sessionName string) error {
 	cmd := exec.Command("tmux", "attach", "-t", sessionName)
 	cmd.Stdin = os.Stdin
