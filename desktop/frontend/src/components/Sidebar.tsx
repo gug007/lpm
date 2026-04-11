@@ -51,9 +51,8 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
     ? projects.find((p) => p.name === contextMenu.name)
     : null;
 
-  // Projects arrive pre-grouped (backend normalizes duplicates to sit right
-  // after their parent). We expose only parents and orphaned duplicates as
-  // drag handles so the user reorders groups, not individual duplicates.
+  // Backend guarantees duplicates sit immediately after their parent; we
+  // only need to mark children so they render without a drag handle.
   const { rows, topLevelNames } = useMemo(() => {
     const nameSet = new Set(projects.map((p) => p.name));
     const outRows: { project: ProjectInfo; isChild: boolean }[] = [];
@@ -146,19 +145,26 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
             const isWaiting = hasStatus(project, STATUS_WAITING);
             const isError = hasStatus(project, STATUS_ERROR);
             const isBusy = duplicatingName === project.name || removingName === project.name;
+            const parent = project.parentName;
             const dupSuffix =
-              project.parentName && project.name.startsWith(project.parentName + "-")
-                ? project.name.slice(project.parentName.length)
+              parent && project.name.startsWith(parent + "-")
+                ? project.name.slice(parent.length)
                 : null;
-            const mainName = dupSuffix ? project.parentName! : project.name;
             const nameContent = dupSuffix ? (
               <>
-                {mainName}
+                {parent}
                 <span style={MUTED_STYLE}>{dupSuffix}</span>
               </>
             ) : (
               project.name
             );
+            const statusClass = isError
+              ? "text-red-400"
+              : isWaiting
+              ? "sidebar-waiting"
+              : isRunning
+              ? "sidebar-shimmer"
+              : null;
 
             const rowButton = (
               <button
@@ -190,13 +196,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                   style={project.configError ? MUTED_STYLE : isDone ? DONE_STYLE : undefined}
                   title={project.configError || (project.parentName ? `Duplicate of ${project.parentName}` : undefined)}
                 >
-                  {isError ? (
-                    <span className="text-red-400">{nameContent}</span>
-                  ) : isWaiting ? (
-                    <span className="sidebar-waiting">{nameContent}</span>
-                  ) : isRunning ? (
-                    <span className="sidebar-shimmer">{nameContent}</span>
-                  ) : nameContent}
+                  {statusClass ? <span className={statusClass}>{nameContent}</span> : nameContent}
                 </span>
                 {isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
                 {isDone && !isWaiting && !isError && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}

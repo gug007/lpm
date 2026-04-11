@@ -219,9 +219,6 @@ func (a *App) ListProjects() ([]ProjectInfo, error) {
 		return nil, err
 	}
 
-	// Apply saved ordering
-	names = a.applyProjectOrder(names)
-
 	sessions := tmux.ListSessions()
 	projects := make([]ProjectInfo, 0, len(names))
 
@@ -248,73 +245,64 @@ func (a *App) ListProjects() ([]ProjectInfo, error) {
 		projects = append(projects, info)
 	}
 
+	projects = a.applyProjectOrder(projects)
+
 	refreshDockMenu(projects)
 
 	return projects, nil
 }
 
-func (a *App) applyProjectOrder(names []string) []string {
+func (a *App) applyProjectOrder(projects []ProjectInfo) []ProjectInfo {
 	a.cacheMu.RLock()
 	order := a.projectOrder
 	a.cacheMu.RUnlock()
 
-	nameSet := make(map[string]bool, len(names))
-	for _, n := range names {
-		nameSet[n] = true
+	byName := make(map[string]ProjectInfo, len(projects))
+	for _, p := range projects {
+		byName[p.Name] = p
 	}
 
-	var ordered []string
-	if len(order) == 0 {
-		ordered = append([]string(nil), names...)
-	} else {
-		ordered = make([]string, 0, len(names))
-		seen := make(map[string]bool, len(names))
-		for _, n := range order {
-			if nameSet[n] && !seen[n] {
-				ordered = append(ordered, n)
-				seen[n] = true
-			}
+	ordered := make([]ProjectInfo, 0, len(projects))
+	for _, n := range order {
+		if p, ok := byName[n]; ok {
+			ordered = append(ordered, p)
+			delete(byName, n)
 		}
-		for _, n := range names {
-			if !seen[n] {
-				ordered = append(ordered, n)
-			}
+	}
+	for _, p := range projects {
+		if _, ok := byName[p.Name]; ok {
+			ordered = append(ordered, p)
+			delete(byName, p.Name)
 		}
 	}
 
 	return groupDuplicatesAfterParents(ordered)
 }
 
-// groupDuplicatesAfterParents moves each duplicate project so it sits
-// immediately after its parent in the list. Orphan duplicates (parent
-// missing) stay wherever they were. This enforces the "duplicate lives
-// next to its source" rule regardless of what's in the saved order, so
-// existing state self-heals and a dragged duplicate snaps back to its
-// parent on the next read.
-func groupDuplicatesAfterParents(ordered []string) []string {
-	if len(ordered) < 2 {
-		return ordered
-	}
+// groupDuplicatesAfterParents enforces the "duplicate lives next to its
+// source" rule so existing state self-heals and a dragged duplicate snaps
+// back to its parent on the next read. Orphan duplicates keep their slot.
+func groupDuplicatesAfterParents(ordered []ProjectInfo) []ProjectInfo {
 	nameSet := make(map[string]bool, len(ordered))
-	for _, n := range ordered {
-		nameSet[n] = true
+	for _, p := range ordered {
+		nameSet[p.Name] = true
 	}
-	children := make(map[string][]string)
-	stripped := make([]string, 0, len(ordered))
-	for _, n := range ordered {
-		if parent := config.PeekParent(n); parent != "" && nameSet[parent] {
-			children[parent] = append(children[parent], n)
+	children := make(map[string][]ProjectInfo)
+	stripped := make([]ProjectInfo, 0, len(ordered))
+	for _, p := range ordered {
+		if p.ParentName != "" && nameSet[p.ParentName] {
+			children[p.ParentName] = append(children[p.ParentName], p)
 			continue
 		}
-		stripped = append(stripped, n)
+		stripped = append(stripped, p)
 	}
 	if len(children) == 0 {
 		return ordered
 	}
-	result := make([]string, 0, len(ordered))
-	for _, n := range stripped {
-		result = append(result, n)
-		if kids, ok := children[n]; ok {
+	result := make([]ProjectInfo, 0, len(ordered))
+	for _, p := range stripped {
+		result = append(result, p)
+		if kids, ok := children[p.Name]; ok {
 			result = append(result, kids...)
 		}
 	}
