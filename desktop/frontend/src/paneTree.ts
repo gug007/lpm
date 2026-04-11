@@ -73,6 +73,39 @@ export function lastPaneId(node: PaneNode): string {
   return node.kind === "leaf" ? node.id : lastPaneId(node.b);
 }
 
+/**
+ * Navigation path from the tree root to the leaf with `paneId`. Each step
+ * is 0 (take `a`) or 1 (take `b`). Returns `[]` when the root itself is the
+ * target leaf, or `null` if the pane isn't in the tree. Paths stay valid
+ * across restore even though pane ids get regenerated.
+ */
+export function panePath(node: PaneNode, paneId: string): number[] | null {
+  const out: number[] = [];
+  return buildPanePath(node, paneId, out) ? (out.reverse(), out) : null;
+}
+
+function buildPanePath(node: PaneNode, paneId: string, out: number[]): boolean {
+  if (node.kind === "leaf") return node.id === paneId;
+  if (buildPanePath(node.a, paneId, out)) { out.push(0); return true; }
+  if (buildPanePath(node.b, paneId, out)) { out.push(1); return true; }
+  return false;
+}
+
+/**
+ * Walk a navigation path to the leaf it points at. Returns null if the
+ * path doesn't resolve to a leaf (tree shape changed, bad index, etc.).
+ */
+export function paneAtPath(node: PaneNode, path: number[]): PaneLeaf | null {
+  let current: PaneNode = node;
+  for (const step of path) {
+    if (current.kind !== "split") return null;
+    const child = step === 0 ? current.a : step === 1 ? current.b : null;
+    if (!child) return null;
+    current = child;
+  }
+  return current.kind === "leaf" ? current : null;
+}
+
 /** Id of the leaf visually adjacent to `paneId`, or null if it has no sibling. */
 export function siblingPaneId(node: PaneNode, paneId: string): string | null {
   if (node.kind === "leaf") return null;

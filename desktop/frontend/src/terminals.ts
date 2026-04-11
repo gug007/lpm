@@ -38,6 +38,7 @@ export interface ProjectTerminalState {
   detailView: string;
   activeTab?: string;
   panes?: PersistedPaneNode;
+  focusedPanePath?: number[];
   // Legacy field — read on load for migration, never written back.
   terminals?: PersistedTerminalEntry[];
 }

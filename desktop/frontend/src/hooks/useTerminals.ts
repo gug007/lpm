@@ -19,6 +19,8 @@ import {
   removePane,
   setRatioAtPath,
   splitAtPane,
+  panePath,
+  paneAtPath,
 } from "../paneTree";
 
 export interface TerminalStartOpts {
@@ -35,9 +37,10 @@ export interface TerminalStartOpts {
 const PROMPT_IDLE_MS = 150;
 const PROMPT_MAX_WAIT_MS = 3000;
 
-// Divider drag mutates the tree on every frame; batch the resulting disk
-// writes to the trailing edge so a drag produces ~1 write.
-const DRAG_PERSIST_DEBOUNCE_MS = 200;
+// High-frequency events (divider drags, pane focus clicks) mutate state
+// on every tick; batch the resulting disk writes to the trailing edge so
+// a burst produces ~1 write.
+const DEFERRED_PERSIST_MS = 200;
 
 export interface UseTerminalsResult {
   tree: PaneNode | null;
@@ -112,31 +115,54 @@ export function useTerminals(
   onCountRef.current = onTerminalCountChange;
 
   const pendingInjectCleanups = useRef<Set<() => void>>(new Set());
-  const dragPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deferredPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const persist = useCallback((next: PaneNode | null) => {
-    const state = getProjectTerminals(projectName);
-    saveProjectTerminals(projectName, {
-      ...state,
-      panes: next ? treeToPersisted(next) : undefined,
-      // Drop the legacy terminals[] field on save so the old format
-      // doesn't get re-read after a round trip.
-      terminals: undefined,
-    });
-  }, [projectName]);
+  const persist = useCallback(
+    (next: PaneNode | null) => {
+      const focusedId = focusedRef.current;
+      const state = getProjectTerminals(projectName);
+      saveProjectTerminals(projectName, {
+        ...state,
+        panes: next ? treeToPersisted(next) : undefined,
+        focusedPanePath:
+          next && focusedId ? panePath(next, focusedId) ?? undefined : undefined,
+        // Drop the legacy terminals[] field on save so the old format
+        // doesn't get re-read after a round trip.
+        terminals: undefined,
+      });
+    },
+    [projectName],
+  );
+
+  const cancelDeferredPersist = useCallback(() => {
+    if (deferredPersistTimer.current) {
+      clearTimeout(deferredPersistTimer.current);
+      deferredPersistTimer.current = null;
+    }
+  }, []);
+
+  const schedulePersist = useCallback(() => {
+    cancelDeferredPersist();
+    deferredPersistTimer.current = setTimeout(() => {
+      deferredPersistTimer.current = null;
+      persist(treeRef.current);
+    }, DEFERRED_PERSIST_MS);
+  }, [cancelDeferredPersist, persist]);
 
   const applyTree = useCallback(
     (next: PaneNode | null, focus?: string | null) => {
-      if (dragPersistTimer.current) {
-        clearTimeout(dragPersistTimer.current);
-        dragPersistTimer.current = null;
-      }
+      cancelDeferredPersist();
       setTree(next);
-      if (focus !== undefined) setFocusedPaneId(focus);
+      if (focus !== undefined) {
+        setFocusedPaneId(focus);
+        // Sync ref so persist sees the new focus without waiting for the
+        // next render's ref assignment.
+        focusedRef.current = focus;
+      }
       persist(next);
       onCountRef.current?.(next ? collectTerminals(next).length : 0);
     },
-    [persist],
+    [cancelDeferredPersist, persist],
   );
 
   // Each call registers a cleanup in pendingInjectCleanups so the unmount
@@ -181,6 +207,9 @@ export function useTerminals(
     const persistedTree = saved.panes ?? legacyEntriesToTree(saved.terminals);
     if (!persistedTree) return;
 
+    // Pane ids are regenerated on reify, so we look the previously focused
+    // pane up by its position in the tree and map it to its new id.
+    const savedFocusedPath = saved.focusedPanePath;
     let cancelled = false;
     const allStartedIds: string[] = [];
 
@@ -191,7 +220,10 @@ export function useTerminals(
         return;
       }
       setTree(restored);
-      setFocusedPaneId(firstPaneId(restored));
+      const savedFocusedLeaf = savedFocusedPath
+        ? paneAtPath(restored, savedFocusedPath)
+        : null;
+      setFocusedPaneId(savedFocusedLeaf?.id ?? firstPaneId(restored));
       const all = collectTerminals(restored);
       onCountRef.current?.(all.length);
       all.forEach((t) => {
@@ -434,21 +466,23 @@ export function useTerminals(
       const next = setRatioAtPath(current, path, ratio);
       if (next === current) return;
       setTree(next);
-      if (dragPersistTimer.current) clearTimeout(dragPersistTimer.current);
-      dragPersistTimer.current = setTimeout(() => {
-        dragPersistTimer.current = null;
-        persist(treeRef.current);
-      }, DRAG_PERSIST_DEBOUNCE_MS);
+      schedulePersist();
     },
-    [persist],
+    [schedulePersist],
   );
 
-  const focusPane = useCallback((paneId: string) => {
-    if (focusedRef.current === paneId) return;
-    const current = treeRef.current;
-    if (!current || !findPane(current, paneId)) return;
-    setFocusedPaneId(paneId);
-  }, []);
+  const focusPane = useCallback(
+    (paneId: string) => {
+      if (focusedRef.current === paneId) return;
+      const current = treeRef.current;
+      if (!current || !findPane(current, paneId)) return;
+      setFocusedPaneId(paneId);
+      // Sync ref so the debounced persist reads the just-clicked pane id.
+      focusedRef.current = paneId;
+      schedulePersist();
+    },
+    [schedulePersist],
+  );
 
   const getFocusedPane = useCallback((): PaneLeaf | null => {
     const t = treeRef.current;
@@ -466,9 +500,9 @@ export function useTerminals(
   useEffect(() => {
     const cleanups = pendingInjectCleanups.current;
     return () => {
-      if (dragPersistTimer.current) {
-        clearTimeout(dragPersistTimer.current);
-        dragPersistTimer.current = null;
+      if (deferredPersistTimer.current) {
+        clearTimeout(deferredPersistTimer.current);
+        deferredPersistTimer.current = null;
         persist(treeRef.current);
       }
       cleanups.forEach((fn) => fn());

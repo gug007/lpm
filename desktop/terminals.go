@@ -41,10 +41,11 @@ type TerminalEntry struct {
 }
 
 type ProjectTerminalState struct {
-	DetailView string          `json:"detailView"`
-	ActiveTab  string          `json:"activeTab,omitempty"`
-	Panes      *PaneNode       `json:"panes,omitempty"`
-	Terminals  []TerminalEntry `json:"terminals,omitempty"`
+	DetailView      string          `json:"detailView"`
+	ActiveTab       string          `json:"activeTab,omitempty"`
+	Panes           *PaneNode       `json:"panes,omitempty"`
+	FocusedPanePath []int           `json:"focusedPanePath,omitempty"`
+	Terminals       []TerminalEntry `json:"terminals,omitempty"`
 }
 
 type TerminalsConfig struct {
