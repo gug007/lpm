@@ -66,7 +66,8 @@ export function ProjectContextMenu({
               onRemove();
               onClose();
             }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--accent-red)] transition-colors hover:bg-[var(--bg-hover)]"
+            disabled={busy}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--accent-red)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span className="flex-1 truncate">Remove duplicate</span>
             <TrashIcon />

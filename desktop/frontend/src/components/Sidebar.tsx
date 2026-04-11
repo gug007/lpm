@@ -30,13 +30,14 @@ interface SidebarProps {
   onReorder: (order: string[]) => void;
   showSettings: boolean;
   duplicatingName: string | null;
+  removingName: string | null;
 }
 
 function hasStatus(project: ProjectInfo, value: string): boolean {
   return project.statusEntries?.some(e => e.value === value) ?? false;
 }
 
-export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onSettings, onFeedback, onAddProject, onDuplicateProject, onRemoveProject, onReorder, showSettings, duplicatingName }: SidebarProps) {
+export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onSettings, onFeedback, onAddProject, onDuplicateProject, onRemoveProject, onReorder, showSettings, duplicatingName, removingName }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -49,10 +50,49 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
   const contextProject = contextMenu
     ? projects.find((p) => p.name === contextMenu.name)
     : null;
-  // Memoized so the SortableContext items reference is stable across the
-  // frequent status-update re-renders Sidebar gets — otherwise every status
-  // tick would churn the sortable subscriptions.
-  const projectIds = useMemo(() => projects.map((p) => p.name), [projects]);
+
+  const duplicatesByParent = useMemo(() => {
+    const map = new Map<string, ProjectInfo[]>();
+    for (const p of projects) {
+      if (!p.parentName) continue;
+      const existing = map.get(p.parentName);
+      if (existing) existing.push(p);
+      else map.set(p.parentName, [p]);
+    }
+    return map;
+  }, [projects]);
+
+  // Orphan duplicates (parent vanished) promote to the top level so they
+  // stay visible instead of disappearing from the sidebar.
+  const { rows, topLevelNames } = useMemo(() => {
+    const nameSet = new Set(projects.map((p) => p.name));
+    const outRows: { project: ProjectInfo; isChild: boolean }[] = [];
+    const outTop: string[] = [];
+    for (const p of projects) {
+      if (p.parentName && nameSet.has(p.parentName)) continue;
+      outRows.push({ project: p, isChild: false });
+      outTop.push(p.name);
+      const children = duplicatesByParent.get(p.name);
+      if (children) {
+        for (const child of children) {
+          outRows.push({ project: child, isChild: true });
+        }
+      }
+    }
+    return { rows: outRows, topLevelNames: outTop };
+  }, [projects, duplicatesByParent]);
+
+  // Backend stores a flat project order; expand the dragged top-level list
+  // with each parent's duplicates so they stay pinned after refresh.
+  const handleReorder = (newTopOrder: string[]) => {
+    const flat: string[] = [];
+    for (const name of newTopOrder) {
+      flat.push(name);
+      const children = duplicatesByParent.get(name);
+      if (children) for (const child of children) flat.push(child.name);
+    }
+    onReorder(flat);
+  };
 
   useEffect(() => EventsOn("update-available", setUpdateInfo), []);
   useEffect(() => EventsOn("update-progress", (pct: number) => setProgress(pct)), []);
@@ -105,64 +145,68 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2">
-        <SortableList ids={projectIds} onReorder={onReorder}>
-          {projects.map((project) => {
+        <SortableList ids={topLevelNames} onReorder={handleReorder}>
+          {rows.map(({ project, isChild }) => {
             const isSelected = selected === project.name;
             const isRunning = hasStatus(project, STATUS_RUNNING);
             const isDone = hasStatus(project, STATUS_DONE);
             const isWaiting = hasStatus(project, STATUS_WAITING);
             const isError = hasStatus(project, STATUS_ERROR);
-            const isDuplicating = duplicatingName === project.name;
+            const isBusy = duplicatingName === project.name || removingName === project.name;
 
+            const rowButton = (
+              <button
+                onClick={() => onSelect(project.name)}
+                onDoubleClick={() => {
+                  if (getSettings().doubleClickToToggle) onToggle(project.name);
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setContextMenu({ name: project.name, x: e.clientX, y: e.clientY });
+                }}
+                className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                  isSelected
+                    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                {isBusy ? (
+                  <span className="shrink-0 text-[var(--text-muted)]">
+                    <SpinnerIcon />
+                  </span>
+                ) : project.configError ? (
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Config error" />
+                ) : (
+                  <StatusDot running={project.running} />
+                )}
+                <span
+                  className="truncate"
+                  style={project.configError ? MUTED_STYLE : isDone ? DONE_STYLE : undefined}
+                  title={project.configError || (project.parentName ? `Duplicate of ${project.parentName}` : undefined)}
+                >
+                  {isError ? (
+                    <span className="text-red-400">{project.name}</span>
+                  ) : isWaiting ? (
+                    <span className="sidebar-waiting">{project.name}</span>
+                  ) : isRunning ? (
+                    <span className="sidebar-shimmer">{project.name}</span>
+                  ) : project.name}
+                </span>
+                {isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
+                {isDone && !isWaiting && !isError && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
+              </button>
+            );
+
+            if (isChild) {
+              return (
+                <div key={project.name} className="ml-4 border-l border-[var(--border)]">
+                  {rowButton}
+                </div>
+              );
+            }
             return (
               <SortableItem key={project.name} id={project.name}>
-                <button
-                  onClick={() => onSelect(project.name)}
-                  onDoubleClick={() => {
-                    if (getSettings().doubleClickToToggle) onToggle(project.name);
-                  }}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setContextMenu({ name: project.name, x: e.clientX, y: e.clientY });
-                  }}
-                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                    isSelected
-                      ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                      : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                  }`}
-                >
-                  {isDuplicating ? (
-                    <span className="shrink-0 text-[var(--text-muted)]">
-                      <SpinnerIcon />
-                    </span>
-                  ) : project.configError ? (
-                    <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Config error" />
-                  ) : (
-                    <StatusDot running={project.running} />
-                  )}
-                  <span
-                    className="flex min-w-0 flex-1 items-baseline gap-1.5 truncate"
-                    style={project.configError ? MUTED_STYLE : isDone ? DONE_STYLE : undefined}
-                    title={project.configError || (project.parentName ? `Duplicate of ${project.parentName}` : undefined)}
-                  >
-                    <span className="truncate">
-                      {isError ? (
-                        <span className="text-red-400">{project.name}</span>
-                      ) : isWaiting ? (
-                        <span className="sidebar-waiting">{project.name}</span>
-                      ) : isRunning ? (
-                        <span className="sidebar-shimmer">{project.name}</span>
-                      ) : project.name}
-                    </span>
-                    {project.parentName && (
-                      <span className="shrink-0 truncate text-[10px] text-[var(--text-muted)]">
-                        ↳ {project.parentName}
-                      </span>
-                    )}
-                  </span>
-                  {isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
-                  {isDone && !isWaiting && !isError && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
-                </button>
+                {rowButton}
               </SortableItem>
             );
           })}
@@ -172,7 +216,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
         <ProjectContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
-          busy={duplicatingName !== null}
+          busy={duplicatingName !== null || removingName !== null}
           canRemove={Boolean(contextProject?.parentName)}
           onDuplicate={() => onDuplicateProject(contextMenu.name)}
           onCopyPath={() => {

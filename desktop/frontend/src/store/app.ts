@@ -31,6 +31,7 @@ interface AppState {
   tmuxReady: boolean | null;
   visited: Set<string>;
   duplicatingName: string | null;
+  removingName: string | null;
 
   setView: (view: View) => void;
   setSidebarCollapsed: (next: boolean | ((prev: boolean) => boolean)) => void;
@@ -71,6 +72,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   tmuxReady: null,
   visited: new Set<string>(),
   duplicatingName: null,
+  removingName: null,
 
   setView: (view) => set({ view }),
 
@@ -189,12 +191,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   removeProject: async (name) => {
+    if (get().removingName) return;
+    set({ removingName: name });
     try {
       await RemoveProject(name);
       set({ selected: null });
       await get().refreshProjects();
     } catch (err) {
       toast.error(`Failed to remove ${name}: ${err}`);
+    } finally {
+      set({ removingName: null });
     }
   },
 

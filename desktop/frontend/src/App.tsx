@@ -33,6 +33,7 @@ export default function App() {
   const tmuxReady = useAppStore((s) => s.tmuxReady);
   const visited = useAppStore((s) => s.visited);
   const duplicatingName = useAppStore((s) => s.duplicatingName);
+  const removingName = useAppStore((s) => s.removingName);
 
   const setView = useAppStore((s) => s.setView);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
@@ -163,6 +164,7 @@ export default function App() {
           onReorder={reorderProjects}
           showSettings={isSettingsView}
           duplicatingName={duplicatingName}
+          removingName={removingName}
         />
         <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">
           <div className="wails-drag flex h-2 shrink-0 items-center">
