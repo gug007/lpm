@@ -5,6 +5,11 @@ export interface ServiceInfo {
   port: number;
 }
 
+export interface ProfileInfo {
+  name: string;
+  services: string[];
+}
+
 export type ActionType = "terminal" | (string & {});
 
 export interface ActionInputInfo {
@@ -44,7 +49,7 @@ export interface ProjectInfo {
   allServices: ServiceInfo[];
   actions: ActionInfo[];
   terminals: TerminalConfigInfo[];
-  profiles: string[];
+  profiles: ProfileInfo[];
   activeProfile: string;
   statusEntries: StatusEntry[];
   configError?: string;

@@ -29,7 +29,7 @@ type ProjectInfo struct {
 	AllServices       []ServiceInfo        `json:"allServices"`
 	Actions           []ActionInfo         `json:"actions"`
 	Terminals         []TerminalConfigInfo `json:"terminals"`
-	Profiles          []string             `json:"profiles"`
+	Profiles          []ProfileInfo        `json:"profiles"`
 	ActiveProfile     string               `json:"activeProfile"`
 	StatusEntries     []StatusEntry        `json:"statusEntries"`
 	ConfigError       string               `json:"configError,omitempty"`
@@ -40,6 +40,11 @@ type ServiceInfo struct {
 	Cmd  string `json:"cmd"`
 	Cwd  string `json:"cwd"`
 	Port int    `json:"port"`
+}
+
+type ProfileInfo struct {
+	Name     string   `json:"name"`
+	Services []string `json:"services"`
 }
 
 type ActionInputInfo struct {
@@ -85,7 +90,13 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state r
 		return out
 	}
 
-	services := buildServiceInfos(resolveRunningServices(cfg, state))
+	runningServiceNames := resolveRunningServices(cfg, state)
+	services := buildServiceInfos(runningServiceNames)
+
+	activeProfile := state.profile
+	if running && activeProfile == "" {
+		activeProfile = matchProfile(cfg, runningServiceNames)
+	}
 
 	allSvcNames := make([]string, 0, len(cfg.Services))
 	for svcName := range cfg.Services {
@@ -94,11 +105,18 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state r
 	sort.Strings(allSvcNames)
 	allServices := buildServiceInfos(allSvcNames)
 
-	profiles := make([]string, 0, len(cfg.Profiles))
+	profileNames := make([]string, 0, len(cfg.Profiles))
 	for pName := range cfg.Profiles {
-		profiles = append(profiles, pName)
+		profileNames = append(profileNames, pName)
 	}
-	sort.Strings(profiles)
+	sort.Strings(profileNames)
+	profiles := make([]ProfileInfo, 0, len(profileNames))
+	for _, pName := range profileNames {
+		profiles = append(profiles, ProfileInfo{
+			Name:     pName,
+			Services: slices.Clone(cfg.ServicesForProfile(pName)),
+		})
+	}
 
 	actionNames := make([]string, 0, len(cfg.Actions))
 	for aName := range cfg.Actions {
@@ -186,7 +204,7 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state r
 		Actions:       actions,
 		Terminals:     terminalConfigs,
 		Profiles:      profiles,
-		ActiveProfile: state.profile,
+		ActiveProfile: activeProfile,
 	}
 }
 
@@ -374,6 +392,42 @@ func resolveRunningServices(cfg *config.ProjectConfig, state runState) []string 
 		return state.services
 	}
 	return cfg.ServicesForProfile(state.profile)
+}
+
+// matchProfile returns the profile whose services (as a set) exactly equal the
+// given service names, or an empty string when none matches. Used to recover
+// the active profile after the user has toggled individual services whose
+// resulting set happens to equal a known profile.
+func matchProfile(cfg *config.ProjectConfig, running []string) string {
+	if len(running) == 0 {
+		return ""
+	}
+	runSet := make(map[string]struct{}, len(running))
+	for _, s := range running {
+		runSet[s] = struct{}{}
+	}
+	names := make([]string, 0, len(cfg.Profiles))
+	for n := range cfg.Profiles {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		svcs := cfg.Profiles[name]
+		if len(svcs) != len(running) {
+			continue
+		}
+		matched := true
+		for _, s := range svcs {
+			if _, ok := runSet[s]; !ok {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return name
+		}
+	}
+	return ""
 }
 
 func (a *App) StopProject(name string) error {

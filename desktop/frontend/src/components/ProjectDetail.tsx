@@ -9,7 +9,7 @@ import { RunAction } from "../../wailsjs/go/main/App";
 import { getSettings, saveSettings } from "../settings";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
-import { type ProjectInfo, type ActionInfo, type TerminalConfigInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
+import { type ProjectInfo, type ProfileInfo, type ActionInfo, type TerminalConfigInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
 import { TerminalIcon, CheckIcon, ChevronDownIcon, PencilIcon, MenuIcon, AlertCircleIcon, PlayIcon, StopIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { useOutsideClick } from "../hooks/useOutsideClick";
@@ -46,7 +46,7 @@ export function ProjectDetail({
 }: ProjectDetailProps) {
   const [loading, setLoading] = useState(false);
   const [activeProfile, setActiveProfile] = useState(
-    project.activeProfile || project.profiles?.[0] || ""
+    project.activeProfile || project.profiles?.[0]?.name || ""
   );
   useEffect(() => {
     if (project.activeProfile) setActiveProfile(project.activeProfile);
@@ -380,11 +380,11 @@ export function ProjectDetail({
                   {hasProfiles && (
                     <StartMenuSection label="Profiles">
                       {project.profiles.map((p) => (
-                        <StartMenuItem
-                          key={p}
-                          label={p}
-                          active={activeProfile === p}
-                          onClick={() => handleStartProfile(p)}
+                        <ProfileMenuItem
+                          key={p.name}
+                          profile={p}
+                          running={project.running && project.activeProfile === p.name}
+                          onClick={() => handleStartProfile(p.name)}
                         />
                       ))}
                     </StartMenuSection>
@@ -584,9 +584,51 @@ function StartMenuItem({
       </span>
       <span className={`flex-1 truncate ${mono ? "font-mono" : ""}`}>{label}</span>
       {badge && <span className="text-[10px] text-[var(--text-muted)] tabular-nums">{badge}</span>}
-      <span className="opacity-0 transition-opacity group-hover:opacity-60 text-[var(--text-muted)]">
-        {running ? <StopIcon /> : <PlayIcon />}
+      <HoverRunIcon running={running} />
+    </button>
+  );
+}
+
+function ProfileMenuItem({
+  profile,
+  running,
+  onClick,
+}: {
+  profile: ProfileInfo;
+  running?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`group flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-[var(--bg-hover)] ${
+        running ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
+      }`}
+    >
+      <span className="mt-[5px] flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+        {running ? (
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-green)]" />
+        ) : null}
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className={`truncate text-[12px] ${running ? "font-medium" : ""}`}>
+          {profile.name}
+        </span>
+        <span className="truncate text-[10px] text-[var(--text-muted)] font-mono">
+          {profile.services.join(" · ")}
+        </span>
+      </span>
+      <span className="mt-[5px]">
+        <HoverRunIcon running={running} />
       </span>
     </button>
+  );
+}
+
+function HoverRunIcon({ running }: { running?: boolean }) {
+  return (
+    <span className="opacity-0 transition-opacity group-hover:opacity-60 text-[var(--text-muted)]">
+      {running ? <StopIcon /> : <PlayIcon />}
+    </span>
   );
 }
