@@ -107,7 +107,11 @@ export default function App() {
   }, [selected, markVisited]);
 
   useEffect(() => {
-    pruneVisitedToProjects();
+    // Wait for projects to actually load before pruning — otherwise the
+    // empty initial array would wipe any freshly-marked visited entry
+    // (e.g., the project just auto-selected on cold boot), causing the
+    // next switch-away to unmount it and drop its terminal tree.
+    if (projects.length > 0) pruneVisitedToProjects();
   }, [projects, pruneVisitedToProjects]);
 
   const visitedProjects = projects.filter(
