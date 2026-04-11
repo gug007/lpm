@@ -36,7 +36,7 @@ type App struct {
 	ptyMu       sync.Mutex
 	ptySessions map[string]*ptySession // terminalID -> session
 
-	runningProfiles map[string]string // projectName -> profile used to start
+	runningState map[string]runState // projectName -> how it was started
 
 	pendingDownloadURL string // set by CheckForUpdate, used by InstallUpdate
 
@@ -57,7 +57,7 @@ func NewApp() *App {
 		paneCache:       make(map[string][]string),
 		streams:         make(map[string]context.CancelFunc),
 		ptySessions:     make(map[string]*ptySession),
-		runningProfiles: make(map[string]string),
+		runningState: make(map[string]runState),
 		statusStore:     NewStatusStore(),
 	}
 }

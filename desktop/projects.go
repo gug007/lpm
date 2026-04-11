@@ -12,12 +12,21 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// runState records how a project's tmux session was started. If services is
+// non-empty, it overrides profile-based resolution (i.e. the session was
+// started for a specific service subset rather than a named profile).
+type runState struct {
+	profile  string
+	services []string
+}
+
 type ProjectInfo struct {
 	Name              string               `json:"name"`
 	Session           string               `json:"session"`
 	Root              string               `json:"root"`
 	Running           bool                 `json:"running"`
 	Services          []ServiceInfo        `json:"services"`
+	AllServices       []ServiceInfo        `json:"allServices"`
 	Actions           []ActionInfo         `json:"actions"`
 	Terminals         []TerminalConfigInfo `json:"terminals"`
 	Profiles          []string             `json:"profiles"`
@@ -61,18 +70,33 @@ type TerminalConfigInfo struct {
 	Display string `json:"display"`
 }
 
-func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, activeProfile string) ProjectInfo {
-	serviceNames := cfg.ServicesForProfile(activeProfile)
-	services := make([]ServiceInfo, 0, len(serviceNames))
-	for _, svcName := range serviceNames {
-		svc := cfg.Services[svcName]
-		services = append(services, ServiceInfo{
-			Name: svcName,
-			Cmd:  svc.Cmd,
-			Cwd:  svc.Cwd,
-			Port: svc.Port,
-		})
+func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state runState) ProjectInfo {
+	buildServiceInfos := func(names []string) []ServiceInfo {
+		out := make([]ServiceInfo, 0, len(names))
+		for _, svcName := range names {
+			svc := cfg.Services[svcName]
+			out = append(out, ServiceInfo{
+				Name: svcName,
+				Cmd:  svc.Cmd,
+				Cwd:  svc.Cwd,
+				Port: svc.Port,
+			})
+		}
+		return out
 	}
+
+	serviceNames := state.services
+	if len(serviceNames) == 0 {
+		serviceNames = cfg.ServicesForProfile(state.profile)
+	}
+	services := buildServiceInfos(serviceNames)
+
+	allSvcNames := make([]string, 0, len(cfg.Services))
+	for svcName := range cfg.Services {
+		allSvcNames = append(allSvcNames, svcName)
+	}
+	sort.Strings(allSvcNames)
+	allServices := buildServiceInfos(allSvcNames)
 
 	profiles := make([]string, 0, len(cfg.Profiles))
 	for pName := range cfg.Profiles {
@@ -162,10 +186,11 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, activeP
 		Root:          cfg.Root,
 		Running:       running,
 		Services:      services,
+		AllServices:   allServices,
 		Actions:       actions,
 		Terminals:     terminalConfigs,
 		Profiles:      profiles,
-		ActiveProfile: activeProfile,
+		ActiveProfile: state.profile,
 	}
 }
 
@@ -181,9 +206,7 @@ func (a *App) ListProjects() ([]ProjectInfo, error) {
 	sessions := tmux.ListSessions()
 	projects := make([]ProjectInfo, 0, len(names))
 
-	a.cacheMu.RLock()
-	profiles := a.runningProfiles
-	a.cacheMu.RUnlock()
+	stateSnapshot := a.snapshotRunningState()
 
 	for _, name := range names {
 		cfg, err := config.LoadProject(name)
@@ -195,11 +218,11 @@ func (a *App) ListProjects() ([]ProjectInfo, error) {
 			continue
 		}
 		running := sessions[cfg.Name]
-		profile := ""
+		var state runState
 		if running {
-			profile = profiles[name]
+			state = stateSnapshot[name]
 		}
-		info := toProjectInfo(name, cfg, running, profile)
+		info := toProjectInfo(name, cfg, running, state)
 		info.StatusEntries = a.statusStore.List(name)
 		projects = append(projects, info)
 	}
@@ -271,9 +294,26 @@ func (a *App) StartProject(name, profile string) error {
 	if err := tmux.StartProject(cfg, profile); err != nil {
 		return err
 	}
-	a.cacheMu.Lock()
-	a.runningProfiles[name] = profile
-	a.cacheMu.Unlock()
+	a.setRunningState(name, runState{profile: profile})
+	runtime.EventsEmit(a.ctx, "projects-changed")
+	return nil
+}
+
+// StartProjectService starts the tmux session with a single service,
+// bypassing profile resolution.
+func (a *App) StartProjectService(name, serviceName string) error {
+	cfg, err := config.LoadProject(name)
+	if err != nil {
+		return err
+	}
+	if _, ok := cfg.Services[serviceName]; !ok {
+		return fmt.Errorf("service %q not found", serviceName)
+	}
+	a.invalidateSessionCache(name)
+	if err := tmux.StartProjectServices(cfg, []string{serviceName}); err != nil {
+		return err
+	}
+	a.setRunningState(name, runState{services: []string{serviceName}})
 	runtime.EventsEmit(a.ctx, "projects-changed")
 	return nil
 }
@@ -284,9 +324,7 @@ func (a *App) StopProject(name string) error {
 		return err
 	}
 	a.invalidateSessionCache(name)
-	a.cacheMu.Lock()
-	delete(a.runningProfiles, name)
-	a.cacheMu.Unlock()
+	a.clearRunningState(name)
 	if err := tmux.KillSession(cfg.Name); err != nil {
 		return err
 	}
@@ -313,19 +351,41 @@ func (a *App) GetProject(name string) (*ProjectInfo, error) {
 		return nil, err
 	}
 	running := tmux.SessionExists(cfg.Name)
-	profile := ""
+	var state runState
 	if running {
-		profile = a.getRunningProfile(name)
+		state = a.getRunningState(name)
 	}
-	info := toProjectInfo(name, cfg, running, profile)
+	info := toProjectInfo(name, cfg, running, state)
 	info.StatusEntries = a.statusStore.List(name)
 	return &info, nil
 }
 
-func (a *App) getRunningProfile(name string) string {
+func (a *App) getRunningState(name string) runState {
 	a.cacheMu.RLock()
 	defer a.cacheMu.RUnlock()
-	return a.runningProfiles[name]
+	return a.runningState[name]
+}
+
+func (a *App) setRunningState(name string, state runState) {
+	a.cacheMu.Lock()
+	a.runningState[name] = state
+	a.cacheMu.Unlock()
+}
+
+func (a *App) clearRunningState(name string) {
+	a.cacheMu.Lock()
+	delete(a.runningState, name)
+	a.cacheMu.Unlock()
+}
+
+func (a *App) snapshotRunningState() map[string]runState {
+	a.cacheMu.RLock()
+	defer a.cacheMu.RUnlock()
+	out := make(map[string]runState, len(a.runningState))
+	for k, v := range a.runningState {
+		out[k] = v
+	}
+	return out
 }
 
 func (a *App) cachedSessionName(projectName string) string {
@@ -401,7 +461,11 @@ func (a *App) StartService(projectName string, paneIndex int) error {
 	if err != nil {
 		return err
 	}
-	serviceNames := cfg.ServicesForProfile(a.getRunningProfile(projectName))
+	state := a.getRunningState(projectName)
+	serviceNames := state.services
+	if len(serviceNames) == 0 {
+		serviceNames = cfg.ServicesForProfile(state.profile)
+	}
 	if paneIndex < 0 || paneIndex >= len(serviceNames) {
 		return fmt.Errorf("service index %d out of range", paneIndex)
 	}

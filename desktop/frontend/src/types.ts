@@ -41,6 +41,7 @@ export interface ProjectInfo {
   root: string;
   running: boolean;
   services: ServiceInfo[];
+  allServices: ServiceInfo[];
   actions: ActionInfo[];
   terminals: TerminalConfigInfo[];
   profiles: string[];

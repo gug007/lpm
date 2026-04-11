@@ -105,6 +105,13 @@ func StartProject(cfg *config.ProjectConfig, profile string) error {
 	if len(serviceNames) == 0 {
 		return fmt.Errorf("no services to start for profile %q", profile)
 	}
+	return StartProjectServices(cfg, serviceNames)
+}
+
+func StartProjectServices(cfg *config.ProjectConfig, serviceNames []string) error {
+	if len(serviceNames) == 0 {
+		return fmt.Errorf("no services to start")
+	}
 
 	KillSession(cfg.Name)
 

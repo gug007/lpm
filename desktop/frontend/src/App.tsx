@@ -18,6 +18,7 @@ import { getSettings, saveSettings } from "./settings";
 
 import {
   StartProject,
+  StartProjectService,
   StopProject,
   RemoveProject,
   BrowseFolder,
@@ -157,6 +158,15 @@ export default function App() {
       await refresh();
     } catch (err) {
       toast.error(`Failed to start ${name}: ${err}`);
+    }
+  };
+
+  const handleStartService = async (name: string, serviceName: string) => {
+    try {
+      await StartProjectService(name, serviceName);
+      await refresh();
+    } catch (err) {
+      toast.error(`Failed to start ${serviceName}: ${err}`);
     }
   };
 
@@ -322,6 +332,7 @@ export default function App() {
                   visible={isSelected}
                   sidebarCollapsed={sidebarCollapsed}
                   onStart={handleStart}
+                  onStartService={handleStartService}
                   onStop={handleStop}
                   onRestart={handleRestart}
                   onRefresh={handleRefresh}
