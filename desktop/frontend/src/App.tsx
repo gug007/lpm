@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { Settings } from "./components/Settings";
@@ -8,50 +8,59 @@ import { PRInstructionsEditor } from "./components/PRInstructionsEditor";
 import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
 import { TmuxInstaller } from "./components/TmuxInstaller";
 import { FeedbackModal } from "./components/FeedbackModal";
-import { Toaster, toast } from "sonner";
+import { Toaster } from "sonner";
 import { SidebarIcon } from "./components/icons";
-import { useProjectsRefresh } from "./hooks/useProjectsRefresh";
 import { useWindowResizeSaver } from "./hooks/useWindowResizeSaver";
 import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
-import { playDoneSound, playWaitingSound, playErrorSound } from "./sounds";
+import { useProjectsSync } from "./hooks/useProjectsSync";
+import { useAppEvents } from "./hooks/useAppEvents";
 import { getSettings, saveSettings } from "./settings";
+import { useAppStore } from "./store/app";
 
 import {
-  StartProject,
-  ToggleProjectService,
-  StopProject,
-  RemoveProject,
-  BrowseFolder,
-  CreateProject,
-  ReorderProjects,
-  TmuxInstalled,
   InstallTmux,
   StartWatchingProject,
   StopWatchingProject,
+  TmuxInstalled,
 } from "../wailsjs/go/main/App";
-import { EventsOn } from "../wailsjs/runtime/runtime";
-
-export type View =
-  | "projects"
-  | "settings"
-  | "global-config"
-  | "commit-instructions"
-  | "pr-instructions";
 
 export default function App() {
-  const [tmuxReady, setTmuxReady] = useState<boolean | null>(null);
-  const [selected, setSelected] = useState<string | null>(() => getSettings().lastSelectedProject ?? null);
-  const [view, setView] = useState<View>("projects");
-  const isSettingsView = view !== "projects";
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const projects = useAppStore((s) => s.projects);
+  const selected = useAppStore((s) => s.selected);
+  const view = useAppStore((s) => s.view);
+  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
+  const feedbackOpen = useAppStore((s) => s.feedbackOpen);
+  const tmuxReady = useAppStore((s) => s.tmuxReady);
+  const visited = useAppStore((s) => s.visited);
 
-  const { projects, setProjects, refresh } = useProjectsRefresh();
+  const setView = useAppStore((s) => s.setView);
+  const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
+  const setFeedbackOpen = useAppStore((s) => s.setFeedbackOpen);
+  const setTmuxReady = useAppStore((s) => s.setTmuxReady);
+  const selectProject = useAppStore((s) => s.selectProject);
+  const clearSelection = useAppStore((s) => s.clearSelection);
+  const markVisited = useAppStore((s) => s.markVisited);
+  const pruneVisitedToProjects = useAppStore((s) => s.pruneVisitedToProjects);
+  const startProject = useAppStore((s) => s.startProject);
+  const stopProject = useAppStore((s) => s.stopProject);
+  const restartProject = useAppStore((s) => s.restartProject);
+  const toggleProjectRunning = useAppStore((s) => s.toggleProjectRunning);
+  const toggleService = useAppStore((s) => s.toggleService);
+  const addProject = useAppStore((s) => s.addProject);
+  const removeProject = useAppStore((s) => s.removeProject);
+  const reorderProjects = useAppStore((s) => s.reorderProjects);
+  const refreshAfterRename = useAppStore((s) => s.refreshAfterRename);
+
+  const isSettingsView = view !== "projects";
+  const selectedProject = projects.find((p) => p.name === selected) || null;
+
+  useProjectsSync();
+  useAppEvents();
   useWindowResizeSaver();
 
   useEffect(() => {
     TmuxInstalled().then(setTmuxReady);
-  }, []);
+  }, [setTmuxReady]);
 
   useKeyboardShortcut({ key: "b", meta: true }, () => {
     setSidebarCollapsed((v) => !v);
@@ -61,54 +70,18 @@ export default function App() {
     Array.from({ length: 9 }, (_, i) => ({ key: String(i + 1), meta: true })),
     (_e, matched) => {
       const project = projects[Number(matched.key) - 1];
-      if (project) handleSelect(project.name);
+      if (project) selectProject(project.name);
     },
   );
-
-  useEffect(() => {
-    const cancelDock = EventsOn("dock-project-selected", (name: string) => {
-      setSelected(name);
-      setView("projects");
-    });
-    const cancelSettings = EventsOn("menu-open-settings", () => {
-      setView("settings");
-    });
-    const cancelCommitInstr = EventsOn("navigate-commit-instructions", () => {
-      setView("commit-instructions");
-    });
-    const cancelPRInstr = EventsOn("navigate-pr-instructions", () => {
-      setView("pr-instructions");
-    });
-    const cancelFeedback = EventsOn("menu-open-feedback", () => {
-      setFeedbackOpen(true);
-    });
-    const cancelSound = EventsOn("play-sound", (kind: string) => {
-      if (kind === "Done") playDoneSound();
-      else if (kind === "Waiting") playWaitingSound();
-      else if (kind === "Error") playErrorSound();
-    });
-    return () => {
-      if (typeof cancelDock === "function") cancelDock();
-      if (typeof cancelSettings === "function") cancelSettings();
-      if (typeof cancelCommitInstr === "function") cancelCommitInstr();
-      if (typeof cancelPRInstr === "function") cancelPRInstr();
-      if (typeof cancelFeedback === "function") cancelFeedback();
-      if (typeof cancelSound === "function") cancelSound();
-    };
-  }, []);
-
-  const handleTmuxInstalled = () => setTmuxReady(true);
-
-  const selectedProject = projects.find((p) => p.name === selected) || null;
 
   // Drop a stale saved selection if the project was deleted while lpm was
   // closed, but only once projects has actually loaded — otherwise the
   // empty initial array would clear a valid selection on every boot.
   useEffect(() => {
     if (selected && projects.length > 0 && !projects.some((p) => p.name === selected)) {
-      setSelected(null);
+      clearSelection();
     }
-  }, [projects, selected]);
+  }, [projects, selected, clearSelection]);
 
   useEffect(() => {
     const next = selected ?? undefined;
@@ -129,128 +102,17 @@ export default function App() {
     };
   }, [selectedProject?.root, view]);
 
-  // Track projects that have been opened so their components stay mounted.
-  const [visited, setVisited] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (selected) markVisited(selected);
+  }, [selected, markVisited]);
 
   useEffect(() => {
-    if (selected) {
-      setVisited((prev) =>
-        prev.has(selected) ? prev : new Set([...prev, selected]),
-      );
-    }
-  }, [selected]);
-
-  useEffect(() => {
-    setVisited((prev) => {
-      const existing = new Set(projects.map((p) => p.name));
-      const next = new Set([...prev].filter((name) => existing.has(name)));
-      return next.size === prev.size ? prev : next;
-    });
-  }, [projects]);
+    pruneVisitedToProjects();
+  }, [projects, pruneVisitedToProjects]);
 
   const visitedProjects = projects.filter(
     (p) => p.name === selected || visited.has(p.name),
   );
-
-  const handleStart = async (name: string, profile: string) => {
-    try {
-      await StartProject(name, profile);
-      await refresh();
-    } catch (err) {
-      toast.error(`Failed to start ${name}: ${err}`);
-    }
-  };
-
-  const handleToggleService = async (name: string, serviceName: string) => {
-    try {
-      await ToggleProjectService(name, serviceName);
-      await refresh();
-    } catch (err) {
-      toast.error(`Failed to toggle ${serviceName}: ${err}`);
-    }
-  };
-
-  const handleStop = async (name: string) => {
-    try {
-      await StopProject(name);
-      await refresh();
-    } catch (err) {
-      toast.error(`Failed to stop ${name}: ${err}`);
-    }
-  };
-
-  const handleRestart = async (name: string, profile: string) => {
-    try {
-      await StopProject(name);
-      await StartProject(name, profile);
-      await refresh();
-    } catch (err) {
-      toast.error(`Failed to restart ${name}: ${err}`);
-    }
-  };
-
-  const handleAddProject = async () => {
-    try {
-      const dir = await BrowseFolder();
-      if (!dir) return;
-      const name = dir.split("/").pop() || "new-project";
-      await CreateProject(name, dir);
-      await refresh();
-      setSelected(name);
-      setView("projects");
-    } catch (err) {
-      toast.error(`Failed to add project: ${err}`);
-    }
-  };
-
-  const handleRefresh = async (newName?: string) => {
-    await refresh();
-    if (newName && newName !== selected) setSelected(newName);
-  };
-
-  const handleRemove = async (name: string) => {
-    try {
-      await RemoveProject(name);
-      setSelected(null);
-      await refresh();
-    } catch (err) {
-      toast.error(`Failed to remove ${name}: ${err}`);
-    }
-  };
-
-  const handleSelect = (name: string) => {
-    setSelected(name);
-    setView("projects");
-  };
-
-  const handleToggle = async (name: string) => {
-    const project = projects.find((p) => p.name === name);
-    if (!project) return;
-    try {
-      if (project.running) {
-        await StopProject(name);
-      } else {
-        await StartProject(name, "");
-      }
-      await refresh();
-    } catch (err) {
-      toast.error(`Failed to toggle ${name}: ${err}`);
-    }
-  };
-
-  const handleReorder = async (order: string[]) => {
-    const orderMap = new Map(order.map((n, i) => [n, i]));
-    setProjects((prev) =>
-      [...prev].sort(
-        (a, b) => (orderMap.get(a.name) ?? 0) - (orderMap.get(b.name) ?? 0),
-      ),
-    );
-    try {
-      await ReorderProjects(order);
-    } catch (err) {
-      toast.error(`Failed to reorder: ${err}`);
-    }
-  };
 
   if (tmuxReady === null) {
     return (
@@ -264,7 +126,7 @@ export default function App() {
     return (
       <TmuxInstaller
         installTmux={InstallTmux}
-        onInstalled={handleTmuxInstalled}
+        onInstalled={() => setTmuxReady(true)}
       />
     );
   }
@@ -285,12 +147,12 @@ export default function App() {
           selected={view === "projects" ? selected : null}
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}
-          onSelect={handleSelect}
-          onToggle={handleToggle}
+          onSelect={selectProject}
+          onToggle={toggleProjectRunning}
           onSettings={() => setView("settings")}
           onFeedback={() => setFeedbackOpen(true)}
-          onAddProject={handleAddProject}
-          onReorder={handleReorder}
+          onAddProject={addProject}
+          onReorder={reorderProjects}
           showSettings={isSettingsView}
         />
         <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">
@@ -331,18 +193,18 @@ export default function App() {
                   project={project}
                   visible={isSelected}
                   sidebarCollapsed={sidebarCollapsed}
-                  onStart={handleStart}
-                  onToggleService={handleToggleService}
-                  onStop={handleStop}
-                  onRestart={handleRestart}
-                  onRefresh={handleRefresh}
-                  onRemove={handleRemove}
+                  onStart={startProject}
+                  onToggleService={toggleService}
+                  onStop={stopProject}
+                  onRestart={restartProject}
+                  onRefresh={refreshAfterRename}
+                  onRemove={removeProject}
                 />
               </div>
             );
           })}
           {view === "projects" && !selectedProject && projects.length === 0 && (
-            <EmptyStateNoProjects onAdd={handleAddProject} />
+            <EmptyStateNoProjects onAdd={addProject} />
           )}
           {view === "projects" && !selectedProject && projects.length > 0 && (
             <EmptyState />
