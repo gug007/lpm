@@ -175,6 +175,9 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           busy={duplicatingName !== null}
           canRemove={Boolean(contextProject?.parentName)}
           onDuplicate={() => onDuplicateProject(contextMenu.name)}
+          onCopyPath={() => {
+            if (contextProject?.root) navigator.clipboard.writeText(contextProject.root);
+          }}
           onRemove={() => setConfirmRemoveDuplicate(contextMenu.name)}
           onClose={() => setContextMenu(null)}
         />
