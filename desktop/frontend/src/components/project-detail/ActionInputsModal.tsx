@@ -28,6 +28,9 @@ export function ActionInputsModal({ action, onCancel, onSubmit }: ActionInputsMo
     if (canSubmit) onSubmit(values);
   };
 
+  const set = (key: string, value: string) =>
+    setValues((prev) => ({ ...prev, [key]: value }));
+
   return (
     <Modal
       open
@@ -46,29 +49,41 @@ export function ActionInputsModal({ action, onCancel, onSubmit }: ActionInputsMo
                 {inp.label}
                 {inp.required && <span className="ml-0.5 text-[var(--accent-red)]">*</span>}
               </span>
-              {inp.type === "select" && inp.options?.length ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {inp.options.map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => setValues((prev) => ({ ...prev, [inp.key]: opt }))}
-                      className={`rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors ${
-                        values[inp.key] === opt
-                          ? "border-transparent bg-[var(--text-primary)] text-[var(--bg-primary)]"
-                          : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                      }`}
-                    >
-                      {opt}
-                    </button>
-                  ))}
+              {inp.type === "radio" && inp.options?.length ? (
+                <div className="flex flex-col gap-1">
+                  {inp.options.map((opt) => {
+                    const selected = values[inp.key] === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => set(inp.key, opt.value)}
+                        className="flex items-center gap-2.5 rounded-md px-1 py-1.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
+                      >
+                        <span
+                          className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                            selected
+                              ? "border-[var(--accent-blue)] bg-transparent"
+                              : "border-[var(--text-muted)]"
+                          }`}
+                        >
+                          {selected && (
+                            <span className="h-2 w-2 rounded-full bg-[var(--accent-blue)]" />
+                          )}
+                        </span>
+                        <span className={`text-[13px] ${selected ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}>
+                          {opt.label}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               ) : (
                 <input
                   ref={i === 0 ? firstRef : undefined}
                   type={inp.type === "password" ? "password" : "text"}
                   value={values[inp.key] ?? ""}
-                  onChange={(e) => setValues((prev) => ({ ...prev, [inp.key]: e.target.value }))}
+                  onChange={(e) => set(inp.key, e.target.value)}
                   placeholder={inp.placeholder}
                   className="w-full rounded-md border border-[var(--border)] bg-transparent px-2.5 py-1.5 font-mono text-[13px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)]"
                 />

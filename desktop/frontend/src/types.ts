@@ -12,6 +12,11 @@ export interface ProfileInfo {
 
 export type ActionType = "terminal" | (string & {});
 
+export interface ActionInputOption {
+  label: string;
+  value: string;
+}
+
 export interface ActionInputInfo {
   key: string;
   label: string;
@@ -19,7 +24,7 @@ export interface ActionInputInfo {
   required: boolean;
   placeholder: string;
   default: string;
-  options?: string[];
+  options?: ActionInputOption[];
 }
 
 export interface ActionInfo {

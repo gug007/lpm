@@ -38,13 +38,28 @@ func (s *Service) UnmarshalYAML(value *yaml.Node) error {
 	return value.Decode((*plain)(s))
 }
 
+type ActionInputOption struct {
+	Label string `yaml:"label" json:"label"`
+	Value string `yaml:"value" json:"value"`
+}
+
+func (o *ActionInputOption) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind == yaml.ScalarNode {
+		o.Label = value.Value
+		o.Value = value.Value
+		return nil
+	}
+	type plain ActionInputOption
+	return value.Decode((*plain)(o))
+}
+
 type ActionInput struct {
-	Label       string   `yaml:"label,omitempty"`
-	Type        string   `yaml:"type,omitempty"`
-	Required    bool     `yaml:"required,omitempty"`
-	Placeholder string   `yaml:"placeholder,omitempty"`
-	Default     string   `yaml:"default,omitempty"`
-	Options     []string `yaml:"options,omitempty"`
+	Label       string              `yaml:"label,omitempty"`
+	Type        string              `yaml:"type,omitempty"`
+	Required    bool                `yaml:"required,omitempty"`
+	Placeholder string              `yaml:"placeholder,omitempty"`
+	Default     string              `yaml:"default,omitempty"`
+	Options     []ActionInputOption `yaml:"options,omitempty"`
 }
 
 type Action struct {

@@ -53,14 +53,19 @@ type ProfileInfo struct {
 	Services []string `json:"services"`
 }
 
+type ActionInputOption struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
 type ActionInputInfo struct {
-	Key         string   `json:"key"`
-	Label       string   `json:"label"`
-	Type        string   `json:"type"`
-	Required    bool     `json:"required"`
-	Placeholder string   `json:"placeholder"`
-	Default     string   `json:"default"`
-	Options     []string `json:"options,omitempty"`
+	Key         string              `json:"key"`
+	Label       string              `json:"label"`
+	Type        string              `json:"type"`
+	Required    bool                `json:"required"`
+	Placeholder string              `json:"placeholder"`
+	Default     string              `json:"default"`
+	Options     []ActionInputOption `json:"options,omitempty"`
 }
 
 func buildInputInfos(inputs map[string]config.ActionInput) []ActionInputInfo {
@@ -83,6 +88,10 @@ func buildInputInfos(inputs map[string]config.ActionInput) []ActionInputInfo {
 		if lbl == "" {
 			lbl = k
 		}
+		opts := make([]ActionInputOption, len(inp.Options))
+		for i, o := range inp.Options {
+			opts[i] = ActionInputOption{Label: o.Label, Value: o.Value}
+		}
 		out = append(out, ActionInputInfo{
 			Key:         k,
 			Label:       lbl,
@@ -90,7 +99,7 @@ func buildInputInfos(inputs map[string]config.ActionInput) []ActionInputInfo {
 			Required:    inp.Required,
 			Placeholder: inp.Placeholder,
 			Default:     inp.Default,
-			Options:     inp.Options,
+			Options:     opts,
 		})
 	}
 	return out

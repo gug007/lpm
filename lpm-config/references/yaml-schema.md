@@ -109,9 +109,15 @@ actions:
     confirm: true
     inputs:
       env:
-        type: select
+        type: radio
         label: Environment
-        options: [dev, staging, production]
+        options:
+          - label: Development
+            value: dev
+          - label: Staging
+            value: staging
+          - label: Production
+            value: prod
         default: staging
         required: true
       tag:
@@ -119,22 +125,28 @@ actions:
         placeholder: v1.0.0
 ```
 
+When label and value are the same, use the shorthand:
+
+```yaml
+options: [dev, staging, production]
+```
+
 #### Input Fields
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `label` | string | no | key name | Display name shown in the UI. |
-| `type` | string | no | `text` | Input type: `text`, `password`, or `select`. |
+| `type` | string | no | `text` | Input type: `text`, `password`, or `radio`. |
 | `required` | bool | no | false | Whether the field must have a value to run. |
 | `placeholder` | string | no | — | Placeholder text (for `text` and `password` types). |
-| `default` | string | no | — | Pre-filled default value. |
-| `options` | []string | no | — | List of choices (required when `type: select`). |
+| `default` | string | no | — | Pre-filled default value. For `radio`, must match an option's `value`. |
+| `options` | []string \| []{label, value} | no | — | List of options (required when `type: radio`). Each entry is a string or an object with `label` (display text) and `value` (substituted into cmd). |
 
 #### Input Types
 
 - **`text`** (default) — single-line text input.
 - **`password`** — masked text input for secrets.
-- **`select`** — horizontal row of selectable buttons. User picks exactly one option.
+- **`radio`** — vertical list of radio buttons. User picks exactly one option.
 
 ### When to Use `confirm: true`
 
