@@ -92,8 +92,9 @@ const actionFields: Field[] = [
     required: false,
     description: (
       <>
-        Shell command to run. Required unless{" "}
-        <code className="font-mono">actions</code> is set.
+        The shell command to run — whatever you&rsquo;d type into a terminal
+        yourself. Required unless the action groups child actions with{" "}
+        <code className="font-mono">actions</code> below.
       </>
     ),
   },
@@ -101,7 +102,14 @@ const actionFields: Field[] = [
     name: "label",
     type: "string",
     required: false,
-    description: "Display name in the UI",
+    description: (
+      <>
+        The friendly name shown on the button. If you skip it, lpm uses the
+        action&rsquo;s key — e.g.{" "}
+        <code className="font-mono">test</code> becomes{" "}
+        <code className="font-mono">test</code>.
+      </>
+    ),
   },
   {
     name: "cwd",
@@ -109,8 +117,11 @@ const actionFields: Field[] = [
     required: false,
     description: (
       <>
-        Working directory. Supports <code className="font-mono">~</code>.
-        Inherited by nested actions.
+        Run the command from a different folder than the project root — useful
+        for monorepos or when the action lives in a subfolder. Relative paths
+        resolve from <code className="font-mono">root</code>.{" "}
+        <code className="font-mono">~</code> expands to your home directory.
+        Nested actions inherit this from their parent.
       </>
     ),
   },
@@ -118,13 +129,26 @@ const actionFields: Field[] = [
     name: "env",
     type: "map",
     required: false,
-    description: "Environment variables. Inherited by nested actions.",
+    description: (
+      <>
+        Extra environment variables to set just for this action — handy for
+        one-off flags like{" "}
+        <code className="font-mono">NODE_ENV=production</code>. Nested actions
+        inherit these from their parent.
+      </>
+    ),
   },
   {
     name: "confirm",
     type: "bool",
     required: false,
-    description: "Prompt for confirmation before running",
+    description: (
+      <>
+        Show a confirmation dialog before running. Turn this on for anything
+        you&rsquo;d regret clicking by accident — deletes, resets, production
+        deploys.
+      </>
+    ),
   },
   {
     name: "display",
@@ -132,7 +156,10 @@ const actionFields: Field[] = [
     required: false,
     description: (
       <>
-        <code className="font-mono">button</code> or menu (default)
+        <code className="font-mono">button</code> pins the action to the
+        project toolbar so it&rsquo;s always one click away. The default,{" "}
+        <code className="font-mono">menu</code>, tucks it behind the three-dot
+        menu — better for things you rarely need.
       </>
     ),
   },
@@ -142,8 +169,10 @@ const actionFields: Field[] = [
     required: false,
     description: (
       <>
-        Nested child actions. Renders as a dropdown. If the parent also has{" "}
-        <code className="font-mono">cmd</code>, renders as a split button.
+        Group related commands under this action. They show up as a dropdown.
+        If the parent also has a <code className="font-mono">cmd</code>, it
+        renders as a split button — clicking the main part runs the parent,
+        clicking the chevron opens the group.
       </>
     ),
   },
@@ -517,57 +546,102 @@ export default function ConfigPage() {
             <Section
               id="actions"
               title="Actions"
-              description="One-shot commands like test runners, migrations, or deploy scripts. Trigger them from the project panel in the desktop app."
+              description={
+                <>
+                  Actions are the commands you run once in a while — your test
+                  suite, a database migration, a deploy script. Services run
+                  continuously; actions fire once, do their job, and show you
+                  the result. Click one in the desktop app toolbar (or tuck it
+                  into the three-dot menu) and lpm runs it for you.
+                </>
+              }
             >
+              <p className="mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                Try it — click <strong className="font-medium">test</strong>{" "}
+                or <strong className="font-medium">Deploy to Production</strong>{" "}
+                in the preview above. Actions with{" "}
+                <code className="font-mono">confirm: true</code> ask before
+                running; everything else just runs.
+              </p>
               <ConfigPlayground
                 filename="actions.yml"
                 initial={ACTIONS_EXAMPLE}
               />
               <FieldTable fields={actionFields} />
 
-              <p className="mt-6 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-                Shorthand form for common dev commands:
+              <p className="mt-8 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                <strong className="font-medium text-gray-700 dark:text-gray-200">
+                  Shorthand.
+                </strong>{" "}
+                If all your action needs is a command, write it as a single
+                line — the key becomes the label and you skip the nested form
+                entirely. Great for everyday dev commands:
               </p>
               <ConfigPlayground
                 filename="actions-shorthand.yml"
                 initial={ACTIONS_SHORTHAND_EXAMPLE}
               />
 
-              <p className="mt-6 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-                Destructive operations use{" "}
-                <code className="font-mono">confirm</code> and typically display as
-                a button:
+              <p className="mt-8 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                <strong className="font-medium text-gray-700 dark:text-gray-200">
+                  Destructive actions.
+                </strong>{" "}
+                For anything you don&rsquo;t want to click by accident — cache
+                wipes, rollbacks, production deploys — add{" "}
+                <code className="font-mono">confirm: true</code> to get a
+                confirmation dialog, and pair it with{" "}
+                <code className="font-mono">display: button</code> so the
+                action lives in the toolbar where you&rsquo;ll find it:
               </p>
               <ConfigPlayground
                 filename="actions-destructive.yml"
                 initial={ACTIONS_DESTRUCTIVE_EXAMPLE}
               />
 
-              <p className="mt-6 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-                Nest actions to create a dropdown menu. When the parent has a{" "}
-                <code className="font-mono">cmd</code>, it renders as a split
-                button — clicking the main area runs the parent, clicking the
-                chevron opens the dropdown:
+              <p className="mt-8 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                <strong className="font-medium text-gray-700 dark:text-gray-200">
+                  Grouping related actions.
+                </strong>{" "}
+                Give a parent action both a <code className="font-mono">cmd</code>{" "}
+                and nested <code className="font-mono">actions</code> and
+                lpm renders it as a split button: the main part runs the
+                parent&rsquo;s command, the chevron opens a menu with the
+                children. Use this when there&rsquo;s a sensible default plus a
+                few alternatives — like &ldquo;Deploy staging&rdquo; with
+                production and preview tucked behind it:
               </p>
               <ConfigPlayground
                 filename="actions-nested.yml"
                 initial={ACTIONS_NESTED_EXAMPLE}
               />
 
-              <p className="mt-6 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-                Without a <code className="font-mono">cmd</code>, the whole
-                button becomes a dropdown trigger:
+              <p className="mt-8 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                <strong className="font-medium text-gray-700 dark:text-gray-200">
+                  Dropdown-only groups.
+                </strong>{" "}
+                Drop the parent&rsquo;s <code className="font-mono">cmd</code>{" "}
+                and the whole button becomes a dropdown. Good for a set of
+                related commands with no obvious default — like a database
+                toolkit (Migrate, Seed, Reset):
               </p>
               <ConfigPlayground
                 filename="actions-dropdown.yml"
                 initial={ACTIONS_DROPDOWN_EXAMPLE}
               />
 
-              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-                Children inherit <code className="font-mono">cwd</code> and{" "}
-                <code className="font-mono">env</code> from their parent unless
-                they override them.
-              </p>
+              <div className="mt-6 mb-4 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-900/40 px-4 py-3 text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                <p className="font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  A note on inheritance
+                </p>
+                <p>
+                  Nested actions inherit <code className="font-mono">cwd</code>{" "}
+                  and <code className="font-mono">env</code> from their parent
+                  unless they override them. Set{" "}
+                  <code className="font-mono">cwd: ./backend</code> on the
+                  parent once and every child runs from there — no need to
+                  repeat yourself.
+                </p>
+              </div>
             </Section>
 
             <Section

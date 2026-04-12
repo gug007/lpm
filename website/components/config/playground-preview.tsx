@@ -146,7 +146,6 @@ function ActionModal({
   onClose: () => void;
 }) {
   const destructive = action.confirm === true;
-  const envEntries = action.env ? Object.entries(action.env) : [];
   const [phase, setPhase] = useState<ModalPhase>(initialPhase);
   const [duration, setDuration] = useState<number | null>(null);
 
@@ -166,15 +165,51 @@ function ActionModal({
   };
 
   const isBusy = phase === "running";
-  const showConfirmCopy = phase === "idle" && destructive;
+
+  if (phase === "idle") {
+    return (
+      <div className="absolute inset-0 z-30 flex items-center justify-center p-4">
+        <button
+          type="button"
+          aria-label="Close"
+          onClick={onClose}
+          className="absolute inset-0 bg-black/30 dark:bg-black/60"
+        />
+        <div className="relative w-72 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-5 shadow-xl">
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            Run{" "}
+            <span className="font-medium text-gray-900 dark:text-white">
+              {action.label}
+            </span>
+            ?
+          </div>
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-gray-200 dark:border-gray-800 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleRun}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all hover:opacity-90 ${
+                destructive
+                  ? "bg-red-500 text-white"
+                  : "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+              }`}
+            >
+              Run
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const title =
-    phase === "result"
-      ? `${action.label} finished`
-      : phase === "running"
-        ? `Running ${action.label}`
-        : destructive
-          ? `Run ${action.label}?`
-          : action.label;
+    phase === "result" ? `${action.label} finished` : `Running ${action.label}`;
 
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center p-4">
@@ -196,44 +231,11 @@ function ActionModal({
             </span>
           )}
         </div>
-        {showConfirmCopy && (
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
-            This action is marked as requiring confirmation.
-          </p>
-        )}
         {action.cmd && (
           <div className="mt-4 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/60 px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300 break-all">
             <span className="text-gray-400 dark:text-gray-500 mr-1">$</span>
             {action.cmd}
           </div>
-        )}
-        {(action.cwd || envEntries.length > 0) && phase === "idle" && (
-          <dl className="mt-3 space-y-1 text-xs">
-            {action.cwd && (
-              <div className="flex gap-2">
-                <dt className="font-medium text-gray-500 dark:text-gray-400 flex-shrink-0">
-                  cwd
-                </dt>
-                <dd className="font-mono text-gray-700 dark:text-gray-300 truncate">
-                  {action.cwd}
-                </dd>
-              </div>
-            )}
-            {envEntries.length > 0 && (
-              <div className="flex gap-2">
-                <dt className="font-medium text-gray-500 dark:text-gray-400 flex-shrink-0">
-                  env
-                </dt>
-                <dd className="font-mono text-gray-700 dark:text-gray-300 min-w-0">
-                  {envEntries.map(([k, v]) => (
-                    <div key={k} className="truncate">
-                      {k}={v}
-                    </div>
-                  ))}
-                </dd>
-              </div>
-            )}
-          </dl>
         )}
 
         {phase === "running" && (
@@ -260,37 +262,14 @@ function ActionModal({
         )}
 
         <div className="mt-5 flex justify-end gap-2">
-          {phase === "idle" ? (
-            <>
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-lg border border-gray-200 dark:border-gray-800 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleRun}
-                className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all hover:opacity-85 min-w-[92px] ${
-                  destructive
-                    ? "bg-red-500 text-white"
-                    : "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-                }`}
-              >
-                Run
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isBusy}
-              className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-all hover:opacity-85 disabled:opacity-40 disabled:cursor-not-allowed min-w-[92px] bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-            >
-              Close
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isBusy}
+            className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-all hover:opacity-85 disabled:opacity-40 disabled:cursor-not-allowed min-w-[92px] bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>
