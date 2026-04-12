@@ -231,13 +231,6 @@ function ActionModal({
             </span>
           )}
         </div>
-        {action.cmd && (
-          <div className="mt-4 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/60 px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300 break-all">
-            <span className="text-gray-400 dark:text-gray-500 mr-1">$</span>
-            {action.cmd}
-          </div>
-        )}
-
         {phase === "running" && (
           <div className="mt-4 rounded-lg bg-gray-950 px-3 py-3 font-mono text-xs text-gray-100 leading-relaxed">
             <div className="text-emerald-400">$ {action.cmd || "(no cmd)"}</div>
