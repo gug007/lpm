@@ -70,6 +70,7 @@ type Action struct {
 	Confirm bool                   `yaml:"confirm,omitempty"`
 	Display string                 `yaml:"display,omitempty"`
 	Type    string                 `yaml:"type,omitempty"`
+	Reuse   bool                   `yaml:"reuse,omitempty"`
 	Inputs  map[string]ActionInput `yaml:"inputs,omitempty"`
 	Actions ActionMap              `yaml:"actions,omitempty"`
 }

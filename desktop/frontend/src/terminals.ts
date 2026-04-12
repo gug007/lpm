@@ -7,6 +7,7 @@ export interface PersistedTab {
   label: string;
   startCmd?: string;
   resumeCmd?: string;
+  actionName?: string;
 }
 
 // Persisted pane tree shape — mirrors the Go binding (main.PaneNode) so

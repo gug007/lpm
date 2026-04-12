@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { StartTerminal, StartTerminalForConfig, StartTerminalWithCwdEnv, StopTerminal } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { sendTerminalInput } from "../terminal-io";
+import { isInteractivePaneSessionDead } from "../components/InteractivePane";
 import { getProjectTerminals, saveProjectTerminals, type PersistedPaneNode, type PersistedTerminalEntry } from "../terminals";
 import {
   type PaneNode,
@@ -11,6 +12,7 @@ import {
   makePaneLeaf,
   makeTerminal,
   walkPanes,
+  collectPanes,
   collectTerminals,
   findPane,
   firstPaneId,
@@ -27,6 +29,7 @@ export interface TerminalStartOpts {
   configName?: string;
   cwd?: string;
   env?: Record<string, string>;
+  actionName?: string;
 }
 
 // Injection waits for pty output to go quiet for PROMPT_IDLE_MS before
@@ -263,6 +266,28 @@ export function useTerminals(
 
   const createTerminalWithCmd = useCallback(
     async (label: string, cmd: string, opts?: TerminalStartOpts) => {
+      // When reuse is requested, find an existing live terminal tagged with
+      // the same actionName. A dead session (process exited) falls through
+      // so the user gets a fresh PTY instead of typing into a dead tab.
+      if (opts?.actionName && treeRef.current) {
+        for (const pane of collectPanes(treeRef.current)) {
+          const idx = pane.tabs.findIndex(
+            (t) =>
+              t.actionName === opts.actionName &&
+              !isInteractivePaneSessionDead(t.id),
+          );
+          if (idx !== -1) {
+            applyTree(mapPane(treeRef.current, pane.id, (p) => ({
+              ...p,
+              activeTabIdx: idx,
+              activeServiceName: undefined,
+            })), pane.id);
+            await sendTerminalInput(pane.tabs[idx].id, cmd + "\n");
+            return;
+          }
+        }
+      }
+
       // Named configs go through the restore-aware RPC: the Go side owns
       // the session-id rewrite so launch.startCmd is authoritative, and a
       // non-empty resumeCmd is the signal that this terminal opted into
@@ -270,7 +295,7 @@ export function useTerminals(
       if (opts?.configName) {
         const launch = await StartTerminalForConfig(projectName, opts.configName);
         const term = launch.resumeCmd
-          ? makeTerminal(launch.id, label, launch.startCmd, launch.resumeCmd)
+          ? makeTerminal(launch.id, label, { startCmd: launch.startCmd, resumeCmd: launch.resumeCmd })
           : makeTerminal(launch.id, label);
         addTerminal(term);
         scheduleCmdInject(launch.id, launch.startCmd);
@@ -282,10 +307,10 @@ export function useTerminals(
       const id = (opts?.cwd || opts?.env)
         ? await StartTerminalWithCwdEnv(projectName, opts.cwd ?? "", opts.env ?? {})
         : await StartTerminal(projectName);
-      addTerminal(makeTerminal(id, label));
+      addTerminal(makeTerminal(id, label, opts?.actionName ? { actionName: opts.actionName } : undefined));
       scheduleCmdInject(id, cmd);
     },
-    [projectName, addTerminal, scheduleCmdInject],
+    [projectName, addTerminal, applyTree, scheduleCmdInject],
   );
 
   const addTerminalToPane = useCallback(
@@ -574,7 +599,11 @@ async function reifyTreeWithFreshPtys(
       const ids = await Promise.all(persistedTabs.map(() => StartTerminal(projectName)));
       ids.forEach((id) => startedIds.push(id));
       const tabs = ids.map((id, i) =>
-        makeTerminal(id, persistedTabs[i].label ?? "Terminal", persistedTabs[i].startCmd, persistedTabs[i].resumeCmd),
+        makeTerminal(id, persistedTabs[i].label ?? "Terminal", {
+          startCmd: persistedTabs[i].startCmd,
+          resumeCmd: persistedTabs[i].resumeCmd,
+          actionName: persistedTabs[i].actionName,
+        }),
       );
       const pane = makePaneLeaf(nextPaneId(), tabs, clampIdx(node.activeTabIdx, tabs.length));
       if (node.activeServiceName) pane.activeServiceName = node.activeServiceName;
@@ -613,6 +642,7 @@ function treeToPersisted(node: PaneNode): PersistedPaneNode {
         label: t.label,
         ...(t.startCmd ? { startCmd: t.startCmd } : {}),
         ...(t.resumeCmd ? { resumeCmd: t.resumeCmd } : {}),
+        ...(t.actionName ? { actionName: t.actionName } : {}),
       })),
     };
   }

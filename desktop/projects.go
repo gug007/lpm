@@ -114,6 +114,7 @@ type ActionInfo struct {
 	Confirm  bool              `json:"confirm"`
 	Display  string            `json:"display"`
 	Type     string            `json:"type"`
+	Reuse    bool              `json:"reuse"`
 	Inputs   []ActionInputInfo `json:"inputs,omitempty"`
 	Children []ActionInfo      `json:"children,omitempty"`
 }
@@ -206,6 +207,7 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state r
 					Confirm: child.Confirm,
 					Display: child.Display,
 					Type:    child.Type,
+					Reuse:   child.Reuse,
 					Inputs:  buildInputInfos(child.Inputs),
 				})
 			}
@@ -220,6 +222,7 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state r
 			Confirm:  act.Confirm,
 			Display:  act.Display,
 			Type:     act.Type,
+			Reuse:    act.Reuse,
 			Inputs:   inputs,
 			Children: children,
 		})

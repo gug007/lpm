@@ -3,7 +3,8 @@ import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus } from "../../wailsjs/go/main/App";
 import type { ITheme } from "@xterm/xterm";
 import { disposePaneSession, type PaneHandle } from "./Pane";
-import type { InteractivePaneHandle } from "./InteractivePane";
+import { disposeInteractivePaneSession, type InteractivePaneHandle } from "./InteractivePane";
+import { collectTerminals } from "../paneTree";
 import { PaneLayout } from "./PaneLayout";
 import type { ServiceTabInfo, StatusKind } from "./PaneView";
 import { type TerminalThemeName, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
@@ -126,6 +127,37 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
     return () => {
       for (const key of serviceKeysRef.current) disposePaneSession(key);
       serviceKeysRef.current = [];
+    };
+  }, []);
+
+  // Dispose cached xterm sessions for terminals that leave the tree, so
+  // close-tab/close-pane doesn't leak the xterm buffer and PTY listeners.
+  const interactiveKeysRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const prev = interactiveKeysRef.current;
+    const next = new Set<string>();
+    // Walk once while also checking membership against prev, so that
+    // drags (which produce a fresh tree reference every frame with an
+    // unchanged id set) can short-circuit before touching the ref.
+    let sameAsPrev = true;
+    if (tree) {
+      for (const t of collectTerminals(tree)) {
+        next.add(t.id);
+        if (sameAsPrev && !prev.has(t.id)) sameAsPrev = false;
+      }
+    }
+    if (sameAsPrev && next.size === prev.size) return;
+    for (const id of prev) {
+      if (!next.has(id)) disposeInteractivePaneSession(id);
+    }
+    interactiveKeysRef.current = next;
+  }, [tree]);
+
+  useEffect(() => {
+    return () => {
+      for (const id of interactiveKeysRef.current) disposeInteractivePaneSession(id);
+      interactiveKeysRef.current.clear();
     };
   }, []);
 
