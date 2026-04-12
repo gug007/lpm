@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { ActionButton } from "./ActionButton";
+import { SplitButton } from "./SplitButton";
 import { OpenInDropdown } from "./OpenInDropdown";
 import { BranchSwitcher } from "./BranchSwitcher";
 import { TerminalView, type TerminalViewHandle } from "./TerminalView";
@@ -115,6 +116,8 @@ export function ProjectDetail({
   const terminalViewRef = useRef<TerminalViewHandle>(null);
 
   const buttonActions = (project.actions ?? []).filter((a) => a.display === "button");
+  const plainActions = buttonActions.filter((a) => !a.children?.length);
+  const dropdownActions = buttonActions.filter((a) => a.children?.length);
   const menuActions = (project.actions ?? []).filter((a) => a.display !== "button");
   const buttonTerminals = (project.terminals ?? []).filter((t) => t.display === "button");
   const menuTerminals = (project.terminals ?? []).filter((t) => t.display !== "button");
@@ -287,9 +290,9 @@ export function ProjectDetail({
           {project.name}
         </h1>
         <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-          {(buttonActions.length > 0 || buttonTerminals.length > 0) && (
+          {(plainActions.length > 0 || buttonTerminals.length > 0) && (
             <div className="flex min-w-0 items-center gap-2 overflow-x-auto" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
-              {buttonActions.map((action) => (
+              {plainActions.map((action) => (
                 <ActionButton
                   key={action.name}
                   onClick={() => handleRunAction(action)}
@@ -309,6 +312,15 @@ export function ProjectDetail({
               ))}
             </div>
           )}
+          {dropdownActions.map((action) => (
+            <div key={action.name} style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
+              <SplitButton
+                action={action}
+                disabled={runningAction !== null}
+                onRunAction={handleRunAction}
+              />
+            </div>
+          ))}
           <div style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
             <OpenInDropdown projectPath={project.root} />
           </div>

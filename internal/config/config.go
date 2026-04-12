@@ -55,6 +55,7 @@ type Action struct {
 	Display string                 `yaml:"display,omitempty"`
 	Type    string                 `yaml:"type,omitempty"`
 	Inputs  map[string]ActionInput `yaml:"inputs,omitempty"`
+	Actions ActionMap              `yaml:"actions,omitempty"`
 }
 
 func (a *Action) UnmarshalYAML(value *yaml.Node) error {
@@ -64,6 +65,29 @@ func (a *Action) UnmarshalYAML(value *yaml.Node) error {
 	}
 	type plain Action
 	return value.Decode((*plain)(a))
+}
+
+// ResolvedChild returns a copy of the named child action with cwd and env
+// inherited from the parent. Returns false when the child does not exist.
+func (a Action) ResolvedChild(name string) (Action, bool) {
+	child, ok := a.Actions[name]
+	if !ok {
+		return Action{}, false
+	}
+	if child.Cwd == "" {
+		child.Cwd = a.Cwd
+	}
+	if len(a.Env) > 0 {
+		merged := make(map[string]string, len(a.Env)+len(child.Env))
+		for k, v := range a.Env {
+			merged[k] = v
+		}
+		for k, v := range child.Env {
+			merged[k] = v
+		}
+		child.Env = merged
+	}
+	return child, true
 }
 
 type Terminal struct {
@@ -200,12 +224,7 @@ func LoadGlobal() *GlobalConfig {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return &GlobalConfig{}
 	}
-	for name, act := range cfg.Actions {
-		if act.Cwd != "" {
-			act.Cwd = expandHome(act.Cwd)
-			cfg.Actions[name] = act
-		}
-	}
+	expandActionCwds(cfg.Actions)
 	for name, term := range cfg.Terminals {
 		if term.Cwd != "" {
 			term.Cwd = expandHome(term.Cwd)
@@ -306,12 +325,7 @@ func LoadProjectCached(name string, cache map[string]*ProjectConfig) (*ProjectCo
 			cfg.Services[name] = svc
 		}
 	}
-	for name, act := range cfg.Actions {
-		if act.Cwd != "" {
-			act.Cwd = expandHome(act.Cwd)
-			cfg.Actions[name] = act
-		}
-	}
+	expandActionCwds(cfg.Actions)
 	for name, term := range cfg.Terminals {
 		if term.Cwd != "" {
 			term.Cwd = expandHome(term.Cwd)
@@ -380,7 +394,7 @@ func (p *ProjectConfig) Validate() error {
 	}
 
 	for name, act := range p.Actions {
-		if strings.TrimSpace(act.Cmd) == "" {
+		if strings.TrimSpace(act.Cmd) == "" && len(act.Actions) == 0 {
 			errs = append(errs, fmt.Sprintf("action %q: missing cmd", name))
 		}
 		if act.Cwd != "" {
@@ -390,6 +404,20 @@ func (p *ProjectConfig) Validate() error {
 			}
 			if info, err := os.Stat(abs); err != nil || !info.IsDir() {
 				errs = append(errs, fmt.Sprintf("action %q: cwd %q does not exist", name, act.Cwd))
+			}
+		}
+		for childName, child := range act.Actions {
+			if strings.TrimSpace(child.Cmd) == "" {
+				errs = append(errs, fmt.Sprintf("action %q.%q: missing cmd", name, childName))
+			}
+			if child.Cwd != "" {
+				abs := child.Cwd
+				if !filepath.IsAbs(abs) {
+					abs = filepath.Join(p.Root, abs)
+				}
+				if info, err := os.Stat(abs); err != nil || !info.IsDir() {
+					errs = append(errs, fmt.Sprintf("action %q.%q: cwd %q does not exist", name, childName, child.Cwd))
+				}
 			}
 		}
 	}
@@ -493,6 +521,21 @@ func SaveProject(cfg *ProjectConfig) error {
 
 	path := filepath.Join(ProjectsDir(), cfg.Name+".yml")
 	return os.WriteFile(path, []byte(out), 0644)
+}
+
+func expandActionCwds(actions ActionMap) {
+	for name, act := range actions {
+		if act.Cwd != "" {
+			act.Cwd = expandHome(act.Cwd)
+		}
+		for cn, child := range act.Actions {
+			if child.Cwd != "" {
+				child.Cwd = expandHome(child.Cwd)
+				act.Actions[cn] = child
+			}
+		}
+		actions[name] = act
+	}
 }
 
 func expandHome(path string) string {

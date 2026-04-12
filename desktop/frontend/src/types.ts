@@ -31,6 +31,7 @@ export interface ActionInfo {
   display: string;
   type?: ActionType;
   inputs?: ActionInputInfo[];
+  children?: ActionInfo[];
 }
 
 export interface TerminalConfigInfo {

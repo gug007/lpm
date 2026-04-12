@@ -32,9 +32,22 @@ func (a *App) RunAction(projectName string, actionName string, inputValues map[s
 		return err
 	}
 
-	action, ok := cfg.Actions[actionName]
-	if !ok {
-		return fmt.Errorf("action %q not found in project %q", actionName, projectName)
+	var action config.Action
+	if parts := strings.SplitN(actionName, ":", 2); len(parts) == 2 {
+		parent, ok := cfg.Actions[parts[0]]
+		if !ok {
+			return fmt.Errorf("action %q not found in project %q", parts[0], projectName)
+		}
+		action, ok = parent.ResolvedChild(parts[1])
+		if !ok {
+			return fmt.Errorf("child action %q not found in action %q", parts[1], parts[0])
+		}
+	} else {
+		var ok bool
+		action, ok = cfg.Actions[actionName]
+		if !ok {
+			return fmt.Errorf("action %q not found in project %q", actionName, projectName)
+		}
 	}
 
 	cwd := config.ResolveCwd(cfg.Root, action.Cwd)

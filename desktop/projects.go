@@ -62,16 +62,49 @@ type ActionInputInfo struct {
 	Default     string `json:"default"`
 }
 
+func buildInputInfos(inputs map[string]config.ActionInput) []ActionInputInfo {
+	if len(inputs) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(inputs))
+	for k := range inputs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	out := make([]ActionInputInfo, 0, len(keys))
+	for _, k := range keys {
+		inp := inputs[k]
+		typ := inp.Type
+		if typ == "" {
+			typ = "text"
+		}
+		lbl := inp.Label
+		if lbl == "" {
+			lbl = k
+		}
+		out = append(out, ActionInputInfo{
+			Key:         k,
+			Label:       lbl,
+			Type:        typ,
+			Required:    inp.Required,
+			Placeholder: inp.Placeholder,
+			Default:     inp.Default,
+		})
+	}
+	return out
+}
+
 type ActionInfo struct {
-	Name    string            `json:"name"`
-	Label   string            `json:"label"`
-	Cmd     string            `json:"cmd"`
-	Cwd     string            `json:"cwd"`
-	Env     map[string]string `json:"env,omitempty"`
-	Confirm bool              `json:"confirm"`
-	Display string            `json:"display"`
-	Type    string            `json:"type"`
-	Inputs  []ActionInputInfo `json:"inputs,omitempty"`
+	Name     string            `json:"name"`
+	Label    string            `json:"label"`
+	Cmd      string            `json:"cmd"`
+	Cwd      string            `json:"cwd"`
+	Env      map[string]string `json:"env,omitempty"`
+	Confirm  bool              `json:"confirm"`
+	Display  string            `json:"display"`
+	Type     string            `json:"type"`
+	Inputs   []ActionInputInfo `json:"inputs,omitempty"`
+	Children []ActionInfo      `json:"children,omitempty"`
 }
 
 type TerminalConfigInfo struct {
@@ -138,44 +171,46 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state r
 			label = aName
 		}
 
-		var inputs []ActionInputInfo
-		if len(act.Inputs) > 0 {
-			inputKeys := make([]string, 0, len(act.Inputs))
-			for k := range act.Inputs {
-				inputKeys = append(inputKeys, k)
+		inputs := buildInputInfos(act.Inputs)
+
+		var children []ActionInfo
+		if len(act.Actions) > 0 {
+			childNames := make([]string, 0, len(act.Actions))
+			for cn := range act.Actions {
+				childNames = append(childNames, cn)
 			}
-			sort.Strings(inputKeys)
-			for _, k := range inputKeys {
-				inp := act.Inputs[k]
-				typ := inp.Type
-				if typ == "" {
-					typ = "text"
+			sort.Strings(childNames)
+			for _, cn := range childNames {
+				child, _ := act.ResolvedChild(cn)
+				childLabel := child.Label
+				if childLabel == "" {
+					childLabel = cn
 				}
-				lbl := inp.Label
-				if lbl == "" {
-					lbl = k
-				}
-				inputs = append(inputs, ActionInputInfo{
-					Key:         k,
-					Label:       lbl,
-					Type:        typ,
-					Required:    inp.Required,
-					Placeholder: inp.Placeholder,
-					Default:     inp.Default,
+				children = append(children, ActionInfo{
+					Name:    aName + ":" + cn,
+					Label:   childLabel,
+					Cmd:     child.Cmd,
+					Cwd:     child.Cwd,
+					Env:     child.Env,
+					Confirm: child.Confirm,
+					Display: child.Display,
+					Type:    child.Type,
+					Inputs:  buildInputInfos(child.Inputs),
 				})
 			}
 		}
 
 		actions = append(actions, ActionInfo{
-			Name:    aName,
-			Label:   label,
-			Cmd:     act.Cmd,
-			Cwd:     act.Cwd,
-			Env:     act.Env,
-			Confirm: act.Confirm,
-			Display: act.Display,
-			Type:    act.Type,
-			Inputs:  inputs,
+			Name:     aName,
+			Label:    label,
+			Cmd:      act.Cmd,
+			Cwd:      act.Cwd,
+			Env:      act.Env,
+			Confirm:  act.Confirm,
+			Display:  act.Display,
+			Type:     act.Type,
+			Inputs:   inputs,
+			Children: children,
 		})
 	}
 
