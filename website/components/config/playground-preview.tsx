@@ -109,6 +109,31 @@ function normalizeTerminal(key: string, def: TerminalDef): TerminalItem {
   };
 }
 
+function Spinner({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      className={`animate-spin ${className}`}
+      viewBox="0 0 24 24"
+      fill="none"
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="3"
+        opacity="0.25"
+      />
+      <path
+        d="M12 2a10 10 0 0 1 10 10"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function ActionModal({
   action,
   onCancel,
@@ -120,31 +145,42 @@ function ActionModal({
 }) {
   const destructive = action.confirm === true;
   const envEntries = action.env ? Object.entries(action.env) : [];
+  const [phase, setPhase] = useState<"idle" | "running" | "done">("idle");
+
+  const handleRun = () => {
+    if (phase !== "idle") return;
+    setPhase("running");
+    window.setTimeout(() => {
+      setPhase("done");
+      window.setTimeout(() => onConfirm(), 450);
+    }, 650);
+  };
+
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center p-4">
       <button
         type="button"
         aria-label="Close"
-        onClick={onCancel}
+        onClick={phase === "idle" ? onCancel : undefined}
         className="absolute inset-0 bg-black/30 dark:bg-black/60"
       />
-      <div className="relative w-full max-w-sm rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-5 shadow-xl">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+      <div className="relative w-full max-w-sm rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-6 shadow-xl">
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white">
           {destructive ? `Run ${action.label}?` : action.label}
         </h3>
         {destructive && (
-          <p className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
             This action is marked as requiring confirmation.
           </p>
         )}
         {action.cmd && (
-          <div className="mt-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/60 px-3 py-2 font-mono text-[11px] text-gray-700 dark:text-gray-300 break-all">
+          <div className="mt-4 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/60 px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300 break-all">
             <span className="text-gray-400 dark:text-gray-500 mr-1">$</span>
             {action.cmd}
           </div>
         )}
         {(action.cwd || envEntries.length > 0) && (
-          <dl className="mt-3 space-y-1 text-[11px]">
+          <dl className="mt-3 space-y-1 text-xs">
             {action.cwd && (
               <div className="flex gap-2">
                 <dt className="font-medium text-gray-500 dark:text-gray-400 flex-shrink-0">
@@ -175,20 +211,34 @@ function ActionModal({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg border border-gray-200 dark:border-gray-800 px-3 py-1.5 text-[11px] font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-900"
+            disabled={phase !== "idle"}
+            className="rounded-lg border border-gray-200 dark:border-gray-800 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
           <button
             type="button"
-            onClick={onConfirm}
-            className={`rounded-lg px-3 py-1.5 text-[11px] font-medium transition-all hover:opacity-85 ${
+            onClick={handleRun}
+            disabled={phase !== "idle"}
+            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all hover:opacity-85 disabled:opacity-95 min-w-[92px] ${
               destructive
                 ? "bg-red-500 text-white"
                 : "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
             }`}
           >
-            Run
+            {phase === "running" ? (
+              <>
+                <Spinner className="w-3.5 h-3.5" />
+                Running…
+              </>
+            ) : phase === "done" ? (
+              <>
+                <Check className="w-3.5 h-3.5" />
+                Done
+              </>
+            ) : (
+              "Run"
+            )}
           </button>
         </div>
       </div>
@@ -414,9 +464,23 @@ export function PlaygroundPreview({
   const [startOpen, setStartOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [runningKeys, setRunningKeys] = useState<Set<string>>(new Set());
+  const [openTerminalKeys, setOpenTerminalKeys] = useState<Set<string>>(
+    new Set(),
+  );
   const [activeTab, setActiveTab] = useState<string>("all");
   const [selectedAction, setSelectedAction] = useState<Action | null>(null);
   const startRef = useRef<HTMLDivElement>(null);
+
+  const toggleTerminal = (key: string) => {
+    setMenuOpen(false);
+    setOpenTerminalKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+    setActiveTab("all");
+  };
 
   const openAction = (action: Action) => {
     setMenuOpen(false);
@@ -472,12 +536,44 @@ export function PlaygroundPreview({
     () => services.filter((s) => runningKeys.has(s.key)),
     [services, runningKeys],
   );
+  const openTerminals = useMemo(
+    () => terminals.filter((t) => openTerminalKeys.has(t.key)),
+    [terminals, openTerminalKeys],
+  );
   const effectiveRunning = runningServices.length > 0;
-  const visibleServices =
-    activeTab === "all" ||
-    !runningServices.some((s) => s.key === activeTab)
-      ? runningServices
-      : runningServices.filter((s) => s.key === activeTab);
+  const hasAnyPane = effectiveRunning || openTerminals.length > 0;
+
+  type Pane =
+    | { type: "service"; id: string; key: string; label: string; cmd: string }
+    | { type: "terminal"; id: string; key: string; label: string; cmd: string };
+
+  const panes: Pane[] = useMemo(() => {
+    const svc: Pane[] = runningServices.map((s) => ({
+      type: "service",
+      id: `s:${s.key}`,
+      key: s.key,
+      label: s.key,
+      cmd: s.cmd,
+    }));
+    const term: Pane[] = openTerminals.map((t) => ({
+      type: "terminal",
+      id: `t:${t.key}`,
+      key: t.key,
+      label: t.label,
+      cmd:
+        typeof config?.terminals?.[t.key] === "string"
+          ? (config.terminals[t.key] as string)
+          : ((config?.terminals?.[t.key] as { cmd?: string } | undefined)?.cmd ??
+            ""),
+    }));
+    return [...svc, ...term];
+  }, [runningServices, openTerminals, config]);
+
+  const showAllTab = panes.length > 1;
+  const visiblePanes =
+    activeTab === "all" || !panes.some((p) => p.id === activeTab)
+      ? panes
+      : panes.filter((p) => p.id === activeTab);
 
   const startAll = () => {
     setRunningKeys(new Set(services.map((s) => s.key)));
@@ -536,7 +632,13 @@ export function PlaygroundPreview({
               </SecondaryButton>
             ))}
             {buttonTerminals.map((t) => (
-              <SecondaryButton key={t.key}>{t.label}</SecondaryButton>
+              <SecondaryButton
+                key={t.key}
+                onClick={() => toggleTerminal(t.key)}
+                active={openTerminalKeys.has(t.key)}
+              >
+                {t.label}
+              </SecondaryButton>
             ))}
             {dropdownActions.map((a) => (
               <SplitButton key={a.key} action={a} onRun={openAction} />
@@ -585,6 +687,8 @@ export function PlaygroundPreview({
                           label={t.label}
                           showDot={false}
                           icon={<Terminal className="w-3 h-3" />}
+                          showCheck={openTerminalKeys.has(t.key)}
+                          onClick={() => toggleTerminal(t.key)}
                         />
                       ))}
                     </StartMenuSection>
@@ -702,58 +806,79 @@ export function PlaygroundPreview({
           </div>
         </div>
 
-        {effectiveRunning ? (
+        {hasAnyPane ? (
           <div className="mt-3 flex flex-1 min-h-0 flex-col rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden bg-gray-950">
-            <div className="flex-shrink-0 flex items-center gap-0 border-b border-gray-800 bg-gray-900/60 px-1 overflow-x-auto">
-              {(services.length > 1
-                ? ["all", ...runningServices.map((s) => s.key)]
-                : runningServices.map((s) => s.key)
-              ).map((tab) => {
-                const active = tab === activeTab;
-                return (
-                  <button
-                    key={tab}
-                    type="button"
-                    onClick={() => setActiveTab(tab)}
-                    className={`px-2.5 py-1.5 text-[11px] font-mono whitespace-nowrap border-b-2 transition-colors ${
-                      active
-                        ? "border-white text-white"
-                        : "border-transparent text-gray-400 hover:text-gray-100"
-                    }`}
-                  >
-                    {tab}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex flex-1 min-h-0 flex-row">
-            {visibleServices.map((s, i) => (
-              <div
-                key={s.key}
-                className={`flex-1 min-w-0 flex flex-col ${
-                  i > 0 ? "border-l border-gray-800" : ""
-                }`}
-              >
-                <div className="flex-shrink-0 flex items-center gap-1.5 border-b border-gray-800 bg-gray-900/60 px-2.5 py-1.5">
-                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
-                  <span className="font-mono text-[11px] font-medium text-gray-100 truncate">
-                    {s.key}
-                  </span>
-                </div>
-                <div className="flex-1 min-h-0 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed text-gray-100">
-                  <div className="text-emerald-400 break-all">
-                    $ {s.cmd || "(no cmd)"}
-                  </div>
-                  <div className="text-gray-400 break-all">
-                    [{projectName}] started {s.key}
-                  </div>
-                  <div className="flex items-center text-gray-100">
-                    <span className="text-gray-500 mr-1">&gt;</span>
-                    <span className="inline-block w-[7px] h-3.5 bg-gray-100 animate-pulse" />
-                  </div>
-                </div>
+            {panes.length > 1 && (
+              <div className="flex-shrink-0 flex items-center gap-0 border-b border-gray-800 bg-gray-900/60 px-1 overflow-x-auto">
+                {(showAllTab ? ["all", ...panes.map((p) => p.id)] : panes.map((p) => p.id)).map(
+                  (tabId) => {
+                    const active = tabId === activeTab;
+                    const label =
+                      tabId === "all"
+                        ? "all"
+                        : panes.find((p) => p.id === tabId)?.label ?? tabId;
+                    return (
+                      <button
+                        key={tabId}
+                        type="button"
+                        onClick={() => setActiveTab(tabId)}
+                        className={`px-2.5 py-1.5 text-[11px] font-mono whitespace-nowrap border-b-2 transition-colors ${
+                          active
+                            ? "border-white text-white"
+                            : "border-transparent text-gray-400 hover:text-gray-100"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  },
+                )}
               </div>
-            ))}
+            )}
+            <div className="flex flex-1 min-h-0 flex-row">
+              {visiblePanes.map((p, i) => (
+                <div
+                  key={p.id}
+                  className={`flex-1 min-w-0 flex flex-col ${
+                    i > 0 ? "border-l border-gray-800" : ""
+                  }`}
+                >
+                  <div className="flex-shrink-0 flex items-center gap-1.5 border-b border-gray-800 bg-gray-900/60 px-2.5 py-1.5">
+                    {p.type === "service" ? (
+                      <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
+                    ) : (
+                      <Terminal className="w-3 h-3 text-gray-400" />
+                    )}
+                    <span className="font-mono text-[11px] font-medium text-gray-100 truncate flex-1">
+                      {p.label}
+                    </span>
+                    {p.type === "terminal" && (
+                      <button
+                        type="button"
+                        onClick={() => toggleTerminal(p.key)}
+                        aria-label={`Close ${p.label}`}
+                        className="text-gray-500 hover:text-gray-100 transition-colors flex-shrink-0 leading-none text-sm"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed text-gray-100">
+                    <div className="text-emerald-400 break-all">
+                      $ {p.cmd || "(no cmd)"}
+                    </div>
+                    {p.type === "service" && (
+                      <div className="text-gray-400 break-all">
+                        [{projectName}] started {p.key}
+                      </div>
+                    )}
+                    <div className="flex items-center text-gray-100">
+                      <span className="text-gray-500 mr-1">&gt;</span>
+                      <span className="inline-block w-[7px] h-3.5 bg-gray-100 animate-pulse" />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         ) : (
