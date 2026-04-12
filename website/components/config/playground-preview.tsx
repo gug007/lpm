@@ -212,21 +212,33 @@ function StartMenuItem({
   label,
   badge,
   mono,
+  running,
+  onClick,
 }: {
   label: string;
   badge?: string;
   mono?: boolean;
+  running?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <button
       type="button"
-      className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[11px] text-gray-600 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900"
+      onClick={onClick}
+      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-gray-600 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900"
     >
+      <span
+        className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+          running
+            ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]"
+            : "bg-gray-300 dark:bg-gray-700"
+        }`}
+      />
       <span className={`flex-1 truncate ${mono ? "font-mono" : ""}`}>
         {label}
       </span>
       {badge && (
-        <span className="font-mono text-[10px] text-gray-400 dark:text-gray-500">
+        <span className="font-mono text-[10px] text-gray-400 dark:text-gray-500 flex-shrink-0">
           {badge}
         </span>
       )}
@@ -243,7 +255,7 @@ export function PlaygroundPreview({
 }) {
   const [startOpen, setStartOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [running, setRunning] = useState(false);
+  const [runningKeys, setRunningKeys] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<string>("all");
   const startRef = useRef<HTMLDivElement>(null);
 
@@ -291,17 +303,52 @@ export function PlaygroundPreview({
   const projectName = config?.name ?? "untitled";
   const hasAnyService = services.length > 0;
   const showStartSplit = services.length > 1;
-  const effectiveRunning = running && hasAnyService;
+  const runningServices = useMemo(
+    () => services.filter((s) => runningKeys.has(s.key)),
+    [services, runningKeys],
+  );
+  const effectiveRunning = runningServices.length > 0;
   const visibleServices =
-    activeTab === "all" || !services.some((s) => s.key === activeTab)
-      ? services
-      : services.filter((s) => s.key === activeTab);
+    activeTab === "all" ||
+    !runningServices.some((s) => s.key === activeTab)
+      ? runningServices
+      : runningServices.filter((s) => s.key === activeTab);
+
+  const startAll = () => {
+    setRunningKeys(new Set(services.map((s) => s.key)));
+    setActiveTab("all");
+    setStartOpen(false);
+  };
+
+  const stopAll = () => {
+    setRunningKeys(new Set());
+    setStartOpen(false);
+  };
+
+  const startProfile = (profileName: string) => {
+    const entry = profileEntries.find(([k]) => k === profileName);
+    const keys = entry
+      ? entry[1].filter((name) => services.some((s) => s.key === name))
+      : [];
+    setRunningKeys(new Set(keys));
+    setActiveTab("all");
+    setStartOpen(false);
+  };
+
+  const toggleService = (key: string) => {
+    setRunningKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+    setActiveTab("all");
+    setStartOpen(false);
+  };
 
   const handleStartStop = () => {
-    setRunning((v) => {
-      if (!v) setActiveTab("all");
-      return !v;
-    });
+    if (effectiveRunning) stopAll();
+    else startAll();
   };
 
   return (
@@ -411,9 +458,23 @@ export function PlaygroundPreview({
                     {profileEntries.length > 0 && (
                       <>
                         <StartMenuSection label="Profiles">
-                          {profileEntries.map(([name]) => (
-                            <StartMenuItem key={name} label={name} />
-                          ))}
+                          {profileEntries.map(([name, keys]) => {
+                            const resolved = keys.filter((k) =>
+                              services.some((s) => s.key === k),
+                            );
+                            const isActive =
+                              effectiveRunning &&
+                              resolved.length === runningKeys.size &&
+                              resolved.every((k) => runningKeys.has(k));
+                            return (
+                              <StartMenuItem
+                                key={name}
+                                label={name}
+                                running={isActive}
+                                onClick={() => startProfile(name)}
+                              />
+                            );
+                          })}
                         </StartMenuSection>
                         <div className="mx-3 border-t border-gray-200 dark:border-gray-800" />
                       </>
@@ -424,6 +485,8 @@ export function PlaygroundPreview({
                           key={s.key}
                           label={s.key}
                           mono
+                          running={runningKeys.has(s.key)}
+                          onClick={() => toggleService(s.key)}
                           badge={
                             typeof s.port === "number" ? `:${s.port}` : undefined
                           }
@@ -440,7 +503,7 @@ export function PlaygroundPreview({
         {effectiveRunning ? (
           <div className="mt-3 flex flex-1 min-h-0 flex-col rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden bg-gray-950">
             <div className="flex-shrink-0 flex items-center gap-0 border-b border-gray-800 bg-gray-900/60 px-1 overflow-x-auto">
-              {["all", ...services.map((s) => s.key)].map((tab) => {
+              {["all", ...runningServices.map((s) => s.key)].map((tab) => {
                 const active = tab === activeTab;
                 return (
                   <button
