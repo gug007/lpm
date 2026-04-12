@@ -20,7 +20,14 @@ const projectFields: Field[] = [
     name: "name",
     type: "string",
     required: true,
-    description: "Project name (used as identifier)",
+    description: (
+      <>
+        The label you&rsquo;ll see in the sidebar of the desktop app. Pick
+        something short you&rsquo;ll recognize at a glance, like{" "}
+        <code className="font-mono">myapp</code> or{" "}
+        <code className="font-mono">blog</code>.
+      </>
+    ),
   },
   {
     name: "root",
@@ -28,7 +35,12 @@ const projectFields: Field[] = [
     required: true,
     description: (
       <>
-        Project root directory. Supports <code className="font-mono">~</code>.
+        The folder on your computer where this project lives. Every other path
+        in the config (like <code className="font-mono">cwd</code>) is
+        interpreted relative to this folder.{" "}
+        <code className="font-mono">~</code> is a shortcut for your home
+        directory (e.g.{" "}
+        <code className="font-mono">~/Projects/myapp</code>).
       </>
     ),
   },
@@ -453,12 +465,40 @@ export default function ConfigPage() {
             <Section
               id="project"
               title="Project"
-              description="Top-level fields that identify the project."
+              description={
+                <>
+                  A project is one app you want to manage with lpm — a website,
+                  an API, a blog, anything you&rsquo;d normally start in a
+                  terminal. Every config begins with two things:{" "}
+                  <strong className="font-medium text-gray-700 dark:text-gray-200">
+                    a name
+                  </strong>{" "}
+                  and{" "}
+                  <strong className="font-medium text-gray-700 dark:text-gray-200">
+                    the folder it lives in
+                  </strong>
+                  .
+                </>
+              }
             >
               <ConfigPlayground
                 filename="project.yml"
                 initial={PROJECT_EXAMPLE}
               />
+
+              <div className="mb-4 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-900/40 px-4 py-3 text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                <p className="font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  You don&rsquo;t have to write this from scratch
+                </p>
+                <p>
+                  The easiest way to add a project is from the desktop app:
+                  click the <strong className="font-medium">+</strong> button
+                  in the sidebar, point it at your project folder, and lpm will
+                  create the file for you and detect your services. You can
+                  always come back and edit it later from the app.
+                </p>
+              </div>
+
               <FieldTable fields={projectFields} />
             </Section>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Check,
   ChevronDown,
@@ -469,7 +469,32 @@ export function PlaygroundPreview({
   );
   const [activeTab, setActiveTab] = useState<string>("all");
   const [selectedAction, setSelectedAction] = useState<Action | null>(null);
+  const [toast, setToast] = useState<{
+    label: string;
+    phase: "running" | "done";
+  } | null>(null);
+  const toastTimers = useRef<number[]>([]);
   const startRef = useRef<HTMLDivElement>(null);
+
+  const runActionImmediate = (action: Action) => {
+    for (const id of toastTimers.current) window.clearTimeout(id);
+    toastTimers.current = [];
+    setToast({ label: action.label, phase: "running" });
+    toastTimers.current.push(
+      window.setTimeout(
+        () => setToast({ label: action.label, phase: "done" }),
+        650,
+      ),
+      window.setTimeout(() => setToast(null), 1500),
+    );
+  };
+
+  useEffect(
+    () => () => {
+      for (const id of toastTimers.current) window.clearTimeout(id);
+    },
+    [],
+  );
 
   const toggleTerminal = (key: string) => {
     setMenuOpen(false);
@@ -485,7 +510,11 @@ export function PlaygroundPreview({
   const openAction = (action: Action) => {
     setMenuOpen(false);
     setStartOpen(false);
-    setSelectedAction(action);
+    if (action.confirm) {
+      setSelectedAction(action);
+    } else {
+      runActionImmediate(action);
+    }
   };
 
   const services = useMemo<Service[]>(
@@ -901,6 +930,24 @@ export function PlaygroundPreview({
           </div>
         )}
       </div>
+
+      {toast && (
+        <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+          <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 shadow-lg">
+            {toast.phase === "running" ? (
+              <>
+                <Spinner className="w-3 h-3 text-gray-500 dark:text-gray-400" />
+                <span>Running {toast.label}…</span>
+              </>
+            ) : (
+              <>
+                <Check className="w-3 h-3 text-emerald-500" />
+                <span>{toast.label} ran</span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {selectedAction && (
         <ActionModal
