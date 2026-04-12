@@ -91,7 +91,6 @@ interface InteractiveSession {
   visible: boolean;
   hiddenBuf: string[];
   hiddenBufLen: number;
-  unsentAck: number;
   sessionDead: boolean;
 
   // Installed by the current React mount, cleared on unmount so callbacks
@@ -105,6 +104,16 @@ interface InteractiveSession {
 }
 
 const interactiveSessions = new Map<string, InteractiveSession>();
+
+function disposeSession(s: InteractiveSession) {
+  s.destroy();
+  s.term.dispose();
+  s.host.remove();
+}
+
+export function isInteractivePaneSessionDead(terminalId: string): boolean {
+  return interactiveSessions.get(terminalId)?.sessionDead ?? false;
+}
 
 // One MutationObserver and one getComputedStyle per theme flip. Per-host
 // lookups would be both wasteful (every session resolves through the same
@@ -127,9 +136,7 @@ function ensureThemeObserver() {
 export function disposeInteractivePaneSession(terminalId: string) {
   const s = interactiveSessions.get(terminalId);
   if (!s) return;
-  s.destroy();
-  s.term.dispose();
-  s.host.remove();
+  disposeSession(s);
   interactiveSessions.delete(terminalId);
 }
 
@@ -143,11 +150,7 @@ if (viteHot) {
   viteHot.dispose(() => {
     OnFileDropOff();
     fileDropInitialized = false;
-    for (const s of interactiveSessions.values()) {
-      s.destroy();
-      s.term.dispose();
-      s.host.remove();
-    }
+    for (const s of interactiveSessions.values()) disposeSession(s);
     interactiveSessions.clear();
     themeObserver?.disconnect();
     themeObserver = null;
@@ -236,7 +239,6 @@ function createInteractiveSession(terminalId: string): InteractiveSession {
 
   term.open(host);
 
-  // Load WebGL addon for GPU-accelerated rendering
   import("@xterm/addon-webgl")
     .then(({ WebglAddon }) => {
       try {
@@ -255,7 +257,6 @@ function createInteractiveSession(terminalId: string): InteractiveSession {
     visible: true,
     hiddenBuf: [],
     hiddenBufLen: 0,
-    unsentAck: 0,
     sessionDead: false,
     themeOverride: null,
     flush: () => {},
@@ -264,11 +265,11 @@ function createInteractiveSession(terminalId: string): InteractiveSession {
 
   ensureThemeObserver();
 
-  // Flow control: batch acks to reduce IPC calls
+  let unsentAck = 0;
   const ackData = (charCount: number) => {
-    session.unsentAck += charCount;
-    while (session.unsentAck >= ACK_SIZE) {
-      session.unsentAck -= ACK_SIZE;
+    unsentAck += charCount;
+    while (unsentAck >= ACK_SIZE) {
+      unsentAck -= ACK_SIZE;
       AckTerminalData(terminalId, ACK_SIZE).catch(() => {});
     }
   };
@@ -313,24 +314,20 @@ function createInteractiveSession(terminalId: string): InteractiveSession {
     sendTerminalInput(terminalId, data).catch(handleWriteError);
   });
 
-  // Send binary data (mouse events, etc.) to PTY
   term.onBinary((data) => {
     sendTerminalInput(terminalId, data).catch(handleWriteError);
   });
 
-  // Sync resize to PTY
   term.onResize(({ cols, rows }) => {
     ResizeTerminal(terminalId, cols, rows).catch(() => {});
   });
 
-  // Scroll tracking
   term.onScroll(() => {
     const buf = term.buffer.active;
     const atBottom = buf.baseY + term.rows >= buf.length;
     session.onScrollState?.(atBottom);
   });
 
-  // Sync initial size to PTY
   ResizeTerminal(terminalId, term.cols, term.rows).catch(() => {});
 
   // Attached to term.textarea — that's where xterm.js focuses and receives paste events.
@@ -544,13 +541,11 @@ export function InteractivePane({
   }, [visible]);
 
   return (
-    <div
-      className="flex min-h-0 flex-1 flex-col overflow-hidden"
-      data-terminal-id={terminalId}
-    >
-      <div className="relative min-h-0 min-w-0 flex-1">
-        <div ref={containerRef} className="absolute inset-0 overflow-hidden" />
-      </div>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div
+        ref={containerRef}
+        className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+      />
     </div>
   );
 }

@@ -161,8 +161,9 @@ export function ProjectDetail({
         for (const [k, v] of Object.entries(inputValues)) {
           cmd = cmd.replaceAll(`{{${k}}}`, v);
         }
-        const opts = (action.cwd || action.env || action.reuse)
-          ? { cwd: action.cwd, env: action.env, actionName: action.reuse ? action.name : undefined }
+        const actionName = action.reuse ? action.name : undefined;
+        const opts = (action.cwd || action.env || actionName)
+          ? { cwd: action.cwd, env: action.env, actionName }
           : undefined;
         await terminalViewRef.current?.createTerminalWithCmd(action.label, cmd, opts);
       } catch (err) {

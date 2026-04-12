@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { StartTerminal, StartTerminalForConfig, StartTerminalWithCwdEnv, StopTerminal } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { sendTerminalInput } from "../terminal-io";
+import { isInteractivePaneSessionDead } from "../components/InteractivePane";
 import { getProjectTerminals, saveProjectTerminals, type PersistedPaneNode, type PersistedTerminalEntry } from "../terminals";
 import {
   type PaneNode,
@@ -265,12 +266,16 @@ export function useTerminals(
 
   const createTerminalWithCmd = useCallback(
     async (label: string, cmd: string, opts?: TerminalStartOpts) => {
-      // When reuse is requested, find an existing terminal tagged with the
-      // same actionName. If found, focus it and re-send the command instead
-      // of spawning a new PTY.
+      // When reuse is requested, find an existing live terminal tagged with
+      // the same actionName. A dead session (process exited) falls through
+      // so the user gets a fresh PTY instead of typing into a dead tab.
       if (opts?.actionName && treeRef.current) {
         for (const pane of collectPanes(treeRef.current)) {
-          const idx = pane.tabs.findIndex((t) => t.actionName === opts.actionName);
+          const idx = pane.tabs.findIndex(
+            (t) =>
+              t.actionName === opts.actionName &&
+              !isInteractivePaneSessionDead(t.id),
+          );
           if (idx !== -1) {
             applyTree(mapPane(treeRef.current, pane.id, (p) => ({
               ...p,
