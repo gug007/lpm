@@ -31,7 +31,18 @@ export function useOverflowWrap(deps: DependencyList) {
           inlineMinWidthRef.current > 0 && row.clientWidth >= inlineMinWidthRef.current;
         return !fitsInline;
       }
-      const overflow = Math.max(0, inner.scrollWidth - inner.clientWidth);
+      // scrollWidth only reports end-side overflow; with justify-end the
+      // overflow lands on the start side, so measure child rects directly.
+      const innerRect = inner.getBoundingClientRect();
+      let minLeft = innerRect.left;
+      let maxRight = innerRect.right;
+      for (let i = 0; i < inner.children.length; i++) {
+        const r = inner.children[i].getBoundingClientRect();
+        if (r.width === 0) continue;
+        if (r.left < minLeft) minLeft = r.left;
+        if (r.right > maxRight) maxRight = r.right;
+      }
+      const overflow = Math.max(0, maxRight - minLeft - innerRect.width);
       if (overflow === 0) return false;
       inlineMinWidthRef.current = row.clientWidth + overflow;
       return true;
