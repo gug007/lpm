@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { ChevronRight } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
-import { CodeBlock, Comment } from "@/components/config/code-block";
 import { FieldTable, type Field } from "@/components/config/field-table";
+import { ConfigPlayground } from "@/components/config/playground";
 import { Section } from "@/components/config/section";
 import { TableOfContents } from "@/components/config/toc";
 
@@ -178,6 +178,247 @@ const terminalFields: Field[] = [
   },
 ];
 
+const PROJECT_EXAMPLE = `name: myapp
+root: ~/Projects/myapp
+services:
+  web: npm run dev
+`;
+
+const SERVICES_EXAMPLE = `name: myapp
+root: ~/Projects/myapp
+services:
+  # shorthand — just the command
+  web: npm run dev
+
+  # full form
+  server:
+    cmd: node server.js
+    cwd: ./server             # working directory (relative to root)
+    port: 4000                # port (0-65535, must be unique)
+    env:                      # environment variables
+      API_KEY: dev-secret
+`;
+
+const ACTIONS_EXAMPLE = `name: myapp
+root: ~/Projects/myapp
+services:
+  web: npm run dev
+actions:
+  test: npm test              # shorthand
+
+  deploy:                     # full form
+    cmd: ./scripts/deploy.sh
+    label: Deploy to Production  # display name in the UI
+    confirm: true             # ask before running
+    display: button           # show as a button instead of in menu
+    env:
+      NODE_ENV: production
+`;
+
+const ACTIONS_SHORTHAND_EXAMPLE = `name: myapp
+root: ~/Projects/myapp
+services:
+  web: npm run dev
+actions:
+  test: npm test
+  lint: npm run lint
+  build: npm run build
+  typecheck: npx tsc --noEmit
+  format: npx prettier --write .
+`;
+
+const ACTIONS_DESTRUCTIVE_EXAMPLE = `name: myapp
+root: ~/Projects/myapp
+services:
+  web: npm run dev
+actions:
+  reset-cache:
+    cmd: rm -rf .next node_modules/.cache
+    label: Reset Cache
+    confirm: true
+    display: button
+  rollback:
+    cmd: ./scripts/rollback.sh
+    label: Rollback Deploy
+    confirm: true
+    env:
+      NODE_ENV: production
+`;
+
+const ACTIONS_NESTED_EXAMPLE = `name: myapp
+root: ~/Projects/myapp
+services:
+  web: npm run dev
+actions:
+  deploy:
+    cmd: ./deploy.sh staging     # split button — main click runs this
+    label: 🚀 Deploy
+    display: button
+    confirm: true
+    actions:                     # chevron opens these
+      production:
+        cmd: ./deploy.sh production
+        label: 🔴 Production
+        confirm: true
+      preview:
+        cmd: ./deploy.sh preview
+        label: 👁️ Preview
+`;
+
+const ACTIONS_DROPDOWN_EXAMPLE = `name: myapp
+root: ~/Projects/myapp
+services:
+  web: npm run dev
+actions:
+  db:
+    label: 🗄️ Database
+    display: button
+    cwd: ./backend
+    actions:
+      migrate:
+        cmd: python manage.py migrate
+        label: 📦 Migrate
+      seed:
+        cmd: python manage.py seed
+        label: 🌱 Seed
+      reset:
+        cmd: python manage.py flush
+        label: 💣 Reset
+        confirm: true
+`;
+
+const TERMINALS_EXAMPLE = `name: myapp
+root: ~/Projects/myapp
+services:
+  web: npm run dev
+terminals:
+  codex: codex                # shorthand
+
+  claude:                     # full form
+    cmd: claude
+    label: Claude Code
+    display: button
+`;
+
+const TERMINALS_AGENTS_EXAMPLE = `name: myapp
+root: ~/Projects/myapp
+services:
+  web: npm run dev
+terminals:
+  claude: claude
+  codex: codex
+  node: node
+  logs: tail -f ./logs/dev.log
+`;
+
+const PROFILES_EXAMPLE = `name: myapp
+root: ~/Projects/myapp
+services:
+  web: npm run dev
+  server:
+    cmd: node server.js
+    port: 4000
+profiles:
+  minimal: [web]
+  full:    [web, server]
+`;
+
+const PROFILES_MULTI_EXAMPLE = `name: myapp
+root: ~/Projects/myapp
+services:
+  web: npm run dev
+  server:
+    cmd: node server.js
+    port: 4000
+  worker: celery -A backend worker
+profiles:
+  minimal: [web]
+  local:   [web, server]
+  full:    [web, server, worker]
+`;
+
+const GLOBAL_CONFIG_EXAMPLE = `actions:
+  docker-prune:
+    cmd: docker system prune -f
+    label: Docker Prune
+    confirm: true
+
+terminals:
+  htop: htop
+`;
+
+const GLOBAL_UTILITIES_EXAMPLE = `actions:
+  prune-branches:
+    cmd: git branch --merged main | grep -v main | xargs git branch -d
+    label: Prune merged branches
+    confirm: true
+  brew-upgrade:
+    cmd: brew update && brew upgrade
+    label: Brew upgrade
+
+terminals:
+  htop: htop
+  btop: btop
+  ncdu: ncdu ~
+`;
+
+const RECIPE_MINIMAL = `name: blog
+root: ~/Projects/blog
+services:
+  web: npm run dev
+`;
+
+const RECIPE_TESTS = `name: blog
+root: ~/Projects/blog
+services:
+  web: npm run dev
+actions:
+  test: npm test
+  lint: npm run lint
+  build: npm run build
+`;
+
+const RECIPE_NEXT_NODE = `name: webapp
+root: ~/Projects/webapp
+services:
+  web: npm run dev
+  server:
+    cmd: node server.js
+    cwd: ./server
+    port: 4000
+actions:
+  deploy:
+    cmd: ./scripts/deploy.sh
+    confirm: true
+terminals:
+  logs: tail -f ./logs/server.log
+`;
+
+const RECIPE_ENV = `name: webapp
+root: ~/Projects/webapp
+services:
+  web:
+    cmd: npm run dev
+    port: 3000
+    env:
+      API_URL: http://localhost:4000
+      NEXTAUTH_SECRET: dev-secret
+      NODE_ENV: development
+`;
+
+const RECIPE_MONOREPO = `name: mono
+root: ~/Projects/mono
+services:
+  web:
+    cmd: npm run dev
+    cwd: ./apps/web
+    port: 3000
+  docs:
+    cmd: npm run dev
+    cwd: ./apps/docs
+    port: 3001
+`;
+
 function Bullet({ children }: { children: React.ReactNode }) {
   return (
     <li className="flex items-start gap-2">
@@ -214,8 +455,10 @@ export default function ConfigPage() {
               title="Project"
               description="Top-level fields that identify the project."
             >
-              <CodeBlock>{`name: myapp
-root: ~/Projects/myapp`}</CodeBlock>
+              <ConfigPlayground
+                filename="project.yml"
+                initial={PROJECT_EXAMPLE}
+              />
               <FieldTable fields={projectFields} />
             </Section>
 
@@ -224,29 +467,10 @@ root: ~/Projects/myapp`}</CodeBlock>
               title="Services"
               description="Long-running processes that the desktop app starts and stops together. At least one service is required."
             >
-              <CodeBlock>
-                {`services:
-  `}
-                <Comment># shorthand — just the command</Comment>
-                {`
-  web: npm run dev
-
-  `}
-                <Comment># full form</Comment>
-                {`
-  server:
-    cmd: node server.js
-    cwd: ./server             `}
-                <Comment># working directory (relative to root)</Comment>
-                {`
-    port: 4000                `}
-                <Comment># port (0-65535, must be unique)</Comment>
-                {`
-    env:                      `}
-                <Comment># environment variables</Comment>
-                {`
-      API_KEY: dev-secret`}
-              </CodeBlock>
+              <ConfigPlayground
+                filename="services.yml"
+                initial={SERVICES_EXAMPLE}
+              />
               <FieldTable fields={serviceFields} />
             </Section>
 
@@ -255,57 +479,29 @@ root: ~/Projects/myapp`}</CodeBlock>
               title="Actions"
               description="One-shot commands like test runners, migrations, or deploy scripts. Trigger them from the project panel in the desktop app."
             >
-              <CodeBlock>
-                {`actions:
-  test: npm test              `}
-                <Comment># shorthand</Comment>
-                {`
-
-  deploy:                     `}
-                <Comment># full form</Comment>
-                {`
-    cmd: ./scripts/deploy.sh
-    label: Deploy to Production `}
-                <Comment># display name in the UI</Comment>
-                {`
-    confirm: true             `}
-                <Comment># ask before running</Comment>
-                {`
-    display: button           `}
-                <Comment># show as a button instead of in menu</Comment>
-                {`
-    env:
-      NODE_ENV: production`}
-              </CodeBlock>
+              <ConfigPlayground
+                filename="actions.yml"
+                initial={ACTIONS_EXAMPLE}
+              />
               <FieldTable fields={actionFields} />
 
               <p className="mt-6 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                 Shorthand form for common dev commands:
               </p>
-              <CodeBlock>{`actions:
-  test: npm test
-  lint: npm run lint
-  build: npm run build
-  typecheck: npx tsc --noEmit
-  format: npx prettier --write .`}</CodeBlock>
+              <ConfigPlayground
+                filename="actions-shorthand.yml"
+                initial={ACTIONS_SHORTHAND_EXAMPLE}
+              />
 
               <p className="mt-6 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                 Destructive operations use{" "}
                 <code className="font-mono">confirm</code> and typically display as
                 a button:
               </p>
-              <CodeBlock>{`actions:
-  reset-cache:
-    cmd: rm -rf .next node_modules/.cache
-    label: Reset Cache
-    confirm: true
-    display: button
-  rollback:
-    cmd: ./scripts/rollback.sh
-    label: Rollback Deploy
-    confirm: true
-    env:
-      NODE_ENV: production`}</CodeBlock>
+              <ConfigPlayground
+                filename="actions-destructive.yml"
+                initial={ACTIONS_DESTRUCTIVE_EXAMPLE}
+              />
 
               <p className="mt-6 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                 Nest actions to create a dropdown menu. When the parent has a{" "}
@@ -313,47 +509,19 @@ root: ~/Projects/myapp`}</CodeBlock>
                 button — clicking the main area runs the parent, clicking the
                 chevron opens the dropdown:
               </p>
-              <CodeBlock>
-                {`actions:
-  deploy:
-    cmd: ./deploy.sh staging     `}
-                <Comment># split button — main click runs this</Comment>
-                {`
-    label: 🚀 Deploy
-    display: button
-    confirm: true
-    actions:                     `}
-                <Comment># chevron opens these</Comment>
-                {`
-      production:
-        cmd: ./deploy.sh production
-        label: 🔴 Production
-        confirm: true
-      preview:
-        cmd: ./deploy.sh preview
-        label: 👁️ Preview`}
-              </CodeBlock>
+              <ConfigPlayground
+                filename="actions-nested.yml"
+                initial={ACTIONS_NESTED_EXAMPLE}
+              />
 
               <p className="mt-6 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                 Without a <code className="font-mono">cmd</code>, the whole
                 button becomes a dropdown trigger:
               </p>
-              <CodeBlock>{`actions:
-  db:
-    label: 🗄️ Database
-    display: button
-    cwd: ./backend
-    actions:
-      migrate:
-        cmd: python manage.py migrate
-        label: 📦 Migrate
-      seed:
-        cmd: python manage.py seed
-        label: 🌱 Seed
-      reset:
-        cmd: python manage.py flush
-        label: 💣 Reset
-        confirm: true`}</CodeBlock>
+              <ConfigPlayground
+                filename="actions-dropdown.yml"
+                initial={ACTIONS_DROPDOWN_EXAMPLE}
+              />
 
               <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                 Children inherit <code className="font-mono">cwd</code> and{" "}
@@ -367,29 +535,19 @@ root: ~/Projects/myapp`}</CodeBlock>
               title="Terminals"
               description="Persistent interactive shells you can open from the app."
             >
-              <CodeBlock>
-                {`terminals:
-  codex: codex                `}
-                <Comment># shorthand</Comment>
-                {`
-
-  claude:                     `}
-                <Comment># full form</Comment>
-                {`
-    cmd: claude
-    label: Claude Code
-    display: button`}
-              </CodeBlock>
+              <ConfigPlayground
+                filename="terminals.yml"
+                initial={TERMINALS_EXAMPLE}
+              />
               <FieldTable fields={terminalFields} />
 
               <p className="mt-6 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                 Keep your AI coding agents one click away:
               </p>
-              <CodeBlock>{`terminals:
-  claude: claude
-  codex: codex
-  node: node
-  logs: tail -f ./logs/dev.log`}</CodeBlock>
+              <ConfigPlayground
+                filename="terminals-agents.yml"
+                initial={TERMINALS_AGENTS_EXAMPLE}
+              />
             </Section>
 
             <Section
@@ -397,9 +555,10 @@ root: ~/Projects/myapp`}</CodeBlock>
               title="Profiles"
               description="Named subsets of services. Pick a profile from the project switcher in the desktop app. If no profile is selected, all services start."
             >
-              <CodeBlock>{`profiles:
-  minimal: [web]
-  full:    [web, server]`}</CodeBlock>
+              <ConfigPlayground
+                filename="profiles.yml"
+                initial={PROFILES_EXAMPLE}
+              />
               <p className="mt-3 text-xs text-gray-400 dark:text-gray-500 leading-relaxed">
                 Each service name must reference a service defined in{" "}
                 <code className="font-mono">services</code>. Services can appear in
@@ -409,10 +568,10 @@ root: ~/Projects/myapp`}</CodeBlock>
               <p className="mt-6 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                 Define multiple profiles to match different workflows:
               </p>
-              <CodeBlock>{`profiles:
-  minimal: [web]
-  local:   [web, server]
-  full:    [web, server, worker]`}</CodeBlock>
+              <ConfigPlayground
+                filename="profiles-multi.yml"
+                initial={PROFILES_MULTI_EXAMPLE}
+              />
             </Section>
 
             <Section
@@ -428,16 +587,10 @@ root: ~/Projects/myapp`}</CodeBlock>
                 </>
               }
             >
-              <CodeBlock filename="~/.lpm/global.yml">
-                {`actions:
-  docker-prune:
-    cmd: docker system prune -f
-    label: Docker Prune
-    confirm: true
-
-terminals:
-  htop: htop`}
-              </CodeBlock>
+              <ConfigPlayground
+                filename="~/.lpm/global.yml"
+                initial={GLOBAL_CONFIG_EXAMPLE}
+              />
               <p className="mt-3 text-xs text-gray-400 dark:text-gray-500 leading-relaxed">
                 Global config only supports{" "}
                 <code className="font-mono">actions</code> and{" "}
@@ -448,21 +601,10 @@ terminals:
               <p className="mt-6 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                 System-wide utilities shared across every project:
               </p>
-              <CodeBlock filename="~/.lpm/global.yml">
-                {`actions:
-  prune-branches:
-    cmd: git branch --merged main | grep -v main | xargs git branch -d
-    label: Prune merged branches
-    confirm: true
-  brew-upgrade:
-    cmd: brew update && brew upgrade
-    label: Brew upgrade
-
-terminals:
-  htop: htop
-  btop: btop
-  ncdu: ncdu ~`}
-              </CodeBlock>
+              <ConfigPlayground
+                filename="~/.lpm/global.yml"
+                initial={GLOBAL_UTILITIES_EXAMPLE}
+              />
             </Section>
 
             <Section
@@ -473,63 +615,42 @@ terminals:
               <p className="mb-2 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                 Minimal Next.js app:
               </p>
-              <CodeBlock>{`name: blog
-root: ~/Projects/blog
-services:
-  web: npm run dev`}</CodeBlock>
+              <ConfigPlayground
+                filename="blog.yml"
+                initial={RECIPE_MINIMAL}
+              />
 
               <p className="mt-6 mb-2 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                 Next.js app with tests and linting:
               </p>
-              <CodeBlock>{`name: blog
-root: ~/Projects/blog
-services:
-  web: npm run dev
-actions:
-  test: npm test
-  lint: npm run lint
-  build: npm run build`}</CodeBlock>
+              <ConfigPlayground
+                filename="blog.yml"
+                initial={RECIPE_TESTS}
+              />
 
               <p className="mt-6 mb-2 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                 Next.js front-end paired with a Node server API:
               </p>
-              <CodeBlock>{`services:
-  web: npm run dev
-  server:
-    cmd: node server.js
-    cwd: ./server
-    port: 4000
-actions:
-  deploy:
-    cmd: ./scripts/deploy.sh
-    confirm: true
-terminals:
-  logs: tail -f ./logs/server.log`}</CodeBlock>
+              <ConfigPlayground
+                filename="webapp.yml"
+                initial={RECIPE_NEXT_NODE}
+              />
 
               <p className="mt-6 mb-2 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                 Next.js with env vars for local dev:
               </p>
-              <CodeBlock>{`services:
-  web:
-    cmd: npm run dev
-    port: 3000
-    env:
-      API_URL: http://localhost:4000
-      NEXTAUTH_SECRET: dev-secret
-      NODE_ENV: development`}</CodeBlock>
+              <ConfigPlayground
+                filename="webapp.yml"
+                initial={RECIPE_ENV}
+              />
 
               <p className="mt-6 mb-2 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                 Monorepo with a Next.js app and a docs site:
               </p>
-              <CodeBlock>{`services:
-  web:
-    cmd: npm run dev
-    cwd: ./apps/web
-    port: 3000
-  docs:
-    cmd: npm run dev
-    cwd: ./apps/docs
-    port: 3001`}</CodeBlock>
+              <ConfigPlayground
+                filename="mono.yml"
+                initial={RECIPE_MONOREPO}
+              />
             </Section>
 
             <Section id="path-resolution" title="Path resolution">
