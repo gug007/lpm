@@ -393,7 +393,7 @@ export function ProjectDetail({
                 })
               }
               disabled={loading}
-              className="rounded-l-lg px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 bg-[var(--accent-red)] text-white hover:opacity-85"
+              className={`${project.allServices.length > 1 ? "rounded-l-lg" : "rounded-lg"} px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 bg-[var(--accent-red)] text-white hover:opacity-85`}
             >
               Stop
             </button>
@@ -401,23 +401,25 @@ export function ProjectDetail({
             <button
               onClick={handleStart}
               disabled={loading}
-              className="rounded-l-lg px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-85"
+              className={`${project.allServices.length > 1 ? "rounded-l-lg" : "rounded-lg"} px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-85`}
             >
               Start
             </button>
           )}
-          <button
-            onClick={() => { setShowQuickMenu(false); setShowProfileMenu((v) => !v); }}
-            disabled={loading}
-            className={`rounded-r-lg border-l px-1.5 py-1.5 transition-all disabled:opacity-40 hover:opacity-85 ${
-              project.running
-                ? "border-white/20 bg-[var(--accent-red)] text-white"
-                : "border-[var(--bg-primary)]/20 bg-[var(--text-primary)] text-[var(--bg-primary)]"
-            }`}
-          >
-            <ChevronDownIcon />
-          </button>
-          {showProfileMenu && (
+          {project.allServices.length > 1 && (
+            <button
+              onClick={() => { setShowQuickMenu(false); setShowProfileMenu((v) => !v); }}
+              disabled={loading}
+              className={`rounded-r-lg border-l px-1.5 py-1.5 transition-all disabled:opacity-40 hover:opacity-85 ${
+                project.running
+                  ? "border-white/20 bg-[var(--accent-red)] text-white"
+                  : "border-[var(--bg-primary)]/20 bg-[var(--text-primary)] text-[var(--bg-primary)]"
+              }`}
+            >
+              <ChevronDownIcon />
+            </button>
+          )}
+          {project.allServices.length > 1 && showProfileMenu && (
             <div className="absolute right-0 top-full z-50 mt-1.5 min-w-[240px] max-w-[300px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl">
               {hasProfiles && (
                 <StartMenuSection label="Profiles">
