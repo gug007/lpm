@@ -44,7 +44,7 @@ export type RawConfig = {
   profiles?: Record<string, string[]>;
 };
 
-type Service = { key: string; port?: number };
+type Service = { key: string; cmd: string; port?: number };
 type Action = {
   key: string;
   cmd?: string;
@@ -59,9 +59,10 @@ type TerminalItem = {
 };
 
 function normalizeService(key: string, def: ServiceDef): Service {
-  if (typeof def === "string") return { key };
+  if (typeof def === "string") return { key, cmd: def };
   return {
     key,
+    cmd: def?.cmd ?? "",
     port: typeof def?.port === "number" ? def.port : undefined,
   };
 }
@@ -242,6 +243,8 @@ export function PlaygroundPreview({
 }) {
   const [startOpen, setStartOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [activeServiceIdx, setActiveServiceIdx] = useState(0);
   const startRef = useRef<HTMLDivElement>(null);
 
   const services = useMemo<Service[]>(
@@ -288,6 +291,20 @@ export function PlaygroundPreview({
   const projectName = config?.name ?? "untitled";
   const hasAnyService = services.length > 0;
   const showStartSplit = services.length > 1;
+  const effectiveRunning = running && hasAnyService;
+  const activeService =
+    effectiveRunning && services.length > 0
+      ? services[Math.min(activeServiceIdx, services.length - 1)]
+      : null;
+
+  const handleStartStop = () => {
+    if (effectiveRunning) {
+      setRunning(false);
+    } else {
+      setRunning(true);
+      setActiveServiceIdx(0);
+    }
+  };
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-950">
@@ -361,11 +378,16 @@ export function PlaygroundPreview({
               <div ref={startRef} className="relative flex shrink-0">
                 <button
                   type="button"
+                  onClick={handleStartStop}
                   className={`${
                     showStartSplit ? "rounded-l-lg" : "rounded-lg"
-                  } px-3.5 py-1.5 text-[11px] font-medium transition-all bg-gray-900 text-white dark:bg-white dark:text-gray-900 hover:opacity-85`}
+                  } px-3.5 py-1.5 text-[11px] font-medium transition-all hover:opacity-85 ${
+                    effectiveRunning
+                      ? "bg-red-500 text-white"
+                      : "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+                  }`}
                 >
-                  Start
+                  {effectiveRunning ? "Stop" : "Start"}
                 </button>
                 {showStartSplit && (
                   <button
@@ -374,7 +396,11 @@ export function PlaygroundPreview({
                       setMenuOpen(false);
                       setStartOpen((v) => !v);
                     }}
-                    className="rounded-r-lg border-l border-white/20 dark:border-gray-900/20 px-1.5 py-1.5 transition-all bg-gray-900 text-white dark:bg-white dark:text-gray-900 hover:opacity-85"
+                    className={`rounded-r-lg border-l px-1.5 py-1.5 transition-all hover:opacity-85 ${
+                      effectiveRunning
+                        ? "border-white/20 bg-red-500 text-white"
+                        : "border-white/20 dark:border-gray-900/20 bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+                    }`}
                   >
                     <ChevronDown className="w-3 h-3" />
                   </button>
@@ -413,22 +439,66 @@ export function PlaygroundPreview({
           </div>
         </div>
 
-        <div className="mt-4 flex flex-1 min-h-0 flex-col items-center justify-center">
-          <div className="flex max-w-sm flex-col items-center gap-4 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 text-gray-400 dark:text-gray-600">
-              <Terminal className="w-5 h-5" />
+        {effectiveRunning && activeService ? (
+          <div className="mt-3 flex flex-1 min-h-0 flex-col rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div className="flex items-center gap-0 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/60 px-1 overflow-x-auto">
+              {services.map((s, i) => {
+                const active = i === activeServiceIdx;
+                return (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => setActiveServiceIdx(i)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium whitespace-nowrap border-b-2 transition-colors ${
+                      active
+                        ? "border-gray-900 dark:border-white text-gray-900 dark:text-white"
+                        : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                    }`}
+                  >
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
+                    <span className="font-mono">{s.key}</span>
+                    {typeof s.port === "number" && (
+                      <span className="font-mono text-[10px] text-gray-400 dark:text-gray-500">
+                        :{s.port}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-            <div className="flex flex-col items-center gap-1">
-              <h3 className="text-xs font-medium text-gray-900 dark:text-white">
-                No active terminals
-              </h3>
-              <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
-                Open a terminal to start working on {projectName}, or edit the
-                project config.
-              </p>
+            <div className="flex-1 min-h-0 overflow-auto bg-gray-950 px-3 py-2.5 font-mono text-[11px] leading-relaxed text-gray-100">
+              <div className="text-emerald-400">$ {activeService.cmd || "(no cmd)"}</div>
+              <div className="text-gray-400">
+                [{projectName}] started {activeService.key}
+                {typeof activeService.port === "number"
+                  ? ` on port ${activeService.port}`
+                  : ""}
+              </div>
+              <div className="flex items-center text-gray-100">
+                <span className="text-gray-500 mr-1">&gt;</span>
+                <span className="inline-block w-[7px] h-3.5 bg-gray-100 animate-pulse" />
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="mt-4 flex flex-1 min-h-0 flex-col items-center justify-center">
+            <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 text-gray-400 dark:text-gray-600">
+                <Terminal className="w-5 h-5" />
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <h3 className="text-xs font-medium text-gray-900 dark:text-white">
+                  No active terminals
+                </h3>
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
+                  {hasAnyService
+                    ? `Click Start to run ${projectName}, or open a terminal.`
+                    : `Add a service in the config to get started.`}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
