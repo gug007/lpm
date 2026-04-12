@@ -237,13 +237,17 @@ export function ProjectDetail({
   }, [project.statusEntries]);
 
 
+  const showProjectName = getSettings().showProjectName !== false;
+
   if (project.configError) {
     return (
       <div className="flex h-full flex-col">
         <div className={`wails-drag flex items-center gap-4 -mx-3 py-1 transition-[padding] duration-200 ${sidebarCollapsed ? "pl-[100px]" : ""}`}>
-          <h1 className="shrink-0 text-xl font-semibold tracking-tight">
-            {project.name}
-          </h1>
+          {showProjectName && (
+            <h1 className="shrink-0 text-xl font-semibold tracking-tight">
+              {project.name}
+            </h1>
+          )}
         </div>
         {detailView === "config" ? (
           <div className="mt-1.5 -mx-6 -mb-6 flex flex-1 flex-col overflow-hidden">
@@ -286,9 +290,11 @@ export function ProjectDetail({
   return (
     <div className="flex h-full flex-col">
       <div className={`wails-drag flex items-center gap-4 -mx-3 py-1 transition-[padding] duration-200 ${sidebarCollapsed ? "pl-[100px]" : ""}`}>
-        <h1 className="shrink-0 text-xl font-semibold tracking-tight">
-          {project.name}
-        </h1>
+        {showProjectName && (
+          <h1 className="shrink-0 text-xl font-semibold tracking-tight">
+            {project.name}
+          </h1>
+        )}
         <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
           {(plainActions.length > 0 || buttonTerminals.length > 0) && (
             <div className="flex min-w-0 items-center gap-2 overflow-x-auto" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>

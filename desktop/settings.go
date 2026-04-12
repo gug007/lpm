@@ -21,6 +21,7 @@ type Settings struct {
 	AutoGenCommitMsg    bool     `json:"autoGenerateCommitMessage,omitempty"`
 	AutoGenPRDesc       bool     `json:"autoGeneratePRDescription,omitempty"`
 	ConfigEditorMode    string   `json:"configEditorMode,omitempty"`
+	ShowProjectName     *bool    `json:"showProjectName,omitempty"`
 	LastSelectedProject string   `json:"lastSelectedProject,omitempty"`
 }
 
