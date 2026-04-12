@@ -558,7 +558,7 @@ export function PlaygroundPreview({
   const buttonTerminals = terminals.filter((t) => t.display === "button");
   const menuTerminals = terminals.filter((t) => t.display !== "button");
 
-  const projectName = config?.name ?? "untitled";
+  const projectName = config?.name ?? "";
   const hasAnyService = services.length > 0;
   const showStartSplit = services.length > 1;
   const runningServices = useMemo(
