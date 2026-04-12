@@ -244,7 +244,7 @@ export function PlaygroundPreview({
   const [startOpen, setStartOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [running, setRunning] = useState(false);
-  const [activeServiceIdx, setActiveServiceIdx] = useState(0);
+  const [activeTab, setActiveTab] = useState<string>("all");
   const startRef = useRef<HTMLDivElement>(null);
 
   const services = useMemo<Service[]>(
@@ -292,18 +292,16 @@ export function PlaygroundPreview({
   const hasAnyService = services.length > 0;
   const showStartSplit = services.length > 1;
   const effectiveRunning = running && hasAnyService;
-  const activeService =
-    effectiveRunning && services.length > 0
-      ? services[Math.min(activeServiceIdx, services.length - 1)]
-      : null;
+  const visibleServices =
+    activeTab === "all" || !services.some((s) => s.key === activeTab)
+      ? services
+      : services.filter((s) => s.key === activeTab);
 
   const handleStartStop = () => {
-    if (effectiveRunning) {
-      setRunning(false);
-    } else {
-      setRunning(true);
-      setActiveServiceIdx(0);
-    }
+    setRunning((v) => {
+      if (!v) setActiveTab("all");
+      return !v;
+    });
   };
 
   return (
@@ -439,45 +437,61 @@ export function PlaygroundPreview({
           </div>
         </div>
 
-        {effectiveRunning && activeService ? (
-          <div className="mt-3 flex flex-1 min-h-0 flex-col rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
-            <div className="flex items-center gap-0 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/60 px-1 overflow-x-auto">
-              {services.map((s, i) => {
-                const active = i === activeServiceIdx;
+        {effectiveRunning ? (
+          <div className="mt-3 flex flex-1 min-h-0 flex-col rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden bg-gray-950">
+            <div className="flex-shrink-0 flex items-center gap-0 border-b border-gray-800 bg-gray-900/60 px-1 overflow-x-auto">
+              {["all", ...services.map((s) => s.key)].map((tab) => {
+                const active = tab === activeTab;
                 return (
                   <button
-                    key={s.key}
+                    key={tab}
                     type="button"
-                    onClick={() => setActiveServiceIdx(i)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium whitespace-nowrap border-b-2 transition-colors ${
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-2.5 py-1.5 text-[11px] font-mono whitespace-nowrap border-b-2 transition-colors ${
                       active
-                        ? "border-gray-900 dark:border-white text-gray-900 dark:text-white"
-                        : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                        ? "border-white text-white"
+                        : "border-transparent text-gray-400 hover:text-gray-100"
                     }`}
                   >
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
-                    <span className="font-mono">{s.key}</span>
-                    {typeof s.port === "number" && (
-                      <span className="font-mono text-[10px] text-gray-400 dark:text-gray-500">
-                        :{s.port}
-                      </span>
-                    )}
+                    {tab}
                   </button>
                 );
               })}
             </div>
-            <div className="flex-1 min-h-0 overflow-auto bg-gray-950 px-3 py-2.5 font-mono text-[11px] leading-relaxed text-gray-100">
-              <div className="text-emerald-400">$ {activeService.cmd || "(no cmd)"}</div>
-              <div className="text-gray-400">
-                [{projectName}] started {activeService.key}
-                {typeof activeService.port === "number"
-                  ? ` on port ${activeService.port}`
-                  : ""}
+            <div className="flex flex-1 min-h-0 flex-row">
+            {visibleServices.map((s, i) => (
+              <div
+                key={s.key}
+                className={`flex-1 min-w-0 flex flex-col ${
+                  i > 0 ? "border-l border-gray-800" : ""
+                }`}
+              >
+                <div className="flex-shrink-0 flex items-center gap-1.5 border-b border-gray-800 bg-gray-900/60 px-2.5 py-1.5">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
+                  <span className="font-mono text-[11px] font-medium text-gray-100 truncate">
+                    {s.key}
+                  </span>
+                  {typeof s.port === "number" && (
+                    <span className="font-mono text-[10px] text-gray-500 flex-shrink-0">
+                      :{s.port}
+                    </span>
+                  )}
+                </div>
+                <div className="flex-1 min-h-0 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed text-gray-100">
+                  <div className="text-emerald-400 break-all">
+                    $ {s.cmd || "(no cmd)"}
+                  </div>
+                  <div className="text-gray-400 break-all">
+                    [{projectName}] started {s.key}
+                    {typeof s.port === "number" ? ` on port ${s.port}` : ""}
+                  </div>
+                  <div className="flex items-center text-gray-100">
+                    <span className="text-gray-500 mr-1">&gt;</span>
+                    <span className="inline-block w-[7px] h-3.5 bg-gray-100 animate-pulse" />
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center text-gray-100">
-                <span className="text-gray-500 mr-1">&gt;</span>
-                <span className="inline-block w-[7px] h-3.5 bg-gray-100 animate-pulse" />
-              </div>
+            ))}
             </div>
           </div>
         ) : (
