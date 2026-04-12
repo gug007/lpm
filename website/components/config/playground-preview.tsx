@@ -134,41 +134,69 @@ function Spinner({ className = "" }: { className?: string }) {
   );
 }
 
+type ModalPhase = "idle" | "running" | "result";
+
 function ActionModal({
   action,
-  onCancel,
-  onConfirm,
+  initialPhase = "idle",
+  onClose,
 }: {
   action: Action;
-  onCancel: () => void;
-  onConfirm: () => void;
+  initialPhase?: ModalPhase;
+  onClose: () => void;
 }) {
   const destructive = action.confirm === true;
   const envEntries = action.env ? Object.entries(action.env) : [];
-  const [phase, setPhase] = useState<"idle" | "running" | "done">("idle");
+  const [phase, setPhase] = useState<ModalPhase>(initialPhase);
+  const [duration, setDuration] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (phase !== "running") return;
+    const start = performance.now();
+    const id = window.setTimeout(() => {
+      setDuration(Math.round(performance.now() - start));
+      setPhase("result");
+    }, 650);
+    return () => window.clearTimeout(id);
+  }, [phase]);
 
   const handleRun = () => {
     if (phase !== "idle") return;
     setPhase("running");
-    window.setTimeout(() => {
-      setPhase("done");
-      window.setTimeout(() => onConfirm(), 450);
-    }, 650);
   };
+
+  const isBusy = phase === "running";
+  const showConfirmCopy = phase === "idle" && destructive;
+  const title =
+    phase === "result"
+      ? `${action.label} finished`
+      : phase === "running"
+        ? `Running ${action.label}`
+        : destructive
+          ? `Run ${action.label}?`
+          : action.label;
 
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center p-4">
       <button
         type="button"
         aria-label="Close"
-        onClick={phase === "idle" ? onCancel : undefined}
+        onClick={isBusy ? undefined : onClose}
         className="absolute inset-0 bg-black/30 dark:bg-black/60"
       />
       <div className="relative w-full max-w-sm rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-6 shadow-xl">
-        <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-          {destructive ? `Run ${action.label}?` : action.label}
-        </h3>
-        {destructive && (
+        <div className="flex items-start gap-2">
+          <h3 className="flex-1 text-base font-semibold text-gray-900 dark:text-white">
+            {title}
+          </h3>
+          {phase === "result" && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+              <Check className="w-3 h-3" />
+              success
+            </span>
+          )}
+        </div>
+        {showConfirmCopy && (
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
             This action is marked as requiring confirmation.
           </p>
@@ -179,7 +207,7 @@ function ActionModal({
             {action.cmd}
           </div>
         )}
-        {(action.cwd || envEntries.length > 0) && (
+        {(action.cwd || envEntries.length > 0) && phase === "idle" && (
           <dl className="mt-3 space-y-1 text-xs">
             {action.cwd && (
               <div className="flex gap-2">
@@ -207,39 +235,62 @@ function ActionModal({
             )}
           </dl>
         )}
+
+        {phase === "running" && (
+          <div className="mt-4 rounded-lg bg-gray-950 px-3 py-3 font-mono text-xs text-gray-100 leading-relaxed">
+            <div className="text-emerald-400">$ {action.cmd || "(no cmd)"}</div>
+            <div className="mt-1 flex items-center gap-2 text-gray-400">
+              <Spinner className="w-3 h-3" />
+              <span>Running…</span>
+            </div>
+          </div>
+        )}
+
+        {phase === "result" && (
+          <div className="mt-4 rounded-lg bg-gray-950 px-3 py-3 font-mono text-xs text-gray-100 leading-relaxed">
+            <div className="text-emerald-400">$ {action.cmd || "(no cmd)"}</div>
+            <div className="text-gray-400">
+              {action.label} completed without errors.
+            </div>
+            <div className="text-gray-500 mt-2 flex items-center justify-between">
+              <span>exit code 0</span>
+              {duration !== null && <span>{duration}ms</span>}
+            </div>
+          </div>
+        )}
+
         <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={phase !== "idle"}
-            className="rounded-lg border border-gray-200 dark:border-gray-800 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleRun}
-            disabled={phase !== "idle"}
-            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all hover:opacity-85 disabled:opacity-95 min-w-[92px] ${
-              destructive
-                ? "bg-red-500 text-white"
-                : "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-            }`}
-          >
-            {phase === "running" ? (
-              <>
-                <Spinner className="w-3.5 h-3.5" />
-                Running…
-              </>
-            ) : phase === "done" ? (
-              <>
-                <Check className="w-3.5 h-3.5" />
-                Done
-              </>
-            ) : (
-              "Run"
-            )}
-          </button>
+          {phase === "idle" ? (
+            <>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg border border-gray-200 dark:border-gray-800 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRun}
+                className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all hover:opacity-85 min-w-[92px] ${
+                  destructive
+                    ? "bg-red-500 text-white"
+                    : "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+                }`}
+              >
+                Run
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isBusy}
+              className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-all hover:opacity-85 disabled:opacity-40 disabled:cursor-not-allowed min-w-[92px] bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+            >
+              Close
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -468,33 +519,11 @@ export function PlaygroundPreview({
     new Set(),
   );
   const [activeTab, setActiveTab] = useState<string>("all");
-  const [selectedAction, setSelectedAction] = useState<Action | null>(null);
-  const [toast, setToast] = useState<{
-    label: string;
-    phase: "running" | "done";
+  const [selectedAction, setSelectedAction] = useState<{
+    action: Action;
+    initialPhase: ModalPhase;
   } | null>(null);
-  const toastTimers = useRef<number[]>([]);
   const startRef = useRef<HTMLDivElement>(null);
-
-  const runActionImmediate = (action: Action) => {
-    for (const id of toastTimers.current) window.clearTimeout(id);
-    toastTimers.current = [];
-    setToast({ label: action.label, phase: "running" });
-    toastTimers.current.push(
-      window.setTimeout(
-        () => setToast({ label: action.label, phase: "done" }),
-        650,
-      ),
-      window.setTimeout(() => setToast(null), 1500),
-    );
-  };
-
-  useEffect(
-    () => () => {
-      for (const id of toastTimers.current) window.clearTimeout(id);
-    },
-    [],
-  );
 
   const toggleTerminal = (key: string) => {
     setMenuOpen(false);
@@ -510,11 +539,10 @@ export function PlaygroundPreview({
   const openAction = (action: Action) => {
     setMenuOpen(false);
     setStartOpen(false);
-    if (action.confirm) {
-      setSelectedAction(action);
-    } else {
-      runActionImmediate(action);
-    }
+    setSelectedAction({
+      action,
+      initialPhase: action.confirm ? "idle" : "running",
+    });
   };
 
   const services = useMemo<Service[]>(
@@ -931,29 +959,11 @@ export function PlaygroundPreview({
         )}
       </div>
 
-      {toast && (
-        <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
-          <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 shadow-lg">
-            {toast.phase === "running" ? (
-              <>
-                <Spinner className="w-3 h-3 text-gray-500 dark:text-gray-400" />
-                <span>Running {toast.label}…</span>
-              </>
-            ) : (
-              <>
-                <Check className="w-3 h-3 text-emerald-500" />
-                <span>{toast.label} ran</span>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
       {selectedAction && (
         <ActionModal
-          action={selectedAction}
-          onCancel={() => setSelectedAction(null)}
-          onConfirm={() => setSelectedAction(null)}
+          action={selectedAction.action}
+          initialPhase={selectedAction.initialPhase}
+          onClose={() => setSelectedAction(null)}
         />
       )}
     </div>
