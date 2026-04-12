@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { TrashIcon } from "./icons";
+import { ClipboardIcon, CopyIcon, PencilIcon, TrashIcon } from "./icons";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 
 interface ProjectContextMenuProps {
@@ -49,6 +49,7 @@ export function ProjectContextMenu({
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
       >
         <span className="flex-1 truncate">Rename</span>
+        <PencilIcon />
       </button>
       <button
         onClick={() => {
@@ -59,6 +60,7 @@ export function ProjectContextMenu({
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-50"
       >
         <span className="flex-1 truncate">Duplicate project</span>
+        <CopyIcon />
       </button>
       <button
         onClick={() => {
@@ -68,6 +70,7 @@ export function ProjectContextMenu({
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
       >
         <span className="flex-1 truncate">Copy path</span>
+        <ClipboardIcon />
       </button>
       {canRemove && (
         <>
