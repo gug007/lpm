@@ -503,7 +503,10 @@ export function PlaygroundPreview({
         {effectiveRunning ? (
           <div className="mt-3 flex flex-1 min-h-0 flex-col rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden bg-gray-950">
             <div className="flex-shrink-0 flex items-center gap-0 border-b border-gray-800 bg-gray-900/60 px-1 overflow-x-auto">
-              {["all", ...runningServices.map((s) => s.key)].map((tab) => {
+              {(services.length > 1
+                ? ["all", ...runningServices.map((s) => s.key)]
+                : runningServices.map((s) => s.key)
+              ).map((tab) => {
                 const active = tab === activeTab;
                 return (
                   <button
