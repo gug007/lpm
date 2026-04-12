@@ -15,6 +15,7 @@ import { TerminalIcon, CheckIcon, ChevronDownIcon, PencilIcon, MenuIcon, AlertCi
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
+import { useOverflowWrap } from "../hooks/useOverflowWrap";
 import { ActionTerminal } from "./project-detail/ActionTerminal";
 import { ActionInputsModal } from "./project-detail/ActionInputsModal";
 import { QuickPopover } from "./project-detail/QuickPopover";
@@ -242,6 +243,21 @@ export function ProjectDetail({
 
   const showProjectName = getSettings().showProjectName !== false;
 
+  const hasActions = plainActions.length > 0 || buttonTerminals.length > 0 || dropdownActions.length > 0;
+
+  const {
+    wrapped: actionsWrapped,
+    rowRef: headerRowRef,
+    innerRef: innerContainerRef,
+  } = useOverflowWrap([
+    plainActions.length,
+    dropdownActions.length,
+    buttonTerminals.length,
+    showProjectName,
+    project.running,
+    project.allServices.length,
+  ]);
+
   if (project.configError) {
     return (
       <div className="flex h-full flex-col">
@@ -290,147 +306,176 @@ export function ProjectDetail({
     );
   }
 
+  const actionsNode = hasActions ? (
+    <>
+      {(plainActions.length > 0 || buttonTerminals.length > 0) && (
+        <div
+          className={
+            actionsWrapped
+              ? "flex flex-wrap items-center justify-end gap-2"
+              : "flex shrink-0 items-center gap-2"
+          }
+          style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}
+        >
+          {plainActions.map((action) => (
+            <ActionButton
+              key={action.name}
+              onClick={() => handleRunAction(action)}
+              disabled={runningAction !== null}
+              variant="secondary"
+              label={action.label}
+            />
+          ))}
+          {buttonTerminals.map((term) => (
+            <ActionButton
+              key={term.name}
+              onClick={() => handleRunTerminal(term)}
+              disabled={false}
+              variant="secondary"
+              label={term.label}
+            />
+          ))}
+        </div>
+      )}
+      {dropdownActions.map((action) => (
+        <div key={action.name} style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
+          <SplitButton
+            action={action}
+            disabled={runningAction !== null}
+            onRunAction={handleRunAction}
+          />
+        </div>
+      ))}
+    </>
+  ) : null;
+
+  const controlsNode = (
+    <>
+      <div style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
+        <OpenInDropdown projectPath={project.root} />
+      </div>
+      <div className="relative" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
+        <button
+          onClick={() => { setShowProfileMenu(false); setShowQuickMenu((v) => !v); }}
+          aria-label="Project actions"
+          className={`flex items-center justify-center rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors ${
+            showQuickMenu
+              ? "border-transparent bg-[var(--bg-active)] text-[var(--text-primary)]"
+              : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          }`}
+        >
+          <MenuIcon />
+        </button>
+        {showQuickMenu && (
+          <QuickPopover
+            actions={menuActions}
+            terminals={menuTerminals}
+            running={project.running}
+            actionBusy={runningAction !== null}
+            onClose={() => setShowQuickMenu(false)}
+            onRunAction={handleRunAction}
+            onRunTerminal={handleRunTerminal}
+            onEditConfig={() => switchDetailView("config")}
+            onRestart={() => withLoading(() => onRestart(project.name, activeProfile))}
+            onRemove={() => setConfirmRemove(true)}
+            onTerminalSettings={() => setShowTerminalSettings(true)}
+          />
+        )}
+      </div>
+      {project.allServices.length === 0 ? null : (
+        <div ref={profileMenuRef} className="relative flex" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
+          {project.running ? (
+            <button
+              onClick={() =>
+                withLoading(async () => {
+                  await onStop(project.name);
+                  switchDetailView("terminal");
+                })
+              }
+              disabled={loading}
+              className="rounded-l-lg px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 bg-[var(--accent-red)] text-white hover:opacity-85"
+            >
+              Stop
+            </button>
+          ) : (
+            <button
+              onClick={handleStart}
+              disabled={loading}
+              className="rounded-l-lg px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-85"
+            >
+              Start
+            </button>
+          )}
+          <button
+            onClick={() => { setShowQuickMenu(false); setShowProfileMenu((v) => !v); }}
+            disabled={loading}
+            className={`rounded-r-lg border-l px-1.5 py-1.5 transition-all disabled:opacity-40 hover:opacity-85 ${
+              project.running
+                ? "border-white/20 bg-[var(--accent-red)] text-white"
+                : "border-[var(--bg-primary)]/20 bg-[var(--text-primary)] text-[var(--bg-primary)]"
+            }`}
+          >
+            <ChevronDownIcon />
+          </button>
+          {showProfileMenu && (
+            <div className="absolute right-0 top-full z-50 mt-1.5 min-w-[240px] max-w-[300px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl">
+              {hasProfiles && (
+                <StartMenuSection label="Profiles">
+                  {project.profiles.map((p) => (
+                    <ProfileMenuItem
+                      key={p.name}
+                      profile={p}
+                      running={project.running && project.activeProfile === p.name}
+                      onClick={() => handleStartProfile(p.name)}
+                    />
+                  ))}
+                </StartMenuSection>
+              )}
+              {hasProfiles && (
+                <div className="mx-3 border-t border-[var(--border)]" />
+              )}
+              <StartMenuSection label="Services">
+                {project.allServices.map((s) => (
+                  <StartMenuItem
+                    key={s.name}
+                    label={s.name}
+                    mono
+                    running={runningServiceNames?.has(s.name)}
+                    badge={s.port > 0 ? `:${s.port}` : undefined}
+                    onClick={() => handleToggleServiceClick(s.name)}
+                  />
+                ))}
+              </StartMenuSection>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div className="flex h-full flex-col">
-      <div className={`wails-drag flex items-center gap-4 -mx-3 py-1 transition-[padding] duration-200 ${sidebarCollapsed ? "pl-[100px]" : ""}`}>
+      <div
+        ref={headerRowRef}
+        className={`wails-drag flex items-center gap-4 -mx-3 py-1 transition-[padding] duration-200 ${sidebarCollapsed ? "pl-[100px]" : ""}`}
+      >
         {showProjectName && (
           <h1 className="shrink-0 text-xl font-semibold tracking-tight">
             {project.name}
           </h1>
         )}
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-          {(plainActions.length > 0 || buttonTerminals.length > 0) && (
-            <div className="flex min-w-0 items-center gap-2 overflow-x-auto" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
-              {plainActions.map((action) => (
-                <ActionButton
-                  key={action.name}
-                  onClick={() => handleRunAction(action)}
-                  disabled={runningAction !== null}
-                  variant="secondary"
-                  label={action.label}
-                />
-              ))}
-              {buttonTerminals.map((term) => (
-                <ActionButton
-                  key={term.name}
-                  onClick={() => handleRunTerminal(term)}
-                  disabled={false}
-                  variant="secondary"
-                  label={term.label}
-                />
-              ))}
-            </div>
-          )}
-          {dropdownActions.map((action) => (
-            <div key={action.name} style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
-              <SplitButton
-                action={action}
-                disabled={runningAction !== null}
-                onRunAction={handleRunAction}
-              />
-            </div>
-          ))}
-          <div style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
-            <OpenInDropdown projectPath={project.root} />
-          </div>
-          <div className="relative" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
-            <button
-              onClick={() => { setShowProfileMenu(false); setShowQuickMenu((v) => !v); }}
-              aria-label="Project actions"
-              className={`flex items-center justify-center rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors ${
-                showQuickMenu
-                  ? "border-transparent bg-[var(--bg-active)] text-[var(--text-primary)]"
-                  : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              <MenuIcon />
-            </button>
-            {showQuickMenu && (
-              <QuickPopover
-                actions={menuActions}
-                terminals={menuTerminals}
-                running={project.running}
-                actionBusy={runningAction !== null}
-                onClose={() => setShowQuickMenu(false)}
-                onRunAction={handleRunAction}
-                onRunTerminal={handleRunTerminal}
-                onEditConfig={() => switchDetailView("config")}
-                onRestart={() => withLoading(() => onRestart(project.name, activeProfile))}
-                onRemove={() => setConfirmRemove(true)}
-                onTerminalSettings={() => setShowTerminalSettings(true)}
-              />
-            )}
-          </div>
-          {project.allServices.length === 0 ? null : (
-            <div ref={profileMenuRef} className="relative flex" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
-              {project.running ? (
-                <button
-                  onClick={() =>
-                    withLoading(async () => {
-                      await onStop(project.name);
-                      switchDetailView("terminal");
-                    })
-                  }
-                  disabled={loading}
-                  className="rounded-l-lg px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 bg-[var(--accent-red)] text-white hover:opacity-85"
-                >
-                  Stop
-                </button>
-              ) : (
-                <button
-                  onClick={handleStart}
-                  disabled={loading}
-                  className="rounded-l-lg px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-85"
-                >
-                  Start
-                </button>
-              )}
-              <button
-                onClick={() => { setShowQuickMenu(false); setShowProfileMenu((v) => !v); }}
-                disabled={loading}
-                className={`rounded-r-lg border-l px-1.5 py-1.5 transition-all disabled:opacity-40 hover:opacity-85 ${
-                  project.running
-                    ? "border-white/20 bg-[var(--accent-red)] text-white"
-                    : "border-[var(--bg-primary)]/20 bg-[var(--text-primary)] text-[var(--bg-primary)]"
-                }`}
-              >
-                <ChevronDownIcon />
-              </button>
-              {showProfileMenu && (
-                <div className="absolute right-0 top-full z-50 mt-1.5 min-w-[240px] max-w-[300px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl">
-                  {hasProfiles && (
-                    <StartMenuSection label="Profiles">
-                      {project.profiles.map((p) => (
-                        <ProfileMenuItem
-                          key={p.name}
-                          profile={p}
-                          running={project.running && project.activeProfile === p.name}
-                          onClick={() => handleStartProfile(p.name)}
-                        />
-                      ))}
-                    </StartMenuSection>
-                  )}
-                  {hasProfiles && (
-                    <div className="mx-3 border-t border-[var(--border)]" />
-                  )}
-                  <StartMenuSection label="Services">
-                    {project.allServices.map((s) => (
-                      <StartMenuItem
-                        key={s.name}
-                        label={s.name}
-                        mono
-                        running={runningServiceNames?.has(s.name)}
-                        badge={s.port > 0 ? `:${s.port}` : undefined}
-                        onClick={() => handleToggleServiceClick(s.name)}
-                      />
-                    ))}
-                  </StartMenuSection>
-                </div>
-              )}
-            </div>
-          )}
+        <div ref={innerContainerRef} className="flex min-w-0 flex-1 items-center justify-end gap-2">
+          {!actionsWrapped && actionsNode}
+          {controlsNode}
         </div>
       </div>
+      {actionsWrapped && hasActions && (
+        <div
+          className={`wails-drag flex flex-wrap items-center justify-end gap-2 -mx-3 mt-2 pb-1 transition-[padding] duration-200 ${sidebarCollapsed ? "pl-[100px]" : ""}`}
+        >
+          {actionsNode}
+        </div>
+      )}
 
       {showEmptyState && (
         <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden">
