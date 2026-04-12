@@ -1,7 +1,16 @@
 "use client";
 
 import { useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronDown, Menu as MenuIcon, Terminal } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Menu as MenuIcon,
+  Pencil,
+  RotateCcw,
+  Settings,
+  Terminal,
+  Trash2,
+} from "lucide-react";
 
 type ServiceDef =
   | string
@@ -200,7 +209,7 @@ function SecondaryButton({
     <button
       type="button"
       onClick={onClick}
-      className={`shrink-0 inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-gray-200 dark:border-gray-800 px-3 py-1.5 text-[11px] font-medium transition-colors ${
+      className={`shrink-0 inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-gray-200 dark:border-gray-800 px-3.5 py-1.5 text-xs font-medium transition-colors ${
         active
           ? "bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white"
           : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-900 hover:text-gray-900 dark:hover:text-white"
@@ -250,7 +259,7 @@ function SplitButton({
         <button
           type="button"
           onClick={() => onRun(action)}
-          className="whitespace-nowrap rounded-l-lg px-3 py-1.5 text-[11px] font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-900 hover:text-gray-900 dark:hover:text-white transition-colors"
+          className="whitespace-nowrap rounded-l-lg px-3.5 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-900 hover:text-gray-900 dark:hover:text-white transition-colors"
         >
           {action.label}
         </button>
@@ -330,33 +339,62 @@ function StartMenuSection({
 
 function StartMenuItem({
   label,
+  subtext,
   badge,
   mono,
   running,
+  showDot = true,
+  showCheck,
+  icon,
+  shortcut,
   onClick,
 }: {
   label: string;
+  subtext?: string;
   badge?: string;
   mono?: boolean;
   running?: boolean;
+  showDot?: boolean;
+  showCheck?: boolean;
+  icon?: ReactNode;
+  shortcut?: string;
   onClick?: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-gray-600 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900"
+      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-600 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900"
     >
-      <span
-        className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-          running
-            ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]"
-            : "bg-gray-300 dark:bg-gray-700"
-        }`}
-      />
-      <span className={`flex-1 truncate ${mono ? "font-mono" : ""}`}>
-        {label}
+      {icon ? (
+        <span className="flex-shrink-0 text-gray-400 dark:text-gray-500">
+          {icon}
+        </span>
+      ) : showDot ? (
+        <span
+          className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
+            running
+              ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]"
+              : "border border-gray-300 dark:border-gray-700"
+          }`}
+        />
+      ) : null}
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className={`truncate ${mono ? "font-mono" : ""}`}>{label}</span>
+        {subtext && (
+          <span className="truncate text-[10px] text-gray-400 dark:text-gray-500 font-mono">
+            {subtext}
+          </span>
+        )}
       </span>
+      {showCheck && (
+        <Check className="w-3 h-3 text-emerald-500 flex-shrink-0" />
+      )}
+      {shortcut && (
+        <span className="font-mono text-[10px] text-gray-400 dark:text-gray-500 flex-shrink-0">
+          {shortcut}
+        </span>
+      )}
       {badge && (
         <span className="font-mono text-[10px] text-gray-400 dark:text-gray-500 flex-shrink-0">
           {badge}
@@ -504,6 +542,7 @@ export function PlaygroundPreview({
               <SplitButton key={a.key} action={a} onRun={openAction} />
             ))}
 
+            {(menuActions.length > 0 || menuTerminals.length > 0) && (
             <div className="relative shrink-0">
               <button
                 type="button"
@@ -512,7 +551,7 @@ export function PlaygroundPreview({
                   setMenuOpen((v) => !v);
                 }}
                 aria-label="Project actions"
-                className={`flex items-center justify-center rounded-lg border px-2 py-1.5 text-[11px] font-medium transition-colors ${
+                className={`flex items-center justify-center rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors ${
                   menuOpen
                     ? "border-transparent bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white"
                     : "border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-900 hover:text-gray-900 dark:hover:text-white"
@@ -522,7 +561,7 @@ export function PlaygroundPreview({
               </button>
               {menuOpen && (
                 <div
-                  className="absolute right-0 top-full z-20 mt-1.5 min-w-[220px] max-w-[280px] overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 shadow-xl"
+                  className="absolute right-0 top-full z-20 mt-1.5 min-w-[240px] max-w-[300px] overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 shadow-xl"
                   onMouseLeave={() => setMenuOpen(false)}
                 >
                   {menuActions.length > 0 && (
@@ -531,6 +570,8 @@ export function PlaygroundPreview({
                         <StartMenuItem
                           key={a.key}
                           label={a.label}
+                          showDot={false}
+                          icon={<Terminal className="w-3 h-3" />}
                           onClick={() => openAction(a)}
                         />
                       ))}
@@ -539,18 +580,47 @@ export function PlaygroundPreview({
                   {menuTerminals.length > 0 && (
                     <StartMenuSection label="Terminals">
                       {menuTerminals.map((t) => (
-                        <StartMenuItem key={t.key} label={t.label} />
+                        <StartMenuItem
+                          key={t.key}
+                          label={t.label}
+                          showDot={false}
+                          icon={<Terminal className="w-3 h-3" />}
+                        />
                       ))}
                     </StartMenuSection>
                   )}
-                  {menuActions.length === 0 && menuTerminals.length === 0 && (
-                    <div className="px-3 py-2 text-[11px] text-gray-400 dark:text-gray-500 italic">
-                      No menu items
-                    </div>
+                  {(menuActions.length > 0 || menuTerminals.length > 0) && (
+                    <div className="mx-3 border-t border-gray-200 dark:border-gray-800" />
                   )}
+                  <StartMenuSection label="Project">
+                    <StartMenuItem
+                      label="Edit Config"
+                      showDot={false}
+                      icon={<Pencil className="w-3 h-3" />}
+                      shortcut="⌘E"
+                    />
+                    {effectiveRunning && (
+                      <StartMenuItem
+                        label="Restart"
+                        showDot={false}
+                        icon={<RotateCcw className="w-3 h-3" />}
+                      />
+                    )}
+                    <StartMenuItem
+                      label="Terminal Settings"
+                      showDot={false}
+                      icon={<Settings className="w-3 h-3" />}
+                    />
+                    <StartMenuItem
+                      label="Remove"
+                      showDot={false}
+                      icon={<Trash2 className="w-3 h-3" />}
+                    />
+                  </StartMenuSection>
                 </div>
               )}
             </div>
+            )}
 
             {hasAnyService && (
               <div ref={startRef} className="relative flex shrink-0">
@@ -559,7 +629,7 @@ export function PlaygroundPreview({
                   onClick={handleStartStop}
                   className={`${
                     showStartSplit ? "rounded-l-lg" : "rounded-lg"
-                  } px-3.5 py-1.5 text-[11px] font-medium transition-all hover:opacity-85 ${
+                  } px-3.5 py-1.5 text-xs font-medium transition-all hover:opacity-85 ${
                     effectiveRunning
                       ? "bg-red-500 text-white"
                       : "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
@@ -585,7 +655,7 @@ export function PlaygroundPreview({
                 )}
                 {showStartSplit && startOpen && (
                   <div
-                    className="absolute right-0 top-full z-20 mt-1.5 min-w-[220px] max-w-[280px] overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 shadow-xl"
+                    className="absolute right-0 top-full z-20 mt-1.5 min-w-[240px] max-w-[300px] overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 shadow-xl"
                     onMouseLeave={() => setStartOpen(false)}
                   >
                     {profileEntries.length > 0 && (
@@ -603,7 +673,9 @@ export function PlaygroundPreview({
                               <StartMenuItem
                                 key={name}
                                 label={name}
+                                subtext={resolved.join(" · ")}
                                 running={isActive}
+                                showCheck={isActive}
                                 onClick={() => startProfile(name)}
                               />
                             );
@@ -620,9 +692,6 @@ export function PlaygroundPreview({
                           mono
                           running={runningKeys.has(s.key)}
                           onClick={() => toggleService(s.key)}
-                          badge={
-                            typeof s.port === "number" ? `:${s.port}` : undefined
-                          }
                         />
                       ))}
                     </StartMenuSection>
@@ -666,15 +735,10 @@ export function PlaygroundPreview({
                 }`}
               >
                 <div className="flex-shrink-0 flex items-center gap-1.5 border-b border-gray-800 bg-gray-900/60 px-2.5 py-1.5">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
+                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
                   <span className="font-mono text-[11px] font-medium text-gray-100 truncate">
                     {s.key}
                   </span>
-                  {typeof s.port === "number" && (
-                    <span className="font-mono text-[10px] text-gray-500 flex-shrink-0">
-                      :{s.port}
-                    </span>
-                  )}
                 </div>
                 <div className="flex-1 min-h-0 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed text-gray-100">
                   <div className="text-emerald-400 break-all">
@@ -682,7 +746,6 @@ export function PlaygroundPreview({
                   </div>
                   <div className="text-gray-400 break-all">
                     [{projectName}] started {s.key}
-                    {typeof s.port === "number" ? ` on port ${s.port}` : ""}
                   </div>
                   <div className="flex items-center text-gray-100">
                     <span className="text-gray-500 mr-1">&gt;</span>
