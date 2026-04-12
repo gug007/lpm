@@ -39,11 +39,12 @@ func (s *Service) UnmarshalYAML(value *yaml.Node) error {
 }
 
 type ActionInput struct {
-	Label       string `yaml:"label,omitempty"`
-	Type        string `yaml:"type,omitempty"`
-	Required    bool   `yaml:"required,omitempty"`
-	Placeholder string `yaml:"placeholder,omitempty"`
-	Default     string `yaml:"default,omitempty"`
+	Label       string   `yaml:"label,omitempty"`
+	Type        string   `yaml:"type,omitempty"`
+	Required    bool     `yaml:"required,omitempty"`
+	Placeholder string   `yaml:"placeholder,omitempty"`
+	Default     string   `yaml:"default,omitempty"`
+	Options     []string `yaml:"options,omitempty"`
 }
 
 type Action struct {

@@ -46,14 +46,33 @@ export function ActionInputsModal({ action, onCancel, onSubmit }: ActionInputsMo
                 {inp.label}
                 {inp.required && <span className="ml-0.5 text-[var(--accent-red)]">*</span>}
               </span>
-              <input
-                ref={i === 0 ? firstRef : undefined}
-                type={inp.type === "password" ? "password" : "text"}
-                value={values[inp.key] ?? ""}
-                onChange={(e) => setValues((prev) => ({ ...prev, [inp.key]: e.target.value }))}
-                placeholder={inp.placeholder}
-                className="w-full rounded-md border border-[var(--border)] bg-transparent px-2.5 py-1.5 font-mono text-[13px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)]"
-              />
+              {inp.type === "select" && inp.options?.length ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {inp.options.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setValues((prev) => ({ ...prev, [inp.key]: opt }))}
+                      className={`rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                        values[inp.key] === opt
+                          ? "border-transparent bg-[var(--text-primary)] text-[var(--bg-primary)]"
+                          : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <input
+                  ref={i === 0 ? firstRef : undefined}
+                  type={inp.type === "password" ? "password" : "text"}
+                  value={values[inp.key] ?? ""}
+                  onChange={(e) => setValues((prev) => ({ ...prev, [inp.key]: e.target.value }))}
+                  placeholder={inp.placeholder}
+                  className="w-full rounded-md border border-[var(--border)] bg-transparent px-2.5 py-1.5 font-mono text-[13px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)]"
+                />
+              )}
             </label>
           ))}
         </div>

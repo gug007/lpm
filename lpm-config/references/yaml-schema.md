@@ -91,11 +91,50 @@ actions:
 | `env` | map[string]string | no | — | Environment variables injected into the command. |
 | `confirm` | bool | no | false | Prompt for confirmation before running. Use for destructive or irreversible commands. |
 | `display` | string | no | `menu` | UI placement: `menu` (dropdown) or `button` (visible button). |
+| `inputs` | map[string]InputField | no | — | Named inputs prompted before running. Values substitute `{{key}}` in `cmd`. |
 
 ### `display` Values
 
 - **`menu`** (default) — action appears in a dropdown/overflow menu.
 - **`button`** — action appears as a visible button. Use for frequently-used actions.
+
+### Inputs
+
+Actions can prompt for user input before running. Values are substituted into `cmd` via `{{key}}` placeholders.
+
+```yaml
+actions:
+  deploy:
+    cmd: ./deploy.sh --env {{env}} --tag {{tag}}
+    confirm: true
+    inputs:
+      env:
+        type: select
+        label: Environment
+        options: [dev, staging, production]
+        default: staging
+        required: true
+      tag:
+        label: Release tag
+        placeholder: v1.0.0
+```
+
+#### Input Fields
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `label` | string | no | key name | Display name shown in the UI. |
+| `type` | string | no | `text` | Input type: `text`, `password`, or `select`. |
+| `required` | bool | no | false | Whether the field must have a value to run. |
+| `placeholder` | string | no | — | Placeholder text (for `text` and `password` types). |
+| `default` | string | no | — | Pre-filled default value. |
+| `options` | []string | no | — | List of choices (required when `type: select`). |
+
+#### Input Types
+
+- **`text`** (default) — single-line text input.
+- **`password`** — masked text input for secrets.
+- **`select`** — horizontal row of selectable buttons. User picks exactly one option.
 
 ### When to Use `confirm: true`
 

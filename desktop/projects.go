@@ -54,12 +54,13 @@ type ProfileInfo struct {
 }
 
 type ActionInputInfo struct {
-	Key         string `json:"key"`
-	Label       string `json:"label"`
-	Type        string `json:"type"`
-	Required    bool   `json:"required"`
-	Placeholder string `json:"placeholder"`
-	Default     string `json:"default"`
+	Key         string   `json:"key"`
+	Label       string   `json:"label"`
+	Type        string   `json:"type"`
+	Required    bool     `json:"required"`
+	Placeholder string   `json:"placeholder"`
+	Default     string   `json:"default"`
+	Options     []string `json:"options,omitempty"`
 }
 
 func buildInputInfos(inputs map[string]config.ActionInput) []ActionInputInfo {
@@ -89,6 +90,7 @@ func buildInputInfos(inputs map[string]config.ActionInput) []ActionInputInfo {
 			Required:    inp.Required,
 			Placeholder: inp.Placeholder,
 			Default:     inp.Default,
+			Options:     inp.Options,
 		})
 	}
 	return out

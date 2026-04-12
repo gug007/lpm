@@ -19,6 +19,7 @@ export interface ActionInputInfo {
   required: boolean;
   placeholder: string;
   default: string;
+  options?: string[];
 }
 
 export interface ActionInfo {
