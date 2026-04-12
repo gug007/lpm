@@ -77,8 +77,13 @@ const actionFields: Field[] = [
   {
     name: "cmd",
     type: "string",
-    required: true,
-    description: "Shell command to run",
+    required: false,
+    description: (
+      <>
+        Shell command to run. Required unless{" "}
+        <code className="font-mono">actions</code> is set.
+      </>
+    ),
   },
   {
     name: "label",
@@ -93,6 +98,7 @@ const actionFields: Field[] = [
     description: (
       <>
         Working directory. Supports <code className="font-mono">~</code>.
+        Inherited by nested actions.
       </>
     ),
   },
@@ -100,7 +106,7 @@ const actionFields: Field[] = [
     name: "env",
     type: "map",
     required: false,
-    description: "Environment variables",
+    description: "Environment variables. Inherited by nested actions.",
   },
   {
     name: "confirm",
@@ -115,6 +121,17 @@ const actionFields: Field[] = [
     description: (
       <>
         <code className="font-mono">button</code> or menu (default)
+      </>
+    ),
+  },
+  {
+    name: "actions",
+    type: "map",
+    required: false,
+    description: (
+      <>
+        Nested child actions. Renders as a dropdown. If the parent also has{" "}
+        <code className="font-mono">cmd</code>, renders as a split button.
       </>
     ),
   },
@@ -289,6 +306,60 @@ root: ~/Projects/myapp`}</CodeBlock>
     confirm: true
     env:
       NODE_ENV: production`}</CodeBlock>
+
+              <p className="mt-6 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                Nest actions to create a dropdown menu. When the parent has a{" "}
+                <code className="font-mono">cmd</code>, it renders as a split
+                button — clicking the main area runs the parent, clicking the
+                chevron opens the dropdown:
+              </p>
+              <CodeBlock>
+                {`actions:
+  deploy:
+    cmd: ./deploy.sh staging     `}
+                <Comment># split button — main click runs this</Comment>
+                {`
+    label: 🚀 Deploy
+    display: button
+    confirm: true
+    actions:                     `}
+                <Comment># chevron opens these</Comment>
+                {`
+      production:
+        cmd: ./deploy.sh production
+        label: 🔴 Production
+        confirm: true
+      preview:
+        cmd: ./deploy.sh preview
+        label: 👁️ Preview`}
+              </CodeBlock>
+
+              <p className="mt-6 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                Without a <code className="font-mono">cmd</code>, the whole
+                button becomes a dropdown trigger:
+              </p>
+              <CodeBlock>{`actions:
+  db:
+    label: 🗄️ Database
+    display: button
+    cwd: ./backend
+    actions:
+      migrate:
+        cmd: python manage.py migrate
+        label: 📦 Migrate
+      seed:
+        cmd: python manage.py seed
+        label: 🌱 Seed
+      reset:
+        cmd: python manage.py flush
+        label: 💣 Reset
+        confirm: true`}</CodeBlock>
+
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                Children inherit <code className="font-mono">cwd</code> and{" "}
+                <code className="font-mono">env</code> from their parent unless
+                they override them.
+              </p>
             </Section>
 
             <Section
