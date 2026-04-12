@@ -49,6 +49,9 @@ type Action = {
   key: string;
   cmd?: string;
   label: string;
+  cwd?: string;
+  env?: Record<string, string>;
+  confirm?: boolean;
   display: "button" | "menu";
   children: Action[];
 };
@@ -78,6 +81,9 @@ function normalizeAction(key: string, def: ActionDef): Action {
     key,
     cmd: def?.cmd,
     label: def?.label ?? key,
+    cwd: def?.cwd,
+    env: def?.env,
+    confirm: def?.confirm,
     display: def?.display === "button" ? "button" : "menu",
     children,
   };
@@ -92,6 +98,93 @@ function normalizeTerminal(key: string, def: TerminalDef): TerminalItem {
     label: def?.label ?? key,
     display: def?.display === "button" ? "button" : "menu",
   };
+}
+
+function ActionModal({
+  action,
+  onCancel,
+  onConfirm,
+}: {
+  action: Action;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const destructive = action.confirm === true;
+  const envEntries = action.env ? Object.entries(action.env) : [];
+  return (
+    <div className="absolute inset-0 z-30 flex items-center justify-center p-4">
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={onCancel}
+        className="absolute inset-0 bg-black/30 dark:bg-black/60"
+      />
+      <div className="relative w-full max-w-sm rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-5 shadow-xl">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+          {destructive ? `Run ${action.label}?` : action.label}
+        </h3>
+        {destructive && (
+          <p className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
+            This action is marked as requiring confirmation.
+          </p>
+        )}
+        {action.cmd && (
+          <div className="mt-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/60 px-3 py-2 font-mono text-[11px] text-gray-700 dark:text-gray-300 break-all">
+            <span className="text-gray-400 dark:text-gray-500 mr-1">$</span>
+            {action.cmd}
+          </div>
+        )}
+        {(action.cwd || envEntries.length > 0) && (
+          <dl className="mt-3 space-y-1 text-[11px]">
+            {action.cwd && (
+              <div className="flex gap-2">
+                <dt className="font-medium text-gray-500 dark:text-gray-400 flex-shrink-0">
+                  cwd
+                </dt>
+                <dd className="font-mono text-gray-700 dark:text-gray-300 truncate">
+                  {action.cwd}
+                </dd>
+              </div>
+            )}
+            {envEntries.length > 0 && (
+              <div className="flex gap-2">
+                <dt className="font-medium text-gray-500 dark:text-gray-400 flex-shrink-0">
+                  env
+                </dt>
+                <dd className="font-mono text-gray-700 dark:text-gray-300 min-w-0">
+                  {envEntries.map(([k, v]) => (
+                    <div key={k} className="truncate">
+                      {k}={v}
+                    </div>
+                  ))}
+                </dd>
+              </div>
+            )}
+          </dl>
+        )}
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg border border-gray-200 dark:border-gray-800 px-3 py-1.5 text-[11px] font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-900"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className={`rounded-lg px-3 py-1.5 text-[11px] font-medium transition-all hover:opacity-85 ${
+              destructive
+                ? "bg-red-500 text-white"
+                : "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+            }`}
+          >
+            Run
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function SecondaryButton({
@@ -118,9 +211,20 @@ function SecondaryButton({
   );
 }
 
-function SplitButton({ action }: { action: Action }) {
+function SplitButton({
+  action,
+  onRun,
+}: {
+  action: Action;
+  onRun: (a: Action) => void;
+}) {
   const [open, setOpen] = useState(false);
   const hasCmd = !!action.cmd;
+
+  const runChild = (child: Action) => {
+    setOpen(false);
+    onRun(child);
+  };
 
   if (!hasCmd) {
     return (
@@ -129,7 +233,13 @@ function SplitButton({ action }: { action: Action }) {
           {action.label}
           <ChevronDown className="w-3 h-3" />
         </SecondaryButton>
-        {open && <ChildMenu items={action.children} onClose={() => setOpen(false)} />}
+        {open && (
+          <ChildMenu
+            items={action.children}
+            onRun={runChild}
+            onClose={() => setOpen(false)}
+          />
+        )}
       </div>
     );
   }
@@ -139,6 +249,7 @@ function SplitButton({ action }: { action: Action }) {
       <div className="inline-flex items-stretch rounded-lg border border-gray-200 dark:border-gray-800">
         <button
           type="button"
+          onClick={() => onRun(action)}
           className="whitespace-nowrap rounded-l-lg px-3 py-1.5 text-[11px] font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-900 hover:text-gray-900 dark:hover:text-white transition-colors"
         >
           {action.label}
@@ -155,16 +266,24 @@ function SplitButton({ action }: { action: Action }) {
           <ChevronDown className="w-3 h-3" />
         </button>
       </div>
-      {open && <ChildMenu items={action.children} onClose={() => setOpen(false)} />}
+      {open && (
+        <ChildMenu
+          items={action.children}
+          onRun={runChild}
+          onClose={() => setOpen(false)}
+        />
+      )}
     </div>
   );
 }
 
 function ChildMenu({
   items,
+  onRun,
   onClose,
 }: {
   items: Action[];
+  onRun: (a: Action) => void;
   onClose: () => void;
 }) {
   return (
@@ -181,6 +300,7 @@ function ChildMenu({
           <button
             key={child.key}
             type="button"
+            onClick={() => onRun(child)}
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-gray-600 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900"
           >
             <span className="flex-1 truncate">{child.label}</span>
@@ -257,7 +377,14 @@ export function PlaygroundPreview({
   const [menuOpen, setMenuOpen] = useState(false);
   const [runningKeys, setRunningKeys] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<string>("all");
+  const [selectedAction, setSelectedAction] = useState<Action | null>(null);
   const startRef = useRef<HTMLDivElement>(null);
+
+  const openAction = (action: Action) => {
+    setMenuOpen(false);
+    setStartOpen(false);
+    setSelectedAction(action);
+  };
 
   const services = useMemo<Service[]>(
     () =>
@@ -352,7 +479,7 @@ export function PlaygroundPreview({
   };
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-gray-950">
+    <div className="relative h-full flex flex-col bg-white dark:bg-gray-950">
       {error && (
         <div className="flex-shrink-0 px-4 py-2 bg-red-50 dark:bg-red-950/40 border-b border-red-100 dark:border-red-950 text-[11px] text-red-700 dark:text-red-300 font-mono">
           {error}
@@ -366,13 +493,15 @@ export function PlaygroundPreview({
           </h1>
           <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
             {plainActions.map((a) => (
-              <SecondaryButton key={a.key}>{a.label}</SecondaryButton>
+              <SecondaryButton key={a.key} onClick={() => openAction(a)}>
+                {a.label}
+              </SecondaryButton>
             ))}
             {buttonTerminals.map((t) => (
               <SecondaryButton key={t.key}>{t.label}</SecondaryButton>
             ))}
             {dropdownActions.map((a) => (
-              <SplitButton key={a.key} action={a} />
+              <SplitButton key={a.key} action={a} onRun={openAction} />
             ))}
 
             <div className="relative shrink-0">
@@ -399,7 +528,11 @@ export function PlaygroundPreview({
                   {menuActions.length > 0 && (
                     <StartMenuSection label="Actions">
                       {menuActions.map((a) => (
-                        <StartMenuItem key={a.key} label={a.label} />
+                        <StartMenuItem
+                          key={a.key}
+                          label={a.label}
+                          onClick={() => openAction(a)}
+                        />
                       ))}
                     </StartMenuSection>
                   )}
@@ -580,6 +713,14 @@ export function PlaygroundPreview({
           </div>
         )}
       </div>
+
+      {selectedAction && (
+        <ActionModal
+          action={selectedAction}
+          onCancel={() => setSelectedAction(null)}
+          onConfirm={() => setSelectedAction(null)}
+        />
+      )}
     </div>
   );
 }
