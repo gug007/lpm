@@ -10,6 +10,7 @@ export interface TerminalInstance {
   label: string;
   startCmd?: string;
   resumeCmd?: string;
+  actionName?: string;
 }
 
 export interface PaneLeaf {
@@ -38,8 +39,8 @@ export function makePaneLeaf(id: string, tabs: TerminalInstance[], activeTabIdx 
   return { kind: "leaf", id, tabs, activeTabIdx };
 }
 
-export function makeTerminal(id: string, label: string, startCmd?: string, resumeCmd?: string): TerminalInstance {
-  return { id, label, ...(startCmd ? { startCmd } : {}), ...(resumeCmd ? { resumeCmd } : {}) };
+export function makeTerminal(id: string, label: string, startCmd?: string, resumeCmd?: string, actionName?: string): TerminalInstance {
+  return { id, label, ...(startCmd ? { startCmd } : {}), ...(resumeCmd ? { resumeCmd } : {}), ...(actionName ? { actionName } : {}) };
 }
 
 export function walkPanes(node: PaneNode, fn: (pane: PaneLeaf) => void): void {

@@ -27,6 +27,7 @@ export interface TerminalStartOpts {
   configName?: string;
   cwd?: string;
   env?: Record<string, string>;
+  actionName?: string;
 }
 
 // Injection waits for pty output to go quiet for PROMPT_IDLE_MS before
@@ -263,6 +264,29 @@ export function useTerminals(
 
   const createTerminalWithCmd = useCallback(
     async (label: string, cmd: string, opts?: TerminalStartOpts) => {
+      // When reuse is requested, find an existing terminal tagged with the
+      // same actionName. If found, focus it and re-send the command instead
+      // of spawning a new PTY.
+      if (opts?.actionName && treeRef.current) {
+        let found: { paneId: string; tabIdx: number; termId: string } | null = null;
+        walkPanes(treeRef.current, (pane) => {
+          if (found) return;
+          const idx = pane.tabs.findIndex((t) => t.actionName === opts.actionName);
+          if (idx !== -1) found = { paneId: pane.id, tabIdx: idx, termId: pane.tabs[idx].id };
+        });
+        if (found) {
+          const { paneId, tabIdx, termId } = found;
+          const next = mapPane(treeRef.current, paneId, (p) => ({
+            ...p,
+            activeTabIdx: tabIdx,
+            activeServiceName: undefined,
+          }));
+          applyTree(next, paneId);
+          await sendTerminalInput(termId, cmd + "\n");
+          return;
+        }
+      }
+
       // Named configs go through the restore-aware RPC: the Go side owns
       // the session-id rewrite so launch.startCmd is authoritative, and a
       // non-empty resumeCmd is the signal that this terminal opted into
@@ -282,10 +306,10 @@ export function useTerminals(
       const id = (opts?.cwd || opts?.env)
         ? await StartTerminalWithCwdEnv(projectName, opts.cwd ?? "", opts.env ?? {})
         : await StartTerminal(projectName);
-      addTerminal(makeTerminal(id, label));
+      addTerminal(makeTerminal(id, label, undefined, undefined, opts?.actionName));
       scheduleCmdInject(id, cmd);
     },
-    [projectName, addTerminal, scheduleCmdInject],
+    [projectName, addTerminal, applyTree, scheduleCmdInject],
   );
 
   const addTerminalToPane = useCallback(
@@ -574,7 +598,7 @@ async function reifyTreeWithFreshPtys(
       const ids = await Promise.all(persistedTabs.map(() => StartTerminal(projectName)));
       ids.forEach((id) => startedIds.push(id));
       const tabs = ids.map((id, i) =>
-        makeTerminal(id, persistedTabs[i].label ?? "Terminal", persistedTabs[i].startCmd, persistedTabs[i].resumeCmd),
+        makeTerminal(id, persistedTabs[i].label ?? "Terminal", persistedTabs[i].startCmd, persistedTabs[i].resumeCmd, persistedTabs[i].actionName),
       );
       const pane = makePaneLeaf(nextPaneId(), tabs, clampIdx(node.activeTabIdx, tabs.length));
       if (node.activeServiceName) pane.activeServiceName = node.activeServiceName;
@@ -613,6 +637,7 @@ function treeToPersisted(node: PaneNode): PersistedPaneNode {
         label: t.label,
         ...(t.startCmd ? { startCmd: t.startCmd } : {}),
         ...(t.resumeCmd ? { resumeCmd: t.resumeCmd } : {}),
+        ...(t.actionName ? { actionName: t.actionName } : {}),
       })),
     };
   }

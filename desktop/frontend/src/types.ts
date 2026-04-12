@@ -36,6 +36,7 @@ export interface ActionInfo {
   confirm: boolean;
   display: string;
   type?: ActionType;
+  reuse?: boolean;
   inputs?: ActionInputInfo[];
   children?: ActionInfo[];
 }

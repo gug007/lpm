@@ -161,7 +161,9 @@ export function ProjectDetail({
         for (const [k, v] of Object.entries(inputValues)) {
           cmd = cmd.replaceAll(`{{${k}}}`, v);
         }
-        const opts = (action.cwd || action.env) ? { cwd: action.cwd, env: action.env } : undefined;
+        const opts = (action.cwd || action.env || action.reuse)
+          ? { cwd: action.cwd, env: action.env, ...(action.reuse ? { actionName: action.name } : {}) }
+          : undefined;
         await terminalViewRef.current?.createTerminalWithCmd(action.label, cmd, opts);
       } catch (err) {
         toast.error(`${action.label}: ${err}`);
