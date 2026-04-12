@@ -11,6 +11,7 @@ import {
   makePaneLeaf,
   makeTerminal,
   walkPanes,
+  collectPanes,
   collectTerminals,
   findPane,
   firstPaneId,
@@ -268,22 +269,17 @@ export function useTerminals(
       // same actionName. If found, focus it and re-send the command instead
       // of spawning a new PTY.
       if (opts?.actionName && treeRef.current) {
-        let found: { paneId: string; tabIdx: number; termId: string } | null = null;
-        walkPanes(treeRef.current, (pane) => {
-          if (found) return;
+        for (const pane of collectPanes(treeRef.current)) {
           const idx = pane.tabs.findIndex((t) => t.actionName === opts.actionName);
-          if (idx !== -1) found = { paneId: pane.id, tabIdx: idx, termId: pane.tabs[idx].id };
-        });
-        if (found) {
-          const { paneId, tabIdx, termId } = found;
-          const next = mapPane(treeRef.current, paneId, (p) => ({
-            ...p,
-            activeTabIdx: tabIdx,
-            activeServiceName: undefined,
-          }));
-          applyTree(next, paneId);
-          await sendTerminalInput(termId, cmd + "\n");
-          return;
+          if (idx !== -1) {
+            applyTree(mapPane(treeRef.current, pane.id, (p) => ({
+              ...p,
+              activeTabIdx: idx,
+              activeServiceName: undefined,
+            })), pane.id);
+            await sendTerminalInput(pane.tabs[idx].id, cmd + "\n");
+            return;
+          }
         }
       }
 
@@ -294,7 +290,7 @@ export function useTerminals(
       if (opts?.configName) {
         const launch = await StartTerminalForConfig(projectName, opts.configName);
         const term = launch.resumeCmd
-          ? makeTerminal(launch.id, label, launch.startCmd, launch.resumeCmd)
+          ? makeTerminal(launch.id, label, { startCmd: launch.startCmd, resumeCmd: launch.resumeCmd })
           : makeTerminal(launch.id, label);
         addTerminal(term);
         scheduleCmdInject(launch.id, launch.startCmd);
@@ -306,7 +302,7 @@ export function useTerminals(
       const id = (opts?.cwd || opts?.env)
         ? await StartTerminalWithCwdEnv(projectName, opts.cwd ?? "", opts.env ?? {})
         : await StartTerminal(projectName);
-      addTerminal(makeTerminal(id, label, undefined, undefined, opts?.actionName));
+      addTerminal(makeTerminal(id, label, opts?.actionName ? { actionName: opts.actionName } : undefined));
       scheduleCmdInject(id, cmd);
     },
     [projectName, addTerminal, applyTree, scheduleCmdInject],
@@ -598,7 +594,11 @@ async function reifyTreeWithFreshPtys(
       const ids = await Promise.all(persistedTabs.map(() => StartTerminal(projectName)));
       ids.forEach((id) => startedIds.push(id));
       const tabs = ids.map((id, i) =>
-        makeTerminal(id, persistedTabs[i].label ?? "Terminal", persistedTabs[i].startCmd, persistedTabs[i].resumeCmd, persistedTabs[i].actionName),
+        makeTerminal(id, persistedTabs[i].label ?? "Terminal", {
+          startCmd: persistedTabs[i].startCmd,
+          resumeCmd: persistedTabs[i].resumeCmd,
+          actionName: persistedTabs[i].actionName,
+        }),
       );
       const pane = makePaneLeaf(nextPaneId(), tabs, clampIdx(node.activeTabIdx, tabs.length));
       if (node.activeServiceName) pane.activeServiceName = node.activeServiceName;

@@ -162,7 +162,7 @@ export function ProjectDetail({
           cmd = cmd.replaceAll(`{{${k}}}`, v);
         }
         const opts = (action.cwd || action.env || action.reuse)
-          ? { cwd: action.cwd, env: action.env, ...(action.reuse ? { actionName: action.name } : {}) }
+          ? { cwd: action.cwd, env: action.env, actionName: action.reuse ? action.name : undefined }
           : undefined;
         await terminalViewRef.current?.createTerminalWithCmd(action.label, cmd, opts);
       } catch (err) {
