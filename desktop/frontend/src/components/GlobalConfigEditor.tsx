@@ -1,12 +1,14 @@
 import { ReadGlobalConfig, SaveGlobalConfig } from "../../wailsjs/go/main/App";
 import { useYamlEditor } from "../hooks/useYamlEditor";
 import { ChevronLeftIcon } from "./icons";
+import { MonacoYamlEditor } from "./MonacoYamlEditor";
+import { GLOBAL_MODEL_URI } from "../monaco-setup";
 
 const load = () => ReadGlobalConfig();
 const save = (content: string) => SaveGlobalConfig(content);
 
 export function GlobalConfigEditor({ onBack }: { onBack: () => void }) {
-  const { content, setContent, dirty, saving, error, handleSave, handleTab } =
+  const { content, setContent, dirty, saving, error, handleSave } =
     useYamlEditor(load, save);
 
   return (
@@ -26,15 +28,14 @@ export function GlobalConfigEditor({ onBack }: { onBack: () => void }) {
       </p>
 
       <div className="mt-4 flex min-h-0 flex-1 flex-col relative rounded-lg border border-[var(--border)] overflow-hidden">
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onKeyDown={handleTab}
-          spellCheck={false}
-          className="min-h-0 flex-1 w-full resize-none bg-[var(--bg-primary)] px-4 py-3 font-mono text-xs leading-relaxed text-[var(--text-primary)] outline-none"
-          style={{ tabSize: 2 }}
-          placeholder={"actions:\n  deploy:\n    cmd: ./deploy.sh\n\nterminals:\n  logs:\n    cmd: tail -f /var/log/app.log"}
-        />
+        <div className="min-h-0 flex-1">
+          <MonacoYamlEditor
+            value={content}
+            onChange={setContent}
+            modelUri={GLOBAL_MODEL_URI}
+            onSave={handleSave}
+          />
+        </div>
         {(dirty || error) && (
           <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2">
             {error && (

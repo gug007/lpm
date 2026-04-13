@@ -2,7 +2,8 @@ import { useRef, useCallback, useState } from "react";
 import { ReadConfig, SaveConfig, GenerateProjectConfig } from "../../wailsjs/go/main/App";
 import { useYamlEditor } from "../hooks/useYamlEditor";
 import { VisualConfigEditor } from "./VisualConfigEditor";
-import { HighlightedYamlEditor } from "./HighlightedYamlEditor";
+import { MonacoYamlEditor } from "./MonacoYamlEditor";
+import { PROJECT_MODEL_URI } from "../monaco-setup";
 import { ChevronLeftIcon } from "./icons";
 import { AIButton } from "./ui/AIButton";
 import { AIGenerateModal } from "./AIGenerateModal";
@@ -36,7 +37,7 @@ export function ConfigEditor({ projectName, onSaved, onBack }: ConfigEditorProps
     [projectName],
   );
 
-  const { content, setContent, dirty, saving, error, handleSave, handleTab } =
+  const { content, setContent, dirty, saving, error, handleSave } =
     useYamlEditor(load, save);
 
   const [aiOpen, setAiOpen] = useState(false);
@@ -96,10 +97,11 @@ export function ConfigEditor({ projectName, onSaved, onBack }: ConfigEditorProps
         <VisualConfigEditor content={content} onChange={setContent} />
       ) : (
         <div className="relative flex-1 overflow-hidden">
-          <HighlightedYamlEditor
+          <MonacoYamlEditor
             value={content}
             onChange={setContent}
-            onKeyDown={handleTab}
+            modelUri={PROJECT_MODEL_URI}
+            onSave={handleSave}
           />
         </div>
       )}

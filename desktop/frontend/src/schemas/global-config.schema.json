@@ -1,0 +1,129 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LPM Global Config",
+  "description": "Actions and terminals available in every project.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "actions": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/action" }
+        },
+        {
+          "type": "array",
+          "items": {
+            "allOf": [
+              { "$ref": "#/definitions/action" },
+              {
+                "type": "object",
+                "required": ["name"],
+                "properties": { "name": { "type": "string" } }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "terminals": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/terminal" }
+        },
+        {
+          "type": "array",
+          "items": {
+            "allOf": [
+              { "$ref": "#/definitions/terminal" },
+              {
+                "type": "object",
+                "required": ["name"],
+                "properties": { "name": { "type": "string" } }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "definitions": {
+    "envMap": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "action": {
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cmd": { "type": "string" },
+            "label": { "type": "string" },
+            "cwd": { "type": "string" },
+            "env": { "$ref": "#/definitions/envMap" },
+            "confirm": { "type": "boolean" },
+            "display": { "type": "string", "enum": ["button", "menu"] },
+            "type": { "type": "string" },
+            "reuse": { "type": "boolean" },
+            "inputs": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/definitions/actionInput" }
+            },
+            "actions": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/definitions/action" }
+            }
+          }
+        }
+      ]
+    },
+    "actionInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string" },
+        "type": { "type": "string" },
+        "required": { "type": "boolean" },
+        "placeholder": { "type": "string" },
+        "default": { "type": "string" },
+        "options": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "required": ["label", "value"],
+                "additionalProperties": false,
+                "properties": {
+                  "label": { "type": "string" },
+                  "value": { "type": "string" }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "terminal": {
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "required": ["cmd"],
+          "additionalProperties": false,
+          "properties": {
+            "cmd": { "type": "string" },
+            "label": { "type": "string" },
+            "cwd": { "type": "string" },
+            "env": { "$ref": "#/definitions/envMap" },
+            "display": { "type": "string", "enum": ["button", "menu"] }
+          }
+        }
+      ]
+    }
+  }
+}

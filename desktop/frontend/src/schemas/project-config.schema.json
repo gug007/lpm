@@ -1,0 +1,206 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LPM Project Config",
+  "type": "object",
+  "required": ["root"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Project name. Defaults to the config filename."
+    },
+    "root": {
+      "type": "string",
+      "description": "Absolute or ~-prefixed path to the project root."
+    },
+    "label": {
+      "type": "string",
+      "description": "Display label shown in the UI."
+    },
+    "parent_name": {
+      "type": "string",
+      "description": "Inherit services/actions/terminals/profiles from another project."
+    },
+    "services": {
+      "description": "Long-running processes managed by lpm.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/service" }
+        },
+        {
+          "type": "array",
+          "items": {
+            "allOf": [
+              { "$ref": "#/definitions/service" },
+              {
+                "type": "object",
+                "required": ["name"],
+                "properties": { "name": { "type": "string" } }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "actions": {
+      "description": "One-shot commands exposed as buttons or menu items.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/action" }
+        },
+        {
+          "type": "array",
+          "items": {
+            "allOf": [
+              { "$ref": "#/definitions/action" },
+              {
+                "type": "object",
+                "required": ["name"],
+                "properties": { "name": { "type": "string" } }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "terminals": {
+      "description": "Interactive terminal panes.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/terminal" }
+        },
+        {
+          "type": "array",
+          "items": {
+            "allOf": [
+              { "$ref": "#/definitions/terminal" },
+              {
+                "type": "object",
+                "required": ["name"],
+                "properties": { "name": { "type": "string" } }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "profiles": {
+      "type": "object",
+      "description": "Named subsets of services. `default` is used when no profile is selected.",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    }
+  },
+  "definitions": {
+    "envMap": {
+      "type": "object",
+      "description": "Environment variables passed to the process.",
+      "additionalProperties": { "type": "string" }
+    },
+    "service": {
+      "oneOf": [
+        { "type": "string", "description": "Shorthand for { cmd: ... }." },
+        {
+          "type": "object",
+          "required": ["cmd"],
+          "additionalProperties": false,
+          "properties": {
+            "cmd": { "type": "string", "description": "Shell command to run." },
+            "cwd": { "type": "string", "description": "Working directory, relative to project root or absolute." },
+            "port": { "type": "integer", "minimum": 0, "maximum": 65535 },
+            "env": { "$ref": "#/definitions/envMap" },
+            "profiles": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      ]
+    },
+    "action": {
+      "oneOf": [
+        { "type": "string", "description": "Shorthand for { cmd: ... }." },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cmd": { "type": "string" },
+            "label": { "type": "string" },
+            "cwd": { "type": "string" },
+            "env": { "$ref": "#/definitions/envMap" },
+            "confirm": { "type": "boolean", "description": "Prompt before running." },
+            "display": {
+              "type": "string",
+              "enum": ["button", "menu"],
+              "description": "How the action appears in the UI."
+            },
+            "type": { "type": "string" },
+            "reuse": { "type": "boolean", "description": "Reuse an existing terminal if one is open." },
+            "inputs": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/definitions/actionInput" }
+            },
+            "actions": {
+              "type": "object",
+              "description": "Nested sub-actions inherited cwd/env.",
+              "additionalProperties": { "$ref": "#/definitions/action" }
+            }
+          }
+        }
+      ]
+    },
+    "actionInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string" },
+        "type": { "type": "string" },
+        "required": { "type": "boolean" },
+        "placeholder": { "type": "string" },
+        "default": { "type": "string" },
+        "options": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "required": ["label", "value"],
+                "additionalProperties": false,
+                "properties": {
+                  "label": { "type": "string" },
+                  "value": { "type": "string" }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "terminal": {
+      "oneOf": [
+        { "type": "string", "description": "Shorthand for { cmd: ... }." },
+        {
+          "type": "object",
+          "required": ["cmd"],
+          "additionalProperties": false,
+          "properties": {
+            "cmd": { "type": "string" },
+            "label": { "type": "string" },
+            "cwd": { "type": "string" },
+            "env": { "$ref": "#/definitions/envMap" },
+            "display": {
+              "type": "string",
+              "enum": ["button", "menu"]
+            }
+          }
+        }
+      ]
+    }
+  }
+}
