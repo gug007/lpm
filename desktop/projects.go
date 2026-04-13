@@ -25,20 +25,19 @@ type runState struct {
 }
 
 type ProjectInfo struct {
-	Name          string               `json:"name"`
-	Session       string               `json:"session"`
-	Root          string               `json:"root"`
-	Label         string               `json:"label,omitempty"`
-	Running       bool                 `json:"running"`
-	Services      []ServiceInfo        `json:"services"`
-	AllServices   []ServiceInfo        `json:"allServices"`
-	Actions       []ActionInfo         `json:"actions"`
-	Terminals     []TerminalConfigInfo `json:"terminals"`
-	Profiles      []ProfileInfo        `json:"profiles"`
-	ActiveProfile string               `json:"activeProfile"`
-	StatusEntries []StatusEntry        `json:"statusEntries"`
-	ConfigError   string               `json:"configError,omitempty"`
-	ParentName    string               `json:"parentName,omitempty"`
+	Name          string        `json:"name"`
+	Session       string        `json:"session"`
+	Root          string        `json:"root"`
+	Label         string        `json:"label,omitempty"`
+	Running       bool          `json:"running"`
+	Services      []ServiceInfo `json:"services"`
+	AllServices   []ServiceInfo `json:"allServices"`
+	Actions       []ActionInfo  `json:"actions"`
+	Profiles      []ProfileInfo `json:"profiles"`
+	ActiveProfile string        `json:"activeProfile"`
+	StatusEntries []StatusEntry `json:"statusEntries"`
+	ConfigError   string        `json:"configError,omitempty"`
+	ParentName    string        `json:"parentName,omitempty"`
 }
 
 type ServiceInfo struct {
@@ -119,13 +118,6 @@ type ActionInfo struct {
 	Children []ActionInfo      `json:"children,omitempty"`
 }
 
-type TerminalConfigInfo struct {
-	Name    string `json:"name"`
-	Label   string `json:"label"`
-	Cmd     string `json:"cmd"`
-	Display string `json:"display"`
-}
-
 func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state runState) ProjectInfo {
 	buildServiceInfos := func(names []string) []ServiceInfo {
 		out := make([]ServiceInfo, 0, len(names))
@@ -169,15 +161,16 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state r
 		})
 	}
 
-	actionNames := make([]string, 0, len(cfg.Actions))
-	for aName := range cfg.Actions {
+	resolved := cfg.ResolvedActions()
+	actionNames := make([]string, 0, len(resolved))
+	for aName := range resolved {
 		actionNames = append(actionNames, aName)
 	}
 	sort.Strings(actionNames)
 
 	actions := make([]ActionInfo, 0, len(actionNames))
 	for _, aName := range actionNames {
-		act := cfg.Actions[aName]
+		act := resolved[aName]
 		label := act.Label
 		if label == "" {
 			label = aName
@@ -228,27 +221,6 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state r
 		})
 	}
 
-	termNames := make([]string, 0, len(cfg.Terminals))
-	for tName := range cfg.Terminals {
-		termNames = append(termNames, tName)
-	}
-	sort.Strings(termNames)
-
-	terminalConfigs := make([]TerminalConfigInfo, 0, len(termNames))
-	for _, tName := range termNames {
-		term := cfg.Terminals[tName]
-		label := term.Label
-		if label == "" {
-			label = tName
-		}
-		terminalConfigs = append(terminalConfigs, TerminalConfigInfo{
-			Name:    tName,
-			Label:   label,
-			Cmd:     term.Cmd,
-			Display: term.Display,
-		})
-	}
-
 	return ProjectInfo{
 		Name:          name,
 		Session:       cfg.Name,
@@ -258,7 +230,6 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state r
 		Services:      services,
 		AllServices:   allServices,
 		Actions:       actions,
-		Terminals:     terminalConfigs,
 		Profiles:      profiles,
 		ActiveProfile: activeProfile,
 		ParentName:    cfg.ParentName,

@@ -10,7 +10,7 @@ import { RunAction } from "../../wailsjs/go/main/App";
 import { getSettings, saveSettings } from "../settings";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
-import { type ProjectInfo, type ProfileInfo, type ActionInfo, type TerminalConfigInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
+import { type ProjectInfo, type ProfileInfo, type ActionInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
 import { TerminalIcon, CheckIcon, ChevronDownIcon, PencilIcon, MenuIcon, AlertCircleIcon, PlayIcon, StopIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { useOutsideClick } from "../hooks/useOutsideClick";
@@ -120,8 +120,6 @@ export function ProjectDetail({
   const plainActions = buttonActions.filter((a) => !a.children?.length);
   const dropdownActions = buttonActions.filter((a) => a.children?.length);
   const menuActions = (project.actions ?? []).filter((a) => a.display !== "button");
-  const buttonTerminals = (project.terminals ?? []).filter((t) => t.display === "button");
-  const menuTerminals = (project.terminals ?? []).filter((t) => t.display !== "button");
 
   const [runningAction, setRunningAction] = useState<ActionInfo | null>(null);
   const [confirmAction, setConfirmAction] = useState<ActionInfo | null>(null);
@@ -158,6 +156,13 @@ export function ProjectDetail({
     if (action.type === "terminal") {
       switchDetailView("terminal");
       try {
+        // Route no-input terminals through the restore-aware RPC so the
+        // backend can rewrite startCmd/resumeCmd; templated ones substitute
+        // here and run ad-hoc.
+        if (!action.inputs?.length) {
+          await terminalViewRef.current?.createTerminalWithCmd(action.label, action.cmd, { configName: action.name });
+          return;
+        }
         let cmd = action.cmd;
         for (const [k, v] of Object.entries(inputValues)) {
           cmd = cmd.replaceAll(`{{${k}}}`, v);
@@ -216,15 +221,6 @@ export function ProjectDetail({
     visible,
   );
 
-  const handleRunTerminal = async (term: TerminalConfigInfo) => {
-    switchDetailView("terminal");
-    try {
-      await terminalViewRef.current?.createTerminalWithCmd(term.label, term.cmd, { configName: term.name });
-    } catch (err) {
-      toast.error(`${term.label}: ${err}`);
-    }
-  };
-
   const [runningPaneIDs, donePaneIDs, waitingPaneIDs, errorPaneIDs] = useMemo(() => {
     const running = new Set<string>();
     const done = new Set<string>();
@@ -243,7 +239,7 @@ export function ProjectDetail({
 
   const showProjectName = getSettings().showProjectName !== false;
 
-  const hasActions = plainActions.length > 0 || buttonTerminals.length > 0 || dropdownActions.length > 0;
+  const hasActions = plainActions.length > 0 || dropdownActions.length > 0;
 
   const {
     wrapped: actionsWrapped,
@@ -252,7 +248,6 @@ export function ProjectDetail({
   } = useOverflowWrap([
     plainActions.length,
     dropdownActions.length,
-    buttonTerminals.length,
     showProjectName,
     project.running,
     project.allServices.length,
@@ -309,7 +304,7 @@ export function ProjectDetail({
 
   const actionsNode = hasActions ? (
     <>
-      {(plainActions.length > 0 || buttonTerminals.length > 0) && (
+      {plainActions.length > 0 && (
         <div
           className={
             actionsWrapped
@@ -325,15 +320,6 @@ export function ProjectDetail({
               disabled={runningAction !== null}
               variant="secondary"
               label={action.label}
-            />
-          ))}
-          {buttonTerminals.map((term) => (
-            <ActionButton
-              key={term.name}
-              onClick={() => handleRunTerminal(term)}
-              disabled={false}
-              variant="secondary"
-              label={term.label}
             />
           ))}
         </div>
@@ -370,12 +356,10 @@ export function ProjectDetail({
         {showQuickMenu && (
           <QuickPopover
             actions={menuActions}
-            terminals={menuTerminals}
             running={project.running}
             actionBusy={runningAction !== null}
             onClose={() => setShowQuickMenu(false)}
             onRunAction={handleRunAction}
-            onRunTerminal={handleRunTerminal}
             onEditConfig={() => switchDetailView("config")}
             onRestart={() => withLoading(() => onRestart(project.name, activeProfile))}
             onRemove={() => setConfirmRemove(true)}

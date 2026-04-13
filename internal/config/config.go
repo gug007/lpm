@@ -107,23 +107,6 @@ func (a Action) ResolvedChild(name string) (Action, bool) {
 	return child, true
 }
 
-type Terminal struct {
-	Cmd     string            `yaml:"cmd"`
-	Label   string            `yaml:"label,omitempty"`
-	Cwd     string            `yaml:"cwd,omitempty"`
-	Env     map[string]string `yaml:"env,omitempty"`
-	Display string            `yaml:"display,omitempty"`
-}
-
-func (t *Terminal) UnmarshalYAML(value *yaml.Node) error {
-	if value.Kind == yaml.ScalarNode {
-		t.Cmd = value.Value
-		return nil
-	}
-	type plain Terminal
-	return value.Decode((*plain)(t))
-}
-
 // decodeNamedMap decodes a YAML node into a name-keyed map, accepting either
 // the canonical mapping form (`name: {...}`) or a sequence of entries each
 // carrying a `name:` field. yaml.v3 silently ignores the `name` key during
@@ -188,14 +171,23 @@ func (m *ActionMap) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
-type TerminalMap map[string]Terminal
+// TerminalMap is a YAML sugar section: entries are decoded as Actions and
+// default to Type="terminal" so they render alongside regular actions with
+// full support for children, inputs, and nested sub-commands.
+type TerminalMap map[string]Action
 
 func (m *TerminalMap) UnmarshalYAML(value *yaml.Node) error {
-	out, err := decodeNamedMap[Terminal](value, "terminals")
+	out, err := decodeNamedMap[Action](value, "terminals")
 	if err != nil {
 		return err
 	}
-	*m = out
+	for name, a := range out {
+		if a.Type == "" {
+			a.Type = "terminal"
+		}
+		out[name] = a
+	}
+	*m = TerminalMap(out)
 	return nil
 }
 
@@ -208,6 +200,34 @@ type ProjectConfig struct {
 	Actions    ActionMap           `yaml:"actions,omitempty"`
 	Terminals  TerminalMap         `yaml:"terminals,omitempty"`
 	Profiles   map[string][]string `yaml:"profiles,omitempty"`
+}
+
+// ResolvedActions returns project actions merged with the terminals section;
+// actions win on name collision.
+func (p *ProjectConfig) ResolvedActions() ActionMap {
+	out := make(ActionMap, len(p.Actions)+len(p.Terminals))
+	for k, v := range p.Actions {
+		out[k] = v
+	}
+	for k, v := range p.Terminals {
+		if _, exists := out[k]; exists {
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
+// ResolvedAction is the single-key form of ResolvedActions, avoiding the
+// full merged-map allocation for callers that only need one entry.
+func (p *ProjectConfig) ResolvedAction(name string) (Action, bool) {
+	if a, ok := p.Actions[name]; ok {
+		return a, true
+	}
+	if a, ok := p.Terminals[name]; ok {
+		return a, true
+	}
+	return Action{}, false
 }
 
 func (p *ProjectConfig) IsDuplicate() bool {
@@ -242,12 +262,7 @@ func LoadGlobal() *GlobalConfig {
 		return &GlobalConfig{}
 	}
 	expandActionCwds(cfg.Actions)
-	for name, term := range cfg.Terminals {
-		if term.Cwd != "" {
-			term.Cwd = expandHome(term.Cwd)
-			cfg.Terminals[name] = term
-		}
-	}
+	expandActionCwds(ActionMap(cfg.Terminals))
 	return &cfg
 }
 
@@ -312,12 +327,7 @@ func LoadProjectRaw(name string) (*ProjectConfig, error) {
 		}
 	}
 	expandActionCwds(cfg.Actions)
-	for name, term := range cfg.Terminals {
-		if term.Cwd != "" {
-			term.Cwd = expandHome(term.Cwd)
-			cfg.Terminals[name] = term
-		}
-	}
+	expandActionCwds(ActionMap(cfg.Terminals))
 	return &cfg, nil
 }
 
@@ -379,35 +389,12 @@ func LoadProjectCached(name string, cache map[string]*ProjectConfig) (*ProjectCo
 		}
 	}
 	expandActionCwds(cfg.Actions)
-	for name, term := range cfg.Terminals {
-		if term.Cwd != "" {
-			term.Cwd = expandHome(term.Cwd)
-			cfg.Terminals[name] = term
-		}
-	}
+	expandActionCwds(ActionMap(cfg.Terminals))
 
 	// Merge global actions/terminals (project entries take precedence)
 	global := LoadGlobal()
-	if len(global.Actions) > 0 {
-		if cfg.Actions == nil {
-			cfg.Actions = make(ActionMap)
-		}
-		for k, v := range global.Actions {
-			if _, exists := cfg.Actions[k]; !exists {
-				cfg.Actions[k] = v
-			}
-		}
-	}
-	if len(global.Terminals) > 0 {
-		if cfg.Terminals == nil {
-			cfg.Terminals = make(TerminalMap)
-		}
-		for k, v := range global.Terminals {
-			if _, exists := cfg.Terminals[k]; !exists {
-				cfg.Terminals[k] = v
-			}
-		}
-	}
+	cfg.Actions = mergeActionFallback(cfg.Actions, global.Actions)
+	cfg.Terminals = TerminalMap(mergeActionFallback(ActionMap(cfg.Terminals), ActionMap(global.Terminals)))
 
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -446,49 +433,8 @@ func (p *ProjectConfig) Validate() error {
 		}
 	}
 
-	for name, act := range p.Actions {
-		if strings.TrimSpace(act.Cmd) == "" && len(act.Actions) == 0 {
-			errs = append(errs, fmt.Sprintf("action %q: missing cmd", name))
-		}
-		if act.Cwd != "" {
-			abs := act.Cwd
-			if !filepath.IsAbs(abs) {
-				abs = filepath.Join(p.Root, abs)
-			}
-			if info, err := os.Stat(abs); err != nil || !info.IsDir() {
-				errs = append(errs, fmt.Sprintf("action %q: cwd %q does not exist", name, act.Cwd))
-			}
-		}
-		for childName, child := range act.Actions {
-			if strings.TrimSpace(child.Cmd) == "" {
-				errs = append(errs, fmt.Sprintf("action %q.%q: missing cmd", name, childName))
-			}
-			if child.Cwd != "" {
-				abs := child.Cwd
-				if !filepath.IsAbs(abs) {
-					abs = filepath.Join(p.Root, abs)
-				}
-				if info, err := os.Stat(abs); err != nil || !info.IsDir() {
-					errs = append(errs, fmt.Sprintf("action %q.%q: cwd %q does not exist", name, childName, child.Cwd))
-				}
-			}
-		}
-	}
-
-	for name, term := range p.Terminals {
-		if strings.TrimSpace(term.Cmd) == "" {
-			errs = append(errs, fmt.Sprintf("terminal %q: missing cmd", name))
-		}
-		if term.Cwd != "" {
-			abs := term.Cwd
-			if !filepath.IsAbs(abs) {
-				abs = filepath.Join(p.Root, abs)
-			}
-			if info, err := os.Stat(abs); err != nil || !info.IsDir() {
-				errs = append(errs, fmt.Sprintf("terminal %q: cwd %q does not exist", name, term.Cwd))
-			}
-		}
-	}
+	errs = append(errs, validateActionMap(p.Root, "action", p.Actions)...)
+	errs = append(errs, validateActionMap(p.Root, "terminal", ActionMap(p.Terminals))...)
 
 	for pName, services := range p.Profiles {
 		for _, svcName := range services {
@@ -592,31 +538,76 @@ func portableCopy(cfg *ProjectConfig) *ProjectConfig {
 		}
 	}
 
-	if len(cfg.Actions) > 0 {
-		out.Actions = make(ActionMap, len(cfg.Actions))
-		for k, v := range cfg.Actions {
-			v.Cwd = collapseHome(v.Cwd)
-			if len(v.Actions) > 0 {
-				children := make(ActionMap, len(v.Actions))
-				for ck, cv := range v.Actions {
-					cv.Cwd = collapseHome(cv.Cwd)
-					children[ck] = cv
-				}
-				v.Actions = children
-			}
-			out.Actions[k] = v
-		}
-	}
-
-	if len(cfg.Terminals) > 0 {
-		out.Terminals = make(TerminalMap, len(cfg.Terminals))
-		for k, v := range cfg.Terminals {
-			v.Cwd = collapseHome(v.Cwd)
-			out.Terminals[k] = v
-		}
-	}
+	out.Actions = portableActionMap(cfg.Actions)
+	out.Terminals = TerminalMap(portableActionMap(ActionMap(cfg.Terminals)))
 
 	return &out
+}
+
+// mergeActionFallback copies entries from src into dst only where dst does
+// not already have the key. Returns dst (allocated if nil and src is non-empty).
+func mergeActionFallback(dst, src ActionMap) ActionMap {
+	if len(src) == 0 {
+		return dst
+	}
+	if dst == nil {
+		dst = make(ActionMap, len(src))
+	}
+	for k, v := range src {
+		if _, exists := dst[k]; !exists {
+			dst[k] = v
+		}
+	}
+	return dst
+}
+
+func portableActionMap(src ActionMap) ActionMap {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make(ActionMap, len(src))
+	for k, v := range src {
+		v.Cwd = collapseHome(v.Cwd)
+		if len(v.Actions) > 0 {
+			children := make(ActionMap, len(v.Actions))
+			for ck, cv := range v.Actions {
+				cv.Cwd = collapseHome(cv.Cwd)
+				children[ck] = cv
+			}
+			v.Actions = children
+		}
+		out[k] = v
+	}
+	return out
+}
+
+func validateActionMap(root, label string, actions ActionMap) []string {
+	var errs []string
+	check := func(dir string, where string) {
+		if dir == "" {
+			return
+		}
+		abs := dir
+		if !filepath.IsAbs(abs) {
+			abs = filepath.Join(root, abs)
+		}
+		if info, err := os.Stat(abs); err != nil || !info.IsDir() {
+			errs = append(errs, fmt.Sprintf("%s: cwd %q does not exist", where, dir))
+		}
+	}
+	for name, act := range actions {
+		if strings.TrimSpace(act.Cmd) == "" && len(act.Actions) == 0 {
+			errs = append(errs, fmt.Sprintf("%s %q: missing cmd", label, name))
+		}
+		check(act.Cwd, fmt.Sprintf("%s %q", label, name))
+		for childName, child := range act.Actions {
+			if strings.TrimSpace(child.Cmd) == "" {
+				errs = append(errs, fmt.Sprintf("%s %q.%q: missing cmd", label, name, childName))
+			}
+			check(child.Cwd, fmt.Sprintf("%s %q.%q", label, name, childName))
+		}
+	}
+	return errs
 }
 
 func expandActionCwds(actions ActionMap) {

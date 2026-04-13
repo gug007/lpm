@@ -1,6 +1,6 @@
 import { useOutsideClick } from "../../hooks/useOutsideClick";
-import type { ActionInfo, TerminalConfigInfo } from "../../types";
-import { TrashIcon, RefreshIcon, TerminalIcon, PencilIcon, SettingsIcon } from "../icons";
+import type { ActionInfo } from "../../types";
+import { TrashIcon, RefreshIcon, PencilIcon, SettingsIcon } from "../icons";
 import { PlayIcon } from "./icons";
 
 const sectionLabelClass = "px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]";
@@ -8,12 +8,10 @@ const menuItemClass = "flex w-full items-center gap-2 py-1.5 text-left text-[11p
 
 interface QuickPopoverProps {
   actions: ActionInfo[];
-  terminals: TerminalConfigInfo[];
   running: boolean;
   actionBusy: boolean;
   onClose: () => void;
   onRunAction: (action: ActionInfo) => void;
-  onRunTerminal: (term: TerminalConfigInfo) => void;
   onEditConfig: () => void;
   onRestart: () => void;
   onRemove: () => void;
@@ -22,12 +20,10 @@ interface QuickPopoverProps {
 
 export function QuickPopover({
   actions,
-  terminals,
   running,
   actionBusy,
   onClose,
   onRunAction,
-  onRunTerminal,
   onEditConfig,
   onRestart,
   onRemove,
@@ -37,11 +33,6 @@ export function QuickPopover({
 
   const handleRunAction = (action: ActionInfo) => {
     onRunAction(action);
-    onClose();
-  };
-
-  const handleRunTerminal = (term: TerminalConfigInfo) => {
-    onRunTerminal(term);
     onClose();
   };
 
@@ -88,23 +79,7 @@ export function QuickPopover({
           )}
         </>
       )}
-      {terminals.length > 0 && (
-        <>
-          {actions.length > 0 && <div className="my-1 border-t border-[var(--border)]" />}
-          <div className={sectionLabelClass}>Terminals</div>
-          {terminals.map((term) => (
-            <button
-              key={term.name}
-              onClick={() => handleRunTerminal(term)}
-              className={`${menuItemClass} px-3 text-[var(--text-secondary)]`}
-            >
-              <span className="flex-1 font-mono truncate">{term.label}</span>
-              <TerminalIcon />
-            </button>
-          ))}
-        </>
-      )}
-      {(actions.length > 0 || terminals.length > 0) && <div className="my-1 border-t border-[var(--border)]" />}
+      {actions.length > 0 && <div className="my-1 border-t border-[var(--border)]" />}
       <button
         onClick={handleEditConfig}
         className={`${menuItemClass} px-3 text-[var(--text-secondary)]`}

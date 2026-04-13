@@ -41,13 +41,6 @@ export interface ActionInfo {
   children?: ActionInfo[];
 }
 
-export interface TerminalConfigInfo {
-  name: string;
-  label: string;
-  cmd: string;
-  display: string;
-}
-
 export interface ProjectInfo {
   name: string;
   session: string;
@@ -57,7 +50,6 @@ export interface ProjectInfo {
   services: ServiceInfo[];
   allServices: ServiceInfo[];
   actions: ActionInfo[];
-  terminals: TerminalConfigInfo[];
   profiles: ProfileInfo[];
   activeProfile: string;
   statusEntries: StatusEntry[];
