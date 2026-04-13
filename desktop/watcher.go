@@ -44,15 +44,19 @@ var watcherIgnoredDirs = map[string]struct{}{
 	".vscode":       {},
 }
 
-// Mirrors VS Code's files.watcherExclude denylist approach: drop only known
-// noisy .git/ internals so future git features keep triggering refreshes.
-var gitInternalDirs = map[string]struct{}{
-	"objects":           {},
-	"pack":              {},
-	"logs":              {},
-	"lfs":               {},
-	"subtree-cache":     {},
-	"fsmonitor--daemon": {},
+// VS Code-style allowlist: these are the only files directly under .git/
+// whose changes we treat as meaningful state transitions. Everything else
+// (objects, logs, lock files, fsmonitor chatter) is ignored.
+var gitWatchedFiles = map[string]struct{}{
+	"HEAD":             {},
+	"index":            {},
+	"packed-refs":      {},
+	"ORIG_HEAD":        {},
+	"MERGE_HEAD":       {},
+	"CHERRY_PICK_HEAD": {},
+	"REBASE_HEAD":      {},
+	"REVERT_HEAD":      {},
+	"BISECT_HEAD":      {},
 }
 
 type projectWatcher struct {
@@ -114,12 +118,17 @@ func ignoreWatcherEvent(root, full string) bool {
 	segments := strings.Split(rel, string(filepath.Separator))
 
 	if segments[0] == ".git" {
-		if len(segments) >= 2 {
-			if _, noisy := gitInternalDirs[segments[1]]; noisy {
-				return true
-			}
+		// Allowlist a handful of files that represent real git state; ignore
+		// the rest. Branch tips live under refs/heads/ so commits landing on
+		// a local branch still trigger a refresh.
+		if len(segments) == 2 {
+			_, ok := gitWatchedFiles[segments[1]]
+			return !ok
 		}
-		return false
+		if len(segments) >= 3 && segments[1] == "refs" && segments[2] == "heads" {
+			return false
+		}
+		return true
 	}
 
 	for _, seg := range segments {
