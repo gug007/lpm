@@ -29,6 +29,7 @@ function defineThemes(monaco: Monaco) {
     "scrollbarSlider.background": "#80808033",
     "scrollbarSlider.hoverBackground": "#80808055",
     "scrollbarSlider.activeBackground": "#80808077",
+    focusBorder: "#00000000",
   };
   monaco.editor.defineTheme("lpm-dark", {
     base: "vs-dark",
