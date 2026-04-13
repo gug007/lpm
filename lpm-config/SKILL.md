@@ -50,6 +50,10 @@ sudo apt install tmux
 | "remove action/service/terminal from lpm" | **Modify** — remove a section entry |
 | "I want a button that runs X" | **Modify** — add action or terminal with `display: button` |
 | "add a log viewer", "add a watcher" | **Modify** — likely a terminal action with `type: terminal` and `reuse: true` |
+| "make it reuse the same terminal", "only one terminal" | **Modify** — set `type: terminal` + `reuse: true` on the action |
+| "rename the button", "change the label" | **Modify** — update `label` field on the action/terminal |
+| "add a button with a dropdown of actions" | **Modify** — action group with `display: button` and nested `actions` |
+| "when I click it, give me options to choose" | **Modify** — could be `inputs` (radio options before running) or an action group (sub-actions). Ask the user which they mean. |
 | "group these actions together" | **Modify** — create an action group with nested `actions` |
 | "duplicate this project for another directory" | **Create** — use `parent_name` for a duplicate project |
 
@@ -125,11 +129,23 @@ When the user asks to add something, ask follow-up questions to pick the right c
 - Should any be a selection from fixed options? → `type: radio` with `options`
 - Any defaults?
 
+**"Add a button with a dropdown" / "button with options"**
+
+This is ambiguous — clarify what the user means:
+- **"When I click, I see a list of sub-actions to pick from"** → action group with nested `actions` and `display: button`
+- **"When I click, it asks me for a parameter then runs"** → single action with `inputs` (e.g., `type: radio` for fixed choices) and `display: button`
+
+Ask: "Should the button show a list of different commands to run, or ask for a parameter before running one command?"
+
 **"Group related actions together"**
 
 → Create an action group with nested `actions`. Ask:
 - What's the group name/label?
 - Do the sub-actions share a working directory or env vars? → Set on parent, children inherit.
+
+**"Rename a button" / "change the label"**
+
+→ Update the `label` field on the action or terminal. Read the existing config, find the entry, set or change `label`.
 
 **"Set up the same project for another directory"**
 
