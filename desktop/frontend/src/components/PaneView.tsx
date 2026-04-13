@@ -4,7 +4,14 @@ import { InteractivePane, type InteractivePaneHandle } from "./InteractivePane";
 import { Pane, type PaneHandle } from "./Pane";
 import { HeaderTab } from "./terminal/HeaderTab";
 import { IconBtn } from "./terminal/IconBtn";
-import { PlusIcon, SplitRightIcon, SplitDownIcon, ClearIcon, ExpandIcon, ShrinkIcon } from "./terminal/icons";
+import {
+  PlusIcon,
+  SplitRightIcon,
+  SplitDownIcon,
+  ClearIcon,
+  ExpandIcon,
+  ShrinkIcon,
+} from "./terminal/icons";
 import { XIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
 import { SortableItem, SortableList } from "./ui/SortableList";
@@ -43,8 +50,14 @@ export interface PaneViewProps {
   onClosePane: (paneId: string) => void;
   onClearPane: (paneId: string) => void;
   onToggleFullscreen: (paneId: string) => void;
-  onRegisterTerminalHandle: (terminalId: string, handle: InteractivePaneHandle | null) => void;
-  onRegisterServiceHandle: (serviceName: string, handle: PaneHandle | null) => void;
+  onRegisterTerminalHandle: (
+    terminalId: string,
+    handle: InteractivePaneHandle | null,
+  ) => void;
+  onRegisterServiceHandle: (
+    serviceName: string,
+    handle: PaneHandle | null,
+  ) => void;
   onClearStatus: (terminalId: string, kind: StatusKind) => void;
 }
 
@@ -79,20 +92,36 @@ function PaneViewImpl(props: PaneViewProps) {
   } = props;
 
   const hasMultipleServices = services.length > 1;
-  const isAllActive = pane.activeServiceName === ALL_SERVICES && hasMultipleServices;
+  const isAllActive =
+    pane.activeServiceName === ALL_SERVICES && hasMultipleServices;
   const namedServiceName =
-    pane.activeServiceName && services.some((s) => s.name === pane.activeServiceName)
+    pane.activeServiceName &&
+    services.some((s) => s.name === pane.activeServiceName)
       ? pane.activeServiceName
       : null;
-  const activeServiceName: string | null = isAllActive ? ALL_SERVICES : namedServiceName;
-  const terminalIdx = pane.tabs.length === 0 ? -1 : Math.min(pane.activeTabIdx, pane.tabs.length - 1);
+  const activeServiceName: string | null = isAllActive
+    ? ALL_SERVICES
+    : namedServiceName;
+  const terminalIdx =
+    pane.tabs.length === 0
+      ? -1
+      : Math.min(pane.activeTabIdx, pane.tabs.length - 1);
   const activeTerm = terminalIdx >= 0 ? pane.tabs[terminalIdx] : null;
 
   useEffect(() => {
-    if (!visible || !focused || activeServiceName !== null || !activeTerm) return;
+    if (!visible || !focused || activeServiceName !== null || !activeTerm)
+      return;
     if (donePaneIDs?.has(activeTerm.id)) onClearStatus(activeTerm.id, "Done");
     if (errorPaneIDs?.has(activeTerm.id)) onClearStatus(activeTerm.id, "Error");
-  }, [visible, focused, activeServiceName, activeTerm, donePaneIDs, errorPaneIDs, onClearStatus]);
+  }, [
+    visible,
+    focused,
+    activeServiceName,
+    activeTerm,
+    donePaneIDs,
+    errorPaneIDs,
+    onClearStatus,
+  ]);
 
   const handleReorder = useCallback(
     (order: string[]) => onReorderTerminals(pane.id, order),
@@ -105,7 +134,9 @@ function PaneViewImpl(props: PaneViewProps) {
     : "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-[var(--border)]";
 
   const headerClass = `flex items-center gap-0.5 bg-[var(--terminal-header)] px-2 py-1 border-b-1 ${
-    focused && canClose ? "border-b-[var(--accent-cyan)]" : "border-b-[var(--terminal-header-hover)]"
+    focused && canClose
+      ? "border-b-[var(--accent-cyan)]"
+      : "border-b-[var(--terminal-header-hover)]"
   }`;
 
   return (
@@ -136,7 +167,11 @@ function PaneViewImpl(props: PaneViewProps) {
           {services.length > 0 && pane.tabs.length > 0 && (
             <div className="mx-1 h-3.5 w-px bg-[var(--terminal-header-hover)]" />
           )}
-          <SortableList ids={tabIds} direction="horizontal" onReorder={handleReorder}>
+          <SortableList
+            ids={tabIds}
+            direction="horizontal"
+            onReorder={handleReorder}
+          >
             {pane.tabs.map((t, i) => {
               const isActive = activeServiceName === null && i === terminalIdx;
               const isDone = donePaneIDs?.has(t.id) ?? false;
@@ -174,16 +209,48 @@ function PaneViewImpl(props: PaneViewProps) {
           </button>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
-          <Tooltip content="Split right" side="bottom" align="end">
-            <IconBtn onClick={() => onSplit(pane.id, "row")} title="Split right"><SplitRightIcon /></IconBtn>
+          <Tooltip
+            content={
+              <>
+                Split right <span className="ml-1 opacity-70">⌘D</span>
+              </>
+            }
+            side="bottom"
+            align="end"
+          >
+            <IconBtn
+              onClick={() => onSplit(pane.id, "row")}
+              title="Split right (⌘D)"
+            >
+              <SplitRightIcon />
+            </IconBtn>
           </Tooltip>
-          <Tooltip content="Split down" side="bottom" align="end">
-            <IconBtn onClick={() => onSplit(pane.id, "col")} title="Split down"><SplitDownIcon /></IconBtn>
+          <Tooltip
+            content={
+              <>
+                Split down <span className="ml-1 opacity-70">⌘⇧D</span>
+              </>
+            }
+            side="bottom"
+            align="end"
+          >
+            <IconBtn
+              onClick={() => onSplit(pane.id, "col")}
+              title="Split down (⌘⇧D)"
+            >
+              <SplitDownIcon />
+            </IconBtn>
           </Tooltip>
           <Tooltip content="Clear" side="bottom" align="end">
-            <IconBtn onClick={() => onClearPane(pane.id)} title="Clear"><ClearIcon /></IconBtn>
+            <IconBtn onClick={() => onClearPane(pane.id)} title="Clear">
+              <ClearIcon />
+            </IconBtn>
           </Tooltip>
-          <Tooltip content={fullscreen ? "Exit fullscreen" : "Fullscreen"} side="bottom" align="end">
+          <Tooltip
+            content={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+            side="bottom"
+            align="end"
+          >
             <IconBtn
               onClick={() => onToggleFullscreen(pane.id)}
               title={fullscreen ? "Exit fullscreen (Esc)" : "Fullscreen"}
@@ -193,18 +260,26 @@ function PaneViewImpl(props: PaneViewProps) {
           </Tooltip>
           {canClose && (
             <Tooltip content="Close pane" side="bottom" align="end">
-              <IconBtn onClick={() => onClosePane(pane.id)} title="Close pane"><XIcon /></IconBtn>
+              <IconBtn onClick={() => onClosePane(pane.id)} title="Close pane">
+                <XIcon />
+              </IconBtn>
             </Tooltip>
           )}
         </div>
       </div>
-      <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${isAllActive ? "divide-x divide-[var(--border)]" : ""}`}>
+      <div
+        className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${isAllActive ? "divide-x divide-[var(--border)]" : ""}`}
+      >
         {services.map((svc) => {
           const isVisible = isAllActive || activeServiceName === svc.name;
           return (
             <div
               key={`svc:${svc.name}`}
-              className={isVisible ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" : "hidden"}
+              className={
+                isVisible
+                  ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+                  : "hidden"
+              }
             >
               <Pane
                 ref={(el) => onRegisterServiceHandle(svc.name, el)}
@@ -214,7 +289,11 @@ function PaneViewImpl(props: PaneViewProps) {
                 fontSize={fontSize}
                 themeOverride={themeOverride}
                 label={isAllActive ? svc.name : undefined}
-                onLabelClick={isAllActive ? () => onFocusService(pane.id, svc.name) : undefined}
+                onLabelClick={
+                  isAllActive
+                    ? () => onFocusService(pane.id, svc.name)
+                    : undefined
+                }
               />
             </div>
           );
@@ -224,7 +303,11 @@ function PaneViewImpl(props: PaneViewProps) {
           return (
             <div
               key={t.id}
-              className={isActive ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" : "hidden"}
+              className={
+                isActive
+                  ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+                  : "hidden"
+              }
             >
               <InteractivePane
                 ref={(el) => onRegisterTerminalHandle(t.id, el)}
