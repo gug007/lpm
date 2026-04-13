@@ -54,7 +54,7 @@ interface AppState {
   toggleProjectRunning: (name: string) => Promise<void>;
   toggleService: (name: string, service: string) => Promise<void>;
   addProject: () => Promise<void>;
-  duplicateProject: (name: string, excludeUnstaged?: boolean) => Promise<void>;
+  duplicateProject: (name: string, excludeUncommitted?: boolean) => Promise<void>;
   removeProject: (name: string) => Promise<void>;
   renameProject: (name: string, label: string) => Promise<void>;
   reorderProjects: (order: string[]) => Promise<void>;
@@ -179,11 +179,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  duplicateProject: async (name, excludeUnstaged = false) => {
+  duplicateProject: async (name, excludeUncommitted = false) => {
     if (get().duplicatingName) return;
     set({ duplicatingName: name });
     try {
-      const newName = await DuplicateProject(name, excludeUnstaged);
+      const newName = await DuplicateProject(name, excludeUncommitted);
       await get().refreshProjects();
       if (newName) set({ selected: newName, view: "projects" });
     } catch (err) {

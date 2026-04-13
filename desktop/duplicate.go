@@ -27,11 +27,11 @@ const duplicateSuffix = "-copy-"
 // from whichever project was passed in — preserving any in-progress work in
 // the duplicate the user right-clicked.
 //
-// When excludeUnstaged is true and the source has a git repository, the new
-// copy is reset so only committed + staged changes remain: unstaged
-// modifications to tracked files are reverted, and untracked files are
-// removed. Ignored files (e.g. node_modules) are preserved.
-func (a *App) DuplicateProject(name string, excludeUnstaged bool) (string, error) {
+// When excludeUncommitted is true and the source has a git repository, the
+// new copy is reset to HEAD: all uncommitted changes (staged, unstaged, and
+// untracked files) are discarded. Ignored files (e.g. node_modules) are
+// preserved.
+func (a *App) DuplicateProject(name string, excludeUncommitted bool) (string, error) {
 	srcCfg, err := config.LoadProject(name)
 	if err != nil {
 		return "", err
@@ -58,10 +58,10 @@ func (a *App) DuplicateProject(name string, excludeUnstaged bool) (string, error
 		return "", fmt.Errorf("copy failed: %w", err)
 	}
 
-	if excludeUnstaged {
-		if err := stripUnstagedChanges(newRoot); err != nil {
+	if excludeUncommitted {
+		if err := stripUncommittedChanges(newRoot); err != nil {
 			_ = os.RemoveAll(newRoot)
-			return "", fmt.Errorf("strip unstaged: %w", err)
+			return "", fmt.Errorf("strip uncommitted: %w", err)
 		}
 	}
 
@@ -79,16 +79,16 @@ func (a *App) DuplicateProject(name string, excludeUnstaged bool) (string, error
 	return newName, nil
 }
 
-// stripUnstagedChanges resets the working tree of dst so only committed +
-// staged changes remain. Tracked files are restored to their index state,
-// untracked files are removed, and ignored files (like node_modules) stay
-// put. A missing .git directory is treated as a no-op.
-func stripUnstagedChanges(dst string) error {
+// stripUncommittedChanges resets the working tree of dst to HEAD: staged and
+// unstaged modifications are discarded, untracked files are removed, and
+// ignored files (like node_modules) stay put. A missing .git directory is
+// treated as a no-op.
+func stripUncommittedChanges(dst string) error {
 	if !pathExists(filepath.Join(dst, ".git")) {
 		return nil
 	}
-	if _, err := runGit(dst, "checkout-index", "--all", "--force"); err != nil {
-		return fmt.Errorf("checkout-index: %w", err)
+	if _, err := runGit(dst, "reset", "--hard", "HEAD"); err != nil {
+		return fmt.Errorf("reset: %w", err)
 	}
 	if _, err := runGit(dst, "clean", "-fd"); err != nil {
 		return fmt.Errorf("clean: %w", err)

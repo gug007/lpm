@@ -27,7 +27,7 @@ interface SidebarProps {
   onSettings: () => void;
   onFeedback: () => void;
   onAddProject: () => void;
-  onDuplicateProject: (name: string, excludeUnstaged?: boolean) => void;
+  onDuplicateProject: (name: string, excludeUncommitted?: boolean) => void;
   onRemoveProject: (name: string) => void;
   onRenameProject: (name: string, label: string) => void;
   onReorder: (order: string[]) => void;
@@ -240,7 +240,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           canRemove={Boolean(contextProject?.parentName)}
           onRename={() => setRenamingName(contextMenu.name)}
           onDuplicate={() => onDuplicateProject(contextMenu.name)}
-          onDuplicateExcludeUnstaged={() => onDuplicateProject(contextMenu.name, true)}
+          onDuplicateExcludeUncommitted={() => onDuplicateProject(contextMenu.name, true)}
           onCopyPath={() => {
             if (contextProject?.root) navigator.clipboard.writeText(contextProject.root);
           }}
