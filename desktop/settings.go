@@ -24,6 +24,7 @@ type Settings struct {
 	ConfigEditorMode    string   `json:"configEditorMode,omitempty"`
 	ShowProjectName     *bool    `json:"showProjectName,omitempty"`
 	LastSelectedProject string   `json:"lastSelectedProject,omitempty"`
+	GitPullStrategy     string   `json:"gitPullStrategy,omitempty"`
 }
 
 func defaultSettings() Settings {

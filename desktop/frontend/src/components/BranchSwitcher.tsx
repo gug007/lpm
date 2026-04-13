@@ -4,8 +4,10 @@ import {
   CheckoutBranch,
   CreateBranch,
   GitDiscardAll,
+  PullBranch,
   SyncBranch,
 } from "../../wailsjs/go/main/App";
+import { getSettings, saveSettings, DEFAULT_PULL_STRATEGY, type GitPullStrategy } from "../settings";
 import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useEventListener } from "../hooks/useEventListener";
@@ -15,8 +17,13 @@ import { CreateBranchModal } from "./CreateBranchModal";
 import { CommitModal } from "./CommitModal";
 import { PRModal } from "./PRModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
-import { BranchIcon, CloudBranchIcon, UndoIcon } from "./icons";
+import { BranchIcon, ChevronLeftIcon, CloudBranchIcon, UndoIcon } from "./icons";
 import { branchKey, branchMatches, RemoteBadge } from "./branchUtils";
+
+const PULL_STRATEGIES: { value: GitPullStrategy; label: string }[] = [
+  { value: "ff-only", label: "Pull" },
+  { value: "rebase", label: "Pull (Rebase)" },
+];
 
 function relativeTime(unix: number): string {
   if (!unix) return "";
@@ -42,9 +49,28 @@ export function BranchSwitcher({ projectPath }: {
   const [committing, setCommitting] = useState(false);
   const [creatingPR, setCreatingPR] = useState(false);
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
+  const [pullMenuOpen, setPullMenuOpen] = useState(false);
   const [confirmDiscardAllOpen, setConfirmDiscardAllOpen] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const pullCloseTimer = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (pullCloseTimer.current) window.clearTimeout(pullCloseTimer.current);
+  }, []);
+
+  const openPullMenu = () => {
+    if (pullCloseTimer.current) {
+      window.clearTimeout(pullCloseTimer.current);
+      pullCloseTimer.current = null;
+    }
+    setPullMenuOpen(true);
+  };
+
+  const schedulePullClose = () => {
+    if (pullCloseTimer.current) window.clearTimeout(pullCloseTimer.current);
+    pullCloseTimer.current = window.setTimeout(() => setPullMenuOpen(false), 120);
+  };
   const commitMenuRef = useOutsideClick<HTMLDivElement>(
     () => setCommitMenuOpen(false),
     commitMenuOpen,
@@ -128,6 +154,24 @@ export function BranchSwitcher({ projectPath }: {
       await refresh();
     } catch (err) {
       toast.error(`Sync: ${err}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const pull = async (strategy: GitPullStrategy) => {
+    if (busy) return;
+    setCommitMenuOpen(false);
+    setPullMenuOpen(false);
+    if (strategy !== (getSettings().gitPullStrategy ?? DEFAULT_PULL_STRATEGY)) {
+      void saveSettings({ gitPullStrategy: strategy });
+    }
+    setBusy(true);
+    try {
+      await PullBranch(projectPath, strategy);
+      await refresh();
+    } catch (err) {
+      toast.error(`Pull: ${err}`);
     } finally {
       setBusy(false);
     }
@@ -272,6 +316,14 @@ export function BranchSwitcher({ projectPath }: {
               <CommitIcon />
               Commit
             </button>
+            <PullMenu
+              busy={busy}
+              currentStrategy={getSettings().gitPullStrategy ?? DEFAULT_PULL_STRATEGY}
+              open={pullMenuOpen}
+              onOpen={openPullMenu}
+              onScheduleClose={schedulePullClose}
+              onPull={pull}
+            />
             <button
               onClick={() => { setCommitMenuOpen(false); setCreatingPR(true); }}
               className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
@@ -395,3 +447,64 @@ function PlusIcon() {
   );
 }
 
+function PullIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 4v11" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="5" y1="20" x2="19" y2="20" />
+    </svg>
+  );
+}
+
+function PullMenu({
+  busy,
+  currentStrategy,
+  open,
+  onOpen,
+  onScheduleClose,
+  onPull,
+}: {
+  busy: boolean;
+  currentStrategy: GitPullStrategy;
+  open: boolean;
+  onOpen: () => void;
+  onScheduleClose: () => void;
+  onPull: (strategy: GitPullStrategy) => void;
+}) {
+  return (
+    <div className="relative" onMouseEnter={onOpen} onMouseLeave={onScheduleClose}>
+      <button
+        onClick={() => onPull(currentStrategy)}
+        disabled={busy}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+      >
+        <PullIcon />
+        Pull
+        <span className="ml-auto flex text-[var(--text-muted)]"><ChevronLeftIcon /></span>
+      </button>
+      {open && (
+        <div
+          onMouseEnter={onOpen}
+          onMouseLeave={onScheduleClose}
+          className="absolute right-full bottom-0 w-44 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg"
+        >
+          {PULL_STRATEGIES.map((opt) => {
+            const active = currentStrategy === opt.value;
+            return (
+              <button
+                key={opt.value}
+                onClick={() => onPull(opt.value)}
+                disabled={busy}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+              >
+                <span className="w-3 shrink-0">{active && <CheckIcon />}</span>
+                <span className={active ? "text-[var(--text-primary)]" : ""}>{opt.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

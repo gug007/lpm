@@ -110,13 +110,32 @@ func parseAheadBehind(tail string) (ahead, behind int) {
 	return ahead, behind
 }
 
+func (a *App) PullBranch(cwd, strategy string) error {
+	_, err := runGit(cwd, pullArgs(strategy)...)
+	return err
+}
+
 // SyncBranch pulls then pushes to bring the current branch in sync with its upstream.
 func (a *App) SyncBranch(cwd string) error {
-	if _, err := runGit(cwd, "pull", "--ff-only"); err != nil {
+	if err := a.PullBranch(cwd, a.LoadSettings().GitPullStrategy); err != nil {
 		return err
 	}
 	_, err := runGit(cwd, "push")
 	return err
+}
+
+// pullArgs maps a strategy name to the argv for `git pull`. Unknown strategies
+// fall back to --ff-only so a typo in settings.json never turns pull into a
+// merge-on-pull landmine.
+func pullArgs(strategy string) []string {
+	switch strategy {
+	case "rebase":
+		return []string{"pull", "--rebase"}
+	case "merge":
+		return []string{"pull", "--no-rebase"}
+	default:
+		return []string{"pull", "--ff-only"}
+	}
 }
 
 type Branch struct {

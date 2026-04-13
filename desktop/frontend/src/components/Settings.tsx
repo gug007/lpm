@@ -217,9 +217,9 @@ export function Settings({
         <SettingsSection title="General">
           <SettingsRow label="Theme" description="Choose your preferred look">
             <div className="flex rounded-lg border border-[var(--border)] p-0.5">
-              <ThemeButton label="Light" icon={<SunIcon />} active={theme === "light"} onClick={() => setTheme("light")} />
-              <ThemeButton label="Dark" icon={<MoonIcon />} active={theme === "dark"} onClick={() => setTheme("dark")} />
-              <ThemeButton label="System" icon={<MonitorIcon />} active={theme === "system"} onClick={() => setTheme("system")} />
+              <SegmentButton label="Light" icon={<SunIcon />} active={theme === "light"} onClick={() => setTheme("light")} />
+              <SegmentButton label="Dark" icon={<MoonIcon />} active={theme === "dark"} onClick={() => setTheme("dark")} />
+              <SegmentButton label="System" icon={<MonitorIcon />} active={theme === "system"} onClick={() => setTheme("system")} />
             </div>
           </SettingsRow>
           <SettingsRow
@@ -426,14 +426,14 @@ function SettingsRow({
   );
 }
 
-function ThemeButton({
+function SegmentButton({
   label,
   icon,
   active,
   onClick,
 }: {
   label: string;
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
   active: boolean;
   onClick: () => void;
 }) {

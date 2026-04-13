@@ -1,6 +1,10 @@
 import { LoadSettings, SaveSettings } from "../wailsjs/go/main/App";
 import type { Theme } from "./theme";
 
+export type GitPullStrategy = "ff-only" | "merge" | "rebase";
+
+export const DEFAULT_PULL_STRATEGY: GitPullStrategy = "ff-only";
+
 export interface Settings {
   theme: Theme;
   doubleClickToToggle: boolean;
@@ -17,6 +21,7 @@ export interface Settings {
   configEditorMode?: "form" | "yaml";
   showProjectName?: boolean;
   lastSelectedProject?: string;
+  gitPullStrategy?: GitPullStrategy;
 }
 
 const defaults: Settings = {
@@ -45,6 +50,10 @@ export async function loadSettings(): Promise<Settings> {
       configEditorMode: s.configEditorMode === "form" || s.configEditorMode === "yaml" ? s.configEditorMode : undefined,
       showProjectName: s.showProjectName,
       lastSelectedProject: s.lastSelectedProject,
+      gitPullStrategy:
+        s.gitPullStrategy === "merge" || s.gitPullStrategy === "rebase" || s.gitPullStrategy === "ff-only"
+          ? s.gitPullStrategy
+          : undefined,
     };
   } catch {
     cached = { ...defaults };
