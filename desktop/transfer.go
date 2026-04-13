@@ -643,35 +643,30 @@ func detectImportIssues() ([]MissingRoot, []string) {
 		for _, s := range cfg.Services {
 			considerTool(s.Cmd)
 		}
-		for _, act := range cfg.Actions {
-			considerTool(act.Cmd)
-			for _, c := range act.Actions {
-				considerTool(c.Cmd)
-			}
-		}
-		for _, t := range cfg.Terminals {
-			considerTool(t.Cmd)
-		}
+		walkActionCmds(cfg.Actions, considerTool)
+		walkActionCmds(config.ActionMap(cfg.Terminals), considerTool)
 	}
 
 	if data, err := os.ReadFile(config.GlobalPath()); err == nil {
 		var g config.GlobalConfig
 		if err := yaml.Unmarshal(data, &g); err == nil {
-			for _, act := range g.Actions {
-				considerTool(act.Cmd)
-				for _, c := range act.Actions {
-					considerTool(c.Cmd)
-				}
-			}
-			for _, t := range g.Terminals {
-				considerTool(t.Cmd)
-			}
+			walkActionCmds(g.Actions, considerTool)
+			walkActionCmds(config.ActionMap(g.Terminals), considerTool)
 		}
 	}
 
 	sort.Slice(missingRoots, func(i, j int) bool { return missingRoots[i].Project < missingRoots[j].Project })
 	sort.Strings(missingTools)
 	return missingRoots, missingTools
+}
+
+func walkActionCmds(m config.ActionMap, fn func(string)) {
+	for _, act := range m {
+		fn(act.Cmd)
+		for _, c := range act.Actions {
+			fn(c.Cmd)
+		}
+	}
 }
 
 func sanitizeHost(host string) string {

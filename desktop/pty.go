@@ -105,17 +105,17 @@ func (a *App) StartTerminalForConfig(projectName string, terminalName string) (T
 	if err != nil {
 		return TerminalLaunch{}, fmt.Errorf("load project: %w", err)
 	}
-	term, ok := cfg.Terminals[terminalName]
-	if !ok {
+	act, ok := cfg.ResolvedAction(terminalName)
+	if !ok || act.Type != "terminal" {
 		return TerminalLaunch{}, fmt.Errorf("terminal %q not found in project %q", terminalName, projectName)
 	}
 
-	id, err := a.startTerminalInternal(cfg, projectName, config.ResolveCwd(cfg.Root, term.Cwd), term.Env)
+	id, err := a.startTerminalInternal(cfg, projectName, config.ResolveCwd(cfg.Root, act.Cwd), act.Env)
 	if err != nil {
 		return TerminalLaunch{}, err
 	}
 
-	startCmd, resumeCmd := resolveRestoreCmds(term.Cmd)
+	startCmd, resumeCmd := resolveRestoreCmds(act.Cmd)
 	return TerminalLaunch{ID: id, StartCmd: startCmd, ResumeCmd: resumeCmd}, nil
 }
 

@@ -113,14 +113,23 @@
         { "type": "string" },
         {
           "type": "object",
-          "required": ["cmd"],
           "additionalProperties": false,
           "properties": {
             "cmd": { "type": "string" },
             "label": { "type": "string" },
             "cwd": { "type": "string" },
             "env": { "$ref": "#/definitions/envMap" },
-            "display": { "type": "string", "enum": ["button", "menu"] }
+            "confirm": { "type": "boolean" },
+            "reuse": { "type": "boolean" },
+            "display": { "type": "string", "enum": ["button", "menu"] },
+            "inputs": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/definitions/actionInput" }
+            },
+            "actions": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/definitions/action" }
+            }
           }
         }
       ]
