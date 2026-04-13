@@ -73,7 +73,7 @@ export function ProjectContextMenu({
         title="Duplicate the project and reset the copy to HEAD, discarding staged, unstaged, and untracked changes"
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <span className="flex-1 truncate">Duplicate without uncommitted</span>
+        <span className="flex-1 truncate">Duplicate (committed only)</span>
         <CopyIcon />
       </button>
       <button
