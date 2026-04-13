@@ -25,7 +25,8 @@ import { Tooltip } from "./ui/Tooltip";
 type BranchCommit = main.BranchCommit;
 type Branch = main.Branch;
 
-const DESC_MAX_HEIGHT = { maxHeight: "calc(8 * 1.5em + 1rem)" };
+const TITLE_MAX_HEIGHT = { maxHeight: "calc(3 * 1.4em + 0.5rem)" };
+const DESC_MAX_HEIGHT = { maxHeight: "50vh" };
 
 interface PRModalProps {
   open: boolean;
@@ -67,7 +68,7 @@ export function PRModal({
   );
   const [prURL, setPrURL] = useState("");
 
-  const titleRef = useRef<HTMLInputElement>(null);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
   const cliRef = useOutsideClick<HTMLDivElement>(
     () => setCLIMenuOpen(false),
@@ -153,6 +154,13 @@ export function PRModal({
     generateTitle();
     generateDesc();
   }, [open, loading, commits, base, anyAiAvailable, autoGenerate]);
+
+  useEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }, [title]);
 
   useEffect(() => {
     const el = descRef.current;
@@ -249,9 +257,9 @@ export function PRModal({
       zIndexClassName="z-[60]"
       contentClassName="w-[640px] max-h-[80vh] flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >
-      <div className="flex flex-col gap-4 p-5">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+          <h3 className="text-base font-semibold text-[var(--text-primary)]">
             Create Pull Request
           </h3>
           <button
@@ -265,7 +273,7 @@ export function PRModal({
         </div>
 
         {!ghAvailable && (
-          <div className="rounded-lg border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/5 px-3 py-2 text-[11px] text-[var(--accent-red)]">
+          <div className="rounded-lg border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/5 px-3 py-2 text-xs text-[var(--accent-red-text)]">
             GitHub CLI (gh) not found. Install it from{" "}
             <span className="font-medium">https://cli.github.com</span> and run{" "}
             <code className="rounded bg-[var(--bg-hover)] px-1">gh auth login</code>
@@ -290,16 +298,16 @@ export function PRModal({
               </svg>
             </div>
             <div className="flex flex-col items-center gap-1">
-              <span className="text-sm font-medium text-[var(--text-primary)]">
+              <span className="text-base font-medium text-[var(--text-primary)]">
                 Pull request created
               </span>
-              <span className="text-[11px] text-[var(--text-muted)]">
+              <span className="text-xs text-[var(--text-muted)]">
                 {currentBranch} &rarr; {base}
               </span>
             </div>
             <button
               onClick={() => BrowserOpenURL(prURL)}
-              className="rounded-lg bg-[var(--text-primary)] px-4 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-90"
+              className="rounded-lg bg-[var(--text-primary)] px-4 py-1.5 text-sm font-medium text-[var(--bg-primary)] transition-all hover:opacity-90"
             >
               Open on GitHub
             </button>
@@ -307,7 +315,7 @@ export function PRModal({
         ) : (
           <>
             {/* Base branch */}
-            <div className="flex items-center gap-2 text-[11px]">
+            <div className="flex items-center gap-2 text-xs">
               <span className="inline-flex items-center gap-1 text-[var(--text-muted)]">
                 <BranchIcon size={10} /> {currentBranch}
               </span>
@@ -333,7 +341,7 @@ export function PRModal({
                         autoCorrect="off"
                         autoCapitalize="off"
                         spellCheck={false}
-                        className="w-full rounded-md bg-[var(--bg-hover)] px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
+                        className="w-full rounded-md bg-[var(--bg-hover)] px-2 py-1 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
                       />
                     </div>
                     <div className="max-h-[200px] overflow-y-auto py-1">
@@ -343,7 +351,7 @@ export function PRModal({
                           <button
                             key={branchKey(b)}
                             onClick={() => changeBase(b.name)}
-                            className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)] ${
+                            className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-[var(--bg-hover)] ${
                               selected
                                 ? "font-medium text-[var(--text-primary)]"
                                 : "text-[var(--text-secondary)]"
@@ -357,7 +365,7 @@ export function PRModal({
                         );
                       })}
                       {filteredBranches.length === 0 && (
-                        <div className="px-3 py-2 text-[11px] text-[var(--text-muted)]">No matches</div>
+                        <div className="px-3 py-2 text-xs text-[var(--text-muted)]">No matches</div>
                       )}
                     </div>
                   </div>
@@ -365,117 +373,30 @@ export function PRModal({
               </div>
             </div>
 
-            {/* Title */}
-            <div>
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-[11px] font-medium text-[var(--text-muted)]">
-                  Title
-                </span>
-                {anyAiAvailable && (
-                  <div ref={cliRef} className="relative">
-                    <AIButton
-                      onClick={generateTitle}
-                      disabled={generatingTitle || busy || !base}
-                      loading={generatingTitle}
-                      title={`Generate with ${selectedCLILabel}`}
-                      trailing={
-                        <button
-                          onClick={() => setCLIMenuOpen(!cliMenuOpen)}
-                          disabled={generating || busy}
-                          title="Select AI CLI"
-                        >
-                          <ChevronDownIcon />
-                        </button>
-                      }
-                    >
-                      {generatingTitle ? "Generating..." : "Generate With AI"}
-                    </AIButton>
-                    {cliMenuOpen && (
-                      <div className="absolute right-0 top-full z-10 mt-1 w-36 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
-                        {AI_CLI_OPTIONS.filter((o) => aiCLIs[o.value]).map(
-                          (o) => (
-                            <button
-                              key={o.value}
-                              onClick={() => {
-                                setSelectedCLI(o.value);
-                                setCLIMenuOpen(false);
-                              }}
-                              className={`flex w-full items-center px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)] ${
-                                selectedCLI === o.value
-                                  ? "font-medium text-[var(--text-primary)]"
-                                  : "text-[var(--text-secondary)]"
-                              }`}
-                            >
-                              {o.label}
-                              {selectedCLI === o.value && (
-                                <CheckIcon />
-                              )}
-                            </button>
-                          ),
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div
-                className={
-                  generatingTitle
-                    ? "relative rounded-lg p-[1.5px] [background:conic-gradient(from_var(--gradient-angle),#3b82f6,#8b5cf6,#ec4899,#06b6d4,#6366f1,#3b82f6)] animate-[gradient-spin_2s_linear_infinite]"
-                    : ""
-                }
-              >
-                <input
+            {/* Title + Description composer */}
+            <div
+              className={`relative rounded-xl transition-all ${
+                generating
+                  ? "p-[1px] [background:conic-gradient(from_var(--gradient-angle),#6366f1,#a855f7,#ec4899,#06b6d4,#6366f1)] animate-[gradient-spin_3s_linear_infinite]"
+                  : "border border-[var(--border)] focus-within:border-[var(--text-muted)]/60"
+              }`}
+            >
+              <div className="flex flex-col rounded-[calc(0.75rem-1px)] bg-[var(--bg-secondary)]">
+                <textarea
                   ref={titleRef}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
                   }}
-                  placeholder="PR title..."
+                  placeholder="PR title"
                   disabled={busy}
-                  className={`w-full bg-[var(--bg-secondary)] px-3 py-2 text-[13px] leading-[1.5] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] disabled:opacity-60 ${
-                    generatingTitle
-                      ? "block rounded-[calc(0.5rem-1.5px)] border-none"
-                      : "rounded-lg border border-[var(--border)] focus:border-[var(--text-muted)]"
-                  }`}
+                  rows={1}
+                  style={TITLE_MAX_HEIGHT}
+                  aria-label="Pull request title"
+                  className="w-full resize-none overflow-hidden bg-transparent px-3.5 pt-3 pb-2 text-base font-semibold leading-[1.4] text-[var(--text-primary)] outline-none placeholder:font-normal placeholder:text-[var(--text-muted)] disabled:opacity-60"
                 />
-              </div>
-            </div>
-
-            {/* Description */}
-            <div>
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-[11px] font-medium text-[var(--text-muted)]">
-                  Description
-                </span>
-                {anyAiAvailable && (
-                  <AIButton
-                    onClick={generateDesc}
-                    disabled={generatingDesc || busy || !base}
-                    loading={generatingDesc}
-                    title={`Generate with ${selectedCLILabel}`}
-                    trailing={
-                      <button
-                        onClick={() => setCLIMenuOpen(!cliMenuOpen)}
-                        disabled={generating || busy}
-                        title="Select AI CLI"
-                      >
-                        <ChevronDownIcon />
-                      </button>
-                    }
-                  >
-                    {generatingDesc ? "Generating..." : "Generate With AI"}
-                  </AIButton>
-                )}
-              </div>
-              <div
-                className={
-                  generatingDesc
-                    ? "relative rounded-lg p-[1.5px] [background:conic-gradient(from_var(--gradient-angle),#3b82f6,#8b5cf6,#ec4899,#06b6d4,#6366f1,#3b82f6)] animate-[gradient-spin_2s_linear_infinite]"
-                    : ""
-                }
-              >
+                <div className="mx-3.5 border-t border-[var(--border)]/70" />
                 <textarea
                   ref={descRef}
                   value={description}
@@ -483,35 +404,98 @@ export function PRModal({
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
                   }}
-                  placeholder="Describe your changes..."
+                  placeholder="Leave a description..."
                   disabled={busy}
-                  rows={3}
+                  rows={12}
                   style={DESC_MAX_HEIGHT}
-                  className={`w-full resize-none bg-[var(--bg-secondary)] px-3 py-2 text-[13px] leading-[1.5] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] disabled:opacity-60 ${
-                    generatingDesc
-                      ? "block rounded-[calc(0.5rem-1.5px)] border-none"
-                      : "rounded-lg border border-[var(--border)] focus:border-[var(--text-muted)]"
+                  aria-label="Pull request description"
+                  className={`w-full resize-none bg-transparent px-3.5 pt-2.5 text-sm leading-[1.6] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-60 ${
+                    anyAiAvailable ? "pb-1.5" : "pb-3"
                   }`}
                 />
+                {anyAiAvailable && (
+                  <div className="flex items-center justify-end gap-1.5 px-2 pb-2">
+                    <AIButton
+                      onClick={generateTitle}
+                      disabled={generatingTitle || busy || !base || commits.length === 0}
+                      loading={generatingTitle}
+                      title={
+                        commits.length === 0
+                          ? `No commits ahead of ${base || "base"}`
+                          : `Generate title with ${selectedCLILabel}`
+                      }
+                    >
+                      {generatingTitle ? "Generating..." : "Generate Title"}
+                    </AIButton>
+                    <div ref={cliRef} className="relative">
+                      <AIButton
+                        onClick={generateDesc}
+                        disabled={generatingDesc || busy || !base || commits.length === 0}
+                        loading={generatingDesc}
+                        title={
+                          commits.length === 0
+                            ? `No commits ahead of ${base || "base"}`
+                            : `Generate description with ${selectedCLILabel}`
+                        }
+                        trailing={
+                          <button
+                            onClick={() => setCLIMenuOpen(!cliMenuOpen)}
+                            disabled={generating || busy}
+                            title="Select AI CLI"
+                          >
+                            <ChevronDownIcon />
+                          </button>
+                        }
+                      >
+                        {generatingDesc ? "Generating..." : "Generate Description"}
+                      </AIButton>
+                      {cliMenuOpen && (
+                        <div className="absolute right-0 bottom-full z-10 mb-1 w-36 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
+                          {AI_CLI_OPTIONS.filter((o) => aiCLIs[o.value]).map(
+                            (o) => (
+                              <button
+                                key={o.value}
+                                onClick={() => {
+                                  setSelectedCLI(o.value);
+                                  setCLIMenuOpen(false);
+                                }}
+                                className={`flex w-full items-center px-3 py-1.5 text-left text-xs transition-colors hover:bg-[var(--bg-hover)] ${
+                                  selectedCLI === o.value
+                                    ? "font-medium text-[var(--text-primary)]"
+                                    : "text-[var(--text-secondary)]"
+                                }`}
+                              >
+                                {o.label}
+                                {selectedCLI === o.value && (
+                                  <CheckIcon />
+                                )}
+                              </button>
+                            ),
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Commits */}
             <div className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-medium text-[var(--text-muted)]">
+              <span className="text-xs font-medium text-[var(--text-muted)]">
                 Commits
-                <span className="ml-1 text-[var(--text-muted)]/60">
+                <span className="ml-1 text-[var(--text-muted)]">
                   {commits.length}
                 </span>
               </span>
               <div className="max-h-[200px] min-h-0 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
                 {loading && (
-                  <div className="py-5 text-center text-[11px] text-[var(--text-muted)]">
+                  <div className="py-5 text-center text-xs text-[var(--text-muted)]">
                     Loading...
                   </div>
                 )}
                 {!loading && commits.length === 0 && (
-                  <div className="py-5 text-center text-[11px] text-[var(--text-muted)]">
+                  <div className="py-5 text-center text-xs text-[var(--text-muted)]">
                     No commits ahead of {base || "base"}
                   </div>
                 )}
@@ -521,13 +505,13 @@ export function PRModal({
                       key={c.hash}
                       className="flex items-center gap-2 px-2.5 py-[5px] transition-colors hover:bg-[var(--bg-hover)]"
                     >
-                      <span className="shrink-0 font-mono text-[10px] text-[var(--accent-blue)]">
+                      <span className="shrink-0 font-mono text-[11px] text-[var(--accent-blue-text)]">
                         {c.hash}
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-[11px] text-[var(--text-primary)]">
+                      <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-primary)]">
                         {c.subject}
                       </span>
-                      <span className="shrink-0 text-[10px] text-[var(--text-muted)]">
+                      <span className="shrink-0 text-[11px] text-[var(--text-muted)]">
                         {c.date}
                       </span>
                     </div>
@@ -540,9 +524,9 @@ export function PRModal({
 
       {/* Footer */}
       <div className="flex items-center justify-between border-t border-[var(--border)] px-5 py-3">
-        <span className="flex items-center gap-3 text-[10px] text-[var(--text-muted)]/60">
+        <span className="flex items-center gap-3 text-[11px] text-[var(--text-muted)]">
           {canCreate && !prURL && (
-            <kbd className="rounded bg-[var(--bg-hover)] px-1 py-0.5 text-[9px] font-medium">
+            <kbd className="rounded bg-[var(--bg-hover)] px-1 py-0.5 text-[11px] font-medium text-[var(--text-secondary)]">
               &#8984;&#9166;
             </kbd>
           )}
@@ -552,7 +536,7 @@ export function PRModal({
               side="top"
               align="start"
             >
-              <label className="flex cursor-pointer items-center gap-1.5 text-[10px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]">
+              <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]">
                 <input
                   type="checkbox"
                   checked={autoGenerate}
@@ -566,7 +550,7 @@ export function PRModal({
           {!prURL && (
             <button
               onClick={() => { EventsEmit("navigate-pr-instructions"); onClose(); }}
-              className="text-[10px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+              className="text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
             >
               Edit AI Instructions
             </button>
@@ -576,7 +560,7 @@ export function PRModal({
           <button
             onClick={onClose}
             disabled={busy}
-            className="rounded-lg px-3.5 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
+            className="rounded-lg px-3.5 py-1.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
           >
             {prURL ? "Close" : "Cancel"}
           </button>
@@ -584,7 +568,7 @@ export function PRModal({
             <button
               onClick={submit}
               disabled={!canCreate}
-              className="rounded-lg bg-[var(--text-primary)] px-4 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-30"
+              className="rounded-lg bg-[var(--text-primary)] px-4 py-1.5 text-sm font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-30"
             >
               {busy ? "Creating..." : "Create PR"}
             </button>
