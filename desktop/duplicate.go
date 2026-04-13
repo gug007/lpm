@@ -26,7 +26,12 @@ const duplicateSuffix = "-copy-"
 // same original (parent_name is never chained), but the folder content comes
 // from whichever project was passed in — preserving any in-progress work in
 // the duplicate the user right-clicked.
-func (a *App) DuplicateProject(name string) (string, error) {
+//
+// When excludeUnstaged is true and the source has a git repository, the new
+// copy is reset so only committed + staged changes remain: unstaged
+// modifications to tracked files are reverted, and untracked files are
+// removed. Ignored files (e.g. node_modules) are preserved.
+func (a *App) DuplicateProject(name string, excludeUnstaged bool) (string, error) {
 	srcCfg, err := config.LoadProject(name)
 	if err != nil {
 		return "", err
@@ -53,6 +58,13 @@ func (a *App) DuplicateProject(name string) (string, error) {
 		return "", fmt.Errorf("copy failed: %w", err)
 	}
 
+	if excludeUnstaged {
+		if err := stripUnstagedChanges(newRoot); err != nil {
+			_ = os.RemoveAll(newRoot)
+			return "", fmt.Errorf("strip unstaged: %w", err)
+		}
+	}
+
 	pointer := &config.ProjectConfig{
 		Name:       newName,
 		Root:       newRoot,
@@ -65,6 +77,23 @@ func (a *App) DuplicateProject(name string) (string, error) {
 
 	runtime.EventsEmit(a.ctx, "projects-changed")
 	return newName, nil
+}
+
+// stripUnstagedChanges resets the working tree of dst so only committed +
+// staged changes remain. Tracked files are restored to their index state,
+// untracked files are removed, and ignored files (like node_modules) stay
+// put. A missing .git directory is treated as a no-op.
+func stripUnstagedChanges(dst string) error {
+	if !pathExists(filepath.Join(dst, ".git")) {
+		return nil
+	}
+	if _, err := runGit(dst, "checkout-index", "--all", "--force"); err != nil {
+		return fmt.Errorf("checkout-index: %w", err)
+	}
+	if _, err := runGit(dst, "clean", "-fd"); err != nil {
+		return fmt.Errorf("clean: %w", err)
+	}
+	return nil
 }
 
 // nextAvailableDuplicate returns a collision-free (name, root) pair for a new
