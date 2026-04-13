@@ -382,6 +382,62 @@ func (a *App) GitPush(cwd string) error {
 	return err
 }
 
+// GitDiscardFiles drops uncommitted changes for the given paths. Tracked
+// files are restored to their HEAD state (dropping both staged and unstaged
+// changes); untracked files are removed via `git clean`, which honors
+// .gitignore so ignored paths are preserved.
+func (a *App) GitDiscardFiles(cwd string, files []string) error {
+	if len(files) == 0 {
+		return nil
+	}
+	lsArgs := append([]string{"ls-files", "--"}, files...)
+	lsOut, _ := runGit(cwd, lsArgs...)
+	tracked := make(map[string]bool)
+	for _, line := range strings.Split(lsOut, "\n") {
+		if line != "" {
+			tracked[line] = true
+		}
+	}
+	var trackedFiles, untrackedFiles []string
+	for _, f := range files {
+		if tracked[f] {
+			trackedFiles = append(trackedFiles, f)
+		} else {
+			untrackedFiles = append(untrackedFiles, f)
+		}
+	}
+	if len(trackedFiles) > 0 {
+		args := append([]string{"checkout", "HEAD", "--"}, trackedFiles...)
+		if _, err := runGit(cwd, args...); err != nil {
+			return fmt.Errorf("checkout: %w", err)
+		}
+	}
+	if len(untrackedFiles) > 0 {
+		args := append([]string{"clean", "-fd", "--"}, untrackedFiles...)
+		if _, err := runGit(cwd, args...); err != nil {
+			return fmt.Errorf("clean: %w", err)
+		}
+	}
+	return nil
+}
+
+// GitDiscardAll resets the working tree to HEAD, discarding every
+// uncommitted change (staged, unstaged, and untracked). Ignored files are
+// preserved.
+func (a *App) GitDiscardAll(cwd string) error {
+	return discardUncommittedChanges(cwd)
+}
+
+func discardUncommittedChanges(cwd string) error {
+	if _, err := runGit(cwd, "reset", "--hard", "HEAD"); err != nil {
+		return fmt.Errorf("reset: %w", err)
+	}
+	if _, err := runGit(cwd, "clean", "-fd"); err != nil {
+		return fmt.Errorf("clean: %w", err)
+	}
+	return nil
+}
+
 // GitDiff returns the combined diff for the given files.
 // For untracked files it shows the full content as an "add" diff.
 func (a *App) GitDiff(cwd string, files []string) (string, error) {

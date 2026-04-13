@@ -87,13 +87,7 @@ func stripUncommittedChanges(dst string) error {
 	if !pathExists(filepath.Join(dst, ".git")) {
 		return nil
 	}
-	if _, err := runGit(dst, "reset", "--hard", "HEAD"); err != nil {
-		return fmt.Errorf("reset: %w", err)
-	}
-	if _, err := runGit(dst, "clean", "-fd"); err != nil {
-		return fmt.Errorf("clean: %w", err)
-	}
-	return nil
+	return discardUncommittedChanges(dst)
 }
 
 // nextAvailableDuplicate returns a collision-free (name, root) pair for a new

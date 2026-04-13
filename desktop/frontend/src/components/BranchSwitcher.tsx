@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import {
   CheckoutBranch,
   CreateBranch,
+  GitDiscardAll,
   SyncBranch,
 } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
@@ -13,7 +14,8 @@ import { useBranchSearch } from "../hooks/useBranchSearch";
 import { CreateBranchModal } from "./CreateBranchModal";
 import { CommitModal } from "./CommitModal";
 import { PRModal } from "./PRModal";
-import { BranchIcon, CloudBranchIcon } from "./icons";
+import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { BranchIcon, CloudBranchIcon, UndoIcon } from "./icons";
 import { branchKey, branchMatches, RemoteBadge } from "./branchUtils";
 
 function relativeTime(unix: number): string {
@@ -40,6 +42,8 @@ export function BranchSwitcher({ projectPath }: {
   const [committing, setCommitting] = useState(false);
   const [creatingPR, setCreatingPR] = useState(false);
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
+  const [confirmDiscardAllOpen, setConfirmDiscardAllOpen] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const commitMenuRef = useOutsideClick<HTMLDivElement>(
     () => setCommitMenuOpen(false),
@@ -126,6 +130,20 @@ export function BranchSwitcher({ projectPath }: {
       toast.error(`Sync: ${err}`);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleDiscardAll = async () => {
+    setDiscarding(true);
+    try {
+      await GitDiscardAll(projectPath);
+      toast.success("Discarded all changes");
+      refresh();
+    } catch (err) {
+      toast.error(`Discard failed: ${err}`);
+    } finally {
+      setDiscarding(false);
+      setConfirmDiscardAllOpen(false);
     }
   };
 
@@ -261,6 +279,15 @@ export function BranchSwitcher({ projectPath }: {
               <PRMenuIcon />
               Create PR
             </button>
+            <div className="my-1 border-t border-[var(--border)]" />
+            <button
+              onClick={() => { setCommitMenuOpen(false); setConfirmDiscardAllOpen(true); }}
+              disabled={status.uncommitted === 0}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--accent-red)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <UndoIcon />
+              Discard all changes
+            </button>
           </div>
         )}
       </div>
@@ -282,6 +309,21 @@ export function BranchSwitcher({ projectPath }: {
         currentBranch={status.branch}
         onClose={() => setCreatingPR(false)}
         onCreated={refresh}
+      />
+      <ConfirmDialog
+        open={confirmDiscardAllOpen}
+        title="Discard all changes"
+        variant="destructive"
+        confirmLabel="Discard all"
+        disabled={discarding}
+        body={
+          <>
+            Reset the working tree to HEAD, discarding every uncommitted change
+            (staged, unstaged, and untracked). This cannot be undone.
+          </>
+        }
+        onCancel={() => setConfirmDiscardAllOpen(false)}
+        onConfirm={handleDiscardAll}
       />
     </div>
   );

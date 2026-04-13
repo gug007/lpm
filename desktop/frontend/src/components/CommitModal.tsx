@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
-import { XIcon, ChevronDownIcon } from "./icons";
+import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { XIcon, ChevronDownIcon, UndoIcon } from "./icons";
 import { AIButton } from "./ui/AIButton";
 import {
   CheckAICLIs,
@@ -10,6 +11,8 @@ import {
   GitChangedFiles,
   GitCommit,
   GitDiff,
+  GitDiscardAll,
+  GitDiscardFiles,
   GitPush,
 } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
@@ -49,8 +52,10 @@ export function CommitModal({
   const [files, setFiles] = useState<ChangedFile[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState<false | "commit" | "push">(false);
+  const [busy, setBusy] = useState<false | "commit" | "push" | "discard">(false);
   const [loading, setLoading] = useState(false);
+  const [confirmDiscardPath, setConfirmDiscardPath] = useState<string | null>(null);
+  const [confirmDiscardAllOpen, setConfirmDiscardAllOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [aiCLIs, setAiCLIs] = useState<Record<string, boolean>>({});
   const [selectedCLI, setSelectedCLI] = useState("claude");
@@ -171,6 +176,40 @@ export function CommitModal({
       setDiffLoading(false);
     }
   };
+
+  const reloadFiles = async () => {
+    const f = await GitChangedFiles(projectPath);
+    const list = f || [];
+    setFiles(list);
+    const valid = new Set(list.map((x) => x.path));
+    setSelected((prev) => {
+      const next = new Set<string>();
+      for (const p of prev) if (valid.has(p)) next.add(p);
+      return next;
+    });
+    setExpandedFile((prev) => (prev && valid.has(prev) ? prev : null));
+  };
+
+  const runDiscard = async (op: () => Promise<void>, successMsg: string) => {
+    if (busy) return;
+    setBusy("discard");
+    try {
+      await op();
+      await reloadFiles();
+      onCommitted();
+      toast.success(successMsg);
+    } catch (err) {
+      toast.error(`Discard failed: ${err}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const discardPath = (path: string) =>
+    runDiscard(() => GitDiscardFiles(projectPath, [path]), `Discarded ${path}`);
+
+  const discardAll = () =>
+    runDiscard(() => GitDiscardAll(projectPath), "Discarded all changes");
 
   const parsed = useMemo(
     () =>
@@ -344,6 +383,14 @@ export function CommitModal({
                 >
                   {selected.size === files.length ? "None" : "All"}
                 </button>
+                <button
+                  onClick={() => setConfirmDiscardAllOpen(true)}
+                  disabled={!!busy}
+                  title="Reset the working tree to HEAD, discarding every uncommitted change"
+                  className="text-[10px] text-[var(--text-muted)] transition-colors hover:text-[var(--accent-red)] disabled:opacity-40"
+                >
+                  Discard all
+                </button>
               </div>
             )}
           </div>
@@ -368,7 +415,7 @@ export function CommitModal({
                 return (
                   <div key={file.path}>
                     <div
-                      className={`flex items-center gap-2 px-2.5 py-[5px] transition-colors hover:bg-[var(--bg-hover)] ${
+                      className={`group flex items-center gap-2 px-2.5 py-[5px] transition-colors hover:bg-[var(--bg-hover)] ${
                         !checked ? "opacity-50" : ""
                       }`}
                     >
@@ -418,6 +465,14 @@ export function CommitModal({
                           <span className="text-[var(--text-muted)]"> {dir}</span>
                         )}
                       </span>
+                      <button
+                        onClick={() => setConfirmDiscardPath(file.path)}
+                        disabled={!!busy}
+                        title="Discard changes to this file"
+                        className="shrink-0 rounded p-0.5 text-[var(--text-muted)] opacity-0 transition-opacity hover:text-[var(--accent-red)] group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-0"
+                      >
+                        <UndoIcon />
+                      </button>
                       <span
                         className={`shrink-0 text-[9px] text-[var(--text-muted)] transition-transform duration-150 ${isExpanded ? "rotate-90" : ""}`}
                       >
@@ -514,6 +569,46 @@ export function CommitModal({
       />,
       document.body,
     )}
+    <ConfirmDialog
+      open={confirmDiscardPath !== null}
+      title="Discard changes"
+      variant="destructive"
+      confirmLabel="Discard"
+      disabled={busy === "discard"}
+      body={
+        <>
+          Discard changes to{" "}
+          <span className="font-medium text-[var(--text-primary)]">
+            {confirmDiscardPath}
+          </span>
+          ? This cannot be undone.
+        </>
+      }
+      onCancel={() => setConfirmDiscardPath(null)}
+      onConfirm={() => {
+        const path = confirmDiscardPath;
+        setConfirmDiscardPath(null);
+        if (path) discardPath(path);
+      }}
+    />
+    <ConfirmDialog
+      open={confirmDiscardAllOpen}
+      title="Discard all changes"
+      variant="destructive"
+      confirmLabel="Discard all"
+      disabled={busy === "discard"}
+      body={
+        <>
+          Reset the working tree to HEAD, discarding every uncommitted change
+          (staged, unstaged, and untracked). This cannot be undone.
+        </>
+      }
+      onCancel={() => setConfirmDiscardAllOpen(false)}
+      onConfirm={() => {
+        setConfirmDiscardAllOpen(false);
+        discardAll();
+      }}
+    />
     </>
   );
 }
