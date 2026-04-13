@@ -18,10 +18,13 @@ curl -fsSL https://raw.githubusercontent.com/gug007/lpm/main/install.sh | bash
 
 **Install this skill** via [skills.sh](https://skills.sh):
 ```bash
-# Into your project (committed with code)
+# Interactive — shows available skills
+npx skills add gug007/lpm
+
+# Or install directly
 npx skills add gug007/lpm -s lpm-config
 
-# Or globally (available everywhere)
+# Install globally (available everywhere)
 npx skills add gug007/lpm -s lpm-config -g
 
 # Update to latest version

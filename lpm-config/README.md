@@ -5,7 +5,10 @@ Agent skill for [lpm](https://lpm.cx) (Local Project Manager). Lets your AI codi
 ## Install
 
 ```bash
-# Into your project
+# Interactive — shows available skills
+npx skills add gug007/lpm
+
+# Or install directly
 npx skills add gug007/lpm -s lpm-config
 
 # Globally (all projects)

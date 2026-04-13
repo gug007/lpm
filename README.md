@@ -152,7 +152,10 @@ Configs are validated on load — lpm will catch missing commands, invalid ports
 This repo includes an agent skill that lets your AI coding agent create and manage lpm configs for you. Install it via [skills.sh](https://skills.sh):
 
 ```bash
-# Into your project
+# Interactive — shows available skills
+npx skills add gug007/lpm
+
+# Or install directly
 npx skills add gug007/lpm -s lpm-config
 
 # Globally (all projects)
