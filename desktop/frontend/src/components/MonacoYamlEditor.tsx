@@ -168,5 +168,22 @@ export function MonacoYamlEditor({
     suppressChangeRef.current = false;
   }, [value, ready]);
 
-  return <div ref={hostRef} className="h-full w-full" />;
+  const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+
+  return (
+    <div className="relative h-full w-full">
+      <div ref={hostRef} className="h-full w-full" />
+      <div
+        className="pointer-events-none absolute top-3 right-4 select-none font-mono text-[10px] font-medium uppercase tracking-wider text-neutral-500/70 dark:text-neutral-400/60"
+        aria-hidden
+      >
+        <kbd>{isMac ? "⇧" : "Shift"}</kbd>
+        <span className="mx-0.5">+</span>
+        <kbd>{isMac ? "⌥" : "Alt"}</kbd>
+        <span className="mx-0.5">+</span>
+        <kbd>F</kbd>
+        <span className="ml-2 normal-case tracking-normal">format</span>
+      </div>
+    </div>
+  );
 }
