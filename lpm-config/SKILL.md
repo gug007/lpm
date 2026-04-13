@@ -1,6 +1,6 @@
 ---
 name: lpm-config
-description: Create, modify, and delete lpm (Local Project Manager) project configs at ~/.lpm/projects/*.yml. Use whenever the user mentions lpm, asks to set up lpm, create/edit/delete an lpm config, add or remove services, actions, or terminals from lpm, or says "lpm setup", "create lpm config", "add service to lpm", "configure lpm". Also use when the user wants to manage dev project processes, one-shot commands, or interactive terminals through YAML config files.
+description: Create, modify, and delete lpm (Local Project Manager) project configs at ~/.lpm/projects/*.yml. Use whenever the user mentions lpm, asks to set up lpm, create/edit/delete an lpm config, add or remove services, actions, or terminals from lpm, or says "lpm setup", "create lpm config", "add service to lpm", "configure lpm". Also trigger when the user wants to add a button or menu action to run commands, manage dev project processes, start/stop multiple services together, group related commands, set up one-shot commands with confirmation prompts, or configure interactive terminal shells through YAML config files. If the user has lpm installed (~/.lpm/ exists), this skill applies to any request about managing project workflows.
 ---
 
 ## Instructions
@@ -23,6 +23,9 @@ npx skills add Darmikon/lpm -s lpm-config
 
 # Or globally (available everywhere)
 npx skills add Darmikon/lpm -s lpm-config -g
+
+# Update to latest version
+npx skills update lpm-config
 ```
 
 **tmux** is required by lpm:
@@ -68,14 +71,16 @@ If not found, run the install command from Installation above.
 **Step 3: Execute the operation**
 
 **Create:**
-1. Read [YAML Schema Reference](references/yaml-schema.md) for the full field reference.
-2. Analyze the project directory to discover:
+1. Check if a config already exists at `~/.lpm/projects/<name>.yml` — if so, confirm with the user before overwriting (or switch to **Modify** flow).
+2. Read [YAML Schema Reference](references/yaml-schema.md) for the full field reference.
+3. Consider using `lpm init` first — it auto-detects services for Rails, Next.js, Go, Django, Flask, Docker Compose, and more. You can then read the generated config and refine it rather than writing from scratch.
+4. If writing from scratch, analyze the project directory to discover:
    - **Services** — look at `package.json` scripts, `Makefile`, `docker-compose.yml`, `Procfile`, `mise.toml` for long-running processes (dev servers, watchers, workers).
    - **Actions** — one-shot commands: test, lint, build, migrate, deploy scripts.
    - **Terminals** — interactive shells: database consoles, REPLs, log tailers.
    - **Profiles** — logical groupings of services (frontend-only, full-stack, etc.).
-3. Create directory if needed: `mkdir -p ~/.lpm/projects`
-4. Write the config at `~/.lpm/projects/<name>.yml`.
+5. Create directory if needed: `mkdir -p ~/.lpm/projects`
+6. Write the config at `~/.lpm/projects/<name>.yml`.
 
 **Modify:**
 1. Read the existing config: `~/.lpm/projects/<name>.yml`.
@@ -126,6 +131,10 @@ When the user asks to add something, ask follow-up questions to pick the right c
 **"Set up the same project for another directory"**
 
 → Create a duplicate with `parent_name`. Only needs `name`, `root`, and `parent_name`.
+
+**"Add this action/terminal to all my projects"**
+
+→ Goes in the global config at `~/.lpm/global.yml`. Global config only supports `actions` and `terminals` (no services or profiles). Project-level entries with the same key take precedence.
 
 ### Output
 
