@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import type * as monacoNs from "monaco-editor";
 import { parseDocument } from "yaml";
 import { setupMonaco } from "../monaco-setup";
+import { getSettings, saveSettings } from "../settings";
+
+const DEFAULT_EDITOR_FONT_SIZE = 13;
+const MIN_EDITOR_FONT_SIZE = 8;
+const MAX_EDITOR_FONT_SIZE = 24;
 
 type Monaco = typeof monacoNs;
 
@@ -61,6 +66,9 @@ export function MonacoYamlEditor({
   const onToggleViewRef = useRef(onToggleView);
   const suppressChangeRef = useRef(false);
   const [ready, setReady] = useState(false);
+  const fontSizeRef = useRef(
+    getSettings().editorFontSize || DEFAULT_EDITOR_FONT_SIZE,
+  );
 
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
@@ -86,7 +94,7 @@ export function MonacoYamlEditor({
       theme: currentTheme(),
       automaticLayout: true,
       minimap: { enabled: false },
-      fontSize: 13,
+      fontSize: fontSizeRef.current,
       fontFamily:
         "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
       lineNumbers: "on",
@@ -119,6 +127,45 @@ export function MonacoYamlEditor({
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyE, () => {
       onToggleViewRef.current?.();
     });
+
+    const applyFontSize = (size: number) => {
+      const clamped = Math.max(
+        MIN_EDITOR_FONT_SIZE,
+        Math.min(MAX_EDITOR_FONT_SIZE, size),
+      );
+      if (clamped === fontSizeRef.current) return;
+      fontSizeRef.current = clamped;
+      editor.updateOptions({ fontSize: clamped });
+      saveSettings({ editorFontSize: clamped }).catch(() => {});
+    };
+
+    const zoomIn = () => applyFontSize(fontSizeRef.current + 1);
+    const zoomOut = () => applyFontSize(fontSizeRef.current - 1);
+    const zoomReset = () => applyFontSize(DEFAULT_EDITOR_FONT_SIZE);
+
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Equal, zoomIn);
+    editor.addCommand(
+      monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Equal,
+      zoomIn,
+    );
+    editor.addCommand(
+      monaco.KeyMod.CtrlCmd | monaco.KeyCode.NumpadAdd,
+      zoomIn,
+    );
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Minus, zoomOut);
+    editor.addCommand(
+      monaco.KeyMod.CtrlCmd | monaco.KeyCode.NumpadSubtract,
+      zoomOut,
+    );
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Digit0, zoomReset);
+
+    const wheelHandler = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      if (e.deltaY < 0) zoomIn();
+      else if (e.deltaY > 0) zoomOut();
+    };
+    hostRef.current?.addEventListener("wheel", wheelHandler, { passive: false });
 
     editor.addCommand(
       monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF,
@@ -154,8 +201,10 @@ export function MonacoYamlEditor({
       attributeFilter: ["data-theme"],
     });
 
+    const host = hostRef.current;
     return () => {
       themeObserver.disconnect();
+      host?.removeEventListener("wheel", wheelHandler);
       sub.dispose();
       editor.dispose();
       model.dispose();

@@ -8,6 +8,7 @@ export interface Settings {
   projectOrder?: string[];
   terminalTheme?: string;
   terminalFontSize?: number;
+  editorFontSize?: number;
   windowWidth?: number;
   windowHeight?: number;
   sidebarWidth?: number;
@@ -35,6 +36,7 @@ export async function loadSettings(): Promise<Settings> {
       projectOrder: s.projectOrder,
       terminalTheme: s.terminalTheme,
       terminalFontSize: s.terminalFontSize,
+      editorFontSize: s.editorFontSize,
       windowWidth: s.windowWidth,
       windowHeight: s.windowHeight,
       sidebarWidth: s.sidebarWidth,
