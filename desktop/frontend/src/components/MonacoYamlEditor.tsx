@@ -89,6 +89,7 @@ export function MonacoYamlEditor({
       tabSize: 2,
       insertSpaces: true,
       renderLineHighlight: "none",
+      stickyScroll: { enabled: false },
       overviewRulerLanes: 0,
       hideCursorInOverviewRuler: true,
       overviewRulerBorder: false,

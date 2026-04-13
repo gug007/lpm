@@ -19,7 +19,7 @@
     "@xterm/addon-web-links": "^0.13.0-beta.197",
     "@xterm/addon-webgl": "^0.20.0-beta.196",
     "@xterm/xterm": "^6.1.0-beta.197",
-    "monaco-editor": "^0.55.1",
+    "monaco-editor": "~0.52.2",
     "monaco-yaml": "^5.4.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

@@ -1,6 +1,6 @@
 import * as monaco from "monaco-editor";
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
-import YamlWorker from "monaco-yaml/yaml.worker?worker";
+import YamlWorker from "./yaml.worker?worker";
 import { configureMonacoYaml } from "monaco-yaml";
 
 import projectSchema from "./schemas/project-config.schema.json";

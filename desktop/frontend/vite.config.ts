@@ -5,6 +5,12 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   optimizeDeps: {
-    exclude: ["monaco-editor", "monaco-yaml"],
+    exclude: ["monaco-editor"],
+    include: [
+      "monaco-yaml",
+      "monaco-yaml/yaml.worker.js",
+      "prettier/plugins/yaml",
+      "prettier/standalone",
+    ],
   },
 });
