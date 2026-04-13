@@ -153,10 +153,10 @@ This repo includes an agent skill that lets your AI coding agent create and mana
 
 ```bash
 # Into your project
-npx skills add Darmikon/lpm -s lpm-config
+npx skills add gug007/lpm -s lpm-config
 
 # Globally (all projects)
-npx skills add Darmikon/lpm -s lpm-config -g
+npx skills add gug007/lpm -s lpm-config -g
 ```
 
 Then just tell your agent "set up lpm for this project" and it will analyze your codebase, discover services, and write the config. It understands all lpm config options including actions with inputs, terminal actions, action groups, profiles, and duplicate projects.

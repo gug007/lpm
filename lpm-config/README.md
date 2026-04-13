@@ -6,10 +6,10 @@ Agent skill for [lpm](https://lpm.cx) (Local Project Manager). Lets your AI codi
 
 ```bash
 # Into your project
-npx skills add Darmikon/lpm -s lpm-config
+npx skills add gug007/lpm -s lpm-config
 
 # Globally (all projects)
-npx skills add Darmikon/lpm -s lpm-config -g
+npx skills add gug007/lpm -s lpm-config -g
 ```
 
 That's it. Your agent now knows how to set up and manage lpm configs.
@@ -58,5 +58,5 @@ Works with any agent that supports the [agentskills.io](https://agentskills.io) 
 Install to a specific agent with `-a`:
 
 ```bash
-npx skills add Darmikon/lpm -s lpm-config -a cursor
+npx skills add gug007/lpm -s lpm-config -a cursor
 ```

@@ -19,10 +19,10 @@ curl -fsSL https://raw.githubusercontent.com/gug007/lpm/main/install.sh | bash
 **Install this skill** via [skills.sh](https://skills.sh):
 ```bash
 # Into your project (committed with code)
-npx skills add Darmikon/lpm -s lpm-config
+npx skills add gug007/lpm -s lpm-config
 
 # Or globally (available everywhere)
-npx skills add Darmikon/lpm -s lpm-config -g
+npx skills add gug007/lpm -s lpm-config -g
 
 # Update to latest version
 npx skills update lpm-config
