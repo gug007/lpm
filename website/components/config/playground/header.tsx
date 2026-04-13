@@ -1,15 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  ChevronDown,
-  Menu as MenuIcon,
-  Pencil,
-  RotateCcw,
-  Settings,
-  Terminal,
-  Trash2,
-} from "lucide-react";
+import { ChevronDown, Menu as MenuIcon, Terminal } from "lucide-react";
 import { SecondaryButton } from "./secondary-button";
 import { SplitButton } from "./split-button";
 import { StartMenuItem, StartMenuSection } from "./start-menu";
@@ -113,7 +105,6 @@ export function Header(props: HeaderProps) {
             menuActions={menuActions}
             menuTerminals={menuTerminals}
             openTerminalKeys={openTerminalKeys}
-            effectiveRunning={effectiveRunning}
             onOpenAction={handleOpenAction}
             onToggleTerminal={handleToggleTerminal}
           />
@@ -149,7 +140,6 @@ function HamburgerMenu({
   menuActions,
   menuTerminals,
   openTerminalKeys,
-  effectiveRunning,
   onOpenAction,
   onToggleTerminal,
 }: {
@@ -159,11 +149,9 @@ function HamburgerMenu({
   menuActions: Action[];
   menuTerminals: TerminalItem[];
   openTerminalKeys: Set<string>;
-  effectiveRunning: boolean;
   onOpenAction: (a: Action) => void;
   onToggleTerminal: (key: string) => void;
 }) {
-  const showDivider = menuActions.length > 0 || menuTerminals.length > 0;
   return (
     <div className="relative shrink-0">
       <button
@@ -199,7 +187,9 @@ function HamburgerMenu({
           )}
           {menuTerminals.length > 0 && (
             <>
-              {menuActions.length > 0 && <MenuDivider />}
+              {menuActions.length > 0 && (
+                <div className="my-1 border-t border-gray-200 dark:border-gray-800" />
+              )}
               <StartMenuSection label="Terminals">
                 {menuTerminals.map((t) => (
                   <StartMenuItem
@@ -215,45 +205,10 @@ function HamburgerMenu({
               </StartMenuSection>
             </>
           )}
-          {showDivider && <MenuDivider />}
-          <StartMenuSection label="Project">
-            <StartMenuItem
-              label="Edit Config"
-              showDot={false}
-              icon={<Pencil className="w-3 h-3" />}
-              shortcut="⌘E"
-            />
-            <StartMenuItem
-              label="Terminal Settings"
-              showDot={false}
-              icon={<Settings className="w-3 h-3" />}
-            />
-            {effectiveRunning && (
-              <StartMenuItem
-                label="Restart"
-                showDot={false}
-                icon={<RotateCcw className="w-3 h-3" />}
-              />
-            )}
-          </StartMenuSection>
-          <MenuDivider />
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-red-600 dark:text-red-400 transition-colors hover:bg-red-50 dark:hover:bg-red-950/40"
-          >
-            <span className="flex-shrink-0">
-              <Trash2 className="w-3 h-3" />
-            </span>
-            <span className="flex-1 truncate">Remove</span>
-          </button>
         </div>
       )}
     </div>
   );
-}
-
-function MenuDivider() {
-  return <div className="my-1 border-t border-gray-200 dark:border-gray-800" />;
 }
 
 function StartSplitButton({
