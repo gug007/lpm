@@ -1,24 +1,9 @@
-import { CodeBlock, Comment } from "@/components/config/code-block";
+import { ConfigPlayground } from "@/components/config/playground";
 
-export function ConfigExample() {
-  return (
-    <section className="pb-20">
-      <div className="max-w-3xl mx-auto px-6">
-        <h2 className="text-2xl sm:text-3xl font-bold text-center mb-3">
-          One config file. That&apos;s it.
-        </h2>
-        <p className="text-sm text-gray-400 dark:text-gray-500 text-center mb-8">
-          Define your services, group them into profiles, and add one-shot
-          actions.
-        </p>
-
-        <CodeBlock filename="~/.lpm/projects/myapp.yml">
-          {`name: myapp
+const HOME_EXAMPLE = `name: myapp
 root: ~/Projects/myapp
 
-`}
-          <Comment># Long-running services — started with lpm start</Comment>
-          {`
+# Long-running services — started with lpm start
 services:
   api:
     cmd: python manage.py runserver
@@ -29,24 +14,37 @@ services:
     cwd: ./frontend
   worker: celery -A backend worker
 
-`}
-          <Comment># Named subsets of services</Comment>
-          {`
+# Named subsets of services
 profiles:
   default: [api, frontend]
   full: [api, frontend, worker]
 
-`}
-          <Comment># One-shot commands — run from app or CLI</Comment>
-          {`
+# One-shot commands — run from app or CLI
 actions:
   test: pytest
   migrate:
     cmd: python manage.py migrate
     cwd: ./backend
     confirm: true
-  deploy: ./scripts/deploy.sh`}
-        </CodeBlock>
+  deploy: ./scripts/deploy.sh
+`;
+
+export function ConfigExample() {
+  return (
+    <section className="pb-20">
+      <div className="max-w-3xl mx-auto px-6">
+        <h2 className="text-2xl sm:text-3xl font-bold text-center mb-3">
+          One config file. That&apos;s it.
+        </h2>
+        <p className="text-sm text-gray-400 dark:text-gray-500 text-center mb-8">
+          Define your services, group them into profiles, and add one-shot
+          actions. Edit below to see it live.
+        </p>
+
+        <ConfigPlayground
+          filename="~/.lpm/projects/myapp.yml"
+          initial={HOME_EXAMPLE}
+        />
 
         <div className="grid gap-3 sm:grid-cols-3 mt-4">
           <div className="rounded-lg border border-gray-200 dark:border-gray-800 px-3.5 py-2.5">
