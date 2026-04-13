@@ -472,6 +472,8 @@ function PullMenu({
   onScheduleClose: () => void;
   onPull: (strategy: GitPullStrategy) => void;
 }) {
+  const currentLabel =
+    PULL_STRATEGIES.find((s) => s.value === currentStrategy)?.label ?? "Pull";
   return (
     <div className="relative" onMouseEnter={onOpen} onMouseLeave={onScheduleClose}>
       <button
@@ -480,7 +482,7 @@ function PullMenu({
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
       >
         <PullIcon />
-        Pull
+        {currentLabel}
         <span className="ml-auto flex text-[var(--text-muted)]"><ChevronLeftIcon /></span>
       </button>
       {open && (
