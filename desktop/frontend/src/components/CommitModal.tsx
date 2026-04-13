@@ -27,11 +27,11 @@ import { Tooltip } from "./ui/Tooltip";
 type ChangedFile = main.ChangedFile;
 
 const STATUS_DISPLAY: Record<string, { label: string; color: string }> = {
-  added: { label: "A", color: "text-[var(--accent-green)]" },
-  untracked: { label: "U", color: "text-[var(--accent-green)]" },
-  deleted: { label: "D", color: "text-[var(--accent-red)]" },
-  renamed: { label: "R", color: "text-[var(--accent-cyan)]" },
-  modified: { label: "M", color: "text-[var(--accent-blue)]" },
+  added: { label: "A", color: "text-[var(--accent-green-text)]" },
+  untracked: { label: "U", color: "text-[var(--accent-green-text)]" },
+  deleted: { label: "D", color: "text-[var(--accent-red-text)]" },
+  renamed: { label: "R", color: "text-[var(--accent-cyan-text)]" },
+  modified: { label: "M", color: "text-[var(--accent-blue-text)]" },
 };
 const DEFAULT_STATUS = STATUS_DISPLAY.modified;
 const MSG_MAX_HEIGHT = { maxHeight: "calc(5 * 1.5em + 1rem)" };
@@ -288,7 +288,7 @@ export function CommitModal({
     >
       <div className="flex flex-col gap-4 p-5">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+          <h3 className="text-base font-semibold text-[var(--text-primary)]">
             Commit
           </h3>
           <button
@@ -301,46 +301,14 @@ export function CommitModal({
           </button>
         </div>
 
-        <div>
-          <div className="mb-1.5 flex items-center justify-between">
-            <span className="text-[11px] font-medium text-[var(--text-muted)]">
-              Message
-            </span>
-            {anyAiAvailable && (
-              <div ref={cliRef} className="relative">
-                <AIButton
-                  onClick={generateMessage}
-                  disabled={generating || !!busy || selected.size === 0}
-                  loading={generating}
-                  title={`Generate with ${selectedCLILabel}`}
-                  trailing={<button onClick={() => setCLIMenuOpen(!cliMenuOpen)} disabled={generating || !!busy} title="Select AI CLI"><ChevronDownIcon /></button>}
-                >
-                  {generating ? "Generating..." : "Generate With AI"}
-                </AIButton>
-                {cliMenuOpen && (
-                  <div className="absolute right-0 top-full z-10 mt-1 w-36 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
-                    {AI_CLI_OPTIONS.filter((o) => aiCLIs[o.value]).map((o) => (
-                      <button
-                        key={o.value}
-                        onClick={() => { setSelectedCLI(o.value); setCLIMenuOpen(false); }}
-                        className={`flex w-full items-center px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)] ${
-                          selectedCLI === o.value ? "text-[var(--text-primary)] font-medium" : "text-[var(--text-secondary)]"
-                        }`}
-                      >
-                        {o.label}
-                        {selectedCLI === o.value && (
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="ml-auto">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          <div className={generating ? "relative rounded-lg p-[1.5px] [background:conic-gradient(from_var(--gradient-angle),#3b82f6,#8b5cf6,#ec4899,#06b6d4,#6366f1,#3b82f6)] animate-[gradient-spin_2s_linear_infinite]" : ""}>
+        <div
+          className={`relative rounded-xl transition-all ${
+            generating
+              ? "p-[1px] [background:conic-gradient(from_var(--gradient-angle),#6366f1,#a855f7,#ec4899,#06b6d4,#6366f1)] animate-[gradient-spin_3s_linear_infinite]"
+              : "border border-[var(--border)] focus-within:border-[var(--text-muted)]/60"
+          }`}
+        >
+          <div className="flex flex-col rounded-[calc(0.75rem-1px)] bg-[var(--bg-secondary)]">
             <textarea
               ref={msgRef}
               value={message}
@@ -350,20 +318,55 @@ export function CommitModal({
               }}
               placeholder="Describe your changes..."
               disabled={!!busy}
-              rows={2}
+              rows={3}
               style={MSG_MAX_HEIGHT}
-              className={`w-full resize-none bg-[var(--bg-secondary)] px-3 py-2 text-[13px] leading-[1.5] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] disabled:opacity-60 ${
-                generating ? "block rounded-[calc(0.5rem-1.5px)] border-none" : "rounded-lg border border-[var(--border)] focus:border-[var(--text-muted)]"
+              className={`w-full resize-none bg-transparent px-3.5 pt-3 text-sm leading-[1.5] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-60 ${
+                anyAiAvailable ? "pb-1.5" : "pb-3"
               }`}
             />
+            {anyAiAvailable && (
+              <div className="flex items-center justify-end px-2 pb-2">
+                <div ref={cliRef} className="relative">
+                  <AIButton
+                    onClick={generateMessage}
+                    disabled={generating || !!busy || selected.size === 0}
+                    loading={generating}
+                    title={`Generate with ${selectedCLILabel}`}
+                    trailing={<button onClick={() => setCLIMenuOpen(!cliMenuOpen)} disabled={generating || !!busy} title="Select AI CLI"><ChevronDownIcon /></button>}
+                  >
+                    {generating ? "Generating..." : "Generate with AI"}
+                  </AIButton>
+                  {cliMenuOpen && (
+                    <div className="absolute right-0 bottom-full z-10 mb-1 w-36 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
+                      {AI_CLI_OPTIONS.filter((o) => aiCLIs[o.value]).map((o) => (
+                        <button
+                          key={o.value}
+                          onClick={() => { setSelectedCLI(o.value); setCLIMenuOpen(false); }}
+                          className={`flex w-full items-center px-3 py-1.5 text-left text-xs transition-colors hover:bg-[var(--bg-hover)] ${
+                            selectedCLI === o.value ? "text-[var(--text-primary)] font-medium" : "text-[var(--text-secondary)]"
+                          }`}
+                        >
+                          {o.label}
+                          {selectedCLI === o.value && (
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="ml-auto">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-[var(--text-muted)]">
+            <span className="text-xs font-medium text-[var(--text-muted)]">
               Changes
-              <span className="ml-1 text-[var(--text-muted)]/60">
+              <span className="ml-1 text-[var(--text-muted)]">
                 {selected.size}/{files.length}
               </span>
             </span>
@@ -372,14 +375,14 @@ export function CommitModal({
                 <button
                   onClick={() => setReviewOpen(true)}
                   disabled={!!busy || selected.size === 0}
-                  className="text-[10px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
+                  className="text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
                 >
                   Review
                 </button>
                 <button
                   onClick={toggleAll}
                   disabled={!!busy}
-                  className="text-[10px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
+                  className="text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
                 >
                   {selected.size === files.length ? "None" : "All"}
                 </button>
@@ -387,7 +390,7 @@ export function CommitModal({
                   onClick={() => setConfirmDiscardAllOpen(true)}
                   disabled={!!busy}
                   title="Reset the working tree to HEAD, discarding every uncommitted change"
-                  className="text-[10px] text-[var(--text-muted)] transition-colors hover:text-[var(--accent-red)] disabled:opacity-40"
+                  className="text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--accent-red-text)] disabled:opacity-40"
                 >
                   Discard all
                 </button>
@@ -397,12 +400,12 @@ export function CommitModal({
 
           <div className="max-h-[300px] min-h-0 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
             {loading && (
-              <div className="py-5 text-center text-[11px] text-[var(--text-muted)]">
+              <div className="py-5 text-center text-xs text-[var(--text-muted)]">
                 Loading...
               </div>
             )}
             {!loading && files.length === 0 && (
-              <div className="py-5 text-center text-[11px] text-[var(--text-muted)]">
+              <div className="py-5 text-center text-xs text-[var(--text-muted)]">
                 No changes
               </div>
             )}
@@ -451,14 +454,14 @@ export function CommitModal({
                         />
                       </label>
                       <span
-                        className={`shrink-0 w-3 text-center text-[10px] font-bold ${statusClr}`}
+                        className={`shrink-0 w-3 text-center text-[11px] font-bold ${statusClr}`}
                         title={file.status}
                       >
                         {statusLabel}
                       </span>
                       <span
                         onClick={() => toggleDiff(file.path)}
-                        className="min-w-0 flex-1 cursor-pointer truncate text-[11px] text-[var(--text-primary)]"
+                        className="min-w-0 flex-1 cursor-pointer truncate text-xs text-[var(--text-primary)]"
                       >
                         {fileName}
                         {dir && (
@@ -469,12 +472,12 @@ export function CommitModal({
                         onClick={() => setConfirmDiscardPath(file.path)}
                         disabled={!!busy}
                         title="Discard changes to this file"
-                        className="shrink-0 rounded p-0.5 text-[var(--text-muted)] opacity-0 transition-opacity hover:text-[var(--accent-red)] group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-0"
+                        className="shrink-0 rounded p-0.5 text-[var(--text-muted)] opacity-0 transition-opacity hover:text-[var(--accent-red-text)] group-hover:opacity-100 focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-0"
                       >
                         <UndoIcon />
                       </button>
                       <span
-                        className={`shrink-0 text-[9px] text-[var(--text-muted)] transition-transform duration-150 ${isExpanded ? "rotate-90" : ""}`}
+                        className={`shrink-0 text-[11px] text-[var(--text-muted)] transition-transform duration-150 ${isExpanded ? "rotate-90" : ""}`}
                       >
                         &#9654;
                       </span>
@@ -491,15 +494,15 @@ export function CommitModal({
 
       {/* Footer */}
       <div className="flex items-center justify-between border-t border-[var(--border)] px-5 py-3">
-        <span className="flex items-center gap-3 text-[10px] text-[var(--text-muted)]/60">
+        <span className="flex items-center gap-3 text-[11px] text-[var(--text-muted)]">
           {canCommit && (
-            <kbd className="rounded bg-[var(--bg-hover)] px-1 py-0.5 text-[9px] font-medium">
+            <kbd className="rounded bg-[var(--bg-hover)] px-1 py-0.5 text-[11px] font-medium text-[var(--text-secondary)]">
               &#8984;&#9166;
             </kbd>
           )}
           {anyAiAvailable && (
             <Tooltip content="Auto-generate commit message on open" side="top" align="start">
-              <label className="flex cursor-pointer items-center gap-1.5 text-[10px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]">
+              <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]">
                 <input
                   type="checkbox"
                   checked={autoGenerate}
@@ -512,7 +515,7 @@ export function CommitModal({
           )}
           <button
             onClick={() => { EventsEmit("navigate-commit-instructions"); onClose(); }}
-            className="text-[10px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+            className="text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
           >
             Edit AI Instructions
           </button>
@@ -521,7 +524,7 @@ export function CommitModal({
           <button
             onClick={onClose}
             disabled={!!busy}
-            className="rounded-lg px-3.5 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
+            className="rounded-lg px-3.5 py-1.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
           >
             Cancel
           </button>
@@ -529,7 +532,7 @@ export function CommitModal({
             <button
               onClick={() => submit(false)}
               disabled={!canCommit}
-              className="rounded-l-lg bg-[var(--text-primary)] px-4 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-30"
+              className="rounded-l-lg bg-[var(--text-primary)] px-4 py-1.5 text-sm font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-30"
             >
               {busy === "push" ? "Pushing..." : busy === "commit" ? "Committing..." : "Commit"}
             </button>
@@ -549,7 +552,7 @@ export function CommitModal({
                   <button
                     key={opt.label}
                     onClick={() => { setCommitMenuOpen(false); submit(opt.push); }}
-                    className="flex w-full items-center px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                    className="flex w-full items-center px-3 py-1.5 text-left text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                   >
                     {opt.label}
                   </button>
