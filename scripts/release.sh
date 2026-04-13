@@ -1,21 +1,37 @@
 #!/bin/sh
 set -e
 
-# Get the latest tag
+BUMP="${1:-patch}"
+
+case "$BUMP" in
+  patch|minor|major) ;;
+  *)
+    echo "error: bump must be one of: patch, minor, major (got '$BUMP')" >&2
+    exit 1
+    ;;
+esac
+
 LATEST=$(git tag -l 'v*' --sort=-v:refname | head -1)
 
 if [ -z "$LATEST" ]; then
-  NEXT="v0.1.0"
+  MAJOR=0
+  MINOR=0
+  PATCH=0
 else
-  # Parse major.minor.patch
   VERSION="${LATEST#v}"
-  MAJOR=$(echo "$VERSION" | cut -d. -f1)
-  MINOR=$(echo "$VERSION" | cut -d. -f2)
-  PATCH=$(echo "$VERSION" | cut -d. -f3)
-  NEXT="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+  MAJOR="${VERSION%%.*}"
+  REST="${VERSION#*.}"
+  MINOR="${REST%%.*}"
+  PATCH="${REST#*.}"
 fi
 
-echo "$LATEST -> $NEXT"
+case "$BUMP" in
+  major) NEXT="v$((MAJOR + 1)).0.0" ;;
+  minor) NEXT="v${MAJOR}.$((MINOR + 1)).0" ;;
+  patch) NEXT="v${MAJOR}.${MINOR}.$((PATCH + 1))" ;;
+esac
+
+echo "$LATEST -> $NEXT ($BUMP)"
 git tag "$NEXT"
-git push --tags
+git push origin "$NEXT"
 echo "Released $NEXT"
