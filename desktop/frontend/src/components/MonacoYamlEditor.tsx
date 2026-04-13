@@ -10,6 +10,7 @@ interface MonacoYamlEditorProps {
   onChange: (value: string) => void;
   modelUri: string;
   onSave?: () => void;
+  onToggleView?: () => void;
 }
 
 function currentTheme(): "lpm-dark" | "lpm-light" {
@@ -50,17 +51,20 @@ export function MonacoYamlEditor({
   onChange,
   modelUri,
   onSave,
+  onToggleView,
 }: MonacoYamlEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monacoNs.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
+  const onToggleViewRef = useRef(onToggleView);
   const suppressChangeRef = useRef(false);
   const [ready, setReady] = useState(false);
 
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
+  onToggleViewRef.current = onToggleView;
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -110,6 +114,10 @@ export function MonacoYamlEditor({
 
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       onSaveRef.current?.();
+    });
+
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyE, () => {
+      onToggleViewRef.current?.();
     });
 
     editor.addCommand(

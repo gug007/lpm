@@ -14,9 +14,10 @@ interface ConfigEditorProps {
   projectName: string;
   onSaved: (newName: string) => void;
   onBack?: () => void;
+  onToggleView?: () => void;
 }
 
-export function ConfigEditor({ projectName, onSaved, onBack }: ConfigEditorProps) {
+export function ConfigEditor({ projectName, onSaved, onBack, onToggleView }: ConfigEditorProps) {
   const onSavedRef = useRef(onSaved);
   onSavedRef.current = onSaved;
 
@@ -102,6 +103,7 @@ export function ConfigEditor({ projectName, onSaved, onBack }: ConfigEditorProps
             onChange={setContent}
             modelUri={PROJECT_MODEL_URI}
             onSave={handleSave}
+            onToggleView={onToggleView}
           />
         </div>
       )}

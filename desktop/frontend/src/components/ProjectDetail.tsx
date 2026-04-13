@@ -274,6 +274,7 @@ export function ProjectDetail({
               projectName={project.name}
               onSaved={onRefresh}
               onBack={() => switchDetailView("terminal")}
+              onToggleView={() => switchDetailView("terminal")}
             />
           </div>
         ) : (
@@ -543,6 +544,7 @@ export function ProjectDetail({
             projectName={project.name}
             onSaved={onRefresh}
             onBack={() => switchDetailView("terminal")}
+            onToggleView={() => switchDetailView("terminal")}
           />
         </div>
       )}
