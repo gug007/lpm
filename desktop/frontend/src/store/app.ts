@@ -14,6 +14,7 @@ import {
   ToggleProjectService,
 } from "../../wailsjs/go/main/App";
 import { getSettings } from "../settings";
+import { forgetProjectTerminals } from "../terminals";
 
 export type View =
   | "projects"
@@ -197,6 +198,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ removingName: name });
     try {
       await RemoveProject(name);
+      forgetProjectTerminals(name);
       set({ selected: null });
       await get().refreshProjects();
     } catch (err) {

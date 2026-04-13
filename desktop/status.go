@@ -84,6 +84,12 @@ func (s *StatusStore) Clear(project, key string) bool {
 	return true
 }
 
+func (s *StatusStore) ClearProject(project string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.entries, project)
+}
+
 func (s *StatusStore) ClearByPaneValue(project, paneID, value string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()

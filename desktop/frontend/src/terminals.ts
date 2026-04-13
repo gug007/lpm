@@ -74,3 +74,11 @@ export async function saveProjectTerminals(
   };
   await SaveTerminals(main.TerminalsConfig.createFrom(cached));
 }
+
+// Without this, the next saveProjectTerminals call would write the
+// whole cache back and resurrect the deleted entry.
+export function forgetProjectTerminals(projectName: string): void {
+  if (!(projectName in cached.projects)) return;
+  const { [projectName]: _removed, ...rest } = cached.projects;
+  cached = { ...cached, projects: rest };
+}

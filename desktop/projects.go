@@ -836,7 +836,9 @@ func (a *App) RemoveProject(name string) error {
 	if loadErr == nil {
 		tmux.KillSession(cfg.Name)
 	}
+	a.StopLogStreaming(name)
 	a.invalidateSessionCache(name)
+	a.clearRunningState(name)
 	// Quiesce the tree before deletion: live shells writing into it
 	// (bundle, rails, spring) race RemoveAll's walk and surface as
 	// ENOTEMPTY on the final rmdir.
@@ -855,8 +857,47 @@ func (a *App) RemoveProject(name string) error {
 	if err := os.Remove(config.ProjectPath(name)); err != nil {
 		return err
 	}
+	a.statusStore.ClearProject(name)
+	a.removeTerminalsEntry(name)
+	a.removeSettingsReferences(name)
 	runtime.EventsEmit(a.ctx, "projects-changed")
 	return nil
+}
+
+func (a *App) removeTerminalsEntry(name string) {
+	cfg := a.LoadTerminals()
+	if _, ok := cfg.Projects[name]; !ok {
+		return
+	}
+	delete(cfg.Projects, name)
+	if err := a.SaveTerminals(cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to save terminals after removing %s: %v\n", name, err)
+	}
+}
+
+func (a *App) removeSettingsReferences(name string) {
+	a.settingsMu.Lock()
+	settings := a.loadSettingsLocked()
+	changed := false
+	if idx := slices.Index(settings.ProjectOrder, name); idx >= 0 {
+		settings.ProjectOrder = slices.Delete(settings.ProjectOrder, idx, idx+1)
+		changed = true
+	}
+	if settings.LastSelectedProject == name {
+		settings.LastSelectedProject = ""
+		changed = true
+	}
+	if changed {
+		if err := a.saveSettingsLocked(settings); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to save settings after removing %s: %v\n", name, err)
+		}
+	}
+	a.settingsMu.Unlock()
+	if changed {
+		a.cacheMu.Lock()
+		a.projectOrder = settings.ProjectOrder
+		a.cacheMu.Unlock()
+	}
 }
 
 // removeAllWithRetry wraps os.RemoveAll with linear backoff on ENOTEMPTY.
