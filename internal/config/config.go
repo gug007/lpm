@@ -285,6 +285,42 @@ func LoadProject(name string) (*ProjectConfig, error) {
 	return LoadProjectCached(name, nil)
 }
 
+// LoadProjectRaw parses a project YAML without resolving parent configs,
+// merging global actions/terminals, or running validation. Tilde-prefixed
+// paths are still expanded. Callers that need to inspect project fields
+// independently of the project's runtime dependencies should use this.
+func LoadProjectRaw(name string) (*ProjectConfig, error) {
+	if err := ValidateName(name); err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(ProjectPath(name))
+	if err != nil {
+		return nil, err
+	}
+	var cfg ProjectConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("invalid config for %q: %w", name, err)
+	}
+	if cfg.Name == "" {
+		cfg.Name = name
+	}
+	cfg.Root = expandHome(cfg.Root)
+	for name, svc := range cfg.Services {
+		if svc.Cwd != "" {
+			svc.Cwd = expandHome(svc.Cwd)
+			cfg.Services[name] = svc
+		}
+	}
+	expandActionCwds(cfg.Actions)
+	for name, term := range cfg.Terminals {
+		if term.Cwd != "" {
+			term.Cwd = expandHome(term.Cwd)
+			cfg.Terminals[name] = term
+		}
+	}
+	return &cfg, nil
+}
+
 // LoadProjectCached behaves like LoadProject but shares resolved parent
 // configs through the supplied cache so a batch load resolves each parent
 // once. Pass nil to disable sharing.
@@ -524,7 +560,9 @@ func SaveProject(cfg *ProjectConfig) error {
 		return err
 	}
 
-	data, err := yaml.Marshal(cfg)
+	// Marshal a deep-copy with $HOME prefixes collapsed to ~/ so project files
+	// stay portable across machines. The caller's cfg keeps its expanded paths.
+	data, err := yaml.Marshal(portableCopy(cfg))
 	if err != nil {
 		return err
 	}
@@ -538,6 +576,47 @@ func SaveProject(cfg *ProjectConfig) error {
 
 	path := filepath.Join(ProjectsDir(), cfg.Name+".yml")
 	return os.WriteFile(path, []byte(out), 0644)
+}
+
+// portableCopy returns a copy of cfg with every $HOME-prefixed path collapsed
+// to ~/ form. Maps are rebuilt so the caller's cfg is never mutated.
+func portableCopy(cfg *ProjectConfig) *ProjectConfig {
+	out := *cfg
+	out.Root = collapseHome(cfg.Root)
+
+	if len(cfg.Services) > 0 {
+		out.Services = make(ServiceMap, len(cfg.Services))
+		for k, v := range cfg.Services {
+			v.Cwd = collapseHome(v.Cwd)
+			out.Services[k] = v
+		}
+	}
+
+	if len(cfg.Actions) > 0 {
+		out.Actions = make(ActionMap, len(cfg.Actions))
+		for k, v := range cfg.Actions {
+			v.Cwd = collapseHome(v.Cwd)
+			if len(v.Actions) > 0 {
+				children := make(ActionMap, len(v.Actions))
+				for ck, cv := range v.Actions {
+					cv.Cwd = collapseHome(cv.Cwd)
+					children[ck] = cv
+				}
+				v.Actions = children
+			}
+			out.Actions[k] = v
+		}
+	}
+
+	if len(cfg.Terminals) > 0 {
+		out.Terminals = make(TerminalMap, len(cfg.Terminals))
+		for k, v := range cfg.Terminals {
+			v.Cwd = collapseHome(v.Cwd)
+			out.Terminals[k] = v
+		}
+	}
+
+	return &out
 }
 
 func expandActionCwds(actions ActionMap) {
@@ -563,6 +642,27 @@ func expandHome(path string) string {
 	if len(path) > 1 && path[:2] == "~/" {
 		home, _ := os.UserHomeDir()
 		return filepath.Join(home, path[2:])
+	}
+	return path
+}
+
+// collapseHome is the inverse of expandHome: if path lives under $HOME, it
+// replaces the prefix with ~/ so the stored value stays portable between
+// machines (e.g. /Users/gug007/Projects/foo → ~/Projects/foo). Paths outside
+// $HOME, and paths that were already ~/-prefixed, are returned unchanged.
+func collapseHome(path string) string {
+	if path == "" {
+		return path
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return path
+	}
+	if path == home {
+		return "~"
+	}
+	if strings.HasPrefix(path, home+"/") {
+		return "~/" + path[len(home)+1:]
 	}
 	return path
 }

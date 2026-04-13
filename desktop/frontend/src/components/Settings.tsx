@@ -12,8 +12,12 @@ import {
   InstallUpdate,
   CheckClaudeHooks,
   ResetClaudeHooks,
+  ExportConfig,
+  ImportConfig,
 } from "../../wailsjs/go/main/App";
+import type { main } from "../../wailsjs/go/models";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { Modal } from "./ui/Modal";
 
 const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
@@ -78,6 +82,15 @@ export function Settings({
   const [resettingHooks, setResettingHooks] = useState(false);
   const [installProgress, setInstallProgress] = useState(-1);
   const [installPhase, setInstallPhase] = useState<"downloading" | "installing">("downloading");
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [showImportOptions, setShowImportOptions] = useState(false);
+  const [importOverwrite, setImportOverwrite] = useState(false);
+  const [importReport, setImportReport] = useState<main.ImportReport | null>(null);
+
+  useEffect(() => {
+    if (showImportOptions) setImportOverwrite(false);
+  }, [showImportOptions]);
 
   useEffect(() => {
     GetVersion().then(setVersion);
@@ -168,6 +181,33 @@ export function Settings({
     }
   };
 
+  const handleExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const path = await ExportConfig();
+      if (path) toast.success(`Exported to ${path}`);
+    } catch (err) {
+      toast.error(`Export failed: ${err}`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleImport = async (overwrite: boolean) => {
+    setShowImportOptions(false);
+    if (importing) return;
+    setImporting(true);
+    try {
+      const report = await ImportConfig(overwrite);
+      if (report) setImportReport(report);
+    } catch (err) {
+      toast.error(`Import failed: ${err}`);
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="-mx-6 flex-1 overflow-y-auto">
       <div className="mx-auto max-w-lg px-6 pt-6 pb-6">
@@ -247,6 +287,33 @@ export function Settings({
           </SettingsRow>
         </SettingsSection>
 
+        <SettingsSection title="Backup & Transfer">
+          <SettingsRow
+            label="Export config"
+            description="Save a portable archive of your projects and settings"
+          >
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className={BTN_SECONDARY}
+            >
+              {exporting ? <RefreshIcon spinning /> : "Export…"}
+            </button>
+          </SettingsRow>
+          <SettingsRow
+            label="Import config"
+            description="Restore from an archive (current config backed up first)"
+          >
+            <button
+              onClick={() => setShowImportOptions(true)}
+              disabled={importing}
+              className={BTN_SECONDARY}
+            >
+              {importing ? <RefreshIcon spinning /> : "Import…"}
+            </button>
+          </SettingsRow>
+        </SettingsSection>
+
         <SettingsSection title="About">
           <SettingsRow label="Version" description="lpm desktop">
             <span className="text-xs text-[var(--text-muted)]">{version || "..."}</span>
@@ -286,6 +353,38 @@ export function Settings({
           disabled={resettingHooks}
           onCancel={() => setShowResetDialog(false)}
           onConfirm={handleResetHooks}
+        />
+
+        <ConfirmDialog
+          open={showImportOptions}
+          title="Import config"
+          body={
+            <>
+              <p>Your current configuration will be backed up before any changes are applied.</p>
+              <label className="mt-4 flex cursor-pointer items-start gap-2 text-[var(--text-primary)]">
+                <input
+                  type="checkbox"
+                  checked={importOverwrite}
+                  onChange={(e) => setImportOverwrite(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  Overwrite existing projects
+                  <span className="block text-[11px] text-[var(--text-muted)]">
+                    When off, projects with the same name are skipped.
+                  </span>
+                </span>
+              </label>
+            </>
+          }
+          confirmLabel="Choose file…"
+          onCancel={() => setShowImportOptions(false)}
+          onConfirm={() => handleImport(importOverwrite)}
+        />
+
+        <ImportReportModal
+          report={importReport}
+          onClose={() => setImportReport(null)}
         />
       </div>
     </div>
@@ -432,5 +531,132 @@ function MonitorIcon() {
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
     </svg>
+  );
+}
+
+function ImportReportModal({
+  report,
+  onClose,
+}: {
+  report: main.ImportReport | null;
+  onClose: () => void;
+}) {
+  if (!report) return null;
+
+  const { imported, skipped, missingRoots, missingTools } = report;
+  const nothingHappened = imported.length === 0 && skipped.length === 0;
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      zIndexClassName="z-[60]"
+      contentClassName="w-[30rem] max-h-[80vh] overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-6 shadow-xl"
+    >
+      <h3 className="text-base font-semibold text-[var(--text-primary)]">Import complete</h3>
+
+      {nothingHappened && (
+        <p className="mt-3 text-sm text-[var(--text-secondary)]">
+          The archive was read, but no projects were imported.
+        </p>
+      )}
+
+      {imported.length > 0 && (
+        <ReportSection title={`Imported (${imported.length})`} tone="good">
+          <ReportList items={imported} />
+        </ReportSection>
+      )}
+
+      {skipped.length > 0 && (
+        <ReportSection
+          title={`Skipped (${skipped.length})`}
+          tone="warn"
+          note="Already existed locally. Re-run with overwrite to replace them."
+        >
+          <ReportList items={skipped} />
+        </ReportSection>
+      )}
+
+      {missingRoots.length > 0 && (
+        <ReportSection
+          title={`Missing project folders (${missingRoots.length})`}
+          tone="warn"
+          note="These projects reference folders that don't exist on this Mac. Clone or create them, then reopen the project."
+        >
+          <ul className="flex flex-col gap-1 text-xs font-mono">
+            {missingRoots.map((mr) => (
+              <li key={mr.project} className="rounded bg-[var(--bg-active)] px-2 py-0.5">
+                <span className="text-[var(--text-primary)]">{mr.project}</span>
+                <span className="text-[var(--text-muted)]"> → {mr.root}</span>
+              </li>
+            ))}
+          </ul>
+        </ReportSection>
+      )}
+
+      {missingTools.length > 0 && (
+        <ReportSection
+          title={`Missing tools (${missingTools.length})`}
+          tone="warn"
+          note="Referenced by project commands but not found in PATH. Install them to run the affected services/actions."
+        >
+          <ReportList items={missingTools} mono />
+        </ReportSection>
+      )}
+
+      {report.backupPath && (
+        <div className="mt-5 rounded-lg border border-[var(--border)] bg-[var(--bg-active)] px-3 py-2 text-xs text-[var(--text-muted)]">
+          Previous config backed up to
+          <div className="mt-0.5 break-all font-mono text-[var(--text-secondary)]">
+            {report.backupPath}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-5 flex justify-end">
+        <button
+          onClick={onClose}
+          className="rounded-lg bg-[var(--text-primary)] px-4 py-2 text-sm font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90"
+        >
+          Done
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function ReportSection({
+  title,
+  tone,
+  note,
+  children,
+}: {
+  title: string;
+  tone: "good" | "warn";
+  note?: string;
+  children: React.ReactNode;
+}) {
+  const color = tone === "good" ? "text-[var(--accent-green)]" : "text-amber-500";
+  return (
+    <div className="mt-4">
+      <div className={`text-xs font-medium uppercase tracking-wider ${color}`}>{title}</div>
+      {note && <p className="mt-1 text-[11px] text-[var(--text-muted)]">{note}</p>}
+      <div className="mt-1.5">{children}</div>
+    </div>
+  );
+}
+
+function ReportList({ items, mono }: { items: string[]; mono?: boolean }) {
+  return (
+    <ul className={`flex flex-wrap gap-1 text-xs ${mono ? "font-mono" : ""}`}>
+      {items.map((item) => (
+        <li
+          key={item}
+          className="rounded bg-[var(--bg-active)] px-2 py-0.5 text-[var(--text-secondary)]"
+        >
+          {item}
+        </li>
+      ))}
+    </ul>
   );
 }

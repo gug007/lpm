@@ -66,6 +66,10 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	resolveUserPath()
 
+	if err := MigratePortablePaths(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: portable path migration: %v\n", err)
+	}
+
 	SetTrafficLightPosition(14, 19)
 	initDockMenu(a)
 	installAppMenuExtras()
