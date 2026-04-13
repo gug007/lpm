@@ -146,3 +146,22 @@ Configs live in `~/.lpm/projects/<name>.yml`. Each config has:
 - **profiles** — groups of services to start together
 
 Configs are validated on load — lpm will catch missing commands, invalid ports, duplicate ports, and nonexistent directories before starting anything.
+
+## AI Agent Skill
+
+This repo includes an agent skill that lets your AI coding agent create and manage lpm configs for you. Install it via [skills.sh](https://skills.sh):
+
+```bash
+# Interactive — shows available skills
+npx skills add gug007/lpm
+
+# Or install directly
+npx skills add gug007/lpm -s lpm-config
+
+# Globally (all projects)
+npx skills add gug007/lpm -s lpm-config -g
+```
+
+Then just tell your agent "set up lpm for this project" and it will analyze your codebase, discover services, and write the config. It understands all lpm config options including actions with inputs, terminal actions, action groups, profiles, and duplicate projects.
+
+See [lpm-config/README.md](lpm-config/README.md) for details.
