@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type * as monacoNs from "monaco-editor";
+import { parseDocument } from "yaml";
 import { setupMonaco } from "../monaco-setup";
 
 type Monaco = typeof monacoNs;
@@ -108,6 +109,30 @@ export function MonacoYamlEditor({
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       onSaveRef.current?.();
     });
+
+    editor.addCommand(
+      monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF,
+      () => {
+        const current = model.getValue();
+        let formatted: string;
+        try {
+          const doc = parseDocument(current);
+          if (doc.errors.length > 0) return;
+          formatted = doc.toString({ indent: 2, lineWidth: 0 });
+        } catch {
+          return;
+        }
+        if (formatted === current) return;
+        editor.executeEdits("format", [
+          {
+            range: model.getFullModelRange(),
+            text: formatted,
+            forceMoveMarkers: true,
+          },
+        ]);
+        editor.pushUndoStop();
+      },
+    );
 
     setReady(true);
 
