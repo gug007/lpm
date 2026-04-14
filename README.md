@@ -11,6 +11,10 @@
  
 </p>
 
+<p align="center">
+  <a href="https://lpm.cx"><strong>Download lpm for macOS</strong></a>
+</p>
+
 ---
 
 - Start and stop your entire project with a single click
@@ -28,8 +32,6 @@
   <br><br>
   <strong>Start a project</strong> — one click, live terminal output for every service<br><br>
   <img src="website/public/videos/start-project-1.5x.gif" alt="Starting a project in lpm desktop app" width="700">
-  <br><br>
-  <a href="https://lpm.cx">Download lpm for macOS</a><br>
 </p>
 
 A lightweight local project manager for macOS. Define your project services in a simple YAML config, then start, stop, and switch between dev projects with a single command. Built for developers who juggle multiple services — Rails, Next.js, Go, Django, Docker Compose, and more.
