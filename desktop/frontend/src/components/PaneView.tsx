@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo } from "react";
+import { memo, useEffect, useMemo } from "react";
 import type { ITheme } from "@xterm/xterm";
 import { InteractivePane, type InteractivePaneHandle } from "./InteractivePane";
 import { Pane, type PaneHandle } from "./Pane";
@@ -14,7 +14,7 @@ import {
 } from "./terminal/icons";
 import { XIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
-import { SortableItem, SortableList } from "./ui/SortableList";
+import { SortableTab, TabStrip } from "./TerminalTabDnd";
 import { ALL_SERVICES, type PaneLeaf, type SplitDirection } from "../paneTree";
 
 export type StatusKind = "Done" | "Waiting" | "Error";
@@ -45,7 +45,6 @@ export interface PaneViewProps {
   onAddTerminal: (paneId: string) => void;
   onCloseTerminal: (paneId: string, tabIdx: number) => void;
   onRenameTerminal: (paneId: string, tabIdx: number, label: string) => void;
-  onReorderTerminals: (paneId: string, order: string[]) => void;
   onSplit: (paneId: string, direction: SplitDirection) => void;
   onClosePane: (paneId: string) => void;
   onClearPane: (paneId: string) => void;
@@ -81,7 +80,6 @@ function PaneViewImpl(props: PaneViewProps) {
     onAddTerminal,
     onCloseTerminal,
     onRenameTerminal,
-    onReorderTerminals,
     onSplit,
     onClosePane,
     onClearPane,
@@ -123,10 +121,6 @@ function PaneViewImpl(props: PaneViewProps) {
     onClearStatus,
   ]);
 
-  const handleReorder = useCallback(
-    (order: string[]) => onReorderTerminals(pane.id, order),
-    [pane.id, onReorderTerminals],
-  );
   const tabIds = useMemo(() => pane.tabs.map((t) => t.id), [pane.tabs]);
 
   const containerClass = fullscreen
@@ -167,11 +161,7 @@ function PaneViewImpl(props: PaneViewProps) {
           {services.length > 0 && pane.tabs.length > 0 && (
             <div className="mx-1 h-3.5 w-px bg-[var(--terminal-header-hover)]" />
           )}
-          <SortableList
-            ids={tabIds}
-            direction="horizontal"
-            onReorder={handleReorder}
-          >
+          <TabStrip paneId={pane.id} tabIds={tabIds}>
             {pane.tabs.map((t, i) => {
               const isActive = activeServiceName === null && i === terminalIdx;
               const isDone = donePaneIDs?.has(t.id) ?? false;
@@ -180,7 +170,7 @@ function PaneViewImpl(props: PaneViewProps) {
               const isWaiting = waitingPaneIDs?.has(t.id) ?? false;
               const isError = errorPaneIDs?.has(t.id) ?? false;
               return (
-                <SortableItem key={t.id} id={t.id}>
+                <SortableTab key={t.id} id={t.id} paneId={pane.id} index={i}>
                   <HeaderTab
                     label={t.label}
                     active={isActive}
@@ -196,10 +186,10 @@ function PaneViewImpl(props: PaneViewProps) {
                     onClose={() => onCloseTerminal(pane.id, i)}
                     onRename={(name) => onRenameTerminal(pane.id, i, name)}
                   />
-                </SortableItem>
+                </SortableTab>
               );
             })}
-          </SortableList>
+          </TabStrip>
           <button
             onClick={() => onAddTerminal(pane.id)}
             title="Open new terminal (⌘T)"

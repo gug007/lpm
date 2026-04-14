@@ -6,6 +6,7 @@ import { disposePaneSession, type PaneHandle } from "./Pane";
 import { disposeInteractivePaneSession, type InteractivePaneHandle } from "./InteractivePane";
 import { collectTerminals } from "../paneTree";
 import { PaneLayout } from "./PaneLayout";
+import { TerminalTabDnd } from "./TerminalTabDnd";
 import type { ServiceTabInfo, StatusKind } from "./PaneView";
 import { type TerminalThemeName, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
 import { ansiColors } from "./terminal-utils";
@@ -57,6 +58,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
     focusService,
     renameTerminal,
     reorderTerminals,
+    moveTerminal,
     splitPane,
     closePane,
     setRatio,
@@ -326,35 +328,36 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
       style={containerStyle}
     >
       {tree ? (
-        <PaneLayout
-          node={tree}
-          visible={visible}
-          focusedPaneId={focusedPaneId}
-          fullscreenPaneId={fullscreenPaneId}
-          canClose={tree.kind === "split"}
-          fontSize={fontSize}
-          themeOverride={xtermTheme}
-          services={serviceTabInfos}
-          runningPaneIDs={runningPaneIDs}
-          donePaneIDs={donePaneIDs}
-          waitingPaneIDs={waitingPaneIDs}
-          errorPaneIDs={errorPaneIDs}
-          onFocusPane={focusPane}
-          onFocusTab={focusTerminal}
-          onFocusService={focusService}
-          onAddTerminal={addTerminalToPane}
-          onCloseTerminal={closeTerminal}
-          onRenameTerminal={renameTerminal}
-          onReorderTerminals={reorderTerminals}
-          onSplit={splitPane}
-          onClosePane={closePane}
-          onClearPane={handleClearPane}
-          onToggleFullscreen={handleToggleFullscreen}
-          onRegisterTerminalHandle={registerTerminalHandle}
-          onRegisterServiceHandle={registerServiceHandle}
-          onClearStatus={handleClearStatus}
-          onRatioChange={setRatio}
-        />
+        <TerminalTabDnd tree={tree} onReorder={reorderTerminals} onMove={moveTerminal}>
+          <PaneLayout
+            node={tree}
+            visible={visible}
+            focusedPaneId={focusedPaneId}
+            fullscreenPaneId={fullscreenPaneId}
+            canClose={tree.kind === "split"}
+            fontSize={fontSize}
+            themeOverride={xtermTheme}
+            services={serviceTabInfos}
+            runningPaneIDs={runningPaneIDs}
+            donePaneIDs={donePaneIDs}
+            waitingPaneIDs={waitingPaneIDs}
+            errorPaneIDs={errorPaneIDs}
+            onFocusPane={focusPane}
+            onFocusTab={focusTerminal}
+            onFocusService={focusService}
+            onAddTerminal={addTerminalToPane}
+            onCloseTerminal={closeTerminal}
+            onRenameTerminal={renameTerminal}
+            onSplit={splitPane}
+            onClosePane={closePane}
+            onClearPane={handleClearPane}
+            onToggleFullscreen={handleToggleFullscreen}
+            onRegisterTerminalHandle={registerTerminalHandle}
+            onRegisterServiceHandle={registerServiceHandle}
+            onClearStatus={handleClearStatus}
+            onRatioChange={setRatio}
+          />
+        </TerminalTabDnd>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-[var(--text-muted)]">
           <TerminalIcon />

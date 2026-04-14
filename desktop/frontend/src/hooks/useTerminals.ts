@@ -56,6 +56,7 @@ export interface UseTerminalsResult {
   focusService: (paneId: string, serviceName: string) => void;
   renameTerminal: (paneId: string, tabIdx: number, label: string) => void;
   reorderTerminals: (paneId: string, order: string[]) => void;
+  moveTerminal: (fromPaneId: string, termId: string, toPaneId: string, toIdx?: number) => void;
   splitPane: (paneId: string, direction: SplitDirection) => Promise<void>;
   closePane: (paneId: string) => void;
   setRatio: (path: number[], ratio: number) => void;
@@ -446,6 +447,47 @@ export function useTerminals(
     [applyTree],
   );
 
+  // Collapses the source pane when the move empties it, matching the
+  // closeTerminal rule — panes with a persistent service tab stay alive.
+  const moveTerminal = useCallback(
+    (fromPaneId: string, termId: string, toPaneId: string, toIdx?: number) => {
+      if (fromPaneId === toPaneId) return;
+      const current = treeRef.current;
+      if (!current) return;
+      const fromPane = findPane(current, fromPaneId);
+      const toPane = findPane(current, toPaneId);
+      if (!fromPane || !toPane) return;
+      const fromIdx = fromPane.tabs.findIndex((t) => t.id === termId);
+      if (fromIdx < 0) return;
+      const term = fromPane.tabs[fromIdx];
+
+      let next: PaneNode | null = mapPane(current, fromPaneId, (p) => {
+        const tabs = p.tabs.filter((_, i) => i !== fromIdx);
+        return {
+          ...p,
+          tabs,
+          activeTabIdx: resolveActiveAfterClose(p.activeTabIdx, fromIdx, tabs.length),
+        };
+      });
+
+      const updatedFrom = findPane(next, fromPaneId);
+      if (updatedFrom && updatedFrom.tabs.length === 0 && !updatedFrom.activeServiceName) {
+        next = removePane(next, fromPaneId);
+      }
+      if (!next) return;
+
+      next = mapPane(next, toPaneId, (p) => {
+        const insertAt =
+          toIdx === undefined ? p.tabs.length : Math.max(0, Math.min(toIdx, p.tabs.length));
+        const tabs = [...p.tabs.slice(0, insertAt), term, ...p.tabs.slice(insertAt)];
+        return { ...p, tabs, activeTabIdx: insertAt, activeServiceName: undefined };
+      });
+
+      applyTree(next, toPaneId);
+    },
+    [applyTree],
+  );
+
   const splitPane = useCallback(
     async (paneId: string, direction: SplitDirection) => {
       if (!treeRef.current || !findPane(treeRef.current, paneId)) return;
@@ -552,6 +594,7 @@ export function useTerminals(
     focusService,
     renameTerminal,
     reorderTerminals,
+    moveTerminal,
     splitPane,
     closePane,
     setRatio,
