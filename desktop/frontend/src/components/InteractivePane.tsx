@@ -51,7 +51,7 @@ function initFileDrop() {
   OnFileDrop((x, y, paths) => {
     const id = terminalIdAtPoint(x, y);
     if (!id) return;
-    sendTerminalInput(id, paths.map(shellQuote).join(" ")).catch(() => {});
+    pasteToTerminal(id, formatPastedPaths(paths));
   }, false);
 }
 
@@ -178,11 +178,29 @@ function saveImageBlob(terminalId: string, blob: File, mimeType: string) {
     if (!b64) return;
     SaveClipboardImage(b64, mimeType)
       .then((filePath) => {
-        sendTerminalInput(terminalId, shellQuote(filePath));
+        pasteToTerminal(terminalId, filePath);
       })
       .catch((err) => console.warn("SaveClipboardImage failed:", err));
   };
   reader.readAsDataURL(blob);
+}
+
+const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif)$/i;
+
+// xterm's paste() emits CSI ?2004h bracketed-paste markers when the running
+// app enabled them — writing to the PTY directly would skip those, leaving
+// the receiver unable to distinguish a paste from typed input.
+function pasteToTerminal(terminalId: string, text: string): void {
+  interactiveSessions.get(terminalId)?.term.paste(text);
+}
+
+// Single image paths go in unquoted so a path-detecting receiver can stat
+// them; everything else is shell-quoted for shell users.
+function formatPastedPaths(paths: string[]): string {
+  if (paths.length === 1 && IMAGE_EXT_RE.test(paths[0])) {
+    return paths[0];
+  }
+  return paths.map(shellQuote).join(" ");
 }
 
 function createInteractiveSession(terminalId: string): InteractiveSession {
@@ -338,23 +356,22 @@ function createInteractiveSession(terminalId: string): InteractiveSession {
       e.clipboardData.types.includes("Files") ||
       e.clipboardData.files.length > 0;
 
-    // Web-copied images also set "Files" but have no file URLs, so fall
-    // through to the image-save path when ReadClipboardFiles returns nothing.
     if (hasFiles) {
       e.preventDefault();
       e.stopImmediatePropagation();
       const textFallback = e.clipboardData.getData("text/plain");
-      // Capture blob synchronously — clipboardData.items is invalidated
-      // after the event handler returns.
+      // Capture synchronously — clipboardData.items is invalidated after
+      // the handler returns. Used as a fallback because WebKit often omits
+      // the image MIME on file-URL pastes.
       const imageData = extractImageBlob(e.clipboardData.items);
       const fallback = () => {
         if (imageData) saveImageBlob(terminalId, imageData.blob, imageData.mimeType);
-        else if (textFallback) sendTerminalInput(terminalId, textFallback);
+        else if (textFallback) pasteToTerminal(terminalId, textFallback);
       };
       ReadClipboardFiles()
         .then((paths) => {
           if (paths && paths.length > 0) {
-            sendTerminalInput(terminalId, paths.map(shellQuote).join(" "));
+            pasteToTerminal(terminalId, formatPastedPaths(paths));
           } else {
             fallback();
           }
