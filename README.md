@@ -1,7 +1,8 @@
 # lpm — Local Project Manager
 
 <p align="center">
-  <i>Start, stop, and switch between local dev projects with a single command. CLI and native macOS desktop app.</i>
+  <i>One click to start, stop, or duplicate your dev projects.
+  Run Claude Code, Codex, and other AI agents in parallel on the same codebase — no conflicts, no context switching. .</i>
 </p>
 
 <p align="center">
