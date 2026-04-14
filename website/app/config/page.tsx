@@ -559,6 +559,22 @@ export default function ConfigPage() {
                   you; unlike an action, it doesn&rsquo;t run once and exit.
                   It stays open, you type in it, and it remembers where you
                   left off until you close it.
+                  <br />
+                  <br />
+                  Under the hood, the{" "}
+                  <code className="font-mono">terminals</code> section is{" "}
+                  <strong className="font-medium text-gray-700 dark:text-gray-200">
+                    shorthand for actions with{" "}
+                    <code className="font-mono">type: terminal</code>
+                  </strong>
+                  . Same fields, same features — entries just default to{" "}
+                  <code className="font-mono">type: terminal</code> so they
+                  open in a pane and stay open. Use{" "}
+                  <code className="font-mono">terminals:</code> to keep them
+                  grouped, or drop a{" "}
+                  <code className="font-mono">type: terminal</code> entry
+                  inside <code className="font-mono">actions:</code> when you
+                  want to mix one-shots and persistent shells together.
                 </>
               }
             >
