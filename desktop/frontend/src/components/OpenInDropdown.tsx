@@ -1,31 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
-import { ListOpenInTargets, OpenIn } from "../../wailsjs/go/main/App";
-import { main } from "../../wailsjs/go/models";
+import { useMemo, useState } from "react";
 import { useOutsideClick } from "../hooks/useOutsideClick";
-
-type OpenInTarget = main.OpenInTarget;
+import { launchOpenInTarget, useOpenInTargets, type OpenInTarget } from "../hooks/useOpenInTargets";
 
 const SELECTED_KEY = "lpm.openIn.selectedId";
-
-// Cached across component remounts — the target list doesn't change until app restart.
-let targetsCache: OpenInTarget[] | null = null;
 
 export function OpenInDropdown({ projectPath }: {
   projectPath: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [targets, setTargets] = useState<OpenInTarget[]>(targetsCache ?? []);
+  const targets = useOpenInTargets();
   const [selectedId, setSelectedId] = useState<string>(() => localStorage.getItem(SELECTED_KEY) ?? "");
   const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
-
-  useEffect(() => {
-    if (targetsCache) return;
-    ListOpenInTargets().then((list) => {
-      targetsCache = list;
-      setTargets(list);
-    }).catch(() => {});
-  }, []);
 
   const selected = useMemo(() => {
     if (targets.length === 0) return null;
@@ -34,13 +19,7 @@ export function OpenInDropdown({ projectPath }: {
 
   if (targets.length === 0 || !selected) return null;
 
-  const launch = async (t: OpenInTarget) => {
-    try {
-      await OpenIn(t.id, projectPath);
-    } catch (err) {
-      toast.error(`Open in ${t.label}: ${err}`);
-    }
-  };
+  const launch = (t: OpenInTarget) => launchOpenInTarget(t, projectPath);
 
   const pick = (t: OpenInTarget) => {
     setSelectedId(t.id);

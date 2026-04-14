@@ -167,6 +167,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           {rows.map(({ project, isChild }) => {
             const status = computeStatus(project);
             const isSelected = selected === project.name;
+            const isContextTarget = contextMenu?.name === project.name;
             const isBusy = duplicatingName === project.name || removingName === project.name;
             const isRenaming = renamingName === project.name;
             const parent = project.parentName ? projectByName.get(project.parentName) : undefined;
@@ -183,11 +184,11 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                   e.preventDefault();
                   setContextMenu({ name: project.name, x: e.clientX, y: e.clientY });
                 }}
-                className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                className={`flex w-full select-none items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
                   isSelected
                     ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
                     : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                }`}
+                } ${isContextTarget ? "ring-1 ring-inset ring-[var(--accent-cyan)]/60" : ""}`}
               >
                 {isBusy ? (
                   <span className="shrink-0 text-[var(--text-muted)]">
@@ -238,6 +239,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           y={contextMenu.y}
           busy={duplicatingName !== null || removingName !== null}
           canRemove={Boolean(contextProject?.parentName)}
+          projectPath={contextProject?.root ?? null}
           onRename={() => setRenamingName(contextMenu.name)}
           onDuplicate={() => onDuplicateProject(contextMenu.name)}
           onDuplicateExcludeUncommitted={() => onDuplicateProject(contextMenu.name, true)}

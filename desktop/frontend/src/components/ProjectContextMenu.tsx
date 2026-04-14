@@ -1,12 +1,14 @@
 import { useEffect } from "react";
-import { ClipboardIcon, CopyIcon, PencilIcon, TrashIcon } from "./icons";
+import { ChevronRightIcon, ClipboardIcon, CopyIcon, PencilIcon, TrashIcon } from "./icons";
 import { useOutsideClick } from "../hooks/useOutsideClick";
+import { launchOpenInTarget, useOpenInTargets } from "../hooks/useOpenInTargets";
 
 interface ProjectContextMenuProps {
   x: number;
   y: number;
   busy: boolean;
   canRemove: boolean;
+  projectPath: string | null;
   onRename: () => void;
   onDuplicate: () => void;
   onDuplicateExcludeUncommitted: () => void;
@@ -20,6 +22,7 @@ export function ProjectContextMenu({
   y,
   busy,
   canRemove,
+  projectPath,
   onRename,
   onDuplicate,
   onDuplicateExcludeUncommitted,
@@ -28,6 +31,7 @@ export function ProjectContextMenu({
   onClose,
 }: ProjectContextMenuProps) {
   const ref = useOutsideClick<HTMLDivElement>(onClose);
+  const openInTargets = useOpenInTargets();
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -86,6 +90,31 @@ export function ProjectContextMenu({
         <span className="flex-1 truncate">Copy path</span>
         <ClipboardIcon />
       </button>
+      {projectPath && openInTargets.length > 0 && (
+        <div className="group relative">
+          <button
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors group-hover:bg-[var(--bg-hover)] group-hover:text-[var(--text-primary)]"
+          >
+            <span className="flex-1 truncate">Open with</span>
+            <ChevronRightIcon />
+          </button>
+          <div className="absolute left-full top-0 -ml-px hidden min-w-[180px] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg group-hover:block">
+            {openInTargets.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => {
+                  launchOpenInTarget(t, projectPath);
+                  onClose();
+                }}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              >
+                <img src={t.icon} alt="" className="h-4 w-4 shrink-0" />
+                <span className="flex-1 truncate">{t.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {canRemove && (
         <>
           <div className="my-1 border-t border-[var(--border)]" />
