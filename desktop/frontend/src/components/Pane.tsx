@@ -4,8 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
-import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
-import { getTerminalTheme } from "./terminal-utils";
+import { getTerminalTheme, openTerminalLink } from "./terminal-utils";
 import { ChevronRightIcon } from "./icons";
 import "@xterm/xterm/css/xterm.css";
 
@@ -39,6 +38,7 @@ function createPaneSession(opts: { fontSize: number; theme: ITheme }): PaneSessi
     convertEol: true,
     scrollback: 10000,
     theme: opts.theme,
+    linkHandler: { activate: openTerminalLink },
   });
 
   const fit = new FitAddon();
@@ -46,7 +46,7 @@ function createPaneSession(opts: { fontSize: number; theme: ITheme }): PaneSessi
 
   let search: SearchAddon | null = null;
   try { search = new SearchAddon(); term.loadAddon(search); } catch {}
-  try { term.loadAddon(new WebLinksAddon((_e, uri) => BrowserOpenURL(uri))); } catch {}
+  try { term.loadAddon(new WebLinksAddon(openTerminalLink)); } catch {}
   try { const u = new Unicode11Addon(); term.loadAddon(u); term.unicode.activeVersion = "11"; } catch {}
 
   term.open(host);

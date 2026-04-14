@@ -6,7 +6,6 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import {
   EventsOn,
-  BrowserOpenURL,
   OnFileDrop,
   OnFileDropOff,
 } from "../../wailsjs/runtime/runtime";
@@ -17,7 +16,7 @@ import {
   SaveClipboardImage,
 } from "../../wailsjs/go/main/App";
 import { sendTerminalInput, shellQuote } from "../terminal-io";
-import { getTerminalTheme } from "./terminal-utils";
+import { getTerminalTheme, openTerminalLink } from "./terminal-utils";
 import "@xterm/xterm/css/xterm.css";
 
 export interface InteractivePaneHandle {
@@ -219,6 +218,7 @@ function createInteractiveSession(terminalId: string): InteractiveSession {
     theme: getTerminalTheme(),
     allowProposedApi: true,
     vtExtensions: { kittyKeyboard: true },
+    linkHandler: { activate: openTerminalLink },
   });
 
   const fit = new FitAddon();
@@ -230,7 +230,7 @@ function createInteractiveSession(terminalId: string): InteractiveSession {
     term.loadAddon(search);
   } catch {}
   try {
-    term.loadAddon(new WebLinksAddon((_e, uri) => BrowserOpenURL(uri)));
+    term.loadAddon(new WebLinksAddon(openTerminalLink));
   } catch {}
   try {
     const u = new Unicode11Addon();
