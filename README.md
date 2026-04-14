@@ -12,6 +12,15 @@
 
 ---
 
+- Start and stop your entire project with a single click
+- Build fast with AI coding agents, and other AI agents
+- The best terminal for AI agents like Claude Code and Codex
+- Duplicate your project instantly to build features in parallel —  
+  run multiple agents on the same codebase without conflicts
+- A single workspace for all your services, terminals, and agents
+- Switch between projects without losing context or running processes
+- Keep long-running tasks alive across sessions
+
 <p align="center">
   <strong>Add a project</strong> — browse to a directory, define services, save<br><br>
   <img src="website/public/videos/add-project-1.5x.gif" alt="Adding a new project in lpm desktop app" width="700">
