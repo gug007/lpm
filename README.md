@@ -11,11 +11,11 @@
  
 </p>
 
+---
+
 <p align="center">
   <a href="https://lpm.cx"><strong>Download lpm for macOS</strong></a>
 </p>
-
----
 
 - Start and stop your entire project with a single click
 - Build fast with AI coding agents, and other AI agents
