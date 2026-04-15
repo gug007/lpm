@@ -295,9 +295,10 @@ export function useTerminals(
       // restore and both cmds should be persisted.
       if (opts?.configName) {
         const launch = await StartTerminalForConfig(projectName, opts.configName);
-        const term = launch.resumeCmd
-          ? makeTerminal(launch.id, label, { startCmd: launch.startCmd, resumeCmd: launch.resumeCmd })
-          : makeTerminal(launch.id, label);
+        const term = makeTerminal(launch.id, label, {
+          ...(launch.resumeCmd && { startCmd: launch.startCmd, resumeCmd: launch.resumeCmd }),
+          actionName: opts.actionName,
+        });
         addTerminal(term);
         scheduleCmdInject(launch.id, launch.startCmd);
         return;
@@ -308,7 +309,7 @@ export function useTerminals(
       const id = (opts?.cwd || opts?.env)
         ? await StartTerminalWithCwdEnv(projectName, opts.cwd ?? "", opts.env ?? {})
         : await StartTerminal(projectName);
-      addTerminal(makeTerminal(id, label, opts?.actionName ? { actionName: opts.actionName } : undefined));
+      addTerminal(makeTerminal(id, label, { actionName: opts?.actionName }));
       scheduleCmdInject(id, cmd);
     },
     [projectName, addTerminal, applyTree, scheduleCmdInject],

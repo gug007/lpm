@@ -159,19 +159,23 @@ export function ProjectDetail({
         // Route no-input terminals through the restore-aware RPC so the
         // backend can rewrite startCmd/resumeCmd; templated ones substitute
         // here and run ad-hoc.
+        const actionName = action.reuse ? action.name : undefined;
         if (!action.inputs?.length) {
-          await terminalViewRef.current?.createTerminalWithCmd(action.label, action.cmd, { configName: action.name });
+          await terminalViewRef.current?.createTerminalWithCmd(action.label, action.cmd, {
+            configName: action.name,
+            actionName,
+          });
           return;
         }
-        let cmd = action.cmd;
-        for (const [k, v] of Object.entries(inputValues)) {
-          cmd = cmd.replaceAll(`{{${k}}}`, v);
-        }
-        const actionName = action.reuse ? action.name : undefined;
-        const opts = (action.cwd || action.env || actionName)
-          ? { cwd: action.cwd, env: action.env, actionName }
-          : undefined;
-        await terminalViewRef.current?.createTerminalWithCmd(action.label, cmd, opts);
+        const cmd = Object.entries(inputValues).reduce(
+          (acc, [k, v]) => acc.replaceAll(`{{${k}}}`, v),
+          action.cmd,
+        );
+        await terminalViewRef.current?.createTerminalWithCmd(action.label, cmd, {
+          cwd: action.cwd,
+          env: action.env,
+          actionName,
+        });
       } catch (err) {
         toast.error(`${action.label}: ${err}`);
       }
