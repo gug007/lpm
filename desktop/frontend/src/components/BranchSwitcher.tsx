@@ -346,6 +346,7 @@ export function BranchSwitcher({ projectPath }: {
       <CreateBranchModal
         open={creating}
         busy={busy}
+        projectPath={projectPath}
         onClose={() => setCreating(false)}
         onCreate={create}
       />

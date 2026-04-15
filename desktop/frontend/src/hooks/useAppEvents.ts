@@ -23,6 +23,9 @@ export function useAppEvents(): void {
     const cancelPRInstr = EventsOn("navigate-pr-instructions", () => {
       setView("pr-instructions");
     });
+    const cancelBranchInstr = EventsOn("navigate-branch-instructions", () => {
+      setView("branch-instructions");
+    });
     const cancelFeedback = EventsOn("menu-open-feedback", () => {
       setFeedbackOpen(true);
     });
@@ -37,6 +40,7 @@ export function useAppEvents(): void {
       if (typeof cancelSettings === "function") cancelSettings();
       if (typeof cancelCommitInstr === "function") cancelCommitInstr();
       if (typeof cancelPRInstr === "function") cancelPRInstr();
+      if (typeof cancelBranchInstr === "function") cancelBranchInstr();
       if (typeof cancelFeedback === "function") cancelFeedback();
       if (typeof cancelSound === "function") cancelSound();
     };

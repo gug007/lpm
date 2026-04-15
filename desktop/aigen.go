@@ -196,6 +196,66 @@ func (a *App) SavePRDescriptionInstructions(content string) error {
 	return saveInstructions("pr-description", content)
 }
 
+const branchNameProgressEvent = "branch-name-progress"
+
+// A branch name only needs the shape of the change, not every hunk — keep
+// the prompt cheap.
+const maxBranchNameDiffSize = 6_000
+
+const branchNamePrompt = `Given the following git diff and commit log, generate a short git branch name.
+
+Requirements:
+- Use kebab-case (lowercase words separated by hyphens)
+- Keep under 50 characters
+- Optionally prefix with a type: feat/, fix/, refactor/, docs/, chore/
+- Be descriptive but concise
+- No trailing slash, no spaces, no quotes
+
+Output ONLY the branch name. No code fences. No explanation.
+
+`
+
+// GenerateBranchName summarizes the current uncommitted changes when present,
+// otherwise falls back to the current branch diff against the default branch.
+func (a *App) GenerateBranchName(cwd, cli string) (string, error) {
+	var commitLog string
+	diff, _ := runGit(cwd, "diff", "HEAD")
+	diff = strings.TrimSpace(diff)
+	if diff == "" {
+		if base := a.GitDefaultBranch(cwd); base != "" {
+			d, log, err := a.prDiffAndLog(cwd, base)
+			if err == nil {
+				diff = d
+				commitLog = log
+			}
+		}
+	}
+	if diff == "" {
+		return "", fmt.Errorf("no changes to summarize")
+	}
+	if len(diff) > maxBranchNameDiffSize {
+		diff = diff[:maxBranchNameDiffSize] + "\n... (truncated)"
+	}
+
+	instr, _ := a.ReadBranchNameInstructions()
+	prompt := buildPRPrompt(branchNamePrompt, instr, diff, commitLog)
+
+	selected, err := aigen.Detect(aigen.CLI(cli))
+	if err != nil {
+		return "", err
+	}
+	return aigen.GenerateText(a.ctx, selected, cwd, prompt, func(msg string) {
+		runtime.EventsEmit(a.ctx, branchNameProgressEvent, msg)
+	})
+}
+
+func (a *App) ReadBranchNameInstructions() (string, error) {
+	return readInstructions("branch-name")
+}
+func (a *App) SaveBranchNameInstructions(content string) error {
+	return saveInstructions("branch-name", content)
+}
+
 // GenerateProjectConfig runs the CLI in the project root and streams progress
 // lines to the frontend via the aiProgressEvent event.
 func (a *App) GenerateProjectConfig(projectName, cli, extraPrompt string) (string, error) {

@@ -5,6 +5,7 @@ import { Settings } from "./components/Settings";
 import { GlobalConfigEditor } from "./components/GlobalConfigEditor";
 import { CommitInstructionsEditor } from "./components/CommitInstructionsEditor";
 import { PRInstructionsEditor } from "./components/PRInstructionsEditor";
+import { BranchNameInstructionsEditor } from "./components/BranchNameInstructionsEditor";
 import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
 import { TmuxInstaller } from "./components/TmuxInstaller";
 import { FeedbackModal } from "./components/FeedbackModal";
@@ -192,6 +193,9 @@ export default function App() {
           )}
           {view === "pr-instructions" && (
             <PRInstructionsEditor onBack={() => setView("settings")} />
+          )}
+          {view === "branch-instructions" && (
+            <BranchNameInstructionsEditor onBack={() => setView("settings")} />
           )}
           {visitedProjects.map((project) => {
             const isSelected = view === "projects" && selected === project.name;

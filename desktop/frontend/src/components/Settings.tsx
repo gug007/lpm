@@ -278,6 +278,14 @@ export function Settings({
             </button>
           </SettingsRow>
           <SettingsRow
+            label="Branch Name Instructions"
+            description="Custom instructions for AI-generated branch names"
+          >
+            <button onClick={() => onNavigate("branch-instructions")} className={BTN_SECONDARY}>
+              Edit
+            </button>
+          </SettingsRow>
+          <SettingsRow
             label="Global Config"
             description="Shared actions and terminals across all projects"
           >

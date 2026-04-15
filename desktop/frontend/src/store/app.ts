@@ -21,7 +21,8 @@ export type View =
   | "settings"
   | "global-config"
   | "commit-instructions"
-  | "pr-instructions";
+  | "pr-instructions"
+  | "branch-instructions";
 
 interface AppState {
   projects: ProjectInfo[];
