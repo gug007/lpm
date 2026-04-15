@@ -434,6 +434,7 @@ export function PRModal({
                           : `Generate title with ${selectedCLILabel}`
                       }
                       label="Generate Title"
+                      generatingLabel="Generating title..."
                       aiCLIs={aiCLIs}
                       selectedCLI={selectedCLI}
                       selectedModel={selectedModel}
@@ -449,6 +450,7 @@ export function PRModal({
                           : `Generate description with ${selectedCLILabel}`
                       }
                       label="Generate Description"
+                      generatingLabel="Generating description..."
                       aiCLIs={aiCLIs}
                       selectedCLI={selectedCLI}
                       selectedModel={selectedModel}
