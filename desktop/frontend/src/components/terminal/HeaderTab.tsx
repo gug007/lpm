@@ -37,6 +37,13 @@ export function HeaderTab({ label, active, onClick, onClose, onRename, shimmer, 
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
+          // dnd-kit's KeyboardSensor treats Enter/Space as drag-start keys
+          // on the wrapping SortableTab. Without stopPropagation, pressing
+          // Enter to commit the rename bubbles up to the drag sensor and
+          // starts a keyboard drag that never ends (the input unmounts
+          // before dnd-kit sees a matching end key), leaving a ghost drag
+          // overlay stuck on screen.
+          e.stopPropagation();
           if (e.key === "Enter") commit();
           if (e.key === "Escape") setEditing(false);
         }}
