@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -16,7 +17,11 @@ import (
 // platform). Callers fall back to copyTree.
 var errCloneUnsupported = errors.New("clone not supported on this filesystem")
 
-const duplicateSuffix = "-copy-"
+const (
+	duplicateSuffix     = "-copy-"
+	duplicateIDLen      = 6
+	duplicateIDAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+)
 
 // DuplicateProject creates a new project as a sibling folder of `name`, with
 // its LPM config shared from the original project. Folder contents are copied
@@ -91,10 +96,11 @@ func stripUncommittedChanges(dst string) error {
 }
 
 // nextAvailableDuplicate returns a collision-free (name, root) pair for a new
-// duplicate of `originalName`. Names are <original>-copy-N, bumping N until
-// neither the LPM project file nor the target folder exists. The folder is
-// always a sibling of `srcRoot` so the new copy sits next to whichever
-// project the user right-clicked.
+// duplicate of `originalName`. Names are <original>-copy-<id>, where <id> is a
+// random 6-char alphanumeric string, retried until neither the LPM project
+// file nor the target folder exists. The folder is always a sibling of
+// `srcRoot` so the new copy sits next to whichever project the user
+// right-clicked.
 func nextAvailableDuplicate(originalName, srcRoot string) (string, string, error) {
 	parentDir := filepath.Dir(srcRoot)
 	taken := make(map[string]struct{})
@@ -111,14 +117,30 @@ func nextAvailableDuplicate(originalName, srcRoot string) (string, string, error
 			taken[e.Name()] = struct{}{}
 		}
 	}
-	for n := 1; n < 10_000; n++ {
-		candidate := fmt.Sprintf("%s%s%d", originalName, duplicateSuffix, n)
+	for attempt := 0; attempt < 10; attempt++ {
+		id, err := randomDuplicateID()
+		if err != nil {
+			return "", "", err
+		}
+		candidate := originalName + duplicateSuffix + id
 		if _, clash := taken[candidate]; clash {
 			continue
 		}
 		return candidate, filepath.Join(parentDir, candidate), nil
 	}
 	return "", "", fmt.Errorf("no available duplicate name for %q", originalName)
+}
+
+func randomDuplicateID() (string, error) {
+	buf := make([]byte, duplicateIDLen)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	out := make([]byte, duplicateIDLen)
+	for i, b := range buf {
+		out[i] = duplicateIDAlphabet[int(b)%len(duplicateIDAlphabet)]
+	}
+	return string(out), nil
 }
 
 func pathExists(path string) bool {
