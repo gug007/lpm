@@ -408,6 +408,8 @@ func LoadProjectCached(name string, cache map[string]*ProjectConfig) (*ProjectCo
 func (p *ProjectConfig) Validate() error {
 	var errs []string
 
+	root := expandHome(p.Root)
+
 	ports := map[int]string{}
 	for name, svc := range p.Services {
 		if strings.TrimSpace(svc.Cmd) == "" {
@@ -423,9 +425,9 @@ func (p *ProjectConfig) Validate() error {
 			ports[svc.Port] = name
 		}
 		if svc.Cwd != "" {
-			abs := svc.Cwd
+			abs := expandHome(svc.Cwd)
 			if !filepath.IsAbs(abs) {
-				abs = filepath.Join(p.Root, abs)
+				abs = filepath.Join(root, abs)
 			}
 			if info, err := os.Stat(abs); err != nil || !info.IsDir() {
 				errs = append(errs, fmt.Sprintf("service %q: cwd %q does not exist", name, svc.Cwd))
@@ -433,8 +435,8 @@ func (p *ProjectConfig) Validate() error {
 		}
 	}
 
-	errs = append(errs, validateActionMap(p.Root, "action", p.Actions)...)
-	errs = append(errs, validateActionMap(p.Root, "terminal", ActionMap(p.Terminals))...)
+	errs = append(errs, validateActionMap(root, "action", p.Actions)...)
+	errs = append(errs, validateActionMap(root, "terminal", ActionMap(p.Terminals))...)
 
 	for pName, services := range p.Profiles {
 		for _, svcName := range services {
@@ -587,7 +589,7 @@ func validateActionMap(root, label string, actions ActionMap) []string {
 		if dir == "" {
 			return
 		}
-		abs := dir
+		abs := expandHome(dir)
 		if !filepath.IsAbs(abs) {
 			abs = filepath.Join(root, abs)
 		}
