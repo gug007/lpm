@@ -65,6 +65,18 @@ actions:
       NODE_ENV: production
 `;
 
+export const ACTIONS_BACKGROUND_EXAMPLE = `name: myapp
+root: ~/Projects/myapp
+services:
+  web: npm run dev
+actions:
+  db-reset:
+    cmd: npm run db:reset && npm run db:seed
+    label: Reset DB
+    type: background       # runs hidden, notifies on completion
+    confirm: true          # pair with confirm for destructive ones
+`;
+
 export const ACTIONS_NESTED_EXAMPLE = `name: myapp
 root: ~/Projects/myapp
 services:

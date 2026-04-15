@@ -17,6 +17,7 @@ export type ActionDef =
       env?: Record<string, string>;
       confirm?: boolean;
       display?: "button" | "menu";
+      type?: string;
       actions?: Record<string, ActionDef>;
     };
 
@@ -53,6 +54,7 @@ export type Action = {
   env?: Record<string, string>;
   confirm?: boolean;
   display: "button" | "menu";
+  type?: string;
   children: Action[];
 };
 

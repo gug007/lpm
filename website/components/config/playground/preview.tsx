@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActionModal } from "./action-modal";
+import { BackgroundToasts, type BackgroundToast } from "./background-toasts";
 import { EmptyState } from "./empty-state";
 import { Header } from "./header";
 import {
@@ -40,6 +41,14 @@ export function PlaygroundPreview({
   const [activeTab, setActiveTab] = useState<string>(ALL_TAB);
   const [selectedAction, setSelectedAction] = useState<SelectedAction | null>(
     null,
+  );
+  const [toasts, setToasts] = useState<BackgroundToast[]>([]);
+  const toastTimers = useRef<number[]>([]);
+  useEffect(
+    () => () => {
+      toastTimers.current.forEach((id) => window.clearTimeout(id));
+    },
+    [],
   );
 
   const services = useMemo<Service[]>(
@@ -107,7 +116,30 @@ export function PlaygroundPreview({
   const effectiveRunning = runningServices.length > 0;
   const hasAnyPane = effectiveRunning || openTerminals.length > 0;
 
+  const runBackgroundAction = (action: Action) => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, label: action.label, phase: "running" }]);
+    const finishTimer = window.setTimeout(() => {
+      setToasts((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, phase: "success" } : t)),
+      );
+      const dismissTimer = window.setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+      }, 1800);
+      toastTimers.current.push(dismissTimer);
+    }, 900);
+    toastTimers.current.push(finishTimer);
+  };
+
   const openAction = (action: Action) => {
+    if (action.type === "background") {
+      if (action.confirm) {
+        setSelectedAction({ action, initialPhase: "idle" });
+      } else {
+        runBackgroundAction(action);
+      }
+      return;
+    }
     setSelectedAction({
       action,
       initialPhase: action.confirm ? "idle" : "running",
@@ -190,8 +222,19 @@ export function PlaygroundPreview({
           action={selectedAction.action}
           initialPhase={selectedAction.initialPhase}
           onClose={() => setSelectedAction(null)}
+          onRun={
+            selectedAction.action.type === "background"
+              ? () => {
+                  const action = selectedAction.action;
+                  setSelectedAction(null);
+                  runBackgroundAction(action);
+                }
+              : undefined
+          }
         />
       )}
+
+      <BackgroundToasts toasts={toasts} />
     </div>
   );
 }

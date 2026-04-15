@@ -33,6 +33,7 @@ export function normalizeAction(key: string, def: ActionDef): Action {
     env: def?.env,
     confirm: def?.confirm,
     display: def?.display === "button" ? "button" : "menu",
+    type: def?.type,
     children,
   };
 }

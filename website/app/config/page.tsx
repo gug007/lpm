@@ -6,6 +6,7 @@ import { ConfigPlayground } from "@/components/config/playground";
 import { Section } from "@/components/config/section";
 import { TableOfContents } from "@/components/config/toc";
 import {
+  ACTIONS_BACKGROUND_EXAMPLE,
   ACTIONS_DESTRUCTIVE_EXAMPLE,
   ACTIONS_DROPDOWN_EXAMPLE,
   ACTIONS_EXAMPLE,
@@ -218,6 +219,22 @@ const actionFields: Field[] = [
         project toolbar so it&rsquo;s always one click away. The default,{" "}
         <code className="font-mono">menu</code>, tucks it behind the three-dot
         menu — better for things you rarely need.
+      </>
+    ),
+  },
+  {
+    name: "type",
+    type: "string",
+    required: false,
+    description: (
+      <>
+        How the action runs. The default pops open a modal and streams output
+        while the command runs. <code className="font-mono">terminal</code>{" "}
+        opens a persistent interactive pane (see the{" "}
+        <code className="font-mono">terminals:</code> section).{" "}
+        <code className="font-mono">background</code> runs the command hidden
+        and shows a toast when it finishes — perfect for slow, boring commands
+        whose only interesting signal is &ldquo;did it succeed.&rdquo;
       </>
     ),
   },
@@ -526,6 +543,24 @@ export default function ConfigPage() {
               <ConfigPlayground
                 filename="actions-dropdown.yml"
                 initial={ACTIONS_DROPDOWN_EXAMPLE}
+              />
+
+              <p className="mt-8 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                <strong className="font-medium text-gray-700 dark:text-gray-200">
+                  Background actions.
+                </strong>{" "}
+                For slow, boring commands where the only thing you care about
+                is whether they succeeded — builds, migrations, docker pulls,{" "}
+                <code className="font-mono">git fetch</code> — add{" "}
+                <code className="font-mono">type: background</code>. The
+                command runs hidden in the background and lpm pops a toast
+                when it&rsquo;s done, success or failure. No modal to dismiss,
+                no terminal tab to clean up, and you can fire several in
+                parallel while you keep working:
+              </p>
+              <ConfigPlayground
+                filename="actions-background.yml"
+                initial={ACTIONS_BACKGROUND_EXAMPLE}
               />
 
               <div className="mt-6 mb-4 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-900/40 px-4 py-3 text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
