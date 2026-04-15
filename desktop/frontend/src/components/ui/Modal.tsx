@@ -1,4 +1,5 @@
 import { type ReactNode, type Ref } from "react";
+import { createPortal } from "react-dom";
 import { useEventListener } from "../../hooks/useEventListener";
 
 interface ModalProps {
@@ -37,7 +38,7 @@ export function Modal({
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
       className={`fixed inset-0 ${zIndexClassName} flex items-center justify-center ${containerClassName}`}
     >
@@ -48,6 +49,7 @@ export function Modal({
       <div ref={ref} className={`relative ${contentClassName}`}>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
