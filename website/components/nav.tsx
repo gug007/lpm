@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { RELEASES_URL } from "@/lib/links";
+import { AI_AGENTS_PATH, RELEASES_URL } from "@/lib/links";
 import { GitHubStarButton } from "./github-star-button";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -32,6 +32,12 @@ export function Nav() {
             className="text-[13px] text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
           >
             Docs
+          </Link>
+          <Link
+            href={AI_AGENTS_PATH}
+            className="text-[13px] text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
+          >
+            For AI agents
           </Link>
           <a
             href={RELEASES_URL}

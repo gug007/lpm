@@ -6,7 +6,7 @@ import { OpenInDropdown } from "./OpenInDropdown";
 import { BranchSwitcher } from "./BranchSwitcher";
 import { TerminalView, type TerminalViewHandle } from "./TerminalView";
 import { ConfigEditor } from "./ConfigEditor";
-import { RunAction } from "../../wailsjs/go/main/App";
+import { RunAction, RunActionBackground } from "../../wailsjs/go/main/App";
 import { getSettings, saveSettings } from "../settings";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
@@ -175,6 +175,14 @@ export function ProjectDetail({
       } catch (err) {
         toast.error(`${action.label}: ${err}`);
       }
+      return;
+    }
+    if (action.type === "background") {
+      toast.promise(RunActionBackground(project.name, action.name, inputValues), {
+        loading: `${action.label}…`,
+        success: `${action.label} done`,
+        error: (err) => `${action.label}: ${err}`,
+      });
       return;
     }
     try {

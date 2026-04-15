@@ -10,7 +10,7 @@ export interface ProfileInfo {
   services: string[];
 }
 
-export type ActionType = "terminal" | (string & {});
+export type ActionType = "terminal" | "background" | (string & {});
 
 export interface ActionInputOption {
   label: string;

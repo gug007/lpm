@@ -582,7 +582,7 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
                         <Select
                           value={act.type}
                           onChange={(v) => updateAction(i, { type: v })}
-                          options={[{ value: "", label: "Modal" }, { value: "terminal", label: "Terminal tab" }]}
+                          options={[{ value: "", label: "Modal" }, { value: "terminal", label: "Terminal tab" }, { value: "background", label: "Background" }]}
                         />
                       </Field>
                     </div>

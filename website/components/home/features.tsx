@@ -7,6 +7,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import { FeatureCard } from "@/components/feature-card";
 import { SectionHeader } from "@/components/section-header";
 
 type Feature = {
@@ -87,19 +88,10 @@ export function Features() {
           title="Built for real dev workflows"
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          {FEATURES.map(({ icon: Icon, title, body }) => (
-            <div
-              key={title}
-              className="group p-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-md dark:hover:shadow-none hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-all duration-200"
-            >
-              <div className="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 mb-4 group-hover:bg-gray-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-gray-900 transition-colors duration-200">
-                <Icon className="w-4 h-4" />
-              </div>
-              <h3 className="text-sm font-semibold mb-1.5">{title}</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
-                {body}
-              </p>
-            </div>
+          {FEATURES.map(({ icon, title, body }) => (
+            <FeatureCard key={title} icon={icon} title={title}>
+              {body}
+            </FeatureCard>
           ))}
         </div>
       </div>
