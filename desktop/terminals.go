@@ -12,9 +12,10 @@ import (
 // re-injected on restore; the PTY id is not persisted (it doesn't survive
 // a restart).
 type PersistedTab struct {
-	Label     string `json:"label"`
-	StartCmd  string `json:"startCmd,omitempty"`
-	ResumeCmd string `json:"resumeCmd,omitempty"`
+	Label      string `json:"label"`
+	StartCmd   string `json:"startCmd,omitempty"`
+	ResumeCmd  string `json:"resumeCmd,omitempty"`
+	ActionName string `json:"actionName,omitempty"`
 }
 
 // PaneNode is one node of a persisted pane layout tree. Leaves have

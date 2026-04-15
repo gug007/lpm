@@ -278,11 +278,13 @@ export function useTerminals(
               !isInteractivePaneSessionDead(t.id),
           );
           if (idx !== -1) {
-            applyTree(mapPane(treeRef.current, pane.id, (p) => ({
-              ...p,
-              activeTabIdx: idx,
-              activeServiceName: undefined,
-            })), pane.id);
+            if (pane.activeTabIdx !== idx || pane.activeServiceName !== undefined) {
+              applyTree(mapPane(treeRef.current, pane.id, (p) => ({
+                ...p,
+                activeTabIdx: idx,
+                activeServiceName: undefined,
+              })), pane.id);
+            }
             await sendTerminalInput(pane.tabs[idx].id, cmd + "\n");
             return;
           }
