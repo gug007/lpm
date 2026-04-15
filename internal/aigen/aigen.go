@@ -151,18 +151,32 @@ func Generate(ctx context.Context, opts Options) (string, error) {
 
 // GenerateText runs the CLI with the given prompt and streams progress via the
 // callback. Returns the raw text output (no YAML extraction).
-func GenerateText(ctx context.Context, cli CLI, cwd, prompt string, progress ProgressFunc) (string, error) {
+func GenerateText(ctx context.Context, cli CLI, model, cwd, prompt string, progress ProgressFunc) (string, error) {
 	switch cli {
 	case CLIClaude:
-		return runClaudeStream(ctx, cwd, prompt, progress)
+		return runClaudeStream(ctx, cwd, prompt, model, progress)
 	case CLICodex:
-		cmd := exec.CommandContext(ctx, "codex", "exec", "--sandbox", "read-only", "--skip-git-repo-check", prompt)
+		args := []string{"exec", "--sandbox", "read-only", "--skip-git-repo-check"}
+		if model != "" {
+			args = append(args, "--model", model)
+		}
+		args = append(args, prompt)
+		cmd := exec.CommandContext(ctx, "codex", args...)
 		return streamOutput(ctx, cwd, cmd, progress, codexProgressLine)
 	case CLIGemini:
-		cmd := exec.CommandContext(ctx, "gemini", "-p", prompt, "--approval-mode", "yolo")
+		args := []string{"-p", prompt, "--approval-mode", "yolo"}
+		if model != "" {
+			args = append(args, "--model", model)
+		}
+		cmd := exec.CommandContext(ctx, "gemini", args...)
 		return streamOutput(ctx, cwd, cmd, progress, nil)
 	case CLIOpencode:
-		cmd := exec.CommandContext(ctx, "opencode", "run", prompt)
+		args := []string{"run"}
+		if model != "" {
+			args = append(args, "--model", model)
+		}
+		args = append(args, prompt)
+		cmd := exec.CommandContext(ctx, "opencode", args...)
 		return streamOutput(ctx, cwd, cmd, progress, nil)
 	default:
 		return "", fmt.Errorf("unsupported CLI %q", cli)
@@ -170,14 +184,20 @@ func GenerateText(ctx context.Context, cli CLI, cwd, prompt string, progress Pro
 }
 
 // runClaudeStream runs Claude with stream-json, emits progress, and returns the raw result text.
-func runClaudeStream(ctx context.Context, cwd, prompt string, progress ProgressFunc) (string, error) {
+func runClaudeStream(ctx context.Context, cwd, prompt, model string, progress ProgressFunc) (string, error) {
 	name := CLIClaude.displayName()
-	cmd := exec.CommandContext(ctx, "claude", "-p",
+	args := []string{
+		"-p",
 		"--verbose",
 		"--output-format", "stream-json",
 		"--permission-mode", "bypassPermissions",
 		"--disallowedTools=Edit,Write,NotebookEdit",
-		prompt)
+	}
+	if model != "" {
+		args = append(args, "--model", model)
+	}
+	args = append(args, prompt)
+	cmd := exec.CommandContext(ctx, "claude", args...)
 	cmd.Dir = cwd
 
 	stdout, err := cmd.StdoutPipe()
@@ -291,7 +311,7 @@ func truncForError(s string) string {
 }
 
 func generateClaude(ctx context.Context, opts Options, prompt string) (string, error) {
-	result, err := runClaudeStream(ctx, opts.ProjectDir, prompt, opts.Progress)
+	result, err := runClaudeStream(ctx, opts.ProjectDir, prompt, "", opts.Progress)
 	if err != nil {
 		return "", err
 	}

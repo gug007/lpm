@@ -3,13 +3,15 @@ import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
 import { XIcon, ChevronDownIcon } from "./icons";
 import { AIButton } from "./ui/AIButton";
+import { AICLIMenu } from "./ui/AICLIMenu";
 import {
   CheckAICLIs,
   GenerateBranchName,
 } from "../../wailsjs/go/main/App";
 import { EventsEmit } from "../../wailsjs/runtime/runtime";
 import { useOutsideClick } from "../hooks/useOutsideClick";
-import { AI_CLI_OPTIONS } from "../types";
+import { AI_CLI_OPTIONS, aiDefaultModel, aiPickLabel, resolveAIPick, type AICLI } from "../types";
+import { getSettings, saveSettings } from "../settings";
 
 interface CreateBranchModalProps {
   open: boolean;
@@ -29,7 +31,12 @@ export function CreateBranchModal({
   const [name, setName] = useState("");
   const [generating, setGenerating] = useState(false);
   const [aiCLIs, setAiCLIs] = useState<Record<string, boolean>>({});
-  const [selectedCLI, setSelectedCLI] = useState("claude");
+  const [selectedCLI, setSelectedCLI] = useState<AICLI>(
+    () => (getSettings().aiCli as AICLI) || "claude",
+  );
+  const [selectedModel, setSelectedModel] = useState<string>(
+    () => getSettings().aiModel ?? aiDefaultModel("claude"),
+  );
   const [cliMenuOpen, setCLIMenuOpen] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const openRef = useRef(open);
@@ -56,8 +63,12 @@ export function CreateBranchModal({
           opencode: a.opencode,
         };
         setAiCLIs(avail);
-        const first = AI_CLI_OPTIONS.find((o) => avail[o.value]);
-        if (first) setSelectedCLI(first.value);
+        const s = getSettings();
+        const pick = resolveAIPick(s.aiCli, s.aiModel, avail);
+        if (pick) {
+          setSelectedCLI(pick.cli);
+          setSelectedModel(pick.model);
+        }
       })
       .catch(() => {});
     return () => {
@@ -81,7 +92,7 @@ export function CreateBranchModal({
     if (generating || !projectPath) return;
     setGenerating(true);
     try {
-      const result = await GenerateBranchName(projectPath, selectedCLI);
+      const result = await GenerateBranchName(projectPath, selectedCLI, selectedModel);
       if (!openRef.current) return;
       if (result) setName(normalize(result));
     } catch (err) {
@@ -98,8 +109,7 @@ export function CreateBranchModal({
     await onCreate(cleaned);
   };
 
-  const selectedCLILabel =
-    AI_CLI_OPTIONS.find((o) => o.value === selectedCLI)?.label ?? selectedCLI;
+  const selectedCLILabel = aiPickLabel(selectedCLI, selectedModel);
 
   return (
     <Modal
@@ -174,39 +184,17 @@ export function CreateBranchModal({
                     {generating ? "Generating..." : "Generate with AI"}
                   </AIButton>
                   {cliMenuOpen && (
-                    <div className="absolute right-0 bottom-full z-10 mb-1 w-36 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
-                      {AI_CLI_OPTIONS.filter((o) => aiCLIs[o.value]).map((o) => (
-                        <button
-                          key={o.value}
-                          onClick={() => {
-                            setSelectedCLI(o.value);
-                            setCLIMenuOpen(false);
-                          }}
-                          className={`flex w-full items-center px-3 py-1.5 text-left text-xs transition-colors hover:bg-[var(--bg-hover)] ${
-                            selectedCLI === o.value
-                              ? "font-medium text-[var(--text-primary)]"
-                              : "text-[var(--text-secondary)]"
-                          }`}
-                        >
-                          {o.label}
-                          {selectedCLI === o.value && (
-                            <svg
-                              width="10"
-                              height="10"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="3"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              className="ml-auto"
-                            >
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                          )}
-                        </button>
-                      ))}
-                    </div>
+                    <AICLIMenu
+                      aiCLIs={aiCLIs}
+                      selectedCLI={selectedCLI}
+                      selectedModel={selectedModel}
+                      onSelect={(cli, model) => {
+                        setSelectedCLI(cli);
+                        setSelectedModel(model);
+                        setCLIMenuOpen(false);
+                        saveSettings({ aiCli: cli, aiModel: model });
+                      }}
+                    />
                   )}
                 </div>
               </div>

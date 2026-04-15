@@ -17,7 +17,8 @@ import {
 import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useBranchSearch } from "../hooks/useBranchSearch";
-import { AI_CLI_OPTIONS } from "../types";
+import { AI_CLI_OPTIONS, aiDefaultModel, aiPickLabel, resolveAIPick, type AICLI } from "../types";
+import { AICLIMenu } from "./ui/AICLIMenu";
 import { EventsEmit, BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { getSettings, saveSettings } from "../settings";
 import { Tooltip } from "./ui/Tooltip";
@@ -53,7 +54,12 @@ export function PRModal({
   const [generatingDesc, setGeneratingDesc] = useState(false);
   const [ghAvailable, setGhAvailable] = useState(true);
   const [aiCLIs, setAiCLIs] = useState<Record<string, boolean>>({});
-  const [selectedCLI, setSelectedCLI] = useState("claude");
+  const [selectedCLI, setSelectedCLI] = useState<AICLI>(
+    () => (getSettings().aiCli as AICLI) || "claude",
+  );
+  const [selectedModel, setSelectedModel] = useState<string>(
+    () => getSettings().aiModel ?? aiDefaultModel("claude"),
+  );
   const [cliMenuOpen, setCLIMenuOpen] = useState(false);
   const [baseMenuOpen, setBaseMenuOpen] = useState(false);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -115,8 +121,12 @@ export function PRModal({
             opencode: cliAvail.opencode,
           };
           setAiCLIs(avail);
-          const first = AI_CLI_OPTIONS.find((o) => avail[o.value]);
-          if (first) setSelectedCLI(first.value);
+          const s = getSettings();
+          const pick = resolveAIPick(s.aiCli, s.aiModel, avail);
+          if (pick) {
+            setSelectedCLI(pick.cli);
+            setSelectedModel(pick.model);
+          }
         }
 
         const log = await GitLogBranch(projectPath, defaultBranch);
@@ -195,7 +205,7 @@ export function PRModal({
     if (generatingTitle || !base) return;
     setGeneratingTitle(true);
     try {
-      const result = await GeneratePRTitle(projectPath, selectedCLI, base);
+      const result = await GeneratePRTitle(projectPath, selectedCLI, selectedModel, base);
       if (result) setTitle(result);
     } catch (err) {
       toast.error(`Title generation failed: ${err}`);
@@ -208,7 +218,7 @@ export function PRModal({
     if (generatingDesc || !base) return;
     setGeneratingDesc(true);
     try {
-      const result = await GeneratePRDescription(projectPath, selectedCLI, base);
+      const result = await GeneratePRDescription(projectPath, selectedCLI, selectedModel, base);
       if (result) setDescription(result);
     } catch (err) {
       toast.error(`Description generation failed: ${err}`);
@@ -223,8 +233,7 @@ export function PRModal({
     saveSettings({ autoGeneratePRDescription: next });
   };
 
-  const selectedCLILabel =
-    AI_CLI_OPTIONS.find((o) => o.value === selectedCLI)?.label ?? selectedCLI;
+  const selectedCLILabel = aiPickLabel(selectedCLI, selectedModel);
 
   const canCreate =
     !busy && !loading && !generating && title.trim().length > 0 && ghAvailable && commits.length > 0;
@@ -450,29 +459,17 @@ export function PRModal({
                         {generatingDesc ? "Generating..." : "Generate Description"}
                       </AIButton>
                       {cliMenuOpen && (
-                        <div className="absolute right-0 bottom-full z-10 mb-1 w-36 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
-                          {AI_CLI_OPTIONS.filter((o) => aiCLIs[o.value]).map(
-                            (o) => (
-                              <button
-                                key={o.value}
-                                onClick={() => {
-                                  setSelectedCLI(o.value);
-                                  setCLIMenuOpen(false);
-                                }}
-                                className={`flex w-full items-center px-3 py-1.5 text-left text-xs transition-colors hover:bg-[var(--bg-hover)] ${
-                                  selectedCLI === o.value
-                                    ? "font-medium text-[var(--text-primary)]"
-                                    : "text-[var(--text-secondary)]"
-                                }`}
-                              >
-                                {o.label}
-                                {selectedCLI === o.value && (
-                                  <CheckIcon />
-                                )}
-                              </button>
-                            ),
-                          )}
-                        </div>
+                        <AICLIMenu
+                          aiCLIs={aiCLIs}
+                          selectedCLI={selectedCLI}
+                          selectedModel={selectedModel}
+                          onSelect={(cli, model) => {
+                            setSelectedCLI(cli);
+                            setSelectedModel(model);
+                            setCLIMenuOpen(false);
+                            saveSettings({ aiCli: cli, aiModel: model });
+                          }}
+                        />
                       )}
                     </div>
                   </div>

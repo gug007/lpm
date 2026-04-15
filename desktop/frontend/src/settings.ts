@@ -18,6 +18,8 @@ export interface Settings {
   sidebarWidth?: number;
   autoGenerateCommitMessage?: boolean;
   autoGeneratePRDescription?: boolean;
+  aiCli?: string;
+  aiModel?: string;
   configEditorMode?: "form" | "yaml";
   showProjectName?: boolean;
   lastSelectedProject?: string;
@@ -47,6 +49,8 @@ export async function loadSettings(): Promise<Settings> {
       sidebarWidth: s.sidebarWidth,
       autoGenerateCommitMessage: s.autoGenerateCommitMessage,
       autoGeneratePRDescription: s.autoGeneratePRDescription,
+      aiCli: s.aiCli || undefined,
+      aiModel: s.aiModel || undefined,
       configEditorMode: s.configEditorMode === "form" || s.configEditorMode === "yaml" ? s.configEditorMode : undefined,
       showProjectName: s.showProjectName,
       lastSelectedProject: s.lastSelectedProject,

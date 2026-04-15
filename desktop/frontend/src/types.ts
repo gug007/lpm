@@ -66,12 +66,62 @@ export const GIT_CHANGED_EVENT = "git-changed";
 
 export type AICLI = "claude" | "codex" | "gemini" | "opencode";
 
-export const AI_CLI_OPTIONS: { value: AICLI; label: string }[] = [
-  { value: "claude", label: "Claude Code" },
+export interface AIModelOption {
+  value: string;
+  label: string;
+}
+
+export interface AICLIOption {
+  value: AICLI;
+  label: string;
+  models?: AIModelOption[];
+}
+
+export const AI_CLI_OPTIONS: AICLIOption[] = [
+  {
+    value: "claude",
+    label: "Claude Code",
+    models: [
+      { value: "", label: "Default" },
+      { value: "sonnet", label: "Sonnet" },
+      { value: "opus", label: "Opus" },
+      { value: "haiku", label: "Haiku" },
+    ],
+  },
   { value: "codex", label: "Codex" },
   { value: "gemini", label: "Gemini" },
   { value: "opencode", label: "OpenCode" },
 ];
+
+export function aiPickLabel(cli: AICLI, model: string): string {
+  const opt = AI_CLI_OPTIONS.find((o) => o.value === cli);
+  const base = opt?.label ?? cli;
+  if (!model) return base;
+  const m = opt?.models?.find((x) => x.value === model)?.label ?? model;
+  return `${base} ${m}`;
+}
+
+export function aiDefaultModel(cli: AICLI): string {
+  return AI_CLI_OPTIONS.find((o) => o.value === cli)?.models?.[0]?.value ?? "";
+}
+
+export function resolveAIPick(
+  savedCli: string | undefined,
+  savedModel: string | undefined,
+  aiCLIs: Record<string, boolean>,
+): { cli: AICLI; model: string } | null {
+  if (savedCli && aiCLIs[savedCli]) {
+    const opt = AI_CLI_OPTIONS.find((o) => o.value === savedCli);
+    if (opt) {
+      const m = savedModel ?? "";
+      const valid = opt.models ? opt.models.some((x) => x.value === m) : m === "";
+      return { cli: opt.value, model: valid ? m : aiDefaultModel(opt.value) };
+    }
+  }
+  const fallback = AI_CLI_OPTIONS.find((o) => aiCLIs[o.value]);
+  if (!fallback) return null;
+  return { cli: fallback.value, model: aiDefaultModel(fallback.value) };
+}
 
 export interface StatusEntry {
   key: string;

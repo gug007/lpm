@@ -21,6 +21,8 @@ type Settings struct {
 	SidebarWidth        int      `json:"sidebarWidth,omitempty"`
 	AutoGenCommitMsg    bool     `json:"autoGenerateCommitMessage,omitempty"`
 	AutoGenPRDesc       bool     `json:"autoGeneratePRDescription,omitempty"`
+	AiCli               string   `json:"aiCli,omitempty"`
+	AiModel             string   `json:"aiModel,omitempty"`
 	ConfigEditorMode    string   `json:"configEditorMode,omitempty"`
 	ShowProjectName     *bool    `json:"showProjectName,omitempty"`
 	LastSelectedProject string   `json:"lastSelectedProject,omitempty"`

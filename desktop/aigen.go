@@ -34,7 +34,7 @@ const maxDiffSize = 30_000
 
 // GenerateCommitMessage uses an AI CLI to generate a commit message from the
 // diff of the given files.
-func (a *App) GenerateCommitMessage(cwd, cli string, files []string) (string, error) {
+func (a *App) GenerateCommitMessage(cwd, cli, model string, files []string) (string, error) {
 	diff, err := a.GitDiff(cwd, files)
 	if err != nil {
 		return "", fmt.Errorf("no diff to summarize")
@@ -56,7 +56,7 @@ func (a *App) GenerateCommitMessage(cwd, cli string, files []string) (string, er
 	if err != nil {
 		return "", err
 	}
-	return aigen.GenerateText(a.ctx, selected, cwd, prompt+diff, func(msg string) {
+	return aigen.GenerateText(a.ctx, selected, model, cwd, prompt+diff, func(msg string) {
 		runtime.EventsEmit(a.ctx, commitMsgProgressEvent, msg)
 	})
 }
@@ -154,7 +154,7 @@ func buildPRPrompt(base, userInstructions, diff, commitLog string) string {
 }
 
 // GeneratePRTitle uses an AI CLI to generate a PR title from the branch diff.
-func (a *App) GeneratePRTitle(cwd, cli, base string) (string, error) {
+func (a *App) GeneratePRTitle(cwd, cli, model, base string) (string, error) {
 	diff, commitLog, err := a.prDiffAndLog(cwd, base)
 	if err != nil {
 		return "", err
@@ -166,13 +166,13 @@ func (a *App) GeneratePRTitle(cwd, cli, base string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return aigen.GenerateText(a.ctx, selected, cwd, prompt, func(msg string) {
+	return aigen.GenerateText(a.ctx, selected, model, cwd, prompt, func(msg string) {
 		runtime.EventsEmit(a.ctx, prTitleProgressEvent, msg)
 	})
 }
 
 // GeneratePRDescription uses an AI CLI to generate a PR description from the branch diff.
-func (a *App) GeneratePRDescription(cwd, cli, base string) (string, error) {
+func (a *App) GeneratePRDescription(cwd, cli, model, base string) (string, error) {
 	diff, commitLog, err := a.prDiffAndLog(cwd, base)
 	if err != nil {
 		return "", err
@@ -184,7 +184,7 @@ func (a *App) GeneratePRDescription(cwd, cli, base string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return aigen.GenerateText(a.ctx, selected, cwd, prompt, func(msg string) {
+	return aigen.GenerateText(a.ctx, selected, model, cwd, prompt, func(msg string) {
 		runtime.EventsEmit(a.ctx, prDescriptionProgressEvent, msg)
 	})
 }
@@ -217,7 +217,7 @@ Output ONLY the branch name. No code fences. No explanation.
 
 // GenerateBranchName summarizes the current uncommitted changes when present,
 // otherwise falls back to the current branch diff against the default branch.
-func (a *App) GenerateBranchName(cwd, cli string) (string, error) {
+func (a *App) GenerateBranchName(cwd, cli, model string) (string, error) {
 	var commitLog string
 	diff, _ := runGit(cwd, "diff", "HEAD")
 	diff = strings.TrimSpace(diff)
@@ -244,7 +244,7 @@ func (a *App) GenerateBranchName(cwd, cli string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return aigen.GenerateText(a.ctx, selected, cwd, prompt, func(msg string) {
+	return aigen.GenerateText(a.ctx, selected, model, cwd, prompt, func(msg string) {
 		runtime.EventsEmit(a.ctx, branchNameProgressEvent, msg)
 	})
 }
