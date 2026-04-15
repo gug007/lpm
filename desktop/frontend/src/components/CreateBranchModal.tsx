@@ -1,15 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
-import { XIcon, ChevronDownIcon } from "./icons";
-import { AIButton } from "./ui/AIButton";
-import { AICLIMenu } from "./ui/AICLIMenu";
+import { XIcon } from "./icons";
+import { AIPickerButton } from "./ui/AIPickerButton";
 import {
   CheckAICLIs,
   GenerateBranchName,
 } from "../../wailsjs/go/main/App";
 import { EventsEmit } from "../../wailsjs/runtime/runtime";
-import { useOutsideClick } from "../hooks/useOutsideClick";
 import { AI_CLI_OPTIONS, aiDefaultModel, aiPickLabel, resolveAIPick, type AICLI } from "../types";
 import { getSettings, saveSettings } from "../settings";
 
@@ -37,13 +35,8 @@ export function CreateBranchModal({
   const [selectedModel, setSelectedModel] = useState<string>(
     () => getSettings().aiModel ?? aiDefaultModel("claude"),
   );
-  const [cliMenuOpen, setCLIMenuOpen] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const openRef = useRef(open);
-  const cliRef = useOutsideClick<HTMLDivElement>(
-    () => setCLIMenuOpen(false),
-    cliMenuOpen,
-  );
 
   useEffect(() => {
     openRef.current = open;
@@ -51,7 +44,6 @@ export function CreateBranchModal({
     let cancelled = false;
     setName("");
     setGenerating(false);
-    setCLIMenuOpen(false);
     setTimeout(() => nameRef.current?.focus(), 50);
     CheckAICLIs()
       .then((a) => {
@@ -111,6 +103,12 @@ export function CreateBranchModal({
 
   const selectedCLILabel = aiPickLabel(selectedCLI, selectedModel);
 
+  const selectAI = (cli: AICLI, model: string) => {
+    setSelectedCLI(cli);
+    setSelectedModel(model);
+    saveSettings({ aiCli: cli, aiModel: model });
+  };
+
   return (
     <Modal
       open={open}
@@ -165,38 +163,17 @@ export function CreateBranchModal({
             />
             {anyAiAvailable && (
               <div className="flex items-center justify-end px-2 pb-1.5">
-                <div ref={cliRef} className="relative">
-                  <AIButton
-                    onClick={generate}
-                    disabled={generating || busy || !projectPath}
-                    loading={generating}
-                    title={`Generate with ${selectedCLILabel}`}
-                    trailing={
-                      <button
-                        onClick={() => setCLIMenuOpen(!cliMenuOpen)}
-                        disabled={generating || busy}
-                        title="Select AI CLI"
-                      >
-                        <ChevronDownIcon />
-                      </button>
-                    }
-                  >
-                    {generating ? "Generating..." : "Generate with AI"}
-                  </AIButton>
-                  {cliMenuOpen && (
-                    <AICLIMenu
-                      aiCLIs={aiCLIs}
-                      selectedCLI={selectedCLI}
-                      selectedModel={selectedModel}
-                      onSelect={(cli, model) => {
-                        setSelectedCLI(cli);
-                        setSelectedModel(model);
-                        setCLIMenuOpen(false);
-                        saveSettings({ aiCli: cli, aiModel: model });
-                      }}
-                    />
-                  )}
-                </div>
+                <AIPickerButton
+                  onGenerate={generate}
+                  generating={generating}
+                  disabled={generating || busy || !projectPath}
+                  title={`Generate with ${selectedCLILabel}`}
+                  label="Generate with AI"
+                  aiCLIs={aiCLIs}
+                  selectedCLI={selectedCLI}
+                  selectedModel={selectedModel}
+                  onSelect={selectAI}
+                />
               </div>
             )}
           </div>

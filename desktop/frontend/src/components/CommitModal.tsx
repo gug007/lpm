@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { XIcon, ChevronDownIcon, UndoIcon } from "./icons";
-import { AIButton } from "./ui/AIButton";
+import { AIPickerButton } from "./ui/AIPickerButton";
 import {
   CheckAICLIs,
   GenerateCommitMessage,
@@ -18,7 +18,6 @@ import {
 import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { AI_CLI_OPTIONS, aiDefaultModel, aiPickLabel, resolveAIPick, type AICLI } from "../types";
-import { AICLIMenu } from "./ui/AICLIMenu";
 import { EventsEmit } from "../../wailsjs/runtime/runtime";
 import { getSettings, saveSettings } from "../settings";
 import { DiffViewer } from "./DiffViewer";
@@ -65,13 +64,8 @@ export function CommitModal({
   const [selectedModel, setSelectedModel] = useState<string>(
     () => getSettings().aiModel ?? aiDefaultModel("claude"),
   );
-  const [cliMenuOpen, setCLIMenuOpen] = useState(false);
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
   const msgRef = useRef<HTMLTextAreaElement>(null);
-  const cliRef = useOutsideClick<HTMLDivElement>(
-    () => setCLIMenuOpen(false),
-    cliMenuOpen,
-  );
   const commitMenuRef = useOutsideClick<HTMLDivElement>(
     () => setCommitMenuOpen(false),
     commitMenuOpen,
@@ -260,6 +254,12 @@ export function CommitModal({
 
   const selectedCLILabel = aiPickLabel(selectedCLI, selectedModel);
 
+  const selectAI = (cli: AICLI, model: string) => {
+    setSelectedCLI(cli);
+    setSelectedModel(model);
+    saveSettings({ aiCli: cli, aiModel: model });
+  };
+
   const selectedFiles = useMemo(() => Array.from(selected), [selected]);
 
   const canCommit =
@@ -336,30 +336,17 @@ export function CommitModal({
             />
             {anyAiAvailable && (
               <div className="flex items-center justify-end px-2 pb-2">
-                <div ref={cliRef} className="relative">
-                  <AIButton
-                    onClick={generateMessage}
-                    disabled={generating || !!busy || selected.size === 0}
-                    loading={generating}
-                    title={`Generate with ${selectedCLILabel}`}
-                    trailing={<button onClick={() => setCLIMenuOpen(!cliMenuOpen)} disabled={generating || !!busy} title="Select AI CLI"><ChevronDownIcon /></button>}
-                  >
-                    {generating ? "Generating..." : "Generate with AI"}
-                  </AIButton>
-                  {cliMenuOpen && (
-                    <AICLIMenu
-                      aiCLIs={aiCLIs}
-                      selectedCLI={selectedCLI}
-                      selectedModel={selectedModel}
-                      onSelect={(cli, model) => {
-                        setSelectedCLI(cli);
-                        setSelectedModel(model);
-                        setCLIMenuOpen(false);
-                        saveSettings({ aiCli: cli, aiModel: model });
-                      }}
-                    />
-                  )}
-                </div>
+                <AIPickerButton
+                  onGenerate={generateMessage}
+                  generating={generating}
+                  disabled={generating || !!busy || selected.size === 0}
+                  title={`Generate with ${selectedCLILabel}`}
+                  label="Generate with AI"
+                  aiCLIs={aiCLIs}
+                  selectedCLI={selectedCLI}
+                  selectedModel={selectedModel}
+                  onSelect={selectAI}
+                />
               </div>
             )}
           </div>

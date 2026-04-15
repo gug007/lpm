@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
 import { XIcon, ChevronDownIcon, BranchIcon, CloudBranchIcon, CheckIcon } from "./icons";
 import { branchKey, branchMatches, RemoteBadge } from "./branchUtils";
-import { AIButton } from "./ui/AIButton";
+import { AIPickerButton } from "./ui/AIPickerButton";
 import {
   CheckAICLIs,
   CheckGHCLI,
@@ -18,7 +18,6 @@ import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useBranchSearch } from "../hooks/useBranchSearch";
 import { AI_CLI_OPTIONS, aiDefaultModel, aiPickLabel, resolveAIPick, type AICLI } from "../types";
-import { AICLIMenu } from "./ui/AICLIMenu";
 import { EventsEmit, BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { getSettings, saveSettings } from "../settings";
 import { Tooltip } from "./ui/Tooltip";
@@ -60,7 +59,6 @@ export function PRModal({
   const [selectedModel, setSelectedModel] = useState<string>(
     () => getSettings().aiModel ?? aiDefaultModel("claude"),
   );
-  const [cliMenuOpen, setCLIMenuOpen] = useState(false);
   const [baseMenuOpen, setBaseMenuOpen] = useState(false);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [baseQuery, setBaseQuery] = useState("");
@@ -76,10 +74,6 @@ export function PRModal({
 
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
-  const cliRef = useOutsideClick<HTMLDivElement>(
-    () => setCLIMenuOpen(false),
-    cliMenuOpen,
-  );
   const baseSearchRef = useRef<HTMLInputElement>(null);
   const baseRef = useOutsideClick<HTMLDivElement>(
     () => { setBaseMenuOpen(false); setBaseQuery(""); },
@@ -234,6 +228,12 @@ export function PRModal({
   };
 
   const selectedCLILabel = aiPickLabel(selectedCLI, selectedModel);
+
+  const selectAI = (cli: AICLI, model: string) => {
+    setSelectedCLI(cli);
+    setSelectedModel(model);
+    saveSettings({ aiCli: cli, aiModel: model });
+  };
 
   const canCreate =
     !busy && !loading && !generating && title.trim().length > 0 && ghAvailable && commits.length > 0;
@@ -424,54 +424,36 @@ export function PRModal({
                 />
                 {anyAiAvailable && (
                   <div className="flex items-center justify-end gap-1.5 px-2 pb-2">
-                    <AIButton
-                      onClick={generateTitle}
+                    <AIPickerButton
+                      onGenerate={generateTitle}
+                      generating={generatingTitle}
                       disabled={generatingTitle || busy || !base || commits.length === 0}
-                      loading={generatingTitle}
                       title={
                         commits.length === 0
                           ? `No commits ahead of ${base || "base"}`
                           : `Generate title with ${selectedCLILabel}`
                       }
-                    >
-                      {generatingTitle ? "Generating..." : "Generate Title"}
-                    </AIButton>
-                    <div ref={cliRef} className="relative">
-                      <AIButton
-                        onClick={generateDesc}
-                        disabled={generatingDesc || busy || !base || commits.length === 0}
-                        loading={generatingDesc}
-                        title={
-                          commits.length === 0
-                            ? `No commits ahead of ${base || "base"}`
-                            : `Generate description with ${selectedCLILabel}`
-                        }
-                        trailing={
-                          <button
-                            onClick={() => setCLIMenuOpen(!cliMenuOpen)}
-                            disabled={generating || busy}
-                            title="Select AI CLI"
-                          >
-                            <ChevronDownIcon />
-                          </button>
-                        }
-                      >
-                        {generatingDesc ? "Generating..." : "Generate Description"}
-                      </AIButton>
-                      {cliMenuOpen && (
-                        <AICLIMenu
-                          aiCLIs={aiCLIs}
-                          selectedCLI={selectedCLI}
-                          selectedModel={selectedModel}
-                          onSelect={(cli, model) => {
-                            setSelectedCLI(cli);
-                            setSelectedModel(model);
-                            setCLIMenuOpen(false);
-                            saveSettings({ aiCli: cli, aiModel: model });
-                          }}
-                        />
-                      )}
-                    </div>
+                      label="Generate Title"
+                      aiCLIs={aiCLIs}
+                      selectedCLI={selectedCLI}
+                      selectedModel={selectedModel}
+                      onSelect={selectAI}
+                    />
+                    <AIPickerButton
+                      onGenerate={generateDesc}
+                      generating={generatingDesc}
+                      disabled={generatingDesc || busy || !base || commits.length === 0}
+                      title={
+                        commits.length === 0
+                          ? `No commits ahead of ${base || "base"}`
+                          : `Generate description with ${selectedCLILabel}`
+                      }
+                      label="Generate Description"
+                      aiCLIs={aiCLIs}
+                      selectedCLI={selectedCLI}
+                      selectedModel={selectedModel}
+                      onSelect={selectAI}
+                    />
                   </div>
                 )}
               </div>
