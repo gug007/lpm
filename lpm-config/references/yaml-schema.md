@@ -162,6 +162,25 @@ actions:
 - Use the `terminals` section for always-available interactive shells (database consoles, Redis CLI).
 - Set `reuse: true` when the command should always run in the same pane — prevents pane sprawl for things like log viewers.
 
+### Background Actions (`type: background`)
+
+Set `type: background` to run the command hidden — no modal, no terminal pane. lpm shows a toast when the command finishes, success or failure. Good fit for slow commands whose only interesting signal is "did it succeed": builds, `docker pull`, `git fetch`, one-shot migrations, dependency installs.
+
+```yaml
+actions:
+  db-reset:
+    cmd: npm run db:reset && npm run db:seed
+    label: Reset DB
+    type: background
+    confirm: true           # pair with confirm for destructive ones
+    display: button
+```
+
+**When to pick which `type`:**
+- (default, omit the field) — interactive modal with streaming output. Use for commands you want to watch.
+- `terminal` — persistent pane you keep around. Use for log tailers, watchers, REPLs triggered from a button.
+- `background` — silent + toast. Use for slow boring commands you can fire and forget.
+
 ### Action Groups (Nested Actions)
 
 An action can contain nested sub-actions instead of (or in addition to) a `cmd`. Sub-actions inherit `cwd` and `env` from the parent, with child values taking precedence:
@@ -201,7 +220,7 @@ In the UI, the parent action appears as a group with its children listed inside.
 | `env` | map[string]string | no | — | Environment variables injected into the command. |
 | `confirm` | bool | no | false | Prompt for confirmation before running. Use for destructive or irreversible commands. |
 | `display` | string | no | `menu` | UI placement: `menu` (dropdown) or `button` (visible button). |
-| `type` | string | no | — | Action type. Set to `terminal` to run in a terminal pane instead of as a background one-shot. |
+| `type` | string | no | — | Action type. `terminal` runs in a terminal pane; `background` runs hidden and shows a toast on completion. Omit for the default inline runner (modal with streaming output). |
 | `reuse` | bool | no | false | When `type: terminal`, reuse the same terminal pane across runs instead of opening a new one. |
 | `inputs` | map[string]InputField | no | — | Named inputs prompted before running. Values substitute `{{key}}` in `cmd`. |
 | `actions` | map[string]Action | no | — | Nested sub-actions. Makes this an action group. See [Action Groups](#action-groups-nested-actions). |
@@ -272,10 +291,21 @@ terminals:
 | `cwd` | string | no | `root` | Working directory. Relative paths resolve from `root`. Supports `~`. Must exist. |
 | `env` | map[string]string | no | — | Environment variables injected into the shell. |
 | `display` | string | no | `menu` | UI placement: `menu` (dropdown) or `button` (visible button). |
+| `confirm` | bool | no | false | Prompt before opening. |
+| `reuse` | bool | no | false | Reuse the existing pane on next launch. |
+| `inputs` | map[string]InputField | no | — | Named inputs prompted before opening. Values substitute `{{key}}` in `cmd`. |
+| `actions` | map[string]Action | no | — | Nested sub-actions. Makes this a split-button or dropdown — see Action Groups. |
 
-### Key Difference from Actions
+### Terminals are Actions under the hood
 
-Terminals do **not** have `confirm`, `type`, `reuse`, `inputs`, or nested `actions` fields — they are interactive sessions, not one-shot commands.
+The `terminals:` block is sugar for actions with `type: terminal` defaulted in. The Go loader (`internal/config/config.go` `TerminalMap`) decodes each entry as an `Action` and sets `type = "terminal"` when it is not set explicitly. That means terminals support the full action field set:
+
+- `confirm: true` — prompt before opening (e.g. for a REPL that touches production).
+- `reuse: true` — reuse the existing pane on next launch instead of opening a new one.
+- `inputs:` — prompt for values and substitute into `cmd` via `{{key}}`.
+- `actions:` — nested sub-actions (split-button or dropdown — see Action Groups below).
+
+Use `terminals:` when the intent is "persistent interactive shell". Drop a `type: terminal` entry into `actions:` when you want to mix one-shots and persistent shells together.
 
 ---
 
