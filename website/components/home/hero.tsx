@@ -1,6 +1,5 @@
-import { ArrowRight, Monitor, Terminal } from "lucide-react";
+import { ArrowRight, Monitor } from "lucide-react";
 import { REPO_URL } from "@/lib/links";
-import { CopyInstall } from "./copy-install";
 import { HeroDownload } from "./hero-download";
 
 export function Hero() {
@@ -32,19 +31,6 @@ export function Hero() {
               </p>
             </div>
             <HeroDownload />
-          </div>
-
-          <div>
-            <div className="mb-2 ml-4">
-              <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-700 dark:text-gray-400">
-                <Terminal className="w-3 h-3" />
-                <span>CLI</span>
-              </div>
-              <p className="mt-0.5 text-[11px] text-gray-400 dark:text-gray-500">
-                Fast, scriptable commands straight from your terminal
-              </p>
-            </div>
-            <CopyInstall />
           </div>
         </div>
 
