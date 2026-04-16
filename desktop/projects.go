@@ -601,6 +601,9 @@ func (a *App) cachedPaneIDs(session string) []string {
 	a.cacheMu.RUnlock()
 
 	ids := tmux.ListPaneIDs(session)
+	if len(ids) == 0 {
+		return ids
+	}
 	a.cacheMu.Lock()
 	a.paneCache[session] = ids
 	a.cacheMu.Unlock()
