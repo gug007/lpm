@@ -12,7 +12,6 @@ import (
 
 	"github.com/gug007/lpm/internal/config"
 	"github.com/gug007/lpm/internal/tmux"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"gopkg.in/yaml.v3"
 )
 
@@ -348,7 +347,7 @@ func (a *App) SetProjectLabel(name, label string) error {
 	if err := config.SaveProject(cfg); err != nil {
 		return err
 	}
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.emit("projects-changed")
 	return nil
 }
 
@@ -386,7 +385,7 @@ func (a *App) StartProject(name, profile string) error {
 		return err
 	}
 	a.setRunningState(name, runState{profile: profile})
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.emit("projects-changed")
 	return nil
 }
 
@@ -410,7 +409,7 @@ func (a *App) StartProjectWithServices(name string, services []string) error {
 		return err
 	}
 	a.setRunningState(name, runState{services: slices.Clone(services)})
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.emit("projects-changed")
 	return nil
 }
 
@@ -457,7 +456,7 @@ func (a *App) ToggleProjectService(name, serviceName string) error {
 
 	a.setRunningState(name, runState{services: next})
 	a.invalidateSessionCache(name)
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.emit("projects-changed")
 	return nil
 }
 
@@ -517,7 +516,7 @@ func (a *App) StopProject(name string) error {
 	if err := tmux.KillSession(cfg.Name); err != nil {
 		return err
 	}
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.emit("projects-changed")
 	return nil
 }
 
@@ -761,7 +760,7 @@ func (a *App) CreateProject(name string, root string) error {
 	if err := config.SaveProject(cfg); err != nil {
 		return err
 	}
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.emit("projects-changed")
 	return nil
 }
 
@@ -787,14 +786,12 @@ func (a *App) SaveGlobalConfig(content string) error {
 	if err := os.WriteFile(config.GlobalPath(), []byte(content), 0644); err != nil {
 		return err
 	}
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.emit("projects-changed")
 	return nil
 }
 
 func (a *App) BrowseFolder() (string, error) {
-	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "Select project folder",
-	})
+	return a.openFolder("Select project folder")
 }
 
 func (a *App) RemoveProject(name string) error {
@@ -831,7 +828,7 @@ func (a *App) RemoveProject(name string) error {
 	a.statusStore.ClearProject(name)
 	a.removeTerminalsEntry(name)
 	a.removeSettingsReferences(name)
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.emit("projects-changed")
 	return nil
 }
 

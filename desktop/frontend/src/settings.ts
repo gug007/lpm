@@ -56,7 +56,7 @@ export async function loadSettings(): Promise<Settings> {
       aiCli: s.aiCli || undefined,
       aiModel: s.aiModel || undefined,
       configEditorMode: s.configEditorMode === "form" || s.configEditorMode === "yaml" ? s.configEditorMode : undefined,
-      showProjectName: s.showProjectName,
+      showProjectName: s.showProjectName ?? undefined,
       lastSelectedProject: s.lastSelectedProject,
       gitPullStrategy:
         s.gitPullStrategy === "merge" || s.gitPullStrategy === "rebase" || s.gitPullStrategy === "ff-only"

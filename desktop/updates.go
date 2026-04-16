@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/gug007/lpm/internal/version"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type progressWriter struct {
@@ -82,7 +81,7 @@ func (a *App) checkForUpdateAndEmit() {
 		return
 	}
 	if info.UpdateAvail {
-		runtime.EventsEmit(a.ctx, "update-available", info)
+		a.emit("update-available", info)
 	}
 }
 
@@ -148,10 +147,10 @@ func (a *App) InstallUpdate() error {
 	}
 
 	emitProgress := func(pct int) {
-		runtime.EventsEmit(a.ctx, "update-progress", pct)
+		a.emit("update-progress", pct)
 	}
 	emitStatus := func(status string) {
-		runtime.EventsEmit(a.ctx, "update-status", status)
+		a.emit("update-status", status)
 	}
 
 	appPath, err := appBundlePath()
@@ -262,7 +261,7 @@ func (a *App) InstallUpdate() error {
 	if err := relaunch.Start(); err != nil {
 		return fmt.Errorf("failed to schedule relaunch: %w", err)
 	}
-	a.shutdown(a.ctx)
+	a.shutdown()
 	// Terminate through Cocoa so the dock icon is properly released.
 	forceTerminate()
 	// Fallback if the main run-loop can't process the terminate in time.

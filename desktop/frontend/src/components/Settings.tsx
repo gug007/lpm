@@ -6,7 +6,6 @@ import { useEventListener } from "../hooks/useEventListener";
 import { ProgressBar } from "./ui/ProgressBar";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import {
-  SetDarkMode,
   GetVersion,
   CheckForUpdate,
   InstallUpdate,
@@ -127,16 +126,14 @@ export function Settings({
   }), []);
 
   useEffect(() => {
-    const dark = applyTheme(theme);
+    applyTheme(theme);
     saveSettings({ theme });
-    SetDarkMode(dark);
   }, [theme]);
 
   useEventListener(
     "change",
     () => {
-      const dark = applyTheme("system");
-      SetDarkMode(dark);
+      applyTheme("system");
     },
     darkModeQuery,
     theme === "system",
@@ -147,6 +144,10 @@ export function Settings({
     setUpdateError("");
     try {
       const info = await CheckForUpdate();
+      if (!info) {
+        setUpdateStatus("up-to-date");
+        return;
+      }
       setUpdateStatus(info.updateAvail ? "available" : "up-to-date");
       if (info.updateAvail) setLatestVersion(info.latestVersion);
     } catch (err) {

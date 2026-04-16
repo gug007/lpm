@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 
 	"github.com/gug007/lpm/internal/config"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // errCloneUnsupported is returned by fastClone when the filesystem can't
@@ -85,7 +84,7 @@ func (a *App) DuplicateProject(name string, excludeUncommitted bool) (string, er
 		return "", err
 	}
 
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.emit("projects-changed")
 	return newName, nil
 }
 

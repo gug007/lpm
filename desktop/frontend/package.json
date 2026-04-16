@@ -13,6 +13,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@monaco-editor/react": "^4.7.0",
+    "@wailsio/runtime": "^3.0.0-alpha.79",
     "@xterm/addon-fit": "^0.12.0-beta.197",
     "@xterm/addon-search": "^0.17.0-beta.197",
     "@xterm/addon-unicode11": "^0.10.0-beta.197",

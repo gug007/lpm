@@ -14,7 +14,6 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/gug007/lpm/internal/config"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // Wails v2 WKWebView IPC drops certain high bytes (notably 0xD1) in JS→Go
@@ -209,7 +208,7 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 			}
 			// Replace invalid UTF-8 so JSON serialization is safe
 			text := strings.ToValidUTF8(string(pending), "\uFFFD")
-			runtime.EventsEmit(a.ctx, "pty-output-"+id, text)
+			a.emit("pty-output-"+id, text)
 			pending = pending[:0]
 			timerRunning = false
 			sess.addUnacked(utf8.RuneCountInString(text))
@@ -247,7 +246,7 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 				exitCode = exitErr.ExitCode()
 			}
 		}
-		runtime.EventsEmit(a.ctx, "pty-exit-"+id, exitCode)
+		a.emit("pty-exit-"+id, exitCode)
 
 		a.ptyMu.Lock()
 		delete(a.ptySessions, id)

@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/gug007/lpm/internal/config"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"gopkg.in/yaml.v3"
 )
 
@@ -69,10 +68,7 @@ func recoverAs(op string, dst *error) {
 func (a *App) ExportConfig() (result string, err error) {
 	defer recoverAs("export", &err)
 
-	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
-		Title:                "Choose export folder",
-		CanCreateDirectories: true,
-	})
+	dir, err := a.openFolder("Choose export folder")
 	if err != nil {
 		return "", err
 	}
@@ -162,9 +158,7 @@ func writeArchive(tw *tar.Writer) error {
 func (a *App) ImportConfig(overwrite bool) (report *ImportReport, err error) {
 	defer recoverAs("import", &err)
 
-	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "Import lpm config",
-	})
+	path, err := a.openFile("Import lpm config")
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +212,7 @@ func (a *App) ImportConfig(overwrite bool) (report *ImportReport, err error) {
 	a.projectOrder = nil
 	a.cacheMu.Unlock()
 
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.emit("projects-changed")
 	return report, nil
 }
 

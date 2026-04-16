@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/gug007/lpm/internal/tmux"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // LogUpdate is emitted to the frontend via Wails events when pane content changes.
@@ -70,7 +69,7 @@ func (a *App) emitLogs(session, projectName string, prevContent map[int]string) 
 		}
 		if content != prevContent[i] {
 			prevContent[i] = content
-			runtime.EventsEmit(a.ctx, "log-update", LogUpdate{
+			a.emit("log-update", LogUpdate{
 				Project: projectName,
 				Pane:    i,
 				Content: content,

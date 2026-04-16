@@ -1,0 +1,71 @@
+version: '3'
+
+vars:
+  APP_NAME: lpm-desktop
+  BIN_DIR: bin
+  VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
+
+tasks:
+  build:
+    summary: Builds the desktop binary (debug)
+    deps:
+      - install:frontend
+      - build:frontend
+    cmds:
+      - go build -gcflags=all="-N -l" -o {{.BIN_DIR}}/{{.APP_NAME}} .
+
+  build:production:
+    summary: Builds the desktop binary (production)
+    deps:
+      - install:frontend
+      - build:frontend
+    cmds:
+      - go build -tags production -ldflags="-w -s" -o {{.BIN_DIR}}/{{.APP_NAME}} .
+    env:
+      CGO_CFLAGS: "-mmacosx-version-min=11.0"
+      CGO_LDFLAGS: "-mmacosx-version-min=11.0"
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+
+  run:
+    summary: Runs the compiled binary
+    deps: [build]
+    cmds:
+      - ./{{.BIN_DIR}}/{{.APP_NAME}}
+
+  dev:
+    summary: Runs the app in development mode (live-reload)
+    cmds:
+      - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
+
+  dev:frontend:
+    summary: Starts the Vite dev server for the frontend
+    dir: frontend
+    env:
+      VITE_PORT: '{{.VITE_PORT}}'
+    cmds:
+      - npm run dev -- --port={{.VITE_PORT}} --strictPort
+
+  install:frontend:
+    summary: Installs frontend dependencies if missing
+    dir: frontend
+    cmds:
+      - npm install
+    status:
+      - test -d node_modules
+
+  build:frontend:
+    summary: Builds the frontend assets into frontend/dist
+    dir: frontend
+    deps: [install:frontend]
+    cmds:
+      - npm run build
+
+  generate:bindings:
+    summary: Regenerates TypeScript bindings from Go services
+    cmds:
+      - wails3 generate bindings -ts
+
+  clean:
+    summary: Removes build artefacts
+    cmds:
+      - rm -rf {{.BIN_DIR}} frontend/dist frontend/bindings

@@ -16,8 +16,6 @@ import (
 	"sync/atomic"
 	"time"
 	"unsafe"
-
-	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 var dockApp *App
@@ -25,32 +23,34 @@ var lastDockSig atomic.Value // string — skip CGo when unchanged
 
 //export dockMenuItemClicked
 func dockMenuItemClicked(name *C.char) {
-	if dockApp != nil && dockApp.ctx != nil {
-		projectName := C.GoString(name)
-		go func() {
-			wailsRuntime.WindowShow(dockApp.ctx)
-			wailsRuntime.EventsEmit(dockApp.ctx, "dock-project-selected", projectName)
-		}()
+	if dockApp == nil {
+		return
 	}
+	projectName := C.GoString(name)
+	go func() {
+		dockApp.showMainWindow()
+		dockApp.emit("dock-project-selected", projectName)
+	}()
 }
 
 //export showMainWindow
 func showMainWindow() {
-	if dockApp != nil && dockApp.ctx != nil {
-		go wailsRuntime.WindowShow(dockApp.ctx)
+	if dockApp == nil {
+		return
 	}
+	go dockApp.showMainWindow()
 }
 
 //export quitApp
 func quitApp() {
 	go func() {
-		if dockApp != nil && dockApp.ctx != nil {
+		if dockApp != nil {
 			// Hard deadline: exit even if shutdown hangs.
 			go func() {
 				time.Sleep(3 * time.Second)
 				os.Exit(0)
 			}()
-			dockApp.shutdown(dockApp.ctx)
+			dockApp.shutdown()
 		}
 		os.Exit(0)
 	}()

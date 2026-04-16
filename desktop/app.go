@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/gug007/lpm/internal/tmux"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 const (
@@ -24,6 +24,9 @@ const (
 
 type App struct {
 	ctx context.Context
+
+	wails      *application.App
+	mainWindow *application.WebviewWindow
 
 	cacheMu      sync.RWMutex
 	sessionCache map[string]string   // projectName -> session name
@@ -54,6 +57,35 @@ type App struct {
 	ttsSession *ttsSession
 }
 
+func (a *App) emit(name string, data ...any) {
+	a.wails.Event.Emit(name, data...)
+}
+
+func (a *App) showMainWindow() {
+	if a.mainWindow != nil {
+		a.mainWindow.Show()
+	}
+}
+
+// openFolder prompts the user for a directory. Returns "" if the user
+// cancels.
+func (a *App) openFolder(title string) (string, error) {
+	return a.wails.Dialog.OpenFile().
+		CanChooseFiles(false).
+		CanChooseDirectories(true).
+		CanCreateDirectories(true).
+		SetTitle(title).
+		PromptForSingleSelection()
+}
+
+// openFile prompts the user for a single file. Returns "" if the user
+// cancels.
+func (a *App) openFile(title string) (string, error) {
+	return a.wails.Dialog.OpenFile().
+		SetTitle(title).
+		PromptForSingleSelection()
+}
+
 func NewApp() *App {
 	return &App{
 		sessionCache:    make(map[string]string),
@@ -65,7 +97,7 @@ func NewApp() *App {
 	}
 }
 
-func (a *App) startup(ctx context.Context) {
+func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) error {
 	a.ctx = ctx
 	resolveUserPath()
 
@@ -88,11 +120,12 @@ func (a *App) startup(ctx context.Context) {
 
 	// Start PID sweep to clear stale agent status entries
 	a.statusStore.StartPIDSweep(ctx, func(project, key string) {
-		runtime.EventsEmit(a.ctx, "status-changed", project)
+		a.emit("status-changed", project)
 	})
 
 	// Auto-install agent hooks (Claude Code, Codex) for running indicator
 	go a.installAgentHooks()
+	return nil
 }
 
 // TmuxInstalled reports whether tmux is available on the system.
@@ -109,7 +142,7 @@ func (a *App) InstallTmux() error {
 		return fmt.Errorf("Homebrew is required to install tmux.\n\nInstall it from https://brew.sh and relaunch the app.")
 	}
 
-	runtime.EventsEmit(a.ctx, "tmux-install-output", "==> Installing tmux via Homebrew…")
+	a.emit("tmux-install-output", "==> Installing tmux via Homebrew…")
 
 	cmd := exec.Command(brewPath, "install", "tmux")
 	stdout, err := cmd.StdoutPipe()
@@ -124,7 +157,7 @@ func (a *App) InstallTmux() error {
 
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
-		runtime.EventsEmit(a.ctx, "tmux-install-output", scanner.Text())
+		a.emit("tmux-install-output", scanner.Text())
 	}
 
 	if err := cmd.Wait(); err != nil {
@@ -191,7 +224,12 @@ func (a *App) SaveWindowSize(width, height int) {
 	}
 }
 
-func (a *App) shutdown(ctx context.Context) {
+func (a *App) ServiceShutdown() error {
+	a.shutdown()
+	return nil
+}
+
+func (a *App) shutdown() {
 	a.StopWatchingProject()
 	a.StopTTS()
 
@@ -218,14 +256,7 @@ func (a *App) shutdown(ctx context.Context) {
 
 func (a *App) ClearStatus(project string, paneID string, value string) {
 	if a.statusStore.ClearByPaneValue(project, paneID, value) {
-		runtime.EventsEmit(a.ctx, "status-changed", project)
+		a.emit("status-changed", project)
 	}
 }
 
-func (a *App) SetDarkMode(dark bool) {
-	if dark {
-		runtime.WindowSetDarkTheme(a.ctx)
-	} else {
-		runtime.WindowSetLightTheme(a.ctx)
-	}
-}

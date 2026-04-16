@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/rjeczalik/notify"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 const gitChangedEvent = "git-changed"
@@ -88,7 +87,7 @@ func (w *projectWatcher) close() {
 func (a *App) runWatcher(w *projectWatcher) {
 	var timer *time.Timer
 	fire := func() {
-		runtime.EventsEmit(a.ctx, gitChangedEvent, w.path)
+		a.emit(gitChangedEvent, w.path)
 	}
 	for {
 		select {

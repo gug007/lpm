@@ -2,11 +2,10 @@ package main
 
 import (
 	"embed"
+	"log"
 
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 //go:embed all:frontend/dist
@@ -25,50 +24,75 @@ func main() {
 		width = s.WindowWidth
 		height = s.WindowHeight
 	}
-	// Set project order before wails.Run so the first frontend ListProjects
-	// call sees the saved order even if startup() hasn't completed yet.
+	// Seed projectOrder before ServiceStartup so the first frontend
+	// ListProjects call sees the saved order.
 	app.cacheMu.Lock()
 	app.projectOrder = s.ProjectOrder
 	app.cacheMu.Unlock()
 
-	err := wails.Run(&options.App{
+	wailsApp := application.New(application.Options{
+		Name:        "lpm",
+		Description: "Local Project Manager",
+		Icon:        appIcon,
+		Services: []application.Service{
+			application.NewService(app),
+		},
+		Assets: application.AssetOptions{
+			Handler: application.AssetFileServerFS(assets),
+		},
+		Mac: application.MacOptions{
+			ApplicationShouldTerminateAfterLastWindowClosed: false,
+		},
+	})
+
+	// Must be assigned before Run() so ServiceStartup can emit events.
+	app.wails = wailsApp
+
+	mainWindow := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "lpm",
 		Width:            width,
 		Height:           height,
-		MinWidth:         700,
-		MinHeight:        500,
-		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 0},
-		AssetServer: &assetserver.Options{
-			Assets: assets,
-		},
-		DragAndDrop: &options.DragAndDrop{
-			EnableFileDrop:     true,
-			DisableWebViewDrop: true,
-		},
-		OnStartup:         app.startup,
-		OnShutdown:        app.shutdown,
-		HideWindowOnClose: true,
-		Bind: []interface{}{
-			app,
-		},
-		Mac: &mac.Options{
-			TitleBar: &mac.TitleBar{
-				TitlebarAppearsTransparent: true,
-				HideTitle:                 true,
-				FullSizeContent:           true,
-				UseToolbar:                true,
-				HideToolbarSeparator:      true,
-			},
-			WebviewIsTransparent: true,
-			WindowIsTranslucent:  true,
-			About: &mac.AboutInfo{
-				Title:   "lpm — Local Project Manager",
-				Message: "",
-				Icon:    appIcon,
+		MinWidth:         minWindowWidth,
+		MinHeight:        minWindowHeight,
+		MaxWidth:         maxWindowWidth,
+		MaxHeight:        maxWindowHeight,
+		BackgroundType:   application.BackgroundTypeTranslucent,
+		BackgroundColour: application.RGBA{Red: 0, Green: 0, Blue: 0, Alpha: 0},
+		EnableFileDrop:   true,
+		Mac: application.MacWindow{
+			Backdrop: application.MacBackdropTranslucent,
+			TitleBar: application.MacTitleBar{
+				AppearsTransparent:   true,
+				HideTitle:            true,
+				FullSizeContent:      true,
+				UseToolbar:           true,
+				HideToolbarSeparator: true,
 			},
 		},
 	})
-	if err != nil {
-		panic(err)
+	app.mainWindow = mainWindow
+
+	// Hide instead of destroy so the app keeps running once closed; relies on
+	// ApplicationShouldTerminateAfterLastWindowClosed=false.
+	mainWindow.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		e.Cancel()
+		mainWindow.Hide()
+	})
+
+	// Forward v3's per-element WindowFilesDropped to a custom event so the
+	// frontend can route by (x, y) the same way it did under v2's OnFileDrop.
+	mainWindow.OnWindowEvent(events.Common.WindowFilesDropped, func(e *application.WindowEvent) {
+		files := e.Context().DroppedFiles()
+		details := e.Context().DropTargetDetails()
+		payload := map[string]any{"files": files}
+		if details != nil {
+			payload["x"] = details.X
+			payload["y"] = details.Y
+		}
+		app.emit("file-drop", payload)
+	})
+
+	if err := wailsApp.Run(); err != nil {
+		log.Fatal(err)
 	}
 }

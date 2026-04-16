@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/gug007/lpm/internal/config"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type ActionOutput struct {
@@ -102,14 +101,14 @@ func (a *App) RunAction(projectName string, actionName string, inputValues map[s
 	go func() {
 		scanner := bufio.NewScanner(pr)
 		for scanner.Scan() {
-			runtime.EventsEmit(a.ctx, "action-output", ActionOutput{Line: scanner.Text()})
+			a.emit("action-output", ActionOutput{Line: scanner.Text()})
 		}
 
 		done := ActionDone{Success: cmd.ProcessState.Success()}
 		if !done.Success {
 			done.Error = cmd.ProcessState.String()
 		}
-		runtime.EventsEmit(a.ctx, "action-done", done)
+		a.emit("action-done", done)
 	}()
 
 	return nil

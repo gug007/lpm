@@ -51,7 +51,7 @@ function initFileDrop() {
     const id = terminalIdAtPoint(x, y);
     if (!id) return;
     pasteToTerminal(id, formatPastedPaths(paths));
-  }, false);
+  });
 }
 
 function terminalIdAtPoint(x: number, y: number): string | undefined {

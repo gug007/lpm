@@ -28,7 +28,7 @@ import {
 export interface TerminalStartOpts {
   configName?: string;
   cwd?: string;
-  env?: Record<string, string>;
+  env?: Record<string, string | undefined>;
   actionName?: string;
 }
 

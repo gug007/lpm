@@ -45,7 +45,7 @@ export interface ProjectTerminalState {
 }
 
 export interface TerminalsConfig {
-  projects: Record<string, ProjectTerminalState>;
+  projects: Record<string, ProjectTerminalState | undefined>;
 }
 
 let cached: TerminalsConfig = { projects: {} };
@@ -53,7 +53,7 @@ let cached: TerminalsConfig = { projects: {} };
 export async function loadTerminals(): Promise<TerminalsConfig> {
   try {
     const c = await LoadTerminals();
-    cached = c?.projects ? c : { projects: {} };
+    cached = c?.projects ? (c as TerminalsConfig) : { projects: {} };
   } catch {
     cached = { projects: {} };
   }

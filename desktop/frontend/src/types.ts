@@ -32,7 +32,7 @@ export interface ActionInfo {
   label: string;
   cmd: string;
   cwd?: string;
-  env?: Record<string, string>;
+  env?: Record<string, string | undefined>;
   confirm: boolean;
   display: string;
   type?: ActionType;

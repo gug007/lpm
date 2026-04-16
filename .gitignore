@@ -11,8 +11,9 @@ desktop/desktop
 desktop/build/bin/
 desktop/frontend/dist/
 desktop/frontend/node_modules/
-desktop/frontend/wailsjs/
+desktop/frontend/bindings/
 desktop/frontend/package.json.md5
+desktop/bin/
 
 # Dependencies
 node_modules

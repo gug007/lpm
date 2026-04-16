@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/gug007/lpm/internal/config"
-	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // SocketServer exposes a Unix domain socket API for external tools to interact
@@ -170,9 +169,9 @@ func (s *SocketServer) cmdSetStatus(args []string) string {
 
 	changed := s.app.statusStore.Set(project, entry)
 	if changed {
-		wailsRuntime.EventsEmit(s.app.ctx, "status-changed", project)
+		s.app.emit("status-changed", project)
 		if (value == StatusDone || value == StatusWaiting || value == StatusError) && s.app.LoadSettings().SoundNotifications {
-			wailsRuntime.EventsEmit(s.app.ctx, "play-sound", value)
+			s.app.emit("play-sound", value)
 		}
 	}
 	return "OK"
@@ -189,7 +188,7 @@ func (s *SocketServer) cmdClearStatus(args []string) string {
 	key := positional[1]
 
 	if s.app.statusStore.Clear(project, key) {
-		wailsRuntime.EventsEmit(s.app.ctx, "status-changed", project)
+		s.app.emit("status-changed", project)
 	}
 	return "OK"
 }
