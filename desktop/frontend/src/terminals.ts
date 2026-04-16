@@ -4,6 +4,7 @@ import { main } from "../wailsjs/go/models";
 // Persisted tab (one terminal inside a pane) — labels and optional
 // startCmd/resumeCmd so restore can re-inject them after a restart.
 export interface PersistedTab {
+  id: string;
   label: string;
   startCmd?: string;
   resumeCmd?: string;

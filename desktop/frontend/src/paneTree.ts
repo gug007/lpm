@@ -7,6 +7,7 @@ export const ALL_SERVICES = "__lpm_all__";
 
 export interface TerminalInstance {
   id: string;
+  persistId: string;
   label: string;
   startCmd?: string;
   resumeCmd?: string;
@@ -39,12 +40,16 @@ export function makePaneLeaf(id: string, tabs: TerminalInstance[], activeTabIdx 
   return { kind: "leaf", id, tabs, activeTabIdx };
 }
 
+export function nextTerminalId(): string {
+  return `term-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
 export function makeTerminal(
   id: string,
   label: string,
-  opts?: { startCmd?: string; resumeCmd?: string; actionName?: string },
+  opts?: { persistId?: string; startCmd?: string; resumeCmd?: string; actionName?: string },
 ): TerminalInstance {
-  return { id, label, ...(opts?.startCmd ? { startCmd: opts.startCmd } : {}), ...(opts?.resumeCmd ? { resumeCmd: opts.resumeCmd } : {}), ...(opts?.actionName ? { actionName: opts.actionName } : {}) };
+  return { id, persistId: opts?.persistId ?? nextTerminalId(), label, ...(opts?.startCmd ? { startCmd: opts.startCmd } : {}), ...(opts?.resumeCmd ? { resumeCmd: opts.resumeCmd } : {}), ...(opts?.actionName ? { actionName: opts.actionName } : {}) };
 }
 
 export function walkPanes(node: PaneNode, fn: (pane: PaneLeaf) => void): void {

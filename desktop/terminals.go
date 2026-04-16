@@ -12,6 +12,7 @@ import (
 // re-injected on restore; the PTY id is not persisted (it doesn't survive
 // a restart).
 type PersistedTab struct {
+	ID         string `json:"id"`
 	Label      string `json:"label"`
 	StartCmd   string `json:"startCmd,omitempty"`
 	ResumeCmd  string `json:"resumeCmd,omitempty"`

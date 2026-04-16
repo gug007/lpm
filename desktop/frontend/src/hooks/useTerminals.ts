@@ -11,6 +11,7 @@ import {
   type TerminalInstance,
   makePaneLeaf,
   makeTerminal,
+  nextTerminalId,
   walkPanes,
   collectPanes,
   collectTerminals,
@@ -646,6 +647,7 @@ async function reifyTreeWithFreshPtys(
       ids.forEach((id) => startedIds.push(id));
       const tabs = ids.map((id, i) =>
         makeTerminal(id, persistedTabs[i].label ?? "Terminal", {
+          persistId: persistedTabs[i].id || nextTerminalId(),
           startCmd: persistedTabs[i].startCmd,
           resumeCmd: persistedTabs[i].resumeCmd,
           actionName: persistedTabs[i].actionName,
@@ -685,6 +687,7 @@ function treeToPersisted(node: PaneNode): PersistedPaneNode {
       activeTabIdx: node.activeTabIdx,
       ...(node.activeServiceName ? { activeServiceName: node.activeServiceName } : {}),
       tabs: node.tabs.map((t) => ({
+        id: t.persistId,
         label: t.label,
         ...(t.startCmd ? { startCmd: t.startCmd } : {}),
         ...(t.resumeCmd ? { resumeCmd: t.resumeCmd } : {}),
@@ -711,6 +714,7 @@ function legacyEntriesToTree(entries: PersistedTerminalEntry[] | undefined): Per
     kind: "leaf",
     activeTabIdx: 0,
     tabs: entries.map((e) => ({
+      id: nextTerminalId(),
       label: e.label,
       ...(e.startCmd ? { startCmd: e.startCmd } : {}),
       ...(e.resumeCmd ? { resumeCmd: e.resumeCmd } : {}),
