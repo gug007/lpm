@@ -16,10 +16,13 @@ interface TTSState {
   status: TTSStatus;
   text: string;
   progress: number;
+  duration: number;
 
   startReading: (text: string) => Promise<void>;
   stopReading: () => void;
   togglePause: () => void;
+  seekBack: (seconds: number) => void;
+  seekTo: (seconds: number) => void;
 }
 
 let player: TTSPlayer | null = null;
@@ -27,11 +30,11 @@ let player: TTSPlayer | null = null;
 function getPlayer(): TTSPlayer {
   if (!player) {
     player = createTTSPlayer();
-    player.onProgress((percent) => {
-      useTTSStore.setState({ progress: percent });
+    player.onProgress((percent, _elapsed, duration) => {
+      useTTSStore.setState({ progress: percent, duration });
     });
     player.onEnd(() => {
-      useTTSStore.setState({ status: "idle", text: "", progress: 0 });
+      useTTSStore.setState({ status: "idle", text: "", progress: 0, duration: 0 });
     });
   }
   return player;
@@ -41,6 +44,7 @@ export const useTTSStore = create<TTSState>((set, get) => ({
   status: "idle",
   text: "",
   progress: 0,
+  duration: 0,
 
   startReading: async (text) => {
     const cleaned = preprocessForTTS(text);
@@ -61,6 +65,14 @@ export const useTTSStore = create<TTSState>((set, get) => ({
     StopTTS();
     getPlayer().stop();
     set({ status: "idle", text: "", progress: 0 });
+  },
+
+  seekBack: (seconds: number) => {
+    getPlayer().seekBack(seconds);
+  },
+
+  seekTo: (seconds: number) => {
+    getPlayer().seekTo(seconds);
   },
 
   togglePause: () => {
