@@ -56,6 +56,9 @@ sudo apt install tmux
 | "when I click it, give me options to choose" | **Modify** — could be `inputs` (radio options before running) or an action group (sub-actions). Ask the user which they mean. |
 | "group these actions together" | **Modify** — create an action group with nested `actions` |
 | "duplicate this project for another directory" | **Create** — use `parent_name` for a duplicate project |
+| "make it run in background", "notify when done", "run silently" | **Modify** — add action with `type: background` |
+| "button with a default and alternatives" | **Modify** — split-button action group (parent `cmd` + nested `actions`) |
+| "dropdown of related commands", "menu of sub-actions" | **Modify** — dropdown-only action group (nested `actions`, no parent `cmd`) |
 
 ### How to Use
 
@@ -143,6 +146,18 @@ When the user asks to add something, ask follow-up questions to pick the right c
    - Occasional → leave default (`menu`)
 3. Is it destructive? → `confirm: true`
 
+**"Make it run in the background / only tell me when it's done"**
+
+→ Add the action with `type: background`. The command runs hidden and lpm shows a toast on completion. Common fits: builds, migrations, `docker pull`, `git fetch`, dependency installs. Pair with `confirm: true` when it's destructive.
+
+**"Button with a default action plus alternatives" (split button)**
+
+→ Action group with `cmd` on the parent AND nested `actions`. Main click runs the parent's command; chevron opens the children. Example: `deploy` that defaults to staging with production/preview tucked behind it.
+
+**"Dropdown of related commands" (dropdown-only)**
+
+→ Action group with nested `actions` but no parent `cmd`. The whole button opens the menu. Example: a `database` button that expands into migrate / seed / reset.
+
 **"Add a terminal / shell / console"**
 
 → Goes in `terminals` section. Ask:
@@ -159,10 +174,11 @@ When the user asks to add something, ask follow-up questions to pick the right c
 **"Add a button with a dropdown" / "button with options"**
 
 This is ambiguous — clarify what the user means:
-- **"When I click, I see a list of sub-actions to pick from"** → action group with nested `actions` and `display: button`
-- **"When I click, it asks me for a parameter then runs"** → single action with `inputs` (e.g., `type: radio` for fixed choices) and `display: button`
+- **"When I click, I see a list of sub-actions to pick from"** → dropdown-only action group (nested `actions`, no parent `cmd`) with `display: button`.
+- **"When I click, the default runs, but I can pick an alternative from a chevron"** → split-button action group (parent `cmd` + nested `actions`) with `display: button`.
+- **"When I click, it asks me for a parameter then runs"** → single action with `inputs` (e.g. `type: radio` for fixed choices) and `display: button`.
 
-Ask: "Should the button show a list of different commands to run, or ask for a parameter before running one command?"
+Ask: "Should the button run a default command with alternatives behind a chevron (split button), open a menu of commands (dropdown), or prompt for a parameter before running (inputs)?"
 
 **"Group related actions together"**
 
@@ -180,7 +196,7 @@ Ask: "Should the button show a list of different commands to run, or ask for a p
 
 **"Add this action/terminal to all my projects"**
 
-→ Goes in the global config at `~/.lpm/global.yml`. Global config only supports `actions` and `terminals` (no services or profiles). Project-level entries with the same key take precedence.
+→ Goes in the global config at `~/.lpm/global.yml`. It supports `actions` and `terminals` only (no `services`, `profiles`, `name`, or `root`), but both of those carry the full field set — `display`, `confirm`, `type` (including `type: background`), `reuse`, `inputs`, and nested `actions`. Project-level entries with the same key take precedence.
 
 ### Output
 
