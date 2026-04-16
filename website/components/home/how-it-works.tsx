@@ -20,7 +20,7 @@ const STEPS: Step[] = [
         appears in the sidebar ready to start.
       </>
     ),
-    src: "/videos/add-project-1.5x.gif",
+    src: "/screenrecording/add-project.gif",
     alt: "Adding a new project in lpm desktop app",
   },
   {
@@ -33,7 +33,7 @@ const STEPS: Step[] = [
         them all at once.
       </>
     ),
-    src: "/videos/start-project-1.5x.gif",
+    src: "/screenrecording/start-project.gif",
     alt: "Starting a project in lpm desktop app",
   },
   {
@@ -46,7 +46,7 @@ const STEPS: Step[] = [
         without leaving the app.
       </>
     ),
-    src: "/videos/add-action-1.5x.gif",
+    src: "/screenrecording/add-action.gif",
     alt: "Adding an action to a project in lpm desktop app",
   },
   {
@@ -60,7 +60,7 @@ const STEPS: Step[] = [
         you need everything running.
       </>
     ),
-    src: "/videos/run-profile-project-1.5x.gif",
+    src: "/screenrecording/run-profile-project.gif",
     alt: "Running a project with multiple profiles in lpm desktop app",
   },
 ];
