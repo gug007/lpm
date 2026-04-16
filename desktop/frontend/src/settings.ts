@@ -24,6 +24,9 @@ export interface Settings {
   showProjectName?: boolean;
   lastSelectedProject?: string;
   gitPullStrategy?: GitPullStrategy;
+  ttsEnabled?: boolean;
+  ttsVoice?: string;
+  ttsSpeed?: number;
 }
 
 const defaults: Settings = {
@@ -58,6 +61,9 @@ export async function loadSettings(): Promise<Settings> {
         s.gitPullStrategy === "merge" || s.gitPullStrategy === "rebase" || s.gitPullStrategy === "ff-only"
           ? s.gitPullStrategy
           : undefined,
+      ttsEnabled: s.ttsEnabled,
+      ttsVoice: s.ttsVoice || undefined,
+      ttsSpeed: s.ttsSpeed,
     };
   } catch {
     cached = { ...defaults };

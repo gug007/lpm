@@ -49,6 +49,9 @@ type App struct {
 
 	watcherMu sync.Mutex
 	watcher   *projectWatcher
+
+	ttsMu      sync.Mutex
+	ttsSession *ttsSession
 }
 
 func NewApp() *App {
@@ -190,6 +193,7 @@ func (a *App) SaveWindowSize(width, height int) {
 
 func (a *App) shutdown(ctx context.Context) {
 	a.StopWatchingProject()
+	a.StopTTS()
 
 	if a.socketServer != nil {
 		a.socketServer.Stop()

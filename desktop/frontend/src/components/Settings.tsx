@@ -14,6 +14,9 @@ import {
   ResetClaudeHooks,
   ExportConfig,
   ImportConfig,
+  CheckKokoroInstalled,
+  InstallKokoro,
+  UninstallKokoro,
 } from "../../wailsjs/go/main/App";
 import type { main } from "../../wailsjs/go/models";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
@@ -34,6 +37,9 @@ const HOOKS_DESCRIPTION: Record<HooksStatus, string> = {
 
 const BTN_SECONDARY =
   "rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-active)] disabled:opacity-50";
+
+const SELECT_CLASS =
+  "rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1.5 text-xs text-[var(--text-primary)]";
 
 import type { View } from "../store/app";
 
@@ -70,9 +76,27 @@ export function Settings({
   onConsumedUpdateCheck,
 }: SettingsProps) {
   const settings = getSettings();
+
+  // General
   const [theme, setTheme] = useState<Theme>(settings.theme);
   const [dblClick, setDblClick] = useState(settings.doubleClickToToggle);
   const [soundEnabled, setSoundEnabled] = useState(settings.soundNotifications ?? false);
+  const [ttsEnabled, setTtsEnabled] = useState(settings.ttsEnabled ?? false);
+  const [ttsVoice, setTtsVoice] = useState(settings.ttsVoice ?? "af_heart");
+  const [ttsSpeed, setTtsSpeed] = useState(settings.ttsSpeed ?? 1.0);
+  const [kokoroStatus, setKokoroStatus] = useState<KokoroStatus>("idle");
+  type SettingsTab = "general" | "ai" | "backup" | "about";
+  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
+
+  useEffect(() => {
+    if (!ttsEnabled) return;
+    setKokoroStatus("checking");
+    CheckKokoroInstalled()
+      .then((ok) => setKokoroStatus(ok ? "installed" : "not-installed"))
+      .catch(() => setKokoroStatus("not-installed"));
+  }, [ttsEnabled]);
+
+  // About & Updates
   const [version, setVersion] = useState("");
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
   const [latestVersion, setLatestVersion] = useState("");
@@ -133,6 +157,7 @@ export function Settings({
 
   useEffect(() => {
     if (pendingUpdateCheck) {
+      setActiveTab("about");
       handleCheckUpdate();
       onConsumedUpdateCheck?.();
     }
@@ -208,192 +233,172 @@ export function Settings({
     }
   };
 
+  const navItems: [SettingsTab, string][] = [
+    ["general", "General"],
+    ["ai", "AI & Integrations"],
+    ["backup", "Backup & Transfer"],
+    ["about", "About"],
+  ];
+
   return (
-    <div className="-mx-6 flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-lg px-6 pt-6 pb-6">
-        {updateStatus === "installing" && <InstallingOverlay phase={installPhase} progress={installProgress} />}
-        <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
+    <div className="-mx-6 flex flex-1 overflow-hidden">
+      {updateStatus === "installing" && <InstallingOverlay phase={installPhase} progress={installProgress} />}
 
-        <SettingsSection title="General">
-          <SettingsRow label="Theme" description="Choose your preferred look">
-            <div className="flex rounded-lg border border-[var(--border)] p-0.5">
-              <SegmentButton label="Light" icon={<SunIcon />} active={theme === "light"} onClick={() => setTheme("light")} />
-              <SegmentButton label="Dark" icon={<MoonIcon />} active={theme === "dark"} onClick={() => setTheme("dark")} />
-              <SegmentButton label="System" icon={<MonitorIcon />} active={theme === "system"} onClick={() => setTheme("system")} />
-            </div>
-          </SettingsRow>
-          <SettingsRow
-            label="Double-click to start/stop"
-            description="Double-click a project in sidebar to toggle it"
+      <nav className="flex w-42 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--bg-sidebar)] px-3 pt-6">
+        <h1 className="mb-4 px-2 text-lg font-semibold tracking-tight text-[var(--text-primary)]">Settings</h1>
+        {navItems.map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
+              activeTab === key
+                ? "bg-[var(--bg-active)] font-medium text-[var(--text-primary)]"
+                : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
+            }`}
           >
-            <Toggle
-              enabled={dblClick}
-              onChange={(v) => {
-                setDblClick(v);
-                saveSettings({ doubleClickToToggle: v });
-              }}
-            />
-          </SettingsRow>
-          <SettingsRow
-            label="Sound notifications"
-            description="Play sounds when agents finish or need approval"
-          >
-            <Toggle
-              enabled={soundEnabled}
-              onChange={(v) => {
-                setSoundEnabled(v);
-                saveSettings({ soundNotifications: v });
-              }}
-            />
-          </SettingsRow>
-        </SettingsSection>
+            {label}
+          </button>
+        ))}
+      </nav>
 
-        <SettingsSection title="Integrations">
-          <SettingsRow
-            label="Claude Code Hooks"
-            description={HOOKS_DESCRIPTION[hooksStatus]}
-          >
-            <button
-              onClick={handleCheckHooks}
-              disabled={hooksStatus === "checking"}
-              className={BTN_SECONDARY}
-            >
-              {hooksStatus === "checking" ? <RefreshIcon spinning /> : "Check"}
-            </button>
-          </SettingsRow>
-          <SettingsRow
-            label="Commit Instructions"
-            description="Custom instructions for AI commit messages"
-          >
-            <button onClick={() => onNavigate("commit-instructions")} className={BTN_SECONDARY}>
-              Edit
-            </button>
-          </SettingsRow>
-          <SettingsRow
-            label="PR Instructions"
-            description="Custom instructions for AI-generated PR titles and descriptions"
-          >
-            <button onClick={() => onNavigate("pr-instructions")} className={BTN_SECONDARY}>
-              Edit
-            </button>
-          </SettingsRow>
-          <SettingsRow
-            label="Branch Name Instructions"
-            description="Custom instructions for AI-generated branch names"
-          >
-            <button onClick={() => onNavigate("branch-instructions")} className={BTN_SECONDARY}>
-              Edit
-            </button>
-          </SettingsRow>
-          <SettingsRow
-            label="Global Config"
-            description="Shared actions and terminals across all projects"
-          >
-            <button onClick={() => onNavigate("global-config")} className={BTN_SECONDARY}>
-              Edit
-            </button>
-          </SettingsRow>
-        </SettingsSection>
-
-        <SettingsSection title="Backup & Transfer">
-          <SettingsRow
-            label="Export config"
-            description="Save a portable archive of your projects and settings"
-          >
-            <button
-              onClick={handleExport}
-              disabled={exporting}
-              className={BTN_SECONDARY}
-            >
-              {exporting ? <RefreshIcon spinning /> : "Export…"}
-            </button>
-          </SettingsRow>
-          <SettingsRow
-            label="Import config"
-            description="Restore from an archive (current config backed up first)"
-          >
-            <button
-              onClick={() => setShowImportOptions(true)}
-              disabled={importing}
-              className={BTN_SECONDARY}
-            >
-              {importing ? <RefreshIcon spinning /> : "Import…"}
-            </button>
-          </SettingsRow>
-        </SettingsSection>
-
-        <SettingsSection title="About">
-          <SettingsRow label="Version" description="lpm desktop">
-            <span className="text-xs text-[var(--text-muted)]">{version || "..."}</span>
-          </SettingsRow>
-          <SettingsRow
-            label="Updates"
-            description={getUpdateDescription(updateStatus, latestVersion, updateError)}
-          >
-            {updateStatus === "available" ? (
-              <button
-                onClick={handleInstallUpdate}
-                className="rounded-md bg-[var(--accent-green)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-lg px-6 pt-6 pb-6">
+          {activeTab === "general" && (
+            <SettingsSection title="General">
+              <SettingsRow label="Theme" description="Choose your preferred look">
+                <div className="flex rounded-lg border border-[var(--border)] p-0.5">
+                  <SegmentButton label="Light" icon={<SunIcon />} active={theme === "light"} onClick={() => setTheme("light")} />
+                  <SegmentButton label="Dark" icon={<MoonIcon />} active={theme === "dark"} onClick={() => setTheme("dark")} />
+                  <SegmentButton label="System" icon={<MonitorIcon />} active={theme === "system"} onClick={() => setTheme("system")} />
+                </div>
+              </SettingsRow>
+              <SettingsRow label="Double-click to start/stop" description="Double-click a project in sidebar to toggle it">
+                <Toggle enabled={dblClick} onChange={(v) => { setDblClick(v); saveSettings({ doubleClickToToggle: v }); }} />
+              </SettingsRow>
+              <SettingsRow label="Sound notifications" description="Play sounds when agents finish or need approval">
+                <Toggle enabled={soundEnabled} onChange={(v) => { setSoundEnabled(v); saveSettings({ soundNotifications: v }); }} />
+              </SettingsRow>
+              <SettingsRow
+                label="Text to speech"
+                description={ttsEnabled ? "Cmd+Shift+R to read selected text" : "Read terminal text aloud using Kokoro"}
               >
-                Update
-              </button>
-            ) : (
-              <button
-                onClick={handleCheckUpdate}
-                disabled={updateStatus === "checking" || updateStatus === "installing"}
-                className={BTN_SECONDARY}
-              >
-                {updateStatus === "checking" || updateStatus === "installing" ? (
-                  <RefreshIcon spinning />
+                <Toggle enabled={ttsEnabled} onChange={(v) => { setTtsEnabled(v); saveSettings({ ttsEnabled: v }); }} />
+              </SettingsRow>
+              {ttsEnabled && (
+                <>
+                  <SettingsRow label="Voice" description="Kokoro voice">
+                    <select value={ttsVoice} onChange={(e) => { setTtsVoice(e.target.value); saveSettings({ ttsVoice: e.target.value }); }} className={SELECT_CLASS}>
+                      <option value="af_heart">af_heart</option>
+                      <option value="af_bella">af_bella</option>
+                      <option value="af_sarah">af_sarah</option>
+                      <option value="am_adam">am_adam</option>
+                      <option value="am_michael">am_michael</option>
+                    </select>
+                  </SettingsRow>
+                  <SettingsRow label="Speed" description="Playback speed">
+                    <select value={ttsSpeed} onChange={(e) => { const v = parseFloat(e.target.value); setTtsSpeed(v); saveSettings({ ttsSpeed: v }); }} className={SELECT_CLASS}>
+                      <option value={0.5}>0.5x</option>
+                      <option value={0.75}>0.75x</option>
+                      <option value={1.0}>1.0x</option>
+                      <option value={1.25}>1.25x</option>
+                      <option value={1.5}>1.5x</option>
+                      <option value={2.0}>2.0x</option>
+                    </select>
+                  </SettingsRow>
+                  <KokoroEngineRow status={kokoroStatus} onStatusChange={setKokoroStatus} />
+                </>
+              )}
+            </SettingsSection>
+          )}
+
+          {activeTab === "ai" && (
+            <SettingsSection title="AI & Integrations">
+              <SettingsRow label="Claude Code Hooks" description={HOOKS_DESCRIPTION[hooksStatus]}>
+                <button onClick={handleCheckHooks} disabled={hooksStatus === "checking"} className={BTN_SECONDARY}>
+                  {hooksStatus === "checking" ? <RefreshIcon spinning /> : "Check"}
+                </button>
+              </SettingsRow>
+              <SettingsRow label="Commit Instructions" description="Custom instructions for AI commit messages">
+                <button onClick={() => onNavigate("commit-instructions")} className={BTN_SECONDARY}>Edit</button>
+              </SettingsRow>
+              <SettingsRow label="PR Instructions" description="Custom instructions for AI-generated PR titles and descriptions">
+                <button onClick={() => onNavigate("pr-instructions")} className={BTN_SECONDARY}>Edit</button>
+              </SettingsRow>
+              <SettingsRow label="Branch Name Instructions" description="Custom instructions for AI-generated branch names">
+                <button onClick={() => onNavigate("branch-instructions")} className={BTN_SECONDARY}>Edit</button>
+              </SettingsRow>
+              <SettingsRow label="Global Config" description="Shared actions and terminals across all projects">
+                <button onClick={() => onNavigate("global-config")} className={BTN_SECONDARY}>Edit</button>
+              </SettingsRow>
+            </SettingsSection>
+          )}
+
+          {activeTab === "backup" && (
+            <SettingsSection title="Backup & Transfer">
+              <SettingsRow label="Export config" description="Save a portable archive of your projects and settings">
+                <button onClick={handleExport} disabled={exporting} className={BTN_SECONDARY}>
+                  {exporting ? <RefreshIcon spinning /> : "Export…"}
+                </button>
+              </SettingsRow>
+              <SettingsRow label="Import config" description="Restore from an archive (current config backed up first)">
+                <button onClick={() => setShowImportOptions(true)} disabled={importing} className={BTN_SECONDARY}>
+                  {importing ? <RefreshIcon spinning /> : "Import…"}
+                </button>
+              </SettingsRow>
+            </SettingsSection>
+          )}
+
+          {activeTab === "about" && (
+            <SettingsSection title="About">
+              <SettingsRow label="Version" description="lpm desktop">
+                <span className="text-xs text-[var(--text-muted)]">{version || "..."}</span>
+              </SettingsRow>
+              <SettingsRow label="Updates" description={getUpdateDescription(updateStatus, latestVersion, updateError)}>
+                {updateStatus === "available" ? (
+                  <button onClick={handleInstallUpdate} className="rounded-md bg-[var(--accent-green)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90">
+                    Update
+                  </button>
                 ) : (
-                  "Check"
+                  <button onClick={handleCheckUpdate} disabled={updateStatus === "checking" || updateStatus === "installing"} className={BTN_SECONDARY}>
+                    {updateStatus === "checking" || updateStatus === "installing" ? <RefreshIcon spinning /> : "Check"}
+                  </button>
                 )}
-              </button>
-            )}
-          </SettingsRow>
-        </SettingsSection>
+              </SettingsRow>
+            </SettingsSection>
+          )}
 
-        <ConfirmDialog
-          open={showResetDialog}
-          title="Reset Claude Code Hooks"
-          body="Claude Code hooks are not configured correctly. Would you like to reinstall them?"
-          confirmLabel="Reset"
-          disabled={resettingHooks}
-          onCancel={() => setShowResetDialog(false)}
-          onConfirm={handleResetHooks}
-        />
+          <ConfirmDialog
+            open={showResetDialog}
+            title="Reset Claude Code Hooks"
+            body="Claude Code hooks are not configured correctly. Would you like to reinstall them?"
+            confirmLabel="Reset"
+            disabled={resettingHooks}
+            onCancel={() => setShowResetDialog(false)}
+            onConfirm={handleResetHooks}
+          />
 
-        <ConfirmDialog
-          open={showImportOptions}
-          title="Import config"
-          body={
-            <>
-              <p>Your current configuration will be backed up before any changes are applied.</p>
-              <label className="mt-4 flex cursor-pointer items-start gap-2 text-[var(--text-primary)]">
-                <input
-                  type="checkbox"
-                  checked={importOverwrite}
-                  onChange={(e) => setImportOverwrite(e.target.checked)}
-                  className="mt-0.5"
-                />
-                <span>
-                  Overwrite existing projects
-                  <span className="block text-[11px] text-[var(--text-muted)]">
-                    When off, projects with the same name are skipped.
+          <ConfirmDialog
+            open={showImportOptions}
+            title="Import config"
+            body={
+              <>
+                <p>Your current configuration will be backed up before any changes are applied.</p>
+                <label className="mt-4 flex cursor-pointer items-start gap-2 text-[var(--text-primary)]">
+                  <input type="checkbox" checked={importOverwrite} onChange={(e) => setImportOverwrite(e.target.checked)} className="mt-0.5" />
+                  <span>
+                    Overwrite existing projects
+                    <span className="block text-[11px] text-[var(--text-muted)]">When off, projects with the same name are skipped.</span>
                   </span>
-                </span>
-              </label>
-            </>
-          }
-          confirmLabel="Choose file…"
-          onCancel={() => setShowImportOptions(false)}
-          onConfirm={() => handleImport(importOverwrite)}
-        />
+                </label>
+              </>
+            }
+            confirmLabel="Choose file…"
+            onCancel={() => setShowImportOptions(false)}
+            onConfirm={() => handleImport(importOverwrite)}
+          />
 
-        <ImportReportModal
-          report={importReport}
-          onClose={() => setImportReport(null)}
-        />
+          <ImportReportModal report={importReport} onClose={() => setImportReport(null)} />
+        </div>
       </div>
     </div>
   );
@@ -539,6 +544,55 @@ function MonitorIcon() {
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
     </svg>
+  );
+}
+
+type KokoroStatus = "idle" | "checking" | "installed" | "not-installed" | "installing" | "uninstalling";
+
+const KOKORO_DESCRIPTION: Record<KokoroStatus, string> = {
+  idle: "Kokoro TTS engine",
+  checking: "Checking...",
+  installed: "Installed",
+  "not-installed": "Not installed",
+  installing: "Installing...",
+  uninstalling: "Uninstalling...",
+};
+
+function KokoroEngineRow({ status, onStatusChange }: { status: KokoroStatus; onStatusChange: (s: KokoroStatus) => void }) {
+  const handleInstall = async () => {
+    onStatusChange("installing");
+    try {
+      await InstallKokoro();
+      onStatusChange("installed");
+      toast.success("Kokoro installed");
+    } catch (err) {
+      toast.error(`Install failed: ${err}`);
+      onStatusChange("not-installed");
+    }
+  };
+
+  const handleUninstall = async () => {
+    onStatusChange("uninstalling");
+    try {
+      await UninstallKokoro();
+      onStatusChange("not-installed");
+      toast.success("Kokoro uninstalled");
+    } catch (err) {
+      toast.error(`Uninstall failed: ${err}`);
+      onStatusChange("installed");
+    }
+  };
+
+  return (
+    <SettingsRow label="Kokoro Engine" description={KOKORO_DESCRIPTION[status]}>
+      {status === "installed" ? (
+        <button onClick={handleUninstall} className={BTN_SECONDARY}>Uninstall</button>
+      ) : status === "not-installed" ? (
+        <button onClick={handleInstall} className={BTN_SECONDARY}>Install</button>
+      ) : (
+        <RefreshIcon spinning />
+      )}
+    </SettingsRow>
   );
 }
 

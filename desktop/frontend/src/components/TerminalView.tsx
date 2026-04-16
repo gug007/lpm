@@ -13,6 +13,8 @@ import { ansiColors } from "./terminal-utils";
 import { TerminalIcon } from "./icons";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { useTerminals, type TerminalStartOpts } from "../hooks/useTerminals";
+import { useTTSHotkeys } from "../hooks/useTTSHotkeys";
+import { TTSControls } from "./TTSControls";
 
 interface TerminalViewProps {
   projectName: string;
@@ -316,6 +318,16 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
     visible,
   );
 
+  // Derive the active terminal ID from the focused pane for TTS hotkeys
+  const focusedPane = getFocusedPane();
+  const activeTerminalId = useMemo(() => {
+    if (!focusedPane || focusedPane.activeServiceName || focusedPane.tabs.length === 0) return null;
+    const idx = Math.min(focusedPane.activeTabIdx, focusedPane.tabs.length - 1);
+    return focusedPane.tabs[idx]?.id ?? null;
+  }, [focusedPane]);
+
+  useTTSHotkeys(activeTerminalId);
+
   useImperativeHandle(
     ref,
     () => ({ createTerminal, createTerminalWithCmd }),
@@ -371,6 +383,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
           </button>
         </div>
       )}
-    </div>
+      <TTSControls />
+      </div>
   );
 }

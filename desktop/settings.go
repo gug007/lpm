@@ -27,6 +27,9 @@ type Settings struct {
 	ShowProjectName     *bool    `json:"showProjectName,omitempty"`
 	LastSelectedProject string   `json:"lastSelectedProject,omitempty"`
 	GitPullStrategy     string   `json:"gitPullStrategy,omitempty"`
+	TTSEnabled          bool     `json:"ttsEnabled,omitempty"`
+	TTSVoice            string   `json:"ttsVoice,omitempty"`
+	TTSSpeed            float64  `json:"ttsSpeed,omitempty"`
 }
 
 func defaultSettings() Settings {
