@@ -205,7 +205,7 @@ Config files are written to `~/.lpm/projects/<name>.yml`. Global config at `~/.l
 **Config structure:**
 
 ```yaml
-name: <string>           # required — project identifier
+name: <string>           # optional — defaults to the config filename
 root: <path>             # required — project root (supports ~)
 label: <string>          # optional — display name in UI
 parent_name: <string>    # optional — duplicate from parent project
@@ -228,19 +228,23 @@ actions:                 # optional — one-shot commands
     env: {}              # optional
     confirm: <bool>      # optional (default: false)
     display: <string>    # optional (button | menu, default: menu)
-    type: <string>       # optional — set to "terminal" for terminal pane
+    type: <string>       # optional — "terminal" (pane) or "background" (hidden + toast)
     reuse: <bool>        # optional — reuse same terminal pane
     inputs: {}           # optional — user-prompted parameters
     actions: {}          # optional — nested sub-actions (action group)
 
-terminals:               # optional — interactive shells
+terminals:               # optional — interactive shells (sugar for actions with type: terminal)
   <key>: <cmd>           # shorthand
-  <key>:                 # full form
-    cmd: <string>        # required
+  <key>:                 # full form — supports the same fields as actions
+    cmd: <string>        # required (unless nested actions)
     label: <string>      # optional
     cwd: <path>          # optional
     env: {}              # optional
     display: <string>    # optional (button | menu, default: menu)
+    confirm: <bool>      # optional
+    reuse: <bool>        # optional — reuse the existing pane on next launch
+    inputs: {}           # optional — prompted parameters
+    actions: {}          # optional — nested sub-actions (split-button or dropdown)
 
 profiles:                # optional — named service subsets
   <key>: [<service>, ...]
@@ -252,19 +256,20 @@ profiles:                # optional — named service subsets
 - Set `confirm: true` on destructive actions (migrations, deploys, cleanup).
 - Set `display: button` on frequently-used actions/terminals.
 - Use `type: terminal` + `reuse: true` for commands that should stay in one persistent pane (log tailers, watchers).
-- Use action groups (nested `actions`) to organize related commands under one parent — children inherit `cwd` and `env`.
+- Use `type: background` for slow commands you want to fire and forget — lpm shows a toast when they finish.
+- Action groups: parent `cmd` + nested `actions` renders as a split button; nested `actions` alone renders as a dropdown. Children inherit `cwd` and `env`.
 - Use `parent_name` to duplicate a project config for a different root directory.
 - Keys: short, lowercase, hyphen-separated (`db-migrate`, `run-tests`).
 - `~` expands to home. Relative `cwd` resolves from `root`. All `cwd` must exist.
 
 **Validation — verify before writing any config:**
-- `name` and `root` are set
+- `root` is set (`name` is optional — defaults to the config filename)
 - At least one service is defined (unless `parent_name` is set)
-- All `cmd` fields are non-empty strings (actions with nested `actions` may omit `cmd`)
+- All `cmd` fields are non-empty strings (actions or terminals with nested `actions` may omit `cmd`)
 - All `cwd` paths point to existing directories
-- All ports are in range 0–65535 with no duplicates
+- All ports are in range 0–65535 with no duplicates across services
 - `display` values are only `button` or `menu`
-- `confirm` is only used on actions (not terminals)
+- `type` values are only `terminal` or `background` (or omitted)
 - Profile entries reference defined services
 - Nested sub-actions are validated recursively
 - `parent_name` references an existing project
@@ -430,7 +435,5 @@ Agent: Deleted ~/.lpm/projects/myapp.yml
 - Project names must be lowercase with no slashes; cannot be `.` or `..`
 - All `cwd` paths must point to existing directories — lpm validates on load
 - Ports must be in range 0–65535 and unique across services
-- Global config only supports `actions` and `terminals` — no services or profiles
-- `confirm` field is only valid on actions, not terminals
-- `type` and `reuse` fields are only valid on actions, not terminals
+- Global config only supports `actions` and `terminals` — no services, profiles, name, or root
 - Duplicate projects (`parent_name`) inherit everything — you cannot override individual entries
