@@ -5,7 +5,7 @@ Complete field reference for lpm project config files (`~/.lpm/projects/<name>.y
 ## Full Config Structure
 
 ```yaml
-name: <string>           # required — project identifier
+name: <string>           # optional — defaults to the config filename
 root: <path>             # required — project root directory (supports ~)
 label: <string>          # optional — display name in the UI
 parent_name: <string>    # optional — name of parent project (creates a duplicate)
@@ -21,7 +21,7 @@ profiles: {}             # optional — named service subsets
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `name` | string | yes | — | Project identifier. Lowercase, no slashes, not `.` or `..`. |
+| `name` | string | no | config filename | Project identifier. Lowercase, no slashes, not `.` or `..`. Defaults to the `.yml` filename. |
 | `root` | string | yes | — | Project root directory. Supports `~`. |
 | `label` | string | no | — | Display name shown in the UI (defaults to `name`). |
 | `parent_name` | string | no | — | Name of a parent project. Creates a **duplicate** that inherits all services, actions, terminals, and profiles from the parent. See [Duplicate Projects](#duplicate-projects). |
@@ -55,7 +55,7 @@ services:
 
 ### Sequence Form
 
-Services also accept a sequence (list) instead of a mapping. Each entry must include a `name` field:
+Services also accept a sequence (list) instead of a mapping. Each entry must include a `name` field. The map form is preferred; use the sequence form when ordering matters or when your YAML tooling prefers arrays.
 
 ```yaml
 services:
@@ -66,6 +66,8 @@ services:
     cmd: npm run dev
     port: 3000
 ```
+
+Actions and terminals accept the same sequence form. See `decodeNamedMap` in `internal/config/config.go` for the exact loader behavior.
 
 ### Fields
 
@@ -183,32 +185,47 @@ actions:
 
 ### Action Groups (Nested Actions)
 
-An action can contain nested sub-actions instead of (or in addition to) a `cmd`. Sub-actions inherit `cwd` and `env` from the parent, with child values taking precedence:
+An action can contain nested sub-actions. There are two shapes:
+
+**Split button** — parent has `cmd` *and* `actions`. Primary click runs the parent command, chevron opens the children:
+
+```yaml
+actions:
+  deploy:
+    cmd: ./deploy.sh staging
+    label: Deploy
+    display: button
+    confirm: true
+    actions:
+      production:
+        cmd: ./deploy.sh production
+        label: Production
+        confirm: true
+      preview:
+        cmd: ./deploy.sh preview
+        label: Preview
+```
+
+**Dropdown-only** — parent has no `cmd`, only `actions`. The whole button opens the menu. Good for a toolkit of related commands with no sensible default:
 
 ```yaml
 actions:
   database:
     label: Database
+    display: button
     cwd: ./backend
-    env:
-      DATABASE_URL: postgres://localhost/myapp
     actions:
       migrate:
         cmd: rails db:migrate
-        label: Run Migrations
         confirm: true
       seed:
         cmd: rails db:seed
-        label: Seed Data
       reset:
         cmd: rails db:reset
-        label: Reset Database
         confirm: true
 ```
 
-Run a sub-action via CLI: `lpm run <project> database migrate`
-
-In the UI, the parent action appears as a group with its children listed inside.
+Sub-actions inherit `cwd` and `env` from the parent; child values win on conflict. Run a sub-action via CLI: `lpm run <project> database migrate`.
 
 ### Fields
 
@@ -321,6 +338,8 @@ profiles:
 
 Each service name must reference a service defined in `services`.
 
+**The `default` profile is special.** When the user starts a project without picking a profile (`lpm myapp`), lpm uses the `default` profile if one is defined. If no profiles exist at all, lpm starts every service (sorted alphabetically for stable pane ordering).
+
 ---
 
 ## Duplicate Projects
@@ -341,7 +360,9 @@ The duplicate loads the parent's full config but uses its own `root` and `name`.
 
 Location: `~/.lpm/global.yml`
 
-Supports only `actions` and `terminals` (not services, profiles, name, or root). Project-level entries take precedence when names collide.
+Supports `actions` and `terminals` only (no `services`, `profiles`, `name`, or `root`). Entries here are available in every project. When a project defines an entry with the same key, the project-level entry wins.
+
+Global entries support the full action/terminal field set — `display`, `confirm`, `type` (including `type: background`), `reuse`, `inputs`, and nested `actions`. There is no stripped-down subset.
 
 ```yaml
 actions:
@@ -349,9 +370,22 @@ actions:
     cmd: docker system prune -f
     label: Docker Prune
     confirm: true
+    display: button
+
+  fetch-all:
+    cmd: git fetch --all --prune
+    label: Fetch All
+    type: background
 
 terminals:
-  htop: htop
+  htop:
+    cmd: htop
+    label: System
+    display: button
+
+  claude:
+    cmd: claude
+    label: Claude Code
 ```
 
 ---
@@ -392,14 +426,13 @@ Leave less frequent commands at the default `menu` to keep the UI clean.
 lpm validates config on load:
 
 1. At least one service is defined (unless it's a duplicate with `parent_name`).
-2. All `cmd` fields are non-empty strings. Actions with nested `actions` may omit `cmd`.
+2. All `cmd` fields are non-empty strings. Actions (and terminals) with nested `actions` may omit `cmd`.
 3. All `cwd` paths point to existing directories.
-4. Ports are in range 0–65535 with no duplicates.
+4. Ports are in range 0–65535 with no duplicates across services.
 5. `display` is either `button` or `menu` (or omitted for default).
-6. `confirm` is only valid on actions, not terminals.
-7. Profile entries reference existing services.
-8. Nested sub-actions are validated recursively (cmd required, cwd must exist).
-9. `parent_name` must reference an existing, loadable project.
+6. Profile entries reference defined services.
+7. Nested sub-actions are validated recursively (cmd required if no children, cwd must exist).
+8. `parent_name` must reference an existing, loadable project.
 
 ---
 
