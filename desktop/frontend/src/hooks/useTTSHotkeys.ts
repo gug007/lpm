@@ -12,7 +12,7 @@ export function useTTSHotkeys(terminalId: string | null) {
   useKeyboardShortcut(
     { key: "r", meta: true, shift: true },
     () => {
-      if (!terminalId || !getSettings().ttsEnabled) return;
+      if (!terminalId || !getSettings().experimentalTTS || !getSettings().ttsEnabled) return;
       const text = getTerminalSelection(terminalId);
       if (text) startReading(text);
     },
