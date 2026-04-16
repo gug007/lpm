@@ -67,13 +67,40 @@ command -v lpm
 
 If not found, run the install command from Installation above.
 
-**Step 2: Determine the project name**
+**Step 2: Pick the target project file**
 
-1. Default — use the current project directory name (basename of `root` or `cwd`).
-2. Always confirm with the user before creating or modifying:
-   > I'll create lpm config as `~/.lpm/projects/<name>.yml` — is that name good, or would you prefer something else?
-3. If the user provides a different name, use that instead.
-4. If modifying an existing config, check `~/.lpm/projects/` for the matching file first.
+Work out which `~/.lpm/projects/<name>.yml` to edit *before* asking the user anything. Use the cwd as the primary signal.
+
+1. Get the current working directory: `pwd`.
+2. List existing projects: `ls ~/.lpm/projects/*.yml` (empty is fine).
+3. For each project file, read its `root:` line (expand `~` to `$HOME`). A one-liner that works:
+
+   ```bash
+   for f in ~/.lpm/projects/*.yml; do
+     [ -f "$f" ] || continue
+     name=$(basename "$f" .yml)
+     root=$(awk '/^root:/ {print $2; exit}' "$f" | sed "s|^~|$HOME|")
+     printf '%s\t%s\n' "$name" "$root"
+   done
+   ```
+
+4. Match cwd against each `root`:
+   - Exact match (`cwd == root`) wins outright.
+   - Otherwise, any `root` that is a path-component prefix of `cwd` is a candidate. **Longest prefix wins.**
+
+5. Act on the match count:
+
+   | Matches | What to do |
+   |---------|-----------|
+   | 1 | **Silently** edit `~/.lpm/projects/<name>.yml`. No "I'll edit X" line, no confirmation. Apply the change and write the file. |
+   | ≥2 | Ask once: *"cwd is inside multiple lpm projects (`a`, `b`). Which one?"* |
+   | 0 | Offer two options in the same reply: (1) create a new project for this cwd (`lpm init` or from scratch), (2) pick an existing project by name — list every `~/.lpm/projects/*.yml`. |
+
+**Overrides (these win over cwd detection):**
+- The user names a project explicitly ("add a service to `myapp`") → use that name.
+- The user says "globally" / "to all my projects" / "для всех проектов" → write to `~/.lpm/global.yml` instead.
+
+**Confirmations** are kept only for deleting a config file or overwriting an existing one during a Create flow. Never confirm the target on a single-match cwd.
 
 **Step 3: Execute the operation**
 
