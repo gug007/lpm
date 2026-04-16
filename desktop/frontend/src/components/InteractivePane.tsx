@@ -103,6 +103,7 @@ interface InteractiveSession {
 }
 
 const interactiveSessions = new Map<string, InteractiveSession>();
+export { interactiveSessions };
 
 function disposeSession(s: InteractiveSession) {
   s.destroy();
