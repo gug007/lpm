@@ -85,7 +85,7 @@ export function Settings({
   const [ttsVoice, setTtsVoice] = useState(settings.ttsVoice ?? "af_heart");
   const [ttsSpeed, setTtsSpeed] = useState(settings.ttsSpeed ?? 1.0);
   const [kokoroStatus, setKokoroStatus] = useState<KokoroStatus>("idle");
-  type SettingsTab = "general" | "ai" | "backup" | "about";
+  type SettingsTab = "general" | "ai" | "backup";
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
 
   useEffect(() => {
@@ -157,7 +157,7 @@ export function Settings({
 
   useEffect(() => {
     if (pendingUpdateCheck) {
-      setActiveTab("about");
+      setActiveTab("general");
       handleCheckUpdate();
       onConsumedUpdateCheck?.();
     }
@@ -237,7 +237,6 @@ export function Settings({
     ["general", "General"],
     ["ai", "AI & Integrations"],
     ["backup", "Backup & Transfer"],
-    ["about", "About"],
   ];
 
   return (
@@ -264,6 +263,7 @@ export function Settings({
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-lg px-6 pt-6 pb-6">
           {activeTab === "general" && (
+            <>
             <SettingsSection title="General">
               <SettingsRow label="Theme" description="Choose your preferred look">
                 <div className="flex rounded-lg border border-[var(--border)] p-0.5">
@@ -308,7 +308,28 @@ export function Settings({
                   <KokoroEngineRow status={kokoroStatus} onStatusChange={setKokoroStatus} />
                 </>
               )}
+              <SettingsRow label="Global Config" description="Shared actions and terminals across all projects">
+                <button onClick={() => onNavigate("global-config")} className={BTN_SECONDARY}>Edit</button>
+              </SettingsRow>
             </SettingsSection>
+
+            <SettingsSection title="About">
+              <SettingsRow label="Version" description="lpm desktop">
+                <span className="text-xs text-[var(--text-muted)]">{version || "..."}</span>
+              </SettingsRow>
+              <SettingsRow label="Updates" description={getUpdateDescription(updateStatus, latestVersion, updateError)}>
+                {updateStatus === "available" ? (
+                  <button onClick={handleInstallUpdate} className="rounded-md bg-[var(--accent-green)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90">
+                    Update
+                  </button>
+                ) : (
+                  <button onClick={handleCheckUpdate} disabled={updateStatus === "checking" || updateStatus === "installing"} className={BTN_SECONDARY}>
+                    {updateStatus === "checking" || updateStatus === "installing" ? <RefreshIcon spinning /> : "Check"}
+                  </button>
+                )}
+              </SettingsRow>
+            </SettingsSection>
+            </>
           )}
 
           {activeTab === "ai" && (
@@ -327,9 +348,6 @@ export function Settings({
               <SettingsRow label="Branch Name Instructions" description="Custom instructions for AI-generated branch names">
                 <button onClick={() => onNavigate("branch-instructions")} className={BTN_SECONDARY}>Edit</button>
               </SettingsRow>
-              <SettingsRow label="Global Config" description="Shared actions and terminals across all projects">
-                <button onClick={() => onNavigate("global-config")} className={BTN_SECONDARY}>Edit</button>
-              </SettingsRow>
             </SettingsSection>
           )}
 
@@ -344,25 +362,6 @@ export function Settings({
                 <button onClick={() => setShowImportOptions(true)} disabled={importing} className={BTN_SECONDARY}>
                   {importing ? <RefreshIcon spinning /> : "Import…"}
                 </button>
-              </SettingsRow>
-            </SettingsSection>
-          )}
-
-          {activeTab === "about" && (
-            <SettingsSection title="About">
-              <SettingsRow label="Version" description="lpm desktop">
-                <span className="text-xs text-[var(--text-muted)]">{version || "..."}</span>
-              </SettingsRow>
-              <SettingsRow label="Updates" description={getUpdateDescription(updateStatus, latestVersion, updateError)}>
-                {updateStatus === "available" ? (
-                  <button onClick={handleInstallUpdate} className="rounded-md bg-[var(--accent-green)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90">
-                    Update
-                  </button>
-                ) : (
-                  <button onClick={handleCheckUpdate} disabled={updateStatus === "checking" || updateStatus === "installing"} className={BTN_SECONDARY}>
-                    {updateStatus === "checking" || updateStatus === "installing" ? <RefreshIcon spinning /> : "Check"}
-                  </button>
-                )}
               </SettingsRow>
             </SettingsSection>
           )}
