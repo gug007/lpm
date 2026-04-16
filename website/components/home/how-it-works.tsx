@@ -89,7 +89,7 @@ export function HowItWorks() {
                 width={1200}
                 height={750}
                 unoptimized
-                className="w-full h-auto rounded-2xl shadow-2xl shadow-gray-200/60 dark:shadow-black/40"
+                className="w-full h-auto rounded-lg shadow-2xl shadow-gray-200/60 dark:shadow-black/40"
               />
             </div>
           ))}
