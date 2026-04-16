@@ -279,8 +279,10 @@ profiles:                # optional — named service subsets
 **Example 1: Create a minimal config**
 ```
 User: Set up lpm for this project
-Agent: I'll create lpm config as ~/.lpm/projects/my-api.yml — is that name good?
-User: Yes
+Agent: No lpm project matches cwd ~/Projects/my-api. I can:
+       1. Create a new project for this directory (name: my-api)
+       2. Edit an existing project: myapp, storefront
+User: Create it
 Agent: [analyzes project, writes config]
 
        Created ~/.lpm/projects/my-api.yml:
@@ -298,7 +300,7 @@ services:
   server: npm run dev
 ```
 
-**Example 2: Full config with new features**
+**Example 2: Full config**
 ```yaml
 name: myapp
 root: ~/Projects/myapp
@@ -352,6 +354,12 @@ actions:
     type: terminal
     reuse: true
     label: Tail Logs
+    display: button
+
+  fetch-all:
+    cmd: git fetch --all --prune
+    label: Fetch All
+    type: background
     display: button
 
 terminals:
@@ -428,6 +436,39 @@ User: Remove lpm config for myapp
 Agent: Delete ~/.lpm/projects/myapp.yml? This will remove the project from lpm.
 User: Yes
 Agent: Deleted ~/.lpm/projects/myapp.yml
+```
+
+**Example 8: Add a background action**
+```
+User: Add a button that resets the dev database in the background
+Agent: [reads config, adds action — silent cwd match on ~/.lpm/projects/myapp.yml]
+
+       Added to ~/.lpm/projects/myapp.yml:
+       actions.db-reset:
+         cmd: npm run db:reset && npm run db:seed
+         label: Reset DB
+         type: background
+         confirm: true
+         display: button
+```
+
+**Example 9: Split-button action group**
+```
+User: Make deploy a button that defaults to staging but lets me pick production or preview
+Agent: [adds split-button group]
+
+       Added to ~/.lpm/projects/myapp.yml:
+       actions.deploy:
+         cmd: ./deploy.sh staging
+         label: Deploy
+         display: button
+         confirm: true
+         actions:
+           production:
+             cmd: ./deploy.sh production
+             confirm: true
+           preview:
+             cmd: ./deploy.sh preview
 ```
 
 ## Limitations
