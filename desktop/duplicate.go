@@ -63,6 +63,11 @@ func (a *App) DuplicateProject(name string, excludeUncommitted bool) (string, er
 		return "", fmt.Errorf("copy failed: %w", err)
 	}
 
+	// Remove stale git worktree references copied from the source. These
+	// point at the original project's worktrees (e.g. agent worktrees) and
+	// would confuse editors into showing unrelated repositories.
+	_ = os.RemoveAll(filepath.Join(newRoot, ".git", "worktrees"))
+
 	if excludeUncommitted {
 		if err := stripUncommittedChanges(newRoot); err != nil {
 			_ = os.RemoveAll(newRoot)
