@@ -49,6 +49,7 @@ func main() {
 	app.wails = wailsApp
 
 	mainWindow := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+		Name:             "main",
 		Title:            "lpm",
 		Width:            width,
 		Height:           height,
@@ -59,16 +60,7 @@ func main() {
 		BackgroundType:   application.BackgroundTypeTranslucent,
 		BackgroundColour: application.RGBA{Red: 0, Green: 0, Blue: 0, Alpha: 0},
 		EnableFileDrop:   true,
-		Mac: application.MacWindow{
-			Backdrop: application.MacBackdropTranslucent,
-			TitleBar: application.MacTitleBar{
-				AppearsTransparent:   true,
-				HideTitle:            true,
-				FullSizeContent:      true,
-				UseToolbar:           true,
-				HideToolbarSeparator: true,
-			},
-		},
+		Mac: lpmMacWindow(),
 	})
 	app.mainWindow = mainWindow
 

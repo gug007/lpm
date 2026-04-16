@@ -6,6 +6,7 @@ import { GlobalConfigEditor } from "./components/GlobalConfigEditor";
 import { CommitInstructionsEditor } from "./components/CommitInstructionsEditor";
 import { PRInstructionsEditor } from "./components/PRInstructionsEditor";
 import { BranchNameInstructionsEditor } from "./components/BranchNameInstructionsEditor";
+import { DetachedProjectView } from "./components/DetachedProjectView";
 import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
 import { TmuxInstaller } from "./components/TmuxInstaller";
 import { FeedbackModal } from "./components/FeedbackModal";
@@ -14,19 +15,27 @@ import { SidebarIcon } from "./components/icons";
 import { useWindowResizeSaver } from "./hooks/useWindowResizeSaver";
 import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
 import { useProjectsSync } from "./hooks/useProjectsSync";
+import { useProjectWatcher } from "./hooks/useProjectWatcher";
 import { useAppEvents } from "./hooks/useAppEvents";
 import { getSettings, saveSettings } from "./settings";
 import { useAppStore } from "./store/app";
+import { DETACHED_PROJECT_PARAM } from "./events";
+import { InstallTmux, TmuxInstalled } from "../wailsjs/go/main/App";
 
-import {
-  InstallTmux,
-  StartWatchingProject,
-  StopWatchingProject,
-  TmuxInstalled,
-} from "../wailsjs/go/main/App";
+const detachedProjectName = new URLSearchParams(window.location.search).get(
+  DETACHED_PROJECT_PARAM,
+);
 
 export default function App() {
+  if (detachedProjectName) {
+    return <DetachedProjectView projectName={detachedProjectName} />;
+  }
+  return <MainApp />;
+}
+
+function MainApp() {
   const projects = useAppStore((s) => s.projects);
+  const detached = useAppStore((s) => s.detached);
   const selected = useAppStore((s) => s.selected);
   const view = useAppStore((s) => s.view);
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
@@ -55,6 +64,8 @@ export default function App() {
   const renameProject = useAppStore((s) => s.renameProject);
   const reorderProjects = useAppStore((s) => s.reorderProjects);
   const refreshAfterRename = useAppStore((s) => s.refreshAfterRename);
+  const toggleDetached = useAppStore((s) => s.toggleDetached);
+  const activateProject = useAppStore((s) => s.activateProject);
 
   const isSettingsView = view !== "projects";
   const selectedProject = projects.find((p) => p.name === selected) || null;
@@ -79,9 +90,8 @@ export default function App() {
     },
   );
 
-  // Drop a stale saved selection if the project was deleted while lpm was
-  // closed, but only once projects has actually loaded — otherwise the
-  // empty initial array would clear a valid selection on every boot.
+  // Drop a stale saved selection only once projects has loaded — an empty
+  // initial array would otherwise clear a valid selection on every boot.
   useEffect(() => {
     if (selected && projects.length > 0 && !projects.some((p) => p.name === selected)) {
       clearSelection();
@@ -95,17 +105,7 @@ export default function App() {
     }
   }, [selected]);
 
-  useEffect(() => {
-    const root = view === "projects" ? selectedProject?.root : null;
-    if (!root) {
-      StopWatchingProject().catch(() => {});
-      return;
-    }
-    StartWatchingProject(root).catch(() => {});
-    return () => {
-      StopWatchingProject().catch(() => {});
-    };
-  }, [selectedProject?.root, view]);
+  useProjectWatcher(view === "projects" ? selectedProject?.root : null);
 
   useEffect(() => {
     if (selected) markVisited(selected);
@@ -153,14 +153,16 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           projects={projects}
+          detached={detached}
           selected={view === "projects" ? selected : null}
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}
-          onSelect={selectProject}
+          onActivate={activateProject}
           onToggle={toggleProjectRunning}
           onSettings={() => setView("settings")}
           onFeedback={() => setFeedbackOpen(true)}
           onAddProject={addProject}
+          onToggleDetached={toggleDetached}
           onDuplicateProject={duplicateProject}
           onRemoveProject={removeProject}
           onRenameProject={renameProject}

@@ -2,9 +2,13 @@ import { create } from "zustand";
 import { toast } from "sonner";
 import type { ProjectInfo } from "../types";
 import {
+  AttachProject,
   BrowseFolder,
   CreateProject,
+  DetachProject,
   DuplicateProject,
+  FocusProjectWindow,
+  ListDetachedProjects,
   ListProjects,
   RemoveProject,
   ReorderProjects,
@@ -26,6 +30,7 @@ export type View =
 
 interface AppState {
   projects: ProjectInfo[];
+  detached: Set<string>;
 
   selected: string | null;
   view: View;
@@ -48,6 +53,9 @@ interface AppState {
   pruneVisitedToProjects: () => void;
 
   refreshProjects: () => Promise<void>;
+  refreshDetached: () => Promise<void>;
+  toggleDetached: (name: string) => Promise<void>;
+  activateProject: (name: string) => Promise<void>;
 
   startProject: (name: string, profile: string) => Promise<void>;
   stopProject: (name: string) => Promise<void>;
@@ -68,6 +76,7 @@ function projectsEqual(a: ProjectInfo[], b: ProjectInfo[]): boolean {
 
 export const useAppStore = create<AppState>((set, get) => ({
   projects: [],
+  detached: new Set<string>(),
 
   selected: null,
   view: "projects",
@@ -113,6 +122,51 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (err) {
       console.error("Failed to load projects:", err);
     }
+  },
+
+  refreshDetached: async () => {
+    try {
+      const list = (await ListDetachedProjects()) || [];
+      set((s) => {
+        if (s.detached.size === list.length && list.every((n) => s.detached.has(n))) {
+          return s;
+        }
+        return { detached: new Set(list) };
+      });
+    } catch (err) {
+      console.error("Failed to load detached projects:", err);
+    }
+  },
+
+  toggleDetached: async (name) => {
+    const wasDetached = get().detached.has(name);
+    try {
+      if (wasDetached) {
+        await AttachProject(name);
+      } else {
+        await DetachProject(name);
+        if (get().selected === name) set({ selected: null });
+      }
+      await get().refreshDetached();
+    } catch (err) {
+      toast.error(
+        `Failed to ${wasDetached ? "attach" : "detach"} ${name}: ${err}`,
+      );
+    }
+  },
+
+  // Sidebar click: focus the detached window if the project lives in one,
+  // otherwise select it inline in the main window.
+  activateProject: async (name) => {
+    if (get().detached.has(name)) {
+      try {
+        await FocusProjectWindow(name);
+      } catch (err) {
+        toast.error(`Failed to focus ${name}: ${err}`);
+      }
+      return;
+    }
+    get().selectProject(name);
   },
 
   startProject: async (name, profile) => {

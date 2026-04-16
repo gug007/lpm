@@ -62,6 +62,7 @@ type projectWatcher struct {
 	path   string
 	events chan notify.EventInfo
 	stop   chan struct{}
+	refs   int
 }
 
 // Must be called with watcherMu held.
@@ -138,59 +139,84 @@ func ignoreWatcherEvent(root, full string) bool {
 	return false
 }
 
-// StartWatchingProject begins (or switches) the file watcher to path. Same
-// path twice is a no-op; empty path stops watching.
+// StartWatchingProject begins (or shares) a file watcher for path. Each call
+// is ref-counted so independent callers (main + detached windows) can each
+// ask for the project they care about without clobbering each other.
 func (a *App) StartWatchingProject(path string) {
-	// Root must be absolute so filepath.Rel in ignoreWatcherEvent resolves
-	// against the absolute paths FSEvents delivers.
-	if path != "" {
-		if abs, err := filepath.Abs(path); err == nil {
-			path = abs
-		}
+	abs := absWatcherPath(path)
+	if abs == "" {
+		return
 	}
 
 	a.watcherMu.Lock()
 	defer a.watcherMu.Unlock()
-
-	if a.watcher != nil && a.watcher.path == path {
+	if w := a.watchers[abs]; w != nil {
+		w.refs++
 		return
 	}
-	if a.watcher != nil {
-		a.watcher.close()
-		a.watcher = nil
+	w := a.startWatcher(abs)
+	if w == nil {
+		return
 	}
+	w.refs = 1
+	if a.watchers == nil {
+		a.watchers = make(map[string]*projectWatcher)
+	}
+	a.watchers[abs] = w
+}
+
+// StopWatchingProject decrements the ref count for path; the watcher is
+// closed when the last caller releases it.
+func (a *App) StopWatchingProject(path string) {
+	abs := absWatcherPath(path)
+	if abs == "" {
+		return
+	}
+	a.watcherMu.Lock()
+	defer a.watcherMu.Unlock()
+	w := a.watchers[abs]
+	if w == nil {
+		return
+	}
+	w.refs--
+	if w.refs <= 0 {
+		w.close()
+		delete(a.watchers, abs)
+	}
+}
+
+// stopAllWatchers closes every active watcher. Called only from shutdown.
+func (a *App) stopAllWatchers() {
+	a.watcherMu.Lock()
+	defer a.watcherMu.Unlock()
+	for path, w := range a.watchers {
+		w.close()
+		delete(a.watchers, path)
+	}
+}
+
+func absWatcherPath(path string) string {
 	if path == "" {
-		return
+		return ""
 	}
-	a.watcher = a.startWatcher(path)
+	if abs, err := filepath.Abs(path); err == nil {
+		return abs
+	}
+	return path
 }
 
-func (a *App) StopWatchingProject() {
-	a.watcherMu.Lock()
-	defer a.watcherMu.Unlock()
-	if a.watcher != nil {
-		a.watcher.close()
-		a.watcher = nil
-	}
-}
-
-// stopWatcherIfRoot detaches the file watcher iff it is currently watching
-// path. Callers use this before deleting a project folder so FSEvents
-// isn't pumping into a tree we're tearing down. Paths that can't be
-// resolved to absolute form are compared as-is — watcher.path is already
-// absolute, so a mismatch just means no-op (safe).
+// stopWatcherIfRoot drops the watcher for path regardless of refcount — used
+// before deleting a project folder so FSEvents isn't pumping into a tree
+// we're tearing down.
 func (a *App) stopWatcherIfRoot(path string) {
-	if path == "" {
+	abs := absWatcherPath(path)
+	if abs == "" {
 		return
-	}
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		abs = path
 	}
 	a.watcherMu.Lock()
 	defer a.watcherMu.Unlock()
-	if a.watcher != nil && a.watcher.path == abs {
-		a.watcher.close()
-		a.watcher = nil
+	if w := a.watchers[abs]; w != nil {
+		w.close()
+		delete(a.watchers, abs)
 	}
 }

@@ -9,28 +9,38 @@ import (
 )
 
 type Settings struct {
-	Theme               string   `json:"theme"`
-	DoubleClickToggle   bool     `json:"doubleClickToToggle"`
-	SoundNotifications  bool     `json:"soundNotifications,omitempty"`
-	ProjectOrder        []string `json:"projectOrder,omitempty"`
-	TerminalTheme       string   `json:"terminalTheme,omitempty"`
-	TerminalFontSize    int      `json:"terminalFontSize,omitempty"`
-	EditorFontSize      int      `json:"editorFontSize,omitempty"`
-	WindowWidth         int      `json:"windowWidth,omitempty"`
-	WindowHeight        int      `json:"windowHeight,omitempty"`
-	SidebarWidth        int      `json:"sidebarWidth,omitempty"`
-	AutoGenCommitMsg    bool     `json:"autoGenerateCommitMessage,omitempty"`
-	AutoGenPRDesc       bool     `json:"autoGeneratePRDescription,omitempty"`
-	AiCli               string   `json:"aiCli,omitempty"`
-	AiModel             string   `json:"aiModel,omitempty"`
-	ConfigEditorMode    string   `json:"configEditorMode,omitempty"`
-	ShowProjectName     *bool    `json:"showProjectName,omitempty"`
-	LastSelectedProject string   `json:"lastSelectedProject,omitempty"`
-	GitPullStrategy     string   `json:"gitPullStrategy,omitempty"`
-	ExperimentalTTS     bool     `json:"experimentalTTS,omitempty"`
-	TTSEnabled          bool     `json:"ttsEnabled,omitempty"`
-	TTSVoice            string   `json:"ttsVoice,omitempty"`
-	TTSSpeed            float64  `json:"ttsSpeed,omitempty"`
+	Theme               string                          `json:"theme"`
+	DoubleClickToggle   bool                            `json:"doubleClickToToggle"`
+	SoundNotifications  bool                            `json:"soundNotifications,omitempty"`
+	ProjectOrder        []string                        `json:"projectOrder,omitempty"`
+	TerminalTheme       string                          `json:"terminalTheme,omitempty"`
+	TerminalFontSize    int                             `json:"terminalFontSize,omitempty"`
+	EditorFontSize      int                             `json:"editorFontSize,omitempty"`
+	WindowWidth         int                             `json:"windowWidth,omitempty"`
+	WindowHeight        int                             `json:"windowHeight,omitempty"`
+	SidebarWidth        int                             `json:"sidebarWidth,omitempty"`
+	AutoGenCommitMsg    bool                            `json:"autoGenerateCommitMessage,omitempty"`
+	AutoGenPRDesc       bool                            `json:"autoGeneratePRDescription,omitempty"`
+	AiCli               string                          `json:"aiCli,omitempty"`
+	AiModel             string                          `json:"aiModel,omitempty"`
+	ConfigEditorMode    string                          `json:"configEditorMode,omitempty"`
+	ShowProjectName     *bool                           `json:"showProjectName,omitempty"`
+	LastSelectedProject string                          `json:"lastSelectedProject,omitempty"`
+	GitPullStrategy     string                          `json:"gitPullStrategy,omitempty"`
+	ExperimentalTTS     bool                            `json:"experimentalTTS,omitempty"`
+	TTSEnabled          bool                            `json:"ttsEnabled,omitempty"`
+	TTSVoice            string                          `json:"ttsVoice,omitempty"`
+	TTSSpeed            float64                         `json:"ttsSpeed,omitempty"`
+	DetachedProjects    map[string]*DetachedWindowState `json:"detachedProjects,omitempty"`
+}
+
+// DetachedWindowState persists the geometry of a detached project window so it
+// re-opens in the same spot after a restart.
+type DetachedWindowState struct {
+	X      int `json:"x,omitempty"`
+	Y      int `json:"y,omitempty"`
+	Width  int `json:"width,omitempty"`
+	Height int `json:"height,omitempty"`
 }
 
 func defaultSettings() Settings {

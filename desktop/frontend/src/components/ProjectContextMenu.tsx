@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { ChevronRightIcon, ClipboardIcon, CopyIcon, PencilIcon, TrashIcon } from "./icons";
+import { AttachIcon, ChevronRightIcon, ClipboardIcon, CopyIcon, DetachIcon, PencilIcon, TrashIcon } from "./icons";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { launchOpenInTarget, useOpenInTargets } from "../hooks/useOpenInTargets";
 
@@ -8,8 +8,10 @@ interface ProjectContextMenuProps {
   y: number;
   busy: boolean;
   canRemove: boolean;
+  isDetached: boolean;
   projectPath: string | null;
   onRename: () => void;
+  onToggleDetached: () => void;
   onDuplicate: () => void;
   onDuplicateExcludeUncommitted: () => void;
   onCopyPath: () => void;
@@ -22,8 +24,10 @@ export function ProjectContextMenu({
   y,
   busy,
   canRemove,
+  isDetached,
   projectPath,
   onRename,
+  onToggleDetached,
   onDuplicate,
   onDuplicateExcludeUncommitted,
   onCopyPath,
@@ -56,6 +60,16 @@ export function ProjectContextMenu({
       >
         <span className="flex-1 truncate">Rename</span>
         <PencilIcon />
+      </button>
+      <button
+        onClick={() => {
+          onToggleDetached();
+          onClose();
+        }}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+      >
+        <span className="flex-1 truncate">{isDetached ? "Attach to main window" : "Detach to new window"}</span>
+        {isDetached ? <AttachIcon /> : <DetachIcon />}
       </button>
       <button
         onClick={() => {

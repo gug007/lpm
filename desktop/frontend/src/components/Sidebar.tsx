@@ -4,7 +4,7 @@ import { getSettings } from "../settings";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { InstallUpdate } from "../../wailsjs/go/main/App";
 import { type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
-import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon, HelpCircleIcon } from "./icons";
+import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon, HelpCircleIcon, DetachIcon } from "./icons";
 import { ProgressBar } from "./ui/ProgressBar";
 import { SortableItem, SortableList } from "./ui/SortableList";
 import { useSidebarResize } from "../hooks/useSidebarResize";
@@ -19,14 +19,16 @@ const DONE_STYLE = { color: "var(--accent-blue)" } as const;
 
 interface SidebarProps {
   projects: ProjectInfo[];
+  detached: Set<string>;
   selected: string | null;
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
-  onSelect: (name: string) => void;
+  onActivate: (name: string) => void;
   onToggle: (name: string) => void;
   onSettings: () => void;
   onFeedback: () => void;
   onAddProject: () => void;
+  onToggleDetached: (name: string) => void;
   onDuplicateProject: (name: string, excludeUncommitted?: boolean) => void;
   onRemoveProject: (name: string) => void;
   onRenameProject: (name: string, label: string) => void;
@@ -61,7 +63,7 @@ function computeStatus(project: ProjectInfo): ProjectStatus {
   return { isRunning, isDone, isWaiting, isError, className };
 }
 
-export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onSettings, onFeedback, onAddProject, onDuplicateProject, onRemoveProject, onRenameProject, onReorder, showSettings, duplicatingName, removingName }: SidebarProps) {
+export function Sidebar({ projects, detached, selected, collapsed, onCollapsedChange, onActivate, onToggle, onSettings, onFeedback, onAddProject, onToggleDetached, onDuplicateProject, onRemoveProject, onRenameProject, onReorder, showSettings, duplicatingName, removingName }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -170,13 +172,14 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
             const isContextTarget = contextMenu?.name === project.name;
             const isBusy = duplicatingName === project.name || removingName === project.name;
             const isRenaming = renamingName === project.name;
+            const isDetached = detached.has(project.name);
             const parent = project.parentName ? projectByName.get(project.parentName) : undefined;
             const name = <ProjectNameDisplay project={project} parent={parent} />;
             const showCheck = status.isDone && !status.isWaiting && !status.isError;
 
             const rowButton = (
               <button
-                onClick={() => onSelect(project.name)}
+                onClick={() => onActivate(project.name)}
                 onDoubleClick={() => {
                   if (getSettings().doubleClickToToggle) onToggle(project.name);
                 }}
@@ -188,7 +191,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                   isSelected
                     ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
                     : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                } ${isContextTarget ? "ring-1 ring-inset ring-[var(--accent-cyan)]/60" : ""}`}
+                } ${isContextTarget ? "ring-1 ring-inset ring-[var(--accent-cyan)]/60" : ""} ${isDetached ? "italic opacity-70" : ""}`}
               >
                 {isBusy ? (
                   <span className="shrink-0 text-[var(--text-muted)]">
@@ -217,6 +220,11 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                     {status.className ? <span className={status.className}>{name}</span> : name}
                   </span>
                 )}
+                {isDetached && (
+                  <span className="shrink-0 text-[var(--text-muted)]" title="Open in detached window">
+                    <DetachIcon />
+                  </span>
+                )}
                 {status.isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
                 {showCheck && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
               </button>
@@ -239,8 +247,10 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           y={contextMenu.y}
           busy={duplicatingName !== null || removingName !== null}
           canRemove={Boolean(contextProject?.parentName)}
+          isDetached={detached.has(contextMenu.name)}
           projectPath={contextProject?.root ?? null}
           onRename={() => setRenamingName(contextMenu.name)}
+          onToggleDetached={() => onToggleDetached(contextMenu.name)}
           onDuplicate={() => onDuplicateProject(contextMenu.name)}
           onDuplicateExcludeUncommitted={() => onDuplicateProject(contextMenu.name, true)}
           onCopyPath={() => {

@@ -51,10 +51,13 @@ type App struct {
 	socketServer *SocketServer
 
 	watcherMu sync.Mutex
-	watcher   *projectWatcher
+	watchers  map[string]*projectWatcher
 
 	ttsMu      sync.Mutex
 	ttsSession *ttsSession
+
+	detachMu        sync.Mutex
+	detachedWindows map[string]*application.WebviewWindow
 }
 
 func (a *App) emit(name string, data ...any) {
@@ -92,8 +95,9 @@ func NewApp() *App {
 		paneCache:       make(map[string][]string),
 		streams:         make(map[string]context.CancelFunc),
 		ptySessions:     make(map[string]*ptySession),
-		runningState: make(map[string]runState),
+		runningState:    make(map[string]runState),
 		statusStore:     NewStatusStore(),
+		detachedWindows: make(map[string]*application.WebviewWindow),
 	}
 }
 
@@ -125,6 +129,8 @@ func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) 
 
 	// Auto-install agent hooks (Claude Code, Codex) for running indicator
 	go a.installAgentHooks()
+
+	go a.restoreDetachedWindows()
 	return nil
 }
 
@@ -230,7 +236,7 @@ func (a *App) ServiceShutdown() error {
 }
 
 func (a *App) shutdown() {
-	a.StopWatchingProject()
+	a.stopAllWatchers()
 	a.StopTTS()
 
 	if a.socketServer != nil {
