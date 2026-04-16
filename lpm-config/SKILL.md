@@ -1,6 +1,6 @@
 ---
 name: lpm-config
-description: Create, modify, and delete lpm (Local Project Manager) project configs at ~/.lpm/projects/*.yml. Use whenever the user mentions lpm, asks to set up lpm, create/edit/delete an lpm config, add or remove services, actions, or terminals from lpm, or says "lpm setup", "create lpm config", "add service to lpm", "configure lpm". Also trigger when the user wants to add a button or menu action to run commands, manage dev project processes, start/stop multiple services together, group related commands, set up one-shot commands with confirmation prompts, or configure interactive terminal shells through YAML config files. If the user has lpm installed (~/.lpm/ exists), this skill applies to any request about managing project workflows.
+description: Create, modify, and delete lpm (Local Project Manager) project configs at ~/.lpm/projects/*.yml. Use whenever the user mentions lpm, asks to set up lpm, create/edit/delete an lpm config, add or remove services, actions, or terminals from lpm, or says "lpm setup", "create lpm config", "add service to lpm", "configure lpm". Also trigger when the user wants to add a button or menu action to run commands, manage dev project processes, start/stop multiple services together, group related commands, set up one-shot commands with confirmation prompts, or configure interactive terminal shells through YAML config files. Also triggers when the user wants a background/silent action, a split-button with a default plus alternatives, a dropdown menu of related commands, or asks to edit lpm config for the current directory (cwd) without naming a project. If the user has lpm installed (~/.lpm/ exists), this skill applies to any request about managing project workflows.
 ---
 
 ## Instructions
@@ -56,6 +56,9 @@ sudo apt install tmux
 | "when I click it, give me options to choose" | **Modify** — could be `inputs` (radio options before running) or an action group (sub-actions). Ask the user which they mean. |
 | "group these actions together" | **Modify** — create an action group with nested `actions` |
 | "duplicate this project for another directory" | **Create** — use `parent_name` for a duplicate project |
+| "make it run in background", "notify when done", "run silently" | **Modify** — add action with `type: background` |
+| "button with a default and alternatives" | **Modify** — split-button action group (parent `cmd` + nested `actions`) |
+| "dropdown of related commands", "menu of sub-actions" | **Modify** — dropdown-only action group (nested `actions`, no parent `cmd`) |
 
 ### How to Use
 
@@ -67,13 +70,40 @@ command -v lpm
 
 If not found, run the install command from Installation above.
 
-**Step 2: Determine the project name**
+**Step 2: Pick the target project file**
 
-1. Default — use the current project directory name (basename of `root` or `cwd`).
-2. Always confirm with the user before creating or modifying:
-   > I'll create lpm config as `~/.lpm/projects/<name>.yml` — is that name good, or would you prefer something else?
-3. If the user provides a different name, use that instead.
-4. If modifying an existing config, check `~/.lpm/projects/` for the matching file first.
+Work out which `~/.lpm/projects/<name>.yml` to edit *before* asking the user anything. Use the cwd as the primary signal.
+
+1. Get the current working directory: `pwd`.
+2. List existing projects: `ls ~/.lpm/projects/*.yml` (empty is fine).
+3. For each project file, read its `root:` line (expand `~` to `$HOME`). A one-liner that works:
+
+   ```bash
+   for f in ~/.lpm/projects/*.yml; do
+     [ -f "$f" ] || continue
+     name=$(basename "$f" .yml)
+     root=$(awk '/^root:/ {print $2; exit}' "$f" | sed "s|^~|$HOME|")
+     printf '%s\t%s\n' "$name" "$root"
+   done
+   ```
+
+4. Match cwd against each `root`:
+   - Exact match (`cwd == root`) wins outright.
+   - Otherwise, any `root` that is a path-component prefix of `cwd` is a candidate. **Longest prefix wins.**
+
+5. Act on the match count:
+
+   | Matches | What to do |
+   |---------|-----------|
+   | 1 | **Silently** edit `~/.lpm/projects/<name>.yml`. No "I'll edit X" line, no confirmation. Apply the change and write the file. |
+   | ≥2 | Ask once: *"cwd is inside multiple lpm projects (`a`, `b`). Which one?"* |
+   | 0 | Offer two options in the same reply: (1) create a new project for this cwd (`lpm init` or from scratch), (2) pick an existing project by name — list every `~/.lpm/projects/*.yml`. |
+
+**Overrides (these win over cwd detection):**
+- The user names a project explicitly ("add a service to `myapp`") → use that name.
+- The user says "globally" / "to all my projects" / "для всех проектов" → write to `~/.lpm/global.yml` instead.
+
+**Confirmations** are kept only for deleting a config file or overwriting an existing one during a Create flow. Never confirm the target on a single-match cwd.
 
 **Step 3: Execute the operation**
 
@@ -116,6 +146,18 @@ When the user asks to add something, ask follow-up questions to pick the right c
    - Occasional → leave default (`menu`)
 3. Is it destructive? → `confirm: true`
 
+**"Make it run in the background / only tell me when it's done"**
+
+→ Add the action with `type: background`. The command runs hidden and lpm shows a toast on completion. Common fits: builds, migrations, `docker pull`, `git fetch`, dependency installs. Pair with `confirm: true` when it's destructive.
+
+**"Button with a default action plus alternatives" (split button)**
+
+→ Action group with `cmd` on the parent AND nested `actions`. Main click runs the parent's command; chevron opens the children. Example: `deploy` that defaults to staging with production/preview tucked behind it.
+
+**"Dropdown of related commands" (dropdown-only)**
+
+→ Action group with nested `actions` but no parent `cmd`. The whole button opens the menu. Example: a `database` button that expands into migrate / seed / reset.
+
 **"Add a terminal / shell / console"**
 
 → Goes in `terminals` section. Ask:
@@ -132,10 +174,11 @@ When the user asks to add something, ask follow-up questions to pick the right c
 **"Add a button with a dropdown" / "button with options"**
 
 This is ambiguous — clarify what the user means:
-- **"When I click, I see a list of sub-actions to pick from"** → action group with nested `actions` and `display: button`
-- **"When I click, it asks me for a parameter then runs"** → single action with `inputs` (e.g., `type: radio` for fixed choices) and `display: button`
+- **"When I click, I see a list of sub-actions to pick from"** → dropdown-only action group (nested `actions`, no parent `cmd`) with `display: button`.
+- **"When I click, the default runs, but I can pick an alternative from a chevron"** → split-button action group (parent `cmd` + nested `actions`) with `display: button`.
+- **"When I click, it asks me for a parameter then runs"** → single action with `inputs` (e.g. `type: radio` for fixed choices) and `display: button`.
 
-Ask: "Should the button show a list of different commands to run, or ask for a parameter before running one command?"
+Ask: "Should the button run a default command with alternatives behind a chevron (split button), open a menu of commands (dropdown), or prompt for a parameter before running (inputs)?"
 
 **"Group related actions together"**
 
@@ -153,7 +196,7 @@ Ask: "Should the button show a list of different commands to run, or ask for a p
 
 **"Add this action/terminal to all my projects"**
 
-→ Goes in the global config at `~/.lpm/global.yml`. Global config only supports `actions` and `terminals` (no services or profiles). Project-level entries with the same key take precedence.
+→ Goes in the global config at `~/.lpm/global.yml`. It supports `actions` and `terminals` only (no `services`, `profiles`, `name`, or `root`), but both of those carry the full field set — `display`, `confirm`, `type` (including `type: background`), `reuse`, `inputs`, and nested `actions`. Project-level entries with the same key take precedence.
 
 ### Output
 
@@ -162,7 +205,7 @@ Config files are written to `~/.lpm/projects/<name>.yml`. Global config at `~/.l
 **Config structure:**
 
 ```yaml
-name: <string>           # required — project identifier
+name: <string>           # optional — defaults to the config filename
 root: <path>             # required — project root (supports ~)
 label: <string>          # optional — display name in UI
 parent_name: <string>    # optional — duplicate from parent project
@@ -185,19 +228,23 @@ actions:                 # optional — one-shot commands
     env: {}              # optional
     confirm: <bool>      # optional (default: false)
     display: <string>    # optional (button | menu, default: menu)
-    type: <string>       # optional — set to "terminal" for terminal pane
+    type: <string>       # optional — "terminal" (pane) or "background" (hidden + toast)
     reuse: <bool>        # optional — reuse same terminal pane
     inputs: {}           # optional — user-prompted parameters
     actions: {}          # optional — nested sub-actions (action group)
 
-terminals:               # optional — interactive shells
+terminals:               # optional — interactive shells (sugar for actions with type: terminal)
   <key>: <cmd>           # shorthand
-  <key>:                 # full form
-    cmd: <string>        # required
+  <key>:                 # full form — supports the same fields as actions
+    cmd: <string>        # required (unless nested actions)
     label: <string>      # optional
     cwd: <path>          # optional
     env: {}              # optional
     display: <string>    # optional (button | menu, default: menu)
+    confirm: <bool>      # optional
+    reuse: <bool>        # optional — reuse the existing pane on next launch
+    inputs: {}           # optional — prompted parameters
+    actions: {}          # optional — nested sub-actions (split-button or dropdown)
 
 profiles:                # optional — named service subsets
   <key>: [<service>, ...]
@@ -209,19 +256,20 @@ profiles:                # optional — named service subsets
 - Set `confirm: true` on destructive actions (migrations, deploys, cleanup).
 - Set `display: button` on frequently-used actions/terminals.
 - Use `type: terminal` + `reuse: true` for commands that should stay in one persistent pane (log tailers, watchers).
-- Use action groups (nested `actions`) to organize related commands under one parent — children inherit `cwd` and `env`.
+- Use `type: background` for slow commands you want to fire and forget — lpm shows a toast when they finish.
+- Action groups: parent `cmd` + nested `actions` renders as a split button; nested `actions` alone renders as a dropdown. Children inherit `cwd` and `env`.
 - Use `parent_name` to duplicate a project config for a different root directory.
 - Keys: short, lowercase, hyphen-separated (`db-migrate`, `run-tests`).
 - `~` expands to home. Relative `cwd` resolves from `root`. All `cwd` must exist.
 
 **Validation — verify before writing any config:**
-- `name` and `root` are set
+- `root` is set (`name` is optional — defaults to the config filename)
 - At least one service is defined (unless `parent_name` is set)
-- All `cmd` fields are non-empty strings (actions with nested `actions` may omit `cmd`)
+- All `cmd` fields are non-empty strings (actions or terminals with nested `actions` may omit `cmd`)
 - All `cwd` paths point to existing directories
-- All ports are in range 0–65535 with no duplicates
+- All ports are in range 0–65535 with no duplicates across services
 - `display` values are only `button` or `menu`
-- `confirm` is only used on actions (not terminals)
+- `type` values are only `terminal` or `background` (or omitted)
 - Profile entries reference defined services
 - Nested sub-actions are validated recursively
 - `parent_name` references an existing project
@@ -231,8 +279,10 @@ profiles:                # optional — named service subsets
 **Example 1: Create a minimal config**
 ```
 User: Set up lpm for this project
-Agent: I'll create lpm config as ~/.lpm/projects/my-api.yml — is that name good?
-User: Yes
+Agent: No lpm project matches cwd ~/Projects/my-api. I can:
+       1. Create a new project for this directory (name: my-api)
+       2. Edit an existing project: myapp, storefront
+User: Create it
 Agent: [analyzes project, writes config]
 
        Created ~/.lpm/projects/my-api.yml:
@@ -250,7 +300,7 @@ services:
   server: npm run dev
 ```
 
-**Example 2: Full config with new features**
+**Example 2: Full config**
 ```yaml
 name: myapp
 root: ~/Projects/myapp
@@ -304,6 +354,12 @@ actions:
     type: terminal
     reuse: true
     label: Tail Logs
+    display: button
+
+  fetch-all:
+    cmd: git fetch --all --prune
+    label: Fetch All
+    type: background
     display: button
 
 terminals:
@@ -382,12 +438,43 @@ User: Yes
 Agent: Deleted ~/.lpm/projects/myapp.yml
 ```
 
+**Example 8: Add a background action**
+```
+User: Add a button that resets the dev database in the background
+Agent: [reads config, adds action — silent cwd match on ~/.lpm/projects/myapp.yml]
+
+       Added to ~/.lpm/projects/myapp.yml:
+       actions.db-reset:
+         cmd: npm run db:reset && npm run db:seed
+         label: Reset DB
+         type: background
+         confirm: true
+         display: button
+```
+
+**Example 9: Split-button action group**
+```
+User: Make deploy a button that defaults to staging but lets me pick production or preview
+Agent: [adds split-button group]
+
+       Added to ~/.lpm/projects/myapp.yml:
+       actions.deploy:
+         cmd: ./deploy.sh staging
+         label: Deploy
+         display: button
+         confirm: true
+         actions:
+           production:
+             cmd: ./deploy.sh production
+             confirm: true
+           preview:
+             cmd: ./deploy.sh preview
+```
+
 ## Limitations
 
 - Project names must be lowercase with no slashes; cannot be `.` or `..`
 - All `cwd` paths must point to existing directories — lpm validates on load
 - Ports must be in range 0–65535 and unique across services
-- Global config only supports `actions` and `terminals` — no services or profiles
-- `confirm` field is only valid on actions, not terminals
-- `type` and `reuse` fields are only valid on actions, not terminals
+- Global config only supports `actions` and `terminals` — no services, profiles, name, or root
 - Duplicate projects (`parent_name`) inherit everything — you cannot override individual entries

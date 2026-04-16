@@ -5,7 +5,7 @@ Complete field reference for lpm project config files (`~/.lpm/projects/<name>.y
 ## Full Config Structure
 
 ```yaml
-name: <string>           # required — project identifier
+name: <string>           # optional — defaults to the config filename
 root: <path>             # required — project root directory (supports ~)
 label: <string>          # optional — display name in the UI
 parent_name: <string>    # optional — name of parent project (creates a duplicate)
@@ -21,7 +21,7 @@ profiles: {}             # optional — named service subsets
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `name` | string | yes | — | Project identifier. Lowercase, no slashes, not `.` or `..`. |
+| `name` | string | no | config filename | Project identifier. Lowercase, no slashes, not `.` or `..`. Defaults to the `.yml` filename. |
 | `root` | string | yes | — | Project root directory. Supports `~`. |
 | `label` | string | no | — | Display name shown in the UI (defaults to `name`). |
 | `parent_name` | string | no | — | Name of a parent project. Creates a **duplicate** that inherits all services, actions, terminals, and profiles from the parent. See [Duplicate Projects](#duplicate-projects). |
@@ -55,7 +55,7 @@ services:
 
 ### Sequence Form
 
-Services also accept a sequence (list) instead of a mapping. Each entry must include a `name` field:
+Services also accept a sequence (list) instead of a mapping. Each entry must include a `name` field. The map form is preferred; use the sequence form when ordering matters or when your YAML tooling prefers arrays.
 
 ```yaml
 services:
@@ -66,6 +66,8 @@ services:
     cmd: npm run dev
     port: 3000
 ```
+
+Actions and terminals accept the same sequence form. See `decodeNamedMap` in `internal/config/config.go` for the exact loader behavior.
 
 ### Fields
 
@@ -162,34 +164,68 @@ actions:
 - Use the `terminals` section for always-available interactive shells (database consoles, Redis CLI).
 - Set `reuse: true` when the command should always run in the same pane — prevents pane sprawl for things like log viewers.
 
+### Background Actions (`type: background`)
+
+Set `type: background` to run the command hidden — no modal, no terminal pane. lpm shows a toast when the command finishes, success or failure. Good fit for slow commands whose only interesting signal is "did it succeed": builds, `docker pull`, `git fetch`, one-shot migrations, dependency installs.
+
+```yaml
+actions:
+  db-reset:
+    cmd: npm run db:reset && npm run db:seed
+    label: Reset DB
+    type: background
+    confirm: true           # pair with confirm for destructive ones
+    display: button
+```
+
+**When to pick which `type`:**
+- (default, omit the field) — interactive modal with streaming output. Use for commands you want to watch.
+- `terminal` — persistent pane you keep around. Use for log tailers, watchers, REPLs triggered from a button.
+- `background` — silent + toast. Use for slow boring commands you can fire and forget.
+
 ### Action Groups (Nested Actions)
 
-An action can contain nested sub-actions instead of (or in addition to) a `cmd`. Sub-actions inherit `cwd` and `env` from the parent, with child values taking precedence:
+An action can contain nested sub-actions. There are two shapes:
+
+**Split button** — parent has `cmd` *and* `actions`. Primary click runs the parent command, chevron opens the children:
+
+```yaml
+actions:
+  deploy:
+    cmd: ./deploy.sh staging
+    label: Deploy
+    display: button
+    confirm: true
+    actions:
+      production:
+        cmd: ./deploy.sh production
+        label: Production
+        confirm: true
+      preview:
+        cmd: ./deploy.sh preview
+        label: Preview
+```
+
+**Dropdown-only** — parent has no `cmd`, only `actions`. The whole button opens the menu. Good for a toolkit of related commands with no sensible default:
 
 ```yaml
 actions:
   database:
     label: Database
+    display: button
     cwd: ./backend
-    env:
-      DATABASE_URL: postgres://localhost/myapp
     actions:
       migrate:
         cmd: rails db:migrate
-        label: Run Migrations
         confirm: true
       seed:
         cmd: rails db:seed
-        label: Seed Data
       reset:
         cmd: rails db:reset
-        label: Reset Database
         confirm: true
 ```
 
-Run a sub-action via CLI: `lpm run <project> database migrate`
-
-In the UI, the parent action appears as a group with its children listed inside.
+Sub-actions inherit `cwd` and `env` from the parent; child values win on conflict. Run a sub-action via CLI: `lpm run <project> database migrate`.
 
 ### Fields
 
@@ -201,7 +237,7 @@ In the UI, the parent action appears as a group with its children listed inside.
 | `env` | map[string]string | no | — | Environment variables injected into the command. |
 | `confirm` | bool | no | false | Prompt for confirmation before running. Use for destructive or irreversible commands. |
 | `display` | string | no | `menu` | UI placement: `menu` (dropdown) or `button` (visible button). |
-| `type` | string | no | — | Action type. Set to `terminal` to run in a terminal pane instead of as a background one-shot. |
+| `type` | string | no | — | Action type. `terminal` runs in a terminal pane; `background` runs hidden and shows a toast on completion. Omit for the default inline runner (modal with streaming output). |
 | `reuse` | bool | no | false | When `type: terminal`, reuse the same terminal pane across runs instead of opening a new one. |
 | `inputs` | map[string]InputField | no | — | Named inputs prompted before running. Values substitute `{{key}}` in `cmd`. |
 | `actions` | map[string]Action | no | — | Nested sub-actions. Makes this an action group. See [Action Groups](#action-groups-nested-actions). |
@@ -272,10 +308,21 @@ terminals:
 | `cwd` | string | no | `root` | Working directory. Relative paths resolve from `root`. Supports `~`. Must exist. |
 | `env` | map[string]string | no | — | Environment variables injected into the shell. |
 | `display` | string | no | `menu` | UI placement: `menu` (dropdown) or `button` (visible button). |
+| `confirm` | bool | no | false | Prompt before opening. |
+| `reuse` | bool | no | false | Reuse the existing pane on next launch. |
+| `inputs` | map[string]InputField | no | — | Named inputs prompted before opening. Values substitute `{{key}}` in `cmd`. |
+| `actions` | map[string]Action | no | — | Nested sub-actions. Makes this a split-button or dropdown — see Action Groups. |
 
-### Key Difference from Actions
+### Terminals are Actions under the hood
 
-Terminals do **not** have `confirm`, `type`, `reuse`, `inputs`, or nested `actions` fields — they are interactive sessions, not one-shot commands.
+The `terminals:` block is sugar for actions with `type: terminal` defaulted in. The Go loader (`internal/config/config.go` `TerminalMap`) decodes each entry as an `Action` and sets `type = "terminal"` when it is not set explicitly. That means terminals support the full action field set:
+
+- `confirm: true` — prompt before opening (e.g. for a REPL that touches production).
+- `reuse: true` — reuse the existing pane on next launch instead of opening a new one.
+- `inputs:` — prompt for values and substitute into `cmd` via `{{key}}`.
+- `actions:` — nested sub-actions (split-button or dropdown — see Action Groups below).
+
+Use `terminals:` when the intent is "persistent interactive shell". Drop a `type: terminal` entry into `actions:` when you want to mix one-shots and persistent shells together.
 
 ---
 
@@ -290,6 +337,8 @@ profiles:
 ```
 
 Each service name must reference a service defined in `services`.
+
+**The `default` profile is special.** When the user starts a project without picking a profile (`lpm myapp`), lpm uses the `default` profile if one is defined. If no profiles exist at all, lpm starts every service (sorted alphabetically for stable pane ordering).
 
 ---
 
@@ -311,7 +360,9 @@ The duplicate loads the parent's full config but uses its own `root` and `name`.
 
 Location: `~/.lpm/global.yml`
 
-Supports only `actions` and `terminals` (not services, profiles, name, or root). Project-level entries take precedence when names collide.
+Supports `actions` and `terminals` only (no `services`, `profiles`, `name`, or `root`). Entries here are available in every project. When a project defines an entry with the same key, the project-level entry wins.
+
+Global entries support the full action/terminal field set — `display`, `confirm`, `type` (including `type: background`), `reuse`, `inputs`, and nested `actions`. There is no stripped-down subset.
 
 ```yaml
 actions:
@@ -319,9 +370,22 @@ actions:
     cmd: docker system prune -f
     label: Docker Prune
     confirm: true
+    display: button
+
+  fetch-all:
+    cmd: git fetch --all --prune
+    label: Fetch All
+    type: background
 
 terminals:
-  htop: htop
+  htop:
+    cmd: htop
+    label: System
+    display: button
+
+  claude:
+    cmd: claude
+    label: Claude Code
 ```
 
 ---
@@ -362,14 +426,13 @@ Leave less frequent commands at the default `menu` to keep the UI clean.
 lpm validates config on load:
 
 1. At least one service is defined (unless it's a duplicate with `parent_name`).
-2. All `cmd` fields are non-empty strings. Actions with nested `actions` may omit `cmd`.
+2. All `cmd` fields are non-empty strings. Actions (and terminals) with nested `actions` may omit `cmd`.
 3. All `cwd` paths point to existing directories.
-4. Ports are in range 0–65535 with no duplicates.
+4. Ports are in range 0–65535 with no duplicates across services.
 5. `display` is either `button` or `menu` (or omitted for default).
-6. `confirm` is only valid on actions, not terminals.
-7. Profile entries reference existing services.
-8. Nested sub-actions are validated recursively (cmd required, cwd must exist).
-9. `parent_name` must reference an existing, loadable project.
+6. Profile entries reference defined services.
+7. Nested sub-actions are validated recursively (cmd required if no children, cwd must exist).
+8. `parent_name` must reference an existing, loadable project.
 
 ---
 
