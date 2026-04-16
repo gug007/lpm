@@ -60,6 +60,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "name": { "type": "string", "description": "Key used when the action is defined in array form." },
             "cmd": { "type": "string" },
             "label": { "type": "string" },
             "cwd": { "type": "string" },
@@ -115,6 +116,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "name": { "type": "string", "description": "Key used when the terminal is defined in array form." },
             "cmd": { "type": "string" },
             "label": { "type": "string" },
             "cwd": { "type": "string" },

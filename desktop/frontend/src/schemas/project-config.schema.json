@@ -110,6 +110,7 @@
           "required": ["cmd"],
           "additionalProperties": false,
           "properties": {
+            "name": { "type": "string", "description": "Key used when the service is defined in array form." },
             "cmd": { "type": "string", "description": "Shell command to run." },
             "cwd": { "type": "string", "description": "Working directory, relative to project root or absolute." },
             "port": { "type": "integer", "minimum": 0, "maximum": 65535 },
@@ -129,6 +130,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "name": { "type": "string", "description": "Key used when the action is defined in array form." },
             "cmd": { "type": "string" },
             "label": { "type": "string" },
             "cwd": { "type": "string" },
@@ -189,6 +191,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "name": { "type": "string", "description": "Key used when the terminal is defined in array form." },
             "cmd": { "type": "string" },
             "label": { "type": "string" },
             "cwd": { "type": "string" },
