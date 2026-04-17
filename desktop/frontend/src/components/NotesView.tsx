@@ -3,23 +3,29 @@ import { toast } from "sonner";
 import {
   useInfiniteQuery,
   useMutation,
+  useQuery,
   useQueryClient,
   type InfiniteData,
 } from "@tanstack/react-query";
 import {
   NotesAddMessage,
+  NotesCreateChat,
+  NotesDeleteChat,
   NotesDeleteMessage,
   NotesEditMessage,
+  NotesListChats,
   NotesListMessages,
   NotesReadAttachment,
   NotesReadFileAsInput,
+  NotesRenameChat,
 } from "../../wailsjs/go/main/App";
 import { registerFileDropHandler } from "../fileDrop";
 import { main, notes } from "../../wailsjs/go/models";
-import { PaperclipIcon, SendIcon, TrashIcon, PencilIcon, DownloadIcon } from "./icons";
+import { PaperclipIcon, SendIcon, TrashIcon, PencilIcon, DownloadIcon, PlusIcon, MessageIcon } from "./icons";
 import { base64ToBytes, bytesToBase64, bytesToBlobUrl, downloadBlob } from "../download";
 import { useAutoGrowTextarea } from "../hooks/useAutoGrowTextarea";
 import { MessageMarkdown } from "./MessageMarkdown";
+import { ChatList } from "./ChatList";
 
 const PAGE_SIZE = 50;
 const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
@@ -40,28 +46,65 @@ interface PendingAttachment {
   data: Uint8Array;
 }
 
-function notesKey(projectName: string) {
-  return ["notes", projectName] as const;
+function chatsKey(projectName: string) {
+  return ["notes", projectName, "chats"] as const;
+}
+
+function messagesKey(projectName: string, chatID: string) {
+  return ["notes", projectName, "messages", chatID] as const;
+}
+
+export function activeChatStorageKey(projectName: string) {
+  return `notes:activeChat:${projectName}`;
 }
 
 export function NotesView({ projectName, visible }: NotesViewProps) {
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const [pending, setPending] = useState<PendingAttachment[]>([]);
+  const [activeChatID, setActiveChatID] = useState<string | null>(null);
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollToBottomOnNextRenderRef = useRef(false);
 
+  const chatsQuery = useQuery({
+    queryKey: chatsKey(projectName),
+    queryFn: async () => (await NotesListChats(projectName)) ?? [],
+    enabled: visible,
+    staleTime: 60_000,
+  });
+  const chats = useMemo<notes.Chat[]>(() => chatsQuery.data ?? [], [chatsQuery.data]);
+
+  // NotesView isn't remounted across projects (no key prop), so re-seed from
+  // storage on every project change rather than in a useState initializer.
+  useEffect(() => {
+    setActiveChatID(window.localStorage.getItem(activeChatStorageKey(projectName)));
+  }, [projectName]);
+
+  // Fall back to the most-recent chat if the stored one no longer exists
+  // (deleted elsewhere, or first ever load for this project).
+  useEffect(() => {
+    if (chats.length === 0) return;
+    const stillExists = activeChatID && chats.some((c) => c.id === activeChatID);
+    if (!stillExists) setActiveChatID(chats[0].id);
+  }, [chats, activeChatID]);
+
+  useEffect(() => {
+    if (activeChatID) {
+      window.localStorage.setItem(activeChatStorageKey(projectName), activeChatID);
+    }
+  }, [activeChatID, projectName]);
+
   const query = useInfiniteQuery({
-    queryKey: notesKey(projectName),
+    queryKey: messagesKey(projectName, activeChatID ?? ""),
     queryFn: async ({ pageParam }) =>
-      (await NotesListMessages(projectName, PAGE_SIZE, pageParam)) ?? [],
+      (await NotesListMessages(projectName, activeChatID!, PAGE_SIZE, pageParam)) ?? [],
     initialPageParam: "",
     getNextPageParam: (last) =>
       last.length === PAGE_SIZE ? last[last.length - 1].id : undefined,
-    enabled: visible,
+    enabled: visible && !!activeChatID,
   });
 
   // The API returns newest-first; flatten pages so the whole buffer stays
@@ -170,7 +213,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
   const canSend = text.trim().length > 0 || pending.length > 0;
 
   const addMutation = useMutation({
-    mutationFn: async (input: { text: string; pending: PendingAttachment[] }) => {
+    mutationFn: async (input: { chatID: string; text: string; pending: PendingAttachment[] }) => {
       const attachments = input.pending.map<main.NotesAttachmentInput>((p) =>
         main.NotesAttachmentInput.createFrom({
           name: p.name,
@@ -178,13 +221,20 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
           data: bytesToBase64(p.data),
         }),
       );
-      return NotesAddMessage(projectName, input.text, attachments);
+      return NotesAddMessage(projectName, input.chatID, input.text, attachments);
     },
     onSuccess: (msg) => {
-      qc.setQueryData<NotesPages>(notesKey(projectName), (prev) => {
+      qc.setQueryData<NotesPages>(messagesKey(projectName, msg.chatId), (prev) => {
         if (!prev) return prev;
         const [first, ...rest] = prev.pages;
         return { ...prev, pages: [[msg, ...(first ?? [])], ...rest] };
+      });
+      qc.setQueryData<notes.Chat[]>(chatsKey(projectName), (prev) => {
+        if (!prev) return prev;
+        const idx = prev.findIndex((c) => c.id === msg.chatId);
+        if (idx < 0) return prev;
+        const updated = notes.Chat.createFrom({ ...prev[idx], updatedAt: msg.ts });
+        return [updated, ...prev.slice(0, idx), ...prev.slice(idx + 1)];
       });
       scrollToBottomOnNextRenderRef.current = true;
     },
@@ -197,7 +247,8 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
       return input;
     },
     onSuccess: ({ id, text }) => {
-      qc.setQueryData<NotesPages>(notesKey(projectName), (prev) => {
+      if (!activeChatID) return;
+      qc.setQueryData<NotesPages>(messagesKey(projectName, activeChatID), (prev) => {
         if (!prev) return prev;
         const ts = Date.now();
         return {
@@ -219,7 +270,8 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
       return id;
     },
     onSuccess: (id) => {
-      qc.setQueryData<NotesPages>(notesKey(projectName), (prev) => {
+      if (!activeChatID) return;
+      qc.setQueryData<NotesPages>(messagesKey(projectName, activeChatID), (prev) => {
         if (!prev) return prev;
         return { ...prev, pages: prev.pages.map((page) => page.filter((m) => m.id !== id)) };
       });
@@ -227,10 +279,53 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     onError: (err) => toast.error(`Delete: ${err}`),
   });
 
+  const createChatMutation = useMutation({
+    mutationFn: async (title: string) => NotesCreateChat(projectName, title),
+    onSuccess: (chat) => {
+      qc.setQueryData<notes.Chat[]>(chatsKey(projectName), (prev) => [chat, ...(prev ?? [])]);
+      setActiveChatID(chat.id);
+    },
+    onError: (err) => toast.error(`New chat: ${err}`),
+  });
+
+  // Seed a "General" chat the first time a project's notes are opened.
+  useEffect(() => {
+    if (!chatsQuery.isSuccess || chats.length > 0 || createChatMutation.isPending) return;
+    createChatMutation.mutate("General");
+  }, [chatsQuery.isSuccess, chats.length, createChatMutation]);
+
+  const renameChatMutation = useMutation({
+    mutationFn: async (input: { id: string; title: string }) => {
+      await NotesRenameChat(projectName, input.id, input.title);
+      return input;
+    },
+    onSuccess: ({ id, title }) => {
+      qc.setQueryData<notes.Chat[]>(chatsKey(projectName), (prev) =>
+        prev?.map((c) => (c.id === id ? notes.Chat.createFrom({ ...c, title }) : c)),
+      );
+    },
+    onError: (err) => toast.error(`Rename: ${err}`),
+  });
+
+  const deleteChatMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await NotesDeleteChat(projectName, id);
+      return id;
+    },
+    onSuccess: (id) => {
+      qc.setQueryData<notes.Chat[]>(chatsKey(projectName), (prev) =>
+        prev?.filter((c) => c.id !== id),
+      );
+      qc.removeQueries({ queryKey: messagesKey(projectName, id) });
+      if (activeChatID === id) setActiveChatID(null);
+    },
+    onError: (err) => toast.error(`Delete chat: ${err}`),
+  });
+
   const handleSend = useCallback(() => {
-    if (!canSend || addMutation.isPending) return;
+    if (!canSend || addMutation.isPending || !activeChatID) return;
     addMutation.mutate(
-      { text, pending },
+      { chatID: activeChatID, text, pending },
       {
         onSuccess: () => {
           setText("");
@@ -238,7 +333,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
         },
       },
     );
-  }, [addMutation, canSend, pending, text]);
+  }, [addMutation, canSend, pending, text, activeChatID]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -269,122 +364,159 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     if (e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files);
   };
 
-  const isEmpty = !query.isPending && messages.length === 0;
+  const isEmpty = !query.isPending && activeChatID !== null && messages.length === 0;
+  const activeChat = activeChatID ? chats.find((c) => c.id === activeChatID) : null;
+  const composerPlaceholder = activeChat ? `Message ${activeChat.title}…` : "Pick a chat…";
 
   return (
     <div
       data-notes-drop={projectName}
-      className="flex h-full min-h-0 flex-1 flex-col bg-[var(--bg-primary)]"
+      className="flex h-full min-h-0 flex-1 bg-[var(--bg-primary)]"
       onDragOver={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = "copy";
       }}
       onDrop={handleDrop}
     >
-      <div
-        ref={listRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-6 py-5"
-      >
-        {query.hasNextPage && (
-          <div className="mb-3 text-center text-[11px] text-[var(--text-muted)]">
-            {query.isFetchingNextPage ? "Loading older…" : "Scroll up for older"}
-          </div>
+      {chats.length > 1 && (
+        <ChatList
+          chats={chats}
+          activeId={activeChatID}
+          onSelect={setActiveChatID}
+          onCreate={() => createChatMutation.mutate("New chat")}
+          onRename={(id, title) => renameChatMutation.mutate({ id, title })}
+          onDelete={(id) => deleteChatMutation.mutate(id)}
+          canDelete={chats.length > 1}
+        />
+      )}
+
+      <div className="relative flex min-w-0 flex-1 flex-col">
+        {chats.length <= 1 && (
+          <button
+            onClick={() => createChatMutation.mutate("New chat")}
+            disabled={createChatMutation.isPending}
+            className="absolute right-4 top-3 z-10 flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-[11px] text-[var(--text-muted)] shadow-sm transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
+            title="New chat"
+            aria-label="New chat"
+          >
+            <PlusIcon />
+            <span>New chat</span>
+          </button>
         )}
-        {isEmpty && (
-          <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
-            <p className="text-sm text-[var(--text-primary)]">No notes yet</p>
-            <p className="text-xs text-[var(--text-muted)]">
-              Encrypted thread for {projectName}
-            </p>
-          </div>
-        )}
-        {groups.map(({ key, label, items }) => (
-          <div key={key}>
-            <DaySeparator label={label} />
-            <div className="space-y-0.5">
-              {items.map((m) => (
-                <MessageRow
-                  key={m.id}
-                  message={m}
-                  projectName={projectName}
-                  onSave={(newText) => editMutation.mutate({ id: m.id, text: newText })}
-                  onDelete={() => deleteMutation.mutate(m.id)}
-                />
+        <div
+          ref={listRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto px-6 py-5"
+        >
+          {query.hasNextPage && (
+            <div className="mb-3 text-center text-[11px] text-[var(--text-muted)]">
+              {query.isFetchingNextPage ? "Loading older…" : "Scroll up for older"}
+            </div>
+          )}
+          {isEmpty && (
+            <div className="flex h-full flex-col items-center justify-center gap-5 text-center">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--bg-secondary)] text-[var(--text-muted)]">
+                <MessageIcon />
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-sm font-medium text-[var(--text-primary)]">
+                  {activeChat ? activeChat.title : "Start a note"}
+                </p>
+                <p className="text-xs text-[var(--text-muted)]">
+                  Write, paste, or drop files — end-to-end encrypted.
+                </p>
+              </div>
+            </div>
+          )}
+          {groups.map(({ key, label, items }) => (
+            <div key={key}>
+              <DaySeparator label={label} />
+              <div className="space-y-0.5">
+                {items.map((m) => (
+                  <MessageRow
+                    key={m.id}
+                    message={m}
+                    projectName={projectName}
+                    onSave={(newText) => editMutation.mutate({ id: m.id, text: newText })}
+                    onDelete={() => deleteMutation.mutate(m.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mx-4 mt-2 mb-4 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] transition-colors focus-within:border-[var(--text-primary)]/30">
+          {pending.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 border-b border-[var(--border)] px-3 py-2">
+              {pending.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center gap-1.5 rounded-md bg-[var(--bg-hover)] px-2 py-1 text-[11px] text-[var(--text-secondary)]"
+                >
+                  <PaperclipIcon />
+                  <span className="max-w-[160px] truncate">{p.name}</span>
+                  <span className="text-[var(--text-muted)]">{formatSize(p.size)}</span>
+                  <button
+                    onClick={() => removePending(p.id)}
+                    className="ml-0.5 text-[var(--text-muted)] opacity-60 hover:opacity-100"
+                    aria-label={`Remove ${p.name}`}
+                  >
+                    ×
+                  </button>
+                </div>
               ))}
             </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="mx-4 mt-2 mb-4 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] transition-colors focus-within:border-[var(--text-primary)]/30">
-        {pending.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 border-b border-[var(--border)] px-3 py-2">
-            {pending.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center gap-1.5 rounded-md bg-[var(--bg-hover)] px-2 py-1 text-[11px] text-[var(--text-secondary)]"
-              >
-                <PaperclipIcon />
-                <span className="max-w-[160px] truncate">{p.name}</span>
-                <span className="text-[var(--text-muted)]">{formatSize(p.size)}</span>
-                <button
-                  onClick={() => removePending(p.id)}
-                  className="ml-0.5 text-[var(--text-muted)] opacity-60 hover:opacity-100"
-                  aria-label={`Remove ${p.name}`}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          placeholder={`Message ${projectName}…`}
-          rows={1}
-          className="w-full resize-none bg-transparent px-3 pt-2.5 pb-1 text-sm outline-none placeholder:text-[var(--text-muted)]"
-          style={{ minHeight: 40, maxHeight: TEXTAREA_MAX_HEIGHT_PX }}
-        />
-        <div className="flex items-center justify-between px-2 pb-1.5 pt-0.5">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
-            title="Attach files"
-            aria-label="Attach files"
-          >
-            <PaperclipIcon />
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(e) => {
-              if (e.target.files) addFiles(e.target.files);
-              e.target.value = "";
-            }}
+          )}
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            placeholder={composerPlaceholder}
+            rows={1}
+            disabled={!activeChatID}
+            className="w-full resize-none bg-transparent px-3 pt-2.5 pb-1 text-sm outline-none placeholder:text-[var(--text-muted)] disabled:opacity-60"
+            style={{ minHeight: 40, maxHeight: TEXTAREA_MAX_HEIGHT_PX }}
           />
-          <div className="flex items-center gap-2">
-            <span
-              aria-hidden="true"
-              className="hidden text-[10px] text-[var(--text-muted)] sm:inline"
-            >
-              <kbd className="font-mono">↵</kbd> send · <kbd className="font-mono">⇧↵</kbd> newline · markdown
-            </span>
+          <div className="flex items-center justify-between px-2 pb-1.5 pt-0.5">
             <button
-              onClick={handleSend}
-              disabled={!canSend || addMutation.isPending}
-              className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--text-primary)] text-[var(--bg-primary)] transition-opacity disabled:bg-[var(--bg-hover)] disabled:text-[var(--text-muted)]"
-              title="Send (Enter)"
-              aria-label="Send message"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!activeChatID}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)] disabled:opacity-40"
+              title="Attach files"
+              aria-label="Attach files"
             >
-              <SendIcon />
+              <PaperclipIcon />
             </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files) addFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <div className="flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className="hidden text-[10px] text-[var(--text-muted)] sm:inline"
+              >
+                <kbd className="font-mono">↵</kbd> send · <kbd className="font-mono">⇧↵</kbd> newline · markdown
+              </span>
+              <button
+                onClick={handleSend}
+                disabled={!canSend || addMutation.isPending || !activeChatID}
+                className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--text-primary)] text-[var(--bg-primary)] transition-opacity disabled:bg-[var(--bg-hover)] disabled:text-[var(--text-muted)]"
+                title="Send (Enter)"
+                aria-label="Send message"
+              >
+                <SendIcon />
+              </button>
+            </div>
           </div>
         </div>
       </div>

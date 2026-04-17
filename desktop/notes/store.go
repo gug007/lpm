@@ -21,6 +21,7 @@ import (
 
 type Message struct {
 	ID          string       `json:"id"`
+	ChatID      string       `json:"chatId"`
 	Timestamp   int64        `json:"ts"`       // unix millis
 	Text        string       `json:"text"`
 	EditedAt    *int64       `json:"editedAt,omitempty"`
@@ -34,6 +35,20 @@ type Attachment struct {
 	Size     int64  `json:"size"`
 	MimeType string `json:"mimeType"`
 }
+
+// Chat is a named conversation within a project. Messages belong to exactly
+// one chat; chats are per-project (not shared across projects).
+type Chat struct {
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	CreatedAt int64  `json:"createdAt"`
+	UpdatedAt int64  `json:"updatedAt"`
+}
+
+// DefaultChatTitle is used by the migration when backfilling legacy messages
+// and by callers that want to create a project's first chat with a sensible
+// default label.
+const DefaultChatTitle = "General"
 
 // Store — pair Open with Close.
 type Store struct {
@@ -126,6 +141,13 @@ func (s *Store) migrate() error {
 			FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_attachments_hash ON attachments(hash)`,
+		`CREATE TABLE IF NOT EXISTS chats (
+			id TEXT PRIMARY KEY,
+			title TEXT NOT NULL,
+			created_ts INTEGER NOT NULL,
+			updated_ts INTEGER NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_chats_updated ON chats(updated_ts)`,
 		`PRAGMA foreign_keys = ON`,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -135,14 +157,87 @@ func (s *Store) migrate() error {
 			return fmt.Errorf("notes: migrate %q: %w", stmt, err)
 		}
 	}
+	if err := s.ensureChatIDColumn(ctx); err != nil {
+		return err
+	}
+	return s.backfillDefaultChat(ctx)
+}
+
+// ensureChatIDColumn adds messages.chat_id on first boot of a DB that predates
+// the chats feature. Idempotent — safe to run on every open.
+func (s *Store) ensureChatIDColumn(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, `PRAGMA table_info(messages)`)
+	if err != nil {
+		return fmt.Errorf("notes: probe messages schema: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			cid, notnull, pk int
+			name, ctype      string
+			dflt             sql.NullString
+		)
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return err
+		}
+		if name == "chat_id" {
+			return rows.Err()
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx, `ALTER TABLE messages ADD COLUMN chat_id TEXT`); err != nil {
+		return fmt.Errorf("notes: add chat_id column: %w", err)
+	}
+	if _, err := s.db.ExecContext(ctx,
+		`CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(chat_id, seq)`); err != nil {
+		return fmt.Errorf("notes: create chat index: %w", err)
+	}
 	return nil
 }
 
+// backfillDefaultChat moves any pre-chats messages into a newly created
+// "General" chat. Runs only when unassigned messages exist.
+func (s *Store) backfillDefaultChat(ctx context.Context) error {
+	var unassigned int
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM messages WHERE chat_id IS NULL`).Scan(&unassigned); err != nil {
+		return fmt.Errorf("notes: count unassigned messages: %w", err)
+	}
+	if unassigned == 0 {
+		return nil
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	id := uuid.NewString()
+	now := time.Now().UnixMilli()
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO chats (id, title, created_ts, updated_ts) VALUES (?, ?, ?, ?)`,
+		id, DefaultChatTitle, now, now); err != nil {
+		return fmt.Errorf("notes: create default chat: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE messages SET chat_id = ? WHERE chat_id IS NULL`, id); err != nil {
+		return fmt.Errorf("notes: backfill chat_id: %w", err)
+	}
+	return tx.Commit()
+}
+
 // AddMessage records metadata only — caller must have written attachment
-// blobs first.
-func (s *Store) AddMessage(ctx context.Context, text string, attachments []Attachment) (*Message, error) {
+// blobs first. Also bumps the owning chat's updated_ts so chat lists can
+// order by recency.
+func (s *Store) AddMessage(ctx context.Context, chatID, text string, attachments []Attachment) (*Message, error) {
+	if chatID == "" {
+		return nil, errors.New("notes: chat id is empty")
+	}
 	msg := &Message{
 		ID:          uuid.NewString(),
+		ChatID:      chatID,
 		Timestamp:   time.Now().UnixMilli(),
 		Text:        text,
 		Attachments: append([]Attachment(nil), attachments...),
@@ -154,9 +249,20 @@ func (s *Store) AddMessage(ctx context.Context, text string, attachments []Attac
 	}
 	defer tx.Rollback()
 
+	// UPDATE serves as existence check: RowsAffected == 0 ⇒ no such chat.
+	// Cheaper than a separate COUNT(*) round-trip and avoids TOCTOU.
+	res, err := tx.ExecContext(ctx,
+		`UPDATE chats SET updated_ts = ? WHERE id = ?`, msg.Timestamp, chatID)
+	if err != nil {
+		return nil, fmt.Errorf("notes: bump chat: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return nil, sql.ErrNoRows
+	}
+
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO messages (id, ts, text) VALUES (?, ?, ?)`,
-		msg.ID, msg.Timestamp, msg.Text); err != nil {
+		`INSERT INTO messages (id, chat_id, ts, text) VALUES (?, ?, ?, ?)`,
+		msg.ID, msg.ChatID, msg.Timestamp, msg.Text); err != nil {
 		return nil, fmt.Errorf("notes: insert message: %w", err)
 	}
 	for _, att := range attachments {
@@ -173,9 +279,12 @@ func (s *Store) AddMessage(ctx context.Context, text string, attachments []Attac
 	return msg, nil
 }
 
-// ListMessages returns newest-first. Pass beforeID="" for the latest page.
-// Slice shorter than limit ⇒ start of stream reached.
-func (s *Store) ListMessages(ctx context.Context, limit int, beforeID string) ([]Message, error) {
+// ListMessages returns newest-first within a chat. Pass beforeID="" for the
+// latest page. Slice shorter than limit ⇒ start of stream reached.
+func (s *Store) ListMessages(ctx context.Context, chatID string, limit int, beforeID string) ([]Message, error) {
+	if chatID == "" {
+		return nil, errors.New("notes: chat id is empty")
+	}
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
@@ -186,13 +295,15 @@ func (s *Store) ListMessages(ctx context.Context, limit int, beforeID string) ([
 	)
 	if beforeID != "" {
 		rows, err = s.db.QueryContext(ctx,
-			`SELECT id, ts, text, edited_ts FROM messages
-			 WHERE seq < (SELECT seq FROM messages WHERE id = ?)
-			 ORDER BY seq DESC LIMIT ?`, beforeID, limit)
+			`SELECT id, chat_id, ts, text, edited_ts FROM messages
+			 WHERE chat_id = ?
+			   AND seq < (SELECT seq FROM messages WHERE id = ?)
+			 ORDER BY seq DESC LIMIT ?`, chatID, beforeID, limit)
 	} else {
 		rows, err = s.db.QueryContext(ctx,
-			`SELECT id, ts, text, edited_ts FROM messages
-			 ORDER BY seq DESC LIMIT ?`, limit)
+			`SELECT id, chat_id, ts, text, edited_ts FROM messages
+			 WHERE chat_id = ?
+			 ORDER BY seq DESC LIMIT ?`, chatID, limit)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("notes: list messages: %w", err)
@@ -206,7 +317,7 @@ func (s *Store) ListMessages(ctx context.Context, limit int, beforeID string) ([
 	for rows.Next() {
 		var m Message
 		var edited sql.NullInt64
-		if err := rows.Scan(&m.ID, &m.Timestamp, &m.Text, &edited); err != nil {
+		if err := rows.Scan(&m.ID, &m.ChatID, &m.Timestamp, &m.Text, &edited); err != nil {
 			return nil, err
 		}
 		if edited.Valid {
@@ -320,20 +431,165 @@ func (s *Store) DeleteMessage(ctx context.Context, id string) ([]string, error) 
 		return nil, sql.ErrNoRows
 	}
 
-	var orphans []string
-	for _, h := range hashes {
-		var count int
-		if err := tx.QueryRowContext(ctx,
-			`SELECT COUNT(*) FROM attachments WHERE hash = ?`, h).Scan(&count); err != nil {
-			return nil, fmt.Errorf("notes: count refs for %s: %w", h, err)
-		}
-		if count == 0 {
-			orphans = append(orphans, h)
-		}
+	orphans, err := orphansAmong(ctx, tx, hashes)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := tx.Commit(); err != nil {
 		return nil, err
+	}
+	return orphans, nil
+}
+
+// ListChats returns chats ordered by most-recently-updated first.
+func (s *Store) ListChats(ctx context.Context) ([]Chat, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, title, created_ts, updated_ts FROM chats ORDER BY updated_ts DESC, id`)
+	if err != nil {
+		return nil, fmt.Errorf("notes: list chats: %w", err)
+	}
+	defer rows.Close()
+	var chats []Chat
+	for rows.Next() {
+		var c Chat
+		if err := rows.Scan(&c.ID, &c.Title, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			return nil, err
+		}
+		chats = append(chats, c)
+	}
+	return chats, rows.Err()
+}
+
+// CreateChat creates a chat with the given title (trimmed; empty → "New chat").
+// Returns the persisted record including assigned id and timestamps.
+func (s *Store) CreateChat(ctx context.Context, title string) (*Chat, error) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		title = "New chat"
+	}
+	c := &Chat{
+		ID:        uuid.NewString(),
+		Title:     title,
+		CreatedAt: time.Now().UnixMilli(),
+	}
+	c.UpdatedAt = c.CreatedAt
+	if _, err := s.db.ExecContext(ctx,
+		`INSERT INTO chats (id, title, created_ts, updated_ts) VALUES (?, ?, ?, ?)`,
+		c.ID, c.Title, c.CreatedAt, c.UpdatedAt); err != nil {
+		return nil, fmt.Errorf("notes: create chat: %w", err)
+	}
+	return c, nil
+}
+
+// RenameChat returns sql.ErrNoRows if the chat does not exist. Empty titles
+// are rejected.
+func (s *Store) RenameChat(ctx context.Context, id, title string) error {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return errors.New("notes: chat title is empty")
+	}
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE chats SET title = ? WHERE id = ?`, title, id)
+	if err != nil {
+		return fmt.Errorf("notes: rename chat: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// DeleteChat removes a chat and every message (and attachment row) it owns,
+// returning blob hashes that no remaining attachment row references. Callers
+// should pass those to the blob store to free disk space. Returns
+// sql.ErrNoRows if the chat does not exist.
+func (s *Store) DeleteChat(ctx context.Context, id string) ([]string, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	// Snapshot candidate hashes before the cascade wipes attachment rows.
+	rows, err := tx.QueryContext(ctx,
+		`SELECT DISTINCT hash FROM attachments
+		 WHERE message_id IN (SELECT id FROM messages WHERE chat_id = ?)`, id)
+	if err != nil {
+		return nil, fmt.Errorf("notes: read chat attachments: %w", err)
+	}
+	var candidates []string
+	for rows.Next() {
+		var h string
+		if err := rows.Scan(&h); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		candidates = append(candidates, h)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Messages cascade to attachments via the existing FK.
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM messages WHERE chat_id = ?`, id); err != nil {
+		return nil, fmt.Errorf("notes: delete chat messages: %w", err)
+	}
+	res, err := tx.ExecContext(ctx, `DELETE FROM chats WHERE id = ?`, id)
+	if err != nil {
+		return nil, fmt.Errorf("notes: delete chat: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return nil, sql.ErrNoRows
+	}
+
+	orphans, err := orphansAmong(ctx, tx, candidates)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return orphans, nil
+}
+
+// orphansAmong returns the subset of candidates no longer referenced by any
+// attachment row. One round-trip regardless of candidate count.
+func orphansAmong(ctx context.Context, tx *sql.Tx, candidates []string) ([]string, error) {
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+	placeholders := strings.Repeat("?,", len(candidates)-1) + "?"
+	args := make([]any, len(candidates))
+	for i, h := range candidates {
+		args[i] = h
+	}
+	rows, err := tx.QueryContext(ctx,
+		`SELECT DISTINCT hash FROM attachments WHERE hash IN (`+placeholders+`)`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("notes: count orphan refs: %w", err)
+	}
+	defer rows.Close()
+	stillRef := make(map[string]struct{}, len(candidates))
+	for rows.Next() {
+		var h string
+		if err := rows.Scan(&h); err != nil {
+			return nil, err
+		}
+		stillRef[h] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	var orphans []string
+	for _, h := range candidates {
+		if _, keep := stillRef[h]; !keep {
+			orphans = append(orphans, h)
+		}
 	}
 	return orphans, nil
 }

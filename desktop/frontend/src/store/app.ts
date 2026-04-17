@@ -15,6 +15,7 @@ import {
 } from "../../wailsjs/go/main/App";
 import { getSettings } from "../settings";
 import { forgetProjectTerminals } from "../terminals";
+import { activeChatStorageKey } from "../components/NotesView";
 
 export type View =
   | "projects"
@@ -200,6 +201,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       await RemoveProject(name);
       forgetProjectTerminals(name);
+      window.localStorage.removeItem(activeChatStorageKey(name));
       set({ selected: null });
       await get().refreshProjects();
     } catch (err) {

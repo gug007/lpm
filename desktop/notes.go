@@ -120,7 +120,7 @@ type NotesAttachmentInput struct {
 
 // NotesAddMessage: on failure no message row is written, but successfully-
 // written blobs may remain as orphans until the next delete GCs them.
-func (a *App) NotesAddMessage(project, text string, attachments []NotesAttachmentInput) (*notes.Message, error) {
+func (a *App) NotesAddMessage(project, chatID, text string, attachments []NotesAttachmentInput) (*notes.Message, error) {
 	b, err := a.notes.open(project)
 	if err != nil {
 		return nil, err
@@ -129,15 +129,15 @@ func (a *App) NotesAddMessage(project, text string, attachments []NotesAttachmen
 	if err != nil {
 		return nil, err
 	}
-	return b.store.AddMessage(a.ctx, text, attMeta)
+	return b.store.AddMessage(a.ctx, chatID, text, attMeta)
 }
 
-func (a *App) NotesListMessages(project string, limit int, beforeID string) ([]notes.Message, error) {
+func (a *App) NotesListMessages(project, chatID string, limit int, beforeID string) ([]notes.Message, error) {
 	b, err := a.notes.open(project)
 	if err != nil {
 		return nil, err
 	}
-	msgs, err := b.store.ListMessages(a.ctx, limit, beforeID)
+	msgs, err := b.store.ListMessages(a.ctx, chatID, limit, beforeID)
 	if err != nil {
 		return nil, err
 	}
@@ -145,6 +145,61 @@ func (a *App) NotesListMessages(project string, limit int, beforeID string) ([]n
 		msgs = []notes.Message{}
 	}
 	return msgs, nil
+}
+
+func (a *App) NotesListChats(project string) ([]notes.Chat, error) {
+	b, err := a.notes.open(project)
+	if err != nil {
+		return nil, err
+	}
+	chats, err := b.store.ListChats(a.ctx)
+	if err != nil {
+		return nil, err
+	}
+	if chats == nil {
+		chats = []notes.Chat{}
+	}
+	return chats, nil
+}
+
+func (a *App) NotesCreateChat(project, title string) (*notes.Chat, error) {
+	b, err := a.notes.open(project)
+	if err != nil {
+		return nil, err
+	}
+	return b.store.CreateChat(a.ctx, title)
+}
+
+func (a *App) NotesRenameChat(project, chatID, title string) error {
+	b, err := a.notes.open(project)
+	if err != nil {
+		return err
+	}
+	return b.store.RenameChat(a.ctx, chatID, title)
+}
+
+func (a *App) NotesDeleteChat(project, chatID string) error {
+	b, err := a.notes.open(project)
+	if err != nil {
+		return err
+	}
+	orphans, err := b.store.DeleteChat(a.ctx, chatID)
+	if err != nil {
+		return err
+	}
+	b.gcOrphanBlobs(orphans)
+	return nil
+}
+
+// gcOrphanBlobs best-effort-deletes every blob referenced by a now-empty
+// attachment set. A single failure shouldn't block the rest — the blob store
+// tolerates missing files on the next GC sweep.
+func (b *notesBundle) gcOrphanBlobs(hashes []string) {
+	for _, h := range hashes {
+		if err := b.blobs.Delete(h); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: notes: delete orphan blob %s: %v\n", h, err)
+		}
+	}
 }
 
 func (a *App) NotesEditMessage(project, id, text string) error {
@@ -164,11 +219,7 @@ func (a *App) NotesDeleteMessage(project, id string) error {
 	if err != nil {
 		return err
 	}
-	for _, h := range orphans {
-		if err := b.blobs.Delete(h); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: notes: delete orphan blob %s: %v\n", h, err)
-		}
-	}
+	b.gcOrphanBlobs(orphans)
 	return nil
 }
 
