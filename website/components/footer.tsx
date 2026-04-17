@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { REPO_URL, VS_SLUGS, vsPath } from "@/lib/links";
+import {
+  PRIVACY_PATH,
+  REPO_URL,
+  TERMS_PATH,
+  VS_SLUGS,
+  vsPath,
+} from "@/lib/links";
 
 const COMPARE_LABELS: Record<(typeof VS_SLUGS)[number], string> = {
   foreman: "Foreman",
@@ -39,6 +45,26 @@ export function Footer() {
               </Link>
             </span>
           ))}
+        </nav>
+        <nav
+          aria-label="Legal"
+          className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-gray-400 dark:text-gray-500"
+        >
+          <Link
+            href={PRIVACY_PATH}
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            Privacy
+          </Link>
+          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
+            ·
+          </span>
+          <Link
+            href={TERMS_PATH}
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            Terms
+          </Link>
         </nav>
         <a
           href={REPO_URL}

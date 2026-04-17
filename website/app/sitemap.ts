@@ -1,7 +1,9 @@
 import type { MetadataRoute } from "next";
 import {
   AI_AGENTS_PATH,
+  PRIVACY_PATH,
   SITE_URL,
+  TERMS_PATH,
   VS_BASE_PATH,
   VS_SLUGS,
   vsPath,
@@ -35,5 +37,17 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "monthly" as const,
       priority: 0.7,
     })),
+    {
+      url: `${SITE_URL}${PRIVACY_PATH}`,
+      lastModified,
+      changeFrequency: "yearly",
+      priority: 0.3,
+    },
+    {
+      url: `${SITE_URL}${TERMS_PATH}`,
+      lastModified,
+      changeFrequency: "yearly",
+      priority: 0.3,
+    },
   ];
 }
