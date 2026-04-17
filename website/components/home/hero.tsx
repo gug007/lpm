@@ -10,11 +10,10 @@ export function Hero() {
           Local Project Manager
         </p>
         <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.1] bg-gradient-to-br from-gray-900 via-gray-700 to-gray-500 dark:from-white dark:via-gray-200 dark:to-gray-500 bg-clip-text text-transparent">
-          App to quickly start and switch between projects and terminals
+          Switch between projects and terminals in seconds
         </h1>
         <p className="mt-6 text-base sm:text-lg text-gray-400 dark:text-gray-500 max-w-lg mx-auto leading-relaxed tracking-wide">
-          Built for working with Claude Code, Codex, and other AI coding
-          agents.
+          Built for Claude Code, Codex, and other AI coding agents.
         </p>
 
         <div className="mt-10 max-w-xl mx-auto space-y-4 text-left">
