@@ -84,7 +84,7 @@ const MATRIX_ROWS: MatrixRow[] = [
   },
   {
     label: "Session detach / reattach across terminal restarts",
-    lpm: false,
+    lpm: true,
     competitor: true,
   },
   {
@@ -113,7 +113,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Does lpm use tmux under the hood?",
     answer:
-      "No. lpm manages processes directly and renders output in its own panes inside the desktop app, or streams it through the CLI. There is no tmux dependency, no .tmux.conf to worry about, and no tmux server running in the background for lpm projects.",
+      "Yes — lpm runs services inside tmux sessions so they persist across terminal restarts and each one has its own scrollable window. The point is that lpm wraps the tmux mechanics: you never edit a .tmux.conf, never memorize keybindings, never attach to a window by name. You get the tmux benefits (sessions stay alive, per-service windows) without the config burden. If tmux isn't installed, the lpm installer tells you to brew install tmux.",
   },
   {
     question: "What about my remote / SSH workflow?",

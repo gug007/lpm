@@ -52,9 +52,9 @@ const MATRIX_ROWS: MatrixRow[] = [
     competitor: true,
   },
   {
-    label: "Reads a Procfile-style config",
-    lpm: true,
-    competitor: true,
+    label: "Name + command services in a lightweight config",
+    lpm: "YAML",
+    competitor: "Procfile",
   },
   {
     label: "Per-service live output pane",
@@ -122,7 +122,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Can I move to lpm without rewriting my Procfile?",
     answer:
-      "Mostly yes. lpm reads a Procfile-style config where each service is a name and a command, so your existing web/worker/css/jobs lines carry over directly. You point lpm at the project, it picks up the services, and you start the stack from the app or the CLI. Framework auto-detection for Rails, Next.js, Go, Django, Flask, and Docker Compose means many projects need no config at all.",
+      "You'll convert it, but the shape is the same. lpm uses a small YAML config at ~/.lpm/projects/<name>.yml where each service is a name and a command — the same web/worker/css/jobs lines, just in YAML instead of Procfile syntax. For Rails, Next.js, Go, Django, Flask, and Docker Compose projects, framework auto-detection often means no config at all — lpm init figures out your services for you.",
   },
   {
     question: "Does lpm replace foreman export?",
@@ -167,7 +167,7 @@ export default function LpmVsForemanPage() {
       <ComparisonHero
         eyebrow="lpm vs Foreman"
         title="A modern Procfile experience for local dev."
-        description="Foreman is stable and lovable for Rails devs. lpm keeps that Procfile-style ergonomics and adds per-service panes, a desktop app, multi-project switching, and parallel AI-agent workflows."
+        description="Foreman is stable and lovable for Rails devs. lpm keeps the name-plus-command simplicity and adds per-service panes, a desktop app, multi-project switching, and parallel AI-agent workflows."
       />
 
       <FeatureMatrix

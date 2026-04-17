@@ -118,7 +118,7 @@ const MATRIX_ROWS: MatrixRow[] = [
   },
   {
     label: "Config format",
-    lpm: "Procfile-style",
+    lpm: "YAML name + command",
     competitor: "ecosystem.config.js",
   },
   {
@@ -147,7 +147,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "How do I migrate from ecosystem.config.js to lpm?",
     answer:
-      "You don't fully migrate — you'd keep ecosystem.config.js for production and add an lpm config for dev. lpm uses a Procfile-style list of name + command per service, which maps cleanly to the apps array in ecosystem.config.js: take each entry's name and script/args, drop it into the lpm config, and you're running. Env vars, cwd, and watch options are handled in the lpm config separately. For many Node projects the framework auto-detect means you don't even need a config.",
+      "You don't fully migrate — you'd keep ecosystem.config.js for production and add an lpm config for dev. lpm uses a lightweight YAML where each service is name + command, which maps cleanly to the apps array in ecosystem.config.js: take each entry's name and script/args, drop it into the lpm config, and you're running. Env vars, cwd, and ports are handled in the lpm config separately. For many Node projects the framework auto-detect means you don't even need a config.",
   },
   {
     question: "Can I run PM2 under lpm during development?",
