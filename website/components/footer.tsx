@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   PRIVACY_PATH,
   REPO_URL,
+  STATS_PATH,
   TERMS_PATH,
   VS_SLUGS,
   vsPath,
@@ -50,6 +51,15 @@ export function Footer() {
           aria-label="Legal"
           className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-gray-400 dark:text-gray-500"
         >
+          <Link
+            href={STATS_PATH}
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            Stats
+          </Link>
+          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
+            ·
+          </span>
           <Link
             href={PRIVACY_PATH}
             className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"

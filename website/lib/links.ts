@@ -4,6 +4,7 @@ export const RELEASES_URL = `${REPO_URL}/releases/latest`;
 export const AI_AGENTS_PATH = "/best-terminal-for-claude-code-and-codex";
 export const PRIVACY_PATH = "/privacy";
 export const TERMS_PATH = "/terms";
+export const STATS_PATH = "/stats";
 export const VS_BASE_PATH = "/vs";
 export const VS_SLUGS = [
   "foreman",
