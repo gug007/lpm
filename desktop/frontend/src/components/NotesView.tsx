@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   useInfiniteQuery,
@@ -52,6 +52,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
   const listRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const scrollToBottomOnNextRenderRef = useRef(false);
 
   const query = useInfiniteQuery({
     queryKey: notesKey(projectName),
@@ -73,11 +74,16 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
 
   useEffect(() => {
     if (query.isSuccess && query.data?.pages.length === 1) {
-      requestAnimationFrame(() => {
-        if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
-      });
+      scrollToBottomOnNextRenderRef.current = true;
     }
   }, [query.isSuccess, query.data?.pages.length]);
+
+  useLayoutEffect(() => {
+    if (scrollToBottomOnNextRenderRef.current && listRef.current) {
+      listRef.current.scrollTop = listRef.current.scrollHeight;
+      scrollToBottomOnNextRenderRef.current = false;
+    }
+  }, [messages.length]);
 
   useEffect(() => {
     if (visible) textareaRef.current?.focus();
@@ -180,9 +186,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
         const [first, ...rest] = prev.pages;
         return { ...prev, pages: [[msg, ...(first ?? [])], ...rest] };
       });
-      requestAnimationFrame(() => {
-        if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
-      });
+      scrollToBottomOnNextRenderRef.current = true;
     },
     onError: (err) => toast.error(`Send: ${err}`),
   });
@@ -390,7 +394,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
 
 function DaySeparator({ label }: { label: string }) {
   return (
-    <div className="sticky top-0 z-[1] flex items-center gap-2 bg-[var(--bg-primary)] py-1.5">
+    <div className="flex items-center gap-2 py-2">
       <span className="h-px flex-1 bg-[var(--border)]" />
       <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
         {label}
