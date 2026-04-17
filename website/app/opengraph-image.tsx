@@ -110,6 +110,6 @@ export default function Image() {
         </div>
       </div>
     ),
-    { ...size }
+    size
   );
 }

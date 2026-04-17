@@ -1,7 +1,5 @@
 import type { MetadataRoute } from "next";
-import { AI_AGENTS_PATH } from "@/lib/links";
-
-const SITE_URL = "https://lpm.cx";
+import { AI_AGENTS_PATH, SITE_URL, VS_SLUGS, vsPath } from "@/lib/links";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
@@ -19,5 +17,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "monthly",
       priority: 0.8,
     },
+    ...VS_SLUGS.map((slug) => ({
+      url: `${SITE_URL}${vsPath(slug)}`,
+      lastModified,
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    })),
   ];
 }

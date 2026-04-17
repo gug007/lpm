@@ -4,7 +4,7 @@ import Script from "next/script";
 import "./globals.css";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
-import { THEME_STORAGE_KEY } from "@/lib/links";
+import { SITE_URL, THEME_STORAGE_KEY } from "@/lib/links";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://lpm.cx"),
+  metadataBase: new URL(SITE_URL),
   title: {
     default:
       "lpm — Local Project Manager | Manage Dev Projects from the Terminal",
@@ -36,14 +36,14 @@ export const metadata: Metadata = {
     "project switcher",
   ],
   alternates: {
-    canonical: "https://lpm.cx",
+    canonical: SITE_URL,
   },
   openGraph: {
     title: "lpm — Local Project Manager",
     description:
       "Use the CLI or the desktop app — they stay in sync. Start, stop, and switch between local dev projects with one command.",
     type: "website",
-    url: "https://lpm.cx",
+    url: SITE_URL,
     siteName: "lpm",
   },
   twitter: {
@@ -73,7 +73,7 @@ const structuredData = {
     "A CLI and native macOS desktop app to manage local dev projects. Start, stop, and switch with one command. CLI and app stay fully in sync.",
   applicationCategory: "DeveloperApplication",
   operatingSystem: "macOS",
-  url: "https://lpm.cx",
+  url: SITE_URL,
   downloadUrl: "https://github.com/gug007/lpm/releases/latest",
   softwareHelp: "https://github.com/gug007/lpm",
   offers: {

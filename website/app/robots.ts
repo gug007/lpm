@@ -1,6 +1,5 @@
 import type { MetadataRoute } from "next";
-
-const SITE_URL = "https://lpm.cx";
+import { SITE_URL } from "@/lib/links";
 
 export default function robots(): MetadataRoute.Robots {
   return {
