@@ -198,9 +198,6 @@ func (a *App) NotesReadFileAsInput(path string) (*NotesAttachmentInput, error) {
 		}
 		mimeType = http.DetectContentType(data[:sniffLen])
 	}
-	if mimeType == "" {
-		mimeType = "application/octet-stream"
-	}
 	return &NotesAttachmentInput{
 		Name:     filepath.Base(path),
 		MimeType: mimeType,

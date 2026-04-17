@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
+import {
   NotesAddMessage,
   NotesDeleteMessage,
   NotesEditMessage,
@@ -17,8 +23,9 @@ import { MessageMarkdown } from "./MessageMarkdown";
 
 const PAGE_SIZE = 50;
 const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
-// ~10 lines of text-sm (14px, leading-5) + py-2 (16px padding).
 const TEXTAREA_MAX_HEIGHT_PX = 216;
+
+type NotesPages = InfiniteData<notes.Message[], string>;
 
 interface NotesViewProps {
   projectName: string;
@@ -33,115 +40,112 @@ interface PendingAttachment {
   data: Uint8Array;
 }
 
+function notesKey(projectName: string) {
+  return ["notes", projectName] as const;
+}
+
 export function NotesView({ projectName, visible }: NotesViewProps) {
-  const [messages, setMessages] = useState<notes.Message[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+  const qc = useQueryClient();
   const [text, setText] = useState("");
   const [pending, setPending] = useState<PendingAttachment[]>([]);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingText, setEditingText] = useState("");
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const loadLatest = useCallback(async () => {
-    setLoading(true);
-    try {
-      const page = (await NotesListMessages(projectName, PAGE_SIZE, "")) ?? [];
-      setMessages(page);
-      setHasMore(page.length === PAGE_SIZE);
+  const query = useInfiniteQuery({
+    queryKey: notesKey(projectName),
+    queryFn: async ({ pageParam }) =>
+      (await NotesListMessages(projectName, PAGE_SIZE, pageParam)) ?? [],
+    initialPageParam: "",
+    getNextPageParam: (last) =>
+      last.length === PAGE_SIZE ? last[last.length - 1].id : undefined,
+    enabled: visible,
+  });
+
+  // The API returns newest-first; flatten pages so the whole buffer stays
+  // newest-first. Rendering handles the oldest-first pass.
+  const messages = useMemo<notes.Message[]>(
+    () => query.data?.pages.flat() ?? [],
+    [query.data],
+  );
+  const groups = useMemo(() => buildDayGroups(messages), [messages]);
+
+  useEffect(() => {
+    if (query.isSuccess && query.data?.pages.length === 1) {
       requestAnimationFrame(() => {
-        if (listRef.current) {
-          listRef.current.scrollTop = listRef.current.scrollHeight;
-        }
+        if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
       });
-    } catch (err) {
-      toast.error(`Load notes: ${err}`);
-    } finally {
-      setLoading(false);
     }
-  }, [projectName]);
+  }, [query.isSuccess, query.data?.pages.length]);
 
   useEffect(() => {
-    if (!visible) return;
-    loadLatest();
-  }, [visible, loadLatest]);
-
-  useEffect(() => {
-    if (visible && textareaRef.current) {
-      textareaRef.current.focus();
-    }
+    if (visible) textareaRef.current?.focus();
   }, [visible]);
 
   useAutoGrowTextarea(textareaRef, text, TEXTAREA_MAX_HEIGHT_PX);
 
-  // `messages` is stored newest-first (matching the API), so the pagination
-  // cursor for "older" messages is the ID of the LAST element in the array.
-  const loadOlder = useCallback(async () => {
-    if (!messages.length || !hasMore || loading) return;
-    const cursor = messages[messages.length - 1].id;
-    setLoading(true);
-    try {
-      const page = (await NotesListMessages(projectName, PAGE_SIZE, cursor)) ?? [];
-      setMessages((prev) => [...prev, ...page]);
-      setHasMore(page.length === PAGE_SIZE);
-    } catch (err) {
-      toast.error(`Load older: ${err}`);
-    } finally {
-      setLoading(false);
-    }
-  }, [messages, hasMore, loading, projectName]);
-
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
-      if (e.currentTarget.scrollTop < 80) loadOlder();
+      if (e.currentTarget.scrollTop < 80 && query.hasNextPage && !query.isFetchingNextPage) {
+        query.fetchNextPage();
+      }
     },
-    [loadOlder],
+    [query],
   );
 
-  const addFiles = useCallback(async (files: FileList | File[]) => {
-    const list = Array.from(files);
-    for (const file of list) {
-      if (file.size > MAX_ATTACHMENT_BYTES) {
-        toast.error(`${file.name} exceeds 100MB limit`);
-        continue;
-      }
-      const buf = await file.arrayBuffer();
-      setPending((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          name: file.name,
-          mimeType: file.type || "application/octet-stream",
-          size: file.size,
-          data: new Uint8Array(buf),
-        },
-      ]);
+  const buildPendingFromFile = async (file: File): Promise<PendingAttachment | null> => {
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      toast.error(`${file.name} exceeds 100MB limit`);
+      return null;
     }
+    const buf = await file.arrayBuffer();
+    return {
+      id: crypto.randomUUID(),
+      name: file.name,
+      mimeType: file.type || "application/octet-stream",
+      size: file.size,
+      data: new Uint8Array(buf),
+    };
+  };
+
+  const buildPendingFromPath = async (path: string): Promise<PendingAttachment | null> => {
+    try {
+      const input = await NotesReadFileAsInput(path);
+      const data = base64ToBytes(input.data);
+      return {
+        id: crypto.randomUUID(),
+        name: input.name,
+        mimeType: input.mimeType || "application/octet-stream",
+        size: data.byteLength,
+        data,
+      };
+    } catch (err) {
+      toast.error(`Attach: ${err}`);
+      return null;
+    }
+  };
+
+  const appendPending = useCallback((items: (PendingAttachment | null)[]) => {
+    const valid = items.filter((i): i is PendingAttachment => i !== null);
+    if (valid.length > 0) setPending((prev) => [...prev, ...valid]);
   }, []);
 
-  const addPaths = useCallback(async (paths: string[]) => {
-    for (const path of paths) {
-      try {
-        const input = await NotesReadFileAsInput(path);
-        const data = base64ToBytes(input.data);
-        setPending((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            name: input.name,
-            mimeType: input.mimeType || "application/octet-stream",
-            size: data.byteLength,
-            data,
-          },
-        ]);
-      } catch (err) {
-        toast.error(`Attach: ${err}`);
-      }
-    }
-  }, []);
+  const addFiles = useCallback(
+    async (files: FileList | File[]) => {
+      const items = await Promise.all(Array.from(files).map(buildPendingFromFile));
+      appendPending(items);
+    },
+    [appendPending],
+  );
+
+  const addPaths = useCallback(
+    async (paths: string[]) => {
+      const items = await Promise.all(paths.map(buildPendingFromPath));
+      appendPending(items);
+    },
+    [appendPending],
+  );
 
   useEffect(() => {
     if (!visible) return;
@@ -159,29 +163,78 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
 
   const canSend = text.trim().length > 0 || pending.length > 0;
 
-  const handleSend = useCallback(async () => {
-    if (!canSend) return;
-    const attachments = pending.map<main.NotesAttachmentInput>((p) =>
-      main.NotesAttachmentInput.createFrom({
-        name: p.name,
-        mimeType: p.mimeType,
-        data: bytesToBase64(p.data),
-      }),
-    );
-    try {
-      const msg = await NotesAddMessage(projectName, text, attachments);
-      setMessages((prev) => [msg, ...prev]);
-      setText("");
-      setPending([]);
-      requestAnimationFrame(() => {
-        if (listRef.current) {
-          listRef.current.scrollTop = listRef.current.scrollHeight;
-        }
+  const addMutation = useMutation({
+    mutationFn: async (input: { text: string; pending: PendingAttachment[] }) => {
+      const attachments = input.pending.map<main.NotesAttachmentInput>((p) =>
+        main.NotesAttachmentInput.createFrom({
+          name: p.name,
+          mimeType: p.mimeType,
+          data: bytesToBase64(p.data),
+        }),
+      );
+      return NotesAddMessage(projectName, input.text, attachments);
+    },
+    onSuccess: (msg) => {
+      qc.setQueryData<NotesPages>(notesKey(projectName), (prev) => {
+        if (!prev) return prev;
+        const [first, ...rest] = prev.pages;
+        return { ...prev, pages: [[msg, ...(first ?? [])], ...rest] };
       });
-    } catch (err) {
-      toast.error(`Send: ${err}`);
-    }
-  }, [canSend, pending, projectName, text]);
+      requestAnimationFrame(() => {
+        if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
+      });
+    },
+    onError: (err) => toast.error(`Send: ${err}`),
+  });
+
+  const editMutation = useMutation({
+    mutationFn: async (input: { id: string; text: string }) => {
+      await NotesEditMessage(projectName, input.id, input.text);
+      return input;
+    },
+    onSuccess: ({ id, text }) => {
+      qc.setQueryData<NotesPages>(notesKey(projectName), (prev) => {
+        if (!prev) return prev;
+        const ts = Date.now();
+        return {
+          ...prev,
+          pages: prev.pages.map((page) =>
+            page.map((m) =>
+              m.id === id ? notes.Message.createFrom({ ...m, text, editedAt: ts }) : m,
+            ),
+          ),
+        };
+      });
+    },
+    onError: (err) => toast.error(`Edit: ${err}`),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await NotesDeleteMessage(projectName, id);
+      return id;
+    },
+    onSuccess: (id) => {
+      qc.setQueryData<NotesPages>(notesKey(projectName), (prev) => {
+        if (!prev) return prev;
+        return { ...prev, pages: prev.pages.map((page) => page.filter((m) => m.id !== id)) };
+      });
+    },
+    onError: (err) => toast.error(`Delete: ${err}`),
+  });
+
+  const handleSend = useCallback(() => {
+    if (!canSend || addMutation.isPending) return;
+    addMutation.mutate(
+      { text, pending },
+      {
+        onSuccess: () => {
+          setText("");
+          setPending([]);
+        },
+      },
+    );
+  }, [addMutation, canSend, pending, text]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -209,52 +262,15 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.dataTransfer?.files?.length) {
-      addFiles(e.dataTransfer.files);
-    }
+    if (e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files);
   };
 
-  const handleDelete = async (id: string) => {
-    try {
-      await NotesDeleteMessage(projectName, id);
-      setMessages((prev) => prev.filter((m) => m.id !== id));
-    } catch (err) {
-      toast.error(`Delete: ${err}`);
-    }
-  };
-
-  const startEdit = (m: notes.Message) => {
-    setEditingId(m.id);
-    setEditingText(m.text);
-  };
-
-  const saveEdit = async () => {
-    if (!editingId) return;
-    try {
-      await NotesEditMessage(projectName, editingId, editingText);
-      setMessages((prev) =>
-        prev.map((m) => {
-          if (m.id !== editingId) return m;
-          return notes.Message.createFrom({
-            ...m,
-            text: editingText,
-            editedAt: Date.now(),
-          });
-        }),
-      );
-      setEditingId(null);
-      setEditingText("");
-    } catch (err) {
-      toast.error(`Edit: ${err}`);
-    }
-  };
-
-  const ordered = useMemo(() => [...messages].reverse(), [messages]);
+  const isEmpty = !query.isPending && messages.length === 0;
 
   return (
     <div
       data-notes-drop={projectName}
-      className="flex h-full min-h-0 flex-1 flex-col"
+      className="flex h-full min-h-0 flex-1 flex-col bg-[var(--bg-primary)]"
       onDragOver={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = "copy";
@@ -264,54 +280,53 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
       <div
         ref={listRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-6 py-4 space-y-3"
+        className="flex-1 overflow-y-auto px-6 py-5"
       >
-        {hasMore && messages.length >= PAGE_SIZE && (
-          <div className="text-center text-xs text-[var(--text-muted)]">
-            {loading ? "Loading older…" : "Scroll up for older messages"}
+        {query.hasNextPage && (
+          <div className="mb-3 text-center text-[11px] text-[var(--text-muted)]">
+            {query.isFetchingNextPage ? "Loading older…" : "Scroll up for older"}
           </div>
         )}
-        {ordered.length === 0 && !loading && (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-            <p className="text-sm font-medium text-[var(--text-primary)]">No notes yet</p>
+        {isEmpty && (
+          <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
+            <p className="text-sm text-[var(--text-primary)]">No notes yet</p>
             <p className="text-xs text-[var(--text-muted)]">
-              Start a thread for {projectName} — messages and files are encrypted on disk.
+              Encrypted thread for {projectName}
             </p>
           </div>
         )}
-        {ordered.map((m) => (
-          <MessageBubble
-            key={m.id}
-            message={m}
-            projectName={projectName}
-            editing={editingId === m.id}
-            editingText={editingText}
-            onEditingTextChange={setEditingText}
-            onStartEdit={() => startEdit(m)}
-            onCancelEdit={() => {
-              setEditingId(null);
-              setEditingText("");
-            }}
-            onSaveEdit={saveEdit}
-            onDelete={() => handleDelete(m.id)}
-          />
+        {groups.map(({ key, label, items }) => (
+          <div key={key}>
+            <DaySeparator label={label} />
+            <div className="space-y-0.5">
+              {items.map((m) => (
+                <MessageRow
+                  key={m.id}
+                  message={m}
+                  projectName={projectName}
+                  onSave={(newText) => editMutation.mutate({ id: m.id, text: newText })}
+                  onDelete={() => deleteMutation.mutate(m.id)}
+                />
+              ))}
+            </div>
+          </div>
         ))}
       </div>
 
-      <div className="border-t border-[var(--border)] bg-[var(--bg-primary)] px-4 py-3">
+      <div className="mx-4 mt-2 mb-4 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] transition-colors focus-within:border-[var(--text-primary)]/30">
         {pending.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5 border-b border-[var(--border)] px-3 py-2">
             {pending.map((p) => (
               <div
                 key={p.id}
-                className="flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--bg-hover)] px-2 py-1 text-xs"
+                className="flex items-center gap-1.5 rounded-md bg-[var(--bg-hover)] px-2 py-1 text-[11px] text-[var(--text-secondary)]"
               >
                 <PaperclipIcon />
-                <span className="max-w-[180px] truncate">{p.name}</span>
+                <span className="max-w-[160px] truncate">{p.name}</span>
                 <span className="text-[var(--text-muted)]">{formatSize(p.size)}</span>
                 <button
                   onClick={() => removePending(p.id)}
-                  className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  className="ml-0.5 text-[var(--text-muted)] opacity-60 hover:opacity-100"
                   aria-label={`Remove ${p.name}`}
                 >
                   ×
@@ -320,10 +335,21 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
             ))}
           </div>
         )}
-        <div className="flex items-end gap-2">
+        <textarea
+          ref={textareaRef}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          placeholder={`Message ${projectName}…`}
+          rows={1}
+          className="w-full resize-none bg-transparent px-3 pt-2.5 pb-1 text-sm outline-none placeholder:text-[var(--text-muted)]"
+          style={{ minHeight: 40, maxHeight: TEXTAREA_MAX_HEIGHT_PX }}
+        />
+        <div className="flex items-center justify-between px-2 pb-1.5 pt-0.5">
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
             title="Attach files"
             aria-label="Attach files"
           >
@@ -339,118 +365,151 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
               e.target.value = "";
             }}
           />
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={`Message #${projectName}…`}
-            rows={1}
-            className="flex-1 resize-none rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--text-primary)]/40"
-            style={{ minHeight: 36, maxHeight: TEXTAREA_MAX_HEIGHT_PX }}
-          />
-          <button
-            onClick={handleSend}
-            disabled={!canSend}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[var(--text-primary)] text-[var(--bg-primary)] disabled:opacity-40"
-            title="Send (Enter)"
-            aria-label="Send message"
-          >
-            <SendIcon />
-          </button>
+          <div className="flex items-center gap-2">
+            <span
+              aria-hidden="true"
+              className="hidden text-[10px] text-[var(--text-muted)] sm:inline"
+            >
+              <kbd className="font-mono">↵</kbd> send · <kbd className="font-mono">⇧↵</kbd> newline · markdown
+            </span>
+            <button
+              onClick={handleSend}
+              disabled={!canSend || addMutation.isPending}
+              className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--text-primary)] text-[var(--bg-primary)] transition-opacity disabled:bg-[var(--bg-hover)] disabled:text-[var(--text-muted)]"
+              title="Send (Enter)"
+              aria-label="Send message"
+            >
+              <SendIcon />
+            </button>
+          </div>
         </div>
-        <p className="mt-1 text-[10px] text-[var(--text-muted)]">
-          Enter to send · Shift+Enter for newline · markdown supported (**bold**, `code`, ```lang blocks) · drag-drop or paste to attach files
-        </p>
       </div>
     </div>
   );
 }
 
-interface MessageBubbleProps {
+function DaySeparator({ label }: { label: string }) {
+  return (
+    <div className="sticky top-0 z-[1] flex items-center gap-2 bg-[var(--bg-primary)] py-1.5">
+      <span className="h-px flex-1 bg-[var(--border)]" />
+      <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
+        {label}
+      </span>
+      <span className="h-px flex-1 bg-[var(--border)]" />
+    </div>
+  );
+}
+
+interface DayGroup {
+  key: string;
+  label: string;
+  items: notes.Message[];
+}
+
+// Single pass: walk newest-first input from the tail to produce oldest-first
+// groups, and format each day label exactly once (≈30 times for 500 messages
+// instead of 500).
+function buildDayGroups(newestFirst: notes.Message[]): DayGroup[] {
+  const groups: DayGroup[] = [];
+  const now = new Date();
+  for (let i = newestFirst.length - 1; i >= 0; i--) {
+    const m = newestFirst[i];
+    const d = new Date(m.ts);
+    const key = d.toDateString();
+    const last = groups[groups.length - 1];
+    if (last && last.key === key) {
+      last.items.push(m);
+    } else {
+      groups.push({ key, label: formatDayLabel(d, now), items: [m] });
+    }
+  }
+  return groups;
+}
+
+interface MessageRowProps {
   message: notes.Message;
   projectName: string;
-  editing: boolean;
-  editingText: string;
-  onEditingTextChange: (v: string) => void;
-  onStartEdit: () => void;
-  onCancelEdit: () => void;
-  onSaveEdit: () => void;
+  onSave: (text: string) => void;
   onDelete: () => void;
 }
 
-function MessageBubble({
-  message,
-  projectName,
-  editing,
-  editingText,
-  onEditingTextChange,
-  onStartEdit,
-  onCancelEdit,
-  onSaveEdit,
-  onDelete,
-}: MessageBubbleProps) {
+function MessageRow({ message, projectName, onSave, onDelete }: MessageRowProps) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const editing = draft !== null;
   const editRef = useRef<HTMLTextAreaElement | null>(null);
-  // Sized to fit existing text when edit mode opens, then grows while typing.
-  useAutoGrowTextarea(editRef, editing ? editingText : "", TEXTAREA_MAX_HEIGHT_PX);
+  useAutoGrowTextarea(editRef, draft ?? "", TEXTAREA_MAX_HEIGHT_PX);
+
+  const cancel = () => setDraft(null);
+  const save = () => {
+    if (draft === null) return;
+    const trimmed = draft;
+    if (trimmed !== message.text) onSave(trimmed);
+    setDraft(null);
+  };
 
   return (
-    <div className="group flex flex-col rounded-md px-3 py-2 hover:bg-[var(--bg-hover)]">
-      <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
-        <span>{formatTime(message.ts)}</span>
-        {message.editedAt && <span className="italic">edited</span>}
-        <div className="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+    <div className="group relative -mx-2 rounded-md px-2 py-1 hover:bg-[var(--bg-hover)]/50">
+      {!editing && (
+        <div className="pointer-events-none absolute right-2 top-0 z-10 flex items-center gap-0.5 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] p-0.5 opacity-0 shadow-sm transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
           <button
-            onClick={onStartEdit}
-            className="rounded p-1 hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)]"
-            title="Edit message"
-            aria-label="Edit message"
+            onClick={() => setDraft(message.text)}
+            className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            title="Edit"
+            aria-label="Edit"
           >
             <PencilIcon />
           </button>
           <button
             onClick={onDelete}
-            className="rounded p-1 hover:bg-[var(--bg-primary)] hover:text-red-400"
-            title="Delete message"
-            aria-label="Delete message"
+            className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"
+            title="Delete"
+            aria-label="Delete"
           >
             <TrashIcon />
           </button>
         </div>
-      </div>
+      )}
       {editing ? (
-        <div className="mt-1 flex flex-col gap-2">
+        <div className="flex flex-col gap-2 py-1">
           <textarea
             ref={editRef}
             autoFocus
-            value={editingText}
-            onChange={(e) => onEditingTextChange(e.target.value)}
+            value={draft ?? ""}
+            onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) onSaveEdit();
-              if (e.key === "Escape") onCancelEdit();
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) save();
+              if (e.key === "Escape") cancel();
             }}
-            className="w-full resize-none rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm outline-none focus:border-[var(--text-primary)]/40"
+            className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm outline-none focus:border-[var(--text-primary)]/30"
             rows={1}
             style={{ maxHeight: TEXTAREA_MAX_HEIGHT_PX }}
           />
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <button
-              onClick={onSaveEdit}
-              className="rounded-md bg-[var(--text-primary)] px-3 py-1 text-xs text-[var(--bg-primary)]"
+              onClick={save}
+              className="rounded-md bg-[var(--text-primary)] px-3 py-1 text-[11px] text-[var(--bg-primary)]"
             >
               Save
             </button>
             <button
-              onClick={onCancelEdit}
-              className="rounded-md border border-[var(--border)] px-3 py-1 text-xs text-[var(--text-secondary)]"
+              onClick={cancel}
+              className="rounded-md px-3 py-1 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             >
               Cancel
             </button>
+            <span className="ml-auto text-[10px] text-[var(--text-muted)]">
+              ⌘↵ save · esc cancel
+            </span>
           </div>
         </div>
       ) : (
-        <MessageMarkdown text={message.text} />
+        <>
+          <MessageMarkdown text={message.text} />
+          <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-[var(--text-muted)]">
+            <span>{formatTime(message.ts)}</span>
+            {message.editedAt && <span>· edited</span>}
+          </div>
+        </>
       )}
       {message.attachments && message.attachments.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
@@ -472,16 +531,9 @@ function AttachmentChip({ projectName, attachment }: AttachmentChipProps) {
   const [url, setUrl] = useState<string | null>(null);
   const isImage = attachment.mimeType?.startsWith("image/");
 
-  // Track the live URL in a ref so we revoke it only when it's truly replaced
-  // or on unmount — not on every effect cleanup. StrictMode's dev-only double
-  // invocation would otherwise revoke the URL before <img> finishes loading.
+  // Ref-tracked so StrictMode's double-invocation doesn't revoke the live URL
+  // before <img> finishes loading.
   const urlRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-    };
-  }, []);
 
   useEffect(() => {
     if (!isImage) return;
@@ -506,6 +558,13 @@ function AttachmentChip({ projectName, attachment }: AttachmentChipProps) {
     };
   }, [projectName, attachment.hash, attachment.mimeType, isImage]);
 
+  useEffect(
+    () => () => {
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+    },
+    [],
+  );
+
   const download = async () => {
     try {
       const b64 = await NotesReadAttachment(projectName, attachment.hash);
@@ -523,10 +582,10 @@ function AttachmentChip({ projectName, attachment }: AttachmentChipProps) {
     return (
       <button
         onClick={download}
-        className="group/att overflow-hidden rounded-md border border-[var(--border)]"
-        title={`${attachment.name} · ${formatSize(attachment.size)} (click to download)`}
+        className="overflow-hidden rounded-lg border border-[var(--border)] transition-opacity hover:opacity-90"
+        title={`${attachment.name} · ${formatSize(attachment.size)} — click to download`}
       >
-        <img src={url} alt={attachment.name} className="max-h-48 max-w-xs object-contain" />
+        <img src={url} alt={attachment.name} className="max-h-56 max-w-xs object-contain" />
       </button>
     );
   }
@@ -534,11 +593,11 @@ function AttachmentChip({ projectName, attachment }: AttachmentChipProps) {
   return (
     <button
       onClick={download}
-      className="flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+      className="flex items-center gap-2 rounded-md bg-[var(--bg-hover)] px-2.5 py-1.5 text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]/70 hover:text-[var(--text-primary)]"
       title={`Download ${attachment.name}`}
     >
       <DownloadIcon />
-      <span className="max-w-[240px] truncate">{attachment.name}</span>
+      <span className="max-w-[220px] truncate">{attachment.name}</span>
       <span className="text-[var(--text-muted)]">{formatSize(attachment.size)}</span>
     </button>
   );
@@ -552,19 +611,18 @@ function formatSize(n: number) {
 }
 
 function formatTime(ts: number) {
-  const d = new Date(ts);
-  const now = new Date();
-  const sameDay =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
-  if (sameDay) {
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDayLabel(d: Date, now: Date) {
+  const startOfDay = (x: Date) =>
+    new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86_400_000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return d.toLocaleDateString([], { weekday: "long" });
+  if (d.getFullYear() === now.getFullYear()) {
+    return d.toLocaleDateString([], { month: "short", day: "numeric" });
   }
-  return d.toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
 }
