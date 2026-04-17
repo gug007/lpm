@@ -52,6 +52,8 @@ type App struct {
 
 	ttsMu      sync.Mutex
 	ttsSession *ttsSession
+
+	notes *notesState
 }
 
 func NewApp() *App {
@@ -62,6 +64,7 @@ func NewApp() *App {
 		ptySessions:     make(map[string]*ptySession),
 		runningState: make(map[string]runState),
 		statusStore:     NewStatusStore(),
+		notes:           newNotesState(),
 	}
 }
 
@@ -214,6 +217,8 @@ func (a *App) shutdown(ctx context.Context) {
 		delete(a.ptySessions, id)
 	}
 	a.ptyMu.Unlock()
+
+	a.notes.closeAll()
 }
 
 func (a *App) ClearStatus(project string, paneID string, value string) {

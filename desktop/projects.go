@@ -834,6 +834,7 @@ func (a *App) RemoveProject(name string) error {
 	a.statusStore.ClearProject(name)
 	a.removeTerminalsEntry(name)
 	a.removeSettingsReferences(name)
+	a.removeNotes(name)
 	runtime.EventsEmit(a.ctx, "projects-changed")
 	return nil
 }

@@ -6,12 +6,13 @@ import { OpenInDropdown } from "./OpenInDropdown";
 import { BranchSwitcher } from "./BranchSwitcher";
 import { TerminalView, type TerminalViewHandle } from "./TerminalView";
 import { ConfigEditor } from "./ConfigEditor";
+import { NotesView } from "./NotesView";
 import { RunAction, RunActionBackground } from "../../wailsjs/go/main/App";
 import { getSettings, saveSettings } from "../settings";
 import { getProjectTerminals, saveProjectTerminals, countPersistedTabs } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
 import { type ProjectInfo, type ProfileInfo, type ActionInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
-import { TerminalIcon, CheckIcon, ChevronDownIcon, PencilIcon, MenuIcon, AlertCircleIcon, PlayIcon, StopIcon } from "./icons";
+import { TerminalIcon, CheckIcon, ChevronDownIcon, PencilIcon, MenuIcon, AlertCircleIcon, PlayIcon, StopIcon, MessageIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
@@ -51,8 +52,10 @@ export function ProjectDetail({
     project.activeProfile || project.profiles?.[0]?.name || ""
   );
   useEffect(() => {
-    if (project.activeProfile) setActiveProfile(project.activeProfile);
-  }, [project.activeProfile]);
+    if (project.activeProfile && project.activeProfile !== activeProfile) {
+      setActiveProfile(project.activeProfile);
+    }
+  }, [project.activeProfile, activeProfile]);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [showQuickMenu, setShowQuickMenu] = useState(false);
   const [showTerminalSettings, setShowTerminalSettings] = useState(false);
@@ -198,11 +201,12 @@ export function ProjectDetail({
   };
 
   const hasProfiles = project.profiles && project.profiles.length > 0;
-  const [detailView, setDetailView] = useState<"terminal" | "config">("terminal");
+  type DetailView = "terminal" | "config" | "notes";
+  const [detailView, setDetailView] = useState<DetailView>("terminal");
 
   useEffect(() => {
-    if (!visible) setDetailView("terminal");
-  }, [visible]);
+    if (!visible && detailView !== "terminal") setDetailView("terminal");
+  }, [visible, detailView]);
 
   const [terminalCount, setTerminalCount] = useState(() => {
     const saved = getProjectTerminals(project.name);
@@ -212,11 +216,17 @@ export function ProjectDetail({
 
   useKeyboardShortcut(
     { key: "e", meta: true },
-    () => switchDetailView(detailView === "terminal" ? "config" : "terminal"),
+    () => switchDetailView(detailView === "config" ? "terminal" : "config"),
     visible,
   );
 
-  const switchDetailView = (view: "terminal" | "config") => {
+  useKeyboardShortcut(
+    { key: "n", meta: true, shift: true },
+    () => switchDetailView(detailView === "notes" ? "terminal" : "notes"),
+    visible,
+  );
+
+  const switchDetailView = (view: DetailView) => {
     setDetailView(view);
     const state = getProjectTerminals(project.name);
     saveProjectTerminals(project.name, { ...state, detailView: view });
@@ -373,6 +383,7 @@ export function ProjectDetail({
             onClose={() => setShowQuickMenu(false)}
             onRunAction={handleRunAction}
             onEditConfig={() => switchDetailView("config")}
+            onOpenNotes={() => switchDetailView("notes")}
             onRestart={() => withLoading(() => onRestart(project.name, activeProfile))}
             onRemove={() => setConfirmRemove(true)}
             onTerminalSettings={() => setShowTerminalSettings(true)}
@@ -541,6 +552,14 @@ export function ProjectDetail({
             onSaved={onRefresh}
             onBack={() => switchDetailView("terminal")}
             onToggleView={() => switchDetailView("terminal")}
+          />
+        </div>
+      )}
+      {detailView === "notes" && (
+        <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden">
+          <NotesView
+            projectName={project.name}
+            visible={visible && detailView === "notes"}
           />
         </div>
       )}

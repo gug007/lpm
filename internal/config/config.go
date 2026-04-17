@@ -252,6 +252,12 @@ func ProjectsDir() string {
 	return filepath.Join(LpmDir(), "projects")
 }
 
+// NotesDir returns the on-disk directory that holds the encrypted notes DB
+// and attachment blobs for the given project.
+func NotesDir(project string) string {
+	return filepath.Join(LpmDir(), "notes", project)
+}
+
 func LoadGlobal() *GlobalConfig {
 	data, err := os.ReadFile(GlobalPath())
 	if err != nil {

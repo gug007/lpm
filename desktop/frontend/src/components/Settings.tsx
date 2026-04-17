@@ -17,6 +17,8 @@ import {
   CheckKokoroInstalled,
   InstallKokoro,
   UninstallKokoro,
+  VaultExportKey,
+  VaultImportKey,
 } from "../../wailsjs/go/main/App";
 import type { main } from "../../wailsjs/go/models";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
@@ -109,6 +111,8 @@ export function Settings({
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [showImportOptions, setShowImportOptions] = useState(false);
+  const [showVaultExport, setShowVaultExport] = useState(false);
+  const [showVaultImport, setShowVaultImport] = useState(false);
   const [importOverwrite, setImportOverwrite] = useState(false);
   const [importReport, setImportReport] = useState<main.ImportReport | null>(null);
 
@@ -230,6 +234,26 @@ export function Settings({
       toast.error(`Import failed: ${err}`);
     } finally {
       setImporting(false);
+    }
+  };
+
+  const handleVaultExport = async (passphrase: string) => {
+    setShowVaultExport(false);
+    try {
+      const path = await VaultExportKey(passphrase);
+      if (path) toast.success(`Vault key exported to ${path}`);
+    } catch (err) {
+      toast.error(`Vault export failed: ${err}`);
+    }
+  };
+
+  const handleVaultImport = async (passphrase: string) => {
+    setShowVaultImport(false);
+    try {
+      await VaultImportKey(passphrase);
+      toast.success("Vault key imported");
+    } catch (err) {
+      toast.error(`Vault import failed: ${err}`);
     }
   };
 
@@ -358,6 +382,7 @@ export function Settings({
           )}
 
           {activeTab === "backup" && (
+            <>
             <SettingsSection title="Backup & Transfer">
               <SettingsRow label="Export config" description="Save a portable archive of your projects and settings">
                 <button onClick={handleExport} disabled={exporting} className={BTN_SECONDARY}>
@@ -370,6 +395,28 @@ export function Settings({
                 </button>
               </SettingsRow>
             </SettingsSection>
+            <SettingsSection
+              title="Encryption key"
+              description="Your notes are locked with a secret key. Back it up to move notes between Macs or recover them later."
+            >
+              <SettingsRow
+                label="Back up your key"
+                description="Saves a password-protected file. Keep it somewhere safe."
+              >
+                <button onClick={() => setShowVaultExport(true)} className={BTN_SECONDARY}>
+                  Back up…
+                </button>
+              </SettingsRow>
+              <SettingsRow
+                label="Restore your key"
+                description="Load a saved key file to unlock notes on this Mac."
+              >
+                <button onClick={() => setShowVaultImport(true)} className={BTN_SECONDARY}>
+                  Restore…
+                </button>
+              </SettingsRow>
+            </SettingsSection>
+            </>
           )}
 
           <ConfirmDialog
@@ -403,6 +450,25 @@ export function Settings({
           />
 
           <ImportReportModal report={importReport} onClose={() => setImportReport(null)} />
+
+          <PassphraseModal
+            open={showVaultExport}
+            title="Back up your encryption key"
+            body="Choose a password to protect the backup file. You'll need this password later to restore your key on another Mac — write it down or save it in a password manager. Anyone who has both the file and this password can read your notes."
+            submitLabel="Back up"
+            confirm
+            onCancel={() => setShowVaultExport(false)}
+            onSubmit={handleVaultExport}
+          />
+
+          <PassphraseModal
+            open={showVaultImport}
+            title="Restore your encryption key"
+            body="Pick the backup file in the next dialog, then enter the password you chose when you created it. If this Mac already has a different key stored, remove it from the Keychain first."
+            submitLabel="Restore"
+            onCancel={() => setShowVaultImport(false)}
+            onSubmit={handleVaultImport}
+          />
         </div>
       </div>
     </div>
@@ -411,12 +477,25 @@ export function Settings({
 
 /* ── Sub-components ──────────────────────────────────────────────── */
 
-function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
+function SettingsSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="mt-6 space-y-1">
       <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
         {title}
       </h2>
+      {description && (
+        <p className="pb-2 text-[11px] leading-relaxed text-[var(--text-muted)]">
+          {description}
+        </p>
+      )}
       <div className="divide-y divide-[var(--border)] rounded-lg border border-[var(--border)]">
         {children}
       </div>
@@ -435,11 +514,11 @@ function SettingsRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-4 px-4 py-3">
-      <div className="shrink-0">
+      <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-[var(--text-primary)]">{label}</p>
         <p className="text-[11px] text-[var(--text-muted)]">{description}</p>
       </div>
-      {children}
+      <div className="shrink-0">{children}</div>
     </div>
   );
 }
@@ -727,3 +806,109 @@ function ReportList({ items, mono }: { items: string[]; mono?: boolean }) {
     </ul>
   );
 }
+
+function PassphraseModal({
+  open,
+  title,
+  body,
+  submitLabel,
+  confirm = false,
+  onCancel,
+  onSubmit,
+}: {
+  open: boolean;
+  title: string;
+  body: string;
+  submitLabel: string;
+  // When true, require a matching confirm input. Used for export flows where
+  // a typo locks the user out of their own backup.
+  confirm?: boolean;
+  onCancel: () => void;
+  onSubmit: (passphrase: string) => void;
+}) {
+  const [pass, setPass] = useState("");
+  const [confirmPass, setConfirmPass] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setPass("");
+      setConfirmPass("");
+      setError(null);
+    }
+  }, [open]);
+
+  const submit = () => {
+    if (pass.length < 8) {
+      setError("Passphrase must be at least 8 characters.");
+      return;
+    }
+    if (confirm && pass !== confirmPass) {
+      setError("Passphrases don't match.");
+      return;
+    }
+    onSubmit(pass);
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onCancel}
+      zIndexClassName="z-[60]"
+      contentClassName="w-[420px] rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-6 shadow-xl"
+    >
+      <h3 className="text-base font-semibold text-[var(--text-primary)]">{title}</h3>
+      <p className="mt-1 text-xs text-[var(--text-muted)]">{body}</p>
+
+      <div className="mt-4 flex flex-col gap-3">
+        <label className="flex flex-col gap-1 text-xs">
+          <span className="text-[var(--text-secondary)]">Passphrase</span>
+          <input
+            type="password"
+            value={pass}
+            onChange={(e) => setPass(e.target.value)}
+            autoFocus
+            className="rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm outline-none focus:border-[var(--text-primary)]/40"
+            placeholder="At least 8 characters"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !confirm) submit();
+            }}
+          />
+        </label>
+        {confirm && (
+          <label className="flex flex-col gap-1 text-xs">
+            <span className="text-[var(--text-secondary)]">Confirm passphrase</span>
+            <input
+              type="password"
+              value={confirmPass}
+              onChange={(e) => setConfirmPass(e.target.value)}
+              className="rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm outline-none focus:border-[var(--text-primary)]/40"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submit();
+              }}
+            />
+          </label>
+        )}
+        {error && (
+          <p className="rounded-md bg-red-500/10 px-2 py-1 text-xs text-red-400">{error}</p>
+        )}
+      </div>
+
+      <div className="mt-5 flex justify-end gap-2">
+        <button
+          onClick={onCancel}
+          className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={submit}
+          className="rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs text-[var(--bg-primary)]"
+        >
+          {submitLabel}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+

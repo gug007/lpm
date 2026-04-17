@@ -6,9 +6,13 @@ require (
 	github.com/creack/pty v1.1.24
 	github.com/google/uuid v1.6.0
 	github.com/gug007/lpm v0.0.0
+	github.com/keybase/go-keychain v0.0.1
+	github.com/mutecomm/go-sqlcipher/v4 v4.4.2
 	github.com/rjeczalik/notify v0.9.3
 	github.com/wailsapp/wails/v2 v2.12.0
-	golang.org/x/sys v0.30.0
+	golang.org/x/crypto v0.50.0
+	golang.org/x/sync v0.20.0
+	golang.org/x/sys v0.43.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -36,9 +40,8 @@ require (
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/wailsapp/go-webview2 v1.0.22 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
-	golang.org/x/crypto v0.33.0 // indirect
-	golang.org/x/net v0.35.0 // indirect
-	golang.org/x/text v0.22.0 // indirect
+	golang.org/x/net v0.52.0 // indirect
+	golang.org/x/text v0.36.0 // indirect
 )
 
 replace github.com/gug007/lpm => ../

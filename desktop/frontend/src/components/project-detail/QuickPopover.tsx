@@ -1,6 +1,6 @@
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import type { ActionInfo } from "../../types";
-import { TrashIcon, RefreshIcon, PencilIcon, SettingsIcon } from "../icons";
+import { TrashIcon, RefreshIcon, PencilIcon, SettingsIcon, MessageIcon } from "../icons";
 import { PlayIcon } from "./icons";
 
 const sectionLabelClass = "px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]";
@@ -13,6 +13,7 @@ interface QuickPopoverProps {
   onClose: () => void;
   onRunAction: (action: ActionInfo) => void;
   onEditConfig: () => void;
+  onOpenNotes: () => void;
   onRestart: () => void;
   onRemove: () => void;
   onTerminalSettings: () => void;
@@ -25,6 +26,7 @@ export function QuickPopover({
   onClose,
   onRunAction,
   onEditConfig,
+  onOpenNotes,
   onRestart,
   onRemove,
   onTerminalSettings,
@@ -84,23 +86,32 @@ export function QuickPopover({
         onClick={handleEditConfig}
         className={`${menuItemClass} px-3 text-[var(--text-secondary)]`}
       >
+        <PencilIcon />
         <span className="flex-1 truncate">Edit Config</span>
         <kbd className="ml-auto text-[10px] text-[var(--text-muted)]">⌘E</kbd>
+      </button>
+      <button
+        onClick={() => { onOpenNotes(); onClose(); }}
+        className={`${menuItemClass} px-3 text-[var(--text-secondary)]`}
+      >
+        <MessageIcon />
+        <span className="flex-1 truncate">Notes</span>
+        <kbd className="ml-auto text-[10px] text-[var(--text-muted)]">⌘⇧N</kbd>
       </button>
       <button
         onClick={handleTerminalSettings}
         className={`${menuItemClass} px-3 text-[var(--text-secondary)]`}
       >
-        <span className="flex-1 truncate">Terminal Settings</span>
         <SettingsIcon />
+        <span className="flex-1 truncate">Terminal Settings</span>
       </button>
       {running && (
         <button
           onClick={handleRestart}
           className={`${menuItemClass} px-3 text-[var(--text-secondary)]`}
         >
-          <span className="flex-1 truncate">Restart</span>
           <RefreshIcon />
+          <span className="flex-1 truncate">Restart</span>
         </button>
       )}
       <div className="my-1 border-t border-[var(--border)]" />
@@ -108,8 +119,8 @@ export function QuickPopover({
         onClick={handleRemove}
         className={`${menuItemClass} px-3 text-[var(--accent-red)]`}
       >
-        <span className="flex-1 truncate">Remove</span>
         <TrashIcon />
+        <span className="flex-1 truncate">Remove</span>
       </button>
     </div>
   );
@@ -132,8 +143,8 @@ function ActionMenuItem({
       disabled={disabled}
       className={`${menuItemClass} ${indented ? "pl-5 pr-3" : "px-3"} text-[var(--text-secondary)] disabled:opacity-50`}
     >
-      <span className="flex-1 font-mono truncate">{action.label}</span>
       <PlayIcon />
+      <span className="flex-1 font-mono truncate">{action.label}</span>
     </button>
   );
 }

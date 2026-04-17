@@ -60,12 +60,14 @@ func recoverAs(op string, dst *error) {
 	}
 }
 
-// ExportConfig writes a tar.gz archive containing the portable portion of
-// ~/.lpm into a user-chosen directory. Returns the full archive path, or ""
-// if the user cancelled the dialog.
+// ExportConfig writes a tar.gz archive of the portable portion of ~/.lpm
+// into a user-chosen directory. Returns "" when the dialog is cancelled.
+// Notes are intentionally not included — the user transports them via
+// Export/Import vault key (for the key) and by copying ~/.lpm/notes/
+// manually (for the data) if they want cross-Mac notes.
 //
-// Uses OpenDirectoryDialog instead of SaveFileDialog because the latter has
-// proven flaky with compound extensions on newer macOS versions.
+// Uses OpenDirectoryDialog over SaveFileDialog — the latter has proven
+// flaky with compound extensions on newer macOS versions.
 func (a *App) ExportConfig() (result string, err error) {
 	defer recoverAs("export", &err)
 
@@ -138,7 +140,6 @@ func writeArchive(tw *tar.Writer) error {
 		}
 	}
 
-	// settings.json is rebuilt in memory so per-machine fields can be stripped.
 	if data, err := sanitizedSettings(); err == nil && data != nil {
 		hdr := &tar.Header{
 			Name:    "settings.json",
