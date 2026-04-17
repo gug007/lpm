@@ -84,6 +84,7 @@ const structuredData = {
 };
 
 const GA_ID = "G-ZDCK654G10";
+const GOOGLE_ADS_ID = "AW-16987247563";
 
 export default function RootLayout({
   children,
@@ -119,6 +120,7 @@ export default function RootLayout({
             function gtag(){dataLayer.push(arguments);}
             gtag('js', new Date());
             gtag('config', '${GA_ID}');
+            gtag('config', '${GOOGLE_ADS_ID}');
           `}
         </Script>
       </body>
