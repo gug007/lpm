@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
     default:
-      "lpm — Local Project Manager | Manage Dev Projects from the Terminal",
+      "lpm — Project & Terminal Switcher for Claude Code & Codex",
     template: "%s — lpm",
   },
   description:
