@@ -26,7 +26,7 @@ func newTestStore(t *testing.T) (*Store, []byte) {
 	t.Helper()
 	key := newTestKey(t)
 	dir := t.TempDir()
-	s, err := openStoreAt("test", dir, key)
+	s, err := openStoreAt(context.Background(), "test", dir, key)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -193,7 +193,7 @@ func TestStore_WrongKeyFailsToOpen(t *testing.T) {
 	dir := t.TempDir()
 	key := newTestKey(t)
 
-	s, err := openStoreAt("test", dir, key)
+	s, err := openStoreAt(context.Background(), "test", dir, key)
 	if err != nil {
 		t.Fatalf("first open: %v", err)
 	}
@@ -212,7 +212,7 @@ func TestStore_WrongKeyFailsToOpen(t *testing.T) {
 	}
 
 	wrong := newTestKey(t)
-	bad, err := openStoreAt("test", dir, wrong)
+	bad, err := openStoreAt(context.Background(), "test", dir, wrong)
 	if err == nil {
 		bad.Close()
 		t.Fatal("opened DB with wrong key; expected ping failure")
@@ -220,7 +220,7 @@ func TestStore_WrongKeyFailsToOpen(t *testing.T) {
 }
 
 func TestStore_RejectsBadKeyLength(t *testing.T) {
-	if _, err := openStoreAt("test", t.TempDir(), []byte{1, 2, 3}); err == nil {
+	if _, err := openStoreAt(context.Background(), "test", t.TempDir(), []byte{1, 2, 3}); err == nil {
 		t.Fatal("expected error for short key")
 	}
 }
@@ -338,7 +338,7 @@ func TestStore_BackfillsLegacyMessagesIntoDefaultChat(t *testing.T) {
 	// Open with the real schema, then hand-roll the legacy state: drop chat_id
 	// from existing rows and delete the chats table so the next open sees a
 	// pre-chats DB.
-	s, err := openStoreAt("legacy", dir, key)
+	s, err := openStoreAt(ctx, "legacy", dir, key)
 	if err != nil {
 		t.Fatalf("first open: %v", err)
 	}
@@ -361,7 +361,7 @@ func TestStore_BackfillsLegacyMessagesIntoDefaultChat(t *testing.T) {
 	s.Close()
 
 	// Reopen — migrate() should create a default chat and backfill.
-	s2, err := openStoreAt("legacy", dir, key)
+	s2, err := openStoreAt(ctx, "legacy", dir, key)
 	if err != nil {
 		t.Fatalf("reopen: %v", err)
 	}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   useInfiniteQuery,
@@ -68,6 +68,9 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollToBottomOnNextRenderRef = useRef(false);
+  // Latch the auto-seed so StrictMode's effect double-invoke (and the window
+  // before the mutation registers as pending) can't create two "General" chats.
+  const seededChatForProject = useRef<string | null>(null);
 
   const chatsQuery = useQuery({
     queryKey: chatsKey(projectName),
@@ -81,6 +84,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
   // storage on every project change rather than in a useState initializer.
   useEffect(() => {
     setActiveChatID(window.localStorage.getItem(activeChatStorageKey(projectName)));
+    seededChatForProject.current = null;
   }, [projectName]);
 
   // Fall back to the most-recent chat if the stored one no longer exists
@@ -99,8 +103,10 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
 
   const query = useInfiniteQuery({
     queryKey: messagesKey(projectName, activeChatID ?? ""),
-    queryFn: async ({ pageParam }) =>
-      (await NotesListMessages(projectName, activeChatID!, PAGE_SIZE, pageParam)) ?? [],
+    queryFn: async ({ pageParam }) => {
+      if (!activeChatID) return [];
+      return (await NotesListMessages(projectName, activeChatID, PAGE_SIZE, pageParam)) ?? [];
+    },
     initialPageParam: "",
     getNextPageParam: (last) =>
       last.length === PAGE_SIZE ? last[last.length - 1].id : undefined,
@@ -289,10 +295,14 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
   });
 
   // Seed a "General" chat the first time a project's notes are opened.
+  // Gated on success (not just settled) so a failed chats fetch doesn't
+  // create a chat against a broken backend.
   useEffect(() => {
-    if (!chatsQuery.isSuccess || chats.length > 0 || createChatMutation.isPending) return;
+    if (!chatsQuery.isSuccess || chats.length > 0) return;
+    if (seededChatForProject.current === projectName) return;
+    seededChatForProject.current = projectName;
     createChatMutation.mutate("General");
-  }, [chatsQuery.isSuccess, chats.length, createChatMutation]);
+  }, [chatsQuery.isSuccess, chats.length, createChatMutation, projectName]);
 
   const renameChatMutation = useMutation({
     mutationFn: async (input: { id: string; title: string }) => {
@@ -334,6 +344,17 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
       },
     );
   }, [addMutation, canSend, pending, text, activeChatID]);
+
+  // Stable message-row callbacks so MessageRow's memo actually holds across
+  // composer keystrokes (which re-render NotesView on every character).
+  const handleSaveMessage = useCallback(
+    (id: string, text: string) => editMutation.mutate({ id, text }),
+    [editMutation],
+  );
+  const handleDeleteMessage = useCallback(
+    (id: string) => deleteMutation.mutate(id),
+    [deleteMutation],
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -437,8 +458,8 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
                     key={m.id}
                     message={m}
                     projectName={projectName}
-                    onSave={(newText) => editMutation.mutate({ id: m.id, text: newText })}
-                    onDelete={() => deleteMutation.mutate(m.id)}
+                    onSave={handleSaveMessage}
+                    onDelete={handleDeleteMessage}
                   />
                 ))}
               </div>
@@ -565,11 +586,11 @@ function buildDayGroups(newestFirst: notes.Message[]): DayGroup[] {
 interface MessageRowProps {
   message: notes.Message;
   projectName: string;
-  onSave: (text: string) => void;
-  onDelete: () => void;
+  onSave: (id: string, text: string) => void;
+  onDelete: (id: string) => void;
 }
 
-function MessageRow({ message, projectName, onSave, onDelete }: MessageRowProps) {
+const MessageRow = memo(function MessageRow({ message, projectName, onSave, onDelete }: MessageRowProps) {
   const [draft, setDraft] = useState<string | null>(null);
   const editing = draft !== null;
   const editRef = useRef<HTMLTextAreaElement | null>(null);
@@ -579,9 +600,10 @@ function MessageRow({ message, projectName, onSave, onDelete }: MessageRowProps)
   const save = () => {
     if (draft === null) return;
     const trimmed = draft;
-    if (trimmed !== message.text) onSave(trimmed);
+    if (trimmed !== message.text) onSave(message.id, trimmed);
     setDraft(null);
   };
+  const handleDelete = () => onDelete(message.id);
 
   return (
     <div className="group relative -mx-2 rounded-md px-2 py-1 hover:bg-[var(--bg-hover)]/50">
@@ -596,7 +618,7 @@ function MessageRow({ message, projectName, onSave, onDelete }: MessageRowProps)
             <PencilIcon />
           </button>
           <button
-            onClick={onDelete}
+            onClick={handleDelete}
             className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"
             title="Delete"
             aria-label="Delete"
@@ -656,7 +678,7 @@ function MessageRow({ message, projectName, onSave, onDelete }: MessageRowProps)
       )}
     </div>
   );
-}
+});
 
 interface AttachmentChipProps {
   projectName: string;

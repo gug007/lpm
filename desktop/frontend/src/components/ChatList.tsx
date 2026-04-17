@@ -49,11 +49,24 @@ export function ChatList({
         {chats.map((c) => {
           const active = c.id === activeId;
           const renaming = c.id === renamingId;
+          // Row holds nested interactive children (rename input, pencil,
+          // trash), which is why this isn't a <button> — role+key handler
+          // gives keyboard parity without breaking HTML nesting rules.
           return (
             <div
               key={c.id}
+              role="button"
+              tabIndex={renaming ? -1 : 0}
+              aria-pressed={active}
               onClick={() => !renaming && onSelect(c.id)}
-              className={`group flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm transition-colors ${
+              onKeyDown={(e) => {
+                if (renaming) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSelect(c.id);
+                }
+              }}
+              className={`group flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-primary)]/30 ${
                 active
                   ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
                   : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]/60"

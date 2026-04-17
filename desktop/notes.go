@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"mime"
 	"net/http"
 	"os"
@@ -45,32 +48,48 @@ func newNotesState() *notesState {
 	return &notesState{stores: map[string]*notesBundle{}}
 }
 
-func (n *notesState) open(project string) (*notesBundle, error) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-
-	if b, ok := n.stores[project]; ok {
-		return b, nil
+func (n *notesState) open(ctx context.Context, project string) (*notesBundle, error) {
+	if err := config.ValidateName(project); err != nil {
+		return nil, err
 	}
 
+	// Fast path: hit the cache and release the lock before any slow work.
+	n.mu.Lock()
+	if b, ok := n.stores[project]; ok {
+		n.mu.Unlock()
+		return b, nil
+	}
 	if n.key == nil {
 		key, err := vault.Key()
 		if err != nil {
+			n.mu.Unlock()
 			return nil, err
 		}
 		n.key = key
 	}
+	key := n.key
+	n.mu.Unlock()
 
-	store, err := notes.Open(project, n.key)
+	// Opening runs migrations, which can take seconds on a large legacy DB.
+	// Doing this outside the lock prevents an unrelated project's first open
+	// from blocking every other notes call.
+	store, err := notes.Open(ctx, project, key)
 	if err != nil {
 		return nil, err
 	}
-	blobs, err := notes.NewBlobStore(store.BlobsDir(), n.key)
+	blobs, err := notes.NewBlobStore(store.BlobsDir(), key)
 	if err != nil {
 		store.Close()
 		return nil, err
 	}
 
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	// Another caller may have raced us and published first — reuse theirs.
+	if existing, ok := n.stores[project]; ok {
+		store.Close()
+		return existing, nil
+	}
 	b := &notesBundle{store: store, blobs: blobs}
 	n.stores[project] = b
 	return b, nil
@@ -121,9 +140,20 @@ type NotesAttachmentInput struct {
 // NotesAddMessage: on failure no message row is written, but successfully-
 // written blobs may remain as orphans until the next delete GCs them.
 func (a *App) NotesAddMessage(project, chatID, text string, attachments []NotesAttachmentInput) (*notes.Message, error) {
-	b, err := a.notes.open(project)
+	b, err := a.notes.open(a.ctx, project)
 	if err != nil {
 		return nil, err
+	}
+	// Reject up-front so a send to a deleted chat doesn't leave ~100MB of
+	// encrypted blob orphans behind before the insert fails.
+	if len(attachments) > 0 {
+		exists, err := b.store.ChatExists(a.ctx, chatID)
+		if err != nil {
+			return nil, err
+		}
+		if !exists {
+			return nil, sql.ErrNoRows
+		}
 	}
 	attMeta, err := a.stashAttachments(b, attachments)
 	if err != nil {
@@ -133,7 +163,7 @@ func (a *App) NotesAddMessage(project, chatID, text string, attachments []NotesA
 }
 
 func (a *App) NotesListMessages(project, chatID string, limit int, beforeID string) ([]notes.Message, error) {
-	b, err := a.notes.open(project)
+	b, err := a.notes.open(a.ctx, project)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +178,7 @@ func (a *App) NotesListMessages(project, chatID string, limit int, beforeID stri
 }
 
 func (a *App) NotesListChats(project string) ([]notes.Chat, error) {
-	b, err := a.notes.open(project)
+	b, err := a.notes.open(a.ctx, project)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +193,7 @@ func (a *App) NotesListChats(project string) ([]notes.Chat, error) {
 }
 
 func (a *App) NotesCreateChat(project, title string) (*notes.Chat, error) {
-	b, err := a.notes.open(project)
+	b, err := a.notes.open(a.ctx, project)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +201,7 @@ func (a *App) NotesCreateChat(project, title string) (*notes.Chat, error) {
 }
 
 func (a *App) NotesRenameChat(project, chatID, title string) error {
-	b, err := a.notes.open(project)
+	b, err := a.notes.open(a.ctx, project)
 	if err != nil {
 		return err
 	}
@@ -179,7 +209,7 @@ func (a *App) NotesRenameChat(project, chatID, title string) error {
 }
 
 func (a *App) NotesDeleteChat(project, chatID string) error {
-	b, err := a.notes.open(project)
+	b, err := a.notes.open(a.ctx, project)
 	if err != nil {
 		return err
 	}
@@ -203,7 +233,7 @@ func (b *notesBundle) gcOrphanBlobs(hashes []string) {
 }
 
 func (a *App) NotesEditMessage(project, id, text string) error {
-	b, err := a.notes.open(project)
+	b, err := a.notes.open(a.ctx, project)
 	if err != nil {
 		return err
 	}
@@ -211,7 +241,7 @@ func (a *App) NotesEditMessage(project, id, text string) error {
 }
 
 func (a *App) NotesDeleteMessage(project, id string) error {
-	b, err := a.notes.open(project)
+	b, err := a.notes.open(a.ctx, project)
 	if err != nil {
 		return err
 	}
@@ -237,7 +267,7 @@ func (a *App) NotesReadFileAsInput(path string) (*NotesAttachmentInput, error) {
 	if info.Size() > maxDroppedAttachmentBytes {
 		return nil, fmt.Errorf("%s exceeds 100MB limit", info.Name())
 	}
-	data, err := os.ReadFile(path)
+	data, err := readFileCapped(path, maxDroppedAttachmentBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +289,7 @@ func (a *App) NotesReadFileAsInput(path string) (*NotesAttachmentInput, error) {
 // NotesReadAttachment returns base64. See NotesAttachmentInput for the
 // bridge-format rationale.
 func (a *App) NotesReadAttachment(project, hash string) (string, error) {
-	b, err := a.notes.open(project)
+	b, err := a.notes.open(a.ctx, project)
 	if err != nil {
 		return "", err
 	}
@@ -382,4 +412,23 @@ func (a *App) stashAttachments(b *notesBundle, inputs []NotesAttachmentInput) ([
 		return nil, err
 	}
 	return out, nil
+}
+
+// readFileCapped reads at most cap bytes; if the file grew past cap between
+// stat and read (TOCTOU), it returns an error rather than a silently truncated
+// payload.
+func readFileCapped(path string, cap int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, cap+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > cap {
+		return nil, fmt.Errorf("%s exceeds %d byte limit", filepath.Base(path), cap)
+	}
+	return data, nil
 }

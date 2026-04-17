@@ -58,17 +58,19 @@ type Store struct {
 }
 
 // Open: callers fetch vault.Key() once and reuse it across every project
-// they open, so we don't round-trip the Keychain per project.
-func Open(project string, key []byte) (*Store, error) {
+// they open, so we don't round-trip the Keychain per project. The ctx bounds
+// schema migration — pass a real one (not Background) so shutdown cancels
+// a slow legacy backfill cleanly.
+func Open(ctx context.Context, project string, key []byte) (*Store, error) {
 	if project == "" {
 		return nil, errors.New("notes: project name is empty")
 	}
-	return openStoreAt(project, config.NotesDir(project), key)
+	return openStoreAt(ctx, project, config.NotesDir(project), key)
 }
 
 // openStoreAt is the concrete opener shared by production and tests. Tests
 // pass a tmp dir and a fake key so they never touch the user's real tree.
-func openStoreAt(project, dir string, key []byte) (*Store, error) {
+func openStoreAt(ctx context.Context, project, dir string, key []byte) (*Store, error) {
 	if len(key) != vault.KeyLen {
 		return nil, fmt.Errorf("notes: key length = %d, want %d", len(key), vault.KeyLen)
 	}
@@ -84,13 +86,13 @@ func openStoreAt(project, dir string, key []byte) (*Store, error) {
 	}
 	db.SetMaxOpenConns(1)
 
-	if err := db.Ping(); err != nil {
+	if err := db.PingContext(ctx); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("notes: ping db (bad key or corrupted file?): %w", err)
 	}
 
 	s := &Store{db: db, project: project, dir: dir}
-	if err := s.migrate(); err != nil {
+	if err := s.migrate(ctx); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -118,7 +120,7 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-func (s *Store) migrate() error {
+func (s *Store) migrate(ctx context.Context) error {
 	stmts := []string{
 		// seq is the monotonic row key; id is the public handle used by the
 		// API and attachment FK. Ordering and pagination use seq so messages
@@ -150,8 +152,6 @@ func (s *Store) migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_chats_updated ON chats(updated_ts)`,
 		`PRAGMA foreign_keys = ON`,
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 	for _, stmt := range stmts {
 		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("notes: migrate %q: %w", stmt, err)
@@ -458,15 +458,30 @@ func (s *Store) ListChats(ctx context.Context) ([]Chat, error) {
 		}
 		chats = append(chats, c)
 	}
-	return chats, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("notes: list chats rows: %w", err)
+	}
+	return chats, nil
 }
 
-// CreateChat creates a chat with the given title (trimmed; empty → "New chat").
-// Returns the persisted record including assigned id and timestamps.
+// ChatExists reports whether a chat with the given id is in the store.
+// Callers use it as a cheap precondition check — e.g. before stashing
+// attachments for a message that would otherwise land on a deleted chat.
+func (s *Store) ChatExists(ctx context.Context, id string) (bool, error) {
+	var n int
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM chats WHERE id = ?`, id).Scan(&n); err != nil {
+		return false, fmt.Errorf("notes: chat exists: %w", err)
+	}
+	return n > 0, nil
+}
+
+// CreateChat creates a chat with the given title. Empty/whitespace titles
+// are rejected so callers that want a default must be explicit.
 func (s *Store) CreateChat(ctx context.Context, title string) (*Chat, error) {
 	title = strings.TrimSpace(title)
 	if title == "" {
-		title = "New chat"
+		return nil, errors.New("notes: chat title is empty")
 	}
 	c := &Chat{
 		ID:        uuid.NewString(),
