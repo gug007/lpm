@@ -63,6 +63,21 @@ const STEPS: Step[] = [
     src: "/screenrecording/run-profile-project.gif",
     alt: "Running a project with multiple profiles in lpm desktop app",
   },
+  {
+    n: 5,
+    title: "Launch your AI agent in one click",
+    body: (
+      <>
+        Configure any command you want —{" "}
+        <strong>Claude</strong>, <strong>Codex</strong>, Aider, a custom script,
+        anything. Pick a project, click the button, and the terminal opens with
+        your agent already running in the right directory. No <code>cd</code>,
+        no setup, no excuses. From zero to coding in seconds.
+      </>
+    ),
+    src: "/screenrecording/start-project-claude.gif",
+    alt: "Launching Claude Code on a project in lpm desktop app",
+  },
 ];
 
 export function HowItWorks() {

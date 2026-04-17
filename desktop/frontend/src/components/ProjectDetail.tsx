@@ -8,7 +8,7 @@ import { TerminalView, type TerminalViewHandle } from "./TerminalView";
 import { ConfigEditor } from "./ConfigEditor";
 import { RunAction, RunActionBackground } from "../../wailsjs/go/main/App";
 import { getSettings, saveSettings } from "../settings";
-import { getProjectTerminals, saveProjectTerminals } from "../terminals";
+import { getProjectTerminals, saveProjectTerminals, countPersistedTabs } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
 import { type ProjectInfo, type ProfileInfo, type ActionInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
 import { TerminalIcon, CheckIcon, ChevronDownIcon, PencilIcon, MenuIcon, AlertCircleIcon, PlayIcon, StopIcon } from "./icons";
@@ -205,8 +205,8 @@ export function ProjectDetail({
   }, [visible]);
 
   const [terminalCount, setTerminalCount] = useState(() => {
-    const saved = getProjectTerminals(project.name).terminals;
-    return saved?.length ?? 0;
+    const saved = getProjectTerminals(project.name);
+    return countPersistedTabs(saved.panes) || (saved.terminals?.length ?? 0);
   });
   const showEmptyState = !project.running && detailView === "terminal" && terminalCount === 0;
 

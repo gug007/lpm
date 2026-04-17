@@ -64,6 +64,15 @@ export function getProjectTerminals(projectName: string): ProjectTerminalState {
   return cached.projects[projectName] ?? { detailView: "terminal" };
 }
 
+// Count tabs across a persisted pane tree. Used to seed terminal count
+// before the async restore reifies the tree — without this, callers fall
+// back to the legacy `terminals[]` field and miss new-format data.
+export function countPersistedTabs(node: PersistedPaneNode | undefined): number {
+  if (!node) return 0;
+  if (node.kind === "leaf") return node.tabs?.length ?? 0;
+  return countPersistedTabs(node.a) + countPersistedTabs(node.b);
+}
+
 export async function saveProjectTerminals(
   projectName: string,
   state: ProjectTerminalState,
