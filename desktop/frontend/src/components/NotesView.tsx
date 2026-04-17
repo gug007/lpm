@@ -6,11 +6,14 @@ import {
   NotesEditMessage,
   NotesListMessages,
   NotesReadAttachment,
+  NotesReadFileAsInput,
 } from "../../wailsjs/go/main/App";
+import { registerFileDropHandler } from "../fileDrop";
 import { main, notes } from "../../wailsjs/go/models";
 import { PaperclipIcon, SendIcon, TrashIcon, PencilIcon, DownloadIcon } from "./icons";
 import { base64ToBytes, bytesToBase64, bytesToBlobUrl, downloadBlob } from "../download";
 import { useAutoGrowTextarea } from "../hooks/useAutoGrowTextarea";
+import { MessageMarkdown } from "./MessageMarkdown";
 
 const PAGE_SIZE = 50;
 const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
@@ -119,6 +122,37 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     }
   }, []);
 
+  const addPaths = useCallback(async (paths: string[]) => {
+    for (const path of paths) {
+      try {
+        const input = await NotesReadFileAsInput(path);
+        const data = base64ToBytes(input.data);
+        setPending((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            name: input.name,
+            mimeType: input.mimeType || "application/octet-stream",
+            size: data.byteLength,
+            data,
+          },
+        ]);
+      } catch (err) {
+        toast.error(`Attach: ${err}`);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!visible) return;
+    return registerFileDropHandler(`notes:${projectName}`, (x, y, paths) => {
+      const el = document.elementFromPoint(x, y);
+      if (!el?.closest(`[data-notes-drop="${projectName}"]`)) return false;
+      addPaths(paths);
+      return true;
+    });
+  }, [visible, projectName, addPaths]);
+
   const removePending = useCallback((id: string) => {
     setPending((prev) => prev.filter((p) => p.id !== id));
   }, []);
@@ -219,6 +253,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
 
   return (
     <div
+      data-notes-drop={projectName}
       className="flex h-full min-h-0 flex-1 flex-col"
       onDragOver={(e) => {
         e.preventDefault();
@@ -326,7 +361,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
           </button>
         </div>
         <p className="mt-1 text-[10px] text-[var(--text-muted)]">
-          Enter to send · Shift+Enter for newline · drag-drop or paste to attach files
+          Enter to send · Shift+Enter for newline · markdown supported (**bold**, `code`, ```lang blocks) · drag-drop or paste to attach files
         </p>
       </div>
     </div>
@@ -415,9 +450,7 @@ function MessageBubble({
           </div>
         </div>
       ) : (
-        <div className="whitespace-pre-wrap text-sm text-[var(--text-primary)]">
-          {message.text}
-        </div>
+        <MessageMarkdown text={message.text} />
       )}
       {message.attachments && message.attachments.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">

@@ -6,8 +6,6 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import {
   EventsOn,
-  OnFileDrop,
-  OnFileDropOff,
 } from "../../wailsjs/runtime/runtime";
 import {
   ResizeTerminal,
@@ -17,6 +15,7 @@ import {
 } from "../../wailsjs/go/main/App";
 import { sendTerminalInput, shellQuote } from "../terminal-io";
 import { getTerminalTheme, openTerminalLink } from "./terminal-utils";
+import { registerFileDropHandler } from "../fileDrop";
 import "@xterm/xterm/css/xterm.css";
 
 export interface InteractivePaneHandle {
@@ -47,11 +46,12 @@ let fileDropInitialized = false;
 function initFileDrop() {
   if (fileDropInitialized) return;
   fileDropInitialized = true;
-  OnFileDrop((x, y, paths) => {
+  registerFileDropHandler("terminals", (x, y, paths) => {
     const id = terminalIdAtPoint(x, y);
-    if (!id) return;
+    if (!id) return false;
     pasteToTerminal(id, formatPastedPaths(paths));
-  }, false);
+    return true;
+  });
 }
 
 function terminalIdAtPoint(x: number, y: number): string | undefined {
@@ -140,15 +140,13 @@ export function disposeInteractivePaneSession(terminalId: string) {
   interactiveSessions.delete(terminalId);
 }
 
-// Wails caches the first OnFileDrop registration per page lifetime, so under
-// Vite HMR the stale callback would keep firing with old code. Also dispose
-// all cached sessions and the theme observer so the fresh module starts clean.
+// Vite HMR: dispose cached xterm sessions and the theme observer. The shared
+// fileDrop registry handles its own Wails deregistration.
 const viteHot = (
   import.meta as ImportMeta & { hot?: { dispose: (cb: () => void) => void } }
 ).hot;
 if (viteHot) {
   viteHot.dispose(() => {
-    OnFileDropOff();
     fileDropInitialized = false;
     for (const s of interactiveSessions.values()) disposeSession(s);
     interactiveSessions.clear();

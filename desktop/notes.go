@@ -3,8 +3,11 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
+	"mime"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,6 +17,11 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"golang.org/x/sync/errgroup"
 )
+
+// maxDroppedAttachmentBytes mirrors the MAX_ATTACHMENT_BYTES limit in the
+// frontend — drops from the OS bypass the browser's File-picker path so we
+// re-enforce the same cap here before loading the file into memory.
+const maxDroppedAttachmentBytes = 100 * 1024 * 1024
 
 // stashConcurrency bounds parallel blob writes so a multi-file send doesn't
 // spike memory by encrypting every attachment at once (100MB * N = bad).
@@ -162,6 +170,42 @@ func (a *App) NotesDeleteMessage(project, id string) error {
 		}
 	}
 	return nil
+}
+
+// NotesReadFileAsInput reads a file from disk and returns a ready-to-attach
+// payload. Used by the frontend when files arrive via native drag-and-drop
+// (Wails delivers OS file paths rather than File blobs).
+func (a *App) NotesReadFileAsInput(path string) (*NotesAttachmentInput, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if info.IsDir() {
+		return nil, fmt.Errorf("%s is a directory", info.Name())
+	}
+	if info.Size() > maxDroppedAttachmentBytes {
+		return nil, fmt.Errorf("%s exceeds 100MB limit", info.Name())
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	mimeType := mime.TypeByExtension(strings.ToLower(filepath.Ext(path)))
+	if mimeType == "" {
+		sniffLen := len(data)
+		if sniffLen > 512 {
+			sniffLen = 512
+		}
+		mimeType = http.DetectContentType(data[:sniffLen])
+	}
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+	return &NotesAttachmentInput{
+		Name:     filepath.Base(path),
+		MimeType: mimeType,
+		Data:     base64.StdEncoding.EncodeToString(data),
+	}, nil
 }
 
 // NotesReadAttachment returns base64. See NotesAttachmentInput for the
