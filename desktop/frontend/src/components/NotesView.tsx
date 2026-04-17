@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   useInfiniteQuery,
@@ -21,7 +21,7 @@ import {
 } from "../../wailsjs/go/main/App";
 import { registerFileDropHandler } from "../fileDrop";
 import { main, notes } from "../../wailsjs/go/models";
-import { PaperclipIcon, SendIcon, TrashIcon, PencilIcon, DownloadIcon, PlusIcon, MessageIcon } from "./icons";
+import { PaperclipIcon, SendIcon, TrashIcon, PencilIcon, DownloadIcon, MessageIcon, SidebarIcon } from "./icons";
 import { base64ToBytes, bytesToBase64, bytesToBlobUrl, downloadBlob } from "../download";
 import { useAutoGrowTextarea } from "../hooks/useAutoGrowTextarea";
 import { MessageMarkdown } from "./MessageMarkdown";
@@ -58,16 +58,33 @@ export function activeChatStorageKey(projectName: string) {
   return `notes:activeChat:${projectName}`;
 }
 
+// Single user-wide preference — not per-project. Sidebar collapse is a
+// personal layout choice, not a workspace attribute.
+const SIDEBAR_COLLAPSED_KEY = "notes:sidebarCollapsed";
+
 export function NotesView({ projectName, visible }: NotesViewProps) {
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const [pending, setPending] = useState<PendingAttachment[]>([]);
   const [activeChatID, setActiveChatID] = useState<string | null>(null);
+  // null = user hasn't explicitly chosen yet, so fall back to the
+  // chat-count heuristic (collapsed when there's fewer than 2 chats).
+  const [sidebarPref, setSidebarPref] = useState<boolean | null>(() => {
+    const stored = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+    return stored === null ? null : stored === "1";
+  });
+  const setSidebarCollapsed = useCallback((v: boolean) => {
+    setSidebarPref(v);
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, v ? "1" : "0");
+  }, []);
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const scrollToBottomOnNextRenderRef = useRef(false);
+  // While true, any layout/resize of the list pins scroll to bottom — covers
+  // async image decodes growing content after the initial scroll. Cleared
+  // when the user scrolls away from the bottom.
+  const pinToBottomRef = useRef(false);
   // Latch the auto-seed so StrictMode's effect double-invoke (and the window
   // before the mutation registers as pending) can't create two "General" chats.
   const seededChatForProject = useRef<string | null>(null);
@@ -121,18 +138,27 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
   );
   const groups = useMemo(() => buildDayGroups(messages), [messages]);
 
+  // Arm the pin whenever we freshly land on a chat's messages — initial
+  // load, chat switch, or tab reactivation.
   useEffect(() => {
     if (query.isSuccess && query.data?.pages.length === 1) {
-      scrollToBottomOnNextRenderRef.current = true;
+      pinToBottomRef.current = true;
     }
-  }, [query.isSuccess, query.data?.pages.length]);
+  }, [query.isSuccess, query.data?.pages.length, activeChatID]);
 
-  useLayoutEffect(() => {
-    if (scrollToBottomOnNextRenderRef.current && listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight;
-      scrollToBottomOnNextRenderRef.current = false;
-    }
-  }, [messages.length]);
+  // While pinned, observe list size so image-load growth rescrolls to bottom.
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const scrollDown = () => {
+      if (pinToBottomRef.current) el.scrollTop = el.scrollHeight;
+    };
+    scrollDown();
+    const observer = new ResizeObserver(scrollDown);
+    observer.observe(el);
+    for (const child of Array.from(el.children)) observer.observe(child);
+    return () => observer.disconnect();
+  }, [messages, activeChatID]);
 
   useEffect(() => {
     if (visible) textareaRef.current?.focus();
@@ -142,7 +168,10 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
 
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
-      if (e.currentTarget.scrollTop < 80 && query.hasNextPage && !query.isFetchingNextPage) {
+      const el = e.currentTarget;
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 16;
+      if (!nearBottom) pinToBottomRef.current = false;
+      if (el.scrollTop < 80 && query.hasNextPage && !query.isFetchingNextPage) {
         query.fetchNextPage();
       }
     },
@@ -242,7 +271,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
         const updated = notes.Chat.createFrom({ ...prev[idx], updatedAt: msg.ts });
         return [updated, ...prev.slice(0, idx), ...prev.slice(idx + 1)];
       });
-      scrollToBottomOnNextRenderRef.current = true;
+      pinToBottomRef.current = true;
     },
     onError: (err) => toast.error(`Send: ${err}`),
   });
@@ -388,6 +417,9 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
   const isEmpty = !query.isPending && activeChatID !== null && messages.length === 0;
   const activeChat = activeChatID ? chats.find((c) => c.id === activeChatID) : null;
   const composerPlaceholder = activeChat ? `Message ${activeChat.title}…` : "Pick a chat…";
+  // With no explicit pref, default to collapsed when there's nothing to
+  // navigate to (fewer than 2 chats).
+  const effectiveCollapsed = sidebarPref ?? chats.length < 2;
 
   return (
     <div
@@ -399,7 +431,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
       }}
       onDrop={handleDrop}
     >
-      {chats.length > 1 && (
+      {!effectiveCollapsed && chats.length > 0 && (
         <ChatList
           chats={chats}
           activeId={activeChatID}
@@ -407,21 +439,20 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
           onCreate={() => createChatMutation.mutate("New chat")}
           onRename={(id, title) => renameChatMutation.mutate({ id, title })}
           onDelete={(id) => deleteChatMutation.mutate(id)}
+          onCollapse={() => setSidebarCollapsed(true)}
           canDelete={chats.length > 1}
         />
       )}
 
       <div className="relative flex min-w-0 flex-1 flex-col">
-        {chats.length <= 1 && (
+        {effectiveCollapsed && chats.length > 0 && (
           <button
-            onClick={() => createChatMutation.mutate("New chat")}
-            disabled={createChatMutation.isPending}
-            className="absolute right-4 top-3 z-10 flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-[11px] text-[var(--text-muted)] shadow-sm transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
-            title="New chat"
-            aria-label="New chat"
+            onClick={() => setSidebarCollapsed(false)}
+            className="absolute left-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-muted)] shadow-sm transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            title="Show chats"
+            aria-label="Show chats"
           >
-            <PlusIcon />
-            <span>New chat</span>
+            <SidebarIcon />
           </button>
         )}
         <div

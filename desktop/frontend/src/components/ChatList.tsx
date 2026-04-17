@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { notes } from "../../wailsjs/go/models";
-import { PlusIcon, PencilIcon, TrashIcon } from "./icons";
+import { PlusIcon, PencilIcon, TrashIcon, ChevronLeftIcon } from "./icons";
 import { RenameInput } from "./RenameInput";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 
@@ -11,6 +11,7 @@ interface ChatListProps {
   onCreate: () => void;
   onRename: (id: string, title: string) => void;
   onDelete: (id: string) => void;
+  onCollapse: () => void;
   canDelete: boolean;
 }
 
@@ -21,6 +22,7 @@ export function ChatList({
   onCreate,
   onRename,
   onDelete,
+  onCollapse,
   canDelete,
 }: ChatListProps) {
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -36,14 +38,24 @@ export function ChatList({
         <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
           Chats
         </span>
-        <button
-          onClick={onCreate}
-          className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          title="New chat"
-          aria-label="New chat"
-        >
-          <PlusIcon />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={onCreate}
+            className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            title="New chat"
+            aria-label="New chat"
+          >
+            <PlusIcon />
+          </button>
+          <button
+            onClick={onCollapse}
+            className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            title="Collapse sidebar"
+            aria-label="Collapse sidebar"
+          >
+            <ChevronLeftIcon />
+          </button>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto px-1.5 pb-2">
         {chats.map((c) => {
