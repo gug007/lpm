@@ -8,5 +8,9 @@
     <true/>
     <key>com.apple.security.network.server</key>
     <true/>
+    <key>keychain-access-groups</key>
+    <array>
+        <string>N7S7ZCZ5P7.com.wails.lpm</string>
+    </array>
 </dict>
 </plist>
