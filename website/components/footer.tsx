@@ -1,12 +1,45 @@
-import { REPO_URL } from "@/lib/links";
+import Link from "next/link";
+import { REPO_URL, VS_SLUGS, vsPath } from "@/lib/links";
+
+const COMPARE_LABELS: Record<(typeof VS_SLUGS)[number], string> = {
+  foreman: "Foreman",
+  overmind: "Overmind",
+  "docker-compose": "Docker Compose",
+  tmux: "tmux",
+  pm2: "PM2",
+};
 
 export function Footer() {
   return (
     <footer className="py-10 border-t border-gray-100 dark:border-gray-800/60 text-center">
-      <div className="max-w-3xl mx-auto px-6 flex flex-col items-center gap-3">
+      <div className="max-w-3xl mx-auto px-6 flex flex-col items-center gap-4">
         <p className="text-xs text-gray-300 dark:text-gray-600 tracking-wide">
           Built for developers
         </p>
+        <nav
+          aria-label="Comparisons"
+          className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] text-gray-400 dark:text-gray-500"
+        >
+          <span className="text-gray-300 dark:text-gray-600">Compare</span>
+          {VS_SLUGS.map((slug, i) => (
+            <span key={slug} className="flex items-center gap-2">
+              {i > 0 && (
+                <span
+                  aria-hidden="true"
+                  className="text-gray-200 dark:text-gray-700"
+                >
+                  ·
+                </span>
+              )}
+              <Link
+                href={vsPath(slug)}
+                className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              >
+                {COMPARE_LABELS[slug]}
+              </Link>
+            </span>
+          ))}
+        </nav>
         <a
           href={REPO_URL}
           className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors inline-flex items-center gap-1.5"
