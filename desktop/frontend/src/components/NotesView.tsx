@@ -146,19 +146,26 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     }
   }, [query.isSuccess, query.data?.pages.length, activeChatID]);
 
-  // While pinned, observe list size so image-load growth rescrolls to bottom.
+  // Scroll on every message list change while pinned. Catches initial load,
+  // new message appends, and chat switches.
+  useEffect(() => {
+    const el = listRef.current;
+    if (el && pinToBottomRef.current) el.scrollTop = el.scrollHeight;
+  }, [messages]);
+
+  // Separately observe the current children so late image decodes (which
+  // grow scrollHeight after layout) re-pin. Rebuilds only on chat switch —
+  // new messages are handled by the effect above.
   useEffect(() => {
     const el = listRef.current;
     if (!el) return;
     const scrollDown = () => {
       if (pinToBottomRef.current) el.scrollTop = el.scrollHeight;
     };
-    scrollDown();
     const observer = new ResizeObserver(scrollDown);
-    observer.observe(el);
     for (const child of Array.from(el.children)) observer.observe(child);
     return () => observer.disconnect();
-  }, [messages, activeChatID]);
+  }, [activeChatID]);
 
   useEffect(() => {
     if (visible) textareaRef.current?.focus();
@@ -166,16 +173,17 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
 
   useAutoGrowTextarea(textareaRef, text, TEXTAREA_MAX_HEIGHT_PX);
 
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
       const el = e.currentTarget;
       const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 16;
       if (!nearBottom) pinToBottomRef.current = false;
-      if (el.scrollTop < 80 && query.hasNextPage && !query.isFetchingNextPage) {
-        query.fetchNextPage();
+      if (el.scrollTop < 80 && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage();
       }
     },
-    [query],
+    [hasNextPage, isFetchingNextPage, fetchNextPage],
   );
 
   const buildPendingFromFile = async (file: File): Promise<PendingAttachment | null> => {
