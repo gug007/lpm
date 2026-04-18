@@ -377,11 +377,20 @@ func (s *Store) loadAttachments(ctx context.Context, ids []string, byID map[stri
 	return rows.Err()
 }
 
-// EditMessage returns sql.ErrNoRows if the message does not exist.
+// EditMessage returns sql.ErrNoRows if the message does not exist. Bumps
+// the owning chat's updated_ts so the chat list reflects the edit as
+// recent activity.
 func (s *Store) EditMessage(ctx context.Context, id, text string) error {
-	res, err := s.db.ExecContext(ctx,
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	now := time.Now().UnixMilli()
+	res, err := tx.ExecContext(ctx,
 		`UPDATE messages SET text = ?, edited_ts = ? WHERE id = ?`,
-		text, time.Now().UnixMilli(), id)
+		text, now, id)
 	if err != nil {
 		return fmt.Errorf("notes: edit message: %w", err)
 	}
@@ -389,7 +398,13 @@ func (s *Store) EditMessage(ctx context.Context, id, text string) error {
 	if n == 0 {
 		return sql.ErrNoRows
 	}
-	return nil
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE chats SET updated_ts = ?
+		 WHERE id = (SELECT chat_id FROM messages WHERE id = ?)`,
+		now, id); err != nil {
+		return fmt.Errorf("notes: bump chat on edit: %w", err)
+	}
+	return tx.Commit()
 }
 
 // DeleteMessage removes a message (its attachment rows cascade) and returns

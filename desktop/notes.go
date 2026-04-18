@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -53,46 +55,59 @@ func (n *notesState) open(ctx context.Context, project string) (*notesBundle, er
 		return nil, err
 	}
 
-	// Fast path: hit the cache and release the lock before any slow work.
-	n.mu.Lock()
-	if b, ok := n.stores[project]; ok {
+	// Retry loop covers the race where invalidateKey fires while we're
+	// opening: we'd otherwise publish a store built with a stale key.
+	for attempt := 0; attempt < 3; attempt++ {
+		// Fast path: hit the cache and release the lock before any slow work.
+		n.mu.Lock()
+		if b, ok := n.stores[project]; ok {
+			n.mu.Unlock()
+			return b, nil
+		}
+		if n.key == nil {
+			key, err := vault.Key()
+			if err != nil {
+				n.mu.Unlock()
+				return nil, err
+			}
+			n.key = key
+		}
+		keyAtOpen := n.key
+		n.mu.Unlock()
+
+		// Opening runs migrations, which can take seconds on a large legacy
+		// DB. Doing this outside the lock prevents an unrelated project's
+		// first open from blocking every other notes call.
+		store, err := notes.Open(ctx, project, keyAtOpen)
+		if err != nil {
+			return nil, err
+		}
+		blobs, err := notes.NewBlobStore(store.BlobsDir(), keyAtOpen)
+		if err != nil {
+			store.Close()
+			return nil, err
+		}
+
+		n.mu.Lock()
+		// Another caller may have raced us and published first — reuse theirs.
+		if existing, ok := n.stores[project]; ok {
+			n.mu.Unlock()
+			store.Close()
+			return existing, nil
+		}
+		// Key was invalidated mid-open (import / key rotation). Our store
+		// holds the old key; discard it and retry with the fresh key.
+		if !bytes.Equal(n.key, keyAtOpen) {
+			n.mu.Unlock()
+			store.Close()
+			continue
+		}
+		b := &notesBundle{store: store, blobs: blobs}
+		n.stores[project] = b
 		n.mu.Unlock()
 		return b, nil
 	}
-	if n.key == nil {
-		key, err := vault.Key()
-		if err != nil {
-			n.mu.Unlock()
-			return nil, err
-		}
-		n.key = key
-	}
-	key := n.key
-	n.mu.Unlock()
-
-	// Opening runs migrations, which can take seconds on a large legacy DB.
-	// Doing this outside the lock prevents an unrelated project's first open
-	// from blocking every other notes call.
-	store, err := notes.Open(ctx, project, key)
-	if err != nil {
-		return nil, err
-	}
-	blobs, err := notes.NewBlobStore(store.BlobsDir(), key)
-	if err != nil {
-		store.Close()
-		return nil, err
-	}
-
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	// Another caller may have raced us and published first — reuse theirs.
-	if existing, ok := n.stores[project]; ok {
-		store.Close()
-		return existing, nil
-	}
-	b := &notesBundle{store: store, blobs: blobs}
-	n.stores[project] = b
-	return b, nil
+	return nil, errors.New("notes: vault key invalidated repeatedly during open")
 }
 
 // forget drops the cached bundle so the next access reopens against current

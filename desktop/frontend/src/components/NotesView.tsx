@@ -138,13 +138,12 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
   );
   const groups = useMemo(() => buildDayGroups(messages), [messages]);
 
-  // Arm the pin whenever we freshly land on a chat's messages — initial
-  // load, chat switch, or tab reactivation.
+  // Fresh landing on a chat should scroll to bottom regardless of whether
+  // data is cached with 1 or N pages. User scrolling up clears the pin via
+  // handleScroll; sending a new message re-pins via addMutation.onSuccess.
   useEffect(() => {
-    if (query.isSuccess && query.data?.pages.length === 1) {
-      pinToBottomRef.current = true;
-    }
-  }, [query.isSuccess, query.data?.pages.length, activeChatID]);
+    pinToBottomRef.current = true;
+  }, [activeChatID]);
 
   // Scroll on every message list change while pinned. Catches initial load,
   // new message appends, and chat switches.
@@ -244,10 +243,20 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     return registerFileDropHandler(`notes:${projectName}`, (x, y, paths) => {
       const el = document.elementFromPoint(x, y);
       if (!el?.closest(`[data-notes-drop="${projectName}"]`)) return false;
+      // No chat selected → nothing to attach to. Consume the drop so it
+      // doesn't cascade to another handler with the wrong target.
+      if (!activeChatID) return true;
       addPaths(paths);
       return true;
     });
-  }, [visible, projectName, addPaths]);
+  }, [visible, projectName, addPaths, activeChatID]);
+
+  // Pending attachments belong to the chat the user was composing for. If
+  // they switch chats, drop the pending so they can't be sent to the wrong
+  // place.
+  useEffect(() => {
+    setPending([]);
+  }, [activeChatID]);
 
   const removePending = useCallback((id: string) => {
     setPending((prev) => prev.filter((p) => p.id !== id));
@@ -285,15 +294,16 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
   });
 
   const editMutation = useMutation({
-    mutationFn: async (input: { id: string; text: string }) => {
+    // chatID rides the input so onSuccess doesn't depend on a closure that
+    // may have rotated (user switched chats before the response landed).
+    mutationFn: async (input: { id: string; chatID: string; text: string }) => {
       await NotesEditMessage(projectName, input.id, input.text);
       return input;
     },
-    onSuccess: ({ id, text }) => {
-      if (!activeChatID) return;
-      qc.setQueryData<NotesPages>(messagesKey(projectName, activeChatID), (prev) => {
+    onSuccess: ({ id, chatID, text }) => {
+      const ts = Date.now();
+      qc.setQueryData<NotesPages>(messagesKey(projectName, chatID), (prev) => {
         if (!prev) return prev;
-        const ts = Date.now();
         return {
           ...prev,
           pages: prev.pages.map((page) =>
@@ -303,18 +313,25 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
           ),
         };
       });
+      // Mirror the store's chat recency bump so the sidebar re-sorts.
+      qc.setQueryData<notes.Chat[]>(chatsKey(projectName), (prev) => {
+        if (!prev) return prev;
+        const idx = prev.findIndex((c) => c.id === chatID);
+        if (idx < 0) return prev;
+        const updated = notes.Chat.createFrom({ ...prev[idx], updatedAt: ts });
+        return [updated, ...prev.slice(0, idx), ...prev.slice(idx + 1)];
+      });
     },
     onError: (err) => toast.error(`Edit: ${err}`),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await NotesDeleteMessage(projectName, id);
-      return id;
+    mutationFn: async (input: { id: string; chatID: string }) => {
+      await NotesDeleteMessage(projectName, input.id);
+      return input;
     },
-    onSuccess: (id) => {
-      if (!activeChatID) return;
-      qc.setQueryData<NotesPages>(messagesKey(projectName, activeChatID), (prev) => {
+    onSuccess: ({ id, chatID }) => {
+      qc.setQueryData<NotesPages>(messagesKey(projectName, chatID), (prev) => {
         if (!prev) return prev;
         return { ...prev, pages: prev.pages.map((page) => page.filter((m) => m.id !== id)) };
       });
@@ -384,12 +401,14 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
 
   // Stable message-row callbacks so MessageRow's memo actually holds across
   // composer keystrokes (which re-render NotesView on every character).
+  // chatID comes from the message, not the active selection, so edits/deletes
+  // land in the correct chat even if the user switches mid-flight.
   const handleSaveMessage = useCallback(
-    (id: string, text: string) => editMutation.mutate({ id, text }),
+    (id: string, chatID: string, text: string) => editMutation.mutate({ id, chatID, text }),
     [editMutation],
   );
   const handleDeleteMessage = useCallback(
-    (id: string) => deleteMutation.mutate(id),
+    (id: string, chatID: string) => deleteMutation.mutate({ id, chatID }),
     [deleteMutation],
   );
 
@@ -401,6 +420,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!activeChatID) return;
     const items = e.clipboardData?.items;
     if (!items) return;
     const files: File[] = [];
@@ -419,6 +439,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!activeChatID) return;
     if (e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files);
   };
 
@@ -629,8 +650,8 @@ function buildDayGroups(newestFirst: notes.Message[]): DayGroup[] {
 interface MessageRowProps {
   message: notes.Message;
   projectName: string;
-  onSave: (id: string, text: string) => void;
-  onDelete: (id: string) => void;
+  onSave: (id: string, chatID: string, text: string) => void;
+  onDelete: (id: string, chatID: string) => void;
 }
 
 const MessageRow = memo(function MessageRow({ message, projectName, onSave, onDelete }: MessageRowProps) {
@@ -642,11 +663,10 @@ const MessageRow = memo(function MessageRow({ message, projectName, onSave, onDe
   const cancel = () => setDraft(null);
   const save = () => {
     if (draft === null) return;
-    const trimmed = draft;
-    if (trimmed !== message.text) onSave(message.id, trimmed);
+    if (draft !== message.text) onSave(message.id, message.chatId, draft);
     setDraft(null);
   };
-  const handleDelete = () => onDelete(message.id);
+  const handleDelete = () => onDelete(message.id, message.chatId);
 
   return (
     <div className="group relative -mx-2 rounded-md px-2 py-1 hover:bg-[var(--bg-hover)]/50">
