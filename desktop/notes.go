@@ -207,6 +207,21 @@ func (a *App) NotesListChats(project string) ([]notes.Chat, error) {
 	return chats, nil
 }
 
+func (a *App) NotesSearch(project, query string, limit int) ([]notes.SearchHit, error) {
+	b, err := a.notes.open(a.ctx, project)
+	if err != nil {
+		return nil, err
+	}
+	hits, err := b.store.Search(a.ctx, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	if hits == nil {
+		hits = []notes.SearchHit{}
+	}
+	return hits, nil
+}
+
 func (a *App) NotesCreateChat(project, title string) (*notes.Chat, error) {
 	b, err := a.notes.open(a.ctx, project)
 	if err != nil {

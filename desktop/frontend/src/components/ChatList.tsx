@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { notes } from "../../wailsjs/go/models";
-import { PlusIcon, PencilIcon, TrashIcon, SidebarIcon } from "./icons";
+import { PlusIcon, PencilIcon, TrashIcon, SidebarIcon, SearchIcon } from "./icons";
 import { RenameInput } from "./RenameInput";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 
@@ -9,6 +9,7 @@ interface ChatListProps {
   activeId: string | null;
   onSelect: (id: string) => void;
   onCreate: () => void;
+  onSearch: () => void;
   onRename: (id: string, title: string) => void;
   onDelete: (id: string) => void;
   onCollapse: () => void;
@@ -20,6 +21,7 @@ export function ChatList({
   activeId,
   onSelect,
   onCreate,
+  onSearch,
   onRename,
   onDelete,
   onCollapse,
@@ -39,6 +41,14 @@ export function ChatList({
           Chats
         </span>
         <div className="flex items-center gap-0.5">
+          <button
+            onClick={onSearch}
+            className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            title="Search notes"
+            aria-label="Search notes"
+          >
+            <SearchIcon />
+          </button>
           <button
             onClick={onCreate}
             className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -458,4 +459,152 @@ func TestStore_BackfillsLegacyMessagesIntoDefaultChat(t *testing.T) {
 	if len(msgs) != 2 {
 		t.Fatalf("msgs = %d, want 2", len(msgs))
 	}
+}
+
+func TestStore_Search(t *testing.T) {
+	s, _ := newTestStore(t)
+	ctx := context.Background()
+	chat := newTestChat(t, s)
+
+	mustAdd := func(text string) *Message {
+		t.Helper()
+		m, err := s.AddMessage(ctx, chat, text, nil)
+		if err != nil {
+			t.Fatalf("add %q: %v", text, err)
+		}
+		return m
+	}
+	// Space the inserts so ts DESC ordering is deterministic (AddMessage uses
+	// millisecond precision and a tight loop can tie).
+	_ = mustAdd("docker compose up fails on arm64")
+	time.Sleep(2 * time.Millisecond)
+	_ = mustAdd("remember: GCS bucket is gs://foo-bar")
+	time.Sleep(2 * time.Millisecond)
+	latest := mustAdd("docker volume prune before rebuild")
+
+	t.Run("single token", func(t *testing.T) {
+		hits, err := s.Search(ctx, "docker", 10)
+		if err != nil {
+			t.Fatalf("search: %v", err)
+		}
+		if len(hits) != 2 {
+			t.Fatalf("hits = %d, want 2", len(hits))
+		}
+		if hits[0].MessageID != latest.ID {
+			t.Fatalf("first hit = %s, want newest %s", hits[0].MessageID, latest.ID)
+		}
+		if hits[0].ChatTitle != "test" {
+			t.Fatalf("chat title = %q, want test", hits[0].ChatTitle)
+		}
+		if !strings.Contains(strings.ToLower(hits[0].Snippet), "docker") {
+			t.Fatalf("snippet %q should contain docker", hits[0].Snippet)
+		}
+	})
+
+	t.Run("multi-token AND", func(t *testing.T) {
+		hits, err := s.Search(ctx, "docker arm64", 10)
+		if err != nil {
+			t.Fatalf("search: %v", err)
+		}
+		if len(hits) != 1 {
+			t.Fatalf("hits = %d, want 1 (AND of both tokens)", len(hits))
+		}
+	})
+
+	t.Run("case insensitive ASCII", func(t *testing.T) {
+		hits, err := s.Search(ctx, "DOCKER", 10)
+		if err != nil {
+			t.Fatalf("search: %v", err)
+		}
+		if len(hits) != 2 {
+			t.Fatalf("hits = %d, want 2", len(hits))
+		}
+	})
+
+	t.Run("empty query", func(t *testing.T) {
+		hits, err := s.Search(ctx, "   ", 10)
+		if err != nil {
+			t.Fatalf("search: %v", err)
+		}
+		if len(hits) != 0 {
+			t.Fatalf("hits = %d, want 0 for empty query", len(hits))
+		}
+	})
+
+	t.Run("LIKE wildcards are escaped", func(t *testing.T) {
+		// "%" must not match everything — without escaping it would.
+		hits, err := s.Search(ctx, "%", 10)
+		if err != nil {
+			t.Fatalf("search: %v", err)
+		}
+		if len(hits) != 0 {
+			t.Fatalf("hits = %d, want 0 (no literal percent in any message)", len(hits))
+		}
+	})
+
+	t.Run("edits are searchable, pre-edit text is not", func(t *testing.T) {
+		m, err := s.AddMessage(ctx, chat, "before edit sentinel", nil)
+		if err != nil {
+			t.Fatalf("add: %v", err)
+		}
+		if err := s.EditMessage(ctx, m.ID, "after edit marker"); err != nil {
+			t.Fatalf("edit: %v", err)
+		}
+		hitsAfter, err := s.Search(ctx, "marker", 10)
+		if err != nil {
+			t.Fatalf("search after: %v", err)
+		}
+		if len(hitsAfter) == 0 || hitsAfter[0].MessageID != m.ID {
+			t.Fatalf("expected edited message in search for 'marker', got %+v", hitsAfter)
+		}
+		hitsBefore, err := s.Search(ctx, "sentinel", 10)
+		if err != nil {
+			t.Fatalf("search before: %v", err)
+		}
+		if len(hitsBefore) != 0 {
+			t.Fatalf("pre-edit text should no longer match, got %+v", hitsBefore)
+		}
+	})
+
+	t.Run("deleted messages drop out of results", func(t *testing.T) {
+		m, err := s.AddMessage(ctx, chat, "transient needle for deletion", nil)
+		if err != nil {
+			t.Fatalf("add: %v", err)
+		}
+		if _, err := s.DeleteMessage(ctx, m.ID); err != nil {
+			t.Fatalf("delete: %v", err)
+		}
+		hits, err := s.Search(ctx, "needle", 10)
+		if err != nil {
+			t.Fatalf("search: %v", err)
+		}
+		if len(hits) != 0 {
+			t.Fatalf("deleted message should not appear, got %+v", hits)
+		}
+	})
+
+	t.Run("snippet is truncated with ellipses", func(t *testing.T) {
+		long := strings.Repeat("padding ", 100) + "KEYWORD " + strings.Repeat("after ", 100)
+		_, err := s.AddMessage(ctx, chat, long, nil)
+		if err != nil {
+			t.Fatalf("add: %v", err)
+		}
+		hits, err := s.Search(ctx, "KEYWORD", 10)
+		if err != nil {
+			t.Fatalf("search: %v", err)
+		}
+		if len(hits) == 0 {
+			t.Fatal("expected at least one hit")
+		}
+		sn := hits[0].Snippet
+		if !strings.Contains(sn, "KEYWORD") {
+			t.Fatalf("snippet %q missing KEYWORD", sn)
+		}
+		if !strings.HasPrefix(sn, "…") || !strings.HasSuffix(sn, "…") {
+			t.Fatalf("snippet %q should be bracketed with ellipses", sn)
+		}
+		if len(sn) > 400 {
+			t.Fatalf("snippet too long (%d bytes): %q", len(sn), sn)
+		}
+	})
 }

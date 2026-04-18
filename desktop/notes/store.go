@@ -611,6 +611,128 @@ func (s *Store) DeleteChat(ctx context.Context, id string) ([]string, error) {
 	return orphans, nil
 }
 
+// SearchHit is one result from Store.Search — the message's owning chat is
+// included so the UI can render hits grouped without a second round-trip.
+// Snippet is plain text: a window around the first match with ellipses on
+// truncation, safe to render without further escaping.
+type SearchHit struct {
+	MessageID string `json:"id"`
+	ChatID    string `json:"chatId"`
+	ChatTitle string `json:"chatTitle"`
+	Timestamp int64  `json:"ts"`
+	Snippet   string `json:"snippet"`
+}
+
+// Search returns messages matching every whitespace-separated token in query
+// (ASCII-case-insensitive LIKE), newest first. Empty/whitespace-only queries
+// short-circuit to nil so callers don't have to special-case them.
+//
+// LIKE is intentional over FTS5: the sqlcipher driver in use only bundles
+// FTS5 under a build tag we don't set, and at per-project-notes scale a full
+// scan over messages.text is imperceptible.
+func (s *Store) Search(ctx context.Context, query string, limit int) ([]SearchHit, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	tokens := strings.Fields(query)
+	if len(tokens) == 0 {
+		return nil, nil
+	}
+	conds := make([]string, len(tokens))
+	args := make([]any, 0, len(tokens)+1)
+	for i, t := range tokens {
+		conds[i] = `m.text LIKE ? ESCAPE '\'`
+		args = append(args, "%"+escapeLike(t)+"%")
+	}
+	args = append(args, limit)
+	sqlStr := `SELECT m.id, m.chat_id, c.title, m.ts, m.text
+	           FROM messages m
+	           JOIN chats c ON c.id = m.chat_id
+	           WHERE ` + strings.Join(conds, " AND ") + `
+	           ORDER BY m.ts DESC LIMIT ?`
+	rows, err := s.db.QueryContext(ctx, sqlStr, args...)
+	if err != nil {
+		return nil, fmt.Errorf("notes: search: %w", err)
+	}
+	defer rows.Close()
+	var hits []SearchHit
+	for rows.Next() {
+		var h SearchHit
+		var text string
+		if err := rows.Scan(&h.MessageID, &h.ChatID, &h.ChatTitle, &h.Timestamp, &text); err != nil {
+			return nil, err
+		}
+		h.Snippet = buildSnippet(text, tokens[0])
+		hits = append(hits, h)
+	}
+	return hits, rows.Err()
+}
+
+// escapeLike neutralises LIKE wildcards so a query like "50%" doesn't match
+// every message. Backslash escapes itself because ESCAPE '\' is in the SQL.
+func escapeLike(s string) string {
+	return likeEscaper.Replace(s)
+}
+
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
+// buildSnippet returns a short window of text around the first match of term,
+// aligned to rune boundaries and marked with ellipses where truncated. We
+// render search results as plain text (not markdown) so the caller can rely
+// on this output being safe to drop into a text node.
+func buildSnippet(text, term string) string {
+	const before, after = 80, 160
+	idx := strings.Index(strings.ToLower(text), strings.ToLower(term))
+	if idx < 0 {
+		// The row matched LIKE but ToLower shifted byte offsets (rare
+		// Unicode case-folding). Fall back to the head of the text.
+		return headSnippet(text, before+after)
+	}
+	start, end := idx-before, idx+len(term)+after
+	if start < 0 {
+		start = 0
+	}
+	if end > len(text) {
+		end = len(text)
+	}
+	start = alignRuneStart(text, start)
+	end = alignRuneEnd(text, end)
+	out := text[start:end]
+	if start > 0 {
+		out = "…" + out
+	}
+	if end < len(text) {
+		out += "…"
+	}
+	return out
+}
+
+func headSnippet(text string, n int) string {
+	if len(text) <= n {
+		return text
+	}
+	end := alignRuneEnd(text, n)
+	return text[:end] + "…"
+}
+
+// alignRuneStart walks left until the byte is a leading (non-continuation)
+// UTF-8 byte, so slicing text[i:] doesn't produce an invalid rune prefix.
+func alignRuneStart(text string, i int) int {
+	for i > 0 && (text[i]&0xC0) == 0x80 {
+		i--
+	}
+	return i
+}
+
+// alignRuneEnd walks right past any continuation bytes so text[:i] ends on a
+// complete rune.
+func alignRuneEnd(text string, i int) int {
+	for i < len(text) && (text[i]&0xC0) == 0x80 {
+		i++
+	}
+	return i
+}
+
 // orphansAmong returns the subset of candidates no longer referenced by any
 // attachment row. One round-trip regardless of candidate count.
 func orphansAmong(ctx context.Context, tx *sql.Tx, candidates []string) ([]string, error) {

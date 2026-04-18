@@ -18,6 +18,7 @@ import {
   NotesReadAttachment,
   NotesReadFileAsInput,
   NotesRenameChat,
+  NotesSearch,
 } from "../../wailsjs/go/main/App";
 import { registerFileDropHandler } from "../fileDrop";
 import { main, notes } from "../../wailsjs/go/models";
@@ -27,6 +28,8 @@ import {
   TrashIcon,
   PencilIcon,
   DownloadIcon,
+  SearchIcon,
+  XIcon,
 } from "./icons";
 import {
   base64ToBytes,
@@ -66,6 +69,10 @@ function messagesKey(projectName: string, chatID: string) {
   return ["notes", projectName, "messages", chatID] as const;
 }
 
+function searchKey(projectName: string, query: string) {
+  return ["notes", projectName, "search", query] as const;
+}
+
 export function activeChatStorageKey(projectName: string) {
   return `notes:activeChat:${projectName}`;
 }
@@ -89,6 +96,38 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     setSidebarPref(v);
     window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, v ? "1" : "0");
   }, []);
+
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const debouncedSearch = useDebounced(searchText, 180);
+  const trimmedSearch = debouncedSearch.trim();
+  const searchTokens = useMemo(
+    () => (trimmedSearch ? trimmedSearch.split(/\s+/).filter(Boolean) : []),
+    [trimmedSearch],
+  );
+  // Compile once per token set — otherwise highlightTokens would build a
+  // fresh regex per hit on every render of the results list.
+  const highlighter = useMemo(() => buildHighlighter(searchTokens), [searchTokens]);
+  // "Search mode" — swaps the message list for the results panel — is active
+  // only when the bar is open AND the user has typed something. Opening the
+  // bar with an empty field keeps the messages visible.
+  const searchOn = searchOpen && searchText.trim().length > 0;
+
+  const openSearch = useCallback(() => setSearchOpen(true), []);
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setSearchText("");
+  }, []);
+
+  // Focus the input whenever the bar opens — the toolbar button should feel
+  // like "drop me into the field" rather than "reveal a target to click".
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
+
+  const [highlightID, setHighlightID] = useState<string | null>(null);
+  const pendingJumpRef = useRef<{ chatID: string; messageID: string } | null>(null);
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -166,6 +205,19 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
   );
   const groups = useMemo(() => buildDayGroups(messages), [messages]);
 
+  const searchQuery = useQuery({
+    queryKey: searchKey(projectName, trimmedSearch),
+    queryFn: async () => (await NotesSearch(projectName, trimmedSearch, 50)) ?? [],
+    // Gate on the debounced value so a mid-typing render doesn't fire an
+    // empty-query request before the user has settled.
+    enabled: visible && trimmedSearch.length > 0,
+    staleTime: 30_000,
+  });
+  const hits = useMemo<notes.SearchHit[]>(
+    () => searchQuery.data ?? [],
+    [searchQuery.data],
+  );
+
   // Fresh landing on a chat should scroll to bottom regardless of whether
   // data is cached with 1 or N pages. User scrolling up clears the pin via
   // handleScroll; sending a new message re-pins via addMutation.onSuccess.
@@ -200,7 +252,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
 
   useAutoGrowTextarea(textareaRef, text, TEXTAREA_MAX_HEIGHT_PX);
 
-  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+  const { hasNextPage, isFetchingNextPage, fetchNextPage, isFetching } = query;
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
       const el = e.currentTarget;
@@ -212,6 +264,43 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     },
     [hasNextPage, isFetchingNextPage, fetchNextPage],
   );
+
+  const jumpToMessage = useCallback((hit: notes.SearchHit) => {
+    pendingJumpRef.current = { chatID: hit.chatId, messageID: hit.id };
+    setHighlightID(hit.id);
+    setSearchOpen(false);
+    setSearchText("");
+    setActiveChatID(hit.chatId);
+  }, []);
+
+  // Gated on !searchOn so the list is mounted when we try to scroll the
+  // target into view — the results panel hides the list via `hidden`.
+  useEffect(() => {
+    const jump = pendingJumpRef.current;
+    if (!jump) return;
+    if (searchOn) return;
+    if (activeChatID !== jump.chatID) return;
+    if (isFetching) return;
+    const found = messages.some((m) => m.id === jump.messageID);
+    if (found) {
+      pendingJumpRef.current = null;
+      pinToBottomRef.current = false;
+      requestAnimationFrame(() => {
+        const el = listRef.current?.querySelector<HTMLElement>(
+          `[data-msg-id="${jump.messageID}"]`,
+        );
+        el?.scrollIntoView({ block: "center", behavior: "smooth" });
+      });
+      const h = window.setTimeout(() => setHighlightID(null), 1800);
+      return () => window.clearTimeout(h);
+    }
+    if (hasNextPage) {
+      fetchNextPage();
+      return;
+    }
+    pendingJumpRef.current = null;
+    setHighlightID((prev) => (prev === null ? prev : null));
+  }, [searchOn, activeChatID, messages, isFetching, hasNextPage, fetchNextPage]);
 
   const buildPendingFromFile = async (
     file: File,
@@ -530,6 +619,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
             activeId={activeChatID}
             onSelect={setActiveChatID}
             onCreate={() => createChatMutation.mutate("New chat")}
+            onSearch={openSearch}
             onExpand={() => setSidebarCollapsed(false)}
           />
         ) : (
@@ -538,6 +628,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
             activeId={activeChatID}
             onSelect={setActiveChatID}
             onCreate={() => createChatMutation.mutate("New chat")}
+            onSearch={openSearch}
             onRename={(id, title) => renameChatMutation.mutate({ id, title })}
             onDelete={(id) => deleteChatMutation.mutate(id)}
             onCollapse={() => setSidebarCollapsed(true)}
@@ -546,10 +637,83 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
         ))}
 
       <div className="relative flex min-w-0 flex-1 flex-col">
+        {searchOpen && (
+          <div className="border-b border-[var(--border)] px-3 py-2">
+            <div className="relative flex items-center">
+              <div className="pointer-events-none absolute left-2.5 text-[var(--text-muted)]">
+                <SearchIcon />
+              </div>
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search notes"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") closeSearch();
+                }}
+                className="h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] pl-8 pr-8 text-sm outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--text-primary)]/30"
+              />
+              <button
+                type="button"
+                onClick={closeSearch}
+                aria-label="Close search"
+                className="absolute right-1.5 flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              >
+                <XIcon />
+              </button>
+            </div>
+          </div>
+        )}
+        {searchOn && (
+          <div className="flex-1 overflow-y-auto">
+            {searchQuery.isPending && (
+              <div className="px-6 py-8 text-center text-xs text-[var(--text-muted)]">
+                Searching…
+              </div>
+            )}
+            {searchQuery.isError && (
+              <div className="px-6 py-8 text-center text-xs text-[var(--accent-red)]">
+                Search failed.
+              </div>
+            )}
+            {!searchQuery.isPending &&
+              !searchQuery.isError &&
+              trimmedSearch.length > 0 &&
+              hits.length === 0 && (
+                <div className="px-6 py-8 text-center text-xs text-[var(--text-muted)]">
+                  No matches for "{trimmedSearch}"
+                </div>
+              )}
+            {hits.length > 0 && (
+              <ul className="divide-y divide-[var(--border)]">
+                {hits.map((hit) => (
+                  <li key={hit.id}>
+                    <button
+                      type="button"
+                      onClick={() => jumpToMessage(hit)}
+                      className="flex w-full flex-col gap-1 px-4 py-3 text-left hover:bg-[var(--bg-hover)]"
+                    >
+                      <div className="flex items-center gap-2 text-[11px] text-[var(--text-muted)]">
+                        <span className="rounded bg-[var(--bg-hover)] px-1.5 py-0.5 text-[var(--text-secondary)]">
+                          {hit.chatTitle}
+                        </span>
+                        <span>{formatHitDate(hit.ts)}</span>
+                      </div>
+                      <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-[var(--text-primary)]">
+                        {highlightTokens(hit.snippet, highlighter)}
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
         <div
           ref={listRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-y-auto px-6 py-5"
+          className={`flex-1 overflow-y-auto px-6 py-5 ${searchOn ? "hidden" : ""}`}
         >
           {query.hasNextPage && (
             <div className="mb-3 text-center text-[11px] text-[var(--text-muted)]">
@@ -601,6 +765,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
                     key={m.id}
                     message={m}
                     projectName={projectName}
+                    highlight={m.id === highlightID}
                     onSave={handleSaveMessage}
                     onDelete={handleDeleteMessage}
                   />
@@ -732,6 +897,7 @@ function buildDayGroups(newestFirst: notes.Message[]): DayGroup[] {
 interface MessageRowProps {
   message: notes.Message;
   projectName: string;
+  highlight: boolean;
   onSave: (id: string, chatID: string, text: string) => void;
   onDelete: (id: string, chatID: string) => void;
 }
@@ -739,6 +905,7 @@ interface MessageRowProps {
 const MessageRow = memo(function MessageRow({
   message,
   projectName,
+  highlight,
   onSave,
   onDelete,
 }: MessageRowProps) {
@@ -756,7 +923,14 @@ const MessageRow = memo(function MessageRow({
   const handleDelete = () => onDelete(message.id, message.chatId);
 
   return (
-    <div className="group relative -mx-2 rounded-md px-2 py-1 hover:bg-[var(--bg-hover)]/50">
+    <div
+      data-msg-id={message.id}
+      className={`group relative -mx-2 rounded-md px-2 py-1 transition-colors duration-700 ${
+        highlight
+          ? "bg-[var(--accent-blue)]/15"
+          : "hover:bg-[var(--bg-hover)]/50"
+      }`}
+    >
       {!editing && (
         <div className="pointer-events-none absolute right-2 top-0 z-10 flex items-center gap-0.5 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] p-0.5 opacity-0 shadow-sm transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
           <button
@@ -950,4 +1124,52 @@ function formatDayLabel(d: Date, now: Date) {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function formatHitDate(ts: number) {
+  const d = new Date(ts);
+  return `${formatDayLabel(d, new Date())} · ${formatTime(ts)}`;
+}
+
+function escapeRegex(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+type Highlighter = { pattern: RegExp; lower: Set<string> } | null;
+
+function buildHighlighter(tokens: string[]): Highlighter {
+  if (tokens.length === 0) return null;
+  return {
+    pattern: new RegExp(`(${tokens.map(escapeRegex).join("|")})`, "ig"),
+    lower: new Set(tokens.map((t) => t.toLowerCase())),
+  };
+}
+
+// Matches via split-with-capture so the output preserves the source text's
+// original casing — displaying "Docker" when the user searched "docker".
+function highlightTokens(text: string, h: Highlighter): React.ReactNode {
+  if (!h) return text;
+  return text.split(h.pattern).map((part, i) => {
+    if (!part) return null;
+    if (h.lower.has(part.toLowerCase())) {
+      return (
+        <mark
+          key={i}
+          className="rounded-sm bg-[var(--accent-blue)]/25 px-0.5 text-[var(--text-primary)]"
+        >
+          {part}
+        </mark>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
+function useDebounced<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const h = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(h);
+  }, [value, delayMs]);
+  return debounced;
 }

@@ -1,11 +1,12 @@
 import type { notes } from "../../wailsjs/go/models";
-import { PlusIcon, SidebarIcon } from "./icons";
+import { PlusIcon, SidebarIcon, SearchIcon } from "./icons";
 
 interface MiniChatRailProps {
   chats: notes.Chat[];
   activeId: string | null;
   onSelect: (id: string) => void;
   onCreate: () => void;
+  onSearch: () => void;
   onExpand: () => void;
 }
 
@@ -17,6 +18,7 @@ export function MiniChatRail({
   activeId,
   onSelect,
   onCreate,
+  onSearch,
   onExpand,
 }: MiniChatRailProps) {
   return (
@@ -28,6 +30,14 @@ export function MiniChatRail({
         aria-label="Expand sidebar"
       >
         <SidebarIcon />
+      </button>
+      <button
+        onClick={onSearch}
+        className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        title="Search notes"
+        aria-label="Search notes"
+      >
+        <SearchIcon />
       </button>
       <button
         onClick={onCreate}
