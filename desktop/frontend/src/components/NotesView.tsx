@@ -504,10 +504,10 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
                 </div>
                 <div className="flex flex-col items-center gap-1.5">
                   <h3 className="text-sm font-medium text-[var(--text-primary)]">
-                    Nothing here yet
+                    Knowledge you can't commit
                   </h3>
                   <p className="text-xs leading-relaxed text-[var(--text-muted)]">
-                    Write, paste, or drop files. Markdown supported. End-to-end encrypted.
+                    Credentials, commands, context, screenshots. The stuff you'd otherwise lose in a Slack DM to yourself.
                   </p>
                 </div>
               </div>

@@ -1,10 +1,34 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useState, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ensureLang, tokenizeLines, type Token } from "../highlight";
 
 interface MessageMarkdownProps {
   text: string;
+}
+
+const URL_RE = /(https?:\/\/[^\s<>"'`]+)/g;
+
+function renderWithLinks(text: string): ReactNode {
+  if (!text.includes("http")) return text;
+  const parts = text.split(URL_RE);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) =>
+    i % 2 === 1 ? (
+      <a
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline"
+        style={{ color: "inherit" }}
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    ),
+  );
 }
 
 export const MessageMarkdown = memo(function MessageMarkdown({ text }: MessageMarkdownProps) {
@@ -24,10 +48,10 @@ const components: Components = {
     if (inline) {
       return (
         <code
-          className="rounded bg-[var(--bg-hover)] px-1 py-0.5 font-mono text-[12px] text-[var(--text-primary)]"
+          className="select-text rounded bg-[var(--bg-hover)] px-1 py-0.5 font-mono text-[12px] text-[var(--text-primary)]"
           {...rest}
         >
-          {children}
+          {renderWithLinks(raw)}
         </code>
       );
     }
@@ -139,7 +163,7 @@ function CodeBlock({ code, lang }: CodeBlockProps) {
           </button>
         </div>
       )}
-      <pre className="overflow-x-auto px-3 py-2 text-[12.5px] leading-5">
+      <pre className="select-text overflow-x-auto px-3 py-2 text-[12.5px] leading-5">
         <code className="font-mono">
           {lines
             ? lines.map((tokens, i) => (
@@ -149,13 +173,13 @@ function CodeBlock({ code, lang }: CodeBlockProps) {
                   ) : (
                     tokens.map((t, j) => (
                       <span key={j} style={t.color ? { color: t.color } : undefined}>
-                        {t.content}
+                        {renderWithLinks(t.content)}
                       </span>
                     ))
                   )}
                 </div>
               ))
-            : code}
+            : renderWithLinks(code)}
         </code>
       </pre>
     </div>
