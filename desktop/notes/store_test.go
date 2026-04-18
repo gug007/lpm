@@ -327,6 +327,83 @@ func TestStore_AddMessageRejectsUnknownChat(t *testing.T) {
 	}
 }
 
+// Mirrors the chat-delete flow in main.NotesDeleteChat: targeted orphan
+// removal followed by a full sweep that catches blobs with no DB reference.
+// Verifies blob files actually leave disk for hashes the deleted chat owned
+// exclusively, that shared blobs survive, and that pre-existing strays
+// (simulating a failed AddMessage write) are swept.
+func TestStore_DeleteChatRemovesAllUnreferencedBlobs(t *testing.T) {
+	s, key := newTestStore(t)
+	ctx := context.Background()
+
+	blobs, err := NewBlobStore(s.BlobsDir(), key)
+	if err != nil {
+		t.Fatalf("blobs: %v", err)
+	}
+
+	put := func(name string) (string, []byte) {
+		t.Helper()
+		data := []byte(name)
+		hash, _, err := blobs.Put(data)
+		if err != nil {
+			t.Fatalf("put %s: %v", name, err)
+		}
+		return hash, data
+	}
+
+	sharedHash, _ := put("shared")
+	soloAHash, _ := put("solo-a")
+	soloBHash, _ := put("solo-b")
+	// Stray blob with no DB reference — simulates a Put that succeeded but
+	// whose AddMessage failed before the attachment row was inserted.
+	strayHash, _ := put("stray")
+
+	a := newTestChat(t, s)
+	b := newTestChat(t, s)
+	if _, err := s.AddMessage(ctx, a, "in a", []Attachment{
+		{Hash: sharedHash, Name: "shared", Size: 6},
+		{Hash: soloAHash, Name: "solo-a", Size: 6},
+	}); err != nil {
+		t.Fatalf("add a: %v", err)
+	}
+	if _, err := s.AddMessage(ctx, b, "in b", []Attachment{
+		{Hash: sharedHash, Name: "shared", Size: 6},
+		{Hash: soloBHash, Name: "solo-b", Size: 6},
+	}); err != nil {
+		t.Fatalf("add b: %v", err)
+	}
+
+	orphans, err := s.DeleteChat(ctx, a)
+	if err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	for _, h := range orphans {
+		if err := blobs.Delete(h); err != nil {
+			t.Fatalf("delete orphan %s: %v", h, err)
+		}
+	}
+	refs, err := s.AllAttachmentHashes(ctx)
+	if err != nil {
+		t.Fatalf("all refs: %v", err)
+	}
+	if _, err := blobs.GC(refs); err != nil {
+		t.Fatalf("gc: %v", err)
+	}
+
+	mustExist := []string{sharedHash, soloBHash}
+	mustGone := []string{soloAHash, strayHash}
+	for _, h := range mustExist {
+		if !blobs.Exists(h) {
+			t.Errorf("blob %s gone but should remain", h)
+		}
+	}
+	for _, h := range mustGone {
+		if blobs.Exists(h) {
+			t.Errorf("blob %s remains but should be removed", h)
+		}
+	}
+}
+
 // Simulates an on-disk DB created before chats existed. After reopening with
 // the current schema, every pre-existing message should have been backfilled
 // into a single "General" chat.

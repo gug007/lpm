@@ -445,7 +445,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
 
   const isEmpty = !query.isPending && activeChatID !== null && messages.length === 0;
   const activeChat = activeChatID ? chats.find((c) => c.id === activeChatID) : null;
-  const composerPlaceholder = activeChat ? `Message ${activeChat.title}…` : "Pick a chat…";
+  const composerPlaceholder = activeChat ? "Write a note…" : "Pick a chat…";
   // With no explicit pref, default to collapsed when there's nothing to
   // navigate to (fewer than 2 chats).
   const effectiveCollapsed = sidebarPref ?? chats.length < 2;
@@ -504,7 +504,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
                 </div>
                 <div className="flex flex-col items-center gap-1.5">
                   <h3 className="text-sm font-medium text-[var(--text-primary)]">
-                    {activeChat ? activeChat.title : "Nothing here yet"}
+                    Nothing here yet
                   </h3>
                   <p className="text-xs leading-relaxed text-[var(--text-muted)]">
                     Write, paste, or drop files. Markdown supported. End-to-end encrypted.

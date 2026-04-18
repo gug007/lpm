@@ -233,6 +233,10 @@ func (a *App) NotesDeleteChat(project, chatID string) error {
 		return err
 	}
 	b.gcOrphanBlobs(orphans)
+	// Belt-and-suspenders sweep: removes any blob with no DB reference,
+	// including pre-existing orphans from a failed AddMessage write or a
+	// previous chat-delete whose blob removal returned an error.
+	b.sweepUnreferencedBlobs(a.ctx)
 	return nil
 }
 
@@ -244,6 +248,20 @@ func (b *notesBundle) gcOrphanBlobs(hashes []string) {
 		if err := b.blobs.Delete(h); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: notes: delete orphan blob %s: %v\n", h, err)
 		}
+	}
+}
+
+// sweepUnreferencedBlobs walks the blob dir and deletes anything not in the
+// attachment table. Errors are logged, not returned — the parent operation
+// (chat delete) has already succeeded by the time this runs.
+func (b *notesBundle) sweepUnreferencedBlobs(ctx context.Context) {
+	refs, err := b.store.AllAttachmentHashes(ctx)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: notes: list attachment refs: %v\n", err)
+		return
+	}
+	if _, err := b.blobs.GC(refs); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: notes: blob sweep: %v\n", err)
 	}
 }
 

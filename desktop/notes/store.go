@@ -479,6 +479,30 @@ func (s *Store) ListChats(ctx context.Context) ([]Chat, error) {
 	return chats, nil
 }
 
+// AllAttachmentHashes returns the set of every hash currently referenced by
+// any attachment row. Callers pass this to BlobStore.GC to sweep blob files
+// that have no remaining DB reference (e.g. left over from a failed Put or
+// a previous delete whose blob removal returned an error).
+func (s *Store) AllAttachmentHashes(ctx context.Context) (map[string]struct{}, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT hash FROM attachments`)
+	if err != nil {
+		return nil, fmt.Errorf("notes: list attachment hashes: %w", err)
+	}
+	defer rows.Close()
+	out := map[string]struct{}{}
+	for rows.Next() {
+		var h string
+		if err := rows.Scan(&h); err != nil {
+			return nil, err
+		}
+		out[h] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ChatExists reports whether a chat with the given id is in the store.
 // Callers use it as a cheap precondition check — e.g. before stashing
 // attachments for a message that would otherwise land on a deleted chat.
