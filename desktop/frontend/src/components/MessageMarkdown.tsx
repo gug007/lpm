@@ -1,6 +1,7 @@
-import { memo, useEffect, useState, type ReactNode } from "react";
+import { memo, useEffect, useState, type MouseEvent, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { ensureLang, tokenizeLines, type Token } from "../highlight";
 
 interface MessageMarkdownProps {
@@ -8,6 +9,11 @@ interface MessageMarkdownProps {
 }
 
 const URL_RE = /(https?:\/\/[^\s<>"'`]+)/g;
+
+function openExternal(e: MouseEvent<HTMLAnchorElement>, url: string) {
+  e.preventDefault();
+  BrowserOpenURL(url);
+}
 
 function renderWithLinks(text: string): ReactNode {
   if (!text.includes("http")) return text;
@@ -18,8 +24,7 @@ function renderWithLinks(text: string): ReactNode {
       <a
         key={i}
         href={part}
-        target="_blank"
-        rel="noopener noreferrer"
+        onClick={(e) => openExternal(e, part)}
         className="underline"
         style={{ color: "inherit" }}
       >
@@ -65,8 +70,7 @@ const components: Components = {
     return (
       <a
         href={href}
-        target="_blank"
-        rel="noopener noreferrer"
+        onClick={(e) => href && openExternal(e, href)}
         className="text-[var(--accent-blue,#3b82f6)] underline hover:opacity-80"
         {...rest}
       >
