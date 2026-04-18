@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { notes } from "../../wailsjs/go/models";
-import { PlusIcon, PencilIcon, TrashIcon, ChevronLeftIcon } from "./icons";
+import { PlusIcon, PencilIcon, TrashIcon, SidebarIcon } from "./icons";
 import { RenameInput } from "./RenameInput";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 
@@ -53,7 +53,7 @@ export function ChatList({
             title="Collapse sidebar"
             aria-label="Collapse sidebar"
           >
-            <ChevronLeftIcon />
+            <SidebarIcon />
           </button>
         </div>
       </div>
