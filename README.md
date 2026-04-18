@@ -2,13 +2,12 @@
 
 <p align="center">
   <i>One click to start, stop, or duplicate your dev projects.
-  Run Claude Code, Codex, and other AI agents in parallel on the same codebase — no conflicts, no context switching. .</i>
+  Run Claude Code, Codex, and other AI agents in parallel on the same codebase — no conflicts, no context switching.</i>
 </p>
 
 <p align="center">
   <a href="https://lpm.cx"><img src="https://img.shields.io/badge/website-lpm.cx-blue" alt="Website"></a>
   <a href="https://github.com/gug007/lpm/releases/latest"><img src="https://img.shields.io/github/v/release/gug007/lpm" alt="Release"></a>
- 
 </p>
 
 ---
@@ -17,8 +16,10 @@
   <a href="https://lpm.cx"><strong>Download lpm for macOS</strong></a>
 </p>
 
+A native macOS desktop app for managing your dev projects. Start, stop, duplicate, and switch between projects with a single click — with a built-in terminal optimized for AI coding agents like Claude Code and Codex.
+
 - Start and stop your entire project with a single click
-- Build fast with AI coding agents, and other AI agents
+- Build fast with AI coding agents
 - The best terminal for AI agents like Claude Code and Codex
 - Duplicate your project instantly to build features in parallel —  
   run multiple agents on the same codebase without conflicts
@@ -26,154 +27,58 @@
 - Switch between projects without losing context or running processes
 - Keep long-running tasks alive across sessions
 
+## Install
+
+Download the `.dmg` from [Releases](https://github.com/gug007/lpm/releases/latest), open it, and drag lpm to Applications.
+
+Supports macOS (Apple Silicon & Intel).
+
+## See it in action
+
 <p align="center">
   <strong>Add a project</strong> — browse to a directory, define services, save<br><br>
   <img src="website/public/screenrecording/add-project.gif" alt="Adding a new project in lpm desktop app" width="700">
   <br><br>
   <strong>Start a project</strong> — one click, live terminal output for every service<br><br>
   <img src="website/public/screenrecording/start-project.gif" alt="Starting a project in lpm desktop app" width="700">
+  <br><br>
+  <strong>Run AI agents alongside your services</strong> — Claude Code, Codex, or any agent in the same workspace<br><br>
+  <img src="website/public/screenrecording/start-project-claude.gif" alt="Running Claude Code in lpm" width="700">
+  <br><br>
+  <strong>Duplicate a project</strong> — work on features in parallel, no conflicts<br><br>
+  <img src="website/public/screenrecording/duplicate-project.gif" alt="Duplicating a project in lpm" width="700">
+  <br><br>
+  <strong>Fast switching</strong> — stop one project, start another in seconds<br><br>
+  <img src="website/public/screenrecording/fast-start-stop-projects.gif" alt="Switching between projects in lpm" width="700">
+  <br><br>
+  <strong>Split terminals</strong> — arrange services and agents side-by-side<br><br>
+  <img src="website/public/screenrecording/split-window.gif" alt="Splitting terminals in lpm" width="700">
 </p>
 
-A lightweight local project manager for macOS. Define your project services in a simple YAML config, then start, stop, and switch between dev projects with a single command. Built for developers who juggle multiple services — Rails, Next.js, Go, Django, Docker Compose, and more.
+## Why lpm?
 
-**Two ways to use it — CLI and desktop app.** Both have the same functionality, share the same config and state, and stay fully in sync. Start a project from the app, stop it from the terminal. Use whichever fits your workflow, or both.
-
-**Why lpm?**
-
-- No Docker required — runs your services natively
-- Auto-detects project setup (Rails, Next.js, Go, Django, Flask, Docker Compose)
-- One command to switch between projects
-- Profile support for running service subsets
-- Tab completion for all commands
-- **Desktop app** — native macOS GUI with live terminal, config editor, and theme support
+- **Native macOS app** — GUI with live terminal, config editor, notes, and theme support
+- **No Docker required** — runs your services natively
+- **Auto-detects project setup** — Rails, Next.js, Go, Django, Flask, Docker Compose
+- **Profiles** for running service subsets
+- **Actions** — one-shot commands like tests, migrations, and deploys, runnable from the Actions button
+- **Works with any stack** — if it runs in a terminal, lpm can manage it
 - **CLI + App in sync** — same features, same state, mix and match freely
-- Works with any stack — if it runs in a terminal, lpm can manage it
-
-## Install lpm
-
-**CLI:**
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/gug007/lpm/main/install.sh | bash
-```
-
-**Desktop app:** download the `.dmg` from [Releases](https://github.com/gug007/lpm/releases/latest), open it, and drag to Applications.
-
-Supports macOS (Apple Silicon & Intel).
-
-## Quick start
-
-```sh
-cd ~/Projects/myapp
-lpm init          # detects services, creates config
-lpm myapp         # start in background, show status
-lpm start myapp   # start and open terminal to session
-lpm switch other  # stop myapp, start other
-lpm kill          # stop everything
-```
-
-`lpm init` auto-detects Rails, Node.js, Next.js, Vite, React, Go, Django, Flask, and Docker Compose projects.
-
-## Examples
-
-**Simple — Next.js app**
-
-```yaml
-# ~/.lpm/projects/storefront.yml
-name: storefront
-root: ~/Projects/storefront
-services:
-  dev: npm run dev
-```
-
-```sh
-lpm storefront         # start in background
-lpm start storefront   # start and open terminal
-lpm kill storefront    # stop
-```
-
-**Full stack — Python API + Next.js frontend + worker**
-
-```yaml
-# ~/.lpm/projects/myapp.yml
-name: myapp
-root: ~/Projects/myapp
-
-services:
-  api:
-    cmd: python manage.py runserver
-    cwd: ./backend
-    port: 8000
-  frontend:
-    cmd: npm run dev
-    cwd: ./frontend
-  worker: celery -A backend worker
-
-profiles:
-  default: [api, frontend]
-  full: [api, frontend, worker]
-
-actions:
-  test: pytest
-  migrate:
-    cmd: python manage.py migrate
-    cwd: ./backend
-    confirm: true
-  deploy: ./scripts/deploy.sh
-```
-
-Services can be a simple string (`dev: npm run dev`) or a full object when you need `cwd`, `port`, or `env`. Actions are one-shot commands — test runners, migrations, deploy scripts.
-
-`confirm: true` shows a confirmation dialog before running. Actions can be run from the CLI or from the desktop app via the Actions button.
-
-```sh
-lpm myapp              # starts api + frontend
-lpm myapp -p full      # starts everything
-lpm run myapp test     # run tests
-lpm run myapp deploy   # deploy
-```
-
-## CLI Commands
-
-| Command                      | Description                          |
-| ---------------------------- | ------------------------------------ |
-| `lpm <project>`              | Start in background                  |
-| `lpm start <project>`        | Start and open terminal              |
-| `lpm switch <project>`       | Stop all, start another              |
-| `lpm kill [project]`         | Stop a project (all if none given)   |
-| `lpm list`                   | List all projects                    |
-| `lpm status <project>`       | Show project details                 |
-| `lpm init [name]`            | Create config from current directory |
-| `lpm edit <project>`         | Open config in `$EDITOR`             |
-| `lpm remove <project>`       | Remove a project                     |
-| `lpm open <project>`         | View a running project's live output |
-| `lpm run <project> <action>` | Run a project action                 |
-
-## Project Configuration
-
-Configs live in `~/.lpm/projects/<name>.yml`. Each config has:
-
-- **root** — project directory
-- **services** — named services with `cmd`, `cwd`, `port`, and `env`
-- **profiles** — groups of services to start together
-
-Configs are validated on load — lpm will catch missing commands, invalid ports, duplicate ports, and nonexistent directories before starting anything.
 
 ## AI Agent Skill
 
-This repo includes an agent skill that lets your AI coding agent create and manage lpm configs for you. Install it via [skills.sh](https://skills.sh):
+lpm includes an agent skill that lets your AI coding agent create and manage lpm configs for you. Install it via [skills.sh](https://skills.sh):
 
 ```bash
-# Interactive — shows available skills
 npx skills add gug007/lpm
-
-# Or install directly
-npx skills add gug007/lpm -s lpm-config
-
-# Globally (all projects)
-npx skills add gug007/lpm -s lpm-config -g
 ```
 
-Then just tell your agent "set up lpm for this project" and it will analyze your codebase, discover services, and write the config. It understands all lpm config options including actions with inputs, terminal actions, action groups, profiles, and duplicate projects.
+Then just tell your agent "set up lpm for this project" and it will analyze your codebase, discover services, and write the config.
 
 See [lpm-config/README.md](lpm-config/README.md) for details.
+
+## CLI
+
+Prefer the terminal? lpm also ships with a CLI that shares the same config and state as the desktop app.
+
+See [README-CLI.md](README-CLI.md) for install instructions, commands, and configuration reference.
