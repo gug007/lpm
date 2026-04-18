@@ -348,6 +348,40 @@ func (a *App) NotesReadAttachment(project, hash string) (string, error) {
 	return base64.StdEncoding.EncodeToString(data), nil
 }
 
+// NotesSaveAttachment prompts for a folder and writes the attachment there
+// with its original name. Returns "" when the dialog is cancelled.
+// Uses OpenDirectoryDialog for the same reason as ExportConfig — native
+// SaveFileDialog has proven flaky on newer macOS.
+func (a *App) NotesSaveAttachment(project, hash, name string) (result string, err error) {
+	defer recoverAs("save attachment", &err)
+
+	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+		Title:                "Save attachment to folder",
+		CanCreateDirectories: true,
+	})
+	if err != nil {
+		return "", err
+	}
+	if dir == "" {
+		return "", nil
+	}
+
+	b, err := a.notes.open(a.ctx, project)
+	if err != nil {
+		return "", err
+	}
+	data, err := b.blobs.Read(hash)
+	if err != nil {
+		return "", err
+	}
+
+	path := filepath.Join(dir, filepath.Base(name))
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
 // VaultExportKey prompts for a folder and writes a passphrase-wrapped copy
 // of the vault key. The exported file decrypts every lpm feature that uses
 // the vault (notes today, future env vars, ...).

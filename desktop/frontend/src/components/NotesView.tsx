@@ -18,6 +18,7 @@ import {
   NotesReadAttachment,
   NotesReadFileAsInput,
   NotesRenameChat,
+  NotesSaveAttachment,
   NotesSearch,
 } from "../../wailsjs/go/main/App";
 import { registerFileDropHandler } from "../fileDrop";
@@ -35,12 +36,12 @@ import {
   base64ToBytes,
   bytesToBase64,
   bytesToBlobUrl,
-  downloadBlob,
 } from "../download";
 import { useAutoGrowTextarea } from "../hooks/useAutoGrowTextarea";
 import { MessageMarkdown } from "./MessageMarkdown";
 import { ChatList } from "./ChatList";
 import { MiniChatRail } from "./MiniChatRail";
+import { Modal } from "./ui/Modal";
 
 const PAGE_SIZE = 50;
 const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
@@ -1008,6 +1009,9 @@ const MessageRow = memo(function MessageRow({
   );
 });
 
+const LIGHTBOX_BTN =
+  "rounded-md bg-black/60 p-1.5 text-white transition-colors hover:bg-black/80";
+
 interface AttachmentChipProps {
   projectName: string;
   attachment: notes.Attachment;
@@ -1015,6 +1019,7 @@ interface AttachmentChipProps {
 
 function AttachmentChip({ projectName, attachment }: AttachmentChipProps) {
   const [url, setUrl] = useState<string | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const isImage = attachment.mimeType?.startsWith("image/");
 
   // Ref-tracked so StrictMode's double-invocation doesn't revoke the live URL
@@ -1053,30 +1058,53 @@ function AttachmentChip({ projectName, attachment }: AttachmentChipProps) {
 
   const download = async () => {
     try {
-      const b64 = await NotesReadAttachment(projectName, attachment.hash);
-      downloadBlob(
-        base64ToBytes(b64),
+      const path = await NotesSaveAttachment(
+        projectName,
+        attachment.hash,
         attachment.name,
-        attachment.mimeType || "application/octet-stream",
       );
+      if (path) toast.success(`Saved to ${path}`);
     } catch (err) {
-      toast.error(`Download: ${err}`);
+      toast.error(`Save: ${err}`);
     }
   };
 
   if (isImage && url) {
     return (
-      <button
-        onClick={download}
-        className="overflow-hidden rounded-lg border border-[var(--border)] transition-opacity hover:opacity-90"
-        title={`${attachment.name} · ${formatSize(attachment.size)} — click to download`}
-      >
-        <img
-          src={url}
-          alt={attachment.name}
-          className="max-h-56 max-w-xs object-contain"
-        />
-      </button>
+      <>
+        <button
+          onClick={() => setLightboxOpen(true)}
+          className="overflow-hidden rounded-lg border border-[var(--border)] transition-opacity hover:opacity-90"
+          title={`${attachment.name} · ${formatSize(attachment.size)} — click to view`}
+        >
+          <img
+            src={url}
+            alt={attachment.name}
+            className="max-h-56 max-w-xs object-contain"
+          />
+        </button>
+        <Modal
+          open={lightboxOpen}
+          onClose={() => setLightboxOpen(false)}
+          backdropClassName="bg-black/80"
+          containerClassName="p-6"
+          contentClassName="flex max-h-full max-w-full items-center justify-center"
+        >
+          <img
+            src={url}
+            alt={attachment.name}
+            className="max-h-[90vh] max-w-[90vw] object-contain"
+          />
+          <div className="absolute right-2 top-2 flex gap-1">
+            <button onClick={download} className={LIGHTBOX_BTN} title="Download">
+              <DownloadIcon />
+            </button>
+            <button onClick={() => setLightboxOpen(false)} className={LIGHTBOX_BTN} title="Close">
+              <XIcon />
+            </button>
+          </div>
+        </Modal>
+      </>
     );
   }
 
