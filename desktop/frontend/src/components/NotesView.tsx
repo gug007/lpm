@@ -483,10 +483,10 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
                 </div>
                 <div className="flex flex-col items-center gap-1.5">
                   <h3 className="text-sm font-medium text-[var(--text-primary)]">
-                    {activeChat ? activeChat.title : "Start a note"}
+                    {activeChat ? activeChat.title : "Nothing here yet"}
                   </h3>
                   <p className="text-xs leading-relaxed text-[var(--text-muted)]">
-                    Capture a thought, paste a snippet, or drop files in. Markdown is supported and everything stays end-to-end encrypted.
+                    Write, paste, or drop files. Markdown supported. End-to-end encrypted.
                   </p>
                 </div>
               </div>
