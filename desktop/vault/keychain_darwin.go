@@ -16,6 +16,9 @@ const (
 	keychainLabel   = "lpm vault key"
 )
 
+// errSecMissingEntitlement. go-keychain doesn't export a constant for it.
+const errMissingEntitlement = keychain.Error(-34018)
+
 // All Keychain ops use SynchronizableAny on read/delete so legacy local-only
 // items still match. New items are written as Synchronizable so they ride
 // the user's iCloud Keychain to their other Macs / iOS devices.
@@ -95,11 +98,16 @@ func writeKey(key []byte) error {
 	// for the item to participate in iCloud Keychain sync.
 	item.SetAccessible(keychain.AccessibleWhenUnlocked)
 	item.SetSynchronizable(keychain.SynchronizableYes)
-	if err := keychain.AddItem(item); err != nil {
-		if errors.Is(err, keychain.ErrorDuplicateItem) {
-			return nil
-		}
-		return fmt.Errorf("vault: write keychain item: %w", err)
+	err := keychain.AddItem(item)
+	// Unsigned / dev builds lack the keychain-access-groups entitlement
+	// required for iCloud Keychain sync, so fall back to a local-only item.
+	if errors.Is(err, errMissingEntitlement) {
+		item.SetAccessible(keychain.AccessibleWhenUnlockedThisDeviceOnly)
+		item.SetSynchronizable(keychain.SynchronizableNo)
+		err = keychain.AddItem(item)
 	}
-	return nil
+	if err == nil || errors.Is(err, keychain.ErrorDuplicateItem) {
+		return nil
+	}
+	return fmt.Errorf("vault: write keychain item: %w", err)
 }
