@@ -84,7 +84,7 @@ jobs:
         run: |
           codesign --deep --force --options runtime \
             --sign "$SIGNING_IDENTITY" \
-            --entitlements desktop/build/darwin/entitlements.plist \
+            --entitlements desktop/build/darwin/entitlements.release.plist \
             --timestamp \
             desktop/build/bin/lpm.app
           codesign --verify --verbose=2 desktop/build/bin/lpm.app
@@ -115,7 +115,7 @@ jobs:
         run: |
           codesign --deep --force --options runtime \
             --sign "$SIGNING_IDENTITY" \
-            --entitlements desktop/build/darwin/entitlements.plist \
+            --entitlements desktop/build/darwin/entitlements.release.plist \
             --timestamp \
             desktop/build/bin/lpm.app
           codesign --verify --verbose=2 desktop/build/bin/lpm.app
