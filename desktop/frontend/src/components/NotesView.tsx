@@ -21,8 +21,19 @@ import {
 } from "../../wailsjs/go/main/App";
 import { registerFileDropHandler } from "../fileDrop";
 import { main, notes } from "../../wailsjs/go/models";
-import { PaperclipIcon, SendIcon, TrashIcon, PencilIcon, DownloadIcon } from "./icons";
-import { base64ToBytes, bytesToBase64, bytesToBlobUrl, downloadBlob } from "../download";
+import {
+  PaperclipIcon,
+  SendIcon,
+  TrashIcon,
+  PencilIcon,
+  DownloadIcon,
+} from "./icons";
+import {
+  base64ToBytes,
+  bytesToBase64,
+  bytesToBlobUrl,
+  downloadBlob,
+} from "../download";
 import { useAutoGrowTextarea } from "../hooks/useAutoGrowTextarea";
 import { MessageMarkdown } from "./MessageMarkdown";
 import { ChatList } from "./ChatList";
@@ -96,12 +107,17 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     enabled: visible,
     staleTime: 60_000,
   });
-  const chats = useMemo<notes.Chat[]>(() => chatsQuery.data ?? [], [chatsQuery.data]);
+  const chats = useMemo<notes.Chat[]>(
+    () => chatsQuery.data ?? [],
+    [chatsQuery.data],
+  );
 
   // NotesView isn't remounted across projects (no key prop), so re-seed from
   // storage on every project change rather than in a useState initializer.
   useEffect(() => {
-    setActiveChatID(window.localStorage.getItem(activeChatStorageKey(projectName)));
+    setActiveChatID(
+      window.localStorage.getItem(activeChatStorageKey(projectName)),
+    );
     seededChatForProject.current = null;
   }, [projectName]);
 
@@ -109,13 +125,17 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
   // (deleted elsewhere, or first ever load for this project).
   useEffect(() => {
     if (chats.length === 0) return;
-    const stillExists = activeChatID && chats.some((c) => c.id === activeChatID);
+    const stillExists =
+      activeChatID && chats.some((c) => c.id === activeChatID);
     if (!stillExists) setActiveChatID(chats[0].id);
   }, [chats, activeChatID]);
 
   useEffect(() => {
     if (activeChatID) {
-      window.localStorage.setItem(activeChatStorageKey(projectName), activeChatID);
+      window.localStorage.setItem(
+        activeChatStorageKey(projectName),
+        activeChatID,
+      );
     }
   }, [activeChatID, projectName]);
 
@@ -123,7 +143,14 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     queryKey: messagesKey(projectName, activeChatID ?? ""),
     queryFn: async ({ pageParam }) => {
       if (!activeChatID) return [];
-      return (await NotesListMessages(projectName, activeChatID, PAGE_SIZE, pageParam)) ?? [];
+      return (
+        (await NotesListMessages(
+          projectName,
+          activeChatID,
+          PAGE_SIZE,
+          pageParam,
+        )) ?? []
+      );
     },
     initialPageParam: "",
     getNextPageParam: (last) =>
@@ -186,7 +213,9 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     [hasNextPage, isFetchingNextPage, fetchNextPage],
   );
 
-  const buildPendingFromFile = async (file: File): Promise<PendingAttachment | null> => {
+  const buildPendingFromFile = async (
+    file: File,
+  ): Promise<PendingAttachment | null> => {
     if (file.size > MAX_ATTACHMENT_BYTES) {
       toast.error(`${file.name} exceeds 100MB limit`);
       return null;
@@ -201,7 +230,9 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     };
   };
 
-  const buildPendingFromPath = async (path: string): Promise<PendingAttachment | null> => {
+  const buildPendingFromPath = async (
+    path: string,
+  ): Promise<PendingAttachment | null> => {
     try {
       const input = await NotesReadFileAsInput(path);
       const data = base64ToBytes(input.data);
@@ -225,7 +256,9 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
 
   const addFiles = useCallback(
     async (files: FileList | File[]) => {
-      const items = await Promise.all(Array.from(files).map(buildPendingFromFile));
+      const items = await Promise.all(
+        Array.from(files).map(buildPendingFromFile),
+      );
       appendPending(items);
     },
     [appendPending],
@@ -266,7 +299,11 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
   const canSend = text.trim().length > 0 || pending.length > 0;
 
   const addMutation = useMutation({
-    mutationFn: async (input: { chatID: string; text: string; pending: PendingAttachment[] }) => {
+    mutationFn: async (input: {
+      chatID: string;
+      text: string;
+      pending: PendingAttachment[];
+    }) => {
       const attachments = input.pending.map<main.NotesAttachmentInput>((p) =>
         main.NotesAttachmentInput.createFrom({
           name: p.name,
@@ -274,19 +311,30 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
           data: bytesToBase64(p.data),
         }),
       );
-      return NotesAddMessage(projectName, input.chatID, input.text, attachments);
+      return NotesAddMessage(
+        projectName,
+        input.chatID,
+        input.text,
+        attachments,
+      );
     },
     onSuccess: (msg) => {
-      qc.setQueryData<NotesPages>(messagesKey(projectName, msg.chatId), (prev) => {
-        if (!prev) return prev;
-        const [first, ...rest] = prev.pages;
-        return { ...prev, pages: [[msg, ...(first ?? [])], ...rest] };
-      });
+      qc.setQueryData<NotesPages>(
+        messagesKey(projectName, msg.chatId),
+        (prev) => {
+          if (!prev) return prev;
+          const [first, ...rest] = prev.pages;
+          return { ...prev, pages: [[msg, ...(first ?? [])], ...rest] };
+        },
+      );
       qc.setQueryData<notes.Chat[]>(chatsKey(projectName), (prev) => {
         if (!prev) return prev;
         const idx = prev.findIndex((c) => c.id === msg.chatId);
         if (idx < 0) return prev;
-        const updated = notes.Chat.createFrom({ ...prev[idx], updatedAt: msg.ts });
+        const updated = notes.Chat.createFrom({
+          ...prev[idx],
+          updatedAt: msg.ts,
+        });
         return [updated, ...prev.slice(0, idx), ...prev.slice(idx + 1)];
       });
       pinToBottomRef.current = true;
@@ -309,7 +357,9 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
           ...prev,
           pages: prev.pages.map((page) =>
             page.map((m) =>
-              m.id === id ? notes.Message.createFrom({ ...m, text, editedAt: ts }) : m,
+              m.id === id
+                ? notes.Message.createFrom({ ...m, text, editedAt: ts })
+                : m,
             ),
           ),
         };
@@ -334,7 +384,10 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     onSuccess: ({ id, chatID }) => {
       qc.setQueryData<NotesPages>(messagesKey(projectName, chatID), (prev) => {
         if (!prev) return prev;
-        return { ...prev, pages: prev.pages.map((page) => page.filter((m) => m.id !== id)) };
+        return {
+          ...prev,
+          pages: prev.pages.map((page) => page.filter((m) => m.id !== id)),
+        };
       });
     },
     onError: (err) => toast.error(`Delete: ${err}`),
@@ -343,7 +396,10 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
   const createChatMutation = useMutation({
     mutationFn: async (title: string) => NotesCreateChat(projectName, title),
     onSuccess: (chat) => {
-      qc.setQueryData<notes.Chat[]>(chatsKey(projectName), (prev) => [chat, ...(prev ?? [])]);
+      qc.setQueryData<notes.Chat[]>(chatsKey(projectName), (prev) => [
+        chat,
+        ...(prev ?? []),
+      ]);
       setActiveChatID(chat.id);
     },
     onError: (err) => toast.error(`New chat: ${err}`),
@@ -366,7 +422,9 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     },
     onSuccess: ({ id, title }) => {
       qc.setQueryData<notes.Chat[]>(chatsKey(projectName), (prev) =>
-        prev?.map((c) => (c.id === id ? notes.Chat.createFrom({ ...c, title }) : c)),
+        prev?.map((c) =>
+          c.id === id ? notes.Chat.createFrom({ ...c, title }) : c,
+        ),
       );
     },
     onError: (err) => toast.error(`Rename: ${err}`),
@@ -405,7 +463,8 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
   // chatID comes from the message, not the active selection, so edits/deletes
   // land in the correct chat even if the user switches mid-flight.
   const handleSaveMessage = useCallback(
-    (id: string, chatID: string, text: string) => editMutation.mutate({ id, chatID, text }),
+    (id: string, chatID: string, text: string) =>
+      editMutation.mutate({ id, chatID, text }),
     [editMutation],
   );
   const handleDeleteMessage = useCallback(
@@ -444,8 +503,11 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     if (e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files);
   };
 
-  const isEmpty = !query.isPending && activeChatID !== null && messages.length === 0;
-  const activeChat = activeChatID ? chats.find((c) => c.id === activeChatID) : null;
+  const isEmpty =
+    !query.isPending && activeChatID !== null && messages.length === 0;
+  const activeChat = activeChatID
+    ? chats.find((c) => c.id === activeChatID)
+    : null;
   const composerPlaceholder = activeChat ? "Write a note…" : "Pick a chat…";
   // With no explicit pref, default to collapsed when there's nothing to
   // navigate to (fewer than 2 chats).
@@ -491,14 +553,25 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
         >
           {query.hasNextPage && (
             <div className="mb-3 text-center text-[11px] text-[var(--text-muted)]">
-              {query.isFetchingNextPage ? "Loading older…" : "Scroll up for older"}
+              {query.isFetchingNextPage
+                ? "Loading older…"
+                : "Scroll up for older"}
             </div>
           )}
           {isEmpty && (
             <div className="flex h-full flex-col items-center justify-center">
               <div className="flex max-w-sm flex-col items-center gap-5 px-6 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--bg-hover)] text-[var(--text-muted)]">
-                  <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width={26}
+                    height={26}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                   </svg>
                 </div>
@@ -506,9 +579,15 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
                   <h3 className="text-sm font-medium text-[var(--text-primary)]">
                     Knowledge you can't commit
                   </h3>
-                  <p className="text-xs leading-relaxed text-[var(--text-muted)]">
-                    Credentials, commands, context, screenshots. The stuff you'd otherwise lose in a Slack DM to yourself.
-                  </p>
+                  <div>
+                    <p className="text-xs leading-relaxed text-[var(--text-muted)]">
+                      Credentials, commands, context, screenshots. The stuff
+                      you'd otherwise lose in a Slack DM to yourself.
+                    </p>
+                    <p className="text-xs leading-relaxed text-[var(--text-muted)]">
+                      End-to-end encrypted. Never leaves this device.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -541,7 +620,9 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
                 >
                   <PaperclipIcon />
                   <span className="max-w-[160px] truncate">{p.name}</span>
-                  <span className="text-[var(--text-muted)]">{formatSize(p.size)}</span>
+                  <span className="text-[var(--text-muted)]">
+                    {formatSize(p.size)}
+                  </span>
                   <button
                     onClick={() => removePending(p.id)}
                     className="ml-0.5 text-[var(--text-muted)] opacity-60 hover:opacity-100"
@@ -590,7 +671,8 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
                 aria-hidden="true"
                 className="hidden text-[10px] text-[var(--text-muted)] sm:inline"
               >
-                <kbd className="font-mono">↵</kbd> send · <kbd className="font-mono">⇧↵</kbd> newline · markdown
+                <kbd className="font-mono">↵</kbd> send ·{" "}
+                <kbd className="font-mono">⇧↵</kbd> newline · markdown
               </span>
               <button
                 onClick={handleSend}
@@ -654,7 +736,12 @@ interface MessageRowProps {
   onDelete: (id: string, chatID: string) => void;
 }
 
-const MessageRow = memo(function MessageRow({ message, projectName, onSave, onDelete }: MessageRowProps) {
+const MessageRow = memo(function MessageRow({
+  message,
+  projectName,
+  onSave,
+  onDelete,
+}: MessageRowProps) {
   const [draft, setDraft] = useState<string | null>(null);
   const editing = draft !== null;
   const editRef = useRef<HTMLTextAreaElement | null>(null);
@@ -735,7 +822,11 @@ const MessageRow = memo(function MessageRow({ message, projectName, onSave, onDe
       {message.attachments && message.attachments.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
           {message.attachments.map((att) => (
-            <AttachmentChip key={att.hash} projectName={projectName} attachment={att} />
+            <AttachmentChip
+              key={att.hash}
+              projectName={projectName}
+              attachment={att}
+            />
           ))}
         </div>
       )}
@@ -806,7 +897,11 @@ function AttachmentChip({ projectName, attachment }: AttachmentChipProps) {
         className="overflow-hidden rounded-lg border border-[var(--border)] transition-opacity hover:opacity-90"
         title={`${attachment.name} · ${formatSize(attachment.size)} — click to download`}
       >
-        <img src={url} alt={attachment.name} className="max-h-56 max-w-xs object-contain" />
+        <img
+          src={url}
+          alt={attachment.name}
+          className="max-h-56 max-w-xs object-contain"
+        />
       </button>
     );
   }
@@ -819,7 +914,9 @@ function AttachmentChip({ projectName, attachment }: AttachmentChipProps) {
     >
       <DownloadIcon />
       <span className="max-w-[220px] truncate">{attachment.name}</span>
-      <span className="text-[var(--text-muted)]">{formatSize(attachment.size)}</span>
+      <span className="text-[var(--text-muted)]">
+        {formatSize(attachment.size)}
+      </span>
     </button>
   );
 }
@@ -832,7 +929,10 @@ function formatSize(n: number) {
 }
 
 function formatTime(ts: number) {
-  return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return new Date(ts).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function formatDayLabel(d: Date, now: Date) {
@@ -845,5 +945,9 @@ function formatDayLabel(d: Date, now: Date) {
   if (d.getFullYear() === now.getFullYear()) {
     return d.toLocaleDateString([], { month: "short", day: "numeric" });
   }
-  return d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+  return d.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
