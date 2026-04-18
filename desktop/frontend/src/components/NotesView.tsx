@@ -21,7 +21,7 @@ import {
 } from "../../wailsjs/go/main/App";
 import { registerFileDropHandler } from "../fileDrop";
 import { main, notes } from "../../wailsjs/go/models";
-import { PaperclipIcon, SendIcon, TrashIcon, PencilIcon, DownloadIcon, MessageIcon, SidebarIcon } from "./icons";
+import { PaperclipIcon, SendIcon, TrashIcon, PencilIcon, DownloadIcon, SidebarIcon } from "./icons";
 import { base64ToBytes, bytesToBase64, bytesToBlobUrl, downloadBlob } from "../download";
 import { useAutoGrowTextarea } from "../hooks/useAutoGrowTextarea";
 import { MessageMarkdown } from "./MessageMarkdown";
@@ -474,17 +474,21 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
             </div>
           )}
           {isEmpty && (
-            <div className="flex h-full flex-col items-center justify-center gap-5 text-center">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--bg-secondary)] text-[var(--text-muted)]">
-                <MessageIcon />
-              </div>
-              <div className="flex flex-col gap-1">
-                <p className="text-sm font-medium text-[var(--text-primary)]">
-                  {activeChat ? activeChat.title : "Start a note"}
-                </p>
-                <p className="text-xs text-[var(--text-muted)]">
-                  Write, paste, or drop files — end-to-end encrypted.
-                </p>
+            <div className="flex h-full flex-col items-center justify-center">
+              <div className="flex max-w-sm flex-col items-center gap-5 px-6 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--bg-hover)] text-[var(--text-muted)]">
+                  <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                </div>
+                <div className="flex flex-col items-center gap-1.5">
+                  <h3 className="text-sm font-medium text-[var(--text-primary)]">
+                    {activeChat ? activeChat.title : "Start a note"}
+                  </h3>
+                  <p className="text-xs leading-relaxed text-[var(--text-muted)]">
+                    Capture a thought, paste a snippet, or drop files in. Markdown is supported and everything stays end-to-end encrypted.
+                  </p>
+                </div>
               </div>
             </div>
           )}
