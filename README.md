@@ -29,7 +29,7 @@ A native macOS desktop app for managing your dev projects. Start, stop, duplicat
 
 ## Install
 
-Download the `.dmg` from [Releases](https://github.com/gug007/lpm/releases/latest), open it, and drag lpm to Applications.
+Download lpm from [lpm.cx](https://lpm.cx), open the `.dmg`, and drag lpm to Applications.
 
 Supports macOS (Apple Silicon & Intel).
 
