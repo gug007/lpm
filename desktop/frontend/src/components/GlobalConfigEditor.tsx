@@ -1,4 +1,5 @@
 import { ReadGlobalConfig, SaveGlobalConfig } from "../../wailsjs/go/main/App";
+import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { useYamlEditor } from "../hooks/useYamlEditor";
 import { ChevronLeftIcon } from "./icons";
 import { MonacoYamlEditor } from "./MonacoYamlEditor";
@@ -22,6 +23,13 @@ export function GlobalConfigEditor({ onBack }: { onBack: () => void }) {
           <ChevronLeftIcon />
         </button>
         <h1 className="text-lg font-semibold tracking-tight">Global Config</h1>
+        <button
+          onClick={() => BrowserOpenURL("https://lpm.cx/config#global-config")}
+          className="ml-auto rounded px-2 py-1 text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          title="Open configuration reference"
+        >
+          Docs
+        </button>
       </div>
       <p className="mt-1 text-[11px] text-[var(--text-muted)]">
         Actions and terminals defined here are available in every project.

@@ -1,5 +1,6 @@
 import { useRef, useCallback, useState } from "react";
 import { ReadConfig, SaveConfig, GenerateProjectConfig } from "../../wailsjs/go/main/App";
+import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { useYamlEditor } from "../hooks/useYamlEditor";
 import { VisualConfigEditor } from "./VisualConfigEditor";
 import { MonacoYamlEditor } from "./MonacoYamlEditor";
@@ -65,6 +66,13 @@ export function ConfigEditor({ projectName, onSaved, onBack, onToggleView }: Con
             <span className="text-sm font-medium text-[var(--text-primary)]">Config</span>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => BrowserOpenURL("https://lpm.cx/config")}
+              className="rounded px-2 py-1 text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              title="Open configuration reference"
+            >
+              Docs
+            </button>
             <div className="flex rounded-md border border-[var(--border)] p-0.5">
               <button
                 onClick={() => changeMode("form")}
