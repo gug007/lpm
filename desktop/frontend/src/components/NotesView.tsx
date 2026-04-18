@@ -21,11 +21,12 @@ import {
 } from "../../wailsjs/go/main/App";
 import { registerFileDropHandler } from "../fileDrop";
 import { main, notes } from "../../wailsjs/go/models";
-import { PaperclipIcon, SendIcon, TrashIcon, PencilIcon, DownloadIcon, SidebarIcon } from "./icons";
+import { PaperclipIcon, SendIcon, TrashIcon, PencilIcon, DownloadIcon } from "./icons";
 import { base64ToBytes, bytesToBase64, bytesToBlobUrl, downloadBlob } from "../download";
 import { useAutoGrowTextarea } from "../hooks/useAutoGrowTextarea";
 import { MessageMarkdown } from "./MessageMarkdown";
 import { ChatList } from "./ChatList";
+import { MiniChatRail } from "./MiniChatRail";
 
 const PAGE_SIZE = 50;
 const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
@@ -460,30 +461,29 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
       }}
       onDrop={handleDrop}
     >
-      {!effectiveCollapsed && chats.length > 0 && (
-        <ChatList
-          chats={chats}
-          activeId={activeChatID}
-          onSelect={setActiveChatID}
-          onCreate={() => createChatMutation.mutate("New chat")}
-          onRename={(id, title) => renameChatMutation.mutate({ id, title })}
-          onDelete={(id) => deleteChatMutation.mutate(id)}
-          onCollapse={() => setSidebarCollapsed(true)}
-          canDelete={chats.length > 1}
-        />
-      )}
+      {chats.length > 0 &&
+        (effectiveCollapsed ? (
+          <MiniChatRail
+            chats={chats}
+            activeId={activeChatID}
+            onSelect={setActiveChatID}
+            onCreate={() => createChatMutation.mutate("New chat")}
+            onExpand={() => setSidebarCollapsed(false)}
+          />
+        ) : (
+          <ChatList
+            chats={chats}
+            activeId={activeChatID}
+            onSelect={setActiveChatID}
+            onCreate={() => createChatMutation.mutate("New chat")}
+            onRename={(id, title) => renameChatMutation.mutate({ id, title })}
+            onDelete={(id) => deleteChatMutation.mutate(id)}
+            onCollapse={() => setSidebarCollapsed(true)}
+            canDelete={chats.length > 1}
+          />
+        ))}
 
       <div className="relative flex min-w-0 flex-1 flex-col">
-        {effectiveCollapsed && chats.length > 0 && (
-          <button
-            onClick={() => setSidebarCollapsed(false)}
-            className="absolute left-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-muted)] shadow-sm transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            title="Show chats"
-            aria-label="Show chats"
-          >
-            <SidebarIcon />
-          </button>
-        )}
         <div
           ref={listRef}
           onScroll={handleScroll}
