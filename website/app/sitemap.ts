@@ -1,6 +1,8 @@
 import type { MetadataRoute } from "next";
 import {
   AI_AGENTS_PATH,
+  BEST_TERMINAL_MAC_PATH,
+  MAC_TERMINAL_DEVELOPERS_PATH,
   PRIVACY_PATH,
   SITE_URL,
   STATS_PATH,
@@ -22,6 +24,18 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
     {
       url: `${SITE_URL}${AI_AGENTS_PATH}`,
+      lastModified,
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}${BEST_TERMINAL_MAC_PATH}`,
+      lastModified,
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}${MAC_TERMINAL_DEVELOPERS_PATH}`,
       lastModified,
       changeFrequency: "monthly",
       priority: 0.8,

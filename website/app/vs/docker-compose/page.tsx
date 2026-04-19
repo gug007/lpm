@@ -138,7 +138,7 @@ const FAQ_ITEMS: FaqItem[] = [
     question: "If I have a docker-compose.yml today, what does migrating look like?",
     answer: (
       <>
-        You don't have to fully migrate. Point lpm at the repo, it detects the
+        You don&apos;t have to fully migrate. Point lpm at the repo, it detects the
         compose file, and you can run the whole graph via{" "}
         <code>docker compose up</code> as one lpm service. From there you can
         incrementally move native-friendly processes — your Rails server, your

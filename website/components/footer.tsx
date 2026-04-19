@@ -1,5 +1,7 @@
 import Link from "next/link";
 import {
+  BEST_TERMINAL_MAC_PATH,
+  MAC_TERMINAL_DEVELOPERS_PATH,
   PRIVACY_PATH,
   REPO_URL,
   STATS_PATH,
@@ -23,6 +25,26 @@ export function Footer() {
         <p className="text-xs text-gray-300 dark:text-gray-600 tracking-wide">
           Built for developers
         </p>
+        <nav
+          aria-label="Guides"
+          className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-gray-400 dark:text-gray-500"
+        >
+          <Link
+            href={BEST_TERMINAL_MAC_PATH}
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            Best terminal for Mac
+          </Link>
+          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
+            ·
+          </span>
+          <Link
+            href={MAC_TERMINAL_DEVELOPERS_PATH}
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            Mac terminal for developers
+          </Link>
+        </nav>
         <nav
           aria-label="Comparisons"
           className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] text-gray-400 dark:text-gray-500"

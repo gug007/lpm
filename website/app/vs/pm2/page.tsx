@@ -157,8 +157,8 @@ const FAQ_ITEMS: FaqItem[] = [
         prod and you want pm2 start ecosystem.config.js locally, make that a
         single service in your lpm config — one line, command{" "}
         <code>pm2-runtime start ecosystem.config.js</code> (the non-daemonized
-        variant so lpm owns the lifecycle). You get lpm's per-project
-        switcher and pane UI on the outside, PM2's cluster / restart
+        variant so lpm owns the lifecycle). You get lpm&apos;s per-project
+        switcher and pane UI on the outside, PM2&apos;s cluster / restart
         semantics on the inside. Source is on{" "}
         <a
           href={REPO_URL}
