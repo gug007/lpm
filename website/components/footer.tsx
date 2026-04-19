@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   BEST_TERMINAL_MAC_PATH,
+  GIT_TERMINAL_MAC_PATH,
   MAC_TERMINAL_DEVELOPERS_PATH,
   PRIVACY_PATH,
   REPO_URL,
@@ -43,6 +44,15 @@ export function Footer() {
             className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
           >
             Mac terminal for developers
+          </Link>
+          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
+            ·
+          </span>
+          <Link
+            href={GIT_TERMINAL_MAC_PATH}
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            Git terminal for Mac
           </Link>
         </nav>
         <nav
