@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowDown } from "lucide-react";
+import { trackDownload } from "@/lib/analytics";
 import { releaseAsset } from "@/lib/links";
 import { usePlatform, type Platform } from "@/lib/use-platform";
 
@@ -23,9 +24,15 @@ export function HeroDownload() {
   const platform = usePlatform();
   const { href, label } = platform ? ENTRIES[platform] : FALLBACK;
 
+  const handleClick = () => {
+    if (!platform) return;
+    trackDownload({ source: "hero", platform });
+  };
+
   return (
     <a
       href={href}
+      onClick={handleClick}
       className="group flex items-center gap-3 pl-4 pr-1.5 py-1.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-full hover:scale-[1.01] active:scale-[0.99] shadow-sm hover:shadow-xl hover:shadow-gray-900/10 dark:hover:shadow-black/40 transition-all duration-200"
     >
       <svg

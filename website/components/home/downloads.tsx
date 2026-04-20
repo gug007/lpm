@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArrowRight,
   Laptop,
@@ -6,6 +8,7 @@ import {
   Terminal,
   type LucideIcon,
 } from "lucide-react";
+import { trackDownload } from "@/lib/analytics";
 import { releaseAsset, RELEASES_URL } from "@/lib/links";
 import type { Platform } from "@/lib/use-platform";
 import { HighlightPlatform } from "./highlight-platform";
@@ -13,6 +16,7 @@ import { HighlightPlatform } from "./highlight-platform";
 type Download = {
   href: string;
   platform: Exclude<Platform, null>;
+  product: "desktop" | "cli";
   label: string;
   sub: string;
   icon: LucideIcon;
@@ -22,6 +26,7 @@ const DOWNLOADS: Download[] = [
   {
     href: releaseAsset("lpm-desktop-macos-arm64.dmg"),
     platform: "mac-arm",
+    product: "desktop",
     label: "macOS Desktop",
     sub: "Apple Silicon",
     icon: Laptop,
@@ -29,6 +34,7 @@ const DOWNLOADS: Download[] = [
   {
     href: releaseAsset("lpm-desktop-macos-amd64.dmg"),
     platform: "mac-intel",
+    product: "desktop",
     label: "macOS Desktop",
     sub: "Intel",
     icon: Monitor,
@@ -36,6 +42,7 @@ const DOWNLOADS: Download[] = [
   {
     href: releaseAsset("lpm_darwin_arm64.tar.gz"),
     platform: "mac-arm",
+    product: "cli",
     label: "CLI",
     sub: "macOS ARM64",
     icon: Terminal,
@@ -43,6 +50,7 @@ const DOWNLOADS: Download[] = [
   {
     href: releaseAsset("lpm_darwin_amd64.tar.gz"),
     platform: "mac-intel",
+    product: "cli",
     label: "CLI",
     sub: "macOS Intel",
     icon: Terminal,
@@ -71,11 +79,16 @@ export function Downloads() {
         </div>
         <HighlightPlatform />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-3xl mx-auto">
-          {DOWNLOADS.map(({ href, platform, label, sub, icon: Icon }) => (
+          {DOWNLOADS.map(({ href, platform, product, label, sub, icon: Icon }) => (
             <a
               key={href}
               href={href}
               data-platform={platform}
+              onClick={
+                product === "desktop"
+                  ? () => trackDownload({ source: "downloads", platform })
+                  : undefined
+              }
               className="dl-card group relative flex flex-col items-center gap-2 px-6 py-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-[#111]"
             >
               <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center mb-1 group-hover:bg-gray-100 dark:group-hover:bg-gray-800 transition-colors">
