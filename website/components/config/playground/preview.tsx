@@ -87,9 +87,14 @@ export function PlaygroundPreview({
   const buttonActions = actions.filter((a) => a.display === "button");
   const plainActions = buttonActions.filter((a) => a.children.length === 0);
   const dropdownActions = buttonActions.filter((a) => a.children.length > 0);
-  const menuActions = actions.filter((a) => a.display !== "button");
+  const footerActions = actions.filter((a) => a.display === "footer");
+  const menuActions = actions.filter(
+    (a) => a.display !== "button" && a.display !== "footer",
+  );
   const buttonTerminals = terminals.filter((t) => t.display === "button");
-  const menuTerminals = terminals.filter((t) => t.display !== "button");
+  const menuTerminals = terminals.filter(
+    (t) => t.display !== "button" && t.display !== "footer",
+  );
 
   const runningServices = useMemo(
     () => services.filter((s) => runningKeys.has(s.key)),
@@ -214,6 +219,20 @@ export function PlaygroundPreview({
           />
         ) : (
           <EmptyState projectName={projectName} hasAnyService={hasAnyService} />
+        )}
+
+        {hasAnyPane && footerActions.length > 0 && (
+          <div className="flex items-center justify-end gap-1.5 border-x border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-3 py-1.5">
+            {footerActions.map((action) => (
+              <button
+                key={action.key}
+                onClick={() => openAction(action)}
+                className="rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 px-2.5 py-1 text-[11px] font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
