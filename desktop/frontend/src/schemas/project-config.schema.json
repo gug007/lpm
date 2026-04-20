@@ -138,7 +138,7 @@
             "confirm": { "type": "boolean", "description": "Prompt before running." },
             "display": {
               "type": "string",
-              "enum": ["button", "menu"],
+              "enum": ["button", "menu", "footer"],
               "description": "How the action appears in the UI."
             },
             "type": { "type": "string" },
@@ -200,7 +200,7 @@
             "reuse": { "type": "boolean" },
             "display": {
               "type": "string",
-              "enum": ["button", "menu"]
+              "enum": ["button", "menu", "footer"]
             },
             "inputs": {
               "type": "object",
