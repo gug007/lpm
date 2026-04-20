@@ -3,8 +3,8 @@ import { toast } from "sonner";
 import { ActionButton } from "./ActionButton";
 import { SplitButton } from "./SplitButton";
 import { OpenInDropdown } from "./OpenInDropdown";
-import { BranchSwitcher } from "./BranchSwitcher";
 import { TerminalView, type TerminalViewHandle } from "./TerminalView";
+import { TerminalFooter } from "./TerminalFooter";
 import { ConfigEditor } from "./ConfigEditor";
 import { NotesView } from "./NotesView";
 import { RunAction, RunActionBackground } from "../../wailsjs/go/main/App";
@@ -539,11 +539,7 @@ export function ProjectDetail({
           errorPaneIDs={errorPaneIDs}
           visible={visible && detailView === "terminal" && !showEmptyState}
         />
-        <div className="pointer-events-none absolute bottom-3 right-3 z-20">
-          <div className="pointer-events-auto">
-            <BranchSwitcher projectPath={project.root} />
-          </div>
-        </div>
+        <TerminalFooter projectPath={project.root} />
       </div>
       {detailView === "config" && (
         <div className="mt-1.5 -mx-6 -mb-6 flex flex-1 flex-col overflow-hidden">
