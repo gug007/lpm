@@ -21,6 +21,7 @@ export const vsPath = (slug: VsSlug): string => `${VS_BASE_PATH}/${slug}`;
 export const INSTALL_SCRIPT_URL =
   "https://raw.githubusercontent.com/gug007/lpm/main/install.sh";
 export const INSTALL_CMD = `curl -fsSL ${INSTALL_SCRIPT_URL} | bash`;
+export const TELEGRAM_URL = "https://t.me/lpm_desktop";
 
 export function releaseAsset(filename: string): string {
   return `${RELEASES_URL}/download/${filename}`;

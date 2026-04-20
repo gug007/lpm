@@ -6,6 +6,7 @@ import {
   PRIVACY_PATH,
   REPO_URL,
   STATS_PATH,
+  TELEGRAM_URL,
   TERMS_PATH,
   VS_SLUGS,
   vsPath,
@@ -26,6 +27,22 @@ export function Footer() {
         <p className="text-xs text-gray-300 dark:text-gray-600 tracking-wide">
           Built for developers
         </p>
+        <a
+          href={TELEGRAM_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors inline-flex items-center gap-1.5"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            className="w-3.5 h-3.5"
+            aria-hidden="true"
+          >
+            <path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z" />
+          </svg>
+          Ask questions on Telegram
+        </a>
         <nav
           aria-label="Guides"
           className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-gray-400 dark:text-gray-500"
