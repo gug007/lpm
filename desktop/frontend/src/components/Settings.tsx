@@ -4,7 +4,7 @@ import { getSettings, saveSettings } from "../settings";
 import { applyTheme, type Theme } from "../theme";
 import { useEventListener } from "../hooks/useEventListener";
 import { ProgressBar } from "./ui/ProgressBar";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
+import { BrowserOpenURL, EventsOn } from "../../wailsjs/runtime/runtime";
 import {
   SetDarkMode,
   GetVersion,
@@ -377,6 +377,9 @@ export function Settings({
               </SettingsRow>
               <SettingsRow label="Branch Name Instructions" description="Custom instructions for AI-generated branch names">
                 <button onClick={() => onNavigate("branch-instructions")} className={BTN_SECONDARY}>Edit</button>
+              </SettingsRow>
+              <SettingsRow label="VoiceToText" description="Free offline dictation — Claude Code, Codex, Cursor, Slack, or any text field">
+                <button onClick={() => BrowserOpenURL("https://voicetotext.cc")} className={BTN_SECONDARY}>Learn more</button>
               </SettingsRow>
             </SettingsSection>
           )}
