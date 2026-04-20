@@ -122,7 +122,8 @@ export function ProjectDetail({
   const buttonActions = (project.actions ?? []).filter((a) => a.display === "button");
   const plainActions = buttonActions.filter((a) => !a.children?.length);
   const dropdownActions = buttonActions.filter((a) => a.children?.length);
-  const menuActions = (project.actions ?? []).filter((a) => a.display !== "button");
+  const footerActions = (project.actions ?? []).filter((a) => a.display === "footer");
+  const menuActions = (project.actions ?? []).filter((a) => a.display !== "button" && a.display !== "footer");
 
   const [runningAction, setRunningAction] = useState<ActionInfo | null>(null);
   const [confirmAction, setConfirmAction] = useState<ActionInfo | null>(null);
@@ -539,7 +540,12 @@ export function ProjectDetail({
           errorPaneIDs={errorPaneIDs}
           visible={visible && detailView === "terminal" && !showEmptyState}
         />
-        <TerminalFooter projectPath={project.root} />
+        <TerminalFooter
+          projectPath={project.root}
+          actions={footerActions}
+          onRunAction={handleRunAction}
+          disabled={runningAction !== null}
+        />
       </div>
       {detailView === "config" && (
         <div className="mt-1.5 -mx-6 -mb-6 flex flex-1 flex-col overflow-hidden">

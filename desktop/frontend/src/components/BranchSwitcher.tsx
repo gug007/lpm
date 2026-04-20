@@ -11,7 +11,7 @@ import { getSettings, saveSettings, DEFAULT_PULL_STRATEGY, type GitPullStrategy 
 import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useEventListener } from "../hooks/useEventListener";
-import { useGitStatus } from "../hooks/useGitStatus";
+import type { useGitStatus } from "../hooks/useGitStatus";
 import { useBranchSearch } from "../hooks/useBranchSearch";
 import { CreateBranchModal } from "./CreateBranchModal";
 import { CommitModal } from "./CommitModal";
@@ -37,10 +37,11 @@ function relativeTime(unix: number): string {
   return `${Math.floor(s / 31536000)}y`;
 }
 
-export function BranchSwitcher({ projectPath }: {
+export function BranchSwitcher({ projectPath, gitState }: {
   projectPath: string;
+  gitState: ReturnType<typeof useGitStatus>;
 }) {
-  const { status, branches, refresh } = useGitStatus(projectPath);
+  const { status, branches, refresh } = gitState;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const searchResults = useBranchSearch(projectPath, query, open);

@@ -66,7 +66,7 @@
             "cwd": { "type": "string" },
             "env": { "$ref": "#/definitions/envMap" },
             "confirm": { "type": "boolean" },
-            "display": { "type": "string", "enum": ["button", "menu"] },
+            "display": { "type": "string", "enum": ["button", "menu", "footer"] },
             "type": { "type": "string" },
             "reuse": { "type": "boolean" },
             "inputs": {
@@ -123,7 +123,7 @@
             "env": { "$ref": "#/definitions/envMap" },
             "confirm": { "type": "boolean" },
             "reuse": { "type": "boolean" },
-            "display": { "type": "string", "enum": ["button", "menu"] },
+            "display": { "type": "string", "enum": ["button", "menu", "footer"] },
             "inputs": {
               "type": "object",
               "additionalProperties": { "$ref": "#/definitions/actionInput" }
