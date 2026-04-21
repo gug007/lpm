@@ -127,7 +127,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Why would I run things natively instead of in containers on macOS?",
     answer:
-      "Speed, mostly. Docker Desktop on macOS runs a Linux VM and shares your source over a virtualized filesystem, which adds latency to file watching, bundle installs, test runs, and hot reloads. Native processes read your disk directly. Cold start is also instant — no image build, no container create, no volume mount. For the inner dev loop on one machine, native is usually faster; for prod parity and team reproducibility, containers are usually better.",
+      "Speed, mostly. Docker Desktop on macOS runs a virtualized environment and shares your source over a virtualized filesystem, which adds latency to file watching, bundle installs, test runs, and hot reloads. Native processes read your disk directly. Cold start is also instant — no image build, no container create, no volume mount. For the inner dev loop on one machine, native is usually faster; for prod parity and team reproducibility, containers are usually better.",
   },
   {
     question: "Can I run Claude Code or Codex against services lpm started?",
@@ -196,7 +196,7 @@ export default function LpmVsDockerComposePage() {
             "You need prod parity, team reproducibility, or real container isolation for local dev.",
           points: [
             "Your production runs on containers and you want dev to match the exact Postgres, Redis, or Kafka versions.",
-            "Your team spans macOS, Linux, and Windows and reproducible local infra matters more than startup speed.",
+            "Your team spans multiple operating systems and reproducible local infra matters more than startup speed.",
             "You rely on complex service networking, named volumes, or health checks that Compose expresses cleanly.",
             "You want strong isolation — each service in its own container, its own filesystem, its own network namespace.",
             "Your CI, staging, and prod pipelines are container-based and your dev environment should stay in that ecosystem.",

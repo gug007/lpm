@@ -15,16 +15,14 @@ fi
 OS="$(uname -s)"
 case "$OS" in
   Darwin) OS="darwin" ;;
-  Linux)  OS="linux" ;;
-  *) echo "Unsupported OS: $OS" >&2; exit 1 ;;
+  *) echo "Unsupported OS: $OS (lpm supports macOS only)" >&2; exit 1 ;;
 esac
 
 # Detect architecture
 ARCH="$(uname -m)"
 case "$ARCH" in
-  x86_64)  ARCH="amd64" ;;
-  aarch64) ARCH="arm64" ;;
-  arm64)   ARCH="arm64" ;;
+  x86_64) ARCH="amd64" ;;
+  arm64)  ARCH="arm64" ;;
   *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
 esac
 
@@ -59,7 +57,5 @@ echo "lpm installed to ${INSTALL_DIR}/lpm"
 
 if ! command -v tmux >/dev/null 2>&1; then
   echo ""
-  echo "Note: lpm requires tmux. Install it with:"
-  echo "  brew install tmux    # macOS"
-  echo "  apt install tmux     # Debian/Ubuntu"
+  echo "Note: lpm requires tmux. Install it with: brew install tmux"
 fi

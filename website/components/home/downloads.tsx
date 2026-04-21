@@ -5,6 +5,7 @@ import {
   Laptop,
   Monitor,
   Package,
+  ShieldCheck,
   Terminal,
   type LucideIcon,
 } from "lucide-react";
@@ -76,6 +77,10 @@ export function Downloads() {
             Free and open source. Available for macOS (Apple Silicon &amp;
             Intel).
           </p>
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+            <ShieldCheck className="w-3 h-3" aria-hidden="true" />
+            Signed &amp; notarized by Apple
+          </span>
         </div>
         <HighlightPlatform />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-3xl mx-auto">

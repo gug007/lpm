@@ -98,7 +98,7 @@ const MATRIX_ROWS: MatrixRow[] = [
     competitor: "via .tmux.conf",
   },
   {
-    label: "Tiny footprint, ubiquitous on Linux and macOS",
+    label: "Tiny footprint, ubiquitous on Unix systems",
     lpm: false,
     competitor: true,
   },
@@ -189,7 +189,7 @@ export default function VsTmuxPage() {
             "You need sessions that survive terminal crashes, reboots, and ssh drops.",
             "You use tmux for vim splits, logs, monitoring, ops work — not just dev servers.",
             "You already have a tmuxinator or zellij layout that fits your brain perfectly.",
-            "You are on Linux, BSD, or a platform where lpm's desktop app is not available (CLI works, but the GUI is macOS-only).",
+            "You work on a platform other than macOS — lpm is macOS-only.",
           ],
         }}
       />
