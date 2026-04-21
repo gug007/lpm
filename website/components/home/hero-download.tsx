@@ -1,9 +1,10 @@
 "use client";
 
-import { ArrowDown, ShieldCheck } from "lucide-react";
+import { ArrowDown } from "lucide-react";
 import { trackDownload } from "@/lib/analytics";
 import { releaseAsset } from "@/lib/links";
 import { usePlatform, type Platform } from "@/lib/use-platform";
+import { SignatureBadge } from "./signature-badge";
 
 type Entry = { href: string; label: string };
 
@@ -49,9 +50,8 @@ export function HeroDownload() {
           <ArrowDown className="w-4 h-4" />
         </span>
       </a>
-      <div className="flex items-center justify-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
-        <ShieldCheck className="w-3 h-3" aria-hidden="true" />
-        <span>Signed &amp; notarized by Apple</span>
+      <div className="flex justify-center">
+        <SignatureBadge />
       </div>
     </div>
   );

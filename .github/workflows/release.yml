@@ -19,6 +19,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Resolve version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
@@ -60,7 +63,7 @@ jobs:
 
       - name: Build arm64
         working-directory: desktop
-        run: wails build -platform darwin/arm64 -ldflags "-X main.Version=${GITHUB_REF_NAME#v}"
+        run: wails build -platform darwin/arm64 -ldflags "-X main.Version=${VERSION}"
 
       - name: Sign arm64
         run: |
@@ -91,7 +94,7 @@ jobs:
 
       - name: Build amd64
         working-directory: desktop
-        run: wails build -platform darwin/amd64 -ldflags "-X main.Version=${GITHUB_REF_NAME#v}"
+        run: wails build -platform darwin/amd64 -ldflags "-X main.Version=${VERSION}"
 
       - name: Sign amd64
         run: |
@@ -122,7 +125,6 @@ jobs:
 
       - name: Build CLI darwin/arm64
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
           mkdir -p dist/lpm_darwin_arm64
           CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build \
             -trimpath \
@@ -154,7 +156,6 @@ jobs:
 
       - name: Build CLI darwin/amd64
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
           mkdir -p dist/lpm_darwin_amd64
           CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build \
             -trimpath \
