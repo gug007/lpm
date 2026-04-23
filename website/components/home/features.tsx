@@ -1,5 +1,6 @@
 import {
   Blocks,
+  GitPullRequestArrow,
   Layers,
   Monitor,
   ScanSearch,
@@ -24,6 +25,16 @@ const FEATURES: Feature[] = [
       <>
         Watch every service stream in real time. Switch between service tabs or
         tile them side by side — all from a native window.
+      </>
+    ),
+  },
+  {
+    icon: GitPullRequestArrow,
+    title: "Commits and PRs, built in",
+    body: (
+      <>
+        Stage changes, generate commit messages, and open pull requests right
+        from the app. Pair it with Claude or Codex to ship without ceremony.
       </>
     ),
   },
