@@ -31,7 +31,7 @@ export interface Settings {
 }
 
 const defaults: Settings = {
-  theme: "system",
+  theme: "dark",
   doubleClickToToggle: false,
 };
 

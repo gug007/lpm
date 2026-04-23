@@ -35,7 +35,7 @@ type Settings struct {
 
 func defaultSettings() Settings {
 	return Settings{
-		Theme:             "system",
+		Theme:             "dark",
 		DoubleClickToggle: false,
 	}
 }

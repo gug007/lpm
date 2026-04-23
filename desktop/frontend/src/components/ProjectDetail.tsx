@@ -67,7 +67,7 @@ export function ProjectDetail({
 
   const saved = getSettings().terminalTheme;
   const [termTheme, setTermTheme] = useState<TerminalThemeName>(
-    saved && terminalThemeNames.includes(saved as TerminalThemeName) ? saved as TerminalThemeName : "default"
+    saved && terminalThemeNames.includes(saved as TerminalThemeName) ? saved as TerminalThemeName : "claude-dark"
   );
 
   const handleTerminalThemeChange = (theme: TerminalThemeName) => {

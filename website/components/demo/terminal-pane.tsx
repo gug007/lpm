@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, Terminal as TerminalIcon } from "lucide-react";
+import { Columns2, Rows2, Terminal as TerminalIcon, X } from "lucide-react";
 import type { LineColor, OutputLine } from "./projects";
 
 const MAX_LINES = 140;
@@ -23,9 +23,19 @@ type PaneHeaderProps = {
   type: "service" | "terminal";
   running: boolean;
   onClose?: () => void;
+  onSplitRight?: () => void;
+  onSplitDown?: () => void;
 };
 
-export function PaneHeader({ label, port, type, running, onClose }: PaneHeaderProps) {
+export function PaneHeader({
+  label,
+  port,
+  type,
+  running,
+  onClose,
+  onSplitRight,
+  onSplitDown,
+}: PaneHeaderProps) {
   return (
     <div className="flex-shrink-0 flex items-center gap-1.5 bg-[#2d2d2d] px-2 py-1">
       {type === "service" ? (
@@ -47,12 +57,34 @@ export function PaneHeader({ label, port, type, running, onClose }: PaneHeaderPr
           :{port}
         </span>
       )}
+      {onSplitRight && (
+        <button
+          type="button"
+          onClick={onSplitRight}
+          aria-label="Split right"
+          title="Split right"
+          className="rounded px-1 py-0.5 text-[#8e8e8e] hover:bg-white/[0.08] hover:text-gray-100 transition-colors shrink-0"
+        >
+          <Columns2 className="w-3 h-3" />
+        </button>
+      )}
+      {onSplitDown && (
+        <button
+          type="button"
+          onClick={onSplitDown}
+          aria-label="Split down"
+          title="Split down"
+          className="rounded px-1 py-0.5 text-[#8e8e8e] hover:bg-white/[0.08] hover:text-gray-100 transition-colors shrink-0"
+        >
+          <Rows2 className="w-3 h-3" />
+        </button>
+      )}
       {onClose && (
         <button
           type="button"
           onClick={onClose}
           aria-label={`Close ${label}`}
-          className="rounded px-1 text-[#8e8e8e] hover:bg-white/[0.08] hover:text-gray-100 transition-colors flex-shrink-0 leading-none text-sm"
+          className="rounded px-1 text-[#8e8e8e] hover:bg-white/[0.08] hover:text-gray-100 transition-colors shrink-0 leading-none text-sm"
         >
           <X className="w-3 h-3" />
         </button>

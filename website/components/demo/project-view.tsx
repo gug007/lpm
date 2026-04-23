@@ -1,14 +1,28 @@
 "use client";
 
-import { useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronDown, Menu as MenuIcon, Plus, Terminal } from "lucide-react";
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  ChevronDown,
+  Columns2,
+  Menu as MenuIcon,
+  Plus,
+  Rows2,
+  Terminal,
+} from "lucide-react";
 import type { DemoAction, DemoProject, DemoService } from "./projects";
 import { PaneHeader, StreamingOutput } from "./terminal-pane";
 import { DemoActionModal } from "./action-modal";
 
 type PaneId =
   | { kind: "service"; name: string }
-  | { kind: "shell" }
+  | { kind: "shell"; id: string }
   | { kind: "action"; key: string; label: string };
 
 type ActionTerminal = { key: string; action: DemoAction };
@@ -16,12 +30,13 @@ type ActionTerminal = { key: string; action: DemoAction };
 const ALL_TAB = "__all__";
 const MAX_TERMINAL_HISTORY = 200;
 const MAX_ACTION_TERMINALS = 4;
+const MAX_SHELL_TERMINALS = 4;
 
 const paneKey = (id: PaneId): string =>
   id.kind === "service"
     ? `s:${id.name}`
     : id.kind === "shell"
-      ? "t:shell"
+      ? `t:${id.id}`
       : `a:${id.key}`;
 
 const paneLabel = (id: PaneId): string =>
@@ -46,19 +61,53 @@ export function DemoProjectView({
   const [startOpen, setStartOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>(ALL_TAB);
   const [runningAction, setRunningAction] = useState<DemoAction | null>(null);
-  const [openShell, setOpenShell] = useState(false);
+  const [shellIds, setShellIds] = useState<string[]>([]);
   const [actionTerminals, setActionTerminals] = useState<ActionTerminal[]>([]);
+  const [layout, setLayout] = useState<"horizontal" | "vertical">("horizontal");
+  const [sizes, setSizes] = useState<Record<string, number>>({});
+  const [isResizing, setIsResizing] = useState(false);
+
+  useEffect(() => {
+    if (!isResizing) return;
+    const body = document.body;
+    const prevCursor = body.style.cursor;
+    const prevSelect = body.style.userSelect;
+    body.style.cursor = layout === "horizontal" ? "col-resize" : "row-resize";
+    body.style.userSelect = "none";
+    return () => {
+      body.style.cursor = prevCursor;
+      body.style.userSelect = prevSelect;
+    };
+  }, [isResizing, layout]);
+
+  const openNewShell = () => {
+    setShellIds((prev) => {
+      const id = `shell-${Date.now().toString(36)}-${prev.length}`;
+      return prev.length >= MAX_SHELL_TERMINALS
+        ? [...prev.slice(1), id]
+        : [...prev, id];
+    });
+    setActiveTab(ALL_TAB);
+  };
+
+  const closeShell = (id: string) =>
+    setShellIds((prev) => prev.filter((x) => x !== id));
+
+  const handleSplit = (direction: "horizontal" | "vertical") => {
+    setLayout(direction);
+    openNewShell();
+  };
 
   const panes = useMemo<PaneId[]>(() => {
     const out: PaneId[] = project.services
       .filter((s) => runningServices.has(s.name))
       .map((s) => ({ kind: "service", name: s.name }));
-    if (openShell) out.push({ kind: "shell" });
+    for (const id of shellIds) out.push({ kind: "shell", id });
     for (const at of actionTerminals) {
       out.push({ kind: "action", key: at.key, label: at.action.label });
     }
     return out;
-  }, [project.services, runningServices, openShell, actionTerminals]);
+  }, [project.services, runningServices, shellIds, actionTerminals]);
 
   const anyRunning = panes.some((p) => p.kind === "service");
   const hasPane = panes.length > 0;
@@ -84,6 +133,48 @@ export function DemoProjectView({
       );
     }
     setActiveTab(ALL_TAB);
+  };
+
+  const sizeFor = (p: PaneId) => sizes[paneKey(p)] ?? 1;
+
+  const startResize = (
+    e: React.MouseEvent,
+    leftKey: string,
+    rightKey: string,
+  ) => {
+    e.preventDefault();
+    const container = (e.currentTarget as HTMLElement).parentElement;
+    if (!container) return;
+    const startCoord = layout === "horizontal" ? e.clientX : e.clientY;
+    const startSizes = { ...sizes };
+    const startLeft = startSizes[leftKey] ?? 1;
+    const startRight = startSizes[rightKey] ?? 1;
+    const sumAll = visiblePanes.reduce(
+      (a, p) => a + (startSizes[paneKey(p)] ?? 1),
+      0,
+    ) || 1;
+
+    const onMove = (ev: MouseEvent) => {
+      const rect = container.getBoundingClientRect();
+      const total = layout === "horizontal" ? rect.width : rect.height;
+      if (!total) return;
+      const currentCoord =
+        layout === "horizontal" ? ev.clientX : ev.clientY;
+      const frac = (currentCoord - startCoord) / total;
+      const leftNew = startLeft + frac * sumAll;
+      const rightNew = startRight - frac * sumAll;
+      const min = 0.12 * sumAll;
+      if (leftNew < min || rightNew < min) return;
+      setSizes((prev) => ({ ...prev, [leftKey]: leftNew, [rightKey]: rightNew }));
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      setIsResizing(false);
+    };
+    setIsResizing(true);
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
   };
 
   return (
@@ -131,10 +222,7 @@ export function DemoProjectView({
           }
         }}
         runningServices={runningServices}
-        onOpenTerminal={() => {
-          setOpenShell(true);
-          setActiveTab(ALL_TAB);
-        }}
+        onOpenTerminal={openNewShell}
       />
 
       {hasPane ? (
@@ -144,31 +232,55 @@ export function DemoProjectView({
               panes={panes}
               active={activeTab}
               onChange={setActiveTab}
+              layout={layout}
+              onToggleLayout={() =>
+                setLayout((v) => (v === "horizontal" ? "vertical" : "horizontal"))
+              }
             />
           )}
-          <div className="flex flex-1 min-h-0 flex-row">
+          <div
+            className={`flex flex-1 min-h-0 ${
+              layout === "horizontal" ? "flex-row" : "flex-col"
+            }`}
+          >
             {visiblePanes.map((pane, i) => (
-              <PaneColumn key={paneKey(pane)} first={i === 0}>
-                {renderPane(
-                  pane,
-                  project,
-                  runningServices,
-                  actionTerminals,
-                  () => setOpenShell(false),
-                  (key) =>
-                    setActionTerminals((prev) =>
-                      prev.filter((t) => t.key !== key),
-                    ),
+              <Fragment key={paneKey(pane)}>
+                {i > 0 && (
+                  <div
+                    onMouseDown={(e) =>
+                      startResize(
+                        e,
+                        paneKey(visiblePanes[i - 1]),
+                        paneKey(pane),
+                      )
+                    }
+                    className={`shrink-0 bg-[#2d2d2d] hover:bg-[#4a4a4a] transition-colors ${
+                      layout === "horizontal"
+                        ? "w-[3px] cursor-col-resize"
+                        : "h-[3px] cursor-row-resize"
+                    }`}
+                  />
                 )}
-              </PaneColumn>
+                <PaneColumn weight={sizeFor(pane)}>
+                  {renderPane(
+                    pane,
+                    project,
+                    runningServices,
+                    actionTerminals,
+                    closeShell,
+                    (key) =>
+                      setActionTerminals((prev) =>
+                        prev.filter((t) => t.key !== key),
+                      ),
+                    handleSplit,
+                  )}
+                </PaneColumn>
+              </Fragment>
             ))}
           </div>
         </div>
       ) : (
-        <EmptyState
-          projectName={project.name}
-          onOpenTerminal={() => setOpenShell(true)}
-        />
+        <EmptyState projectName={project.name} onOpenTerminal={openNewShell} />
       )}
 
       {runningAction && (
@@ -186,9 +298,14 @@ function renderPane(
   project: DemoProject,
   runningServices: Set<string>,
   actionTerminals: ActionTerminal[],
-  onCloseShell: () => void,
+  onCloseShell: (id: string) => void,
   onCloseAction: (key: string) => void,
+  onSplit: (direction: "horizontal" | "vertical") => void,
 ): ReactNode {
+  const splitProps = {
+    onSplitRight: () => onSplit("horizontal"),
+    onSplitDown: () => onSplit("vertical"),
+  };
   if (pane.kind === "service") {
     const svc = project.services.find((s) => s.name === pane.name);
     if (!svc) return null;
@@ -199,6 +316,7 @@ function renderPane(
           port={svc.port}
           type="service"
           running={runningServices.has(svc.name)}
+          {...splitProps}
         />
         <StreamingOutput
           key={`${project.name}:${svc.name}`}
@@ -215,9 +333,10 @@ function renderPane(
           label="terminal"
           type="terminal"
           running
-          onClose={onCloseShell}
+          onClose={() => onCloseShell(pane.id)}
+          {...splitProps}
         />
-        <InteractiveTerminal projectRoot={project.root} />
+        <InteractiveTerminal key={pane.id} projectRoot={project.root} />
       </>
     );
   }
@@ -230,6 +349,7 @@ function renderPane(
         type="terminal"
         running
         onClose={() => onCloseAction(pane.key)}
+        {...splitProps}
       />
       <StreamingOutput
         key={pane.key}
@@ -241,17 +361,16 @@ function renderPane(
 }
 
 function PaneColumn({
-  first,
+  weight,
   children,
 }: {
-  first: boolean;
+  weight: number;
   children: ReactNode;
 }) {
   return (
     <div
-      className={`flex-1 min-w-0 flex flex-col ${
-        first ? "" : "border-l border-[#2d2d2d]"
-      }`}
+      style={{ flexGrow: weight, flexBasis: 0 }}
+      className="min-w-0 min-h-0 flex flex-col overflow-hidden"
     >
       {children}
     </div>
@@ -262,34 +381,54 @@ function TabBar({
   panes,
   active,
   onChange,
+  layout,
+  onToggleLayout,
 }: {
   panes: PaneId[];
   active: string;
   onChange: (id: string) => void;
+  layout: "horizontal" | "vertical";
+  onToggleLayout: () => void;
 }) {
   const tabs: { id: string; label: string }[] = [
     { id: ALL_TAB, label: "all" },
     ...panes.map((p) => ({ id: paneKey(p), label: paneLabel(p) })),
   ];
+  const nextLayoutName = layout === "horizontal" ? "vertical" : "horizontal";
   return (
-    <div className="flex-shrink-0 flex items-center gap-0.5 border-b border-white/5 bg-[#2d2d2d] px-1.5 py-1 overflow-x-auto">
-      {tabs.map((tab) => {
-        const isActive = tab.id === active;
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => onChange(tab.id)}
-            className={`flex items-center rounded-md px-2.5 py-1 font-mono text-[11px] font-medium whitespace-nowrap transition-colors ${
-              isActive
-                ? "bg-white/10 text-gray-100"
-                : "text-gray-400 hover:text-gray-100"
-            }`}
-          >
-            {tab.label}
-          </button>
-        );
-      })}
+    <div className="flex-shrink-0 flex items-center justify-between gap-2 border-b border-white/5 bg-[#2d2d2d] px-1.5 py-1">
+      <div className="flex items-center gap-0.5 overflow-x-auto">
+        {tabs.map((tab) => {
+          const isActive = tab.id === active;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onChange(tab.id)}
+              className={`flex items-center rounded-md px-2.5 py-1 font-mono text-[11px] font-medium whitespace-nowrap transition-colors ${
+                isActive
+                  ? "bg-white/10 text-gray-100"
+                  : "text-gray-400 hover:text-gray-100"
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        onClick={onToggleLayout}
+        title={`${nextLayoutName.charAt(0).toUpperCase()}${nextLayoutName.slice(1)} split`}
+        aria-label={`Switch to ${nextLayoutName} split`}
+        className="flex shrink-0 items-center justify-center rounded-md px-1.5 py-1 text-gray-400 hover:bg-white/10 hover:text-gray-100 transition-colors"
+      >
+        {layout === "horizontal" ? (
+          <Rows2 className="w-3.5 h-3.5" />
+        ) : (
+          <Columns2 className="w-3.5 h-3.5" />
+        )}
+      </button>
     </div>
   );
 }
