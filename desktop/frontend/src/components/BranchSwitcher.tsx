@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   CheckoutBranch,
   CreateBranch,
+  DeleteBranch,
   GitDiscardAll,
   PullBranch,
+  RenameBranch,
   SyncBranch,
 } from "../../wailsjs/go/main/App";
 import { getSettings, saveSettings, DEFAULT_PULL_STRATEGY, type GitPullStrategy } from "../settings";
@@ -17,7 +19,7 @@ import { CreateBranchModal } from "./CreateBranchModal";
 import { CommitModal } from "./CommitModal";
 import { PRModal } from "./PRModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
-import { BranchIcon, ChevronLeftIcon, CloudBranchIcon, UndoIcon } from "./icons";
+import { BranchIcon, ChevronLeftIcon, CloudBranchIcon, CopyIcon, PencilIcon, TrashIcon, UndoIcon } from "./icons";
 import { branchKey, branchMatches, RemoteBadge } from "./branchUtils";
 
 const PULL_STRATEGIES: { value: GitPullStrategy; label: string }[] = [
@@ -53,6 +55,9 @@ export function BranchSwitcher({ projectPath, gitState }: {
   const [pullMenuOpen, setPullMenuOpen] = useState(false);
   const [confirmDiscardAllOpen, setConfirmDiscardAllOpen] = useState(false);
   const [discarding, setDiscarding] = useState(false);
+  const [renamingKey, setRenamingKey] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [deletingBranch, setDeletingBranch] = useState<main.Branch | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const pullCloseTimer = useRef<number | null>(null);
 
@@ -192,6 +197,53 @@ export function BranchSwitcher({ projectPath, gitState }: {
     }
   };
 
+  const startRename = (b: main.Branch) => {
+    setRenamingKey(branchKey(b));
+    setRenameValue(b.name);
+  };
+
+  const submitRename = async (b: main.Branch) => {
+    const newName = renameValue.trim();
+    if (!newName || newName === b.name) {
+      setRenamingKey(null);
+      return;
+    }
+    setBusy(true);
+    try {
+      await RenameBranch(projectPath, b.name, newName);
+      await refresh();
+      setRenamingKey(null);
+    } catch (err) {
+      toast.error(`Rename ${b.name}: ${err}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copyBranchName = async (name: string) => {
+    try {
+      await navigator.clipboard.writeText(name);
+      toast.success("Copied branch name");
+    } catch {
+      toast.error("Copy failed");
+    }
+  };
+
+  const handleDelete = async () => {
+    const b = deletingBranch;
+    if (!b) return;
+    setBusy(true);
+    try {
+      await DeleteBranch(projectPath, b.name);
+      await refresh();
+      setDeletingBranch(null);
+    } catch (err) {
+      toast.error(`Delete ${b.name}: ${err}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const needsSync = status.hasUpstream && (status.ahead > 0 || status.behind > 0);
 
   return (
@@ -248,29 +300,89 @@ export function BranchSwitcher({ projectPath, gitState }: {
             {filtered.map((b) => {
               const isCurrent = b.name === status.branch;
               const age = relativeTime(b.committerDate);
+              const key = branchKey(b);
+              const isRenaming = renamingKey === key;
+              const canRename = !b.remote;
+              const canDelete = !b.remote && !isCurrent;
               return (
-                <button
-                  key={branchKey(b)}
-                  onClick={() => checkout(b)}
-                  disabled={busy}
-                  title={b.remote ? `Create local tracking branch from ${b.remote}/${b.name}` : undefined}
-                  className="flex w-full items-start gap-2 px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
+                <div
+                  key={key}
+                  className="group relative flex w-full items-center transition-colors hover:bg-[var(--bg-hover)]"
                 >
-                  {b.remote ? <CloudBranchIcon size={12} /> : <BranchIcon size={12} />}
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className={`flex min-w-0 items-center gap-1.5 ${isCurrent ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}>
-                      <span className="truncate">{b.name}</span>
-                      {b.remote && <RemoteBadge remote={b.remote} />}
-                    </span>
-                    {isCurrent && status.uncommitted > 0 && (
-                      <span className="text-[10px] text-[var(--text-muted)]">
-                        Uncommitted: {status.uncommitted} file{status.uncommitted === 1 ? "" : "s"}
-                      </span>
-                    )}
-                  </span>
-                  {age && <span className="shrink-0 self-center text-[10px] text-[var(--text-muted)]">{age}</span>}
-                  {isCurrent && <CheckIcon />}
-                </button>
+                  {isRenaming ? (
+                    <div className="flex w-full items-center gap-2 px-3 py-1.5 text-[11px]">
+                      <BranchIcon size={12} />
+                      <input
+                        autoFocus
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            submitRename(b);
+                          } else if (e.key === "Escape") {
+                            e.preventDefault();
+                            setRenamingKey(null);
+                          }
+                        }}
+                        onBlur={() => setRenamingKey(null)}
+                        className="min-w-0 flex-1 rounded border border-[var(--border)] bg-[var(--bg-primary)] px-1 py-0.5 text-[11px] text-[var(--text-primary)] focus:border-[var(--text-muted)] focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        title="Save"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => submitRename(b)}
+                        disabled={busy || !renameValue.trim() || renameValue.trim() === b.name}
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[var(--accent-blue)] transition-colors hover:bg-[var(--bg-active)] disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => checkout(b)}
+                        disabled={busy}
+                        title={b.remote ? `Create local tracking branch from ${b.remote}/${b.name}` : undefined}
+                        className={`flex min-w-0 flex-1 items-start gap-2 px-3 py-1.5 text-left text-[11px] disabled:opacity-50 ${isCurrent ? "text-[var(--accent-blue)]" : "text-[var(--text-secondary)]"}`}
+                      >
+                        {b.remote ? <CloudBranchIcon size={12} /> : <BranchIcon size={12} />}
+                        <span className="flex min-w-0 flex-1 flex-col">
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <span className="truncate">{b.name}</span>
+                            {b.remote && <RemoteBadge remote={b.remote} />}
+                          </span>
+                          {isCurrent && status.uncommitted > 0 && (
+                            <span className="text-[10px] text-[var(--text-muted)]">
+                              Uncommitted: {status.uncommitted} file{status.uncommitted === 1 ? "" : "s"}
+                            </span>
+                          )}
+                        </span>
+                      </button>
+                      <div className="flex shrink-0 items-center gap-1 pr-3">
+                        <div className="hidden items-center gap-0.5 pr-1 group-hover:flex">
+                          <BranchActionButton title="Copy branch name" onClick={() => copyBranchName(b.name)}>
+                            <CopyIcon size={12} />
+                          </BranchActionButton>
+                          {canRename && (
+                            <BranchActionButton title="Rename branch" onClick={() => startRename(b)}>
+                              <PencilIcon size={12} />
+                            </BranchActionButton>
+                          )}
+                          {canDelete && (
+                            <BranchActionButton title="Delete branch" onClick={() => setDeletingBranch(b)} danger>
+                              <TrashIcon size={12} />
+                            </BranchActionButton>
+                          )}
+                        </div>
+                        {age && <span className="text-[10px] text-[var(--text-muted)]">{age}</span>}
+                      </div>
+                    </>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -379,7 +491,48 @@ export function BranchSwitcher({ projectPath, gitState }: {
         onCancel={() => setConfirmDiscardAllOpen(false)}
         onConfirm={handleDiscardAll}
       />
+      <ConfirmDialog
+        open={deletingBranch !== null}
+        title="Delete branch"
+        variant="destructive"
+        confirmLabel="Delete"
+        disabled={busy}
+        body={
+          <>
+            Delete local branch <span className="font-medium text-[var(--text-primary)]">{deletingBranch?.name}</span>?
+            This removes it even if it has unmerged commits.
+          </>
+        }
+        onCancel={() => setDeletingBranch(null)}
+        onConfirm={handleDelete}
+      />
     </div>
+  );
+}
+
+function BranchActionButton({
+  title,
+  onClick,
+  children,
+  danger = false,
+}: {
+  title: string;
+  onClick: () => void;
+  children: ReactNode;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className={`flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-active)] ${danger ? "hover:text-[var(--accent-red)]" : "hover:text-[var(--text-primary)]"}`}
+    >
+      {children}
+    </button>
   );
 }
 
