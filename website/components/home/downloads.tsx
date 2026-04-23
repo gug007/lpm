@@ -5,11 +5,10 @@ import {
   Laptop,
   Monitor,
   Package,
-  Terminal,
   type LucideIcon,
 } from "lucide-react";
 import { trackDownload } from "@/lib/analytics";
-import { releaseAsset, RELEASES_URL } from "@/lib/links";
+import { CLI_PATH, releaseAsset, RELEASES_URL } from "@/lib/links";
 import type { Platform } from "@/lib/use-platform";
 import { HighlightPlatform } from "./highlight-platform";
 import { SignatureBadge } from "./signature-badge";
@@ -17,7 +16,7 @@ import { SignatureBadge } from "./signature-badge";
 type Download = {
   href: string;
   platform: Exclude<Platform, null>;
-  product: "desktop" | "cli";
+  product: "desktop";
   label: string;
   sub: string;
   icon: LucideIcon;
@@ -39,22 +38,6 @@ const DOWNLOADS: Download[] = [
     label: "macOS Desktop",
     sub: "Intel",
     icon: Monitor,
-  },
-  {
-    href: releaseAsset("lpm_darwin_arm64.tar.gz"),
-    platform: "mac-arm",
-    product: "cli",
-    label: "CLI",
-    sub: "macOS ARM64",
-    icon: Terminal,
-  },
-  {
-    href: releaseAsset("lpm_darwin_amd64.tar.gz"),
-    platform: "mac-intel",
-    product: "cli",
-    label: "CLI",
-    sub: "macOS Intel",
-    icon: Terminal,
   },
 ];
 
@@ -80,17 +63,13 @@ export function Downloads() {
           <SignatureBadge />
         </div>
         <HighlightPlatform />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-3xl mx-auto">
-          {DOWNLOADS.map(({ href, platform, product, label, sub, icon: Icon }) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl mx-auto">
+          {DOWNLOADS.map(({ href, platform, label, sub, icon: Icon }) => (
             <a
               key={href}
               href={href}
               data-platform={platform}
-              onClick={
-                product === "desktop"
-                  ? () => trackDownload({ source: "downloads", platform })
-                  : undefined
-              }
+              onClick={() => trackDownload({ source: "downloads", platform })}
               className="dl-card group relative flex flex-col items-center gap-2 px-6 py-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-[#111]"
             >
               <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center mb-1 group-hover:bg-gray-100 dark:group-hover:bg-gray-800 transition-colors">
@@ -101,10 +80,17 @@ export function Downloads() {
             </a>
           ))}
         </div>
-        <div className="mt-8">
+        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-x-6 gap-y-2 text-sm">
+          <a
+            href={CLI_PATH}
+            className="inline-flex items-center gap-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+          >
+            Prefer the CLI?
+            <ArrowRight className="w-3.5 h-3.5" />
+          </a>
           <a
             href={RELEASES_URL}
-            className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            className="inline-flex items-center gap-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
           >
             View all downloads
             <ArrowRight className="w-3.5 h-3.5" />

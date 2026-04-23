@@ -63,9 +63,8 @@ export function ConfigExample() {
               Profiles
             </p>
             <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
-              Named groups of services. Start a subset with{" "}
-              <code className="font-mono">lpm myapp -p full</code> or pick from
-              the app.
+              Named groups of services. Pick a profile from the header and
+              start only that subset.
             </p>
           </div>
           <div className="rounded-lg border border-gray-200 dark:border-gray-800 px-3.5 py-2.5">
@@ -73,8 +72,8 @@ export function ConfigExample() {
               Actions
             </p>
             <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
-              One-shot commands. Run from the desktop app or CLI with{" "}
-              <code className="font-mono">lpm run myapp deploy</code>.
+              One-shot commands. Appear as buttons in the app — trigger tests,
+              migrations, or deploys in one click.
             </p>
           </div>
         </div>

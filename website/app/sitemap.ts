@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import {
   AI_AGENTS_PATH,
   BEST_TERMINAL_MAC_PATH,
+  CLI_PATH,
   GIT_TERMINAL_MAC_PATH,
   MAC_TERMINAL_DEVELOPERS_PATH,
   PRIVACY_PATH,
@@ -22,6 +23,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified,
       changeFrequency: "weekly",
       priority: 1,
+    },
+    {
+      url: `${SITE_URL}${CLI_PATH}`,
+      lastModified,
+      changeFrequency: "weekly",
+      priority: 0.9,
     },
     {
       url: `${SITE_URL}${AI_AGENTS_PATH}`,
