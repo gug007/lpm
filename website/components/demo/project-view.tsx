@@ -1,46 +1,39 @@
 "use client";
 
 import {
-  Fragment,
+  useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
 import {
   ChevronDown,
-  Columns2,
   Menu as MenuIcon,
   Plus,
-  Rows2,
   Terminal,
 } from "lucide-react";
 import type { DemoAction, DemoProject, DemoService } from "./projects";
 import { PaneHeader, StreamingOutput } from "./terminal-pane";
 import { DemoActionModal } from "./action-modal";
+import {
+  type PaneLeaf,
+  type PaneNode,
+  type PaneSplit,
+  type SplitDirection,
+  appendLeaf,
+  collectLeaves,
+  collectServiceNames,
+  findLeaf,
+  makeLeaf,
+  removeLeaf,
+  setRatioAtPath,
+  splitAtLeaf,
+} from "./pane-tree";
 
-type PaneId =
-  | { kind: "service"; name: string }
-  | { kind: "shell"; id: string }
-  | { kind: "action"; key: string; label: string };
-
-type ActionTerminal = { key: string; action: DemoAction };
-
-const ALL_TAB = "__all__";
 const MAX_TERMINAL_HISTORY = 200;
-const MAX_ACTION_TERMINALS = 4;
-const MAX_SHELL_TERMINALS = 4;
 
-const paneKey = (id: PaneId): string =>
-  id.kind === "service"
-    ? `s:${id.name}`
-    : id.kind === "shell"
-      ? `t:${id.id}`
-      : `a:${id.key}`;
-
-const paneLabel = (id: PaneId): string =>
-  id.kind === "service" ? id.name : id.kind === "shell" ? "terminal" : id.label;
+type ActionTerminalMap = Record<string, DemoAction>;
 
 type ProjectViewProps = {
   project: DemoProject;
@@ -49,6 +42,28 @@ type ProjectViewProps = {
   onStopAll: () => void;
   onToggleService: (name: string) => void;
 };
+
+function reconcileServices(
+  tree: PaneNode | null,
+  running: Set<string>,
+): PaneNode | null {
+  let t = tree;
+  for (const leaf of collectLeaves(t)) {
+    if (leaf.content.kind === "service" && !running.has(leaf.content.name)) {
+      t = t ? removeLeaf(t, leaf.id) : null;
+    }
+  }
+  const existing = new Set(collectServiceNames(t));
+  for (const name of running) {
+    if (!existing.has(name)) {
+      const leaf = makeLeaf({ kind: "service", name });
+      t = t
+        ? { kind: "split", direction: "row", ratio: 0.5, a: leaf, b: t }
+        : leaf;
+    }
+  }
+  return t;
+}
 
 export function DemoProjectView({
   project,
@@ -59,122 +74,116 @@ export function DemoProjectView({
 }: ProjectViewProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<string>(ALL_TAB);
   const [runningAction, setRunningAction] = useState<DemoAction | null>(null);
-  const [shellIds, setShellIds] = useState<string[]>([]);
-  const [actionTerminals, setActionTerminals] = useState<ActionTerminal[]>([]);
-  const [layout, setLayout] = useState<"horizontal" | "vertical">("horizontal");
-  const [sizes, setSizes] = useState<Record<string, number>>({});
+  const [tree, setTree] = useState<PaneNode | null>(null);
+  const [actionTerminals, setActionTerminals] = useState<ActionTerminalMap>({});
   const [isResizing, setIsResizing] = useState(false);
+  const [resizeDir, setResizeDir] = useState<SplitDirection>("row");
 
   useEffect(() => {
     if (!isResizing) return;
     const body = document.body;
     const prevCursor = body.style.cursor;
     const prevSelect = body.style.userSelect;
-    body.style.cursor = layout === "horizontal" ? "col-resize" : "row-resize";
+    body.style.cursor = resizeDir === "row" ? "col-resize" : "row-resize";
     body.style.userSelect = "none";
     return () => {
       body.style.cursor = prevCursor;
       body.style.userSelect = prevSelect;
     };
-  }, [isResizing, layout]);
+  }, [isResizing, resizeDir]);
 
-  const openNewShell = () => {
-    setShellIds((prev) => {
-      const id = `shell-${Date.now().toString(36)}-${prev.length}`;
-      return prev.length >= MAX_SHELL_TERMINALS
-        ? [...prev.slice(1), id]
-        : [...prev, id];
-    });
-    setActiveTab(ALL_TAB);
-  };
-
-  const closeShell = (id: string) =>
-    setShellIds((prev) => prev.filter((x) => x !== id));
-
-  const handleSplit = (direction: "horizontal" | "vertical") => {
-    setLayout(direction);
-    openNewShell();
-  };
-
-  const panes = useMemo<PaneId[]>(() => {
-    const out: PaneId[] = project.services
-      .filter((s) => runningServices.has(s.name))
-      .map((s) => ({ kind: "service", name: s.name }));
-    for (const id of shellIds) out.push({ kind: "shell", id });
-    for (const at of actionTerminals) {
-      out.push({ kind: "action", key: at.key, label: at.action.label });
-    }
-    return out;
-  }, [project.services, runningServices, shellIds, actionTerminals]);
-
-  const anyRunning = panes.some((p) => p.kind === "service");
-  const hasPane = panes.length > 0;
+  const anyRunning = runningServices.size > 0;
   const buttonActions = project.actions.filter((a) => a.display === "button");
   const menuActions = project.actions.filter((a) => a.display !== "button");
 
-  const showAllTab = panes.length > 1;
-  const knownKeys = panes.map(paneKey);
-  const showingAll = activeTab === ALL_TAB || !knownKeys.includes(activeTab);
-  const visiblePanes = showingAll
-    ? panes
-    : panes.filter((p) => paneKey(p) === activeTab);
+  const openNewShell = () => {
+    setTree((prev) => appendLeaf(prev, makeLeaf({ kind: "shell" })));
+  };
+
+  const openActionTerminal = (action: DemoAction) => {
+    const key = `${action.name}-${Date.now().toString(36)}`;
+    setActionTerminals((prev) => ({ ...prev, [key]: action }));
+    setTree((prev) =>
+      appendLeaf(prev, makeLeaf({ kind: "action", key, label: action.label })),
+    );
+  };
+
+  const handleSplit = (paneId: string, direction: SplitDirection) => {
+    setTree((prev) =>
+      prev ? splitAtLeaf(prev, paneId, direction, makeLeaf({ kind: "shell" })) : prev,
+    );
+  };
+
+  const handleClose = (paneId: string) => {
+    if (!tree) return;
+    const leaf = findLeaf(tree, paneId);
+    if (!leaf) return;
+    if (leaf.content.kind === "service") {
+      onToggleService(leaf.content.name);
+      setTree(removeLeaf(tree, paneId));
+      return;
+    }
+    if (leaf.content.kind === "action") {
+      const key = leaf.content.key;
+      setActionTerminals((map) => {
+        if (!(key in map)) return map;
+        const next = { ...map };
+        delete next[key];
+        return next;
+      });
+    }
+    setTree(removeLeaf(tree, paneId));
+  };
+
+  const handleRatioChange = useCallback(
+    (path: number[], ratio: number) => {
+      setTree((prev) => (prev ? setRatioAtPath(prev, path, ratio) : prev));
+    },
+    [],
+  );
+
+  const handleResizeStart = useCallback((dir: SplitDirection) => {
+    setResizeDir(dir);
+    setIsResizing(true);
+  }, []);
+
+  const handleResizeEnd = useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  const applyServicesToTree = (names: string[]) => {
+    setTree((prev) => reconcileServices(prev, new Set(names)));
+  };
 
   const handleStartStop = () => {
     if (anyRunning) {
       onStopAll();
+      applyServicesToTree([]);
     } else {
       const defaultProfile = project.profiles.find((p) => p.name === "default");
-      onStartServices(
-        defaultProfile
-          ? defaultProfile.services
-          : project.services.map((s) => s.name),
-      );
+      const names = defaultProfile
+        ? defaultProfile.services
+        : project.services.map((s) => s.name);
+      onStartServices(names);
+      applyServicesToTree(names);
     }
-    setActiveTab(ALL_TAB);
   };
 
-  const sizeFor = (p: PaneId) => sizes[paneKey(p)] ?? 1;
+  const handleToggleService = (name: string) => {
+    onToggleService(name);
+    const next = new Set(runningServices);
+    if (next.has(name)) next.delete(name);
+    else next.add(name);
+    applyServicesToTree([...next]);
+  };
 
-  const startResize = (
-    e: React.MouseEvent,
-    leftKey: string,
-    rightKey: string,
-  ) => {
-    e.preventDefault();
-    const container = (e.currentTarget as HTMLElement).parentElement;
-    if (!container) return;
-    const startCoord = layout === "horizontal" ? e.clientX : e.clientY;
-    const startSizes = { ...sizes };
-    const startLeft = startSizes[leftKey] ?? 1;
-    const startRight = startSizes[rightKey] ?? 1;
-    const sumAll = visiblePanes.reduce(
-      (a, p) => a + (startSizes[paneKey(p)] ?? 1),
-      0,
-    ) || 1;
-
-    const onMove = (ev: MouseEvent) => {
-      const rect = container.getBoundingClientRect();
-      const total = layout === "horizontal" ? rect.width : rect.height;
-      if (!total) return;
-      const currentCoord =
-        layout === "horizontal" ? ev.clientX : ev.clientY;
-      const frac = (currentCoord - startCoord) / total;
-      const leftNew = startLeft + frac * sumAll;
-      const rightNew = startRight - frac * sumAll;
-      const min = 0.12 * sumAll;
-      if (leftNew < min || rightNew < min) return;
-      setSizes((prev) => ({ ...prev, [leftKey]: leftNew, [rightKey]: rightNew }));
-    };
-    const onUp = () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      setIsResizing(false);
-    };
-    setIsResizing(true);
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
+  const handleStartProfile = (profile: string) => {
+    const p = project.profiles.find((x) => x.name === profile);
+    if (!p) return;
+    onStartServices(p.services);
+    applyServicesToTree(p.services);
+    setStartOpen(false);
   };
 
   return (
@@ -197,26 +206,12 @@ export function DemoProjectView({
         onCloseStart={() => setStartOpen(false)}
         onCloseMenu={() => setMenuOpen(false)}
         onStartStop={handleStartStop}
-        onStartProfile={(profile) => {
-          const p = project.profiles.find((x) => x.name === profile);
-          if (p) onStartServices(p.services);
-          setStartOpen(false);
-          setActiveTab(ALL_TAB);
-        }}
-        onToggleService={(name) => {
-          onToggleService(name);
-          setActiveTab(ALL_TAB);
-        }}
+        onStartProfile={handleStartProfile}
+        onToggleService={handleToggleService}
         onOpenAction={(a) => {
           setMenuOpen(false);
           if (a.type === "terminal") {
-            setActionTerminals((prev) => {
-              const next = [...prev, { key: `${a.name}-${Date.now()}`, action: a }];
-              return next.length > MAX_ACTION_TERMINALS
-                ? next.slice(-MAX_ACTION_TERMINALS)
-                : next;
-            });
-            setActiveTab(ALL_TAB);
+            openActionTerminal(a);
           } else {
             setRunningAction(a);
           }
@@ -225,59 +220,20 @@ export function DemoProjectView({
         onOpenTerminal={openNewShell}
       />
 
-      {hasPane ? (
+      {tree ? (
         <div className="relative flex flex-1 min-h-0 flex-col overflow-hidden border-t border-[#2e2e2e]">
-          {showAllTab && (
-            <TabBar
-              panes={panes}
-              active={activeTab}
-              onChange={setActiveTab}
-              layout={layout}
-              onToggleLayout={() =>
-                setLayout((v) => (v === "horizontal" ? "vertical" : "horizontal"))
-              }
-            />
-          )}
-          <div
-            className={`flex flex-1 min-h-0 ${
-              layout === "horizontal" ? "flex-row" : "flex-col"
-            }`}
-          >
-            {visiblePanes.map((pane, i) => (
-              <Fragment key={paneKey(pane)}>
-                {i > 0 && (
-                  <div
-                    onMouseDown={(e) =>
-                      startResize(
-                        e,
-                        paneKey(visiblePanes[i - 1]),
-                        paneKey(pane),
-                      )
-                    }
-                    className={`shrink-0 bg-[#2d2d2d] hover:bg-[#4a4a4a] transition-colors ${
-                      layout === "horizontal"
-                        ? "w-[3px] cursor-col-resize"
-                        : "h-[3px] cursor-row-resize"
-                    }`}
-                  />
-                )}
-                <PaneColumn weight={sizeFor(pane)}>
-                  {renderPane(
-                    pane,
-                    project,
-                    runningServices,
-                    actionTerminals,
-                    closeShell,
-                    (key) =>
-                      setActionTerminals((prev) =>
-                        prev.filter((t) => t.key !== key),
-                      ),
-                    handleSplit,
-                  )}
-                </PaneColumn>
-              </Fragment>
-            ))}
-          </div>
+          <PaneLayout
+            node={tree}
+            path={[]}
+            project={project}
+            runningServices={runningServices}
+            actionTerminals={actionTerminals}
+            onSplit={handleSplit}
+            onClose={handleClose}
+            onRatioChange={handleRatioChange}
+            onResizeStart={handleResizeStart}
+            onResizeEnd={handleResizeEnd}
+          />
         </div>
       ) : (
         <EmptyState projectName={project.name} onOpenTerminal={openNewShell} />
@@ -293,24 +249,43 @@ export function DemoProjectView({
   );
 }
 
-function renderPane(
-  pane: PaneId,
-  project: DemoProject,
-  runningServices: Set<string>,
-  actionTerminals: ActionTerminal[],
-  onCloseShell: (id: string) => void,
-  onCloseAction: (key: string) => void,
-  onSplit: (direction: "horizontal" | "vertical") => void,
-): ReactNode {
+type PaneLayoutProps = {
+  node: PaneNode;
+  path: number[];
+  project: DemoProject;
+  runningServices: Set<string>;
+  actionTerminals: ActionTerminalMap;
+  onSplit: (paneId: string, direction: SplitDirection) => void;
+  onClose: (paneId: string) => void;
+  onRatioChange: (path: number[], ratio: number) => void;
+  onResizeStart: (dir: SplitDirection) => void;
+  onResizeEnd: () => void;
+};
+
+function PaneLayout(props: PaneLayoutProps) {
+  if (props.node.kind === "leaf") return <Leaf {...props} leaf={props.node} />;
+  return <SplitView {...props} split={props.node} />;
+}
+
+function Leaf({
+  leaf,
+  project,
+  runningServices,
+  actionTerminals,
+  onSplit,
+  onClose,
+}: PaneLayoutProps & { leaf: PaneLeaf }) {
   const splitProps = {
-    onSplitRight: () => onSplit("horizontal"),
-    onSplitDown: () => onSplit("vertical"),
+    onSplitRight: () => onSplit(leaf.id, "row"),
+    onSplitDown: () => onSplit(leaf.id, "col"),
+    onClose: () => onClose(leaf.id),
   };
-  if (pane.kind === "service") {
-    const svc = project.services.find((s) => s.name === pane.name);
+  const content = leaf.content;
+  if (content.kind === "service") {
+    const svc = project.services.find((s) => s.name === content.name);
     if (!svc) return null;
     return (
-      <>
+      <div className="flex min-w-0 min-h-0 flex-1 flex-col overflow-hidden">
         <PaneHeader
           label={svc.name}
           port={svc.port}
@@ -323,112 +298,105 @@ function renderPane(
           output={svc.output}
           loop={svc.loop}
         />
-      </>
+      </div>
     );
   }
-  if (pane.kind === "shell") {
+  if (content.kind === "shell") {
     return (
-      <>
-        <PaneHeader
-          label="terminal"
-          type="terminal"
-          running
-          onClose={() => onCloseShell(pane.id)}
-          {...splitProps}
-        />
-        <InteractiveTerminal key={pane.id} projectRoot={project.root} />
-      </>
+      <div className="flex min-w-0 min-h-0 flex-1 flex-col overflow-hidden">
+        <PaneHeader label="terminal" type="terminal" running {...splitProps} />
+        <InteractiveTerminal key={leaf.id} projectRoot={project.root} />
+      </div>
     );
   }
-  const at = actionTerminals.find((t) => t.key === pane.key);
-  if (!at) return null;
+  const action = actionTerminals[content.key];
+  if (!action) return null;
   return (
-    <>
+    <div className="flex min-w-0 min-h-0 flex-1 flex-col overflow-hidden">
       <PaneHeader
-        label={at.action.label}
+        label={action.label}
         type="terminal"
         running
-        onClose={() => onCloseAction(pane.key)}
         {...splitProps}
       />
       <StreamingOutput
-        key={pane.key}
-        output={at.action.output}
-        loop={at.action.loop}
+        key={content.key}
+        output={action.output}
+        loop={action.loop}
       />
-    </>
-  );
-}
-
-function PaneColumn({
-  weight,
-  children,
-}: {
-  weight: number;
-  children: ReactNode;
-}) {
-  return (
-    <div
-      style={{ flexGrow: weight, flexBasis: 0 }}
-      className="min-w-0 min-h-0 flex flex-col overflow-hidden"
-    >
-      {children}
     </div>
   );
 }
 
-function TabBar({
-  panes,
-  active,
-  onChange,
-  layout,
-  onToggleLayout,
-}: {
-  panes: PaneId[];
-  active: string;
-  onChange: (id: string) => void;
-  layout: "horizontal" | "vertical";
-  onToggleLayout: () => void;
-}) {
-  const tabs: { id: string; label: string }[] = [
-    { id: ALL_TAB, label: "all" },
-    ...panes.map((p) => ({ id: paneKey(p), label: paneLabel(p) })),
-  ];
-  const nextLayoutName = layout === "horizontal" ? "vertical" : "horizontal";
+function SplitView(
+  props: PaneLayoutProps & { split: PaneSplit },
+) {
+  const { split, path, onRatioChange, onResizeStart, onResizeEnd } = props;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isRow = split.direction === "row";
+
+  const onDividerDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const total = isRow ? rect.width : rect.height;
+      if (total <= 0) return;
+      const origin = isRow ? rect.left : rect.top;
+
+      let rafId = 0;
+      let pendingPos = 0;
+      const onMove = (ev: MouseEvent) => {
+        pendingPos = isRow ? ev.clientX : ev.clientY;
+        if (rafId) return;
+        rafId = requestAnimationFrame(() => {
+          rafId = 0;
+          onRatioChange(path, (pendingPos - origin) / total);
+        });
+      };
+      const onUp = () => {
+        if (rafId) cancelAnimationFrame(rafId);
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        onResizeEnd();
+      };
+      onResizeStart(split.direction);
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    },
+    [isRow, path, split.direction, onRatioChange, onResizeStart, onResizeEnd],
+  );
+
+  const dim = isRow ? "width" : "height";
+  const aStyle = { [dim]: `${split.ratio * 100}%` } as React.CSSProperties;
+  const bStyle = { [dim]: `${(1 - split.ratio) * 100}%` } as React.CSSProperties;
+
   return (
-    <div className="flex-shrink-0 flex items-center justify-between gap-2 border-b border-white/5 bg-[#2d2d2d] px-1.5 py-1">
-      <div className="flex items-center gap-0.5 overflow-x-auto">
-        {tabs.map((tab) => {
-          const isActive = tab.id === active;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => onChange(tab.id)}
-              className={`flex items-center rounded-md px-2.5 py-1 font-mono text-[11px] font-medium whitespace-nowrap transition-colors ${
-                isActive
-                  ? "bg-white/10 text-gray-100"
-                  : "text-gray-400 hover:text-gray-100"
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-      <button
-        type="button"
-        onClick={onToggleLayout}
-        title={`${nextLayoutName.charAt(0).toUpperCase()}${nextLayoutName.slice(1)} split`}
-        aria-label={`Switch to ${nextLayoutName} split`}
-        className="flex shrink-0 items-center justify-center rounded-md px-1.5 py-1 text-gray-400 hover:bg-white/10 hover:text-gray-100 transition-colors"
+    <div
+      ref={containerRef}
+      className={`flex flex-1 min-w-0 min-h-0 overflow-hidden ${
+        isRow ? "flex-row" : "flex-col"
+      }`}
+    >
+      <div
+        className="flex min-w-0 min-h-0 overflow-hidden"
+        style={aStyle}
       >
-        {layout === "horizontal" ? (
-          <Rows2 className="w-3.5 h-3.5" />
-        ) : (
-          <Columns2 className="w-3.5 h-3.5" />
-        )}
-      </button>
+        <PaneLayout {...props} node={split.a} path={[...path, 0]} />
+      </div>
+      <div
+        onMouseDown={onDividerDown}
+        className={`shrink-0 bg-[#2d2d2d] hover:bg-[#4a4a4a] transition-colors ${
+          isRow ? "w-[3px] cursor-col-resize" : "h-[3px] cursor-row-resize"
+        }`}
+      />
+      <div
+        className="flex min-w-0 min-h-0 overflow-hidden"
+        style={bStyle}
+      >
+        <PaneLayout {...props} node={split.b} path={[...path, 1]} />
+      </div>
     </div>
   );
 }
