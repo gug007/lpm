@@ -1,4 +1,6 @@
-const RELEASES_API = "https://api.github.com/repos/gug007/lpm/releases";
+import { REPO_API_URL } from "./links";
+
+const RELEASES_API = `${REPO_API_URL}/releases`;
 
 type RawAsset = {
   name: string;

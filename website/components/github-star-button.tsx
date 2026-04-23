@@ -1,9 +1,9 @@
 import { Star } from "lucide-react";
-import { REPO_URL } from "@/lib/links";
+import { REPO_API_URL, REPO_SLUG, REPO_URL } from "@/lib/links";
 
 async function fetchStarCount(): Promise<number | null> {
   try {
-    const res = await fetch("https://api.github.com/repos/gug007/lpm", {
+    const res = await fetch(REPO_API_URL, {
       headers: { Accept: "application/vnd.github+json" },
       next: { revalidate: 3600 },
     });
@@ -26,10 +26,8 @@ function formatCount(n: number): string {
 
 export async function GitHubStarButton() {
   const stars = await fetchStarCount();
-  const label =
-    stars !== null
-      ? `Star gug007/lpm on GitHub (${stars} stars)`
-      : "Star gug007/lpm on GitHub";
+  const baseLabel = `Star ${REPO_SLUG} on GitHub`;
+  const label = stars !== null ? `${baseLabel} (${stars} stars)` : baseLabel;
 
   return (
     <a
@@ -41,7 +39,7 @@ export async function GitHubStarButton() {
     >
       <span className="inline-flex items-center gap-1 px-2 py-1">
         <Star
-          className="w-[13px] h-[13px] text-gray-500 dark:text-gray-400 group-hover:text-amber-500 group-hover:fill-amber-400 dark:group-hover:text-amber-400 dark:group-hover:fill-amber-400 transition-colors duration-200"
+          className="w-[13px] h-[13px] text-gray-500 dark:text-gray-400 group-hover:text-amber-500 group-hover:fill-amber-400 transition-colors duration-200"
           aria-hidden="true"
         />
         <span>GitHub Stars</span>

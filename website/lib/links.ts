@@ -1,5 +1,7 @@
 export const SITE_URL = "https://lpm.cx";
-export const REPO_URL = "https://github.com/gug007/lpm";
+export const REPO_SLUG = "gug007/lpm";
+export const REPO_URL = `https://github.com/${REPO_SLUG}`;
+export const REPO_API_URL = `https://api.github.com/repos/${REPO_SLUG}`;
 export const RELEASES_URL = `${REPO_URL}/releases/latest`;
 export const AI_AGENTS_PATH = "/best-terminal-for-claude-code-and-codex";
 export const PRIVACY_PATH = "/privacy";
