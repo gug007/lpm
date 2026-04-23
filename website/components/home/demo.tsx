@@ -23,9 +23,9 @@ export function DemoSection() {
     <section id="demo" className="scroll-mt-20 py-16 sm:py-20">
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
         <SectionHeader
-          eyebrow="Try it here"
-          title="A taste of the desktop app, in your browser"
-          description="Pick a project, hit Start, open a terminal, run an action. It's fake output — the real thing talks to your actual processes."
+          eyebrow="Interactive demo"
+          title="Projects, terminals, Claude Code or Codex — one click each"
+          description="Switch projects, start services, launch Claude Code or Codex — all from one native macOS app. Try it right in your browser, no install."
           className="mb-10"
         />
         <DemoApp heightCss="min(560px, 70vh)" />
