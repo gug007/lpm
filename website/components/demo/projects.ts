@@ -71,6 +71,29 @@ function claudeCodeAction(cwd: string): DemoAction {
   };
 }
 
+function codexAction(cwd: string): DemoAction {
+  return {
+    name: "codex",
+    label: "◆ Codex",
+    cmd: "codex",
+    display: "button",
+    type: "terminal",
+    output: [
+      { text: "$ codex", color: "green", delay: 50 },
+      { text: "", delay: 150 },
+      { text: "  ◆ Codex CLI · ready", color: "cyan", delay: 300 },
+      { text: "", delay: 340 },
+      { text: "    /help · /model · /resume", color: "muted", delay: 420 },
+      { text: `    cwd: ${cwd}`, color: "muted", delay: 500 },
+      { text: "", delay: 540 },
+      { text: "  ────────────────────", color: "muted", delay: 600 },
+      { text: "", delay: 640 },
+      { text: "  ※ Tip: lpm launched Codex in this project's root", color: "muted", delay: 780 },
+      { text: "", delay: 820 },
+    ],
+  };
+}
+
 const PROJECTS: DemoProject[] = [
   {
     name: "saas-app",
@@ -263,7 +286,7 @@ const PROJECTS: DemoProject[] = [
       },
     ],
     actions: [
-      claudeCodeAction("~/Projects/auth-service"),
+      codexAction("~/Projects/auth-service"),
       {
         name: "test",
         label: "go test",
@@ -400,7 +423,7 @@ const PROJECTS: DemoProject[] = [
       },
     ],
     actions: [
-      claudeCodeAction("~/Projects/ml-pipeline"),
+      codexAction("~/Projects/ml-pipeline"),
       {
         name: "train",
         label: "Train",
