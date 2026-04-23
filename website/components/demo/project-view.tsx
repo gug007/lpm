@@ -10,7 +10,6 @@ import {
 import {
   ChevronDown,
   Menu as MenuIcon,
-  Plus,
   Terminal,
 } from "lucide-react";
 import type { DemoAction, DemoProject, DemoService } from "./projects";
@@ -218,7 +217,6 @@ export function DemoProjectView({
           }
         }}
         runningServices={runningServices}
-        onOpenTerminal={openNewShell}
       />
 
       {tree ? (
@@ -231,6 +229,7 @@ export function DemoProjectView({
             actionTerminals={actionTerminals}
             onSplit={handleSplit}
             onClose={handleClose}
+            onNewTerminal={openNewShell}
             onRatioChange={handleRatioChange}
             onResizeStart={handleResizeStart}
             onResizeEnd={handleResizeEnd}
@@ -258,6 +257,7 @@ type PaneLayoutProps = {
   actionTerminals: ActionTerminalMap;
   onSplit: (paneId: string, direction: SplitDirection) => void;
   onClose: (paneId: string) => void;
+  onNewTerminal: () => void;
   onRatioChange: (path: number[], ratio: number) => void;
   onResizeStart: (dir: SplitDirection) => void;
   onResizeEnd: () => void;
@@ -275,11 +275,13 @@ function Leaf({
   actionTerminals,
   onSplit,
   onClose,
+  onNewTerminal,
 }: PaneLayoutProps & { leaf: PaneLeaf }) {
   const splitProps = {
     onSplitRight: () => onSplit(leaf.id, "row"),
     onSplitDown: () => onSplit(leaf.id, "col"),
     onClose: () => onClose(leaf.id),
+    onNewTerminal,
   };
   const content = leaf.content;
   if (content.kind === "service") {
@@ -572,7 +574,6 @@ type HeaderProps = {
   onStartProfile: (name: string) => void;
   onToggleService: (name: string) => void;
   onOpenAction: (a: DemoAction) => void;
-  onOpenTerminal: () => void;
 };
 
 function Header({
@@ -591,7 +592,6 @@ function Header({
   onStartProfile,
   onToggleService,
   onOpenAction,
-  onOpenTerminal,
 }: HeaderProps) {
   const showSplit = project.services.length > 1 || project.profiles.length > 1;
   const startColor = anyRunning
@@ -621,15 +621,6 @@ function Header({
             {a.label}
           </button>
         ))}
-        <button
-          type="button"
-          onClick={onOpenTerminal}
-          title="New terminal"
-          aria-label="New terminal"
-          className="flex items-center gap-1 rounded-lg border border-[#2e2e2e] bg-[#242424] px-2 py-1.5 text-xs font-medium text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" strokeWidth={2} />
-        </button>
         {menuActions.length > 0 && (
           <div className="relative">
             <button

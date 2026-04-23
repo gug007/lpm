@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Columns2, Rows2, Terminal as TerminalIcon, X } from "lucide-react";
+import {
+  Columns2,
+  Plus,
+  Rows2,
+  Terminal as TerminalIcon,
+  X,
+} from "lucide-react";
 import type { LineColor, OutputLine } from "./projects";
 
 const MAX_LINES = 140;
@@ -25,6 +31,7 @@ type PaneHeaderProps = {
   onClose?: () => void;
   onSplitRight?: () => void;
   onSplitDown?: () => void;
+  onNewTerminal?: () => void;
 };
 
 export function PaneHeader({
@@ -35,35 +42,61 @@ export function PaneHeader({
   onClose,
   onSplitRight,
   onSplitDown,
+  onNewTerminal,
 }: PaneHeaderProps) {
   return (
-    <div className="flex-shrink-0 flex items-center gap-1.5 bg-[#2d2d2d] px-2 py-1">
-      {type === "service" ? (
-        <span
-          className={`inline-block w-2 h-2 rounded-full shrink-0 ${
-            running
-              ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]"
-              : "bg-gray-600"
-          }`}
-        />
-      ) : (
-        <TerminalIcon className="w-3 h-3 text-[#8e8e8e] shrink-0" />
-      )}
-      <span className="font-mono text-[11px] font-medium text-[#d4d4d4] truncate flex-1">
-        {label}
-      </span>
-      {port !== undefined && (
-        <span className="font-mono text-[10px] text-[#8e8e8e] tabular-nums shrink-0">
-          :{port}
-        </span>
-      )}
+    <div className="flex-shrink-0 flex items-center gap-0.5 bg-[#2d2d2d] px-1.5 py-1">
+      <div className="flex min-w-0 flex-1 items-center gap-0.5">
+        <div className="flex min-w-0 items-center gap-1.5 rounded-md bg-white/[0.06] px-2 py-0.5">
+          {type === "service" ? (
+            <span
+              className={`inline-block w-2 h-2 rounded-full shrink-0 ${
+                running
+                  ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]"
+                  : "bg-gray-600"
+              }`}
+            />
+          ) : (
+            <TerminalIcon className="w-3 h-3 text-[#8e8e8e] shrink-0" />
+          )}
+          <span className="font-mono text-[11px] font-medium text-[#d4d4d4] truncate">
+            {label}
+          </span>
+          {port !== undefined && (
+            <span className="font-mono text-[10px] text-[#8e8e8e] tabular-nums shrink-0">
+              :{port}
+            </span>
+          )}
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label={`Close ${label}`}
+              className="rounded text-[#8e8e8e] hover:text-gray-100 transition-colors shrink-0 leading-none"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+        {onNewTerminal && (
+          <button
+            type="button"
+            onClick={onNewTerminal}
+            aria-label="New terminal"
+            title="New terminal"
+            className="rounded-md px-1.5 py-0.5 text-[#8e8e8e] hover:bg-white/[0.08] hover:text-gray-100 transition-colors shrink-0"
+          >
+            <Plus className="w-3 h-3" />
+          </button>
+        )}
+      </div>
       {onSplitRight && (
         <button
           type="button"
           onClick={onSplitRight}
           aria-label="Split right"
           title="Split right"
-          className="rounded px-1 py-0.5 text-[#8e8e8e] hover:bg-white/[0.08] hover:text-gray-100 transition-colors shrink-0"
+          className="rounded-md px-1.5 py-0.5 text-[#8e8e8e] hover:bg-white/[0.08] hover:text-gray-100 transition-colors shrink-0"
         >
           <Columns2 className="w-3 h-3" />
         </button>
@@ -74,19 +107,9 @@ export function PaneHeader({
           onClick={onSplitDown}
           aria-label="Split down"
           title="Split down"
-          className="rounded px-1 py-0.5 text-[#8e8e8e] hover:bg-white/[0.08] hover:text-gray-100 transition-colors shrink-0"
+          className="rounded-md px-1.5 py-0.5 text-[#8e8e8e] hover:bg-white/[0.08] hover:text-gray-100 transition-colors shrink-0"
         >
           <Rows2 className="w-3 h-3" />
-        </button>
-      )}
-      {onClose && (
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={`Close ${label}`}
-          className="rounded px-1 text-[#8e8e8e] hover:bg-white/[0.08] hover:text-gray-100 transition-colors shrink-0 leading-none text-sm"
-        >
-          <X className="w-3 h-3" />
         </button>
       )}
     </div>
