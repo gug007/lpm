@@ -16,6 +16,7 @@ import {
 import type { DemoAction, DemoProject, DemoService } from "./projects";
 import { PaneHeader, StreamingOutput } from "./terminal-pane";
 import { DemoActionModal } from "./action-modal";
+import { AgentTerminal } from "./agent-terminal";
 import {
   type PaneLeaf,
   type PaneNode,
@@ -319,11 +320,19 @@ function Leaf({
         running
         {...splitProps}
       />
-      <StreamingOutput
-        key={content.key}
-        output={action.output}
-        loop={action.loop}
-      />
+      {action.agent ? (
+        <AgentTerminal
+          key={content.key}
+          agent={action.agent}
+          cwd={project.root}
+        />
+      ) : (
+        <StreamingOutput
+          key={content.key}
+          output={action.output}
+          loop={action.loop}
+        />
+      )}
     </div>
   );
 }

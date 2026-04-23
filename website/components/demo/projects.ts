@@ -27,6 +27,7 @@ export type DemoAction = {
   cmd: string;
   display: "button" | "menu";
   type?: "terminal";
+  agent?: "claude" | "codex";
   confirm?: boolean;
   durationMs?: number;
   output: OutputLine[];
@@ -48,51 +49,25 @@ export type DemoProject = {
   profiles: DemoProfile[];
 };
 
-function claudeCodeAction(cwd: string): DemoAction {
-  return {
-    name: "claude",
-    label: "✻ Claude Code",
-    cmd: "claude",
-    display: "button",
-    type: "terminal",
-    output: [
-      { text: "$ claude", color: "green", delay: 50 },
-      { text: "", delay: 150 },
-      { text: "  ✻ Welcome to Claude Code!", color: "magenta", delay: 300 },
-      { text: "", delay: 340 },
-      { text: "    /help for help · /status for your setup", color: "muted", delay: 420 },
-      { text: `    cwd: ${cwd}`, color: "muted", delay: 500 },
-      { text: "", delay: 540 },
-      { text: "  ────────────────────", color: "muted", delay: 600 },
-      { text: "", delay: 640 },
-      { text: "  ※ Tip: lpm launched Claude in this project's root", color: "muted", delay: 780 },
-      { text: "", delay: 820 },
-    ],
-  };
-}
+const CLAUDE_ACTION: DemoAction = {
+  name: "claude",
+  label: "✻ Claude Code",
+  cmd: "claude",
+  display: "button",
+  type: "terminal",
+  agent: "claude",
+  output: [],
+};
 
-function codexAction(cwd: string): DemoAction {
-  return {
-    name: "codex",
-    label: "◆ Codex",
-    cmd: "codex",
-    display: "button",
-    type: "terminal",
-    output: [
-      { text: "$ codex", color: "green", delay: 50 },
-      { text: "", delay: 150 },
-      { text: "  ◆ Codex CLI · ready", color: "cyan", delay: 300 },
-      { text: "", delay: 340 },
-      { text: "    /help · /model · /resume", color: "muted", delay: 420 },
-      { text: `    cwd: ${cwd}`, color: "muted", delay: 500 },
-      { text: "", delay: 540 },
-      { text: "  ────────────────────", color: "muted", delay: 600 },
-      { text: "", delay: 640 },
-      { text: "  ※ Tip: lpm launched Codex in this project's root", color: "muted", delay: 780 },
-      { text: "", delay: 820 },
-    ],
-  };
-}
+const CODEX_ACTION: DemoAction = {
+  name: "codex",
+  label: "◆ Codex",
+  cmd: "codex",
+  display: "button",
+  type: "terminal",
+  agent: "codex",
+  output: [],
+};
 
 const PROJECTS: DemoProject[] = [
   {
@@ -180,7 +155,7 @@ const PROJECTS: DemoProject[] = [
       },
     ],
     actions: [
-      claudeCodeAction("~/Projects/saas-app"),
+      CLAUDE_ACTION,
       {
         name: "test",
         label: "Run Tests",
@@ -286,7 +261,7 @@ const PROJECTS: DemoProject[] = [
       },
     ],
     actions: [
-      codexAction("~/Projects/auth-service"),
+      CODEX_ACTION,
       {
         name: "test",
         label: "go test",
@@ -348,7 +323,7 @@ const PROJECTS: DemoProject[] = [
       },
     ],
     actions: [
-      claudeCodeAction("~/Projects/docs-site"),
+      CLAUDE_ACTION,
       {
         name: "build",
         label: "Build",
@@ -423,7 +398,7 @@ const PROJECTS: DemoProject[] = [
       },
     ],
     actions: [
-      codexAction("~/Projects/ml-pipeline"),
+      CODEX_ACTION,
       {
         name: "train",
         label: "Train",
