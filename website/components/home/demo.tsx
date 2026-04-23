@@ -25,7 +25,7 @@ export function DemoSection() {
         <SectionHeader
           eyebrow="Interactive demo"
           title="Projects, terminals, Claude Code or Codex — one click each"
-          description="Switch projects, start services, launch Claude Code or Codex — all from one native macOS app. Try it right in your browser, no install."
+          description="Switch projects, start services, launch Claude Code or Codex — all from one native macOS app. Try it right in your browser."
           className="mb-10"
         />
         <DemoApp heightCss="min(560px, 70vh)" />
