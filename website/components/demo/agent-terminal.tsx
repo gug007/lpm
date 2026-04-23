@@ -18,6 +18,7 @@ type HistoryItem = {
 };
 
 const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const MAX_HISTORY = 30;
 
 function useSpinnerFrame(active: boolean): string {
   const [i, setI] = useState(0);
@@ -212,10 +213,10 @@ export function AgentTerminal({ agent, cwd }: AgentTerminalProps) {
     if (steps.length === 0) return;
     nextIdRef.current += 1;
     const id = nextIdRef.current;
-    setHistory((h) => [
-      ...h,
-      { id, query: text, revealed: 0, steps, finished: false },
-    ]);
+    setHistory((h) => {
+      const next = [...h, { id, query: text, revealed: 0, steps, finished: false }];
+      return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
+    });
     setBusy(true);
 
     let acc = 0;

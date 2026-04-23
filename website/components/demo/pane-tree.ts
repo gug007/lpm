@@ -186,3 +186,16 @@ export function setActiveTab(
     return { ...leaf, activeTabIdx: idx };
   });
 }
+
+export function closeServiceTab(
+  node: PaneNode,
+  name: string,
+): PaneNode | null {
+  for (const leaf of collectLeaves(node)) {
+    const idx = leaf.tabs.findIndex(
+      (t) => t.kind === "service" && t.name === name,
+    );
+    if (idx !== -1) return closeTabInLeaf(node, leaf.id, idx);
+  }
+  return node;
+}

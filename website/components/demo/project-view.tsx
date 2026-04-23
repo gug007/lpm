@@ -13,7 +13,7 @@ import {
   Terminal,
 } from "lucide-react";
 import type { DemoAction, DemoProject, DemoService } from "./projects";
-import { PaneHeader, StreamingOutput } from "./terminal-pane";
+import { PaneHeader, StreamingOutput, type TabInfo } from "./terminal-pane";
 import { DemoActionModal } from "./action-modal";
 import { AgentTerminal } from "./agent-terminal";
 import {
@@ -24,8 +24,8 @@ import {
   type SplitDirection,
   addTabToLeaf,
   appendLeaf,
+  closeServiceTab,
   closeTabInLeaf,
-  collectLeaves,
   collectServiceNames,
   findLeaf,
   makeLeaf,
@@ -53,23 +53,8 @@ function reconcileServices(
   running: Set<string>,
 ): PaneNode | null {
   let t: PaneNode | null = tree;
-  const toRemove: Array<{ leafId: string; name: string }> = [];
-  for (const leaf of collectLeaves(t)) {
-    for (const tab of leaf.tabs) {
-      if (tab.kind === "service" && !running.has(tab.name)) {
-        toRemove.push({ leafId: leaf.id, name: tab.name });
-      }
-    }
-  }
-  for (const { leafId, name } of toRemove) {
-    if (!t) break;
-    const leaf = findLeaf(t, leafId);
-    if (!leaf) continue;
-    const idx = leaf.tabs.findIndex(
-      (tab) => tab.kind === "service" && tab.name === name,
-    );
-    if (idx === -1) continue;
-    t = closeTabInLeaf(t, leafId, idx);
+  for (const name of collectServiceNames(t)) {
+    if (!running.has(name) && t) t = closeServiceTab(t, name);
   }
   const existing = new Set(collectServiceNames(t));
   for (const name of running) {
@@ -142,28 +127,23 @@ export function DemoProjectView({
   };
 
   const handleCloseTab = (leafId: string, tabIdx: number) => {
-    if (!tree) return;
-    const leaf = findLeaf(tree, leafId);
-    if (!leaf) return;
-    const tab = leaf.tabs[tabIdx];
-    if (!tab) return;
-    if (tab.kind === "service") {
-      onToggleService(tab.name);
-      const next = new Set(runningServices);
-      next.delete(tab.name);
-      setTree((prev) => (prev ? reconcileServices(prev, next) : null));
-      return;
-    }
-    if (tab.kind === "action") {
-      const key = tab.key;
-      setActionTerminals((map) => {
-        if (!(key in map)) return map;
-        const nextMap = { ...map };
-        delete nextMap[key];
-        return nextMap;
-      });
-    }
-    setTree((prev) => (prev ? closeTabInLeaf(prev, leafId, tabIdx) : null));
+    setTree((prev) => {
+      if (!prev) return prev;
+      const leaf = findLeaf(prev, leafId);
+      const tab = leaf?.tabs[tabIdx];
+      if (!tab) return prev;
+      if (tab.kind === "service") onToggleService(tab.name);
+      else if (tab.kind === "action") {
+        const key = tab.key;
+        setActionTerminals((map) => {
+          if (!(key in map)) return map;
+          const next = { ...map };
+          delete next[key];
+          return next;
+        });
+      }
+      return closeTabInLeaf(prev, leafId, tabIdx);
+    });
   };
 
   const handleSelectTab = (leafId: string, tabIdx: number) => {
@@ -313,67 +293,58 @@ type LeafContext = {
   actionTerminals: ActionTerminalMap;
 };
 
-function describeTab(tab: LeafContent, ctx: LeafContext) {
+type ResolvedTab = {
+  info: TabInfo;
+  body: ReactNode;
+};
+
+function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
+  const key = tabKey(tab);
   if (tab.kind === "service") {
     const svc = ctx.project.services.find((s) => s.name === tab.name);
     return {
-      key: tabKey(tab),
-      label: svc?.name ?? tab.name,
-      type: "service" as const,
-      port: svc?.port,
-      running: ctx.runningServices.has(tab.name),
+      info: {
+        key,
+        label: svc?.name ?? tab.name,
+        type: "service",
+        port: svc?.port,
+        running: ctx.runningServices.has(tab.name),
+      },
+      body: svc ? (
+        <StreamingOutput
+          key={`${ctx.project.name}:${svc.name}`}
+          output={svc.output}
+          loop={svc.loop}
+        />
+      ) : null,
     };
   }
   if (tab.kind === "shell") {
     return {
-      key: tabKey(tab),
-      label: "terminal",
-      type: "terminal" as const,
-      running: true,
+      info: { key, label: "terminal", type: "terminal", running: true },
+      body: <InteractiveTerminal key={tab.id} projectRoot={ctx.project.root} />,
     };
   }
   const action = ctx.actionTerminals[tab.key];
-  return {
-    key: tabKey(tab),
+  const info: TabInfo = {
+    key,
     label: action?.label ?? tab.label,
-    type: "terminal" as const,
+    type: "terminal",
     running: true,
   };
-}
-
-function renderTabBody(tab: LeafContent, ctx: LeafContext): ReactNode {
-  if (tab.kind === "service") {
-    const svc = ctx.project.services.find((s) => s.name === tab.name);
-    if (!svc) return null;
-    return (
-      <StreamingOutput
-        key={`${ctx.project.name}:${svc.name}`}
-        output={svc.output}
-        loop={svc.loop}
-      />
-    );
-  }
-  if (tab.kind === "shell") {
-    return <InteractiveTerminal key={tab.id} projectRoot={ctx.project.root} />;
-  }
-  const action = ctx.actionTerminals[tab.key];
-  if (!action) return null;
-  if (action.agent) {
-    return (
+  if (!action) return { info, body: null };
+  return {
+    info,
+    body: action.agent ? (
       <AgentTerminal
         key={tab.key}
         agent={action.agent}
         cwd={ctx.project.root}
       />
-    );
-  }
-  return (
-    <StreamingOutput
-      key={tab.key}
-      output={action.output}
-      loop={action.loop}
-    />
-  );
+    ) : (
+      <StreamingOutput key={tab.key} output={action.output} loop={action.loop} />
+    ),
+  };
 }
 
 function Leaf({
@@ -387,11 +358,11 @@ function Leaf({
   onNewTab,
 }: PaneLayoutProps & { leaf: PaneLeaf }) {
   const ctx: LeafContext = { project, runningServices, actionTerminals };
-  const tabInfos = leaf.tabs.map((tab) => describeTab(tab, ctx));
+  const resolved = leaf.tabs.map((tab) => resolveTab(tab, ctx));
   return (
     <div className="flex min-w-0 min-h-0 flex-1 flex-col overflow-hidden">
       <PaneHeader
-        tabs={tabInfos}
+        tabs={resolved.map((r) => r.info)}
         activeIdx={leaf.activeTabIdx}
         onSelectTab={(i) => onSelectTab(leaf.id, i)}
         onCloseTab={(i) => onCloseTab(leaf.id, i)}
@@ -399,15 +370,15 @@ function Leaf({
         onSplitRight={() => onSplit(leaf.id, "row")}
         onSplitDown={() => onSplit(leaf.id, "col")}
       />
-      <div className="relative flex flex-1 min-h-0">
-        {leaf.tabs.map((tab, i) => (
+      <div className="relative flex-1 min-h-0">
+        {resolved.map(({ info, body }, i) => (
           <div
-            key={tabKey(tab)}
+            key={info.key}
             className={`absolute inset-0 flex-col ${
               i === leaf.activeTabIdx ? "flex" : "hidden"
             }`}
           >
-            {renderTabBody(tab, ctx)}
+            {body}
           </div>
         ))}
       </div>
