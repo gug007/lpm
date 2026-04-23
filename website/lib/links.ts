@@ -5,6 +5,7 @@ export const AI_AGENTS_PATH = "/best-terminal-for-claude-code-and-codex";
 export const PRIVACY_PATH = "/privacy";
 export const TERMS_PATH = "/terms";
 export const STATS_PATH = "/stats";
+export const DEMO_ANCHOR = "#demo";
 export const BEST_TERMINAL_MAC_PATH = "/best-terminal-for-mac";
 export const MAC_TERMINAL_DEVELOPERS_PATH = "/mac-terminal-for-developers";
 export const GIT_TERMINAL_MAC_PATH = "/git-terminal-for-mac";

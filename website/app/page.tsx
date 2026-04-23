@@ -1,5 +1,6 @@
 import { Commands } from "@/components/home/commands";
 import { ConfigExample } from "@/components/home/config-example";
+import { DemoSection } from "@/components/home/demo";
 import { Downloads } from "@/components/home/downloads";
 import { Features } from "@/components/home/features";
 import { Hero } from "@/components/home/hero";
@@ -10,6 +11,7 @@ export default function HomePage() {
   return (
     <>
       <Hero />
+      <DemoSection />
       <HowItWorks />
       <TwoWays />
       <Features />
