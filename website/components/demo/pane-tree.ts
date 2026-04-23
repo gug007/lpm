@@ -2,13 +2,14 @@ export type SplitDirection = "row" | "col";
 
 export type LeafContent =
   | { kind: "service"; name: string }
-  | { kind: "shell" }
+  | { kind: "shell"; id: string }
   | { kind: "action"; key: string; label: string };
 
 export interface PaneLeaf {
   kind: "leaf";
   id: string;
-  content: LeafContent;
+  tabs: LeafContent[];
+  activeTabIdx: number;
 }
 
 export interface PaneSplit {
@@ -21,15 +22,26 @@ export interface PaneSplit {
 
 export type PaneNode = PaneLeaf | PaneSplit;
 
-export const leafIdForContent = (c: LeafContent): string =>
-  c.kind === "service" ? `s:${c.name}` : c.kind === "shell" ? "" : `a:${c.key}`;
+function rand(n: number): string {
+  return Math.random().toString(36).slice(2, 2 + n);
+}
 
-export function makeLeaf(content: LeafContent, shellIdSeq?: number): PaneLeaf {
-  const id =
-    content.kind === "shell"
-      ? `t:${shellIdSeq ?? Date.now().toString(36)}`
-      : leafIdForContent(content);
-  return { kind: "leaf", id, content };
+export function newShellContent(): LeafContent {
+  return { kind: "shell", id: `sh-${Date.now().toString(36)}-${rand(4)}` };
+}
+
+function newLeafId(): string {
+  return `p-${Date.now().toString(36)}-${rand(4)}`;
+}
+
+export function makeLeaf(content: LeafContent): PaneLeaf {
+  return { kind: "leaf", id: newLeafId(), tabs: [content], activeTabIdx: 0 };
+}
+
+export function tabKey(content: LeafContent): string {
+  if (content.kind === "service") return `s:${content.name}`;
+  if (content.kind === "shell") return `sh:${content.id}`;
+  return `a:${content.key}`;
 }
 
 export function findLeaf(node: PaneNode, id: string): PaneLeaf | null {
@@ -44,32 +56,48 @@ export function collectLeaves(node: PaneNode | null): PaneLeaf[] {
 }
 
 export function collectServiceNames(node: PaneNode | null): string[] {
-  return collectLeaves(node)
-    .filter((l) => l.content.kind === "service")
-    .map((l) => (l.content as { kind: "service"; name: string }).name);
+  const out: string[] = [];
+  for (const leaf of collectLeaves(node)) {
+    for (const tab of leaf.tabs) {
+      if (tab.kind === "service") out.push(tab.name);
+    }
+  }
+  return out;
+}
+
+export function mapLeaf(
+  node: PaneNode,
+  leafId: string,
+  fn: (leaf: PaneLeaf) => PaneLeaf,
+): PaneNode {
+  if (node.kind === "leaf") return node.id === leafId ? fn(node) : node;
+  const a = mapLeaf(node.a, leafId, fn);
+  const b = mapLeaf(node.b, leafId, fn);
+  if (a === node.a && b === node.b) return node;
+  return { ...node, a, b };
 }
 
 export function replaceLeaf(
   node: PaneNode,
-  id: string,
+  leafId: string,
   replacement: PaneNode,
 ): PaneNode {
-  if (node.kind === "leaf") return node.id === id ? replacement : node;
-  const a = replaceLeaf(node.a, id, replacement);
-  const b = replaceLeaf(node.b, id, replacement);
+  if (node.kind === "leaf") return node.id === leafId ? replacement : node;
+  const a = replaceLeaf(node.a, leafId, replacement);
+  const b = replaceLeaf(node.b, leafId, replacement);
   if (a === node.a && b === node.b) return node;
   return { ...node, a, b };
 }
 
 export function splitAtLeaf(
   node: PaneNode,
-  id: string,
+  leafId: string,
   direction: SplitDirection,
   newLeaf: PaneLeaf,
 ): PaneNode {
-  const existing = findLeaf(node, id);
+  const existing = findLeaf(node, leafId);
   if (!existing) return node;
-  return replaceLeaf(node, id, {
+  return replaceLeaf(node, leafId, {
     kind: "split",
     direction,
     ratio: 0.5,
@@ -80,12 +108,12 @@ export function splitAtLeaf(
 
 export function removeLeaf(
   node: PaneNode,
-  id: string,
+  leafId: string,
 ): PaneNode | null {
-  if (node.kind === "leaf") return node.id === id ? null : node;
-  const a = removeLeaf(node.a, id);
+  if (node.kind === "leaf") return node.id === leafId ? null : node;
+  const a = removeLeaf(node.a, leafId);
   if (a === null) return node.b;
-  const b = removeLeaf(node.b, id);
+  const b = removeLeaf(node.b, leafId);
   if (b === null) return node.a;
   if (a === node.a && b === node.b) return node;
   return { ...node, a, b };
@@ -111,10 +139,6 @@ export function setRatioAtPath(
   return b === node.b ? node : { ...node, b };
 }
 
-/**
- * Appends a leaf to the right edge of the tree as a new row split.
- * If the tree is null, the new leaf becomes the root.
- */
 export function appendLeaf(
   node: PaneNode | null,
   leaf: PaneLeaf,
@@ -122,4 +146,43 @@ export function appendLeaf(
 ): PaneNode {
   if (!node) return leaf;
   return { kind: "split", direction, ratio: 0.5, a: node, b: leaf };
+}
+
+export function addTabToLeaf(
+  node: PaneNode,
+  leafId: string,
+  content: LeafContent,
+): PaneNode {
+  return mapLeaf(node, leafId, (leaf) => ({
+    ...leaf,
+    tabs: [...leaf.tabs, content],
+    activeTabIdx: leaf.tabs.length,
+  }));
+}
+
+export function closeTabInLeaf(
+  node: PaneNode,
+  leafId: string,
+  tabIdx: number,
+): PaneNode | null {
+  const leaf = findLeaf(node, leafId);
+  if (!leaf) return node;
+  if (leaf.tabs.length <= 1) return removeLeaf(node, leafId);
+  const newTabs = leaf.tabs.filter((_, i) => i !== tabIdx);
+  let newIdx = leaf.activeTabIdx;
+  if (newIdx === tabIdx) newIdx = Math.min(tabIdx, newTabs.length - 1);
+  else if (newIdx > tabIdx) newIdx -= 1;
+  return mapLeaf(node, leafId, (l) => ({ ...l, tabs: newTabs, activeTabIdx: newIdx }));
+}
+
+export function setActiveTab(
+  node: PaneNode,
+  leafId: string,
+  idx: number,
+): PaneNode {
+  return mapLeaf(node, leafId, (leaf) => {
+    if (idx < 0 || idx >= leaf.tabs.length) return leaf;
+    if (leaf.activeTabIdx === idx) return leaf;
+    return { ...leaf, activeTabIdx: idx };
+  });
 }

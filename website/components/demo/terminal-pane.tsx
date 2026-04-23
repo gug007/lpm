@@ -23,65 +23,85 @@ const COLOR_CLASS: Record<LineColor, string> = {
   magenta: "text-fuchsia-300",
 };
 
-type PaneHeaderProps = {
+export type TabInfo = {
+  key: string;
   label: string;
-  port?: number;
   type: "service" | "terminal";
+  port?: number;
   running: boolean;
-  onClose?: () => void;
+};
+
+type PaneHeaderProps = {
+  tabs: TabInfo[];
+  activeIdx: number;
+  onSelectTab: (idx: number) => void;
+  onCloseTab: (idx: number) => void;
+  onNewTab?: () => void;
   onSplitRight?: () => void;
   onSplitDown?: () => void;
-  onNewTerminal?: () => void;
 };
 
 export function PaneHeader({
-  label,
-  port,
-  type,
-  running,
-  onClose,
+  tabs,
+  activeIdx,
+  onSelectTab,
+  onCloseTab,
+  onNewTab,
   onSplitRight,
   onSplitDown,
-  onNewTerminal,
 }: PaneHeaderProps) {
   return (
     <div className="flex-shrink-0 flex items-center gap-0.5 bg-[#2d2d2d] px-1.5 py-1">
-      <div className="flex min-w-0 flex-1 items-center gap-0.5">
-        <div className="flex min-w-0 items-center gap-1.5 rounded-md bg-white/[0.06] px-2 py-0.5">
-          {type === "service" ? (
-            <span
-              className={`inline-block w-2 h-2 rounded-full shrink-0 ${
-                running
-                  ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]"
-                  : "bg-gray-600"
+      <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
+        {tabs.map((tab, i) => {
+          const active = i === activeIdx;
+          return (
+            <div
+              key={tab.key}
+              onClick={() => onSelectTab(i)}
+              className={`group flex min-w-0 items-center gap-1.5 rounded-md px-2 py-0.5 cursor-pointer transition-colors ${
+                active
+                  ? "bg-white/[0.1] text-[#d4d4d4]"
+                  : "text-[#a0a0a0] hover:bg-white/[0.04] hover:text-[#d4d4d4]"
               }`}
-            />
-          ) : (
-            <TerminalIcon className="w-3 h-3 text-[#8e8e8e] shrink-0" />
-          )}
-          <span className="font-mono text-[11px] font-medium text-[#d4d4d4] truncate">
-            {label}
-          </span>
-          {port !== undefined && (
-            <span className="font-mono text-[10px] text-[#8e8e8e] tabular-nums shrink-0">
-              :{port}
-            </span>
-          )}
-          {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label={`Close ${label}`}
-              className="rounded text-[#8e8e8e] hover:text-gray-100 transition-colors shrink-0 leading-none"
             >
-              <X className="w-3 h-3" />
-            </button>
-          )}
-        </div>
-        {onNewTerminal && (
+              {tab.type === "service" ? (
+                <span
+                  className={`inline-block w-2 h-2 rounded-full shrink-0 ${
+                    tab.running
+                      ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]"
+                      : "bg-gray-600"
+                  }`}
+                />
+              ) : (
+                <TerminalIcon className="w-3 h-3 text-[#8e8e8e] shrink-0" />
+              )}
+              <span className="font-mono text-[11px] font-medium truncate">
+                {tab.label}
+              </span>
+              {tab.port !== undefined && (
+                <span className="font-mono text-[10px] text-[#8e8e8e] tabular-nums shrink-0">
+                  :{tab.port}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCloseTab(i);
+                }}
+                aria-label={`Close ${tab.label}`}
+                className="rounded text-[#8e8e8e] hover:text-gray-100 transition-colors shrink-0 leading-none"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          );
+        })}
+        {onNewTab && (
           <button
             type="button"
-            onClick={onNewTerminal}
+            onClick={onNewTab}
             aria-label="New terminal"
             title="New terminal"
             className="rounded-md px-1.5 py-0.5 text-[#8e8e8e] hover:bg-white/[0.08] hover:text-gray-100 transition-colors shrink-0"
