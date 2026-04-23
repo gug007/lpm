@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronDown, Menu as MenuIcon, Terminal } from "lucide-react";
+import { ChevronDown, Menu as MenuIcon, Plus, Terminal } from "lucide-react";
 import type { DemoAction, DemoProject, DemoService } from "./projects";
 import { PaneHeader, StreamingOutput } from "./terminal-pane";
 import { DemoActionModal } from "./action-modal";
@@ -508,10 +508,11 @@ function Header({
         <button
           type="button"
           onClick={onOpenTerminal}
-          title="Open terminal"
-          className="rounded-lg border border-[#2e2e2e] bg-[#242424] px-2 py-1.5 text-xs font-medium text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] transition-colors"
+          title="New terminal"
+          aria-label="New terminal"
+          className="flex items-center gap-1 rounded-lg border border-[#2e2e2e] bg-[#242424] px-2 py-1.5 text-xs font-medium text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] transition-colors"
         >
-          <Terminal className="w-3.5 h-3.5" />
+          <Plus className="w-3.5 h-3.5" strokeWidth={2} />
         </button>
         {menuActions.length > 0 && (
           <div className="relative">
