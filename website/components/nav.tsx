@@ -1,11 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import {
-  AI_AGENTS_PATH,
-  CLI_PATH,
-  RELEASES_URL,
-  VS_BASE_PATH,
-} from "@/lib/links";
+import { AI_AGENTS_PATH, RELEASES_URL, VS_BASE_PATH } from "@/lib/links";
 import { GitHubStarButton } from "./github-star-button";
 import { NavMobileMenu } from "./nav-mobile-menu";
 import { ThemeToggle } from "./theme-toggle";
@@ -36,9 +31,6 @@ export function Nav() {
         </Link>
         <div className="flex items-center gap-3 sm:gap-5">
           <GitHubStarButton />
-          <Link href={CLI_PATH} className={linkClass}>
-            CLI
-          </Link>
           <Link href="/config" className={linkClass}>
             Docs
           </Link>

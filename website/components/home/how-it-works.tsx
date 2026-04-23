@@ -78,6 +78,21 @@ const STEPS: Step[] = [
     src: "/screenrecording/start-project-claude.gif",
     alt: "Launching Claude Code on a project in lpm desktop app",
   },
+  {
+    n: 6,
+    title: "Run agents in parallel on the same codebase",
+    body: (
+      <>
+        Duplicate a project to spin up a second (or third) checkout in seconds.
+        Each copy gets its own services, terminals, and agents — so{" "}
+        <strong>Claude</strong> can work on one feature while{" "}
+        <strong>Codex</strong> ships another, without branch conflicts or
+        context bleed.
+      </>
+    ),
+    src: "/screenrecording/duplicate-project.gif",
+    alt: "Duplicating a project in lpm to run multiple agents in parallel",
+  },
 ];
 
 export function HowItWorks() {

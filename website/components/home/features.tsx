@@ -1,5 +1,6 @@
 import {
   Blocks,
+  CopyPlus,
   GitPullRequestArrow,
   Layers,
   Monitor,
@@ -25,6 +26,17 @@ const FEATURES: Feature[] = [
       <>
         Watch every service stream in real time. Switch between service tabs or
         tile them side by side — all from a native window.
+      </>
+    ),
+  },
+  {
+    icon: CopyPlus,
+    title: "Parallel agents, same codebase",
+    body: (
+      <>
+        Duplicate any project to run Claude, Codex, or any agent in parallel —
+        each on its own checkout, with its own services and terminals. No
+        branch conflicts, no context bleed.
       </>
     ),
   },
