@@ -18,14 +18,11 @@ export function Hero() {
 
         <div className="mt-10 max-w-xl mx-auto space-y-4 text-left">
           <div>
-            <div className="mb-2 ml-4">
-              <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-700 dark:text-gray-400">
+            <div className="mb-2">
+              <div className="flex justify-center items-center gap-1.5 text-[11px] font-medium text-gray-700 dark:text-gray-400">
                 <Monitor className="w-3 h-3" />
                 <span>Desktop App</span>
               </div>
-              <p className="mt-0.5 text-[11px] text-gray-400 dark:text-gray-500">
-                Native macOS app with live output and visual editor
-              </p>
             </div>
             <HeroDownload />
           </div>
