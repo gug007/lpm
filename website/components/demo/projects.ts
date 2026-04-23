@@ -73,9 +73,9 @@ function claudeCodeAction(cwd: string): DemoAction {
 
 const PROJECTS: DemoProject[] = [
   {
-    name: "myapp",
-    label: "myapp",
-    root: "~/Projects/myapp",
+    name: "saas-app",
+    label: "saas-app",
+    root: "~/Projects/saas-app",
     stack: "Next.js + Rails + Sidekiq",
     services: [
       {
@@ -157,7 +157,7 @@ const PROJECTS: DemoProject[] = [
       },
     ],
     actions: [
-      claudeCodeAction("~/Projects/myapp"),
+      claudeCodeAction("~/Projects/saas-app"),
       {
         name: "test",
         label: "Run Tests",
@@ -214,9 +214,9 @@ const PROJECTS: DemoProject[] = [
     ],
   },
   {
-    name: "go-api",
-    label: "go-api",
-    root: "~/Projects/go-api",
+    name: "auth-service",
+    label: "auth-service",
+    root: "~/Projects/auth-service",
     stack: "Go + Postgres + Redis",
     services: [
       {
@@ -263,7 +263,7 @@ const PROJECTS: DemoProject[] = [
       },
     ],
     actions: [
-      claudeCodeAction("~/Projects/go-api"),
+      claudeCodeAction("~/Projects/auth-service"),
       {
         name: "test",
         label: "go test",
@@ -295,10 +295,10 @@ const PROJECTS: DemoProject[] = [
     ],
   },
   {
-    name: "blog",
-    label: "blog",
-    root: "~/Projects/blog",
-    stack: "Astro",
+    name: "docs-site",
+    label: "docs-site",
+    root: "~/Projects/docs-site",
+    stack: "Astro + MDX",
     services: [
       {
         name: "site",
@@ -325,7 +325,7 @@ const PROJECTS: DemoProject[] = [
       },
     ],
     actions: [
-      claudeCodeAction("~/Projects/blog"),
+      claudeCodeAction("~/Projects/docs-site"),
       {
         name: "build",
         label: "Build",
@@ -336,9 +336,25 @@ const PROJECTS: DemoProject[] = [
           { text: "$ pnpm build", color: "green", delay: 50 },
           { text: " generating static routes ", color: "muted", delay: 400 },
           { text: "▶ src/pages/index.astro", color: "muted", delay: 700 },
-          { text: "▶ src/pages/posts/[slug].astro", color: "muted", delay: 1000 },
-          { text: "  └─ 18 pages", color: "muted", delay: 1200 },
+          { text: "▶ src/pages/docs/[...slug].astro", color: "muted", delay: 1000 },
+          { text: "  └─ 42 pages", color: "muted", delay: 1200 },
           { text: "✓ Complete!", color: "green", delay: 1500 },
+        ],
+      },
+      {
+        name: "deploy",
+        label: "Deploy",
+        cmd: "vercel deploy --prod",
+        display: "button",
+        confirm: true,
+        durationMs: 1800,
+        output: [
+          { text: "$ vercel deploy --prod", color: "green", delay: 50 },
+          { text: "Vercel CLI 38.0.0", color: "muted", delay: 200 },
+          { text: "→ building project", color: "muted", delay: 500 },
+          { text: "→ uploading build output (1.2 MB)", color: "muted", delay: 1000 },
+          { text: "→ assigning production domain", color: "muted", delay: 1400 },
+          { text: "✓ https://docs.example.com", color: "green", delay: 1700 },
         ],
       },
     ],
@@ -385,6 +401,23 @@ const PROJECTS: DemoProject[] = [
     ],
     actions: [
       claudeCodeAction("~/Projects/ml-pipeline"),
+      {
+        name: "train",
+        label: "Train",
+        cmd: "python -m pipeline.train --full",
+        display: "button",
+        confirm: true,
+        durationMs: 2400,
+        output: [
+          { text: "$ python -m pipeline.train --full", color: "green", delay: 50 },
+          { text: "loading dataset: ./data/train.parquet (512MB)", color: "muted", delay: 300 },
+          { text: "gpu: NVIDIA A100 40GB · batch=64", color: "muted", delay: 600 },
+          { text: "epoch 1/10  loss=0.4821  acc=0.812", color: "default", delay: 1000 },
+          { text: "epoch 5/10  loss=0.1872  acc=0.908", color: "default", delay: 1600 },
+          { text: "epoch 10/10 loss=0.0914  acc=0.942", color: "default", delay: 2100 },
+          { text: "saved ./runs/20260423-091502.ckpt", color: "green", delay: 2300 },
+        ],
+      },
       {
         name: "eval",
         label: "Evaluate",
