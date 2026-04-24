@@ -83,7 +83,6 @@ export function Settings({
   const [theme, setTheme] = useState<Theme>(settings.theme);
   const [dblClick, setDblClick] = useState(settings.doubleClickToToggle);
   const [soundEnabled, setSoundEnabled] = useState(settings.soundNotifications ?? false);
-  const [persistentTerminals, setPersistentTerminals] = useState(settings.persistentTerminals ?? false);
   const [ttsEnabled, setTtsEnabled] = useState(settings.ttsEnabled ?? false);
   const [ttsVoice, setTtsVoice] = useState(settings.ttsVoice ?? "af_heart");
   const [ttsSpeed, setTtsSpeed] = useState(settings.ttsSpeed ?? 1.0);
@@ -304,9 +303,6 @@ export function Settings({
               <SettingsRow label="Sound notifications" description="Play sounds when agents finish or need approval">
                 <Toggle enabled={soundEnabled} onChange={(v) => { setSoundEnabled(v); saveSettings({ soundNotifications: v }); }} />
               </SettingsRow>
-              <SettingsRow label="Persistent terminals" description="Keep terminals running across app restarts" badge={<BetaBadge />}>
-                <Toggle enabled={persistentTerminals} onChange={(v) => { setPersistentTerminals(v); saveSettings({ persistentTerminals: v }); }} />
-              </SettingsRow>
               <SettingsRow label="Global Config" description="Shared actions and terminals across all projects">
                 <button onClick={() => onNavigate("global-config")} className={BTN_SECONDARY}>Edit</button>
               </SettingsRow>
@@ -513,33 +509,20 @@ function SettingsSection({
 function SettingsRow({
   label,
   description,
-  badge,
   children,
 }: {
   label: string;
   description: string;
-  badge?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="flex items-center justify-between gap-4 px-4 py-3">
       <div className="min-w-0 flex-1">
-        <p className="flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
-          {label}
-          {badge}
-        </p>
+        <p className="text-sm font-medium text-[var(--text-primary)]">{label}</p>
         <p className="text-[11px] text-[var(--text-muted)]">{description}</p>
       </div>
       <div className="shrink-0">{children}</div>
     </div>
-  );
-}
-
-function BetaBadge() {
-  return (
-    <span className="rounded bg-[var(--bg-active)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-      Beta
-    </span>
   );
 }
 

@@ -28,7 +28,6 @@ export interface Settings {
   ttsEnabled?: boolean;
   ttsVoice?: string;
   ttsSpeed?: number;
-  persistentTerminals?: boolean;
 }
 
 const defaults: Settings = {
@@ -67,7 +66,6 @@ export async function loadSettings(): Promise<Settings> {
       ttsEnabled: s.ttsEnabled,
       ttsVoice: s.ttsVoice || undefined,
       ttsSpeed: s.ttsSpeed,
-      persistentTerminals: s.persistentTerminals,
     };
   } catch {
     cached = { ...defaults };

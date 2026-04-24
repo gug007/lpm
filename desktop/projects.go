@@ -817,7 +817,6 @@ func (a *App) RemoveProject(name string) error {
 	// (bundle, rails, spring) race RemoveAll's walk and surface as
 	// ENOTEMPTY on the final rmdir.
 	a.stopProjectTerminals(name)
-	killProjectTmuxSessions(name)
 	if loadErr == nil {
 		a.stopWatcherIfRoot(cfg.Root)
 	}

@@ -3,14 +3,11 @@ import { main } from "../wailsjs/go/models";
 
 // Persisted tab (one terminal inside a pane) — labels and optional
 // startCmd/resumeCmd so restore can re-inject them after a restart.
-// persistentId, when set, names the tmux session backing this tab; restore
-// reattaches to that session instead of spawning a fresh shell.
 export interface PersistedTab {
   label: string;
   startCmd?: string;
   resumeCmd?: string;
   actionName?: string;
-  persistentId?: string;
 }
 
 // Persisted pane tree shape — mirrors the Go binding (main.PaneNode) so
