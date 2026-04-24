@@ -94,6 +94,16 @@ async function startNewTerminal(projectName: string): Promise<{ id: string; pers
   return { id, persistentId };
 }
 
+// Tears down a terminal that the user explicitly closed: drop the PTY and,
+// for persistent tabs, also tell tmux to drop the underlying session so it
+// doesn't outlive the tab the user just closed.
+function disposeTerminal(projectName: string, tab: { id: string; persistentId?: string }): void {
+  StopTerminal(tab.id).catch(() => {});
+  if (tab.persistentId) {
+    KillPersistentSession(projectName, tab.persistentId).catch(() => {});
+  }
+}
+
 /**
  * Produces a label like "Terminal N" where N is the smallest positive
  * integer not already used by an existing terminal in the tree. Avoids
@@ -372,13 +382,7 @@ export function useTerminals(
       if (!current) return;
       const pane = findPane(current, paneId);
       if (!pane || !pane.tabs[tabIdx]) return;
-      const tab = pane.tabs[tabIdx];
-      StopTerminal(tab.id).catch(() => {});
-      // StopTerminal only detaches the tmux client; an explicit close
-      // should also tear down the underlying session so it doesn't linger.
-      if (tab.persistentId) {
-        KillPersistentSession(projectName, tab.persistentId).catch(() => {});
-      }
+      disposeTerminal(projectName, pane.tabs[tabIdx]);
 
       // Collapse the pane only when it would otherwise be empty — panes
       // that hold a persistent service tab stay alive even with no
@@ -528,9 +532,9 @@ export function useTerminals(
   const splitPane = useCallback(
     async (paneId: string, direction: SplitDirection) => {
       if (!treeRef.current || !findPane(treeRef.current, paneId)) return;
-      let newId: string;
+      let spawned: { id: string; persistentId?: string };
       try {
-        newId = await StartTerminal(projectName);
+        spawned = await startNewTerminal(projectName);
       } catch {
         return;
       }
@@ -538,11 +542,15 @@ export function useTerminals(
       // user closed it in the meantime, drop the new PTY to avoid leaking.
       const current = treeRef.current;
       if (!current || !findPane(current, paneId)) {
-        StopTerminal(newId).catch(() => {});
+        disposeTerminal(projectName, spawned);
         return;
       }
       const newPaneId = nextPaneId();
-      const newPane = makePaneLeaf(newPaneId, [makeTerminal(newId, pickTerminalLabel(current))], 0);
+      const newPane = makePaneLeaf(
+        newPaneId,
+        [makeTerminal(spawned.id, pickTerminalLabel(current), { persistentId: spawned.persistentId })],
+        0,
+      );
       applyTree(splitAtPane(current, paneId, direction, newPane), newPaneId);
     },
     [projectName, applyTree],
