@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { StartTerminal, StartTerminalForConfig, StartTerminalWithCwdEnv, StopTerminal } from "../../wailsjs/go/main/App";
+import { KillPersistentSession, StartPersistentTerminal, StartTerminal, StartTerminalForConfig, StartTerminalWithCwdEnv, StopTerminal } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { sendTerminalInput } from "../terminal-io";
 import { isInteractivePaneSessionDead } from "../components/InteractivePane";
+import { getSettings } from "../settings";
 import { getProjectTerminals, saveProjectTerminals, type PersistedPaneNode, type PersistedTerminalEntry } from "../terminals";
 import {
   type PaneNode,
@@ -68,6 +69,29 @@ export interface UseTerminalsResult {
 
 function nextPaneId(): string {
   return `pane-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+// Spawns a PTY for projectName. With a persistentId, attaches to (or
+// creates) the named tmux session; without one, a plain shell. A failed
+// persistent attach falls back to a shell so a missing tmux never blocks
+// terminal creation.
+async function spawnTerminal(projectName: string, persistentId?: string): Promise<string> {
+  if (persistentId) {
+    try {
+      return await StartPersistentTerminal(projectName, persistentId);
+    } catch {
+      // tmux missing or session-attach failed — fall back below.
+    }
+  }
+  return StartTerminal(projectName);
+}
+
+// Picks the terminal flavor (persistent vs ephemeral) for a brand-new tab
+// based on the user's setting and starts it.
+async function startNewTerminal(projectName: string): Promise<{ id: string; persistentId?: string }> {
+  const persistentId = getSettings().persistentTerminals ? crypto.randomUUID() : undefined;
+  const id = await spawnTerminal(projectName, persistentId);
+  return { id, persistentId };
 }
 
 /**
@@ -231,6 +255,10 @@ export function useTerminals(
       const all = collectTerminals(restored);
       onCountRef.current?.(all.length);
       all.forEach((t) => {
+        // Persistent tabs reattach to a live tmux session whose shell
+        // already holds the running process — re-injecting the cmd would
+        // type it at the live prompt.
+        if (t.persistentId) return;
         const cmd = t.resumeCmd ?? t.startCmd;
         if (cmd) scheduleCmdInject(t.id, cmd);
       });
@@ -260,8 +288,8 @@ export function useTerminals(
 
   const createTerminal = useCallback(async () => {
     try {
-      const id = await StartTerminal(projectName);
-      addTerminal(makeTerminal(id, pickTerminalLabel(treeRef.current)));
+      const { id, persistentId } = await startNewTerminal(projectName);
+      addTerminal(makeTerminal(id, pickTerminalLabel(treeRef.current), { persistentId }));
     } catch {}
   }, [projectName, addTerminal]);
 
@@ -320,8 +348,8 @@ export function useTerminals(
   const addTerminalToPane = useCallback(
     async (paneId: string) => {
       try {
-        const id = await StartTerminal(projectName);
-        addTerminal(makeTerminal(id, pickTerminalLabel(treeRef.current)), paneId);
+        const { id, persistentId } = await startNewTerminal(projectName);
+        addTerminal(makeTerminal(id, pickTerminalLabel(treeRef.current), { persistentId }), paneId);
       } catch {}
     },
     [projectName, addTerminal],
@@ -344,7 +372,13 @@ export function useTerminals(
       if (!current) return;
       const pane = findPane(current, paneId);
       if (!pane || !pane.tabs[tabIdx]) return;
-      StopTerminal(pane.tabs[tabIdx].id).catch(() => {});
+      const tab = pane.tabs[tabIdx];
+      StopTerminal(tab.id).catch(() => {});
+      // StopTerminal only detaches the tmux client; an explicit close
+      // should also tear down the underlying session so it doesn't linger.
+      if (tab.persistentId) {
+        KillPersistentSession(projectName, tab.persistentId).catch(() => {});
+      }
 
       // Collapse the pane only when it would otherwise be empty — panes
       // that hold a persistent service tab stay alive even with no
@@ -359,7 +393,7 @@ export function useTerminals(
       const next = mapPane(current, paneId, (p) => ({ ...p, tabs: newTabs, activeTabIdx: newActive }));
       applyTree(next);
     },
-    [applyTree, collapsePane],
+    [projectName, applyTree, collapsePane],
   );
 
   const focusTerminal = useCallback(
@@ -642,13 +676,14 @@ async function reifyTreeWithFreshPtys(
     // tab) is allowed. A truly empty pane is dropped.
     if (persistedTabs.length === 0 && !node.activeServiceName) return null;
     try {
-      const ids = await Promise.all(persistedTabs.map(() => StartTerminal(projectName)));
+      const ids = await Promise.all(persistedTabs.map((t) => spawnTerminal(projectName, t.persistentId)));
       ids.forEach((id) => startedIds.push(id));
       const tabs = ids.map((id, i) =>
         makeTerminal(id, persistedTabs[i].label ?? "Terminal", {
           startCmd: persistedTabs[i].startCmd,
           resumeCmd: persistedTabs[i].resumeCmd,
           actionName: persistedTabs[i].actionName,
+          persistentId: persistedTabs[i].persistentId,
         }),
       );
       const pane = makePaneLeaf(nextPaneId(), tabs, clampIdx(node.activeTabIdx, tabs.length));
@@ -689,6 +724,7 @@ function treeToPersisted(node: PaneNode): PersistedPaneNode {
         ...(t.startCmd ? { startCmd: t.startCmd } : {}),
         ...(t.resumeCmd ? { resumeCmd: t.resumeCmd } : {}),
         ...(t.actionName ? { actionName: t.actionName } : {}),
+        ...(t.persistentId ? { persistentId: t.persistentId } : {}),
       })),
     };
   }

@@ -14,6 +14,7 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/gug007/lpm/internal/config"
+	"github.com/gug007/lpm/internal/tmux"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -123,18 +124,62 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 	if dir == "" {
 		dir = cfg.Root
 	}
-	if dir == "" {
-		return "", fmt.Errorf("project has no root directory")
-	}
+	return a.spawnPtySession(projectName, dir, extraEnv, "")
+}
 
+// buildPtyCommand returns the process to run under the PTY. With an empty
+// tmuxSession a plain login shell is used; otherwise the process is a
+// tmux client that attaches to (or creates, via -A) the named session, so
+// the shell inside survives this client disconnecting.
+func buildPtyCommand(dir, tmuxSession string) (*exec.Cmd, error) {
+	if tmuxSession != "" {
+		if err := tmux.EnsureInstalled(); err != nil {
+			return nil, err
+		}
+		// -A: attach if the session exists, else create it.
+		// -x/-y: initial window size for newly-created sessions; tmux
+		// renegotiates on the first SIGWINCH from the client's PTY.
+		// -c: cwd for newly-created sessions (ignored when attaching).
+		return exec.Command("tmux", "new-session", "-A", "-s", tmuxSession,
+			"-x", "200", "-y", "50", "-c", dir), nil
+	}
 	shell := os.Getenv("SHELL")
 	if shell == "" {
 		shell = "/bin/zsh"
 	}
+	return exec.Command(shell, "-l"), nil
+}
+
+// tmuxProjectPrefix is the common prefix for every persistent tab's tmux
+// session name within a project. Building both the per-tab name and the
+// reaper's match prefix from one helper keeps the two in sync.
+func tmuxProjectPrefix(projectName string) string {
+	return "lpm-pty-" + tmuxNameReplacer.Replace(projectName) + "-"
+}
+
+func tmuxSessionName(projectName, persistentID string) string {
+	return tmuxProjectPrefix(projectName) + persistentID
+}
+
+// tmux session names cannot contain '.' or ':' (target syntax delimiters).
+var tmuxNameReplacer = strings.NewReplacer(".", "_", ":", "_", " ", "_")
+
+// spawnPtySession starts a PTY-backed process for projectName and returns
+// its terminal id. When tmuxSession is non-empty the spawned process is a
+// tmux client that attaches (or creates) the named session, giving the
+// terminal persistence across app restarts. Otherwise a plain login shell
+// is launched.
+func (a *App) spawnPtySession(projectName, dir string, extraEnv map[string]string, tmuxSession string) (string, error) {
+	if dir == "" {
+		return "", fmt.Errorf("project has no root directory")
+	}
 
 	id := fmt.Sprintf("%s-%d", projectName, ptyCounter.Add(1))
 
-	cmd := exec.Command(shell, "-l")
+	cmd, err := buildPtyCommand(dir, tmuxSession)
+	if err != nil {
+		return "", err
+	}
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "TERM_PROGRAM=kitty")
 	// Inject LPM environment variables for external tool integration
@@ -379,6 +424,46 @@ func (a *App) stopProjectTerminals(projectName string) {
 
 	for _, sess := range matched {
 		sess.close()
+	}
+}
+
+// StartPersistentTerminal launches (or reattaches) a tmux-backed shell
+// that survives app restarts. The persistentID identifies the tab and
+// must be stable across reloads — the frontend stores it in PersistedTab.
+// Returns the new PTY id.
+func (a *App) StartPersistentTerminal(projectName, persistentID string) (string, error) {
+	if persistentID == "" {
+		return "", fmt.Errorf("persistentID is required")
+	}
+	cfg, err := config.LoadProject(projectName)
+	if err != nil {
+		return "", fmt.Errorf("load project: %w", err)
+	}
+	return a.spawnPtySession(projectName, cfg.Root, nil, tmuxSessionName(projectName, persistentID))
+}
+
+// KillPersistentSession terminates the underlying tmux session for a
+// persistent tab. Called when the user explicitly closes the tab —
+// StopTerminal on its own only detaches the tmux client and would leave
+// the session running in the background.
+func (a *App) KillPersistentSession(projectName, persistentID string) error {
+	if persistentID == "" {
+		return nil
+	}
+	// Already-gone sessions surface as a non-zero exit; that's the
+	// desired end state, so swallow the error.
+	_ = tmux.KillSession(tmuxSessionName(projectName, persistentID))
+	return nil
+}
+
+// killProjectTmuxSessions reaps every lpm-pty-<projectName>-* tmux
+// session so removing a project doesn't leak its persistent shells.
+func killProjectTmuxSessions(projectName string) {
+	prefix := tmuxProjectPrefix(projectName)
+	for name := range tmux.ListSessions() {
+		if strings.HasPrefix(name, prefix) {
+			_ = tmux.KillSession(name)
+		}
 	}
 }
 

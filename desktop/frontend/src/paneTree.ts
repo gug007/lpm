@@ -11,6 +11,9 @@ export interface TerminalInstance {
   startCmd?: string;
   resumeCmd?: string;
   actionName?: string;
+  // Stable id used as the tmux session name for persistent shells; absent
+  // for non-persistent terminals.
+  persistentId?: string;
 }
 
 export interface PaneLeaf {
@@ -42,9 +45,16 @@ export function makePaneLeaf(id: string, tabs: TerminalInstance[], activeTabIdx 
 export function makeTerminal(
   id: string,
   label: string,
-  opts?: { startCmd?: string; resumeCmd?: string; actionName?: string },
+  opts?: { startCmd?: string; resumeCmd?: string; actionName?: string; persistentId?: string },
 ): TerminalInstance {
-  return { id, label, ...(opts?.startCmd ? { startCmd: opts.startCmd } : {}), ...(opts?.resumeCmd ? { resumeCmd: opts.resumeCmd } : {}), ...(opts?.actionName ? { actionName: opts.actionName } : {}) };
+  return {
+    id,
+    label,
+    ...(opts?.startCmd ? { startCmd: opts.startCmd } : {}),
+    ...(opts?.resumeCmd ? { resumeCmd: opts.resumeCmd } : {}),
+    ...(opts?.actionName ? { actionName: opts.actionName } : {}),
+    ...(opts?.persistentId ? { persistentId: opts.persistentId } : {}),
+  };
 }
 
 export function walkPanes(node: PaneNode, fn: (pane: PaneLeaf) => void): void {

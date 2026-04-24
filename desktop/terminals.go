@@ -10,12 +10,15 @@ import (
 
 // PersistedTab is one terminal saved inside a pane. StartCmd/ResumeCmd are
 // re-injected on restore; the PTY id is not persisted (it doesn't survive
-// a restart).
+// a restart). PersistentID, when set, names the tmux session backing this
+// tab — restoring the tab reattaches to that session instead of spawning a
+// fresh shell, so running processes and scrollback survive an app restart.
 type PersistedTab struct {
-	Label      string `json:"label"`
-	StartCmd   string `json:"startCmd,omitempty"`
-	ResumeCmd  string `json:"resumeCmd,omitempty"`
-	ActionName string `json:"actionName,omitempty"`
+	Label        string `json:"label"`
+	StartCmd     string `json:"startCmd,omitempty"`
+	ResumeCmd    string `json:"resumeCmd,omitempty"`
+	ActionName   string `json:"actionName,omitempty"`
+	PersistentID string `json:"persistentId,omitempty"`
 }
 
 // PaneNode is one node of a persisted pane layout tree. Leaves have

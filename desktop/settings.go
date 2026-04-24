@@ -31,6 +31,7 @@ type Settings struct {
 	TTSEnabled          bool     `json:"ttsEnabled,omitempty"`
 	TTSVoice            string   `json:"ttsVoice,omitempty"`
 	TTSSpeed            float64  `json:"ttsSpeed,omitempty"`
+	PersistentTerminals bool     `json:"persistentTerminals,omitempty"`
 }
 
 func defaultSettings() Settings {
