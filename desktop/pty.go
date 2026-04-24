@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -127,6 +128,65 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 	return a.spawnPtySession(projectName, dir, extraEnv, "")
 }
 
+// ptyTmuxSocket isolates our persistent-terminal tmux server so its
+// options (status bar off, no prefix, etc.) never leak into other tmux
+// sessions the user might be running, and so listing our sessions doesn't
+// enumerate the user's.
+const ptyTmuxSocket = "lpm-pty"
+
+// ptyTmuxConfigTemplate is loaded via `tmux -f` on the first command that
+// starts our dedicated server. The goal is a fully transparent tmux: the
+// shell inside should render and behave indistinguishably from a shell
+// launched directly under the PTY. ${SHELL} is substituted at write time.
+const ptyTmuxConfigTemplate = `# Managed by lpm — persistent-terminals server config.
+# Every option here exists to hide tmux from the user.
+set -g default-terminal "xterm-256color"
+set -g default-shell "${SHELL}"
+set -g status off
+set -g escape-time 0
+set -g focus-events on
+set -g mouse off
+set -g history-limit 10000
+# Move the prefix to a key the user is extremely unlikely to press, then
+# drop every default binding, so tmux swallows nothing on its own.
+set -g prefix F12
+set -g prefix2 F12
+unbind-key -a
+`
+
+// ensurePtyTmuxConfig writes (or overwrites) the config file our tmux
+// server loads with -f. Idempotent: always rewrites so template or SHELL
+// changes take effect on the next server start.
+func ensurePtyTmuxConfig() (string, error) {
+	dir := config.LpmDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("create lpm dir: %w", err)
+	}
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = "/bin/zsh"
+	}
+	content := strings.ReplaceAll(ptyTmuxConfigTemplate, "${SHELL}", shell)
+	path := filepath.Join(dir, "pty-tmux.conf")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		return "", fmt.Errorf("write tmux config: %w", err)
+	}
+	return path, nil
+}
+
+// ptyTmuxBaseArgs returns the leading "-L <socket> -f <config>" args that
+// every tmux invocation for persistent terminals must use. The -f only
+// applies when this invocation is what boots the server; otherwise it is
+// silently ignored, which is fine since the already-running server was
+// booted with the same -f.
+func ptyTmuxBaseArgs() ([]string, error) {
+	configPath, err := ensurePtyTmuxConfig()
+	if err != nil {
+		return nil, err
+	}
+	return []string{"-L", ptyTmuxSocket, "-f", configPath}, nil
+}
+
 // buildPtyCommand returns the process to run under the PTY. With an empty
 // tmuxSession a plain login shell is used; otherwise the process is a
 // tmux client that attaches to (or creates, via -A) the named session, so
@@ -136,18 +196,59 @@ func buildPtyCommand(dir, tmuxSession string) (*exec.Cmd, error) {
 		if err := tmux.EnsureInstalled(); err != nil {
 			return nil, err
 		}
+		base, err := ptyTmuxBaseArgs()
+		if err != nil {
+			return nil, err
+		}
 		// -A: attach if the session exists, else create it.
-		// -x/-y: initial window size for newly-created sessions; tmux
-		// renegotiates on the first SIGWINCH from the client's PTY.
+		// -x/-y: initial window size for newly-created sessions — must
+		// match pty.StartWithSize below so the first render happens at
+		// the PTY's real starting size, not tmux's default.
 		// -c: cwd for newly-created sessions (ignored when attaching).
-		return exec.Command("tmux", "new-session", "-A", "-s", tmuxSession,
-			"-x", "200", "-y", "50", "-c", dir), nil
+		args := append(base,
+			"new-session", "-A",
+			"-s", tmuxSession,
+			"-x", "80", "-y", "24",
+			"-c", dir,
+		)
+		return exec.Command("tmux", args...), nil
 	}
 	shell := os.Getenv("SHELL")
 	if shell == "" {
 		shell = "/bin/zsh"
 	}
 	return exec.Command(shell, "-l"), nil
+}
+
+// killPtyTmuxSession targets our dedicated socket — tmux.KillSession uses
+// the default socket and would miss persistent sessions entirely.
+func killPtyTmuxSession(name string) error {
+	base, err := ptyTmuxBaseArgs()
+	if err != nil {
+		return err
+	}
+	args := append(base, "kill-session", "-t", name)
+	return exec.Command("tmux", args...).Run()
+}
+
+// listPtyTmuxSessions enumerates sessions on our dedicated socket.
+func listPtyTmuxSessions() map[string]bool {
+	out := map[string]bool{}
+	base, err := ptyTmuxBaseArgs()
+	if err != nil {
+		return out
+	}
+	args := append(base, "list-sessions", "-F", "#{session_name}")
+	buf, err := exec.Command("tmux", args...).Output()
+	if err != nil {
+		return out
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(buf)), "\n") {
+		if line != "" {
+			out[line] = true
+		}
+	}
+	return out
 }
 
 // tmuxProjectPrefix is the common prefix for every persistent tab's tmux
@@ -452,7 +553,7 @@ func (a *App) KillPersistentSession(projectName, persistentID string) error {
 	}
 	// Already-gone sessions surface as a non-zero exit; that's the
 	// desired end state, so swallow the error.
-	_ = tmux.KillSession(tmuxSessionName(projectName, persistentID))
+	_ = killPtyTmuxSession(tmuxSessionName(projectName, persistentID))
 	return nil
 }
 
@@ -460,9 +561,9 @@ func (a *App) KillPersistentSession(projectName, persistentID string) error {
 // session so removing a project doesn't leak its persistent shells.
 func killProjectTmuxSessions(projectName string) {
 	prefix := tmuxProjectPrefix(projectName)
-	for name := range tmux.ListSessions() {
+	for name := range listPtyTmuxSessions() {
 		if strings.HasPrefix(name, prefix) {
-			_ = tmux.KillSession(name)
+			_ = killPtyTmuxSession(name)
 		}
 	}
 }
