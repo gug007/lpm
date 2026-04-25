@@ -2,7 +2,10 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "LPM Project Config",
   "type": "object",
-  "required": ["root"],
+  "anyOf": [
+    { "required": ["root"] },
+    { "required": ["ssh"] }
+  ],
   "additionalProperties": false,
   "properties": {
     "name": {
@@ -11,7 +14,7 @@
     },
     "root": {
       "type": "string",
-      "description": "Absolute or ~-prefixed path to the project root."
+      "description": "Absolute or ~-prefixed path to the project root. Required for local projects; omitted for SSH projects."
     },
     "label": {
       "type": "string",
@@ -20,6 +23,36 @@
     "parent_name": {
       "type": "string",
       "description": "Inherit services/actions/terminals/profiles from another project."
+    },
+    "ssh": {
+      "type": "object",
+      "description": "SSH connection — services, actions, and terminals run on the remote host over this connection.",
+      "required": ["host", "user"],
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "type": "string",
+          "description": "Remote hostname or IP address."
+        },
+        "user": {
+          "type": "string",
+          "description": "Login user."
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "TCP port. Defaults to 22 when omitted."
+        },
+        "key": {
+          "type": "string",
+          "description": "Path to an identity file. Leave empty to use ssh-agent or your ~/.ssh/config defaults."
+        },
+        "dir": {
+          "type": "string",
+          "description": "Default remote working directory. Must be absolute or ~-prefixed."
+        }
+      }
     },
     "services": {
       "description": "Long-running processes managed by lpm.",
