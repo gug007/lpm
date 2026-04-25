@@ -71,17 +71,18 @@ func (a *App) StartTerminal(projectName string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("load project: %w", err)
 	}
-	return a.startTerminalInternal(cfg, projectName, cfg.Root, nil)
+	return a.startTerminalInternal(cfg, projectName, "", nil)
 }
 
 // StartTerminalWithCwdEnv launches a terminal with explicit cwd and env overrides.
-// Used by terminal-type actions that specify their own cwd/env.
+// Used by terminal-type actions that specify their own cwd/env. cwd is
+// project-relative; SSH projects resolve it against ssh.dir on the remote.
 func (a *App) StartTerminalWithCwdEnv(projectName string, cwd string, env map[string]string) (string, error) {
 	cfg, err := config.LoadProject(projectName)
 	if err != nil {
 		return "", fmt.Errorf("load project: %w", err)
 	}
-	return a.startTerminalInternal(cfg, projectName, config.ResolveCwd(cfg.Root, cwd), env)
+	return a.startTerminalInternal(cfg, projectName, cwd, env)
 }
 
 // TerminalLaunch is what StartTerminalForConfig hands back: a fresh PTY
@@ -110,7 +111,7 @@ func (a *App) StartTerminalForConfig(projectName string, terminalName string) (T
 		return TerminalLaunch{}, fmt.Errorf("terminal %q not found in project %q", terminalName, projectName)
 	}
 
-	id, err := a.startTerminalInternal(cfg, projectName, config.ResolveCwd(cfg.Root, act.Cwd), act.Env)
+	id, err := a.startTerminalInternal(cfg, projectName, act.Cwd, act.Env)
 	if err != nil {
 		return TerminalLaunch{}, err
 	}
@@ -119,30 +120,45 @@ func (a *App) StartTerminalForConfig(projectName string, terminalName string) (T
 	return TerminalLaunch{ID: id, StartCmd: startCmd, ResumeCmd: resumeCmd}, nil
 }
 
-func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName string, dir string, extraEnv map[string]string) (string, error) {
-	if dir == "" {
-		dir = cfg.Root
-	}
-	if dir == "" {
-		return "", fmt.Errorf("project has no root directory")
+// buildTerminalCmd produces the *exec.Cmd to spawn under a PTY. For SSH
+// projects, extraEnv is baked into the remote script (env applies on the
+// remote). Local projects ignore extraEnv here — startTerminalInternal
+// applies it directly to the local process env.
+func buildTerminalCmd(cfg *config.ProjectConfig, rawCwd string, extraEnv map[string]string) (*exec.Cmd, error) {
+	if cfg.IsRemote() {
+		argv := config.SSHCommandArgv(cfg, rawCwd, extraEnv, `exec "$SHELL" -l`)
+		cmd := exec.Command(argv[0], argv[1:]...)
+		cmd.Dir = config.RemoteLocalSpawnDir(cfg)
+		return cmd, nil
 	}
 
+	dir := config.ResolveCwd(cfg.Root, rawCwd)
+	if dir == "" {
+		return nil, fmt.Errorf("project has no root directory")
+	}
 	shell := os.Getenv("SHELL")
 	if shell == "" {
 		shell = "/bin/zsh"
 	}
-
-	id := fmt.Sprintf("%s-%d", projectName, ptyCounter.Add(1))
-
 	cmd := exec.Command(shell, "-l")
 	cmd.Dir = dir
+	return cmd, nil
+}
+
+func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName string, rawCwd string, extraEnv map[string]string) (string, error) {
+	id := fmt.Sprintf("%s-%d", projectName, ptyCounter.Add(1))
+	cmd, err := buildTerminalCmd(cfg, rawCwd, extraEnv)
+	if err != nil {
+		return "", err
+	}
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "TERM_PROGRAM=kitty")
-	// Inject LPM environment variables for external tool integration
 	cmd.Env = append(cmd.Env, "LPM_SOCKET_PATH="+SocketPath())
 	cmd.Env = append(cmd.Env, "LPM_PROJECT_NAME="+projectName)
 	cmd.Env = append(cmd.Env, "LPM_PANE_ID="+id)
-	for k, v := range extraEnv {
-		cmd.Env = append(cmd.Env, k+"="+v)
+	if !cfg.IsRemote() {
+		for k, v := range extraEnv {
+			cmd.Env = append(cmd.Env, k+"="+v)
+		}
 	}
 
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 24, Cols: 80})

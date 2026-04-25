@@ -9,6 +9,8 @@ import { BranchNameInstructionsEditor } from "./components/BranchNameInstruction
 import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
 import { TmuxInstaller } from "./components/TmuxInstaller";
 import { FeedbackModal } from "./components/FeedbackModal";
+import { NewProjectPicker } from "./components/NewProjectPicker";
+import { AddSSHProjectModal } from "./components/AddSSHProjectModal";
 import { Toaster } from "sonner";
 import { SidebarIcon } from "./components/icons";
 import { useWindowResizeSaver } from "./hooks/useWindowResizeSaver";
@@ -35,6 +37,9 @@ export default function App() {
   const visited = useAppStore((s) => s.visited);
   const duplicatingName = useAppStore((s) => s.duplicatingName);
   const removingName = useAppStore((s) => s.removingName);
+  const addProjectPickerOpen = useAppStore((s) => s.addProjectPickerOpen);
+  const sshModalOpen = useAppStore((s) => s.sshModalOpen);
+  const addingSSHProject = useAppStore((s) => s.addingSSHProject);
 
   const setView = useAppStore((s) => s.setView);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
@@ -50,6 +55,10 @@ export default function App() {
   const toggleProjectRunning = useAppStore((s) => s.toggleProjectRunning);
   const toggleService = useAppStore((s) => s.toggleService);
   const addProject = useAppStore((s) => s.addProject);
+  const closeAddProjectPicker = useAppStore((s) => s.closeAddProjectPicker);
+  const pickAddProjectKind = useAppStore((s) => s.pickAddProjectKind);
+  const closeSSHModal = useAppStore((s) => s.closeSSHModal);
+  const addSSHProject = useAppStore((s) => s.addSSHProject);
   const duplicateProject = useAppStore((s) => s.duplicateProject);
   const removeProject = useAppStore((s) => s.removeProject);
   const renameProject = useAppStore((s) => s.renameProject);
@@ -229,6 +238,17 @@ export default function App() {
         </main>
       </div>
       {feedbackOpen && <FeedbackModal onClose={() => setFeedbackOpen(false)} />}
+      <NewProjectPicker
+        open={addProjectPickerOpen}
+        onClose={closeAddProjectPicker}
+        onPick={pickAddProjectKind}
+      />
+      <AddSSHProjectModal
+        open={sshModalOpen}
+        busy={addingSSHProject}
+        onClose={closeSSHModal}
+        onCreate={addSSHProject}
+      />
     </div>
   );
 }

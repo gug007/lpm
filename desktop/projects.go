@@ -665,7 +665,7 @@ func (a *App) StartService(projectName string, paneIndex int) error {
 	if err != nil {
 		return err
 	}
-	return tmux.StartServicePane(paneID, cfg.Root, svc)
+	return tmux.StartServicePane(paneID, cfg, svc)
 }
 
 func (a *App) ReadConfig(name string) (string, error) {
@@ -728,10 +728,10 @@ func (a *App) SaveConfig(name string, content string) (string, error) {
 	if err := config.ValidateName(newName); err != nil {
 		return "", err
 	}
-	newPath := config.ProjectPath(newName)
-	if _, err := os.Stat(newPath); err == nil {
+	if config.ProjectExists(newName) {
 		return "", fmt.Errorf("project %q already exists", newName)
 	}
+	newPath := config.ProjectPath(newName)
 	if err := writeConfigFile(newPath, content); err != nil {
 		return "", err
 	}
@@ -752,14 +752,63 @@ func (a *App) CreateProject(name string, root string) error {
 	if err := config.ValidateName(name); err != nil {
 		return err
 	}
-	path := config.ProjectPath(name)
-	if _, err := os.Stat(path); err == nil {
+	if config.ProjectExists(name) {
 		return fmt.Errorf("project %q already exists", name)
 	}
 	cfg := &config.ProjectConfig{
 		Name:     name,
 		Root:     root,
 		Services: map[string]config.Service{"dev": {Cmd: "echo 'configure me'"}},
+	}
+	if err := config.SaveProject(cfg); err != nil {
+		return err
+	}
+	runtime.EventsEmit(a.ctx, "projects-changed")
+	return nil
+}
+
+// SSHConfig is the connection profile collected from the New SSH Project
+// dialog. Mirrors config.SSHSettings field-for-field so the frontend can
+// build it directly; we copy into SSHSettings on save.
+type SSHConfig struct {
+	Host string `json:"host"`
+	User string `json:"user"`
+	Port int    `json:"port"`
+	Key  string `json:"key"`
+	Dir  string `json:"dir"`
+}
+
+func (a *App) CreateSSHProject(name string, ssh SSHConfig) error {
+	if err := config.ValidateName(name); err != nil {
+		return err
+	}
+	host := strings.TrimSpace(ssh.Host)
+	user := strings.TrimSpace(ssh.User)
+	if host == "" {
+		return fmt.Errorf("host is required")
+	}
+	if user == "" {
+		return fmt.Errorf("user is required")
+	}
+	if ssh.Port < 0 || ssh.Port > 65535 {
+		return fmt.Errorf("invalid port %d", ssh.Port)
+	}
+	if config.ProjectExists(name) {
+		return fmt.Errorf("project %q already exists", name)
+	}
+
+	cfg := &config.ProjectConfig{
+		Name: name,
+		SSH: &config.SSHSettings{
+			Host: host,
+			User: user,
+			Port: ssh.Port,
+			Key:  strings.TrimSpace(ssh.Key),
+			Dir:  strings.TrimSpace(ssh.Dir),
+		},
+		Services: map[string]config.Service{
+			"shell": {Cmd: `exec "$SHELL" -l`},
+		},
 	}
 	if err := config.SaveProject(cfg); err != nil {
 		return err

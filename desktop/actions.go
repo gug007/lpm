@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"sort"
 	"strings"
 
 	"github.com/gug007/lpm/internal/config"
@@ -20,14 +21,10 @@ type ActionDone struct {
 	Error   string `json:"error,omitempty"`
 }
 
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
-}
-
 // resolveActionCommand loads the named action (supporting "parent:child"
-// nesting), substitutes {{key}} placeholders with inputValues, prepends
-// exported env assignments, and returns the resolved shell command plus
-// working directory.
+// nesting), substitutes {{key}} placeholders with inputValues, and
+// returns a shell line for /bin/sh -c plus its working directory. SSH
+// projects get wrapped with ssh; local projects prepend env exports.
 func resolveActionCommand(projectName, actionName string, inputValues map[string]string) (cmdStr, cwd string, err error) {
 	cfg, err := config.LoadProject(projectName)
 	if err != nil {
@@ -52,20 +49,30 @@ func resolveActionCommand(projectName, actionName string, inputValues map[string
 		}
 	}
 
-	cwd = config.ResolveCwd(cfg.Root, action.Cwd)
-
-	cmdStr = action.Cmd
+	rawCmd := action.Cmd
 	if len(inputValues) > 0 {
 		pairs := make([]string, 0, len(inputValues)*2)
 		for k, v := range inputValues {
 			pairs = append(pairs, "{{"+k+"}}", v)
 		}
-		cmdStr = strings.NewReplacer(pairs...).Replace(cmdStr)
+		rawCmd = strings.NewReplacer(pairs...).Replace(rawCmd)
 	}
+
+	if cfg.IsRemote() {
+		return config.SSHCommandLine(cfg, action.Cwd, action.Env, rawCmd), cfg.Root, nil
+	}
+
+	cwd = config.ResolveCwd(cfg.Root, action.Cwd)
+	cmdStr = rawCmd
 	if len(action.Env) > 0 {
+		keys := make([]string, 0, len(action.Env))
+		for k := range action.Env {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
 		var parts []string
-		for k, v := range action.Env {
-			parts = append(parts, fmt.Sprintf("export %s=%s", k, shellQuote(v)))
+		for _, k := range keys {
+			parts = append(parts, fmt.Sprintf("export %s=%s", k, config.ShellQuote(action.Env[k])))
 		}
 		parts = append(parts, cmdStr)
 		cmdStr = strings.Join(parts, " && ")

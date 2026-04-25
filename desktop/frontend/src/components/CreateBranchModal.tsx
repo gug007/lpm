@@ -10,6 +10,7 @@ import {
 import { EventsEmit } from "../../wailsjs/runtime/runtime";
 import { AI_CLI_OPTIONS, aiDefaultModel, aiPickLabel, resolveAIPick, type AICLI } from "../types";
 import { getSettings, saveSettings } from "../settings";
+import { slugify } from "../slugify";
 
 interface CreateBranchModalProps {
   open: boolean;
@@ -70,13 +71,7 @@ export function CreateBranchModal({
 
   const anyAiAvailable = AI_CLI_OPTIONS.some((o) => aiCLIs[o.value]);
 
-  const normalize = (s: string) =>
-    s
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9/_.-]+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-+|-+$/g, "");
+  const normalize = (s: string) => slugify(s, { allowSlash: true });
 
   const canCreate = !busy && !generating && name.trim().length > 0;
 

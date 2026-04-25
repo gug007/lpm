@@ -3,15 +3,10 @@ package cmd
 import (
 	"os"
 	"os/exec"
-	"strings"
 
 	"github.com/gug007/lpm/internal/config"
 	"github.com/spf13/cobra"
 )
-
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
-}
 
 var editCmd = &cobra.Command{
 	Use:   "edit <project>",
@@ -33,7 +28,7 @@ var editCmd = &cobra.Command{
 			editor = "vi"
 		}
 
-		c := exec.Command("sh", "-c", editor+" "+shellQuote(path))
+		c := exec.Command("sh", "-c", editor+" "+config.ShellQuote(path))
 		c.Stdin = os.Stdin
 		c.Stdout = os.Stdout
 		c.Stderr = os.Stderr
