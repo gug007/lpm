@@ -54,6 +54,11 @@ type App struct {
 	ttsSession *ttsSession
 
 	notes *notesState
+
+	syncMu sync.Mutex
+	syncs  map[string]*projectSync // projectName -> sync state
+
+	pushWG sync.WaitGroup // tracks in-flight async sync pushes
 }
 
 func NewApp() *App {
@@ -62,9 +67,10 @@ func NewApp() *App {
 		paneCache:       make(map[string][]string),
 		streams:         make(map[string]context.CancelFunc),
 		ptySessions:     make(map[string]*ptySession),
-		runningState: make(map[string]runState),
+		runningState:    make(map[string]runState),
 		statusStore:     NewStatusStore(),
 		notes:           newNotesState(),
+		syncs:           make(map[string]*projectSync),
 	}
 }
 
@@ -82,6 +88,7 @@ func (a *App) startup(ctx context.Context) {
 
 	go a.ListProjects() // populate dock menu before frontend loads
 	go a.autoCheckForUpdate()
+	go a.pruneOrphanSyncDirs()
 
 	// Start Unix socket server for external tool integration
 	a.socketServer = NewSocketServer(a)
@@ -218,7 +225,24 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 	a.ptyMu.Unlock()
 
+	// Wait for in-flight sync pushes to finish so we don't truncate
+	// rsync mid-transfer. Bounded so a wedged remote can't block exit.
+	a.waitPushes(30 * time.Second)
+
 	a.notes.closeAll()
+}
+
+func (a *App) waitPushes(timeout time.Duration) {
+	done := make(chan struct{})
+	go func() {
+		a.pushWG.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(timeout):
+		fmt.Fprintf(os.Stderr, "shutdown: %s passed waiting for sync pushes; exiting anyway\n", timeout)
+	}
 }
 
 func (a *App) ClearStatus(project string, paneID string, value string) {
