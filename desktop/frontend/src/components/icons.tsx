@@ -43,3 +43,4 @@ export function MessageIcon() { return <svg {...iconProps}><path d="M21 15a2 2 0
 export function PaperclipIcon() { return <svg {...iconProps}><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>; }
 export function SendIcon() { return <svg {...iconProps}><path d="M22 2 11 13" /><path d="m22 2-7 20-4-9-9-4z" /></svg>; }
 export function DownloadIcon() { return <svg {...iconProps}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>; }
+export function PortForwardIcon() { return <svg {...iconProps}><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /><circle cx="5" cy="12" r="1" /></svg>; }

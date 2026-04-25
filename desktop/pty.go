@@ -33,6 +33,7 @@ const (
 type ptySession struct {
 	id          string
 	projectName string
+	declared    map[int]bool // service ports declared in cfg; nil for local projects
 	pty         *os.File
 	cmd         *exec.Cmd
 
@@ -183,9 +184,14 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 		return "", fmt.Errorf("start pty: %w", err)
 	}
 
+	var declared map[int]bool
+	if cfg.IsRemote() {
+		declared = declaredServicePorts(cfg)
+	}
 	sess := &ptySession{
 		id:          id,
 		projectName: projectName,
+		declared:    declared,
 		pty:         ptmx,
 		cmd:         cmd,
 		onClose:     onClose,
@@ -244,6 +250,7 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 			// Replace invalid UTF-8 so JSON serialization is safe
 			text := strings.ToValidUTF8(string(pending), "\uFFFD")
 			runtime.EventsEmit(a.ctx, "pty-output-"+id, text)
+			a.sniffPortsFromOutput(sess.projectName, sess.declared, text)
 			pending = pending[:0]
 			timerRunning = false
 			sess.addUnacked(utf8.RuneCountInString(text))

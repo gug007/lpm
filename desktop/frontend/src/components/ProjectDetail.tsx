@@ -21,6 +21,7 @@ import { ActionTerminal } from "./project-detail/ActionTerminal";
 import { ActionInputsModal } from "./project-detail/ActionInputsModal";
 import { QuickPopover } from "./project-detail/QuickPopover";
 import { TerminalSettingsModal } from "./project-detail/TerminalSettingsModal";
+import { PortsButton } from "./project-detail/PortsButton";
 
 const EMPTY_SERVICES: { name: string }[] = [];
 
@@ -361,6 +362,7 @@ export function ProjectDetail({
 
   const controlsNode = (
     <>
+      {project.isRemote && <PortsButton projectName={project.name} />}
       <div style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
         <OpenInDropdown projectPath={project.root} />
       </div>

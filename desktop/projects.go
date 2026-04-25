@@ -38,6 +38,7 @@ type ProjectInfo struct {
 	StatusEntries []StatusEntry `json:"statusEntries"`
 	ConfigError   string        `json:"configError,omitempty"`
 	ParentName    string        `json:"parentName,omitempty"`
+	IsRemote      bool          `json:"isRemote"`
 }
 
 type ServiceInfo struct {
@@ -233,6 +234,7 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state r
 		Profiles:      profiles,
 		ActiveProfile: activeProfile,
 		ParentName:    cfg.ParentName,
+		IsRemote:      cfg.IsRemote(),
 	}
 }
 
@@ -386,6 +388,7 @@ func (a *App) StartProject(name, profile string) error {
 		return err
 	}
 	a.setRunningState(name, runState{profile: profile})
+	a.startPortPoller(name)
 	runtime.EventsEmit(a.ctx, "projects-changed")
 	return nil
 }
@@ -410,6 +413,7 @@ func (a *App) StartProjectWithServices(name string, services []string) error {
 		return err
 	}
 	a.setRunningState(name, runState{services: slices.Clone(services)})
+	a.startPortPoller(name)
 	runtime.EventsEmit(a.ctx, "projects-changed")
 	return nil
 }
@@ -514,6 +518,8 @@ func (a *App) StopProject(name string) error {
 	}
 	a.invalidateSessionCache(name)
 	a.clearRunningState(name)
+	a.stopPortPoller(name)
+	a.stopProjectPortForwards(name)
 	if err := tmux.KillSession(cfg.Name); err != nil {
 		return err
 	}
@@ -530,6 +536,8 @@ func (a *App) StopAll() error {
 		if cfg, err := config.LoadProject(name); err == nil {
 			tmux.KillSession(cfg.Name)
 		}
+		a.stopPortPoller(name)
+		a.stopProjectPortForwards(name)
 	}
 	return nil
 }
@@ -867,6 +875,8 @@ func (a *App) RemoveProject(name string) error {
 	// (bundle, rails, spring) race RemoveAll's walk and surface as
 	// ENOTEMPTY on the final rmdir.
 	a.stopProjectTerminals(name)
+	a.stopPortPoller(name)
+	a.stopProjectPortForwards(name)
 	if loadErr == nil {
 		a.stopWatcherIfRoot(cfg.Root)
 	}

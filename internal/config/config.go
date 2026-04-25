@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -230,7 +231,12 @@ func (p *ProjectConfig) IsRemote() bool {
 }
 
 func SSHArgs(s *SSHSettings) []string {
-	args := []string{"-t"}
+	args := []string{
+		"-t",
+		"-o", "ControlMaster=auto",
+		"-o", "ControlPath=" + SSHControlPath(),
+		"-o", "ControlPersist=10m",
+	}
 	if s.Port > 0 && s.Port != 22 {
 		args = append(args, "-p", strconv.Itoa(s.Port))
 	}
@@ -239,6 +245,32 @@ func SSHArgs(s *SSHSettings) []string {
 	}
 	args = append(args, fmt.Sprintf("%s@%s", s.User, s.Host))
 	return args
+}
+
+// SSHControlDir is the parent directory for SSH ControlMaster sockets.
+// /tmp keeps the path short enough that <dir>/cm-<%C-hash> stays under
+// the 104-byte sun_path limit; the per-uid suffix avoids collisions on
+// shared hosts. Callers must ensure it exists (see EnsureSSHControlDir).
+func SSHControlDir() string {
+	uid := "0"
+	if u, err := user.Current(); err == nil && u.Uid != "" {
+		uid = u.Uid
+	}
+	return filepath.Join("/tmp", "lpm-"+uid)
+}
+
+// SSHControlPath is the ControlPath template fed to ssh. %C is hashed by
+// ssh into a fixed 64-char string, keeping every socket name the same
+// length regardless of host/user.
+func SSHControlPath() string {
+	return filepath.Join(SSHControlDir(), "cm-%C")
+}
+
+// EnsureSSHControlDir creates the parent directory for SSH control
+// sockets with 0700 perms. Best-effort — ssh surfaces a clear error if
+// the directory is missing or unwritable.
+func EnsureSSHControlDir() error {
+	return os.MkdirAll(SSHControlDir(), 0o700)
 }
 
 // JoinRemoteDir composes a remote working directory from the project's

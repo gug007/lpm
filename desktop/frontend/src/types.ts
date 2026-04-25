@@ -57,6 +57,7 @@ export interface ProjectInfo {
   statusEntries: StatusEntry[];
   configError?: string;
   parentName?: string;
+  isRemote: boolean;
 }
 
 export const STATUS_RUNNING = "Running";
