@@ -36,6 +36,10 @@ type ptySession struct {
 	pty         *os.File
 	cmd         *exec.Cmd
 
+	// onClose runs (in a goroutine) after the underlying process exits.
+	// Used by mode: sync terminals to push the rsync mirror back.
+	onClose func()
+
 	// Flow control (mu protects unacked/paused only)
 	mu      sync.Mutex
 	cond    *sync.Cond
@@ -71,7 +75,7 @@ func (a *App) StartTerminal(projectName string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("load project: %w", err)
 	}
-	return a.startTerminalInternal(cfg, projectName, "", nil)
+	return a.startTerminalInternal(cfg, projectName, "", nil, nil)
 }
 
 // StartTerminalWithCwdEnv launches a terminal with explicit cwd and env overrides.
@@ -82,7 +86,7 @@ func (a *App) StartTerminalWithCwdEnv(projectName string, cwd string, env map[st
 	if err != nil {
 		return "", fmt.Errorf("load project: %w", err)
 	}
-	return a.startTerminalInternal(cfg, projectName, cwd, env)
+	return a.startTerminalInternal(cfg, projectName, cwd, env, nil)
 }
 
 // TerminalLaunch is what StartTerminalForConfig hands back: a fresh PTY
@@ -111,7 +115,20 @@ func (a *App) StartTerminalForConfig(projectName string, terminalName string) (T
 		return TerminalLaunch{}, fmt.Errorf("terminal %q not found in project %q", terminalName, projectName)
 	}
 
-	id, err := a.startTerminalInternal(cfg, projectName, act.Cwd, act.Env)
+	// mode: sync runs the terminal locally against an rsync mirror of
+	// ssh.dir; on exit we push edits back to the remote.
+	spawnCfg := cfg
+	var onClose func()
+	if cfg.IsRemote() && act.Mode == config.ActionModeSync {
+		local, err := a.ensureProjectSync(cfg)
+		if err != nil {
+			return TerminalLaunch{}, err
+		}
+		spawnCfg = config.LocalMirrorCfg(cfg, local)
+		onClose = func() { a.pushProjectSyncAsync(cfg) }
+	}
+
+	id, err := a.startTerminalInternal(spawnCfg, projectName, act.Cwd, act.Env, onClose)
 	if err != nil {
 		return TerminalLaunch{}, err
 	}
@@ -145,7 +162,7 @@ func buildTerminalCmd(cfg *config.ProjectConfig, rawCwd string, extraEnv map[str
 	return cmd, nil
 }
 
-func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName string, rawCwd string, extraEnv map[string]string) (string, error) {
+func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName string, rawCwd string, extraEnv map[string]string, onClose func()) (string, error) {
 	id := fmt.Sprintf("%s-%d", projectName, ptyCounter.Add(1))
 	cmd, err := buildTerminalCmd(cfg, rawCwd, extraEnv)
 	if err != nil {
@@ -171,6 +188,7 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 		projectName: projectName,
 		pty:         ptmx,
 		cmd:         cmd,
+		onClose:     onClose,
 	}
 	sess.cond = sync.NewCond(&sess.mu)
 
@@ -264,6 +282,10 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 			}
 		}
 		runtime.EventsEmit(a.ctx, "pty-exit-"+id, exitCode)
+
+		if sess.onClose != nil {
+			go sess.onClose()
+		}
 
 		a.ptyMu.Lock()
 		delete(a.ptySessions, id)

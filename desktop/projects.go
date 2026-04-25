@@ -862,6 +862,7 @@ func (a *App) RemoveProject(name string) error {
 	a.StopLogStreaming(name)
 	a.invalidateSessionCache(name)
 	a.clearRunningState(name)
+	a.removeProjectSync(name)
 	// Quiesce the tree before deletion: live shells writing into it
 	// (bundle, rails, spring) race RemoveAll's walk and surface as
 	// ENOTEMPTY on the final rmdir.

@@ -176,13 +176,18 @@
             },
             "type": { "type": "string" },
             "reuse": { "type": "boolean", "description": "Reuse an existing terminal if one is open." },
+            "mode": {
+              "type": "string",
+              "enum": ["remote", "sync"],
+              "description": "Where the action runs on SSH projects. \"remote\" (default) runs over ssh on the host; \"sync\" rsyncs ssh.dir into a local mirror, runs the action locally, then rsyncs changes back — useful when you want local tools (e.g. your local Claude Code) to act on remote files."
+            },
             "inputs": {
               "type": "object",
               "additionalProperties": { "$ref": "#/definitions/actionInput" }
             },
             "actions": {
               "type": "object",
-              "description": "Nested sub-actions inherited cwd/env.",
+              "description": "Nested sub-actions inherit cwd/env/mode.",
               "additionalProperties": { "$ref": "#/definitions/action" }
             }
           }

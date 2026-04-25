@@ -72,9 +72,18 @@ type Action struct {
 	Display string                 `yaml:"display,omitempty"`
 	Type    string                 `yaml:"type,omitempty"`
 	Reuse   bool                   `yaml:"reuse,omitempty"`
+	Mode    string                 `yaml:"mode,omitempty"`
 	Inputs  map[string]ActionInput `yaml:"inputs,omitempty"`
 	Actions ActionMap              `yaml:"actions,omitempty"`
 }
+
+// Action.Mode allowed values. Empty falls back to ActionModeRemote on SSH
+// projects (and is irrelevant on local ones). ActionModeSync runs the
+// action locally against an rsync mirror of ssh.dir.
+const (
+	ActionModeRemote = "remote"
+	ActionModeSync   = "sync"
+)
 
 func (a *Action) UnmarshalYAML(value *yaml.Node) error {
 	if value.Kind == yaml.ScalarNode {
@@ -85,8 +94,9 @@ func (a *Action) UnmarshalYAML(value *yaml.Node) error {
 	return value.Decode((*plain)(a))
 }
 
-// ResolvedChild returns a copy of the named child action with cwd and env
-// inherited from the parent. Returns false when the child does not exist.
+// ResolvedChild returns a copy of the named child action with cwd, env,
+// and mode inherited from the parent. Returns false when the child does
+// not exist.
 func (a Action) ResolvedChild(name string) (Action, bool) {
 	child, ok := a.Actions[name]
 	if !ok {
@@ -94,6 +104,9 @@ func (a Action) ResolvedChild(name string) (Action, bool) {
 	}
 	if child.Cwd == "" {
 		child.Cwd = a.Cwd
+	}
+	if child.Mode == "" {
+		child.Mode = a.Mode
 	}
 	if len(a.Env) > 0 {
 		merged := make(map[string]string, len(a.Env)+len(child.Env))
@@ -222,7 +235,7 @@ func SSHArgs(s *SSHSettings) []string {
 		args = append(args, "-p", strconv.Itoa(s.Port))
 	}
 	if key := strings.TrimSpace(s.Key); key != "" {
-		args = append(args, "-i", expandHome(key))
+		args = append(args, "-i", ExpandHome(key))
 	}
 	args = append(args, fmt.Sprintf("%s@%s", s.User, s.Host))
 	return args
@@ -280,10 +293,21 @@ func WrapAsLoginShell(script string) string {
 // BuildRemoteScript composes a `cd <dir> && export FOO=bar && cmd`
 // script for execution on the remote host. Empty when nothing would run.
 func BuildRemoteScript(dir string, env map[string]string, cmd string) string {
-	var parts []string
-	if dir != "" {
-		parts = append(parts, "cd "+QuoteRemotePath(dir))
+	body := BuildLocalScript(env, cmd)
+	if dir == "" {
+		return body
 	}
+	cd := "cd " + QuoteRemotePath(dir)
+	if body == "" {
+		return cd
+	}
+	return cd + " && " + body
+}
+
+// BuildLocalScript renders `export FOO=bar && cmd`. Env keys are sorted
+// for deterministic output.
+func BuildLocalScript(env map[string]string, cmd string) string {
+	var parts []string
 	if len(env) > 0 {
 		keys := make([]string, 0, len(env))
 		for k := range env {
@@ -298,6 +322,27 @@ func BuildRemoteScript(dir string, env map[string]string, cmd string) string {
 		parts = append(parts, cmd)
 	}
 	return strings.Join(parts, " && ")
+}
+
+// LocalMirrorCfg returns a copy of cfg with SSH cleared and Root set to
+// localRoot, so a remote project can be treated as local for the
+// duration of an action that runs against an rsync mirror.
+func LocalMirrorCfg(cfg *ProjectConfig, localRoot string) *ProjectConfig {
+	clone := *cfg
+	clone.SSH = nil
+	clone.Root = localRoot
+	return &clone
+}
+
+// TrimTail returns at most n trailing characters of b, prefixed with
+// "..." when truncated. Used to fit subprocess error tails into toasts
+// without flooding the UI.
+func TrimTail(b []byte, n int) string {
+	s := strings.TrimSpace(string(b))
+	if len(s) <= n {
+		return s
+	}
+	return "..." + s[len(s)-n:]
 }
 
 // RemoteLocalSpawnDir returns a real local directory for spawning a child
@@ -436,7 +481,7 @@ func expandLocalCwds(cfg *ProjectConfig) {
 	}
 	for name, svc := range cfg.Services {
 		if svc.Cwd != "" {
-			svc.Cwd = expandHome(svc.Cwd)
+			svc.Cwd = ExpandHome(svc.Cwd)
 			cfg.Services[name] = svc
 		}
 	}
@@ -488,7 +533,7 @@ func (p *ProjectConfig) normalize(name string) {
 	if p.Name == "" {
 		p.Name = name
 	}
-	p.Root = expandHome(p.Root)
+	p.Root = ExpandHome(p.Root)
 }
 
 // LoadProjectCached behaves like LoadProject but shares resolved parent
@@ -519,7 +564,7 @@ func LoadProjectCached(name string, cache map[string]*ProjectConfig) (*ProjectCo
 
 	cfg.normalize(name)
 
-	// Parent already applied expandHome and global merge during its own load;
+	// Parent already applied ExpandHome and global merge during its own load;
 	// reuse its resolved maps and skip both passes below for duplicates.
 	if cfg.ParentName != "" {
 		parent, err := LoadProjectCached(cfg.ParentName, cache)
@@ -558,7 +603,7 @@ func LoadProjectCached(name string, cache map[string]*ProjectConfig) (*ProjectCo
 func (p *ProjectConfig) Validate() error {
 	var errs []string
 
-	root := expandHome(p.Root)
+	root := ExpandHome(p.Root)
 	remote := p.IsRemote()
 
 	if p.SSH != nil {
@@ -595,7 +640,7 @@ func (p *ProjectConfig) Validate() error {
 			ports[svc.Port] = name
 		}
 		if !remote && svc.Cwd != "" {
-			abs := expandHome(svc.Cwd)
+			abs := ExpandHome(svc.Cwd)
 			if !filepath.IsAbs(abs) {
 				abs = filepath.Join(root, abs)
 			}
@@ -609,8 +654,8 @@ func (p *ProjectConfig) Validate() error {
 	if remote {
 		checkRoot = ""
 	}
-	errs = append(errs, validateActionMap(checkRoot, "action", p.Actions)...)
-	errs = append(errs, validateActionMap(checkRoot, "terminal", ActionMap(p.Terminals))...)
+	errs = append(errs, validateActionMap(checkRoot, remote, "action", p.Actions)...)
+	errs = append(errs, validateActionMap(checkRoot, remote, "terminal", ActionMap(p.Terminals))...)
 
 	for pName, services := range p.Profiles {
 		for _, svcName := range services {
@@ -768,15 +813,17 @@ func portableActionMap(src ActionMap, mapCwd func(string) string) ActionMap {
 	return out
 }
 
-// validateActionMap reports cmd/cwd issues. An empty root disables local
-// cwd existence checks — used for SSH projects where cwd is a remote path.
-func validateActionMap(root, label string, actions ActionMap) []string {
+// validateActionMap reports cmd/cwd/mode issues. An empty root disables
+// local cwd existence checks — used for SSH projects where cwd is a
+// remote path. `remote` controls whether mode: sync is allowed
+// (only on SSH projects).
+func validateActionMap(root string, remote bool, label string, actions ActionMap) []string {
 	var errs []string
 	check := func(dir string, where string) {
 		if dir == "" || root == "" {
 			return
 		}
-		abs := expandHome(dir)
+		abs := ExpandHome(dir)
 		if !filepath.IsAbs(abs) {
 			abs = filepath.Join(root, abs)
 		}
@@ -784,16 +831,31 @@ func validateActionMap(root, label string, actions ActionMap) []string {
 			errs = append(errs, fmt.Sprintf("%s: cwd %q does not exist", where, dir))
 		}
 	}
-	for name, act := range actions {
-		if strings.TrimSpace(act.Cmd) == "" && len(act.Actions) == 0 {
-			errs = append(errs, fmt.Sprintf("%s %q: missing cmd", label, name))
+	checkMode := func(mode, where string) {
+		switch mode {
+		case "", ActionModeRemote, ActionModeSync:
+		default:
+			errs = append(errs, fmt.Sprintf("%s: invalid mode %q (expected %q or %q)", where, mode, ActionModeRemote, ActionModeSync))
+			return
 		}
-		check(act.Cwd, fmt.Sprintf("%s %q", label, name))
+		if mode == ActionModeSync && !remote {
+			errs = append(errs, fmt.Sprintf("%s: mode %q is only valid on SSH projects", where, ActionModeSync))
+		}
+	}
+	for name, act := range actions {
+		where := fmt.Sprintf("%s %q", label, name)
+		if strings.TrimSpace(act.Cmd) == "" && len(act.Actions) == 0 {
+			errs = append(errs, fmt.Sprintf("%s: missing cmd", where))
+		}
+		check(act.Cwd, where)
+		checkMode(act.Mode, where)
 		for childName, child := range act.Actions {
+			childWhere := fmt.Sprintf("%s.%q", where, childName)
 			if strings.TrimSpace(child.Cmd) == "" {
-				errs = append(errs, fmt.Sprintf("%s %q.%q: missing cmd", label, name, childName))
+				errs = append(errs, fmt.Sprintf("%s: missing cmd", childWhere))
 			}
-			check(child.Cwd, fmt.Sprintf("%s %q.%q", label, name, childName))
+			check(child.Cwd, childWhere)
+			checkMode(child.Mode, childWhere)
 		}
 	}
 	return errs
@@ -802,11 +864,11 @@ func validateActionMap(root, label string, actions ActionMap) []string {
 func expandActionCwds(actions ActionMap) {
 	for name, act := range actions {
 		if act.Cwd != "" {
-			act.Cwd = expandHome(act.Cwd)
+			act.Cwd = ExpandHome(act.Cwd)
 		}
 		for cn, child := range act.Actions {
 			if child.Cwd != "" {
-				child.Cwd = expandHome(child.Cwd)
+				child.Cwd = ExpandHome(child.Cwd)
 				act.Actions[cn] = child
 			}
 		}
@@ -814,7 +876,7 @@ func expandActionCwds(actions ActionMap) {
 	}
 }
 
-func expandHome(path string) string {
+func ExpandHome(path string) string {
 	if path == "~" {
 		home, _ := os.UserHomeDir()
 		return home
@@ -826,7 +888,7 @@ func expandHome(path string) string {
 	return path
 }
 
-// collapseHome is the inverse of expandHome: if path lives under $HOME, it
+// collapseHome is the inverse of ExpandHome: if path lives under $HOME, it
 // replaces the prefix with ~/ so the stored value stays portable between
 // machines (e.g. /Users/gug007/Projects/foo → ~/Projects/foo). Paths outside
 // $HOME, and paths that were already ~/-prefixed, are returned unchanged.
