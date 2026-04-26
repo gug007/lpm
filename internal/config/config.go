@@ -431,16 +431,21 @@ func (p *ProjectConfig) ResolvedActions() ActionMap {
 	return out
 }
 
-// ResolvedAction is the single-key form of ResolvedActions, avoiding the
-// full merged-map allocation for callers that only need one entry.
+// ResolvedAction returns the named action, looking in Actions then Terminals.
+// A "parent:child" name returns the parent's named child via ResolvedChild.
 func (p *ProjectConfig) ResolvedAction(name string) (Action, bool) {
-	if a, ok := p.Actions[name]; ok {
-		return a, true
+	parent, child, nested := strings.Cut(name, ":")
+	a, ok := p.Actions[parent]
+	if !ok {
+		a, ok = p.Terminals[parent]
 	}
-	if a, ok := p.Terminals[name]; ok {
-		return a, true
+	if !ok {
+		return Action{}, false
 	}
-	return Action{}, false
+	if nested {
+		return a.ResolvedChild(child)
+	}
+	return a, true
 }
 
 func (p *ProjectConfig) IsDuplicate() bool {
