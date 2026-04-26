@@ -280,7 +280,7 @@ export function BranchSwitcher({ projectPath, gitState }: {
         </button>
 
       {open && (
-        <div className="absolute bottom-full right-0 z-50 mb-1 w-96 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] shadow-lg">
+        <div className="absolute bottom-full right-0 z-50 mb-2 w-[520px] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl">
           <div className="border-b border-[var(--border)] p-2">
             <input
               ref={searchRef}
@@ -291,15 +291,15 @@ export function BranchSwitcher({ projectPath, gitState }: {
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
-              className="w-full rounded-md bg-[var(--bg-hover)] px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
+              className="w-full rounded-lg bg-transparent px-3 py-2 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
             />
           </div>
-          <div className="max-h-[250px] overflow-y-auto py-1">
-            <div className="px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
+          <div className="max-h-[360px] overflow-y-auto py-1.5">
+            <div className="px-4 pb-1.5 pt-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
               Branches
             </div>
             {filtered.length === 0 && (
-              <div className="px-3 py-2 text-[11px] text-[var(--text-muted)]">No matches</div>
+              <div className="px-4 py-3 text-[13px] text-[var(--text-muted)]">No matches</div>
             )}
             {filtered.map((b) => {
               const isCurrent = b.name === status.branch;
@@ -314,8 +314,8 @@ export function BranchSwitcher({ projectPath, gitState }: {
                   className="group relative flex w-full items-center transition-colors hover:bg-[var(--bg-hover)]"
                 >
                   {isRenaming ? (
-                    <div className="flex w-full items-center gap-2 px-3 py-1.5 text-[11px]">
-                      <BranchIcon size={12} />
+                    <div className="flex w-full items-center gap-2.5 px-4 py-2 text-[13px]">
+                      <BranchIcon size={14} />
                       <input
                         autoFocus
                         value={renameValue}
@@ -330,7 +330,7 @@ export function BranchSwitcher({ projectPath, gitState }: {
                           }
                         }}
                         onBlur={() => setRenamingKey(null)}
-                        className="min-w-0 flex-1 rounded border border-[var(--border)] bg-[var(--bg-primary)] px-1 py-0.5 text-[11px] text-[var(--text-primary)] focus:border-[var(--text-muted)] focus:outline-none"
+                        className="min-w-0 flex-1 rounded border border-[var(--border)] bg-[var(--bg-primary)] px-1.5 py-0.5 text-[13px] text-[var(--text-primary)] focus:border-[var(--text-muted)] focus:outline-none"
                       />
                       <button
                         type="button"
@@ -338,9 +338,9 @@ export function BranchSwitcher({ projectPath, gitState }: {
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => submitRename(b)}
                         disabled={busy || !renameValue.trim() || renameValue.trim() === b.name}
-                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[var(--accent-blue)] transition-colors hover:bg-[var(--bg-active)] disabled:cursor-not-allowed disabled:opacity-40"
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--accent-blue)] transition-colors hover:bg-[var(--bg-active)] disabled:cursor-not-allowed disabled:opacity-40"
                       >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="20 6 9 17 4 12" />
                         </svg>
                       </button>
@@ -351,38 +351,38 @@ export function BranchSwitcher({ projectPath, gitState }: {
                         onClick={() => checkout(b)}
                         disabled={busy}
                         title={b.remote ? `Create local tracking branch from ${b.remote}/${b.name}` : undefined}
-                        className={`flex min-w-0 flex-1 items-start gap-2 px-3 py-1.5 text-left text-[11px] disabled:opacity-50 ${isCurrent ? "text-[var(--accent-blue)]" : "text-[var(--text-secondary)]"}`}
+                        className={`flex min-w-0 flex-1 items-center gap-2.5 px-4 py-2 text-left text-[13px] disabled:opacity-50 ${isCurrent ? "text-[var(--accent-blue)]" : "text-[var(--text-secondary)]"}`}
                       >
-                        {b.remote ? <CloudBranchIcon size={12} /> : <BranchIcon size={12} />}
+                        {b.remote ? <CloudBranchIcon size={14} /> : <BranchIcon size={14} />}
                         <span className="flex min-w-0 flex-1 flex-col">
                           <span className="flex min-w-0 items-center gap-1.5">
                             <span className="truncate">{b.name}</span>
                             {b.remote && <RemoteBadge remote={b.remote} />}
                           </span>
                           {isCurrent && status.uncommitted > 0 && (
-                            <span className="text-[10px] text-[var(--text-muted)]">
+                            <span className="text-[11px] text-[var(--text-muted)]">
                               Uncommitted: {status.uncommitted} file{status.uncommitted === 1 ? "" : "s"}
                             </span>
                           )}
                         </span>
                       </button>
-                      <div className="flex shrink-0 items-center gap-1 pr-3">
+                      <div className="flex shrink-0 items-center gap-1 pr-4">
                         <div className="hidden items-center gap-0.5 pr-1 group-hover:flex">
                           <BranchActionButton title="Copy branch name" onClick={() => copyBranchName(b.name)}>
-                            <CopyIcon size={12} />
+                            <CopyIcon size={13} />
                           </BranchActionButton>
                           {canRename && (
                             <BranchActionButton title="Rename branch" onClick={() => startRename(b)}>
-                              <PencilIcon size={12} />
+                              <PencilIcon size={13} />
                             </BranchActionButton>
                           )}
                           {canDelete && (
                             <BranchActionButton title="Delete branch" onClick={() => setDeletingBranch(b)} danger>
-                              <TrashIcon size={12} />
+                              <TrashIcon size={13} />
                             </BranchActionButton>
                           )}
                         </div>
-                        {age && <span className="text-[10px] text-[var(--text-muted)]">{age}</span>}
+                        {age && <span className="text-[11px] tabular-nums text-[var(--text-muted)]">{age}</span>}
                       </div>
                     </>
                   )}
@@ -394,7 +394,7 @@ export function BranchSwitcher({ projectPath, gitState }: {
             <button
               onClick={() => setCreating(true)}
               disabled={busy}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
+              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
             >
               <PlusIcon />
               <span>Create and checkout new branch…</span>
@@ -601,7 +601,7 @@ function PRMenuIcon() {
 
 function PlusIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="12" y1="5" x2="12" y2="19" />
       <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
