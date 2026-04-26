@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
-import { XIcon, ChevronDownIcon, UndoIcon } from "./icons";
+import { XIcon, ChevronDownIcon } from "./icons";
 import { AIPickerButton } from "./ui/AIPickerButton";
 import {
   CheckAICLIs,
@@ -20,20 +20,12 @@ import { useOutsideClick } from "../hooks/useOutsideClick";
 import { AI_CLI_OPTIONS, aiDefaultModel, aiPickLabel, resolveAIPick, type AICLI } from "../types";
 import { EventsEmit } from "../../wailsjs/runtime/runtime";
 import { getSettings, saveSettings } from "../settings";
-import { DiffViewer } from "./DiffViewer";
+import { ChangedFilesTree } from "./ChangedFilesTree";
 import { SideBySideDiffModal } from "./SideBySideDiffModal";
 import { Tooltip } from "./ui/Tooltip";
 
 type ChangedFile = main.ChangedFile;
 
-const STATUS_DISPLAY: Record<string, { label: string; color: string }> = {
-  added: { label: "A", color: "text-[var(--accent-green-text)]" },
-  untracked: { label: "U", color: "text-[var(--accent-green-text)]" },
-  deleted: { label: "D", color: "text-[var(--accent-red-text)]" },
-  renamed: { label: "R", color: "text-[var(--accent-cyan-text)]" },
-  modified: { label: "M", color: "text-[var(--accent-blue-text)]" },
-};
-const DEFAULT_STATUS = STATUS_DISPLAY.modified;
 const MSG_MAX_HEIGHT = { maxHeight: "calc(5 * 1.5em + 1rem)" };
 
 interface CommitModalProps {
@@ -77,6 +69,7 @@ export function CommitModal({
   const [expandedFile, setExpandedFile] = useState<string | null>(null);
   const [diffContent, setDiffContent] = useState("");
   const [diffLoading, setDiffLoading] = useState(false);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!open) return;
@@ -86,6 +79,7 @@ export function CommitModal({
     setSelected(new Set());
     setExpandedFile(null);
     setReviewOpen(false);
+    setCollapsed(new Set());
     setLoading(true);
     GitChangedFiles(projectPath)
       .then((f) => {
@@ -156,6 +150,24 @@ export function CommitModal({
     });
   };
 
+  const setSelection = (paths: string[], select: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (select) for (const p of paths) next.add(p);
+      else for (const p of paths) next.delete(p);
+      return next;
+    });
+  };
+
+  const toggleCollapse = (path: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  };
+
   const toggleAll = () => {
     if (selected.size === files.length) {
       setSelected(new Set());
@@ -214,19 +226,6 @@ export function CommitModal({
 
   const discardAll = () =>
     runDiscard(() => GitDiscardAll(projectPath), "Discarded all changes");
-
-  const parsed = useMemo(
-    () =>
-      files.map((f) => {
-        const i = f.path.lastIndexOf("/");
-        return {
-          file: f,
-          name: i < 0 ? f.path : f.path.slice(i + 1),
-          dir: i < 0 ? "" : f.path.slice(0, i),
-        };
-      }),
-    [files],
-  );
 
   const generateMessage = async () => {
     if (generating || selected.size === 0) return;
@@ -399,85 +398,22 @@ export function CommitModal({
                 No changes
               </div>
             )}
-            {!loading &&
-              parsed.map(({ file, name: fileName, dir }) => {
-                const checked = selected.has(file.path);
-                const { label: statusLabel, color: statusClr } =
-                  STATUS_DISPLAY[file.status] ?? DEFAULT_STATUS;
-                const isExpanded = expandedFile === file.path;
-                return (
-                  <div key={file.path}>
-                    <div
-                      className={`group flex items-center gap-2 px-2.5 py-[5px] transition-colors hover:bg-[var(--bg-hover)] ${
-                        !checked ? "opacity-50" : ""
-                      }`}
-                    >
-                      <label className="flex shrink-0 cursor-pointer items-center">
-                        <span
-                          className={`flex h-3 w-3 items-center justify-center rounded-[3px] transition-colors ${
-                            checked
-                              ? "bg-[var(--accent-blue)]"
-                              : "border border-[var(--text-muted)]/40"
-                          }`}
-                        >
-                          {checked && (
-                            <svg
-                              width="8"
-                              height="8"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="white"
-                              strokeWidth="3.5"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                          )}
-                        </span>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleFile(file.path)}
-                          disabled={!!busy}
-                          className="sr-only"
-                        />
-                      </label>
-                      <span
-                        className={`shrink-0 w-3 text-center text-[11px] font-bold ${statusClr}`}
-                        title={file.status}
-                      >
-                        {statusLabel}
-                      </span>
-                      <span
-                        onClick={() => toggleDiff(file.path)}
-                        className="min-w-0 flex-1 cursor-pointer truncate text-xs text-[var(--text-primary)]"
-                      >
-                        {fileName}
-                        {dir && (
-                          <span className="text-[var(--text-muted)]"> {dir}</span>
-                        )}
-                      </span>
-                      <button
-                        onClick={() => setConfirmDiscardPath(file.path)}
-                        disabled={!!busy}
-                        title="Discard changes to this file"
-                        className="shrink-0 rounded p-0.5 text-[var(--text-muted)] opacity-0 transition-opacity hover:text-[var(--accent-red-text)] group-hover:opacity-100 focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-0"
-                      >
-                        <UndoIcon />
-                      </button>
-                      <span
-                        className={`shrink-0 text-[11px] text-[var(--text-muted)] transition-transform duration-150 ${isExpanded ? "rotate-90" : ""}`}
-                      >
-                        &#9654;
-                      </span>
-                    </div>
-                    {isExpanded && (
-                      <DiffViewer diff={diffContent} loading={diffLoading} filePath={file.path} />
-                    )}
-                  </div>
-                );
-              })}
+            {!loading && files.length > 0 && (
+              <ChangedFilesTree
+                files={files}
+                selected={selected}
+                collapsed={collapsed}
+                expandedFile={expandedFile}
+                diffContent={diffContent}
+                diffLoading={diffLoading}
+                busy={!!busy}
+                onToggleFile={toggleFile}
+                onSetSelection={setSelection}
+                onToggleCollapse={toggleCollapse}
+                onClickFile={toggleDiff}
+                onDiscardFile={setConfirmDiscardPath}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -558,7 +494,10 @@ export function CommitModal({
         open={reviewOpen}
         onClose={() => setReviewOpen(false)}
         projectPath={projectPath}
-        files={selectedFiles}
+        files={files}
+        selected={selected}
+        onToggleFile={toggleFile}
+        onSetSelection={setSelection}
       />,
       document.body,
     )}

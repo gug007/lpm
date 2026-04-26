@@ -1,7 +1,15 @@
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { Modal } from "./ui/Modal";
 import { XIcon } from "./icons";
 import { GitDiff } from "../../wailsjs/go/main/App";
+import { main } from "../../wailsjs/go/models";
 import {
   type Token,
   DIFF_META_PREFIXES,
@@ -9,6 +17,21 @@ import {
   ensureLang,
   tokenizeLines,
 } from "../highlight";
+import {
+  buildTree,
+  fileDescendants,
+  folderState,
+  CheckboxBox,
+  STATUS_DISPLAY,
+  DEFAULT_STATUS,
+  INDENT_PX,
+  BASE_LEFT_PX,
+  type FileNode,
+  type FolderNode,
+  type TreeNode,
+} from "./ChangedFilesTree";
+
+type ChangedFile = main.ChangedFile;
 
 interface DiffLine {
   type: "context" | "add" | "del" | "empty";
@@ -172,7 +195,10 @@ interface Props {
   open: boolean;
   onClose: () => void;
   projectPath: string;
-  files: string[];
+  files: ChangedFile[];
+  selected: Set<string>;
+  onToggleFile: (path: string) => void;
+  onSetSelection: (paths: string[], select: boolean) => void;
 }
 
 export function SideBySideDiffModal({
@@ -180,21 +206,35 @@ export function SideBySideDiffModal({
   onClose,
   projectPath,
   files,
+  selected,
+  onToggleFile,
+  onSetSelection,
 }: Props) {
   const [fileDiffs, setFileDiffs] = useState<FileDiff[]>([]);
   const [loading, setLoading] = useState(false);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [activeFile, setActiveFile] = useState<string | null>(null);
+  const diffRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  const filePaths = useMemo(() => files.map((f) => f.path), [files]);
+  const tree = useMemo(() => buildTree(files), [files]);
 
   useEffect(() => {
-    if (!open || files.length === 0) return;
+    if (!open) return;
+    setCollapsed(new Set());
+    setActiveFile(files[0]?.path ?? null);
+  }, [open, files]);
+
+  useEffect(() => {
+    if (!open || filePaths.length === 0) return;
     let cancelled = false;
     setLoading(true);
-    GitDiff(projectPath, files)
+    GitDiff(projectPath, filePaths)
       .then(async (raw) => {
         if (cancelled) return;
         const parsed = parseSideBySide(raw);
         setFileDiffs(parsed);
         setLoading(false);
-        // Highlight in background, update when ready
         const highlighted = await highlightDiffs(parsed);
         if (!cancelled) setFileDiffs(highlighted);
       })
@@ -207,7 +247,23 @@ export function SideBySideDiffModal({
     return () => {
       cancelled = true;
     };
-  }, [open, projectPath, files]);
+  }, [open, projectPath, filePaths]);
+
+  const toggleCollapse = (path: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  };
+
+  const handleClickFile = (path: string) => {
+    setActiveFile(path);
+    diffRefs.current
+      .get(path)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
     <Modal
@@ -220,7 +276,7 @@ export function SideBySideDiffModal({
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           Review Changes
           <span className="ml-2 text-[11px] font-normal text-[var(--text-muted)]">
-            {fileDiffs.length} file{fileDiffs.length !== 1 ? "s" : ""}
+            {files.length} file{files.length !== 1 ? "s" : ""}
           </span>
         </h3>
         <button
@@ -232,55 +288,257 @@ export function SideBySideDiffModal({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        {loading && (
-          <div className="py-10 text-center text-[11px] text-[var(--text-muted)]">
-            Loading diffs...
-          </div>
-        )}
-        {!loading && fileDiffs.length === 0 && (
-          <div className="py-10 text-center text-[11px] text-[var(--text-muted)]">
-            No changes to display
-          </div>
-        )}
-        {!loading &&
-          fileDiffs.map((file) => (
-            <div
-              key={file.path}
-              className="border-b border-[var(--border)] last:border-b-0"
-            >
-              <div className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-2 text-[11px] font-medium text-[var(--text-primary)]">
-                {file.path}
-              </div>
-              <div className="grid grid-cols-2 font-mono text-[11px] leading-[1.6]">
-                {file.rows.map((row, i) => (
-                  <Fragment key={i}>
-                    <div
-                      className={`flex min-w-0 overflow-x-auto border-r border-[var(--border)] ${rowBg(row.left.type)}`}
-                    >
-                      <span className="w-10 shrink-0 select-none pr-2 text-right text-[10px] text-[var(--text-muted)]/40">
-                        {row.left.lineNo ?? ""}
-                      </span>
-                      <span className="flex-1 whitespace-pre">
-                        {renderContent(row.left)}
-                      </span>
-                    </div>
-                    <div
-                      className={`flex min-w-0 overflow-x-auto ${rowBg(row.right.type)}`}
-                    >
-                      <span className="w-10 shrink-0 select-none pr-2 text-right text-[10px] text-[var(--text-muted)]/40">
-                        {row.right.lineNo ?? ""}
-                      </span>
-                      <span className="flex-1 whitespace-pre">
-                        {renderContent(row.right)}
-                      </span>
-                    </div>
-                  </Fragment>
-                ))}
-              </div>
-            </div>
+      <div className="flex min-h-0 flex-1">
+        <div className="w-[260px] shrink-0 overflow-y-auto border-r border-[var(--border)] bg-[var(--bg-secondary)] py-1">
+          {tree.map((n) => (
+            <NavTreeNode
+              key={n.path}
+              node={n}
+              depth={0}
+              collapsed={collapsed}
+              activeFile={activeFile}
+              selected={selected}
+              onToggleCollapse={toggleCollapse}
+              onClickFile={handleClickFile}
+              onToggleFile={onToggleFile}
+              onSetSelection={onSetSelection}
+            />
           ))}
+        </div>
+
+        <div className="min-w-0 flex-1 overflow-y-auto">
+          {loading && (
+            <div className="py-10 text-center text-[11px] text-[var(--text-muted)]">
+              Loading diffs...
+            </div>
+          )}
+          {!loading && fileDiffs.length === 0 && (
+            <div className="py-10 text-center text-[11px] text-[var(--text-muted)]">
+              No changes to display
+            </div>
+          )}
+          {!loading &&
+            fileDiffs.map((file) => (
+              <div
+                key={file.path}
+                ref={(el) => {
+                  if (el) diffRefs.current.set(file.path, el);
+                  else diffRefs.current.delete(file.path);
+                }}
+                className={`border-b border-[var(--border)] last:border-b-0 ${
+                  selected.has(file.path) ? "" : "opacity-60"
+                }`}
+              >
+                <div className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-2 text-[11px] font-medium text-[var(--text-primary)]">
+                  {file.path}
+                  {!selected.has(file.path) && (
+                    <span className="ml-2 text-[10px] font-normal text-[var(--text-muted)]">
+                      (excluded)
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 font-mono text-[11px] leading-[1.6]">
+                  {file.rows.map((row, i) => (
+                    <Fragment key={i}>
+                      <div
+                        className={`flex min-w-0 overflow-x-auto border-r border-[var(--border)] ${rowBg(row.left.type)}`}
+                      >
+                        <span className="w-10 shrink-0 select-none pr-2 text-right text-[10px] text-[var(--text-muted)]/40">
+                          {row.left.lineNo ?? ""}
+                        </span>
+                        <span className="flex-1 whitespace-pre">
+                          {renderContent(row.left)}
+                        </span>
+                      </div>
+                      <div
+                        className={`flex min-w-0 overflow-x-auto ${rowBg(row.right.type)}`}
+                      >
+                        <span className="w-10 shrink-0 select-none pr-2 text-right text-[10px] text-[var(--text-muted)]/40">
+                          {row.right.lineNo ?? ""}
+                        </span>
+                        <span className="flex-1 whitespace-pre">
+                          {renderContent(row.right)}
+                        </span>
+                      </div>
+                    </Fragment>
+                  ))}
+                </div>
+              </div>
+            ))}
+        </div>
       </div>
     </Modal>
+  );
+}
+
+function NavTreeNode({
+  node,
+  depth,
+  collapsed,
+  activeFile,
+  selected,
+  onToggleCollapse,
+  onClickFile,
+  onToggleFile,
+  onSetSelection,
+}: {
+  node: TreeNode;
+  depth: number;
+  collapsed: Set<string>;
+  activeFile: string | null;
+  selected: Set<string>;
+  onToggleCollapse: (path: string) => void;
+  onClickFile: (path: string) => void;
+  onToggleFile: (path: string) => void;
+  onSetSelection: (paths: string[], select: boolean) => void;
+}) {
+  if (node.kind === "file") {
+    return (
+      <NavFileRow
+        node={node}
+        depth={depth}
+        active={activeFile === node.path}
+        checked={selected.has(node.path)}
+        onClick={onClickFile}
+        onToggleFile={onToggleFile}
+      />
+    );
+  }
+  const isOpen = !collapsed.has(node.path);
+  return (
+    <div>
+      <NavFolderRow
+        node={node}
+        depth={depth}
+        isOpen={isOpen}
+        selected={selected}
+        onToggle={onToggleCollapse}
+        onSetSelection={onSetSelection}
+      />
+      {isOpen &&
+        node.children.map((c) => (
+          <NavTreeNode
+            key={c.path}
+            node={c}
+            depth={depth + 1}
+            collapsed={collapsed}
+            activeFile={activeFile}
+            selected={selected}
+            onToggleCollapse={onToggleCollapse}
+            onClickFile={onClickFile}
+            onToggleFile={onToggleFile}
+            onSetSelection={onSetSelection}
+          />
+        ))}
+    </div>
+  );
+}
+
+function NavFolderRow({
+  node,
+  depth,
+  isOpen,
+  selected,
+  onToggle,
+  onSetSelection,
+}: {
+  node: FolderNode;
+  depth: number;
+  isOpen: boolean;
+  selected: Set<string>;
+  onToggle: (path: string) => void;
+  onSetSelection: (paths: string[], select: boolean) => void;
+}) {
+  const state = folderState(node, selected);
+  return (
+    <div
+      onClick={() => onToggle(node.path)}
+      style={{ paddingLeft: `${depth * INDENT_PX + BASE_LEFT_PX}px` }}
+      className="flex cursor-pointer items-center gap-2 py-[5px] pr-2.5 transition-colors hover:bg-[var(--bg-hover)]"
+    >
+      <span
+        className={`w-3 shrink-0 text-center text-[10px] text-[var(--text-muted)] transition-transform duration-150 ${
+          isOpen ? "rotate-90" : ""
+        }`}
+      >
+        &#9654;
+      </span>
+      <label
+        className="flex shrink-0 cursor-pointer items-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <CheckboxBox state={state} />
+        <input
+          type="checkbox"
+          checked={state === "all"}
+          ref={(el) => {
+            if (el) el.indeterminate = state === "some";
+          }}
+          onChange={() =>
+            onSetSelection(fileDescendants(node), state !== "all")
+          }
+          className="sr-only"
+        />
+      </label>
+      <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-primary)]">
+        {node.name}
+      </span>
+      <span className="shrink-0 text-[11px] text-[var(--text-muted)]">
+        {node.fileCount}
+      </span>
+    </div>
+  );
+}
+
+function NavFileRow({
+  node,
+  depth,
+  active,
+  checked,
+  onClick,
+  onToggleFile,
+}: {
+  node: FileNode;
+  depth: number;
+  active: boolean;
+  checked: boolean;
+  onClick: (path: string) => void;
+  onToggleFile: (path: string) => void;
+}) {
+  const { label: statusLabel, color: statusClr } =
+    STATUS_DISPLAY[node.file.status] ?? DEFAULT_STATUS;
+  return (
+    <div
+      onClick={() => onClick(node.path)}
+      style={{ paddingLeft: `${depth * INDENT_PX + BASE_LEFT_PX}px` }}
+      className={`flex cursor-pointer items-center gap-2 py-[5px] pr-2.5 transition-colors ${
+        active
+          ? "bg-[var(--accent-blue)]/15 text-[var(--text-primary)]"
+          : "hover:bg-[var(--bg-hover)]"
+      } ${!checked ? "opacity-50" : ""}`}
+    >
+      <span className="w-3 shrink-0" />
+      <label
+        className="flex shrink-0 cursor-pointer items-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <CheckboxBox state={checked ? "all" : "none"} />
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={() => onToggleFile(node.path)}
+          className="sr-only"
+        />
+      </label>
+      <span
+        className={`w-3 shrink-0 text-center text-[11px] font-bold ${statusClr}`}
+        title={node.file.status}
+      >
+        {statusLabel}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-primary)]">
+        {node.name}
+      </span>
+    </div>
   );
 }
