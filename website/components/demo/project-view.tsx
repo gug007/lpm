@@ -322,7 +322,7 @@ export function DemoProjectView({
       )}
 
       {git && tree && (
-        <div className="flex shrink-0 items-center justify-end gap-1.5 border-t border-[#2e2e2e] bg-[#202020] px-3 py-1.5">
+        <div className="flex shrink-0 items-center justify-end gap-0.5 bg-[#1a1a1a] px-2 py-1">
           <DemoBranchSwitcher
             git={git}
             onCheckout={handleGitCheckout}
