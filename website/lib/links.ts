@@ -12,6 +12,7 @@ export const DEMO_ANCHOR = "#demo";
 export const BEST_TERMINAL_MAC_PATH = "/best-terminal-for-mac";
 export const MAC_TERMINAL_DEVELOPERS_PATH = "/mac-terminal-for-developers";
 export const GIT_TERMINAL_MAC_PATH = "/git-terminal-for-mac";
+export const SSH_TERMINAL_MAC_PATH = "/ssh-terminal-for-mac";
 export const VS_BASE_PATH = "/vs";
 export const VS_SLUGS = [
   "foreman",

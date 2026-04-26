@@ -78,7 +78,9 @@ export function AddSSHProjectModal({
     }
     const match = sshHosts.find((h) => h.name === val);
     if (!match) return;
-    setHost(match.hostName || match.name);
+    // Save the Host alias, not HostName, so OpenSSH still applies alias-scoped
+    // options such as ProxyJump, ProxyCommand, and canonical HostName.
+    setHost(match.name);
     setUser(match.user);
     setPort(match.port && match.port > 0 ? String(match.port) : "");
     setKey(match.identityFile);

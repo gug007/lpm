@@ -4,6 +4,7 @@ import {
   GIT_TERMINAL_MAC_PATH,
   MAC_TERMINAL_DEVELOPERS_PATH,
   PRIVACY_PATH,
+  SSH_TERMINAL_MAC_PATH,
   STATS_PATH,
   TELEGRAM_URL,
   TERMS_PATH,
@@ -70,6 +71,15 @@ export function Footer() {
             className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
           >
             Git terminal for Mac
+          </Link>
+          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
+            ·
+          </span>
+          <Link
+            href={SSH_TERMINAL_MAC_PATH}
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            SSH terminal for Mac
           </Link>
         </nav>
         <nav

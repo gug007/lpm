@@ -7,6 +7,7 @@ import {
   MAC_TERMINAL_DEVELOPERS_PATH,
   PRIVACY_PATH,
   SITE_URL,
+  SSH_TERMINAL_MAC_PATH,
   STATS_PATH,
   TERMS_PATH,
   VS_BASE_PATH,
@@ -50,6 +51,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
     {
       url: `${SITE_URL}${GIT_TERMINAL_MAC_PATH}`,
+      lastModified,
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}${SSH_TERMINAL_MAC_PATH}`,
       lastModified,
       changeFrequency: "monthly",
       priority: 0.8,
