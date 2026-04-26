@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
-import { XIcon, ChevronDownIcon } from "./icons";
+import { XIcon, ChevronDownIcon, LayersIcon } from "./icons";
 import { AIPickerButton } from "./ui/AIPickerButton";
 import {
   CheckAICLIs,
@@ -360,9 +360,10 @@ export function CommitModal({
               <button
                 onClick={() => setReviewOpen(true)}
                 disabled={!!busy || selected.size === 0}
-                className="text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
+                className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-all hover:border-[var(--text-muted)]/40 hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40 [&>svg]:h-3 [&>svg]:w-3"
               >
-                Review
+                <LayersIcon />
+                Review Changes
               </button>
             )}
           </div>
