@@ -655,6 +655,10 @@ func (p *ProjectConfig) Validate() error {
 
 	if !remote && strings.TrimSpace(p.Root) == "" {
 		errs = append(errs, "root: missing")
+	} else if !remote && root != "" {
+		if info, err := os.Stat(root); err != nil || !info.IsDir() {
+			errs = append(errs, fmt.Sprintf("root: directory %q does not exist", p.Root))
+		}
 	}
 
 	ports := map[int]string{}
