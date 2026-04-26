@@ -10,7 +10,7 @@ const SIZE_CLASSES = {
     roundedR: "rounded-r-lg",
     padding: "px-3.5 py-1.5 text-xs",
     chevronPad: "px-1.5",
-    dropdownPos: "top-full mt-1",
+    dropdownPos: "top-full mt-2",
     border: "border border-[var(--border)]",
     dividerBorder: "border-l border-[var(--border)]",
     text: "text-[var(--text-secondary)]",
@@ -23,7 +23,7 @@ const SIZE_CLASSES = {
     roundedR: "rounded-r-md",
     padding: "px-2.5 py-1 text-[11px]",
     chevronPad: "px-1.5",
-    dropdownPos: "bottom-full mb-1",
+    dropdownPos: "bottom-full mb-2",
     border: "border border-[var(--border)] bg-[var(--bg-secondary)]",
     dividerBorder: "border-l border-[var(--border)]",
     text: "text-[var(--text-secondary)]",
@@ -32,7 +32,7 @@ const SIZE_CLASSES = {
   },
 } as const;
 
-const dropdownItemClass = "flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]";
+const dropdownItemClass = "flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]";
 
 interface SplitButtonProps {
   action: ActionInfo;
@@ -54,7 +54,7 @@ export function SplitButton({ action, disabled, onRunAction, compact = false }: 
     onRunAction(child);
   };
 
-  const dropdownPanelClass = `absolute right-0 ${s.dropdownPos} z-50 w-52 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg`;
+  const dropdownPanelClass = `absolute right-0 ${s.dropdownPos} z-50 w-64 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl`;
 
   const dropdown = open && (
     <div className={dropdownPanelClass}>
