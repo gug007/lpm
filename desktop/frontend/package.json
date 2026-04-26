@@ -22,6 +22,7 @@
     "@xterm/xterm": "^6.1.0-beta.197",
     "monaco-editor": "~0.52.2",
     "monaco-yaml": "^5.4.1",
+    "parse-diff": "^0.12.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",

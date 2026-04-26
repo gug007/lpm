@@ -1,18 +1,17 @@
 import {
-  Fragment,
   useEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
+import parseDiff from "parse-diff";
 import { Modal } from "./ui/Modal";
 import { XIcon } from "./icons";
 import { GitDiff } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import {
   type Token,
-  DIFF_META_PREFIXES,
   getLang,
   ensureLang,
   tokenizeLines,
@@ -40,82 +39,95 @@ interface DiffLine {
   tokens?: Token[];
 }
 
+type FileStatus = "modified" | "added" | "deleted" | "renamed" | "binary";
+
 interface DiffRow {
   left: DiffLine;
   right: DiffLine;
+  hunkHeader?: string;
 }
 
 interface FileDiff {
   path: string;
+  oldPath?: string;
+  status: FileStatus;
   rows: DiffRow[];
 }
 
 /* ── Diff parser ───────────────────────────────────────────────── */
 
+const stripPath = (p?: string) =>
+  !p || p === "/dev/null" ? undefined : p;
+
+function fileStatus(file: parseDiff.File): FileStatus {
+  if (file.deleted) return "deleted";
+  if (file.new) return "added";
+  if (file.from && file.to && file.from !== file.to) return "renamed";
+  // parse-diff returns no chunks for binary diffs ("Binary files ... differ").
+  if (file.chunks.length === 0) return "binary";
+  return "modified";
+}
+
 function parseSideBySide(raw: string): FileDiff[] {
-  const files: FileDiff[] = [];
-  const chunks = raw.split(/(?=^diff --git )/m).filter(Boolean);
+  return parseDiff(raw)
+    .map((file): FileDiff | null => {
+      const from = stripPath(file.from);
+      const to = stripPath(file.to);
+      const path = to ?? from ?? "";
+      if (!path) return null;
+      const status = fileStatus(file);
+      const oldPath = from && to && from !== to ? from : undefined;
 
-  for (const chunk of chunks) {
-    const lines = chunk.split("\n");
-    const match = lines[0].match(/diff --git a\/.*? b\/(.*)/);
-    const path = match?.[1] ?? "";
+      const rows: DiffRow[] = [];
+      let dels: parseDiff.DeleteChange[] = [];
+      let adds: parseDiff.AddChange[] = [];
 
-    const rows: DiffRow[] = [];
-    let leftNo = 0,
-      rightNo = 0;
-    let dels: string[] = [],
-      adds: string[] = [];
-
-    const flush = () => {
-      const max = Math.max(dels.length, adds.length);
-      for (let j = 0; j < max; j++) {
-        rows.push({
-          left:
-            j < dels.length
-              ? { type: "del", content: dels[j].slice(1), lineNo: ++leftNo }
-              : { type: "empty", content: "" },
-          right:
-            j < adds.length
-              ? { type: "add", content: adds[j].slice(1), lineNo: ++rightNo }
-              : { type: "empty", content: "" },
-        });
-      }
-      dels = [];
-      adds = [];
-    };
-
-    for (const line of lines) {
-      if (line.startsWith("@@")) {
-        flush();
-        const m = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
-        if (m) {
-          leftNo = parseInt(m[1]) - 1;
-          rightNo = parseInt(m[2]) - 1;
+      const flush = () => {
+        const max = Math.max(dels.length, adds.length);
+        for (let j = 0; j < max; j++) {
+          rows.push({
+            left:
+              j < dels.length
+                ? { type: "del", content: dels[j].content.slice(1), lineNo: dels[j].ln }
+                : { type: "empty", content: "" },
+            right:
+              j < adds.length
+                ? { type: "add", content: adds[j].content.slice(1), lineNo: adds[j].ln }
+                : { type: "empty", content: "" },
+          });
         }
-        continue;
-      }
-      if (DIFF_META_PREFIXES.some((p) => line.startsWith(p))) continue;
+        dels = [];
+        adds = [];
+      };
 
-      if (line.startsWith("-")) {
-        dels.push(line);
-      } else if (line.startsWith("+")) {
-        adds.push(line);
-      } else {
+      file.chunks.forEach((chunk, i) => {
+        if (i > 0) {
+          rows.push({
+            left: { type: "empty", content: "" },
+            right: { type: "empty", content: "" },
+            hunkHeader: chunk.content,
+          });
+        }
+        for (const change of chunk.changes) {
+          if (change.type === "normal") {
+            flush();
+            const content = change.content.slice(1);
+            rows.push({
+              left: { type: "context", content, lineNo: change.ln1 },
+              right: { type: "context", content, lineNo: change.ln2 },
+            });
+          } else if (change.type === "del") {
+            dels.push(change);
+          } else {
+            adds.push(change);
+          }
+        }
         flush();
-        const content = line.startsWith(" ") ? line.slice(1) : line;
-        rows.push({
-          left: { type: "context", content, lineNo: ++leftNo },
-          right: { type: "context", content, lineNo: ++rightNo },
-        });
-      }
-    }
-    flush();
+      });
 
-    if (path) files.push({ path, rows });
-  }
-
-  return files;
+      return { path, oldPath, status, rows };
+    })
+    .filter((f): f is FileDiff => f !== null);
 }
 
 /* ── Syntax highlighting ───────────────────────────────────────── */
@@ -177,6 +189,62 @@ const rowBg = (type: DiffLine["type"]) => {
   }
 };
 
+const BASE_ZOOM = 1;
+const ZOOM_MIN = 0.6;
+const ZOOM_MAX = 2.5;
+const ZOOM_STEP = 0.1;
+const BASE_DIFF_FONT_PX = 11;
+
+const clamp = (v: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, v));
+
+const STATUS_BADGE: Record<FileStatus, string> = {
+  modified: "",
+  added: "bg-green-500/15 text-green-400",
+  deleted: "bg-red-500/15 text-red-400",
+  renamed: "bg-blue-500/15 text-blue-400",
+  binary: "bg-[var(--bg-hover)] text-[var(--text-muted)]",
+};
+
+function HunkSeparator({ header }: { header: string }) {
+  return (
+    <div className="sticky left-0 flex bg-[var(--bg-secondary)] text-[var(--text-muted)]">
+      <span className="truncate px-3 py-0.5 text-[0.85em] italic">
+        {header}
+      </span>
+    </div>
+  );
+}
+
+function DiffSide({
+  rows,
+  side,
+  withBorder,
+}: {
+  rows: DiffRow[];
+  side: "left" | "right";
+  withBorder?: boolean;
+}) {
+  return (
+    <div
+      className={`min-w-0 flex-1 overflow-x-auto ${withBorder ? "border-r border-[var(--border)]" : ""}`}
+    >
+      {rows.map((row, i) => {
+        if (row.hunkHeader) return <HunkSeparator key={i} header={row.hunkHeader} />;
+        const line = side === "left" ? row.left : row.right;
+        return (
+          <div key={i} className={`flex w-max min-w-full ${rowBg(line.type)}`}>
+            <span className="sticky left-0 z-[1] w-10 shrink-0 select-none bg-inherit pr-2 text-right text-[0.9em] text-[var(--text-muted)]/40">
+              {line.lineNo ?? ""}
+            </span>
+            <span className="whitespace-pre pr-4">{renderContent(line)}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function renderContent(line: DiffLine): ReactNode {
   if (line.type === "empty") return " ";
   if (line.tokens && line.tokens.length > 0) {
@@ -214,7 +282,18 @@ export function SideBySideDiffModal({
   const [loading, setLoading] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [activeFile, setActiveFile] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(BASE_ZOOM);
   const diffRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const wheelStateRef = useRef<{ delta: number; scheduled: boolean }>({
+    delta: 0,
+    scheduled: false,
+  });
+
+  const zoomIn = () =>
+    setZoom((z) => clamp(+(z + ZOOM_STEP).toFixed(2), ZOOM_MIN, ZOOM_MAX));
+  const zoomOut = () =>
+    setZoom((z) => clamp(+(z - ZOOM_STEP).toFixed(2), ZOOM_MIN, ZOOM_MAX));
+  const zoomReset = () => setZoom(BASE_ZOOM);
 
   const filePaths = useMemo(() => files.map((f) => f.path), [files]);
   const tree = useMemo(() => buildTree(files), [files]);
@@ -224,6 +303,37 @@ export function SideBySideDiffModal({
     setCollapsed(new Set());
     setActiveFile(files[0]?.path ?? null);
   }, [open, files]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.key === "=" || e.key === "+") { e.preventDefault(); zoomIn(); }
+      else if (e.key === "-" || e.key === "_") { e.preventDefault(); zoomOut(); }
+      else if (e.key === "0") { e.preventDefault(); zoomReset(); }
+    };
+    // Trackpad pinch fires wheel events with ctrlKey=true in Chromium/WebKit;
+    // Cmd/Ctrl + scroll-wheel is the equivalent on a mouse.
+    // rAF-throttled so a 60Hz pinch gesture batches into one re-render per frame.
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      wheelStateRef.current.delta += e.deltaY;
+      if (wheelStateRef.current.scheduled) return;
+      wheelStateRef.current.scheduled = true;
+      requestAnimationFrame(() => {
+        const d = wheelStateRef.current.delta;
+        wheelStateRef.current = { delta: 0, scheduled: false };
+        setZoom((z) => clamp(+(z - d * 0.01).toFixed(2), ZOOM_MIN, ZOOM_MAX));
+      });
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("wheel", onWheel);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open || filePaths.length === 0) return;
@@ -280,13 +390,42 @@ export function SideBySideDiffModal({
             {files.length} file{files.length !== 1 ? "s" : ""}
           </span>
         </h3>
-        <button
-          onClick={onClose}
-          aria-label="Close"
-          className="rounded-md p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-        >
-          <XIcon />
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-0.5 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] p-0.5 text-[var(--text-muted)]">
+            <button
+              onClick={zoomOut}
+              disabled={zoom <= ZOOM_MIN}
+              aria-label="Zoom out"
+              title="Zoom out (⌘-)"
+              className="rounded px-1.5 text-[13px] leading-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+            >
+              −
+            </button>
+            <button
+              onClick={zoomReset}
+              title="Reset zoom (⌘0)"
+              className="min-w-[42px] rounded px-1.5 text-[11px] tabular-nums transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+            <button
+              onClick={zoomIn}
+              disabled={zoom >= ZOOM_MAX}
+              aria-label="Zoom in"
+              title="Zoom in (⌘+)"
+              className="rounded px-1.5 text-[13px] leading-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+            >
+              +
+            </button>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-md p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            <XIcon />
+          </button>
+        </div>
       </div>
 
       <div className="flex min-h-0 flex-1">
@@ -330,40 +469,37 @@ export function SideBySideDiffModal({
                   selected.has(file.path) ? "" : "opacity-60"
                 }`}
               >
-                <div className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-2 text-[11px] font-medium text-[var(--text-primary)]">
-                  {file.path}
+                <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-2 text-[11px] font-medium text-[var(--text-primary)]">
+                  {file.status === "renamed" && file.oldPath && (
+                    <span className="text-[var(--text-muted)]">
+                      {file.oldPath} →
+                    </span>
+                  )}
+                  <span className="truncate">{file.path}</span>
+                  {file.status !== "modified" && (
+                    <span className={`shrink-0 rounded px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide ${STATUS_BADGE[file.status]}`}>
+                      {file.status}
+                    </span>
+                  )}
                   {!selected.has(file.path) && (
                     <span className="ml-2 text-[10px] font-normal text-[var(--text-muted)]">
                       (excluded)
                     </span>
                   )}
                 </div>
-                <div className="grid grid-cols-2 font-mono text-[11px] leading-[1.6]">
-                  {file.rows.map((row, i) => (
-                    <Fragment key={i}>
-                      <div
-                        className={`flex min-w-0 overflow-x-auto border-r border-[var(--border)] ${rowBg(row.left.type)}`}
-                      >
-                        <span className="w-10 shrink-0 select-none pr-2 text-right text-[10px] text-[var(--text-muted)]/40">
-                          {row.left.lineNo ?? ""}
-                        </span>
-                        <span className="flex-1 whitespace-pre">
-                          {renderContent(row.left)}
-                        </span>
-                      </div>
-                      <div
-                        className={`flex min-w-0 overflow-x-auto ${rowBg(row.right.type)}`}
-                      >
-                        <span className="w-10 shrink-0 select-none pr-2 text-right text-[10px] text-[var(--text-muted)]/40">
-                          {row.right.lineNo ?? ""}
-                        </span>
-                        <span className="flex-1 whitespace-pre">
-                          {renderContent(row.right)}
-                        </span>
-                      </div>
-                    </Fragment>
-                  ))}
-                </div>
+                {file.status === "binary" ? (
+                  <div className="px-4 py-3 text-[11px] italic text-[var(--text-muted)]">
+                    Binary file — diff not shown
+                  </div>
+                ) : (
+                  <div
+                    className="flex font-mono leading-[1.6]"
+                    style={{ fontSize: `${BASE_DIFF_FONT_PX * zoom}px` }}
+                  >
+                    <DiffSide rows={file.rows} side="left" withBorder />
+                    <DiffSide rows={file.rows} side="right" />
+                  </div>
+                )}
               </div>
             ))}
         </div>
