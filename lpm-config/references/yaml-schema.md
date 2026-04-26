@@ -6,14 +6,17 @@ Complete field reference for lpm project config files (`~/.lpm/projects/<name>.y
 
 ```yaml
 name: <string>           # optional — defaults to the config filename
-root: <path>             # required — project root directory (supports ~)
+root: <path>             # required for local projects (supports ~). Omit when ssh: is set.
 label: <string>          # optional — display name in the UI
 parent_name: <string>    # optional — name of parent project (creates a duplicate)
+ssh: {}                  # optional — SSH connection block. Replaces root for remote projects.
 services: {}             # required — at least one service (omitted in duplicates)
 actions: {}              # optional — one-shot commands or action groups
 terminals: {}            # optional — persistent interactive shells
 profiles: {}             # optional — named service subsets
 ```
+
+A project must have **either** `root` (local) **or** `ssh:` (remote), not both.
 
 ---
 
@@ -22,9 +25,10 @@ profiles: {}             # optional — named service subsets
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `name` | string | no | config filename | Project identifier. Lowercase, no slashes, not `.` or `..`. Defaults to the `.yml` filename. |
-| `root` | string | yes | — | Project root directory. Supports `~`. |
+| `root` | string | yes* | — | Project root directory. Supports `~`. *Required for local projects; omit when `ssh:` is set. |
 | `label` | string | no | — | Display name shown in the UI (defaults to `name`). |
 | `parent_name` | string | no | — | Name of a parent project. Creates a **duplicate** that inherits all services, actions, terminals, and profiles from the parent. See [Duplicate Projects](#duplicate-projects). |
+| `ssh` | object | no | — | SSH connection settings — turns the project into a remote one. Services, actions, and terminals run on the host over a shared SSH ControlMaster connection. See [SSH Projects](#ssh-projects). |
 
 ---
 
@@ -236,16 +240,18 @@ Sub-actions inherit `cwd` and `env` from the parent; child values win on conflic
 | `cwd` | string | no | `root` | Working directory. Relative paths resolve from `root`. Supports `~`. Must exist. |
 | `env` | map[string]string | no | — | Environment variables injected into the command. |
 | `confirm` | bool | no | false | Prompt for confirmation before running. Use for destructive or irreversible commands. |
-| `display` | string | no | `menu` | UI placement: `menu` (dropdown) or `button` (visible button). |
+| `display` | string | no | `menu` | UI placement: `menu` (dropdown), `button` (main button row), or `footer` (terminal footer strip). |
 | `type` | string | no | — | Action type. `terminal` runs in a terminal pane; `background` runs hidden and shows a toast on completion. Omit for the default inline runner (modal with streaming output). |
 | `reuse` | bool | no | false | When `type: terminal`, reuse the same terminal pane across runs instead of opening a new one. |
+| `mode` | string | no | — | SSH-only execution mode. `remote` (default on SSH projects) runs the command on the host. `sync` rsyncs `ssh.dir` into a local mirror, runs the action locally, then rsyncs changes back. `sync` is rejected on local projects. See [SSH Action Modes](#ssh-action-modes). |
 | `inputs` | map[string]InputField | no | — | Named inputs prompted before running. Values substitute `{{key}}` in `cmd`. |
-| `actions` | map[string]Action | no | — | Nested sub-actions. Makes this an action group. See [Action Groups](#action-groups-nested-actions). |
+| `actions` | map[string]Action | no | — | Nested sub-actions. Makes this an action group. See [Action Groups](#action-groups-nested-actions). Children inherit `cwd`, `env`, and `mode` from the parent. |
 
 ### `display` Values
 
 - **`menu`** (default) — action appears in a dropdown/overflow menu.
-- **`button`** — action appears as a visible button. Use for frequently-used actions.
+- **`button`** — action appears as a visible button in the main button row. Use for frequently-used actions.
+- **`footer`** — action appears as a compact button in the terminal footer (right next to the branch switcher). Use for tight, always-one-click controls. Footer also accepts split-button groups (parent `cmd` + nested `actions`).
 
 ### Input Fields
 
@@ -307,7 +313,7 @@ terminals:
 | `label` | string | no | key name | Display name shown in the UI. |
 | `cwd` | string | no | `root` | Working directory. Relative paths resolve from `root`. Supports `~`. Must exist. |
 | `env` | map[string]string | no | — | Environment variables injected into the shell. |
-| `display` | string | no | `menu` | UI placement: `menu` (dropdown) or `button` (visible button). |
+| `display` | string | no | `menu` | UI placement: `menu` (dropdown), `button` (visible button), or `footer` (terminal footer strip). |
 | `confirm` | bool | no | false | Prompt before opening. |
 | `reuse` | bool | no | false | Reuse the existing pane on next launch. |
 | `inputs` | map[string]InputField | no | — | Named inputs prompted before opening. Values substitute `{{key}}` in `cmd`. |
@@ -342,6 +348,91 @@ Each service name must reference a service defined in `services`.
 
 ---
 
+## SSH Projects
+
+Set `ssh:` instead of `root` to make a project remote. Services, actions, and terminals run on the host over a shared SSH ControlMaster connection (multiplexed for fast reconnects). Local `cwd` existence is **not** checked — those paths live on the remote host.
+
+```yaml
+name: prod-api
+ssh:
+  host: api.example.com
+  user: deploy
+  port: 22
+  key: ~/.ssh/id_ed25519
+  dir: ~/apps/api
+
+services:
+  worker: bin/worker
+  api:
+    cmd: bin/server
+    port: 8080
+
+actions:
+  migrate:
+    cmd: bin/rails db:migrate
+    confirm: true
+    display: button
+
+terminals:
+  remote-shell:
+    cmd: bash -l
+    display: button
+```
+
+### `ssh` Fields
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `host` | string | yes | — | Remote hostname or IP. |
+| `user` | string | yes | — | Login user. |
+| `port` | int | no | `22` | TCP port. 0–65535. |
+| `key` | string | no | — | Path to identity file. Supports `~`. Leave empty to use ssh-agent or `~/.ssh/config` defaults. |
+| `dir` | string | no | — | Default remote working directory. Must be absolute or `~`-prefixed (resolved on the host). Action/terminal `cwd` paths resolve relative to this. |
+
+### Connection Behavior
+
+- lpm uses a ControlMaster socket at `/tmp/lpm-<uid>/cm-<hash>` with `ControlPersist=10m`, so multiple panes share one TCP/SSH connection per host.
+- `cwd` on services, actions, and terminals is interpreted as a **remote** path. Relative values resolve from `ssh.dir`.
+- A network drop affects every pane bound to that ControlMaster.
+
+---
+
+## SSH Action Modes
+
+On SSH projects, every action has an effective `mode`:
+
+- **`remote`** (default) — runs the command on the host over SSH. Output streams back to the local pane.
+- **`sync`** — lpm rsyncs `ssh.dir` into a local mirror (under your home), runs the action **locally** in that mirror, then rsyncs changes back. Use this when you want local tooling to act on remote files (local Claude Code, IDE refactors, codegen, `prettier --write` over a large repo).
+
+```yaml
+ssh:
+  host: api.example.com
+  user: deploy
+  dir: ~/apps/api
+
+actions:
+  remote-tests:
+    cmd: bin/rspec
+    # mode: remote (default) — runs on the host
+
+  claude:
+    cmd: claude
+    label: Claude (local)
+    type: terminal
+    mode: sync       # rsync down, run locally, rsync back
+
+  format:
+    cmd: prettier --write .
+    mode: sync
+    display: footer
+```
+
+`mode: sync` is rejected on local projects (no `ssh:` block) — lpm will refuse to load the config. `sync` requires `rsync` available both locally and on the host.
+
+Children of an action group inherit `mode` from the parent unless they set their own.
+
+---
+
 ## Duplicate Projects
 
 A duplicate project inherits **all** services, actions, terminals, and profiles from a parent project. Use this when you want the same project config but with a different `root` directory (e.g., multiple checkouts of the same repo, or a branch worktree):
@@ -362,7 +453,7 @@ Location: `~/.lpm/global.yml`
 
 Supports `actions` and `terminals` only (no `services`, `profiles`, `name`, or `root`). Entries here are available in every project. When a project defines an entry with the same key, the project-level entry wins.
 
-Global entries support the full action/terminal field set — `display`, `confirm`, `type` (including `type: background`), `reuse`, `inputs`, and nested `actions`. There is no stripped-down subset.
+Global entries support the full action/terminal field set — `display` (including `footer`), `confirm`, `type` (including `type: background`), `reuse`, `inputs`, and nested `actions`. There is no stripped-down subset. `mode` is accepted but only meaningful when the entry is invoked from an SSH project.
 
 ```yaml
 actions:
@@ -407,17 +498,17 @@ terminals:
 ## Shorthand vs Full Form
 
 - **Shorthand**: the command is self-explanatory, runs from root, needs no env vars or confirmation.
-- **Full form**: you need `cwd`, `env`, `confirm`, `display: button`, `type`, `reuse`, `inputs`, or a human-friendly `label`.
+- **Full form**: you need `cwd`, `env`, `confirm`, `display`, `type`, `reuse`, `mode`, `inputs`, or a human-friendly `label`.
 
-## When to Use `display: button`
+## Picking a `display` Value
 
-Use for frequently-used items:
-- Running tests
-- Opening a database console
-- Viewing logs
-- Restarting a key service
+| Value | Where it shows | Use for |
+|-------|----------------|---------|
+| `menu` (default) | Dropdown / overflow menu | Anything you don't run constantly. Keeps the UI clean. |
+| `button` | Main button row in the project view | Frequently-used items: tests, database console, logs, restart-key-service. |
+| `footer` | Strip at the bottom of the terminal pane, next to the branch switcher | Tight, always-one-click controls — quick-format, redeploy, run-tests. Footer entries render compact and accept split-buttons. |
 
-Leave less frequent commands at the default `menu` to keep the UI clean.
+Leave less frequent commands at the default `menu` to keep the main UI uncluttered.
 
 ---
 
@@ -425,14 +516,16 @@ Leave less frequent commands at the default `menu` to keep the UI clean.
 
 lpm validates config on load:
 
-1. At least one service is defined (unless it's a duplicate with `parent_name`).
-2. All `cmd` fields are non-empty strings. Actions (and terminals) with nested `actions` may omit `cmd`.
-3. All `cwd` paths point to existing directories.
-4. Ports are in range 0–65535 with no duplicates across services.
-5. `display` is either `button` or `menu` (or omitted for default).
-6. Profile entries reference defined services.
-7. Nested sub-actions are validated recursively (cmd required if no children, cwd must exist).
-8. `parent_name` must reference an existing, loadable project.
+1. The project has either `root` or `ssh:` (but not both). When `ssh:` is set, `host` and `user` are non-empty, `port` is in 0–65535, and `dir` is absolute or `~`-prefixed.
+2. At least one service is defined (unless it's a duplicate with `parent_name`).
+3. All `cmd` fields are non-empty strings. Actions (and terminals) with nested `actions` may omit `cmd`.
+4. All `cwd` paths on local projects point to existing directories. SSH projects skip local cwd checks because `cwd` is a remote path.
+5. Ports are in range 0–65535 with no duplicates across services.
+6. `display` is `button`, `menu`, or `footer` (or omitted for default).
+7. `mode` is `remote` or `sync` (or omitted). `mode: sync` is rejected on local projects.
+8. Profile entries reference defined services.
+9. Nested sub-actions are validated recursively (cmd required if no children, cwd must exist on local projects, mode validated the same way).
+10. `parent_name` must reference an existing, loadable project.
 
 ---
 

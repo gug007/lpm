@@ -1,6 +1,6 @@
 ---
 name: lpm-config
-description: Create, modify, and delete lpm (Local Project Manager) project configs at ~/.lpm/projects/*.yml. Use whenever the user mentions lpm, asks to set up lpm, create/edit/delete an lpm config, add or remove services, actions, or terminals from lpm, or says "lpm setup", "create lpm config", "add service to lpm", "configure lpm". Also trigger when the user wants to add a button or menu action to run commands, manage dev project processes, start/stop multiple services together, group related commands, set up one-shot commands with confirmation prompts, or configure interactive terminal shells through YAML config files. Also triggers when the user wants a background/silent action, a split-button with a default plus alternatives, a dropdown menu of related commands, or asks to edit lpm config for the current directory (cwd) without naming a project. If the user has lpm installed (~/.lpm/ exists), this skill applies to any request about managing project workflows.
+description: Create, modify, and delete lpm (Local Project Manager) project configs at ~/.lpm/projects/*.yml. Use whenever the user mentions lpm, asks to set up lpm, create/edit/delete an lpm config, add or remove services, actions, or terminals from lpm, or says "lpm setup", "create lpm config", "add service to lpm", "configure lpm". Also trigger when the user wants to add a button or menu action to run commands, manage dev project processes, start/stop multiple services together, group related commands, set up one-shot commands with confirmation prompts, or configure interactive terminal shells through YAML config files. Also triggers when the user wants a background/silent action, a split-button with a default plus alternatives, a dropdown menu of related commands, an action pinned to the terminal footer, an SSH/remote project, or a sync-mode action that mirrors a remote directory locally. Also triggers when the user asks to edit lpm config for the current directory (cwd) without naming a project. If the user has lpm installed (~/.lpm/ exists), this skill applies to any request about managing project workflows.
 ---
 
 ## Instructions
@@ -59,6 +59,9 @@ sudo apt install tmux
 | "make it run in background", "notify when done", "run silently" | **Modify** — add action with `type: background` |
 | "button with a default and alternatives" | **Modify** — split-button action group (parent `cmd` + nested `actions`) |
 | "dropdown of related commands", "menu of sub-actions" | **Modify** — dropdown-only action group (nested `actions`, no parent `cmd`) |
+| "pin this to the terminal footer", "tiny button next to the branch switcher" | **Modify** — set `display: footer` on the action/terminal |
+| "set up a remote project over ssh", "lpm for this server", "manage services on a remote host" | **Create** — SSH project (use `ssh:` block, omit `root`) |
+| "run this action locally against the remote files", "rsync the remote dir and run it locally", "let my local Claude Code touch the remote repo" | **Modify** — set `mode: sync` on the action (SSH projects only) |
 
 ### How to Use
 
@@ -150,6 +153,30 @@ When the user asks to add something, ask follow-up questions to pick the right c
 
 → Add the action with `type: background`. The command runs hidden and lpm shows a toast on completion. Common fits: builds, migrations, `docker pull`, `git fetch`, dependency installs. Pair with `confirm: true` when it's destructive.
 
+**"Pin it to the terminal footer / right next to the branch switcher"**
+
+→ Set `display: footer`. The action renders as a compact button in the strip at the bottom of the terminal pane. Use for tight, frequently-used controls (quick-test, redeploy, format) that should always be one click away without taking space in the main button row. Footer also accepts split buttons (parent `cmd` + nested `actions`).
+
+**"Set up a remote project over SSH"**
+
+→ Create a project with an `ssh:` block instead of `root`. Required: `host`, `user`. Optional: `port` (defaults to 22), `key` (identity file path), `dir` (default remote working directory — must be absolute or `~`-prefixed). All services, actions, and terminals run on the remote host over a shared SSH ControlMaster connection. `cwd` values are interpreted as remote paths and are **not** validated locally.
+
+```yaml
+name: prod-api
+ssh:
+  host: api.example.com
+  user: deploy
+  port: 22
+  key: ~/.ssh/id_ed25519
+  dir: ~/apps/api
+services:
+  worker: bin/worker
+```
+
+**"Run this action locally against the remote files" (SSH sync mode)**
+
+→ On SSH projects, set `mode: sync` on the action. lpm rsyncs `ssh.dir` into a local mirror, runs the action locally, then rsyncs changes back. Useful for local tooling that needs filesystem access to the remote repo (local Claude Code, IDE refactors, `prettier --write`, codegen). Default is `mode: remote` (run over SSH on the host) — `sync` is rejected on local projects.
+
 **"Button with a default action plus alternatives" (split button)**
 
 → Action group with `cmd` on the parent AND nested `actions`. Main click runs the parent's command; chevron opens the children. Example: `deploy` that defaults to staging with production/preview tucked behind it.
@@ -206,15 +233,22 @@ Config files are written to `~/.lpm/projects/<name>.yml`. Global config at `~/.l
 
 ```yaml
 name: <string>           # optional — defaults to the config filename
-root: <path>             # required — project root (supports ~)
+root: <path>             # required for local projects (supports ~). Omit when ssh: is set.
 label: <string>          # optional — display name in UI
 parent_name: <string>    # optional — duplicate from parent project
 
-services:                # required — at least one
+ssh:                     # optional — present means a remote/SSH project. Replaces root.
+  host: <string>         # required — remote hostname or IP
+  user: <string>         # required — login user
+  port: <int>            # optional (0-65535, defaults to 22)
+  key: <path>            # optional — path to identity file (~ supported)
+  dir: <path>            # optional — default remote working directory (absolute or ~)
+
+services:                # required — at least one (omitted when parent_name is set)
   <key>: <cmd>           # shorthand
   <key>:                 # full form
     cmd: <string>        # required
-    cwd: <path>          # optional
+    cwd: <path>          # optional (remote path on SSH projects)
     port: <int>          # optional (0-65535, unique)
     env: {}              # optional
     profiles: []         # optional
@@ -224,12 +258,13 @@ actions:                 # optional — one-shot commands
   <key>:                 # full form
     cmd: <string>        # required (unless nested actions)
     label: <string>      # optional — display name in UI
-    cwd: <path>          # optional
+    cwd: <path>          # optional (remote path on SSH projects)
     env: {}              # optional
     confirm: <bool>      # optional (default: false)
-    display: <string>    # optional (button | menu, default: menu)
+    display: <string>    # optional (button | menu | footer, default: menu)
     type: <string>       # optional — "terminal" (pane) or "background" (hidden + toast)
     reuse: <bool>        # optional — reuse same terminal pane
+    mode: <string>       # optional, SSH projects only — "remote" (default) or "sync"
     inputs: {}           # optional — user-prompted parameters
     actions: {}          # optional — nested sub-actions (action group)
 
@@ -238,9 +273,9 @@ terminals:               # optional — interactive shells (sugar for actions wi
   <key>:                 # full form — supports the same fields as actions
     cmd: <string>        # required (unless nested actions)
     label: <string>      # optional
-    cwd: <path>          # optional
+    cwd: <path>          # optional (remote path on SSH projects)
     env: {}              # optional
-    display: <string>    # optional (button | menu, default: menu)
+    display: <string>    # optional (button | menu | footer, default: menu)
     confirm: <bool>      # optional
     reuse: <bool>        # optional — reuse the existing pane on next launch
     inputs: {}           # optional — prompted parameters
@@ -252,27 +287,31 @@ profiles:                # optional — named service subsets
 
 **Key rules:**
 - Shorthand (`test: go test ./...`) when the command needs no options.
-- Full form when you need `cwd`, `env`, `confirm`, `display: button`, `type`, `reuse`, `inputs`, or a `label`.
+- Full form when you need `cwd`, `env`, `confirm`, `display`, `type`, `reuse`, `mode`, `inputs`, or a `label`.
 - Set `confirm: true` on destructive actions (migrations, deploys, cleanup).
-- Set `display: button` on frequently-used actions/terminals.
+- `display: button` for the main button row, `display: footer` for compact controls in the terminal footer (next to the branch switcher), default `menu` for everything else.
 - Use `type: terminal` + `reuse: true` for commands that should stay in one persistent pane (log tailers, watchers).
 - Use `type: background` for slow commands you want to fire and forget — lpm shows a toast when they finish.
-- Action groups: parent `cmd` + nested `actions` renders as a split button; nested `actions` alone renders as a dropdown. Children inherit `cwd` and `env`.
+- Action groups: parent `cmd` + nested `actions` renders as a split button; nested `actions` alone renders as a dropdown. Children inherit `cwd`, `env`, and `mode`.
+- A project is **either** local (set `root`) **or** remote (set `ssh:`, omit `root`) — never both.
+- On SSH projects, `mode: sync` makes an action run locally against an rsync mirror of `ssh.dir`; `mode: remote` (default) runs on the host. `mode: sync` is rejected on local projects.
 - Use `parent_name` to duplicate a project config for a different root directory.
 - Keys: short, lowercase, hyphen-separated (`db-migrate`, `run-tests`).
-- `~` expands to home. Relative `cwd` resolves from `root`. All `cwd` must exist.
+- `~` expands to home. Relative `cwd` resolves from `root` (local projects) or from `ssh.dir` on the remote host (SSH projects). Local `cwd` paths must exist; remote `cwd` paths are not validated locally.
 
 **Validation — verify before writing any config:**
-- `root` is set (`name` is optional — defaults to the config filename)
-- At least one service is defined (unless `parent_name` is set)
-- All `cmd` fields are non-empty strings (actions or terminals with nested `actions` may omit `cmd`)
-- All `cwd` paths point to existing directories
-- All ports are in range 0–65535 with no duplicates across services
-- `display` values are only `button` or `menu`
-- `type` values are only `terminal` or `background` (or omitted)
-- Profile entries reference defined services
-- Nested sub-actions are validated recursively
-- `parent_name` references an existing project
+- Either `root` or `ssh:` is set (but not both); `name` is optional and defaults to the config filename.
+- When `ssh:` is set: `host` and `user` are non-empty; `port` is in 0–65535 (omitted means 22); `dir` is absolute or `~`-prefixed.
+- At least one service is defined (unless `parent_name` is set).
+- All `cmd` fields are non-empty strings (actions or terminals with nested `actions` may omit `cmd`).
+- All `cwd` paths on local projects point to existing directories. SSH projects skip local cwd checks.
+- All ports are in range 0–65535 with no duplicates across services.
+- `display` values are only `button`, `menu`, or `footer`.
+- `type` values are only `terminal` or `background` (or omitted).
+- `mode` values are only `remote` or `sync` (or omitted); `sync` requires an SSH project.
+- Profile entries reference defined services.
+- Nested sub-actions are validated recursively.
+- `parent_name` references an existing project.
 
 ## Examples
 
@@ -452,7 +491,72 @@ Agent: [reads config, adds action — silent cwd match on ~/.lpm/projects/myapp.
          display: button
 ```
 
-**Example 9: Split-button action group**
+**Example 9: Pin an action to the terminal footer**
+```
+User: Add a quick "format" action right next to the branch switcher
+Agent: [adds action with display: footer]
+
+       Added to ~/.lpm/projects/myapp.yml:
+       actions.format:
+         cmd: npm run format
+         label: Format
+         display: footer
+```
+
+**Example 10: SSH project**
+```
+User: Set up lpm for our prod API box, deploy@api.example.com, code lives at ~/apps/api
+Agent: [creates SSH project — root omitted, ssh: block instead]
+
+       Created ~/.lpm/projects/prod-api.yml:
+         ssh: { host: api.example.com, user: deploy, dir: ~/apps/api }
+         services: { worker: bin/worker }
+```
+
+```yaml
+name: prod-api
+ssh:
+  host: api.example.com
+  user: deploy
+  port: 22
+  key: ~/.ssh/id_ed25519
+  dir: ~/apps/api
+
+services:
+  worker: bin/worker
+  api:
+    cmd: bin/server
+    port: 8080
+
+actions:
+  tail-logs:
+    cmd: tail -f log/production.log
+    type: terminal
+    reuse: true
+    display: footer
+
+terminals:
+  remote-shell:
+    cmd: bash -l
+    label: Shell
+    display: button
+```
+
+**Example 11: Sync-mode action on an SSH project**
+```
+User: I want to run Claude Code locally against the remote repo
+Agent: [adds sync-mode action — rsyncs ~/apps/api locally, runs the command, syncs changes back]
+
+       Added to ~/.lpm/projects/prod-api.yml:
+       actions.claude:
+         cmd: claude
+         label: Claude (local)
+         type: terminal
+         mode: sync
+         display: button
+```
+
+**Example 12: Split-button action group**
 ```
 User: Make deploy a button that defaults to staging but lets me pick production or preview
 Agent: [adds split-button group]
@@ -474,7 +578,10 @@ Agent: [adds split-button group]
 ## Limitations
 
 - Project names must be lowercase with no slashes; cannot be `.` or `..`
-- All `cwd` paths must point to existing directories — lpm validates on load
+- All `cwd` paths on local projects must point to existing directories — lpm validates on load
 - Ports must be in range 0–65535 and unique across services
 - Global config only supports `actions` and `terminals` — no services, profiles, name, or root
 - Duplicate projects (`parent_name`) inherit everything — you cannot override individual entries
+- A project cannot have both `root` and `ssh:` — pick one
+- `mode: sync` is only valid on SSH projects and requires `rsync` available locally and on the host
+- SSH projects share a ControlMaster connection per host (`/tmp/lpm-<uid>/cm-<hash>`) — disconnects affect all panes for that host
