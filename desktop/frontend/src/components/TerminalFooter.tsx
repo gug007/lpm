@@ -17,7 +17,7 @@ export function TerminalFooter({ projectPath, actions, onRunAction, disabled }: 
   if (!isGitRepo && actions.length === 0) return null;
 
   return (
-    <div className="flex shrink-0 items-center justify-end gap-1 border-x border-t border-[var(--border)] bg-[var(--terminal-header)] px-2 py-1">
+    <div className="flex shrink-0 items-center justify-end gap-1 bg-[var(--terminal-bg)] px-2 py-1">
       {actions.map((action) =>
         action.children?.length ? (
           <SplitButton

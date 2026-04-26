@@ -10,7 +10,7 @@ import { NotesView } from "./NotesView";
 import { RunAction, RunActionBackground } from "../../wailsjs/go/main/App";
 import { getSettings, saveSettings } from "../settings";
 import { getProjectTerminals, saveProjectTerminals, countPersistedTabs } from "../terminals";
-import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
+import { type TerminalThemeName, terminalThemeNames, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
 import { type ProjectInfo, type ProfileInfo, type ActionInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
 import { TerminalIcon, CheckIcon, ChevronDownIcon, PencilIcon, MenuIcon, AlertCircleIcon, PlayIcon, StopIcon, MessageIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
@@ -75,6 +75,11 @@ export function ProjectDetail({
     setTermTheme(theme);
     saveSettings({ terminalTheme: theme === "default" ? undefined : theme });
   };
+
+  const terminalThemeStyle = useMemo(() => {
+    const colors = getTerminalThemeColors(termTheme);
+    return colors ? (terminalThemeCssVars(colors) as React.CSSProperties) : undefined;
+  }, [termTheme]);
 
   const [fontSize, setFontSize] = useState(() => getSettings().terminalFontSize || 12);
   useEffect(() => {
@@ -526,7 +531,10 @@ export function ProjectDetail({
           </div>
         </div>
       )}
-      <div className={detailView === "terminal" && !showEmptyState ? "relative mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden" : "hidden"}>
+      <div
+        className={detailView === "terminal" && !showEmptyState ? "relative mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden" : "hidden"}
+        style={terminalThemeStyle}
+      >
         <TerminalView
           ref={terminalViewRef}
           projectName={project.name}
