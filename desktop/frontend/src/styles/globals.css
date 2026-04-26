@@ -27,6 +27,7 @@
   --terminal-header-text: #6e6e6e;
   --terminal-header-hover: rgba(0, 0, 0, 0.06);
   --terminal-header-active: rgba(0, 0, 0, 0.1);
+  --terminal-header-border: rgba(0, 0, 0, 0.32);
   --terminal-tab-active: #383a42;
 }
 
@@ -56,6 +57,7 @@
   --terminal-header-text: #8e8e8e;
   --terminal-header-hover: rgba(255, 255, 255, 0.06);
   --terminal-header-active: rgba(255, 255, 255, 0.1);
+  --terminal-header-border: rgba(255, 255, 255, 0.35);
   --terminal-tab-active: #e5e5e5;
 }
 
