@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DemoSection } from "@/components/home/demo";
 import { AI_AGENTS_PATH } from "@/lib/links";
 import Benefits from "./_components/benefits";
 import Comparison from "./_components/comparison";
@@ -49,6 +50,7 @@ export default function BestTerminalForClaudeCodeAndCodexPage() {
   return (
     <>
       <Hero />
+      <DemoSection />
       <WhyParallel />
       <Features />
       <Benefits />
