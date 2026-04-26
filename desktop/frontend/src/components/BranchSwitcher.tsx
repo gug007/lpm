@@ -247,17 +247,17 @@ export function BranchSwitcher({ projectPath, gitState }: {
   const needsSync = status.hasUpstream && (status.ahead > 0 || status.behind > 0);
 
   return (
-    <div className="flex items-center gap-0.5">
+    <div className="flex items-center gap-1">
       {needsSync && (
         <button
           onClick={sync}
           disabled={busy}
           title={busy ? "Syncing…" : `Pull ${status.behind}, push ${status.ahead}`}
-          className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+          className="flex items-center gap-1 rounded-md border border-[var(--terminal-header-active)] px-2 py-1 text-[11px] font-medium text-[var(--terminal-header-text)] transition-colors hover:bg-[var(--terminal-header-hover)] hover:text-[var(--terminal-tab-active)] disabled:opacity-40"
         >
           <SyncIcon spinning={busy} />
-          {status.behind > 0 && <span>{status.behind}↓</span>}
-          {status.ahead > 0 && <span>{status.ahead}↑</span>}
+          {status.behind > 0 && <span className="font-mono">{status.behind}↓</span>}
+          {status.ahead > 0 && <span className="font-mono">{status.ahead}↑</span>}
         </button>
       )}
       <div ref={ref} className="relative">
@@ -265,12 +265,16 @@ export function BranchSwitcher({ projectPath, gitState }: {
           onClick={toggleOpen}
           title={busy ? "Switching branch…" : "Switch branch"}
           disabled={busy}
-          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+          className={`flex items-center gap-1.5 rounded-md border border-[var(--terminal-header-active)] px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-40 ${
+            open
+              ? "bg-[var(--terminal-header-active)] text-[var(--terminal-tab-active)]"
+              : "text-[var(--terminal-header-text)] hover:bg-[var(--terminal-header-hover)] hover:text-[var(--terminal-tab-active)]"
+          }`}
         >
           <BranchIcon size={12} />
-          <span className="max-w-32 truncate">{status.branch || "detached"}</span>
+          <span className="max-w-32 truncate font-mono">{status.branch || "detached"}</span>
           {status.uncommitted > 0 && (
-            <span className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--text-muted)]" title={`${status.uncommitted} uncommitted file${status.uncommitted === 1 ? "" : "s"}`} />
+            <span className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--accent-blue)]" title={`${status.uncommitted} uncommitted file${status.uncommitted === 1 ? "" : "s"}`} />
           )}
           <ChevronDown />
         </button>
@@ -399,12 +403,12 @@ export function BranchSwitcher({ projectPath, gitState }: {
         </div>
       )}
       </div>
-      <div ref={commitMenuRef} className="relative flex">
+      <div ref={commitMenuRef} className="relative flex rounded-md border border-[var(--terminal-header-active)]">
         <button
           onClick={() => setCommitting(true)}
           disabled={busy || status.uncommitted === 0}
           title={status.uncommitted > 0 ? "Commit changes" : "No changes to commit"}
-          className="flex items-center gap-1 rounded-l-md px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+          className="flex items-center gap-1 rounded-l-md px-2 py-1 text-[11px] font-medium text-[var(--terminal-header-text)] transition-colors hover:bg-[var(--terminal-header-hover)] hover:text-[var(--terminal-tab-active)] disabled:opacity-40"
         >
           <CommitIcon />
           <span>Commit</span>
@@ -415,8 +419,10 @@ export function BranchSwitcher({ projectPath, gitState }: {
         <button
           onClick={() => setCommitMenuOpen(!commitMenuOpen)}
           disabled={busy}
-          className={`relative flex items-center rounded-r-md px-1 py-1 text-[var(--text-muted)] transition-colors before:absolute before:left-0 before:top-1/2 before:h-3 before:w-px before:-translate-y-1/2 before:bg-[var(--border)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40 ${
-            commitMenuOpen ? "bg-[var(--bg-active)] text-[var(--text-primary)]" : ""
+          className={`flex items-center rounded-r-md border-l border-[var(--terminal-header-active)] px-1 py-1 transition-colors hover:bg-[var(--terminal-header-hover)] hover:text-[var(--terminal-tab-active)] disabled:opacity-40 ${
+            commitMenuOpen
+              ? "bg-[var(--terminal-header-active)] text-[var(--terminal-tab-active)]"
+              : "text-[var(--terminal-header-text)]"
           }`}
         >
           <ChevronDown />
