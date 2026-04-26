@@ -39,6 +39,21 @@ export type DemoProfile = {
   services: string[];
 };
 
+export type DemoBranch = {
+  name: string;
+  remote?: string;
+  age: string;
+};
+
+export type DemoGit = {
+  branch: string;
+  upstream?: string;
+  uncommitted: number;
+  ahead: number;
+  behind: number;
+  branches: DemoBranch[];
+};
+
 export type DemoProject = {
   name: string;
   label?: string;
@@ -47,6 +62,7 @@ export type DemoProject = {
   services: DemoService[];
   actions: DemoAction[];
   profiles: DemoProfile[];
+  git?: DemoGit;
 };
 
 const CLAUDE_ACTION: DemoAction = {
@@ -210,6 +226,21 @@ const PROJECTS: DemoProject[] = [
       { name: "full", services: ["web", "api", "worker"] },
       { name: "frontend", services: ["web"] },
     ],
+    git: {
+      branch: "feat/billing-flow",
+      upstream: "origin",
+      uncommitted: 3,
+      ahead: 2,
+      behind: 0,
+      branches: [
+        { name: "feat/billing-flow", age: "12m" },
+        { name: "main", age: "2h" },
+        { name: "feat/team-invites", age: "1d" },
+        { name: "fix/login-redirect", age: "3d" },
+        { name: "release-2026-04", remote: "origin", age: "5h" },
+        { name: "main", remote: "origin", age: "2h" },
+      ],
+    },
   },
   {
     name: "auth-service",
@@ -291,6 +322,20 @@ const PROJECTS: DemoProject[] = [
       { name: "default", services: ["server", "postgres", "redis"] },
       { name: "deps", services: ["postgres", "redis"] },
     ],
+    git: {
+      branch: "main",
+      upstream: "origin",
+      uncommitted: 0,
+      ahead: 0,
+      behind: 1,
+      branches: [
+        { name: "main", age: "1h" },
+        { name: "refactor/jwt-rotation", age: "4h" },
+        { name: "fix/token-leak", age: "2d" },
+        { name: "main", remote: "origin", age: "20m" },
+        { name: "staging", remote: "origin", age: "1d" },
+      ],
+    },
   },
   {
     name: "docs-site",
@@ -357,6 +402,19 @@ const PROJECTS: DemoProject[] = [
       },
     ],
     profiles: [{ name: "default", services: ["site"] }],
+    git: {
+      branch: "docs/api-v2",
+      upstream: "origin",
+      uncommitted: 5,
+      ahead: 1,
+      behind: 0,
+      branches: [
+        { name: "docs/api-v2", age: "32m" },
+        { name: "main", age: "1d" },
+        { name: "fix/typos", age: "3d" },
+        { name: "main", remote: "origin", age: "1d" },
+      ],
+    },
   },
   {
     name: "ml-pipeline",
@@ -435,6 +493,20 @@ const PROJECTS: DemoProject[] = [
       { name: "default", services: ["notebook"] },
       { name: "full", services: ["notebook", "trainer"] },
     ],
+    git: {
+      branch: "exp/data-pipeline-v3",
+      upstream: "origin",
+      uncommitted: 2,
+      ahead: 4,
+      behind: 2,
+      branches: [
+        { name: "exp/data-pipeline-v3", age: "1h" },
+        { name: "main", age: "3d" },
+        { name: "exp/embeddings", age: "2d" },
+        { name: "fix/oom", age: "5d" },
+        { name: "main", remote: "origin", age: "12h" },
+      ],
+    },
   },
 ];
 

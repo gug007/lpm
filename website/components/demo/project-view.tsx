@@ -12,10 +12,17 @@ import {
   Menu as MenuIcon,
   Terminal,
 } from "lucide-react";
-import type { DemoAction, DemoProject, DemoService } from "./projects";
+import type {
+  DemoAction,
+  DemoBranch,
+  DemoGit,
+  DemoProject,
+  DemoService,
+} from "./projects";
 import { PaneHeader, StreamingOutput, type TabInfo } from "./terminal-pane";
 import { DemoActionModal } from "./action-modal";
 import { AgentTerminal } from "./agent-terminal";
+import { DemoBranchSwitcher } from "./branch-switcher";
 import {
   type LeafContent,
   type PaneLeaf,
@@ -46,6 +53,16 @@ type ProjectViewProps = {
   onStartServices: (names: string[]) => void;
   onStopAll: () => void;
   onToggleService: (name: string) => void;
+  git?: DemoGit;
+  onGitCheckout: (branch: DemoBranch) => void;
+  onGitCommit: () => void;
+  onGitPull: () => void;
+  onGitCreatePR: () => void;
+  onGitDiscard: () => void;
+  onGitSync: () => void;
+  onGitCreateBranch: (name: string) => void;
+  onGitRenameBranch: (oldName: string, newName: string) => void;
+  onGitDeleteBranch: (name: string) => void;
 };
 
 function reconcileServices(
@@ -73,6 +90,16 @@ export function DemoProjectView({
   onStartServices,
   onStopAll,
   onToggleService,
+  git,
+  onGitCheckout,
+  onGitCommit,
+  onGitPull,
+  onGitCreatePR,
+  onGitDiscard,
+  onGitSync,
+  onGitCreateBranch,
+  onGitRenameBranch,
+  onGitDeleteBranch,
 }: ProjectViewProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
@@ -116,6 +143,43 @@ export function DemoProjectView({
         makeLeaf({ kind: "action", key, label: action.label }),
       ),
     );
+  };
+
+  const handleGitCheckout = (b: DemoBranch) => {
+    onGitCheckout(b);
+  };
+
+  const handleGitCommit = () => {
+    if (!git || git.uncommitted === 0) return;
+    onGitCommit();
+  };
+
+  const handleGitPull = (_strategy: "ff-only" | "rebase") => {
+    onGitPull();
+  };
+
+  const handleGitCreatePR = () => {
+    onGitCreatePR();
+  };
+
+  const handleGitDiscard = () => {
+    if (!git || git.uncommitted === 0) return;
+    onGitDiscard();
+  };
+
+  const handleGitSync = () => {
+    if (!git) return;
+    onGitSync();
+  };
+
+  const handleGitCreateBranch = (name: string) => {
+    onGitCreateBranch(name);
+  };
+
+  const handleGitCopyBranchName = (name: string) => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      void navigator.clipboard.writeText(name).catch(() => {});
+    }
   };
 
   const handleSplit = (paneId: string, direction: SplitDirection) => {
@@ -255,6 +319,24 @@ export function DemoProjectView({
           projectName={project.name}
           onOpenTerminal={openNewPaneWithShell}
         />
+      )}
+
+      {git && tree && (
+        <div className="flex shrink-0 items-center justify-end gap-1.5 border-t border-[#2e2e2e] bg-[#202020] px-3 py-1.5">
+          <DemoBranchSwitcher
+            git={git}
+            onCheckout={handleGitCheckout}
+            onCommit={handleGitCommit}
+            onPull={handleGitPull}
+            onCreatePR={handleGitCreatePR}
+            onDiscard={handleGitDiscard}
+            onSync={handleGitSync}
+            onCreateBranch={handleGitCreateBranch}
+            onRenameBranch={onGitRenameBranch}
+            onDeleteBranch={onGitDeleteBranch}
+            onCopyBranchName={handleGitCopyBranchName}
+          />
+        </div>
       )}
 
       {runningAction && (
