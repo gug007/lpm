@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DemoSection } from "@/components/home/demo";
 import { MAC_TERMINAL_DEVELOPERS_PATH } from "@/lib/links";
 import Benefits from "./_components/benefits";
 import Comparison from "./_components/comparison";
@@ -57,6 +58,7 @@ export default function MacTerminalForDevelopersPage() {
   return (
     <>
       <Hero />
+      <DemoSection />
       <Problem />
       <Features />
       <Benefits />

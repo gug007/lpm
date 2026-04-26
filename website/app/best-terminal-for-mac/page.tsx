@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DemoSection } from "@/components/home/demo";
 import { BEST_TERMINAL_MAC_PATH } from "@/lib/links";
 import Benefits from "./_components/benefits";
 import Comparison from "./_components/comparison";
@@ -58,6 +59,7 @@ export default function BestTerminalForMacPage() {
   return (
     <>
       <Hero />
+      <DemoSection />
       <WhyMac />
       <Features />
       <Benefits />

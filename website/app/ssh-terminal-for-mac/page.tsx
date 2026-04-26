@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DemoSection } from "@/components/home/demo";
 import {
   RELEASES_URL,
   SITE_URL,
@@ -131,6 +132,7 @@ export default function SshTerminalForMacPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
       <Hero />
+      <DemoSection />
       <Problem />
       <Features />
       <Benefits />
