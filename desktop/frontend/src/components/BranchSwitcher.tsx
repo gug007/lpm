@@ -426,13 +426,13 @@ export function BranchSwitcher({ projectPath, gitState }: {
           <ChevronDown />
         </button>
         {commitMenuOpen && (
-          <div className="absolute bottom-full right-0 z-10 mb-1 w-56 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
+          <div className="absolute bottom-full right-0 z-10 mb-2 w-72 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl">
             <button
               onClick={() => { setCommitMenuOpen(false); setCommitting(true); }}
               disabled={status.uncommitted === 0}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+              className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
             >
-              <CommitIcon />
+              <CommitIcon size={14} />
               Commit
             </button>
             <PullMenu
@@ -445,16 +445,16 @@ export function BranchSwitcher({ projectPath, gitState }: {
             />
             <button
               onClick={() => { setCommitMenuOpen(false); setCreatingPR(true); }}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
             >
               <PRMenuIcon />
               Create PR
             </button>
-            <div className="my-1 border-t border-[var(--border)]" />
+            <div className="my-1.5 border-t border-[var(--border)]" />
             <button
               onClick={() => { setCommitMenuOpen(false); setConfirmDiscardAllOpen(true); }}
               disabled={status.uncommitted === 0}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--accent-red)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--accent-red)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               <UndoIcon />
               Discard all changes
@@ -572,15 +572,15 @@ function ChevronDown() {
 
 function CheckIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0 text-[var(--text-primary)]">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0 text-[var(--text-primary)]">
       <polyline points="20 6 9 17 4 12" />
     </svg>
   );
 }
 
-function CommitIcon() {
+function CommitIcon({ size = 12 }: { size?: number } = {}) {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="3" />
       <line x1="3" y1="12" x2="9" y2="12" />
       <line x1="15" y1="12" x2="21" y2="12" />
@@ -590,7 +590,7 @@ function CommitIcon() {
 
 function PRMenuIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="18" cy="18" r="3" />
       <circle cx="6" cy="6" r="3" />
       <path d="M13 6h3a2 2 0 0 1 2 2v7" />
@@ -610,7 +610,7 @@ function PlusIcon() {
 
 function PullIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 4v11" />
       <polyline points="7 10 12 15 17 10" />
       <line x1="5" y1="20" x2="19" y2="20" />
@@ -640,7 +640,7 @@ function PullMenu({
       <button
         onClick={() => onPull(currentStrategy)}
         disabled={busy}
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+        className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
       >
         <PullIcon />
         {currentLabel}
@@ -650,7 +650,7 @@ function PullMenu({
         <div
           onMouseEnter={onOpen}
           onMouseLeave={onScheduleClose}
-          className="absolute right-full bottom-0 w-44 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg"
+          className="absolute right-full bottom-0 mr-1 w-56 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl"
         >
           {PULL_STRATEGIES.map((opt) => {
             const active = currentStrategy === opt.value;
@@ -659,9 +659,9 @@ function PullMenu({
                 key={opt.value}
                 onClick={() => onPull(opt.value)}
                 disabled={busy}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+                className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
               >
-                <span className="w-3 shrink-0">{active && <CheckIcon />}</span>
+                <span className="flex w-3.5 shrink-0">{active && <CheckIcon />}</span>
                 <span className={active ? "text-[var(--text-primary)]" : ""}>{opt.label}</span>
               </button>
             );
