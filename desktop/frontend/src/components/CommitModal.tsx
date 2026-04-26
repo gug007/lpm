@@ -11,7 +11,6 @@ import {
   GitChangedFiles,
   GitCommit,
   GitDiff,
-  GitDiscardAll,
   GitDiscardFiles,
   GitPush,
 } from "../../wailsjs/go/main/App";
@@ -47,7 +46,10 @@ export function CommitModal({
   const [busy, setBusy] = useState<false | "commit" | "push" | "discard">(false);
   const [loading, setLoading] = useState(false);
   const [confirmDiscardPath, setConfirmDiscardPath] = useState<string | null>(null);
-  const [confirmDiscardAllOpen, setConfirmDiscardAllOpen] = useState(false);
+  const [confirmDiscardFolder, setConfirmDiscardFolder] = useState<{
+    name: string;
+    paths: string[];
+  } | null>(null);
   const [generating, setGenerating] = useState(false);
   const [aiCLIs, setAiCLIs] = useState<Record<string, boolean>>({});
   const [selectedCLI, setSelectedCLI] = useState<AICLI>(
@@ -168,14 +170,6 @@ export function CommitModal({
     });
   };
 
-  const toggleAll = () => {
-    if (selected.size === files.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(files.map((f) => f.path)));
-    }
-  };
-
   const toggleDiff = async (path: string) => {
     if (expandedFile === path) {
       setExpandedFile(null);
@@ -224,8 +218,11 @@ export function CommitModal({
   const discardPath = (path: string) =>
     runDiscard(() => GitDiscardFiles(projectPath, [path]), `Discarded ${path}`);
 
-  const discardAll = () =>
-    runDiscard(() => GitDiscardAll(projectPath), "Discarded all changes");
+  const discardFolder = (name: string, paths: string[]) =>
+    runDiscard(
+      () => GitDiscardFiles(projectPath, paths),
+      `Discarded ${paths.length} file${paths.length !== 1 ? "s" : ""} in ${name}`,
+    );
 
   const generateMessage = async () => {
     if (generating || selected.size === 0) return;
@@ -360,30 +357,13 @@ export function CommitModal({
               </span>
             </span>
             {files.length > 0 && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setReviewOpen(true)}
-                  disabled={!!busy || selected.size === 0}
-                  className="text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
-                >
-                  Review
-                </button>
-                <button
-                  onClick={toggleAll}
-                  disabled={!!busy}
-                  className="text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
-                >
-                  {selected.size === files.length ? "None" : "All"}
-                </button>
-                <button
-                  onClick={() => setConfirmDiscardAllOpen(true)}
-                  disabled={!!busy}
-                  title="Reset the working tree to HEAD, discarding every uncommitted change"
-                  className="text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--accent-red-text)] disabled:opacity-40"
-                >
-                  Discard all
-                </button>
-              </div>
+              <button
+                onClick={() => setReviewOpen(true)}
+                disabled={!!busy || selected.size === 0}
+                className="text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
+              >
+                Review
+              </button>
             )}
           </div>
 
@@ -412,6 +392,7 @@ export function CommitModal({
                 onToggleCollapse={toggleCollapse}
                 onClickFile={toggleDiff}
                 onDiscardFile={setConfirmDiscardPath}
+                onDiscardFolder={setConfirmDiscardFolder}
               />
             )}
           </div>
@@ -524,21 +505,30 @@ export function CommitModal({
       }}
     />
     <ConfirmDialog
-      open={confirmDiscardAllOpen}
-      title="Discard all changes"
+      open={confirmDiscardFolder !== null}
+      title="Discard changes"
       variant="destructive"
-      confirmLabel="Discard all"
+      confirmLabel="Discard"
       disabled={busy === "discard"}
       body={
         <>
-          Reset the working tree to HEAD, discarding every uncommitted change
-          (staged, unstaged, and untracked). This cannot be undone.
+          Discard changes to{" "}
+          <span className="font-medium text-[var(--text-primary)]">
+            {confirmDiscardFolder?.paths.length} file
+            {confirmDiscardFolder?.paths.length !== 1 ? "s" : ""}
+          </span>{" "}
+          in{" "}
+          <span className="font-medium text-[var(--text-primary)]">
+            {confirmDiscardFolder?.name}
+          </span>
+          ? This cannot be undone.
         </>
       }
-      onCancel={() => setConfirmDiscardAllOpen(false)}
+      onCancel={() => setConfirmDiscardFolder(null)}
       onConfirm={() => {
-        setConfirmDiscardAllOpen(false);
-        discardAll();
+        const folder = confirmDiscardFolder;
+        setConfirmDiscardFolder(null);
+        if (folder) discardFolder(folder.name, folder.paths);
       }}
     />
     </>

@@ -172,6 +172,7 @@ interface ChangedFilesTreeProps {
   onToggleCollapse: (path: string) => void;
   onClickFile: (path: string) => void;
   onDiscardFile: (path: string) => void;
+  onDiscardFolder: (info: { name: string; paths: string[] }) => void;
 }
 
 export function ChangedFilesTree(props: ChangedFilesTreeProps) {
@@ -206,6 +207,7 @@ export function ChangedFilesTree(props: ChangedFilesTreeProps) {
           busy={props.busy}
           onSetSelection={props.onSetSelection}
           onToggleCollapse={props.onToggleCollapse}
+          onDiscardFolder={props.onDiscardFolder}
         />
         {isOpen && node.children.map((c) => renderNode(c, depth + 1))}
       </div>
@@ -223,6 +225,7 @@ function FolderRow({
   busy,
   onSetSelection,
   onToggleCollapse,
+  onDiscardFolder,
 }: {
   node: FolderNode;
   depth: number;
@@ -231,6 +234,7 @@ function FolderRow({
   busy: boolean;
   onSetSelection: (paths: string[], select: boolean) => void;
   onToggleCollapse: (path: string) => void;
+  onDiscardFolder: (info: { name: string; paths: string[] }) => void;
 }) {
   const state = folderState(node, selected);
   return (
@@ -267,6 +271,17 @@ function FolderRow({
       <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-primary)]">
         {node.name}
       </span>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onDiscardFolder({ name: node.name, paths: fileDescendants(node) });
+        }}
+        disabled={busy}
+        title="Discard all changes in this folder"
+        className="shrink-0 rounded p-0.5 text-[var(--text-muted)] opacity-0 transition-opacity hover:text-[var(--accent-red-text)] group-hover:opacity-100 focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-0"
+      >
+        <UndoIcon />
+      </button>
       <span className="shrink-0 text-[11px] text-[var(--text-muted)]">
         {node.fileCount}
       </span>
