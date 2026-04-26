@@ -401,6 +401,13 @@ func (a *App) GitPush(cwd string) error {
 	return err
 }
 
+// GitFetchAll fetches every remote and prunes deleted branches. Lightweight
+// way to refresh remote-tracking refs before showing them in pickers.
+func (a *App) GitFetchAll(cwd string) error {
+	_, err := runGit(cwd, "fetch", "--all", "--prune")
+	return err
+}
+
 // GitMerge merges the named branch into the currently checked-out branch.
 // The branch must be a fully qualified ref the caller has already resolved
 // (e.g. "feature-x" for a local head or "origin/feature-x" for a remote one).
@@ -410,6 +417,49 @@ func (a *App) GitMerge(cwd, branch string) error {
 		return fmt.Errorf("branch name required")
 	}
 	_, err := runGit(cwd, "merge", "--no-edit", branch)
+	return err
+}
+
+// GitCommitCount returns the number of commits reachable from `to` but not
+// from `from`. Use to preview how many commits a merge would bring in:
+// GitCommitCount(cwd, "HEAD", "origin/feature") for an unmerged-ahead count.
+// Returns 0 on any git error so callers don't have to handle it for a hint UI.
+func (a *App) GitCommitCount(cwd, from, to string) int {
+	from = strings.TrimSpace(from)
+	to = strings.TrimSpace(to)
+	if from == "" || to == "" {
+		return 0
+	}
+	out, err := runGit(cwd, "rev-list", "--count", from+".."+to)
+	if err != nil {
+		return 0
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(out))
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+// GitMergeConflicts returns the paths of files with unresolved conflict
+// markers from an in-progress merge. Empty when no merge is active or all
+// conflicts have been resolved.
+func (a *App) GitMergeConflicts(cwd string) []string {
+	out, err := runGit(cwd, "diff", "--name-only", "--diff-filter=U")
+	if err != nil || out == "" {
+		return []string{}
+	}
+	files := []string{}
+	for _, line := range strings.Split(out, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			files = append(files, line)
+		}
+	}
+	return files
+}
+
+func (a *App) GitAbortMerge(cwd string) error {
+	_, err := runGit(cwd, "merge", "--abort")
 	return err
 }
 

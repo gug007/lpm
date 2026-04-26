@@ -443,12 +443,11 @@ export function BranchSwitcher({ projectPath, gitState }: {
             </button>
             <button
               onClick={() => { setCommitMenuOpen(false); setMerging(true); }}
-              disabled={busy || status.uncommitted > 0}
-              title={status.uncommitted > 0 ? "Commit or discard changes before merging" : undefined}
+              disabled={busy}
               className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               <MergeMenuIcon />
-              Merge…
+              Merge
             </button>
             <div className="my-1.5 border-t border-[var(--border)]" />
             <button

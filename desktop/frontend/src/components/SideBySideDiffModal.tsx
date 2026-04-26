@@ -270,7 +270,8 @@ export function SideBySideDiffModal({
       open={open}
       onClose={onClose}
       zIndexClassName="z-[110]"
-      contentClassName="w-[90vw] max-w-[1200px] h-[80vh] flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
+      containerClassName="!items-start"
+      contentClassName="mt-10 w-screen h-[calc(100vh-1.75rem)] flex flex-col bg-[var(--bg-primary)]"
     >
       <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">

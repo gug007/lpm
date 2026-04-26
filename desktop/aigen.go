@@ -256,6 +256,37 @@ func (a *App) SaveBranchNameInstructions(content string) error {
 	return saveInstructions("branch-name", content)
 }
 
+const mergeConflictProgressEvent = "merge-conflict-progress"
+
+const mergeConflictPrompt = `Resolve all unresolved git merge conflict markers (<<<<<<<, =======, >>>>>>>) in the working tree.
+
+Rules:
+- Inspect every file currently listed by ` + "`git diff --name-only --diff-filter=U`" + `.
+- For each conflict, choose the resolution that keeps both sides' intent when both are additive (e.g. independent imports, distinct icons, separate functions). When the two sides truly conflict on the same logic, pick the side that matches the project's current direction; if unclear, prefer the incoming branch.
+- Remove every conflict marker. The final file must contain no <<<<<<<, =======, or >>>>>>> lines.
+- After resolving each file run ` + "`git add <file>`" + ` to stage it.
+- Do NOT run ` + "`git commit`" + `; the user reviews and commits manually.
+- If a file cannot be resolved confidently, leave it alone and report the file path in your final message.
+
+Output ONLY a brief summary of what you changed when done.
+`
+
+// ResolveMergeConflictsWithAI runs the chosen AI CLI with file-write
+// permissions and a prompt that asks it to resolve every unresolved merge
+// conflict in cwd. Streams progress to the frontend.
+func (a *App) ResolveMergeConflictsWithAI(cwd, cli, model string) (string, error) {
+	if conflicts := a.GitMergeConflicts(cwd); len(conflicts) == 0 {
+		return "", fmt.Errorf("no merge conflicts to resolve")
+	}
+	selected, err := aigen.Detect(aigen.CLI(cli))
+	if err != nil {
+		return "", err
+	}
+	return aigen.RunWithWrites(a.ctx, selected, model, cwd, mergeConflictPrompt, func(msg string) {
+		runtime.EventsEmit(a.ctx, mergeConflictProgressEvent, msg)
+	})
+}
+
 // GenerateProjectConfig runs the CLI in the project root and streams progress
 // lines to the frontend via the aiProgressEvent event.
 func (a *App) GenerateProjectConfig(projectName, cli, extraPrompt string) (string, error) {

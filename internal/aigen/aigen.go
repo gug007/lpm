@@ -152,11 +152,25 @@ func Generate(ctx context.Context, opts Options) (string, error) {
 // GenerateText runs the CLI with the given prompt and streams progress via the
 // callback. Returns the raw text output (no YAML extraction).
 func GenerateText(ctx context.Context, cli CLI, model, cwd, prompt string, progress ProgressFunc) (string, error) {
+	return runCLI(ctx, cli, model, cwd, prompt, progress, false)
+}
+
+// RunWithWrites is like GenerateText but allows the CLI to edit files in cwd.
+// Use for tasks that need filesystem changes (e.g. resolving merge conflicts).
+func RunWithWrites(ctx context.Context, cli CLI, model, cwd, prompt string, progress ProgressFunc) (string, error) {
+	return runCLI(ctx, cli, model, cwd, prompt, progress, true)
+}
+
+func runCLI(ctx context.Context, cli CLI, model, cwd, prompt string, progress ProgressFunc, writes bool) (string, error) {
 	switch cli {
 	case CLIClaude:
-		return runClaudeStream(ctx, cwd, prompt, model, progress)
+		return runClaudeStream(ctx, cwd, prompt, model, progress, writes)
 	case CLICodex:
-		args := []string{"exec", "--sandbox", "read-only", "--skip-git-repo-check"}
+		sandbox := "read-only"
+		if writes {
+			sandbox = "workspace-write"
+		}
+		args := []string{"exec", "--sandbox", sandbox, "--skip-git-repo-check"}
 		if model != "" {
 			args = append(args, "--model", model)
 		}
@@ -184,14 +198,17 @@ func GenerateText(ctx context.Context, cli CLI, model, cwd, prompt string, progr
 }
 
 // runClaudeStream runs Claude with stream-json, emits progress, and returns the raw result text.
-func runClaudeStream(ctx context.Context, cwd, prompt, model string, progress ProgressFunc) (string, error) {
+// When writes is false, Claude is barred from filesystem mutations.
+func runClaudeStream(ctx context.Context, cwd, prompt, model string, progress ProgressFunc, writes bool) (string, error) {
 	name := CLIClaude.displayName()
 	args := []string{
 		"-p",
 		"--verbose",
 		"--output-format", "stream-json",
 		"--permission-mode", "bypassPermissions",
-		"--disallowedTools=Edit,Write,NotebookEdit",
+	}
+	if !writes {
+		args = append(args, "--disallowedTools=Edit,Write,NotebookEdit")
 	}
 	if model != "" {
 		args = append(args, "--model", model)
@@ -311,7 +328,7 @@ func truncForError(s string) string {
 }
 
 func generateClaude(ctx context.Context, opts Options, prompt string) (string, error) {
-	result, err := runClaudeStream(ctx, opts.ProjectDir, prompt, "", opts.Progress)
+	result, err := runClaudeStream(ctx, opts.ProjectDir, prompt, "", opts.Progress, false)
 	if err != nil {
 		return "", err
 	}
