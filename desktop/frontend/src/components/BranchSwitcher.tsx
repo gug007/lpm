@@ -247,13 +247,13 @@ export function BranchSwitcher({ projectPath, gitState }: {
   const needsSync = status.hasUpstream && (status.ahead > 0 || status.behind > 0);
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-0.5">
       {needsSync && (
         <button
           onClick={sync}
           disabled={busy}
           title={busy ? "Syncing…" : `Pull ${status.behind}, push ${status.ahead}`}
-          className="flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
+          className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
         >
           <SyncIcon spinning={busy} />
           {status.behind > 0 && <span>{status.behind}↓</span>}
@@ -265,7 +265,7 @@ export function BranchSwitcher({ projectPath, gitState }: {
           onClick={toggleOpen}
           title={busy ? "Switching branch…" : "Switch branch"}
           disabled={busy}
-          className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
         >
           <BranchIcon size={12} />
           <span className="max-w-32 truncate">{status.branch || "detached"}</span>
@@ -404,7 +404,7 @@ export function BranchSwitcher({ projectPath, gitState }: {
           onClick={() => setCommitting(true)}
           disabled={busy || status.uncommitted === 0}
           title={status.uncommitted > 0 ? "Commit changes" : "No changes to commit"}
-          className="flex items-center gap-1 rounded-l-md border border-r-0 border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
+          className="flex items-center gap-1 rounded-l-md px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
         >
           <CommitIcon />
           <span>Commit</span>
@@ -415,7 +415,9 @@ export function BranchSwitcher({ projectPath, gitState }: {
         <button
           onClick={() => setCommitMenuOpen(!commitMenuOpen)}
           disabled={busy}
-          className="flex items-center rounded-r-md border border-[var(--border)] bg-[var(--bg-primary)] px-1 py-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
+          className={`relative flex items-center rounded-r-md px-1 py-1 text-[var(--text-muted)] transition-colors before:absolute before:left-0 before:top-1/2 before:h-3 before:w-px before:-translate-y-1/2 before:bg-[var(--border)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40 ${
+            commitMenuOpen ? "bg-[var(--bg-active)] text-[var(--text-primary)]" : ""
+          }`}
         >
           <ChevronDown />
         </button>

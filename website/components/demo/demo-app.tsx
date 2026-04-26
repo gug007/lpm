@@ -1,34 +1,79 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import PROJECTS, { type DemoBranch, type DemoGit } from "./projects";
+import INITIAL_PROJECTS, {
+  type DemoBranch,
+  type DemoGit,
+  type DemoProject,
+} from "./projects";
 import { DemoSidebar } from "./sidebar";
 import { DemoProjectView } from "./project-view";
+import {
+  DemoAddProjectModal,
+  type NewProjectInput,
+} from "./add-project-modal";
 
 type DemoAppProps = {
   heightCss?: string;
 };
 
-function initialGitState(): Record<string, DemoGit> {
+function initialGitState(projects: DemoProject[]): Record<string, DemoGit> {
   const out: Record<string, DemoGit> = {};
-  for (const p of PROJECTS) {
+  for (const p of projects) {
     if (p.git) out[p.name] = { ...p.git, branches: [...p.git.branches] };
   }
   return out;
 }
 
+function uniqueName(base: string, taken: Set<string>): string {
+  if (!taken.has(base)) return base;
+  let i = 2;
+  while (taken.has(`${base}-${i}`)) i++;
+  return `${base}-${i}`;
+}
+
+function buildProjectFromInput(
+  input: NewProjectInput,
+  existing: DemoProject[],
+): DemoProject {
+  const taken = new Set(existing.map((p) => p.name));
+  const name = uniqueName(input.name, taken);
+  if (input.kind === "ssh") {
+    return {
+      name,
+      label: name,
+      root: `ssh://${input.host}/~/${name}`,
+      stack: `SSH · ${input.host}`,
+      services: [],
+      actions: [],
+      profiles: [],
+    };
+  }
+  return {
+    name,
+    label: name,
+    root: `~/Projects/${name}`,
+    stack: "Local project",
+    services: [],
+    actions: [],
+    profiles: [],
+  };
+}
+
 export function DemoApp({ heightCss }: DemoAppProps) {
-  const [selected, setSelected] = useState<string>(PROJECTS[0].name);
+  const [projects, setProjects] = useState<DemoProject[]>(INITIAL_PROJECTS);
+  const [selected, setSelected] = useState<string>(INITIAL_PROJECTS[0].name);
   const [runningByProject, setRunningByProject] = useState<
     Record<string, Set<string>>
-  >(() => Object.fromEntries(PROJECTS.map((p) => [p.name, new Set()])));
+  >(() => Object.fromEntries(INITIAL_PROJECTS.map((p) => [p.name, new Set()])));
   const [gitByProject, setGitByProject] = useState<Record<string, DemoGit>>(
-    initialGitState,
+    () => initialGitState(INITIAL_PROJECTS),
   );
+  const [adding, setAdding] = useState(false);
 
   const project = useMemo(
-    () => PROJECTS.find((p) => p.name === selected) ?? PROJECTS[0],
-    [selected],
+    () => projects.find((p) => p.name === selected) ?? projects[0],
+    [projects, selected],
   );
 
   const runningHere = runningByProject[project.name];
@@ -69,11 +114,11 @@ export function DemoApp({ heightCss }: DemoAppProps) {
 
   const handleCheckout = (b: DemoBranch) => {
     updateGit((g) => {
-      const branches = b.remote
-        ? g.branches.some((x) => !x.remote && x.name === b.name)
-          ? g.branches
-          : [{ name: b.name, age: "now" }, ...g.branches]
-        : g.branches;
+      const hasLocal = g.branches.some((x) => !x.remote && x.name === b.name);
+      const branches =
+        b.remote && !hasLocal
+          ? [{ name: b.name, age: "now" }, ...g.branches]
+          : g.branches;
       return {
         ...g,
         branch: b.name,
@@ -135,16 +180,25 @@ export function DemoApp({ heightCss }: DemoAppProps) {
     }));
   };
 
+  const handleAddProject = (input: NewProjectInput) => {
+    const newProject = buildProjectFromInput(input, projects);
+    setProjects((prev) => [...prev, newProject]);
+    setRunningByProject((prev) => ({ ...prev, [newProject.name]: new Set() }));
+    setSelected(newProject.name);
+    setAdding(false);
+  };
+
   return (
     <div
-      className="flex overflow-hidden rounded-xl border border-gray-200 dark:border-[#2e2e2e] shadow-2xl shadow-gray-200/60 dark:shadow-black/60 bg-[#1a1a1a]"
+      className="relative flex overflow-hidden rounded-xl border border-gray-200 dark:border-[#2e2e2e] shadow-2xl shadow-gray-200/60 dark:shadow-black/60 bg-[#1a1a1a]"
       style={{ height: heightCss ?? "min(640px, calc(100vh - 180px))" }}
     >
       <DemoSidebar
-        projects={PROJECTS}
+        projects={projects}
         selected={project.name}
         onSelect={setSelected}
         runningByProject={runningByProject}
+        onAddProject={() => setAdding(true)}
       />
       <DemoProjectView
         key={project.name}
@@ -163,6 +217,11 @@ export function DemoApp({ heightCss }: DemoAppProps) {
         onGitCreateBranch={handleCreateBranch}
         onGitRenameBranch={handleRenameBranch}
         onGitDeleteBranch={handleDeleteBranch}
+      />
+      <DemoAddProjectModal
+        open={adding}
+        onClose={() => setAdding(false)}
+        onCreate={handleAddProject}
       />
     </div>
   );

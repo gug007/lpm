@@ -17,7 +17,7 @@ export function TerminalFooter({ projectPath, actions, onRunAction, disabled }: 
   if (!isGitRepo && actions.length === 0) return null;
 
   return (
-    <div className="flex shrink-0 items-center justify-end gap-1.5 border-x border-t border-[var(--border)] bg-[var(--terminal-header)] px-3 py-1.5">
+    <div className="flex shrink-0 items-center justify-end gap-0.5 border-x border-t border-[var(--border)] bg-[var(--terminal-header)] px-2 py-1">
       {actions.map((action) =>
         action.children?.length ? (
           <SplitButton
@@ -33,7 +33,7 @@ export function TerminalFooter({ projectPath, actions, onRunAction, disabled }: 
             onClick={() => onRunAction(action)}
             disabled={disabled}
             title={action.label}
-            className="flex items-center rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
+            className="flex items-center rounded-md px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
           >
             {action.label}
           </button>

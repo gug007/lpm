@@ -11,14 +11,16 @@ const SIZE_CLASSES = {
     padding: "px-3.5 py-1.5 text-xs",
     chevronPad: "px-1.5",
     dropdownPos: "top-full mt-1",
+    bordered: true,
   },
   compact: {
     rounded: "rounded-md",
     roundedL: "rounded-l-md",
     roundedR: "rounded-r-md",
-    padding: "px-2.5 py-1 text-[11px]",
+    padding: "px-2 py-1 text-[11px]",
     chevronPad: "px-1",
     dropdownPos: "bottom-full mb-1",
+    bordered: false,
   },
 } as const;
 
@@ -56,13 +58,16 @@ export function SplitButton({ action, disabled, onRunAction, compact = false }: 
     </div>
   );
 
+  const wrapperBorder = s.bordered ? "border border-[var(--border)]" : "";
+  const dividerBorder = s.bordered ? "border-l border-[var(--border)]" : "";
+
   if (!isSplit) {
     return (
       <div ref={ref} className="relative shrink-0">
         <button
           onClick={() => setOpen((v) => !v)}
           disabled={disabled}
-          className={`inline-flex items-center gap-1 whitespace-nowrap ${s.rounded} border border-[var(--border)] ${s.padding} font-medium text-[var(--text-secondary)] transition-all hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40`}
+          className={`inline-flex items-center gap-1 whitespace-nowrap ${s.rounded} ${wrapperBorder} ${s.padding} font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40`}
         >
           {action.label}
           <ChevronDownIcon />
@@ -74,18 +79,20 @@ export function SplitButton({ action, disabled, onRunAction, compact = false }: 
 
   return (
     <div ref={ref} className="relative shrink-0">
-      <div className={`inline-flex items-stretch ${s.rounded} border border-[var(--border)]`}>
+      <div className={`inline-flex items-stretch ${s.rounded} ${wrapperBorder}`}>
         <button
           onClick={() => onRunAction(action)}
           disabled={disabled}
-          className={`whitespace-nowrap ${s.roundedL} ${s.padding} font-medium text-[var(--text-secondary)] transition-all hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40`}
+          className={`whitespace-nowrap ${s.roundedL} ${s.padding} font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40`}
         >
           {action.label}
         </button>
         <button
           onClick={() => setOpen((v) => !v)}
           disabled={disabled}
-          className={`flex items-center ${s.roundedR} border-l border-[var(--border)] ${s.chevronPad} transition-all hover:bg-[var(--bg-hover)] disabled:opacity-40 ${
+          className={`relative flex items-center ${s.roundedR} ${dividerBorder} ${s.chevronPad} transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40 ${
+            !s.bordered ? "before:absolute before:left-0 before:top-1/2 before:h-3 before:w-px before:-translate-y-1/2 before:bg-[var(--border)]" : ""
+          } ${
             open ? "bg-[var(--bg-active)] text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
           }`}
         >

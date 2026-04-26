@@ -7,6 +7,7 @@ type SidebarProps = {
   selected: string;
   onSelect: (name: string) => void;
   runningByProject: Record<string, Set<string>>;
+  onAddProject: () => void;
 };
 
 export function DemoSidebar({
@@ -14,6 +15,7 @@ export function DemoSidebar({
   selected,
   onSelect,
   runningByProject,
+  onAddProject,
 }: SidebarProps) {
   return (
     <aside className="hidden sm:flex shrink-0 w-44 lg:w-52 flex-col bg-[#1e1e1e] border-r border-[#2e2e2e]">
@@ -26,12 +28,14 @@ export function DemoSidebar({
         <h2 className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
           Projects
         </h2>
-        <span
-          aria-hidden
-          className="flex h-5 w-5 items-center justify-center rounded text-[#919191] text-sm"
+        <button
+          type="button"
+          onClick={onAddProject}
+          title="Add project"
+          className="flex h-5 w-5 items-center justify-center rounded text-[#919191] text-sm transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
         >
           +
-        </span>
+        </button>
       </div>
       <nav className="flex-1 overflow-y-auto px-2">
         {projects.map((project) => {
