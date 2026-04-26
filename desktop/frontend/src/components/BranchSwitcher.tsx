@@ -17,27 +17,17 @@ import type { useGitStatus } from "../hooks/useGitStatus";
 import { useBranchSearch } from "../hooks/useBranchSearch";
 import { CreateBranchModal } from "./CreateBranchModal";
 import { CommitModal } from "./CommitModal";
+import { MergeBranchDialog } from "./MergeBranchDialog";
 import { PRModal } from "./PRModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { BranchIcon, ChevronLeftIcon, CloudBranchIcon, CopyIcon, PencilIcon, TrashIcon, UndoIcon } from "./icons";
 import { branchKey, branchMatches, RemoteBadge } from "./branchUtils";
+import { relativeTime } from "../relativeTime";
 
 const PULL_STRATEGIES: { value: GitPullStrategy; label: string }[] = [
   { value: "ff-only", label: "Pull" },
   { value: "rebase", label: "Pull (Rebase)" },
 ];
-
-function relativeTime(unix: number): string {
-  if (!unix) return "";
-  const s = Math.max(0, Math.floor(Date.now() / 1000) - unix);
-  if (s < 60) return "now";
-  if (s < 3600) return `${Math.floor(s / 60)}m`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h`;
-  if (s < 604800) return `${Math.floor(s / 86400)}d`;
-  if (s < 2592000) return `${Math.floor(s / 604800)}w`;
-  if (s < 31536000) return `${Math.floor(s / 2592000)}mo`;
-  return `${Math.floor(s / 31536000)}y`;
-}
 
 export function BranchSwitcher({ projectPath, gitState }: {
   projectPath: string;
@@ -51,6 +41,7 @@ export function BranchSwitcher({ projectPath, gitState }: {
   const [creating, setCreating] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [creatingPR, setCreatingPR] = useState(false);
+  const [merging, setMerging] = useState(false);
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
   const [pullMenuOpen, setPullMenuOpen] = useState(false);
   const [confirmDiscardAllOpen, setConfirmDiscardAllOpen] = useState(false);
@@ -450,6 +441,15 @@ export function BranchSwitcher({ projectPath, gitState }: {
               <PRMenuIcon />
               Create PR
             </button>
+            <button
+              onClick={() => { setCommitMenuOpen(false); setMerging(true); }}
+              disabled={busy || status.uncommitted > 0}
+              title={status.uncommitted > 0 ? "Commit or discard changes before merging" : undefined}
+              className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <MergeMenuIcon />
+              Merge…
+            </button>
             <div className="my-1.5 border-t border-[var(--border)]" />
             <button
               onClick={() => { setCommitMenuOpen(false); setConfirmDiscardAllOpen(true); }}
@@ -481,6 +481,14 @@ export function BranchSwitcher({ projectPath, gitState }: {
         currentBranch={status.branch}
         onClose={() => setCreatingPR(false)}
         onCreated={refresh}
+      />
+      <MergeBranchDialog
+        open={merging}
+        projectPath={projectPath}
+        currentBranch={status.branch}
+        branches={branches}
+        onClose={() => setMerging(false)}
+        onMerged={refresh}
       />
       <ConfirmDialog
         open={confirmDiscardAllOpen}
@@ -595,6 +603,18 @@ function PRMenuIcon() {
       <circle cx="6" cy="6" r="3" />
       <path d="M13 6h3a2 2 0 0 1 2 2v7" />
       <line x1="6" y1="9" x2="6" y2="21" />
+    </svg>
+  );
+}
+
+function MergeMenuIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="18" cy="18" r="3" />
+      <circle cx="6" cy="6" r="3" />
+      <circle cx="6" cy="18" r="3" />
+      <path d="M6 9v6" />
+      <path d="M6 21a12 12 0 0 0 12-12" />
     </svg>
   );
 }

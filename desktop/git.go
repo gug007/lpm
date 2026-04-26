@@ -401,6 +401,18 @@ func (a *App) GitPush(cwd string) error {
 	return err
 }
 
+// GitMerge merges the named branch into the currently checked-out branch.
+// The branch must be a fully qualified ref the caller has already resolved
+// (e.g. "feature-x" for a local head or "origin/feature-x" for a remote one).
+func (a *App) GitMerge(cwd, branch string) error {
+	branch = strings.TrimSpace(branch)
+	if branch == "" {
+		return fmt.Errorf("branch name required")
+	}
+	_, err := runGit(cwd, "merge", "--no-edit", branch)
+	return err
+}
+
 // GitDiscardFiles drops uncommitted changes for the given paths. Tracked
 // files are restored to their HEAD state (dropping both staged and unstaged
 // changes); untracked files are removed via `git clean`, which honors
