@@ -132,20 +132,20 @@ export type CheckState = "none" | "some" | "all";
 export function CheckboxBox({ state }: { state: CheckState }) {
   return (
     <span
-      className={`flex h-3 w-3 items-center justify-center rounded-[3px] transition-colors ${
+      className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[4px] border transition-all duration-150 ${
         state === "none"
-          ? "border border-[var(--text-muted)]/40"
-          : "bg-[var(--accent-blue)]"
+          ? "border-[var(--text-muted)]/25"
+          : "border-[var(--accent-blue)] text-[var(--accent-blue)]"
       }`}
     >
       {state === "all" && (
         <svg
-          width="8"
-          height="8"
+          width="10"
+          height="10"
           viewBox="0 0 24 24"
           fill="none"
-          stroke="white"
-          strokeWidth="3.5"
+          stroke="currentColor"
+          strokeWidth="2.75"
           strokeLinecap="round"
           strokeLinejoin="round"
         >
@@ -153,7 +153,7 @@ export function CheckboxBox({ state }: { state: CheckState }) {
         </svg>
       )}
       {state === "some" && (
-        <span className="h-[2px] w-[6px] rounded-sm bg-white" />
+        <span className="h-[2px] w-[8px] rounded-full bg-current" />
       )}
     </span>
   );
