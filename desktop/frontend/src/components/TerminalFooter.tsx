@@ -33,7 +33,7 @@ export function TerminalFooter({ projectPath, actions, onRunAction, disabled }: 
             onClick={() => onRunAction(action)}
             disabled={disabled}
             title={action.label}
-            className="flex items-center rounded-full border border-[var(--terminal-header-border)] px-3 py-1 font-mono text-[11px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--terminal-header-hover)] disabled:opacity-40"
+            className="flex items-center rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
           >
             {action.label}
           </button>

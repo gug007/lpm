@@ -253,11 +253,11 @@ export function BranchSwitcher({ projectPath, gitState }: {
           onClick={sync}
           disabled={busy}
           title={busy ? "Syncing…" : `Pull ${status.behind}, push ${status.ahead}`}
-          className="flex items-center gap-1 rounded-full border border-[var(--terminal-header-border)] px-3 py-1 font-mono text-[11px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--terminal-header-hover)] disabled:opacity-40"
+          className="flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
         >
           <SyncIcon spinning={busy} />
-          {status.behind > 0 && <span className="font-mono">{status.behind}↓</span>}
-          {status.ahead > 0 && <span className="font-mono">{status.ahead}↑</span>}
+          {status.behind > 0 && <span className="tabular-nums">{status.behind}↓</span>}
+          {status.ahead > 0 && <span className="tabular-nums">{status.ahead}↑</span>}
         </button>
       )}
       <div ref={ref} className="relative">
@@ -265,10 +265,10 @@ export function BranchSwitcher({ projectPath, gitState }: {
           onClick={toggleOpen}
           title={busy ? "Switching branch…" : "Switch branch"}
           disabled={busy}
-          className={`flex items-center gap-1.5 rounded-full border border-[var(--terminal-header-border)] px-3 py-1 font-mono text-[11px] font-medium text-[var(--text-primary)] transition-colors disabled:opacity-40 ${
+          className={`flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-40 ${
             open
-              ? "bg-[var(--terminal-header-active)]"
-              : "hover:bg-[var(--terminal-header-hover)]"
+              ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
+              : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           }`}
         >
           <BranchIcon size={12} />
@@ -403,12 +403,12 @@ export function BranchSwitcher({ projectPath, gitState }: {
         </div>
       )}
       </div>
-      <div ref={commitMenuRef} className="relative flex rounded-full border border-[var(--terminal-header-border)]">
+      <div ref={commitMenuRef} className="relative flex rounded-md border border-[var(--border)] bg-[var(--bg-secondary)]">
         <button
           onClick={() => setCommitting(true)}
           disabled={busy || status.uncommitted === 0}
           title={status.uncommitted > 0 ? "Commit changes" : "No changes to commit"}
-          className="flex items-center gap-1 rounded-l-full px-3 py-1 font-mono text-[11px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--terminal-header-hover)] disabled:opacity-40"
+          className="flex items-center gap-1 rounded-l-md px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
         >
           <CommitIcon />
           <span>Commit</span>
@@ -419,8 +419,8 @@ export function BranchSwitcher({ projectPath, gitState }: {
         <button
           onClick={() => setCommitMenuOpen(!commitMenuOpen)}
           disabled={busy}
-          className={`flex items-center rounded-r-full border-l border-[var(--terminal-header-border)] px-2 py-1 text-[var(--text-primary)] transition-colors hover:bg-[var(--terminal-header-hover)] disabled:opacity-40 ${
-            commitMenuOpen ? "bg-[var(--terminal-header-active)]" : ""
+          className={`flex items-center rounded-r-md border-l border-[var(--border)] px-2 py-1 transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40 ${
+            commitMenuOpen ? "bg-[var(--bg-hover)] text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
           }`}
         >
           <ChevronDown />
