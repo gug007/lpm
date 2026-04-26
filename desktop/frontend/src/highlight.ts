@@ -89,15 +89,23 @@ function currentTheme(): "github-dark" | "github-light" {
     : "github-dark";
 }
 
+// Shiki's loadLanguage is not safe to call concurrently for the same language;
+// the second caller sees "not loaded" before the first finishes registering,
+// triggering a duplicate load that can throw. Dedupe in-flight loads.
+const langLoads: Map<string, Promise<boolean>> = new Map();
+
 export async function ensureLang(lang: string): Promise<boolean> {
   const hl = await getHL();
   if (hl.getLoadedLanguages().includes(lang)) return true;
-  try {
-    await hl.loadLanguage(lang as BundledLanguage);
-    return true;
-  } catch {
-    return false;
-  }
+  const inflight = langLoads.get(lang);
+  if (inflight) return inflight;
+  const load = hl
+    .loadLanguage(lang as BundledLanguage)
+    .then(() => true)
+    .catch(() => false)
+    .finally(() => langLoads.delete(lang));
+  langLoads.set(lang, load);
+  return load;
 }
 
 export async function tokenizeLines(
