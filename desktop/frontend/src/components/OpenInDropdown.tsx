@@ -49,12 +49,12 @@ export function OpenInDropdown({ projectPath }: {
         </button>
       </div>
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl">
           {targets.map((t) => (
             <button
               key={t.id}
               onClick={() => pick(t)}
-              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)] ${
+              className={`flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
                 t.id === selected.id ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
               }`}
             >

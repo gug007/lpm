@@ -1,9 +1,11 @@
 import {
   Blocks,
+  CopyPlus,
+  GitPullRequestArrow,
   Layers,
   Monitor,
   ScanSearch,
-  Terminal,
+  SquareTerminal,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -18,12 +20,33 @@ type Feature = {
 
 const FEATURES: Feature[] = [
   {
-    icon: Terminal,
-    title: "One command to start",
+    icon: SquareTerminal,
+    title: "Live terminal output",
     body: (
       <>
-        Define your services in a simple config file and launch everything with{" "}
-        <code className="text-gray-600 dark:text-gray-300">lpm myapp</code>.
+        Watch every service stream in real time. Switch between service tabs or
+        tile them side by side — all from a native window.
+      </>
+    ),
+  },
+  {
+    icon: CopyPlus,
+    title: "Parallel agents, same codebase",
+    body: (
+      <>
+        Duplicate any project to run Claude, Codex, or any agent in parallel —
+        each on its own checkout, with its own services and terminals. No
+        branch conflicts, no context bleed.
+      </>
+    ),
+  },
+  {
+    icon: GitPullRequestArrow,
+    title: "Commits and PRs, built in",
+    body: (
+      <>
+        Stage changes, generate commit messages, and open pull requests right
+        from the app. Pair it with Claude or Codex to ship without ceremony.
       </>
     ),
   },

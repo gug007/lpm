@@ -3,26 +3,58 @@ import { useOutsideClick } from "../hooks/useOutsideClick";
 import type { ActionInfo } from "../types";
 import { ChevronDownIcon } from "./icons";
 
-const dropdownPanelClass = "absolute right-0 top-full z-50 mt-1 w-52 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg";
-const dropdownItemClass = "flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]";
+const SIZE_CLASSES = {
+  default: {
+    rounded: "rounded-lg",
+    roundedL: "rounded-l-lg",
+    roundedR: "rounded-r-lg",
+    padding: "px-3.5 py-1.5 text-xs",
+    chevronPad: "px-1.5",
+    dropdownPos: "top-full mt-2",
+    border: "border border-[var(--border)]",
+    dividerBorder: "border-l border-[var(--border)]",
+    text: "text-[var(--text-secondary)]",
+    hover: "hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]",
+    active: "bg-[var(--bg-active)] text-[var(--text-primary)]",
+  },
+  compact: {
+    rounded: "rounded-md",
+    roundedL: "rounded-l-md",
+    roundedR: "rounded-r-md",
+    padding: "px-2.5 py-1 text-[11px]",
+    chevronPad: "px-1.5",
+    dropdownPos: "bottom-full mb-2",
+    border: "border border-[var(--border)] bg-[var(--bg-secondary)]",
+    dividerBorder: "border-l border-[var(--border)]",
+    text: "text-[var(--text-secondary)]",
+    hover: "hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]",
+    active: "bg-[var(--bg-hover)] text-[var(--text-primary)]",
+  },
+} as const;
+
+const dropdownItemClass = "flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]";
 
 interface SplitButtonProps {
   action: ActionInfo;
   disabled: boolean;
   onRunAction: (action: ActionInfo) => void;
+  compact?: boolean;
 }
 
-export function SplitButton({ action, disabled, onRunAction }: SplitButtonProps) {
+export function SplitButton({ action, disabled, onRunAction, compact = false }: SplitButtonProps) {
   const [open, setOpen] = useState(false);
   const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
 
   const children = action.children ?? [];
   const isSplit = !!action.cmd;
+  const s = compact ? SIZE_CLASSES.compact : SIZE_CLASSES.default;
 
   const selectChild = (child: ActionInfo) => {
     setOpen(false);
     onRunAction(child);
   };
+
+  const dropdownPanelClass = `absolute right-0 ${s.dropdownPos} z-50 w-64 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl`;
 
   const dropdown = open && (
     <div className={dropdownPanelClass}>
@@ -40,7 +72,7 @@ export function SplitButton({ action, disabled, onRunAction }: SplitButtonProps)
         <button
           onClick={() => setOpen((v) => !v)}
           disabled={disabled}
-          className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-[var(--border)] px-3.5 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-all hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+          className={`inline-flex items-center gap-1 whitespace-nowrap ${s.rounded} ${s.border} ${s.padding} font-medium ${s.text} transition-colors ${s.hover} disabled:opacity-40`}
         >
           {action.label}
           <ChevronDownIcon />
@@ -52,20 +84,18 @@ export function SplitButton({ action, disabled, onRunAction }: SplitButtonProps)
 
   return (
     <div ref={ref} className="relative shrink-0">
-      <div className="inline-flex items-stretch rounded-lg border border-[var(--border)]">
+      <div className={`inline-flex items-stretch ${s.rounded} ${s.border}`}>
         <button
           onClick={() => onRunAction(action)}
           disabled={disabled}
-          className="whitespace-nowrap rounded-l-lg px-3.5 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-all hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+          className={`whitespace-nowrap ${s.roundedL} ${s.padding} font-medium ${s.text} transition-colors ${s.hover} disabled:opacity-40`}
         >
           {action.label}
         </button>
         <button
           onClick={() => setOpen((v) => !v)}
           disabled={disabled}
-          className={`flex items-center rounded-r-lg border-l border-[var(--border)] px-1.5 transition-all hover:bg-[var(--bg-hover)] disabled:opacity-40 ${
-            open ? "bg-[var(--bg-active)] text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
-          }`}
+          className={`flex items-center ${s.roundedR} ${s.dividerBorder} ${s.chevronPad} transition-colors ${s.hover} disabled:opacity-40 ${open ? s.active : s.text}`}
         >
           <ChevronDownIcon />
         </button>

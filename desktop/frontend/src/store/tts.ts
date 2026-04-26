@@ -9,6 +9,7 @@ import {
 } from "../../wailsjs/go/main/App";
 import { preprocessForTTS } from "../tts/textProcessor";
 import { createTTSPlayer, type TTSPlayer } from "../tts/audioPlayer";
+import { base64ToBytes } from "../download";
 
 export type TTSStatus = "idle" | "loading" | "playing" | "paused";
 
@@ -104,11 +105,7 @@ export function initTTSEvents() {
     toast.error(`TTS: ${msg}`);
   });
   EventsOn("tts-audio", (audioB64: string) => {
-    const binary = atob(audioB64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
+    const bytes = base64ToBytes(audioB64);
     const p = getPlayer();
     if (p.isPlaying()) {
       p.enqueue(bytes.buffer as ArrayBuffer);

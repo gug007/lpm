@@ -12,30 +12,15 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  cli:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.26"
-
-      - uses: goreleaser/goreleaser-action@v6
-        with:
-          version: "~> v2"
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   desktop-macos:
     runs-on: macos-14
     env:
       SIGNING_IDENTITY: "Developer ID Application: Gurgen Abagyan (N7S7ZCZ5P7)"
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
       - uses: actions/setup-go@v5
         with:
@@ -78,13 +63,13 @@ jobs:
 
       - name: Build arm64
         working-directory: desktop
-        run: wails build -platform darwin/arm64 -ldflags "-X main.Version=${GITHUB_REF_NAME#v}"
+        run: wails build -platform darwin/arm64 -ldflags "-X main.Version=${VERSION}"
 
       - name: Sign arm64
         run: |
           codesign --deep --force --options runtime \
             --sign "$SIGNING_IDENTITY" \
-            --entitlements desktop/build/darwin/entitlements.plist \
+            --entitlements desktop/build/darwin/entitlements.release.plist \
             --timestamp \
             desktop/build/bin/lpm.app
           codesign --verify --verbose=2 desktop/build/bin/lpm.app
@@ -109,13 +94,13 @@ jobs:
 
       - name: Build amd64
         working-directory: desktop
-        run: wails build -platform darwin/amd64 -ldflags "-X main.Version=${GITHUB_REF_NAME#v}"
+        run: wails build -platform darwin/amd64 -ldflags "-X main.Version=${VERSION}"
 
       - name: Sign amd64
         run: |
           codesign --deep --force --options runtime \
             --sign "$SIGNING_IDENTITY" \
-            --entitlements desktop/build/darwin/entitlements.plist \
+            --entitlements desktop/build/darwin/entitlements.release.plist \
             --timestamp \
             desktop/build/bin/lpm.app
           codesign --verify --verbose=2 desktop/build/bin/lpm.app
@@ -138,12 +123,76 @@ jobs:
           bash scripts/create-dmg.sh desktop/build/bin/lpm.app desktop/build/bin/lpm-desktop-macos-amd64.dmg
           rm -rf desktop/build/bin/lpm.app
 
+      - name: Build CLI darwin/arm64
+        run: |
+          mkdir -p dist/lpm_darwin_arm64
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build \
+            -trimpath \
+            -ldflags "-s -w -X github.com/gug007/lpm/cmd.version=${VERSION}" \
+            -o dist/lpm_darwin_arm64/lpm .
+
+      - name: Sign CLI darwin/arm64
+        run: |
+          codesign --force --options runtime --timestamp \
+            --sign "$SIGNING_IDENTITY" \
+            dist/lpm_darwin_arm64/lpm
+          codesign --verify --verbose=2 dist/lpm_darwin_arm64/lpm
+
+      - name: Notarize CLI darwin/arm64
+        env:
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          (cd dist/lpm_darwin_arm64 && zip "$RUNNER_TEMP/lpm-cli-arm64.zip" lpm)
+          xcrun notarytool submit "$RUNNER_TEMP/lpm-cli-arm64.zip" \
+            --key "$HOME/.private_keys/AuthKey_${APPLE_API_KEY_ID}.p8" \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER_ID" \
+            --wait --timeout 30m
+
+      - name: Package CLI darwin/arm64
+        run: |
+          tar -czf dist/lpm_darwin_arm64.tar.gz -C dist/lpm_darwin_arm64 lpm
+
+      - name: Build CLI darwin/amd64
+        run: |
+          mkdir -p dist/lpm_darwin_amd64
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build \
+            -trimpath \
+            -ldflags "-s -w -X github.com/gug007/lpm/cmd.version=${VERSION}" \
+            -o dist/lpm_darwin_amd64/lpm .
+
+      - name: Sign CLI darwin/amd64
+        run: |
+          codesign --force --options runtime --timestamp \
+            --sign "$SIGNING_IDENTITY" \
+            dist/lpm_darwin_amd64/lpm
+          codesign --verify --verbose=2 dist/lpm_darwin_amd64/lpm
+
+      - name: Notarize CLI darwin/amd64
+        env:
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          (cd dist/lpm_darwin_amd64 && zip "$RUNNER_TEMP/lpm-cli-amd64.zip" lpm)
+          xcrun notarytool submit "$RUNNER_TEMP/lpm-cli-amd64.zip" \
+            --key "$HOME/.private_keys/AuthKey_${APPLE_API_KEY_ID}.p8" \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER_ID" \
+            --wait --timeout 30m
+
+      - name: Package CLI darwin/amd64
+        run: |
+          tar -czf dist/lpm_darwin_amd64.tar.gz -C dist/lpm_darwin_amd64 lpm
+
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             desktop/build/bin/lpm-desktop-macos-arm64.dmg
             desktop/build/bin/lpm-desktop-macos-amd64.dmg
+            dist/lpm_darwin_arm64.tar.gz
+            dist/lpm_darwin_amd64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

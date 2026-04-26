@@ -5,6 +5,7 @@ import {
   AttachProject,
   BrowseFolder,
   CreateProject,
+  CreateSSHProject,
   DetachProject,
   DuplicateProject,
   FocusProjectWindow,
@@ -19,6 +20,7 @@ import {
 } from "../../wailsjs/go/main/App";
 import { getSettings } from "../settings";
 import { forgetProjectTerminals } from "../terminals";
+import { activeChatStorageKey } from "../components/NotesView";
 
 export type View =
   | "projects"
@@ -27,6 +29,15 @@ export type View =
   | "commit-instructions"
   | "pr-instructions"
   | "branch-instructions";
+
+export interface SSHProjectParams {
+  name: string;
+  host: string;
+  user: string;
+  port: number;
+  key: string;
+  dir: string;
+}
 
 interface AppState {
   projects: ProjectInfo[];
@@ -40,6 +51,9 @@ interface AppState {
   visited: Set<string>;
   duplicatingName: string | null;
   removingName: string | null;
+  addProjectPickerOpen: boolean;
+  sshModalOpen: boolean;
+  addingSSHProject: boolean;
 
   setView: (view: View) => void;
   setSidebarCollapsed: (next: boolean | ((prev: boolean) => boolean)) => void;
@@ -62,7 +76,11 @@ interface AppState {
   restartProject: (name: string, profile: string) => Promise<void>;
   toggleProjectRunning: (name: string) => Promise<void>;
   toggleService: (name: string, service: string) => Promise<void>;
-  addProject: () => Promise<void>;
+  addProject: () => void;
+  closeAddProjectPicker: () => void;
+  pickAddProjectKind: (kind: "local" | "ssh") => Promise<void>;
+  closeSSHModal: () => void;
+  addSSHProject: (params: SSHProjectParams) => Promise<void>;
   duplicateProject: (name: string, excludeUncommitted?: boolean) => Promise<void>;
   removeProject: (name: string) => Promise<void>;
   renameProject: (name: string, label: string) => Promise<void>;
@@ -86,6 +104,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   visited: new Set<string>(),
   duplicatingName: null,
   removingName: null,
+  addProjectPickerOpen: false,
+  sshModalOpen: false,
+  addingSSHProject: false,
 
   setView: (view) => set({ view }),
 
@@ -221,7 +242,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  addProject: async () => {
+  addProject: () => set({ addProjectPickerOpen: true }),
+
+  closeAddProjectPicker: () => set({ addProjectPickerOpen: false }),
+
+  pickAddProjectKind: async (kind) => {
+    set({ addProjectPickerOpen: false });
+    if (kind === "ssh") {
+      set({ sshModalOpen: true });
+      return;
+    }
     try {
       const dir = await BrowseFolder();
       if (!dir) return;
@@ -231,6 +261,32 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ selected: name, view: "projects" });
     } catch (err) {
       toast.error(`Failed to add project: ${err}`);
+    }
+  },
+
+  closeSSHModal: () => set({ sshModalOpen: false }),
+
+  addSSHProject: async (params) => {
+    if (get().addingSSHProject) return;
+    set({ addingSSHProject: true });
+    try {
+      await CreateSSHProject(params.name, {
+        host: params.host,
+        user: params.user,
+        port: params.port,
+        key: params.key,
+        dir: params.dir,
+      });
+      await get().refreshProjects();
+      set({
+        selected: params.name,
+        view: "projects",
+        sshModalOpen: false,
+      });
+    } catch (err) {
+      toast.error(`Failed to add SSH project: ${err}`);
+    } finally {
+      set({ addingSSHProject: false });
     }
   },
 
@@ -254,6 +310,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       await RemoveProject(name);
       forgetProjectTerminals(name);
+      window.localStorage.removeItem(activeChatStorageKey(name));
       set({ selected: null });
       await get().refreshProjects();
     } catch (err) {

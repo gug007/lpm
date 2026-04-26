@@ -1,0 +1,95 @@
+import type { MetadataRoute } from "next";
+import {
+  AI_AGENTS_PATH,
+  BEST_TERMINAL_MAC_PATH,
+  CLI_PATH,
+  GIT_TERMINAL_MAC_PATH,
+  MAC_TERMINAL_DEVELOPERS_PATH,
+  PRIVACY_PATH,
+  SITE_URL,
+  SSH_TERMINAL_MAC_PATH,
+  STATS_PATH,
+  TERMS_PATH,
+  VS_BASE_PATH,
+  VS_SLUGS,
+  vsPath,
+} from "@/lib/links";
+
+export default function sitemap(): MetadataRoute.Sitemap {
+  const lastModified = new Date();
+
+  return [
+    {
+      url: SITE_URL,
+      lastModified,
+      changeFrequency: "weekly",
+      priority: 1,
+    },
+    {
+      url: `${SITE_URL}${CLI_PATH}`,
+      lastModified,
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: `${SITE_URL}${AI_AGENTS_PATH}`,
+      lastModified,
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}${BEST_TERMINAL_MAC_PATH}`,
+      lastModified,
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}${MAC_TERMINAL_DEVELOPERS_PATH}`,
+      lastModified,
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}${GIT_TERMINAL_MAC_PATH}`,
+      lastModified,
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}${SSH_TERMINAL_MAC_PATH}`,
+      lastModified,
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}${VS_BASE_PATH}`,
+      lastModified,
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    ...VS_SLUGS.map((slug) => ({
+      url: `${SITE_URL}${vsPath(slug)}`,
+      lastModified,
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    })),
+    {
+      url: `${SITE_URL}${STATS_PATH}`,
+      lastModified,
+      changeFrequency: "daily",
+      priority: 0.4,
+    },
+    {
+      url: `${SITE_URL}${PRIVACY_PATH}`,
+      lastModified,
+      changeFrequency: "yearly",
+      priority: 0.3,
+    },
+    {
+      url: `${SITE_URL}${TERMS_PATH}`,
+      lastModified,
+      changeFrequency: "yearly",
+      priority: 0.3,
+    },
+  ];
+}

@@ -44,7 +44,7 @@ The skill guides the agent to write correct lpm YAML configs at `~/.lpm/projects
 ## Prerequisites
 
 - [lpm](https://lpm.cx) installed: `curl -fsSL https://raw.githubusercontent.com/gug007/lpm/main/install.sh | bash`
-- [tmux](https://github.com/tmux/tmux): `brew install tmux` (macOS) or `sudo apt install tmux` (Linux)
+- [tmux](https://github.com/tmux/tmux): `brew install tmux`
 
 ## Compatible agents
 

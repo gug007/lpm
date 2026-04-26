@@ -12,6 +12,8 @@ export interface ProfileInfo {
 
 export type ActionType = "terminal" | "background" | (string & {});
 
+export type ActionDisplay = "button" | "menu" | "footer" | (string & {});
+
 export interface ActionInputOption {
   label: string;
   value: string;
@@ -34,7 +36,7 @@ export interface ActionInfo {
   cwd?: string;
   env?: Record<string, string | undefined>;
   confirm: boolean;
-  display: string;
+  display: ActionDisplay;
   type?: ActionType;
   reuse?: boolean;
   inputs?: ActionInputInfo[];
@@ -55,6 +57,7 @@ export interface ProjectInfo {
   statusEntries: StatusEntry[];
   configError?: string;
   parentName?: string;
+  isRemote: boolean;
 }
 
 export const STATUS_RUNNING = "Running";

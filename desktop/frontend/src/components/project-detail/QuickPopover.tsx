@@ -1,10 +1,10 @@
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import type { ActionInfo } from "../../types";
-import { TrashIcon, RefreshIcon, PencilIcon, SettingsIcon } from "../icons";
+import { TrashIcon, RefreshIcon, PencilIcon, SettingsIcon, MessageIcon } from "../icons";
 import { PlayIcon } from "./icons";
 
-const sectionLabelClass = "px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]";
-const menuItemClass = "flex w-full items-center gap-2 py-1.5 text-left text-[11px] transition-colors hover:bg-[var(--bg-hover)]";
+const sectionLabelClass = "px-4 pb-1.5 pt-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]";
+const menuItemClass = "flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] transition-colors hover:bg-[var(--bg-hover)]";
 
 interface QuickPopoverProps {
   actions: ActionInfo[];
@@ -13,6 +13,7 @@ interface QuickPopoverProps {
   onClose: () => void;
   onRunAction: (action: ActionInfo) => void;
   onEditConfig: () => void;
+  onOpenNotes: () => void;
   onRestart: () => void;
   onRemove: () => void;
   onTerminalSettings: () => void;
@@ -25,6 +26,7 @@ export function QuickPopover({
   onClose,
   onRunAction,
   onEditConfig,
+  onOpenNotes,
   onRestart,
   onRemove,
   onTerminalSettings,
@@ -57,7 +59,7 @@ export function QuickPopover({
   };
 
   return (
-    <div ref={ref} className="absolute right-0 top-full z-50 mt-1 w-52 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
+    <div ref={ref} className="absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl">
       {actions.length > 0 && (
         <>
           <div className={sectionLabelClass}>Actions</div>
@@ -79,37 +81,46 @@ export function QuickPopover({
           )}
         </>
       )}
-      {actions.length > 0 && <div className="my-1 border-t border-[var(--border)]" />}
+      {actions.length > 0 && <div className="my-1.5 border-t border-[var(--border)]" />}
       <button
         onClick={handleEditConfig}
-        className={`${menuItemClass} px-3 text-[var(--text-secondary)]`}
+        className={`${menuItemClass} text-[var(--text-secondary)]`}
       >
+        <PencilIcon />
         <span className="flex-1 truncate">Edit Config</span>
         <kbd className="ml-auto text-[10px] text-[var(--text-muted)]">⌘E</kbd>
       </button>
       <button
-        onClick={handleTerminalSettings}
-        className={`${menuItemClass} px-3 text-[var(--text-secondary)]`}
+        onClick={() => { onOpenNotes(); onClose(); }}
+        className={`${menuItemClass} text-[var(--text-secondary)]`}
       >
-        <span className="flex-1 truncate">Terminal Settings</span>
+        <MessageIcon />
+        <span className="flex-1 truncate">Notes</span>
+        <kbd className="ml-auto text-[10px] text-[var(--text-muted)]">⌘⇧N</kbd>
+      </button>
+      <button
+        onClick={handleTerminalSettings}
+        className={`${menuItemClass} text-[var(--text-secondary)]`}
+      >
         <SettingsIcon />
+        <span className="flex-1 truncate">Terminal Settings</span>
       </button>
       {running && (
         <button
           onClick={handleRestart}
-          className={`${menuItemClass} px-3 text-[var(--text-secondary)]`}
+          className={`${menuItemClass} text-[var(--text-secondary)]`}
         >
-          <span className="flex-1 truncate">Restart</span>
           <RefreshIcon />
+          <span className="flex-1 truncate">Restart</span>
         </button>
       )}
-      <div className="my-1 border-t border-[var(--border)]" />
+      <div className="my-1.5 border-t border-[var(--border)]" />
       <button
         onClick={handleRemove}
-        className={`${menuItemClass} px-3 text-[var(--accent-red)]`}
+        className={`${menuItemClass} text-[var(--accent-red)]`}
       >
-        <span className="flex-1 truncate">Remove</span>
         <TrashIcon />
+        <span className="flex-1 truncate">Remove</span>
       </button>
     </div>
   );
@@ -130,10 +141,10 @@ function ActionMenuItem({
     <button
       onClick={() => onClick(action)}
       disabled={disabled}
-      className={`${menuItemClass} ${indented ? "pl-5 pr-3" : "px-3"} text-[var(--text-secondary)] disabled:opacity-50`}
+      className={`${menuItemClass} ${indented ? "pl-7" : ""} text-[var(--text-secondary)] disabled:opacity-50`}
     >
-      <span className="flex-1 font-mono truncate">{action.label}</span>
       <PlayIcon />
+      <span className="flex-1 font-mono truncate">{action.label}</span>
     </button>
   );
 }

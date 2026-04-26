@@ -655,3 +655,30 @@ func (a *App) CreateBranch(cwd, name string) error {
 	}
 	return a.CheckoutBranch(cwd, name, "")
 }
+
+// DeleteBranch removes a local branch. Uses -D (force) so unmerged branches
+// can be dropped — the UI confirms destructive action before calling.
+func (a *App) DeleteBranch(cwd, name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("branch name required")
+	}
+	_, err := runGit(cwd, "branch", "-D", name)
+	return err
+}
+
+func (a *App) RenameBranch(cwd, oldName, newName string) error {
+	oldName = strings.TrimSpace(oldName)
+	newName = strings.TrimSpace(newName)
+	if oldName == "" || newName == "" {
+		return fmt.Errorf("branch names required")
+	}
+	if oldName == newName {
+		return nil
+	}
+	if branchExists(cwd, "refs/heads/"+newName) {
+		return fmt.Errorf("branch %q already exists", newName)
+	}
+	_, err := runGit(cwd, "branch", "-m", oldName, newName)
+	return err
+}

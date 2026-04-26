@@ -3,7 +3,7 @@
 import { Menu, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { AI_AGENTS_PATH, RELEASES_URL } from "@/lib/links";
+import { AI_AGENTS_PATH, VS_BASE_PATH } from "@/lib/links";
 
 const linkClass =
   "text-sm text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors duration-200";
@@ -32,9 +32,9 @@ export function NavMobileMenu() {
           <Link href={AI_AGENTS_PATH} onClick={close} className={linkClass}>
             For AI agents
           </Link>
-          <a href={RELEASES_URL} onClick={close} className={linkClass}>
-            Releases
-          </a>
+          <Link href={VS_BASE_PATH} onClick={close} className={linkClass}>
+            Compare
+          </Link>
         </div>
       )}
     </>

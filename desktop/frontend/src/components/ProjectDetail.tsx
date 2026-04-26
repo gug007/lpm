@@ -3,15 +3,16 @@ import { toast } from "sonner";
 import { ActionButton } from "./ActionButton";
 import { SplitButton } from "./SplitButton";
 import { OpenInDropdown } from "./OpenInDropdown";
-import { BranchSwitcher } from "./BranchSwitcher";
 import { TerminalView, type TerminalViewHandle } from "./TerminalView";
+import { TerminalFooter } from "./TerminalFooter";
 import { ConfigEditor } from "./ConfigEditor";
+import { NotesView } from "./NotesView";
 import { RunAction, RunActionBackground } from "../../wailsjs/go/main/App";
 import { getSettings, saveSettings } from "../settings";
-import { getProjectTerminals, saveProjectTerminals } from "../terminals";
-import { type TerminalThemeName, terminalThemeNames } from "../terminal-themes";
+import { getProjectTerminals, saveProjectTerminals, countPersistedTabs } from "../terminals";
+import { type TerminalThemeName, terminalThemeNames, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
 import { type ProjectInfo, type ProfileInfo, type ActionInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
-import { TerminalIcon, CheckIcon, ChevronDownIcon, PencilIcon, MenuIcon, AlertCircleIcon, PlayIcon, StopIcon } from "./icons";
+import { TerminalIcon, CheckIcon, ChevronDownIcon, PencilIcon, MenuIcon, AlertCircleIcon, PlayIcon, StopIcon, MessageIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
@@ -20,6 +21,7 @@ import { ActionTerminal } from "./project-detail/ActionTerminal";
 import { ActionInputsModal } from "./project-detail/ActionInputsModal";
 import { QuickPopover } from "./project-detail/QuickPopover";
 import { TerminalSettingsModal } from "./project-detail/TerminalSettingsModal";
+import { PortsButton } from "./project-detail/PortsButton";
 
 const EMPTY_SERVICES: { name: string }[] = [];
 
@@ -51,8 +53,10 @@ export function ProjectDetail({
     project.activeProfile || project.profiles?.[0]?.name || ""
   );
   useEffect(() => {
-    if (project.activeProfile) setActiveProfile(project.activeProfile);
-  }, [project.activeProfile]);
+    if (project.activeProfile && project.activeProfile !== activeProfile) {
+      setActiveProfile(project.activeProfile);
+    }
+  }, [project.activeProfile, activeProfile]);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [showQuickMenu, setShowQuickMenu] = useState(false);
   const [showTerminalSettings, setShowTerminalSettings] = useState(false);
@@ -64,13 +68,18 @@ export function ProjectDetail({
 
   const saved = getSettings().terminalTheme;
   const [termTheme, setTermTheme] = useState<TerminalThemeName>(
-    saved && terminalThemeNames.includes(saved as TerminalThemeName) ? saved as TerminalThemeName : "default"
+    saved && terminalThemeNames.includes(saved as TerminalThemeName) ? saved as TerminalThemeName : "claude-dark"
   );
 
   const handleTerminalThemeChange = (theme: TerminalThemeName) => {
     setTermTheme(theme);
     saveSettings({ terminalTheme: theme === "default" ? undefined : theme });
   };
+
+  const terminalThemeStyle = useMemo(() => {
+    const colors = getTerminalThemeColors(termTheme);
+    return colors ? (terminalThemeCssVars(colors) as React.CSSProperties) : undefined;
+  }, [termTheme]);
 
   const [fontSize, setFontSize] = useState(() => getSettings().terminalFontSize || 12);
   useEffect(() => {
@@ -119,7 +128,8 @@ export function ProjectDetail({
   const buttonActions = (project.actions ?? []).filter((a) => a.display === "button");
   const plainActions = buttonActions.filter((a) => !a.children?.length);
   const dropdownActions = buttonActions.filter((a) => a.children?.length);
-  const menuActions = (project.actions ?? []).filter((a) => a.display !== "button");
+  const footerActions = (project.actions ?? []).filter((a) => a.display === "footer");
+  const menuActions = (project.actions ?? []).filter((a) => a.display !== "button" && a.display !== "footer");
 
   const [runningAction, setRunningAction] = useState<ActionInfo | null>(null);
   const [confirmAction, setConfirmAction] = useState<ActionInfo | null>(null);
@@ -198,25 +208,32 @@ export function ProjectDetail({
   };
 
   const hasProfiles = project.profiles && project.profiles.length > 0;
-  const [detailView, setDetailView] = useState<"terminal" | "config">("terminal");
+  type DetailView = "terminal" | "config" | "notes";
+  const [detailView, setDetailView] = useState<DetailView>("terminal");
 
   useEffect(() => {
-    if (!visible) setDetailView("terminal");
-  }, [visible]);
+    if (!visible && detailView !== "terminal") setDetailView("terminal");
+  }, [visible, detailView]);
 
   const [terminalCount, setTerminalCount] = useState(() => {
-    const saved = getProjectTerminals(project.name).terminals;
-    return saved?.length ?? 0;
+    const saved = getProjectTerminals(project.name);
+    return countPersistedTabs(saved.panes) || (saved.terminals?.length ?? 0);
   });
   const showEmptyState = !project.running && detailView === "terminal" && terminalCount === 0;
 
   useKeyboardShortcut(
     { key: "e", meta: true },
-    () => switchDetailView(detailView === "terminal" ? "config" : "terminal"),
+    () => switchDetailView(detailView === "config" ? "terminal" : "config"),
     visible,
   );
 
-  const switchDetailView = (view: "terminal" | "config") => {
+  useKeyboardShortcut(
+    { key: "n", meta: true, shift: true },
+    () => switchDetailView(detailView === "notes" ? "terminal" : "notes"),
+    visible,
+  );
+
+  const switchDetailView = (view: DetailView) => {
     setDetailView(view);
     const state = getProjectTerminals(project.name);
     saveProjectTerminals(project.name, { ...state, detailView: view });
@@ -350,6 +367,7 @@ export function ProjectDetail({
 
   const controlsNode = (
     <>
+      {project.isRemote && <PortsButton projectName={project.name} />}
       <div style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
         <OpenInDropdown projectPath={project.root} />
       </div>
@@ -373,6 +391,7 @@ export function ProjectDetail({
             onClose={() => setShowQuickMenu(false)}
             onRunAction={handleRunAction}
             onEditConfig={() => switchDetailView("config")}
+            onOpenNotes={() => switchDetailView("notes")}
             onRestart={() => withLoading(() => onRestart(project.name, activeProfile))}
             onRemove={() => setConfirmRemove(true)}
             onTerminalSettings={() => setShowTerminalSettings(true)}
@@ -417,7 +436,7 @@ export function ProjectDetail({
             </button>
           )}
           {project.allServices.length > 1 && showProfileMenu && (
-            <div className="absolute right-0 top-full z-50 mt-1.5 min-w-[240px] max-w-[300px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl">
+            <div className="absolute right-0 top-full z-50 mt-2 min-w-[280px] max-w-[340px] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl">
               {hasProfiles && (
                 <StartMenuSection label="Profiles">
                   {project.profiles.map((p) => (
@@ -431,7 +450,7 @@ export function ProjectDetail({
                 </StartMenuSection>
               )}
               {hasProfiles && (
-                <div className="mx-3 border-t border-[var(--border)]" />
+                <div className="mx-4 border-t border-[var(--border)]" />
               )}
               <StartMenuSection label="Services">
                 {project.allServices.map((s) => (
@@ -512,7 +531,10 @@ export function ProjectDetail({
           </div>
         </div>
       )}
-      <div className={detailView === "terminal" && !showEmptyState ? "relative mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden" : "hidden"}>
+      <div
+        className={detailView === "terminal" && !showEmptyState ? "relative mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden" : "hidden"}
+        style={terminalThemeStyle}
+      >
         <TerminalView
           ref={terminalViewRef}
           projectName={project.name}
@@ -528,11 +550,12 @@ export function ProjectDetail({
           errorPaneIDs={errorPaneIDs}
           visible={visible && detailView === "terminal" && !showEmptyState}
         />
-        <div className="pointer-events-none absolute bottom-3 right-3 z-20">
-          <div className="pointer-events-auto">
-            <BranchSwitcher projectPath={project.root} />
-          </div>
-        </div>
+        <TerminalFooter
+          projectPath={project.root}
+          actions={footerActions}
+          onRunAction={handleRunAction}
+          disabled={runningAction !== null}
+        />
       </div>
       {detailView === "config" && (
         <div className="mt-1.5 -mx-6 -mb-6 flex flex-1 flex-col overflow-hidden">
@@ -541,6 +564,14 @@ export function ProjectDetail({
             onSaved={onRefresh}
             onBack={() => switchDetailView("terminal")}
             onToggleView={() => switchDetailView("terminal")}
+          />
+        </div>
+      )}
+      {detailView === "notes" && (
+        <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden">
+          <NotesView
+            projectName={project.name}
+            visible={visible && detailView === "notes"}
           />
         </div>
       )}
@@ -609,8 +640,8 @@ export function ProjectDetail({
 
 function StartMenuSection({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="pt-1.5 pb-1.5">
-      <div className="px-3 pb-1 text-[9px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+    <div className="pt-2 pb-1.5">
+      <div className="px-4 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
         {label}
       </div>
       {children}
@@ -637,7 +668,7 @@ function StartMenuItem({
   return (
     <button
       onClick={onClick}
-      className={`group flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-[var(--bg-hover)] ${
+      className={`group flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] transition-colors hover:bg-[var(--bg-hover)] ${
         highlight ? "text-[var(--text-primary)] font-medium" : "text-[var(--text-secondary)]"
       }`}
     >
@@ -649,7 +680,7 @@ function StartMenuItem({
         ) : null}
       </span>
       <span className={`flex-1 truncate ${mono ? "font-mono" : ""}`}>{label}</span>
-      {badge && <span className="text-[10px] text-[var(--text-muted)] tabular-nums">{badge}</span>}
+      {badge && <span className="text-[11px] text-[var(--text-muted)] tabular-nums">{badge}</span>}
       <HoverRunIcon running={running} />
     </button>
   );
@@ -667,24 +698,24 @@ function ProfileMenuItem({
   return (
     <button
       onClick={onClick}
-      className={`group flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-[var(--bg-hover)] ${
+      className={`group flex w-full items-start gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)] ${
         running ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
       }`}
     >
-      <span className="mt-[5px] flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+      <span className="mt-[6px] flex h-3.5 w-3.5 shrink-0 items-center justify-center">
         {running ? (
           <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-green)]" />
         ) : null}
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className={`truncate text-[12px] ${running ? "font-medium" : ""}`}>
+        <span className={`truncate text-[13px] ${running ? "font-medium" : ""}`}>
           {profile.name}
         </span>
-        <span className="truncate text-[10px] text-[var(--text-muted)] font-mono">
+        <span className="truncate text-[11px] text-[var(--text-muted)] font-mono">
           {profile.services.join(" · ")}
         </span>
       </span>
-      <span className="mt-[5px]">
+      <span className="mt-[6px]">
         <HoverRunIcon running={running} />
       </span>
     </button>

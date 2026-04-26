@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gug007/lpm/internal/config"
 	"github.com/gug007/lpm/internal/tmux"
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -58,6 +59,27 @@ type App struct {
 
 	detachMu        sync.Mutex
 	detachedWindows map[string]*application.WebviewWindow
+
+	notes *notesState
+
+	syncMu sync.Mutex
+	syncs  map[string]*projectSync // projectName -> sync state
+
+	pushWG sync.WaitGroup // tracks in-flight async sync pushes
+
+	pfMu        sync.Mutex
+	pfs         map[string][]*portForward // projectName -> active forwards
+	suggestedMu sync.Mutex
+	suggested   map[string]map[int]bool // projectName -> ports we've emitted a suggestion for
+	dismissed   map[string]map[int]bool // projectName -> ports the user told us to stop suggesting
+
+	pollerMu sync.Mutex
+	pollers  map[string]context.CancelFunc // projectName -> cancel for the running ss poller
+
+	// Buffered to cap how many `ssh -N -L` processes we spawn
+	// concurrently when a burst of declared ports is detected at once
+	// (e.g. multi-service profile starting).
+	autoForwardSem chan struct{}
 }
 
 func (a *App) emit(name string, data ...any) {
@@ -98,6 +120,13 @@ func NewApp() *App {
 		runningState:    make(map[string]runState),
 		statusStore:     NewStatusStore(),
 		detachedWindows: make(map[string]*application.WebviewWindow),
+		notes:           newNotesState(),
+		syncs:           make(map[string]*projectSync),
+		pfs:             make(map[string][]*portForward),
+		suggested:       make(map[string]map[int]bool),
+		dismissed:       make(map[string]map[int]bool),
+		pollers:         make(map[string]context.CancelFunc),
+		autoForwardSem:  make(chan struct{}, 4),
 	}
 }
 
@@ -109,12 +138,18 @@ func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) 
 		fmt.Fprintf(os.Stderr, "warning: portable path migration: %v\n", err)
 	}
 
+	if err := config.EnsureSSHControlDir(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: ssh control dir: %v\n", err)
+	}
+
 	SetTrafficLightPosition(14, 19)
 	initDockMenu(a)
 	installAppMenuExtras()
 
 	go a.ListProjects() // populate dock menu before frontend loads
 	go a.autoCheckForUpdate()
+	go a.pruneOrphanSyncDirs()
+	go a.resumePortPollers()
 
 	// Start Unix socket server for external tool integration
 	a.socketServer = NewSocketServer(a)
@@ -258,6 +293,28 @@ func (a *App) shutdown() {
 		delete(a.ptySessions, id)
 	}
 	a.ptyMu.Unlock()
+
+	a.stopAllPortPollers()
+	a.stopAllPortForwards()
+
+	// Wait for in-flight sync pushes to finish so we don't truncate
+	// rsync mid-transfer. Bounded so a wedged remote can't block exit.
+	a.waitPushes(30 * time.Second)
+
+	a.notes.closeAll()
+}
+
+func (a *App) waitPushes(timeout time.Duration) {
+	done := make(chan struct{})
+	go func() {
+		a.pushWG.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(timeout):
+		fmt.Fprintf(os.Stderr, "shutdown: %s passed waiting for sync pushes; exiting anyway\n", timeout)
+	}
 }
 
 func (a *App) ClearStatus(project string, paneID string, value string) {

@@ -20,7 +20,7 @@ const STEPS: Step[] = [
         appears in the sidebar ready to start.
       </>
     ),
-    src: "/videos/add-project-1.5x.gif",
+    src: "/screenrecording/add-project.gif",
     alt: "Adding a new project in lpm desktop app",
   },
   {
@@ -33,7 +33,7 @@ const STEPS: Step[] = [
         them all at once.
       </>
     ),
-    src: "/videos/start-project-1.5x.gif",
+    src: "/screenrecording/start-project.gif",
     alt: "Starting a project in lpm desktop app",
   },
   {
@@ -46,7 +46,7 @@ const STEPS: Step[] = [
         without leaving the app.
       </>
     ),
-    src: "/videos/add-action-1.5x.gif",
+    src: "/screenrecording/add-action.gif",
     alt: "Adding an action to a project in lpm desktop app",
   },
   {
@@ -60,8 +60,38 @@ const STEPS: Step[] = [
         you need everything running.
       </>
     ),
-    src: "/videos/run-profile-project-1.5x.gif",
+    src: "/screenrecording/run-profile-project.gif",
     alt: "Running a project with multiple profiles in lpm desktop app",
+  },
+  {
+    n: 5,
+    title: "Launch your AI agent in one click",
+    body: (
+      <>
+        Configure any command you want —{" "}
+        <strong>Claude</strong>, <strong>Codex</strong>, Aider, a custom script,
+        anything. Pick a project, click the button, and the terminal opens with
+        your agent already running in the right directory. No <code>cd</code>,
+        no setup, no excuses. From zero to coding in seconds.
+      </>
+    ),
+    src: "/screenrecording/start-project-claude.gif",
+    alt: "Launching Claude Code on a project in lpm desktop app",
+  },
+  {
+    n: 6,
+    title: "Run agents in parallel on the same codebase",
+    body: (
+      <>
+        Duplicate a project to spin up a second (or third) checkout in seconds.
+        Each copy gets its own services, terminals, and agents — so{" "}
+        <strong>Claude</strong> can work on one feature while{" "}
+        <strong>Codex</strong> ships another, without branch conflicts or
+        context bleed.
+      </>
+    ),
+    src: "/screenrecording/duplicate-project.gif",
+    alt: "Duplicating a project in lpm to run multiple agents in parallel",
   },
 ];
 
@@ -89,7 +119,7 @@ export function HowItWorks() {
                 width={1200}
                 height={750}
                 unoptimized
-                className="w-full h-auto rounded-2xl shadow-2xl shadow-gray-200/60 dark:shadow-black/40"
+                className="w-full h-auto rounded-lg shadow-2xl shadow-gray-200/60 dark:shadow-black/40"
               />
             </div>
           ))}

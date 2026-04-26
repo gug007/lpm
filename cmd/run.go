@@ -43,7 +43,7 @@ var runCmd = &cobra.Command{
 		if len(action.Env) > 0 {
 			var parts []string
 			for k, v := range action.Env {
-				parts = append(parts, fmt.Sprintf("export %s=%s", k, shellQuote(v)))
+				parts = append(parts, fmt.Sprintf("export %s=%s", k, config.ShellQuote(v)))
 			}
 			parts = append(parts, cmdStr)
 			cmdStr = strings.Join(parts, " && ")

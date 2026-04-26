@@ -2,9 +2,11 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/gug007/lpm/internal/config"
@@ -19,71 +21,83 @@ type ActionDone struct {
 	Error   string `json:"error,omitempty"`
 }
 
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+type actionPlan struct {
+	cmdStr string
+	cwd    string
+	// onExit, when non-nil, runs after the command terminates. Used by
+	// mode: sync to push the rsync mirror back to the remote.
+	onExit func()
 }
 
-// resolveActionCommand loads the named action (supporting "parent:child"
-// nesting), substitutes {{key}} placeholders with inputValues, prepends
-// exported env assignments, and returns the resolved shell command plus
-// working directory.
-func resolveActionCommand(projectName, actionName string, inputValues map[string]string) (cmdStr, cwd string, err error) {
+func (a *App) resolveActionCommand(projectName, actionName string, inputValues map[string]string) (*actionPlan, error) {
 	cfg, err := config.LoadProject(projectName)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 
 	var action config.Action
 	if parts := strings.SplitN(actionName, ":", 2); len(parts) == 2 {
 		parent, ok := cfg.Actions[parts[0]]
 		if !ok {
-			return "", "", fmt.Errorf("action %q not found in project %q", parts[0], projectName)
+			return nil, fmt.Errorf("action %q not found in project %q", parts[0], projectName)
 		}
 		action, ok = parent.ResolvedChild(parts[1])
 		if !ok {
-			return "", "", fmt.Errorf("child action %q not found in action %q", parts[1], parts[0])
+			return nil, fmt.Errorf("child action %q not found in action %q", parts[1], parts[0])
 		}
 	} else {
 		var ok bool
 		action, ok = cfg.Actions[actionName]
 		if !ok {
-			return "", "", fmt.Errorf("action %q not found in project %q", actionName, projectName)
+			return nil, fmt.Errorf("action %q not found in project %q", actionName, projectName)
 		}
 	}
 
-	cwd = config.ResolveCwd(cfg.Root, action.Cwd)
-
-	cmdStr = action.Cmd
+	rawCmd := action.Cmd
 	if len(inputValues) > 0 {
 		pairs := make([]string, 0, len(inputValues)*2)
 		for k, v := range inputValues {
 			pairs = append(pairs, "{{"+k+"}}", v)
 		}
-		cmdStr = strings.NewReplacer(pairs...).Replace(cmdStr)
+		rawCmd = strings.NewReplacer(pairs...).Replace(rawCmd)
 	}
-	if len(action.Env) > 0 {
-		var parts []string
-		for k, v := range action.Env {
-			parts = append(parts, fmt.Sprintf("export %s=%s", k, shellQuote(v)))
+
+	if cfg.IsRemote() && action.Mode == config.ActionModeSync {
+		local, err := a.ensureProjectSync(cfg)
+		if err != nil {
+			return nil, err
 		}
-		parts = append(parts, cmdStr)
-		cmdStr = strings.Join(parts, " && ")
+		return &actionPlan{
+			cmdStr: config.BuildLocalScript(action.Env, rawCmd),
+			cwd:    filepath.Join(local, action.Cwd),
+			onExit: func() { a.pushProjectSyncAsync(cfg) },
+		}, nil
 	}
-	return cmdStr, cwd, nil
+
+	if cfg.IsRemote() {
+		return &actionPlan{
+			cmdStr: config.SSHCommandLine(cfg, action.Cwd, action.Env, rawCmd),
+			cwd:    cfg.Root,
+		}, nil
+	}
+
+	return &actionPlan{
+		cmdStr: config.BuildLocalScript(action.Env, rawCmd),
+		cwd:    config.ResolveCwd(cfg.Root, action.Cwd),
+	}, nil
 }
 
 // RunAction starts an action and streams output via events. Returns immediately.
 // inputValues supplies user-provided values for {{key}} placeholders defined in the action's inputs.
 func (a *App) RunAction(projectName string, actionName string, inputValues map[string]string) error {
-	cmdStr, cwd, err := resolveActionCommand(projectName, actionName, inputValues)
+	plan, err := a.resolveActionCommand(projectName, actionName, inputValues)
 	if err != nil {
 		return err
 	}
 
-	cmd := exec.Command("/bin/sh", "-c", cmdStr)
-	cmd.Dir = cwd
+	cmd := exec.Command("/bin/sh", "-c", plan.cmdStr)
+	cmd.Dir = plan.cwd
 
-	// Merge stdout and stderr into a single pipe
 	pr, pw := io.Pipe()
 	cmd.Stdout = pw
 	cmd.Stderr = pw
@@ -92,7 +106,6 @@ func (a *App) RunAction(projectName string, actionName string, inputValues map[s
 		return err
 	}
 
-	// Close the write end when the command exits so the scanner unblocks
 	go func() {
 		cmd.Wait()
 		pw.Close()
@@ -109,6 +122,10 @@ func (a *App) RunAction(projectName string, actionName string, inputValues map[s
 			done.Error = cmd.ProcessState.String()
 		}
 		a.emit("action-done", done)
+
+		if plan.onExit != nil {
+			plan.onExit()
+		}
 	}()
 
 	return nil
@@ -116,27 +133,26 @@ func (a *App) RunAction(projectName string, actionName string, inputValues map[s
 
 // RunActionBackground runs an action synchronously from the caller's point of
 // view: the RPC blocks until the command exits. On failure, the returned
-// error includes a trimmed tail of the combined output so the frontend toast
-// can surface a useful message without needing a streaming UI.
+// error includes a trimmed tail of the combined output. mode: sync push
+// is fired in the background so the RPC isn't held open by it.
 func (a *App) RunActionBackground(projectName string, actionName string, inputValues map[string]string) error {
-	cmdStr, cwd, err := resolveActionCommand(projectName, actionName, inputValues)
+	plan, err := a.resolveActionCommand(projectName, actionName, inputValues)
 	if err != nil {
 		return err
 	}
 
-	cmd := exec.Command("/bin/sh", "-c", cmdStr)
-	cmd.Dir = cwd
+	cmd := exec.Command("/bin/sh", "-c", plan.cmdStr)
+	cmd.Dir = plan.cwd
 
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		tail := strings.TrimSpace(string(out))
-		if len(tail) > 500 {
-			tail = tail[len(tail)-500:]
+	out, runErr := cmd.CombinedOutput()
+	if plan.onExit != nil {
+		plan.onExit()
+	}
+	if runErr != nil {
+		if tail := config.TrimTail(out, 500); tail != "" {
+			return errors.New(runErr.Error() + ": " + tail)
 		}
-		if tail != "" {
-			return fmt.Errorf("%s: %s", err, tail)
-		}
-		return err
+		return runErr
 	}
 	return nil
 }

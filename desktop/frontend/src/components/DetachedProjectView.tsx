@@ -51,7 +51,7 @@ export function DetachedProjectView({ projectName }: Props) {
         toastOptions={{ duration: 5000 }}
       />
       <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">
-        <div className="wails-drag flex h-10 shrink-0 items-center" />
+        <div className="wails-drag flex h-2 shrink-0 items-center" />
         <div className="flex min-h-0 flex-1 flex-col">
           <ProjectDetail
             project={project}

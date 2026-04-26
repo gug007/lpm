@@ -9,6 +9,12 @@ import type {
   TerminalItem,
 } from "./types";
 
+type Display = Action["display"];
+
+function normalizeDisplay(d: string | undefined): Display {
+  return d === "button" || d === "footer" ? d : "menu";
+}
+
 export function normalizeService(key: string, def: ServiceDef): Service {
   if (typeof def === "string") return { key, cmd: def };
   return {
@@ -32,7 +38,7 @@ export function normalizeAction(key: string, def: ActionDef): Action {
     cwd: def?.cwd,
     env: def?.env,
     confirm: def?.confirm,
-    display: def?.display === "button" ? "button" : "menu",
+    display: normalizeDisplay(def?.display),
     type: def?.type,
     children,
   };
@@ -45,7 +51,7 @@ export function normalizeTerminal(key: string, def: TerminalDef): TerminalItem {
   return {
     key,
     label: def?.label ?? key,
-    display: def?.display === "button" ? "button" : "menu",
+    display: normalizeDisplay(def?.display),
   };
 }
 

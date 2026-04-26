@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 
 	"github.com/gug007/lpm/internal/config"
@@ -95,9 +96,8 @@ func StopServicePane(paneID string) error {
 }
 
 // StartServicePane runs the service's command in the given (already-existing) pane.
-func StartServicePane(paneID, root string, svc config.Service) error {
-	cwd := config.ResolveCwd(root, svc.Cwd)
-	return sendKeys(paneID, buildCommand(cwd, svc))
+func StartServicePane(paneID string, cfg *config.ProjectConfig, svc config.Service) error {
+	return sendKeys(paneID, buildCommand(cfg, svc))
 }
 
 func StartProject(cfg *config.ProjectConfig, profile string) error {
@@ -120,10 +120,10 @@ func StartProjectServices(cfg *config.ProjectConfig, serviceNames []string) erro
 	if !ok {
 		return fmt.Errorf("service %q not found in project config", firstService)
 	}
-	cwd := config.ResolveCwd(cfg.Root, svc.Cwd)
+	spawnDir := paneSpawnDir(cfg, svc)
 
 	createCmd := exec.Command("tmux", "new-session", "-d", "-s", cfg.Name, "-P", "-F", "#{pane_id}")
-	createCmd.Dir = cwd
+	createCmd.Dir = spawnDir
 	out, err := createCmd.Output()
 	if err != nil {
 		return fmt.Errorf("failed to create tmux session: %w", err)
@@ -131,7 +131,7 @@ func StartProjectServices(cfg *config.ProjectConfig, serviceNames []string) erro
 	firstPaneID := strings.TrimSpace(string(out))
 
 	// Send command to first pane
-	if err := sendKeys(firstPaneID, buildCommand(cwd, svc)); err != nil {
+	if err := sendKeys(firstPaneID, buildCommand(cfg, svc)); err != nil {
 		return fmt.Errorf("failed to start %s: %w", firstService, err)
 	}
 
@@ -141,7 +141,7 @@ func StartProjectServices(cfg *config.ProjectConfig, serviceNames []string) erro
 		if !ok {
 			return fmt.Errorf("service %q not found in project config", name)
 		}
-		cwd := config.ResolveCwd(cfg.Root, svc.Cwd)
+		spawnDir := paneSpawnDir(cfg, svc)
 
 		splitType := "-h" // horizontal split
 		if i > 0 {
@@ -149,14 +149,14 @@ func StartProjectServices(cfg *config.ProjectConfig, serviceNames []string) erro
 		}
 
 		split := exec.Command("tmux", "split-window", splitType, "-t", cfg.Name, "-P", "-F", "#{pane_id}")
-		split.Dir = cwd
+		split.Dir = spawnDir
 		out, err := split.Output()
 		if err != nil {
 			return fmt.Errorf("failed to split window for %s: %w", name, err)
 		}
 		paneID := strings.TrimSpace(string(out))
 
-		if err := sendKeys(paneID, buildCommand(cwd, svc)); err != nil {
+		if err := sendKeys(paneID, buildCommand(cfg, svc)); err != nil {
 			return fmt.Errorf("failed to start %s: %w", name, err)
 		}
 	}
@@ -167,19 +167,26 @@ func StartProjectServices(cfg *config.ProjectConfig, serviceNames []string) erro
 // SplitSessionPane splits the project's tmux window, runs the service command
 // in the new pane, and rebalances the layout. Returns the new pane ID.
 func SplitSessionPane(cfg *config.ProjectConfig, svc config.Service) (string, error) {
-	cwd := config.ResolveCwd(cfg.Root, svc.Cwd)
+	spawnDir := paneSpawnDir(cfg, svc)
 	split := exec.Command("tmux", "split-window", "-t", cfg.Name, "-P", "-F", "#{pane_id}")
-	split.Dir = cwd
+	split.Dir = spawnDir
 	out, err := split.Output()
 	if err != nil {
 		return "", fmt.Errorf("split-window: %w", err)
 	}
 	paneID := strings.TrimSpace(string(out))
-	if err := sendKeys(paneID, buildCommand(cwd, svc)); err != nil {
+	if err := sendKeys(paneID, buildCommand(cfg, svc)); err != nil {
 		return "", fmt.Errorf("send-keys to %s: %w", paneID, err)
 	}
 	_ = exec.Command("tmux", "select-layout", "-t", cfg.Name, "tiled").Run()
 	return paneID, nil
+}
+
+func paneSpawnDir(cfg *config.ProjectConfig, svc config.Service) string {
+	if cfg.IsRemote() {
+		return config.RemoteLocalSpawnDir(cfg)
+	}
+	return config.ResolveCwd(cfg.Root, svc.Cwd)
 }
 
 // KillPane removes the given pane from its tmux window. Killing the last pane
@@ -201,18 +208,29 @@ func sendKeys(target, command string) error {
 	return cmd.Run()
 }
 
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
-}
-
-func buildCommand(cwd string, svc config.Service) string {
-	parts := []string{fmt.Sprintf("cd %s", shellQuote(cwd))}
-
-	for k, v := range svc.Env {
-		parts = append(parts, fmt.Sprintf("export %s=%s", k, shellQuote(v)))
+func buildCommand(cfg *config.ProjectConfig, svc config.Service) string {
+	if cfg.IsRemote() {
+		return config.SSHCommandLine(cfg, svc.Cwd, svc.Env, svc.Cmd)
 	}
 
+	cwd := config.ResolveCwd(cfg.Root, svc.Cwd)
+	parts := []string{fmt.Sprintf("cd %s", config.ShellQuote(cwd))}
+	for _, k := range sortedKeys(svc.Env) {
+		parts = append(parts, fmt.Sprintf("export %s=%s", k, config.ShellQuote(svc.Env[k])))
+	}
 	parts = append(parts, svc.Cmd)
 	return strings.Join(parts, " && ")
+}
+
+func sortedKeys(m map[string]string) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 

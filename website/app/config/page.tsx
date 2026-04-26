@@ -216,9 +216,12 @@ const actionFields: Field[] = [
     description: (
       <>
         <code className="font-mono">button</code> pins the action to the
-        project toolbar so it&rsquo;s always one click away. The default,{" "}
-        <code className="font-mono">menu</code>, tucks it behind the three-dot
-        menu — better for things you rarely need.
+        project toolbar so it&rsquo;s always one click away.{" "}
+        <code className="font-mono">footer</code> tucks it into the status
+        bar below the terminal — handy for project-specific commands you
+        want visible while you&rsquo;re working without cluttering the
+        toolbar. The default, <code className="font-mono">menu</code>, hides
+        it behind the three-dot menu — better for things you rarely need.
       </>
     ),
   },
@@ -316,11 +319,12 @@ const terminalFields: Field[] = [
     required: false,
     description: (
       <>
-        Just like actions:{" "}
-        <code className="font-mono">button</code> pins the terminal to the
-        project toolbar so it&rsquo;s always one click away. The default,{" "}
-        <code className="font-mono">menu</code>, tucks it behind the three-dot
-        menu — better for shells you only open once in a while.
+        Just like actions: <code className="font-mono">button</code> pins
+        the terminal to the project toolbar so it&rsquo;s always one click
+        away. <code className="font-mono">footer</code> tucks it into the
+        status bar below the terminal. The default,{" "}
+        <code className="font-mono">menu</code>, hides it behind the
+        three-dot menu — better for shells you only open once in a while.
       </>
     ),
   },
