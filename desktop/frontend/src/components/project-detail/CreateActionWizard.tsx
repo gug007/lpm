@@ -98,31 +98,18 @@ function shouldConfirm(text: string): boolean {
   return /\b(deploy|migrate|reset|drop|delete|destroy|remove|kill|prune)\b/i.test(text);
 }
 
-function suggestedCommand(name: string): { label: string; cmd: string } | null {
-  const value = name.toLowerCase();
-  if (/\b(test|spec|check)\b/.test(value)) return { label: "Use npm test", cmd: "npm test" };
-  if (/\b(build|compile)\b/.test(value)) return { label: "Use npm run build", cmd: "npm run build" };
-  if (/\b(dev|server|start)\b/.test(value)) return { label: "Use npm run dev", cmd: "npm run dev" };
-  if (/\b(log|logs|tail)\b/.test(value)) return { label: "Use tail -f log/development.log", cmd: "tail -f log/development.log" };
-  if (/\b(shell|terminal|console)\b/.test(value)) return { label: "Use current shell", cmd: "$SHELL" };
-  if (/\b(migrate|migration)\b/.test(value)) return { label: "Use rails db:migrate", cmd: "rails db:migrate" };
-  if (/\b(seed)\b/.test(value)) return { label: "Use rails db:seed", cmd: "rails db:seed" };
-  if (/\b(deploy)\b/.test(value)) return { label: "Use deploy script", cmd: "./deploy.sh" };
-  return null;
-}
-
 function runModeLabel(mode: RunMode) {
-  if (mode === "terminal") return "Terminal";
-  if (mode === "background") return "Background";
-  return "Run once";
+  if (mode === "terminal") return "Run in new terminal";
+  if (mode === "background") return "Run in background";
+  return "Show in modal";
 }
 
 function runModeHint(mode: RunMode, reuse: boolean) {
   if (mode === "terminal") {
-    return reuse ? "Opens one terminal pane and reuses it next time." : "Opens a terminal pane for the command.";
+    return reuse ? "Runs in a terminal and reuses it next time." : "Runs in a new terminal.";
   }
-  if (mode === "background") return "Runs quietly and shows a notification when it finishes.";
-  return "Runs the command once and shows the result.";
+  if (mode === "background") return "Runs in the background and shows a success notification when done.";
+  return "Runs once and displays the result in a modal.";
 }
 
 function actionSummary(shape: Shape, name: string, cmd: string, children: ChildDraft[], runMode: RunMode, reuse: boolean) {
@@ -280,7 +267,6 @@ export function CreateActionWizard({
   }, [open, step, shape]);
 
   const finalKey = useMemo(() => uniqueKey(slugify(name), existingActionKeys), [name, existingActionKeys]);
-  const commandSuggestion = useMemo(() => (cmd.trim() ? null : suggestedCommand(name)), [name, cmd]);
   const payload = useMemo(
     () =>
       buildActionPayload({
@@ -469,20 +455,6 @@ export function CreateActionWizard({
                     onEnter={() => void goNext()}
                     placeholder={shape === "split" ? "./deploy.sh staging" : "npm run dev"}
                   />
-                )}
-
-                {commandSuggestion && shape !== "dropdown" && (
-                  <button
-                    type="button"
-                    onClick={() => updateCmd(commandSuggestion.cmd)}
-                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2.5 text-left transition hover:border-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
-                  >
-                    <span>
-                      <span className="block text-[12px] font-medium text-[var(--text-primary)]">{commandSuggestion.label}</span>
-                      <span className="font-mono text-[11px] text-[var(--text-muted)]">{commandSuggestion.cmd}</span>
-                    </span>
-                    <span className="text-[11px] font-medium text-[var(--text-secondary)]">Use</span>
-                  </button>
                 )}
 
                 {shape !== "button" && (
@@ -844,9 +816,9 @@ function RunModePicker({
         <span className="text-[11px] text-[var(--text-muted)]">{runModeHint(runMode, reuse)}</span>
       </div>
       <div className="grid grid-cols-3 gap-2">
-        <ModeButton active={runMode === "once"} icon={<ZapIcon />} title="Once" onClick={() => onRunMode("once")} />
-        <ModeButton active={runMode === "terminal"} icon={<TerminalIcon />} title="Terminal" onClick={() => onRunMode("terminal")} />
-        <ModeButton active={runMode === "background"} icon={<SparkleIcon />} title="Background" onClick={() => onRunMode("background")} />
+        <ModeButton active={runMode === "once"} icon={<ZapIcon />} title="Show in modal" onClick={() => onRunMode("once")} />
+        <ModeButton active={runMode === "terminal"} icon={<TerminalIcon />} title="Run in new terminal" onClick={() => onRunMode("terminal")} />
+        <ModeButton active={runMode === "background"} icon={<SparkleIcon />} title="Run in background" onClick={() => onRunMode("background")} />
       </div>
       {runMode === "terminal" && (
         <label className="mt-3 flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
