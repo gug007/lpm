@@ -123,8 +123,8 @@ export function DemoProjectView({
   }, [isResizing, resizeDir]);
 
   const anyRunning = runningServices.size > 0;
-  const buttonActions = project.actions.filter((a) => a.display === "button");
-  const menuActions = project.actions.filter((a) => a.display !== "button");
+  const headerActions = project.actions.filter((a) => a.display === "header");
+  const menuActions = project.actions.filter((a) => a.display !== "header");
 
   const openNewPaneWithShell = () => {
     setTree((prev) => appendLeaf(prev, makeLeaf(newShellContent())));
@@ -269,7 +269,7 @@ export function DemoProjectView({
       <Header
         project={project}
         anyRunning={anyRunning}
-        buttonActions={buttonActions}
+        headerActions={headerActions}
         menuActions={menuActions}
         menuOpen={menuOpen}
         startOpen={startOpen}
@@ -690,7 +690,7 @@ function DropdownSectionLabel({ children }: { children: ReactNode }) {
 type HeaderProps = {
   project: DemoProject;
   anyRunning: boolean;
-  buttonActions: DemoAction[];
+  headerActions: DemoAction[];
   menuActions: DemoAction[];
   menuOpen: boolean;
   startOpen: boolean;
@@ -708,7 +708,7 @@ type HeaderProps = {
 function Header({
   project,
   anyRunning,
-  buttonActions,
+  headerActions,
   menuActions,
   menuOpen,
   startOpen,
@@ -740,7 +740,7 @@ function Header({
         </span>
       </div>
       <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-        {buttonActions.map((a) => (
+        {headerActions.map((a) => (
           <button
             key={a.name}
             type="button"

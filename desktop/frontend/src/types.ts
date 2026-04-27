@@ -12,7 +12,7 @@ export interface ProfileInfo {
 
 export type ActionType = "terminal" | "background" | (string & {});
 
-export type ActionDisplay = "button" | "menu" | "footer" | (string & {});
+export type ActionDisplay = "header" | "menu" | "footer" | (string & {});
 
 export interface ActionInputOption {
   label: string;

@@ -30,7 +30,7 @@ actions:
     cmd: ./scripts/deploy.sh
     label: Deploy to Production  # display name in the UI
     confirm: true             # ask before running
-    display: button           # show as a button instead of in menu
+    display: header           # main button row (default; omit to get the same)
     env:
       NODE_ENV: production
 `;
@@ -56,7 +56,7 @@ actions:
     cmd: rm -rf .next node_modules/.cache
     label: Reset Cache
     confirm: true
-    display: button
+    display: header
   rollback:
     cmd: ./scripts/rollback.sh
     label: Rollback Deploy
@@ -85,7 +85,7 @@ actions:
   deploy:
     cmd: ./deploy.sh staging     # split button — main click runs this
     label: 🚀 Deploy
-    display: button
+    display: header
     confirm: true
     actions:                     # chevron opens these
       production:
@@ -104,7 +104,7 @@ services:
 actions:
   db:
     label: 🗄️ Database
-    display: button
+    display: header
     cwd: ./backend
     actions:
       migrate:
@@ -129,7 +129,7 @@ terminals:
   claude:                     # full form
     cmd: claude
     label: Claude Code        # nicer name than the key
-    display: button           # pin to the toolbar, one click away
+    display: header           # pin to the toolbar, one click away (default)
 `;
 
 export const TERMINALS_AGENTS_EXAMPLE = `name: myapp

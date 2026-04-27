@@ -125,11 +125,12 @@ export function ProjectDetail({
 
   const terminalViewRef = useRef<TerminalViewHandle>(null);
 
-  const buttonActions = (project.actions ?? []).filter((a) => a.display === "button");
-  const plainActions = buttonActions.filter((a) => !a.children?.length);
-  const dropdownActions = buttonActions.filter((a) => a.children?.length);
+  const isHeader = (d: string) => d === "" || d === "header" || d === "button";
+  const headerActions = (project.actions ?? []).filter((a) => isHeader(a.display));
+  const plainActions = headerActions.filter((a) => !a.children?.length);
+  const dropdownActions = headerActions.filter((a) => a.children?.length);
   const footerActions = (project.actions ?? []).filter((a) => a.display === "footer");
-  const menuActions = (project.actions ?? []).filter((a) => a.display !== "button" && a.display !== "footer");
+  const menuActions = (project.actions ?? []).filter((a) => a.display === "menu");
 
   const [runningAction, setRunningAction] = useState<ActionInfo | null>(null);
   const [confirmAction, setConfirmAction] = useState<ActionInfo | null>(null);

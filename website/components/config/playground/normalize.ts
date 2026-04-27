@@ -12,7 +12,8 @@ import type {
 type Display = Action["display"];
 
 function normalizeDisplay(d: string | undefined): Display {
-  return d === "button" || d === "footer" ? d : "menu";
+  if (d === "footer" || d === "menu") return d;
+  return "header";
 }
 
 export function normalizeService(key: string, def: ServiceDef): Service {
@@ -26,7 +27,7 @@ export function normalizeService(key: string, def: ServiceDef): Service {
 
 export function normalizeAction(key: string, def: ActionDef): Action {
   if (typeof def === "string") {
-    return { key, cmd: def, label: key, display: "menu", children: [] };
+    return { key, cmd: def, label: key, display: "header", children: [] };
   }
   const children = def?.actions
     ? Object.entries(def.actions).map(([k, v]) => normalizeAction(k, v))
@@ -46,7 +47,7 @@ export function normalizeAction(key: string, def: ActionDef): Action {
 
 export function normalizeTerminal(key: string, def: TerminalDef): TerminalItem {
   if (typeof def === "string") {
-    return { key, label: key, display: "menu" };
+    return { key, label: key, display: "header" };
   }
   return {
     key,

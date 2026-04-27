@@ -215,13 +215,15 @@ const actionFields: Field[] = [
     required: false,
     description: (
       <>
-        <code className="font-mono">button</code> pins the action to the
-        project toolbar so it&rsquo;s always one click away.{" "}
-        <code className="font-mono">footer</code> tucks it into the status
-        bar below the terminal — handy for project-specific commands you
-        want visible while you&rsquo;re working without cluttering the
-        toolbar. The default, <code className="font-mono">menu</code>, hides
-        it behind the three-dot menu — better for things you rarely need.
+        Where the action appears. The default,{" "}
+        <code className="font-mono">header</code>, pins it to the project
+        toolbar so it&rsquo;s always one click away — omit{" "}
+        <code className="font-mono">display</code> entirely to get the same
+        result. <code className="font-mono">footer</code> tucks it into the
+        status bar below the terminal — handy for tight, always-visible
+        controls. <code className="font-mono">menu</code> still works as a
+        legacy value (overflow menu) but is no longer suggested by the
+        editor.
       </>
     ),
   },
@@ -319,12 +321,14 @@ const terminalFields: Field[] = [
     required: false,
     description: (
       <>
-        Just like actions: <code className="font-mono">button</code> pins
-        the terminal to the project toolbar so it&rsquo;s always one click
-        away. <code className="font-mono">footer</code> tucks it into the
-        status bar below the terminal. The default,{" "}
-        <code className="font-mono">menu</code>, hides it behind the
-        three-dot menu — better for shells you only open once in a while.
+        Same rules as actions. The default,{" "}
+        <code className="font-mono">header</code>, pins the terminal to the
+        project toolbar — omit <code className="font-mono">display</code>{" "}
+        entirely to get the same result.{" "}
+        <code className="font-mono">footer</code> tucks it into the status
+        bar below the terminal. <code className="font-mono">menu</code>{" "}
+        still works as a legacy value (overflow menu) but is no longer
+        suggested by the editor.
       </>
     ),
   },
@@ -510,8 +514,9 @@ export default function ConfigPage() {
                 wipes, rollbacks, production deploys — add{" "}
                 <code className="font-mono">confirm: true</code> to get a
                 confirmation dialog, and pair it with{" "}
-                <code className="font-mono">display: button</code> so the
-                action lives in the toolbar where you&rsquo;ll find it:
+                <code className="font-mono">display: header</code> (the
+                default) so the action lives in the toolbar where you&rsquo;ll
+                find it:
               </p>
               <ConfigPlayground
                 filename="actions-destructive.yml"
@@ -623,8 +628,8 @@ export default function ConfigPage() {
                 </strong>{" "}
                 If the command is all you need, a single line is enough — the
                 key becomes the label. Reach for the full form when you want
-                a friendlier label, pin the terminal to the toolbar with{" "}
-                <code className="font-mono">display: button</code>, or set a{" "}
+                a friendlier label, tuck a terminal into the footer with{" "}
+                <code className="font-mono">display: footer</code>, or set a{" "}
                 <code className="font-mono">cwd</code> or{" "}
                 <code className="font-mono">env</code>:
               </p>
@@ -636,15 +641,15 @@ export default function ConfigPage() {
 
               <div className="mt-6 mb-4 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-900/40 px-4 py-3 text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
                 <p className="font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  Button or menu?
+                  Header or footer?
                 </p>
                 <p>
-                  Use <code className="font-mono">display: button</code> for
-                  the one or two terminals you reach for every day — your main
-                  coding agent, your dev log tail. Leave everything else on
-                  the default <code className="font-mono">menu</code> so the
-                  toolbar stays uncluttered; they&rsquo;re still one click
-                  away from the three-dot menu when you need them.
+                  Header is the default — every terminal lands in the toolbar
+                  unless you say otherwise. Move the tightest, always-one-click
+                  controls to the footer with{" "}
+                  <code className="font-mono">display: footer</code> so they
+                  sit beside the branch switcher without crowding the main
+                  button row.
                 </p>
               </div>
 

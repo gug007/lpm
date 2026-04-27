@@ -35,19 +35,21 @@ services:
       API_KEY: dev-secret
 
 actions:
-  test: npm test
+  test: npm test                  # default — shown in the header
   lint: npm run lint
+  format:
+    cmd: npm run format
+    label: Format
+    display: footer               # compact, in the terminal footer
   deploy:
     cmd: ./scripts/deploy.sh
     label: Deploy
-    display: button
-    confirm: true
+    confirm: true                 # display omitted = header
 
 terminals:
   claude:
     cmd: claude
-    label: Claude Code
-    display: button
+    label: Claude Code            # default — shown in the header
   logs: tail -f ./logs/dev.log
 
 profiles:
