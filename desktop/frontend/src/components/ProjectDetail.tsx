@@ -6,6 +6,7 @@ import { NotesView } from "./NotesView";
 import { type TerminalViewHandle } from "./TerminalView";
 import { ConfigErrorView } from "./project-detail/ConfigErrorView";
 import { Controls } from "./project-detail/Controls";
+import { CreateActionWizard } from "./project-detail/CreateActionWizard";
 import { EmptyTerminalState } from "./project-detail/EmptyTerminalState";
 import { Header } from "./project-detail/Header";
 import { HeaderActions } from "./project-detail/HeaderActions";
@@ -56,6 +57,7 @@ export function ProjectDetail({
   // ── local UI state ──────────────────────────────────────────────────
   const [loading, setLoading] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [showCreateAction, setShowCreateAction] = useState(false);
   const [showQuickMenu, setShowQuickMenu] = useState(false);
   const [showTerminalSettings, setShowTerminalSettings] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -164,7 +166,9 @@ export function ProjectDetail({
 
   // ── derived layout state ────────────────────────────────────────────
   const showProjectName = getSettings().showProjectName !== false;
-  const hasActions = headerActions.length > 0;
+  const hasActions = true;
+  const nextHeaderActionPosition =
+    headerActions.reduce((max, action, index) => Math.max(max, action.position ?? index + 1), 0) + 1;
   const showEmptyState = !project.running && detailView === "terminal" && terminalCount === 0;
 
   const {
@@ -195,15 +199,16 @@ export function ProjectDetail({
   }
 
   // ── render ──────────────────────────────────────────────────────────
-  const headerActionsNode = hasActions ? (
+  const headerActionsNode = (
     <HeaderActions
       actions={headerActions}
       ids={headerIds}
       wrapped={actionsWrapped}
       disabled={runningAction !== null}
       onRun={handleRunAction}
+      onAddAction={() => setShowCreateAction(true)}
     />
-  ) : null;
+  );
 
   const controlsNode = (
     <Controls
@@ -314,6 +319,16 @@ export function ProjectDetail({
           onZoomOut={zoomOut}
           terminalTheme={terminalTheme}
           onTerminalThemeChange={setTerminalTheme}
+        />
+
+        <CreateActionWizard
+          open={showCreateAction}
+          projectName={project.name}
+          isRemote={project.isRemote}
+          existingActionKeys={(project.actions ?? []).map((action) => action.name)}
+          nextPosition={nextHeaderActionPosition}
+          onClose={() => setShowCreateAction(false)}
+          onCreated={() => onRefresh()}
         />
       </div>
     </ActionsDnd>
