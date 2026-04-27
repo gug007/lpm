@@ -1,17 +1,19 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { toast } from "sonner";
-import { ActionButton } from "./ActionButton";
-import { SplitButton } from "./SplitButton";
+import { ActionView } from "./ActionView";
 import { OpenInDropdown } from "./OpenInDropdown";
 import { TerminalView, type TerminalViewHandle } from "./TerminalView";
 import { TerminalFooter } from "./TerminalFooter";
 import { ConfigEditor } from "./ConfigEditor";
 import { NotesView } from "./NotesView";
 import { RunAction, RunActionBackground } from "../../wailsjs/go/main/App";
+import { useAppStore } from "../store/app";
+import { ActionsDnd, ActionsGroup } from "./ActionsDnd";
+import { SortableItem } from "./ui/SortableList";
 import { getSettings, saveSettings } from "../settings";
 import { getProjectTerminals, saveProjectTerminals, countPersistedTabs } from "../terminals";
 import { type TerminalThemeName, terminalThemeNames, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
-import { type ProjectInfo, type ProfileInfo, type ActionInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
+import { type ProjectInfo, type ProfileInfo, type ActionInfo, type ActionsLayout, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR, isHeaderDisplay, isFooterDisplay } from "../types";
 import { TerminalIcon, CheckIcon, ChevronDownIcon, PencilIcon, MenuIcon, AlertCircleIcon, PlayIcon, StopIcon, MessageIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { useOutsideClick } from "../hooks/useOutsideClick";
@@ -25,8 +27,7 @@ import { PortsButton } from "./project-detail/PortsButton";
 
 const EMPTY_SERVICES: { name: string }[] = [];
 
-const isHeaderDisplay = (d: string) =>
-  d === "" || d === "header" || d === "button";
+const noop = () => {};
 
 interface ProjectDetailProps {
   project: ProjectInfo;
@@ -128,9 +129,45 @@ export function ProjectDetail({
 
   const terminalViewRef = useRef<TerminalViewHandle>(null);
 
-  const headerActions = (project.actions ?? []).filter((a) => isHeaderDisplay(a.display));
-  const footerActions = (project.actions ?? []).filter((a) => a.display === "footer");
-  const menuActions = (project.actions ?? []).filter((a) => a.display === "menu");
+  const { headerActions, footerActions, menuActions, headerIds, footerIds, actionsLayout } = useMemo(() => {
+    const header: ActionInfo[] = [];
+    const footer: ActionInfo[] = [];
+    const menu: ActionInfo[] = [];
+    const headerIds: string[] = [];
+    const footerIds: string[] = [];
+    for (const a of project.actions ?? []) {
+      if (isHeaderDisplay(a.display)) { header.push(a); headerIds.push(a.name); }
+      else if (isFooterDisplay(a.display)) { footer.push(a); footerIds.push(a.name); }
+      else if (a.display === "menu") menu.push(a);
+    }
+    const layout: ActionsLayout = { header: headerIds, footer: footerIds };
+    return { headerActions: header, footerActions: footer, menuActions: menu, headerIds, footerIds, actionsLayout: layout };
+  }, [project.actions]);
+
+  const reorderActions = useAppStore((s) => s.reorderActions);
+  const handleMoveActions = useCallback(
+    (next: ActionsLayout) => reorderActions(project.name, next),
+    [reorderActions, project.name],
+  );
+
+  // Looks up the in-flight action by id so DragOverlay can render an
+  // identical button at the cursor — without it the dragged button leaves
+  // the header's stacking context and gets painted under TerminalView.
+  const renderActionOverlay = useCallback(
+    (id: string) => {
+      const action = (project.actions ?? []).find((a) => a.name === id);
+      if (!action) return null;
+      return (
+        <ActionView
+          action={action}
+          compact={isFooterDisplay(action.display)}
+          disabled={false}
+          onRun={noop}
+        />
+      );
+    },
+    [project.actions],
+  );
 
   const [runningAction, setRunningAction] = useState<ActionInfo | null>(null);
   const [confirmAction, setConfirmAction] = useState<ActionInfo | null>(null);
@@ -332,7 +369,9 @@ export function ProjectDetail({
   }
 
   const actionsNode = hasActions ? (
-    <div
+    <ActionsGroup
+      group="header"
+      ids={headerIds}
       className={
         actionsWrapped
           ? "flex flex-wrap items-center justify-end gap-2"
@@ -340,25 +379,17 @@ export function ProjectDetail({
       }
       style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}
     >
-      {headerActions.map((action) =>
-        action.children?.length ? (
-          <SplitButton
-            key={action.name}
+      {headerActions.map((action) => (
+        <SortableItem key={action.name} id={action.name}>
+          <ActionView
             action={action}
+            compact={false}
             disabled={runningAction !== null}
-            onRunAction={handleRunAction}
+            onRun={handleRunAction}
           />
-        ) : (
-          <ActionButton
-            key={action.name}
-            onClick={() => handleRunAction(action)}
-            disabled={runningAction !== null}
-            variant="secondary"
-            label={action.label}
-          />
-        ),
-      )}
-    </div>
+        </SortableItem>
+      ))}
+    </ActionsGroup>
   ) : null;
 
   const controlsNode = (
@@ -468,13 +499,14 @@ export function ProjectDetail({
   );
 
   return (
+    <ActionsDnd layout={actionsLayout} onMove={handleMoveActions} renderOverlay={renderActionOverlay}>
     <div className="flex h-full flex-col">
       <div
         ref={headerRowRef}
         className={`wails-drag flex items-center gap-4 -mx-3 py-1 transition-[padding] duration-200 ${sidebarCollapsed ? "pl-[100px]" : ""}`}
       >
         {showProjectName && (
-          <h1 className="shrink-0 text-xl font-semibold tracking-tight">
+          <h1 className="shrink-0 text-xl font-semibold tracking-tight pr-2">
             {project.name}
           </h1>
         )}
@@ -549,6 +581,7 @@ export function ProjectDetail({
         <TerminalFooter
           projectPath={project.root}
           actions={footerActions}
+          actionIds={footerIds}
           onRunAction={handleRunAction}
           disabled={runningAction !== null}
         />
@@ -631,6 +664,7 @@ export function ProjectDetail({
         }}
       />
     </div>
+    </ActionsDnd>
   );
 }
 

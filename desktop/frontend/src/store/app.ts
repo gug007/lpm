@@ -1,14 +1,23 @@
 import { create } from "zustand";
 import { toast } from "sonner";
-import type { ProjectInfo } from "../types";
+import YAML from "yaml";
+import {
+  isFooterDisplay,
+  isHeaderDisplay,
+  type ActionInfo,
+  type ActionsLayout,
+  type ProjectInfo,
+} from "../types";
 import {
   BrowseFolder,
   CreateProject,
   CreateSSHProject,
   DuplicateProject,
   ListProjects,
+  ReadConfig,
   RemoveProject,
   ReorderProjects,
+  SaveConfig,
   SetProjectLabel,
   StartProject,
   StopProject,
@@ -77,7 +86,98 @@ interface AppState {
   removeProject: (name: string) => Promise<void>;
   renameProject: (name: string, label: string) => Promise<void>;
   reorderProjects: (order: string[]) => Promise<void>;
+  reorderActions: (projectName: string, layout: ActionsLayout) => Promise<void>;
   refreshAfterRename: (newName?: string) => Promise<void>;
+}
+
+// Mirrors the backend's sortActionNames (projects.go) so optimistic updates
+// match what the next ListProjects will return.
+function sortActionsByPosition(actions: ActionInfo[]): ActionInfo[] {
+  return [...actions].sort((a, b) => {
+    const ap = a.position;
+    const bp = b.position;
+    if (ap !== undefined && bp !== undefined) {
+      return ap - bp || a.name.localeCompare(b.name);
+    }
+    if (ap !== undefined) return -1;
+    if (bp !== undefined) return 1;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+interface ActionUpdate {
+  position: number;
+  // undefined → leave display untouched (within-group reorder, preserves
+  // legacy values like "button"). null → delete display (move to header
+  // default). string → set display.
+  display?: string | null;
+}
+
+// parseDocument (vs parse + stringify) keeps comments and unrelated
+// formatting; shorthand string entries are widened to map form so the
+// position/display fields have somewhere to attach.
+async function persistActionUpdates(
+  projectName: string,
+  updates: Map<string, ActionUpdate>,
+): Promise<void> {
+  const content = await ReadConfig(projectName);
+  const doc = YAML.parseDocument(content);
+  const actions = doc.get("actions", true);
+  if (!YAML.isMap(actions)) return;
+  for (const item of actions.items) {
+    if (!YAML.isScalar(item.key)) continue;
+    const update = updates.get(String(item.key.value));
+    if (!update) continue;
+    if (YAML.isScalar(item.value) && typeof item.value.value === "string") {
+      const seed: Record<string, unknown> = { cmd: item.value.value, position: update.position };
+      if (typeof update.display === "string") seed.display = update.display;
+      item.value = doc.createNode(seed);
+    } else if (YAML.isMap(item.value)) {
+      item.value.set("position", update.position);
+      if (update.display === null) item.value.delete("display");
+      else if (typeof update.display === "string") item.value.set("display", update.display);
+    }
+  }
+  await SaveConfig(projectName, String(doc));
+}
+
+function buildActionUpdates(
+  current: ActionInfo[],
+  layout: ActionsLayout,
+): Map<string, ActionUpdate> {
+  const updates = new Map<string, ActionUpdate>();
+  const previousGroup = new Map<string, "header" | "footer" | null>();
+  for (const a of current) {
+    if (isHeaderDisplay(a.display)) previousGroup.set(a.name, "header");
+    else if (isFooterDisplay(a.display)) previousGroup.set(a.name, "footer");
+    else previousGroup.set(a.name, null);
+  }
+  const visit = (keys: string[], group: "header" | "footer") => {
+    keys.forEach((key, i) => {
+      const update: ActionUpdate = { position: i + 1 };
+      if (previousGroup.get(key) !== group) {
+        update.display = group === "header" ? null : "footer";
+      }
+      updates.set(key, update);
+    });
+  };
+  visit(layout.header, "header");
+  visit(layout.footer, "footer");
+  return updates;
+}
+
+function applyActionUpdates(
+  actions: ActionInfo[],
+  updates: Map<string, ActionUpdate>,
+): ActionInfo[] {
+  return actions.map((a) => {
+    const update = updates.get(a.name);
+    if (!update) return a;
+    const next: ActionInfo = { ...a, position: update.position };
+    if (update.display === null) next.display = "";
+    else if (typeof update.display === "string") next.display = update.display;
+    return next;
+  });
 }
 
 function projectsEqual(a: ProjectInfo[], b: ProjectInfo[]): boolean {
@@ -294,6 +394,31 @@ export const useAppStore = create<AppState>((set, get) => ({
       await ReorderProjects(order);
     } catch (err) {
       toast.error(`Failed to reorder: ${err}`);
+    }
+  },
+
+  reorderActions: async (projectName, layout) => {
+    const project = get().projects.find((p) => p.name === projectName);
+    if (!project) return;
+    // Position values can collide across groups without affecting display
+    // because the header/footer/menu filter runs after the sort. Display
+    // is only touched when an action's group actually changed, so legacy
+    // header values like "button" survive a within-group reorder.
+    const updates = buildActionUpdates(project.actions ?? [], layout);
+
+    set((s) => ({
+      projects: s.projects.map((p) =>
+        p.name === projectName
+          ? { ...p, actions: sortActionsByPosition(applyActionUpdates(p.actions ?? [], updates)) }
+          : p,
+      ),
+    }));
+
+    try {
+      await persistActionUpdates(projectName, updates);
+    } catch (err) {
+      toast.error(`Failed to save action order: ${err}`);
+      await get().refreshProjects();
     }
   },
 

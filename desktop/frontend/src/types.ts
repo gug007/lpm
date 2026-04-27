@@ -14,6 +14,17 @@ export type ActionType = "terminal" | "background" | (string & {});
 
 export type ActionDisplay = "header" | "menu" | "footer" | (string & {});
 
+// "" / "header" / "button" all render in the header row. "button" is the
+// legacy alias kept around for back-compat.
+export const isHeaderDisplay = (d: string) =>
+  d === "" || d === "header" || d === "button";
+export const isFooterDisplay = (d: string) => d === "footer";
+
+export interface ActionsLayout {
+  header: string[];
+  footer: string[];
+}
+
 export interface ActionInputOption {
   label: string;
   value: string;
