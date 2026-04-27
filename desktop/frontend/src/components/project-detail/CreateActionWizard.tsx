@@ -436,7 +436,7 @@ export function CreateActionWizard({
                   title="Button"
                   badge="Recommended"
                   description="One click runs one command. Best for most actions."
-                  previewLabel="Run tests"
+                  previewLabel={actionLabel}
                   onClick={() => setShape("button")}
                 />
                 <ShapeChoice
@@ -444,7 +444,7 @@ export function CreateActionWizard({
                   shape="split"
                   title="Split button"
                   description="A main command plus a small menu of alternatives."
-                  previewLabel="Deploy"
+                  previewLabel={actionLabel}
                   onClick={() => setShape("split")}
                 />
                 <ShapeChoice
@@ -452,7 +452,7 @@ export function CreateActionWizard({
                   shape="dropdown"
                   title="Dropdown menu"
                   description="Only a menu. Good for grouped commands like database tasks."
-                  previewLabel="Database"
+                  previewLabel={actionLabel}
                   onClick={() => setShape("dropdown")}
                 />
               </div>
