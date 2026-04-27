@@ -10,6 +10,7 @@ import {
   normalizeAction,
   normalizeService,
   normalizeTerminal,
+  sortByPosition,
 } from "./normalize";
 import { RunningView } from "./running-view";
 import type {
@@ -63,15 +64,21 @@ export function PlaygroundPreview({
   const actions = useMemo<Action[]>(
     () =>
       config?.actions
-        ? Object.entries(config.actions).map(([k, v]) => normalizeAction(k, v))
+        ? sortByPosition(
+            Object.entries(config.actions).map(([k, v]) =>
+              normalizeAction(k, v),
+            ),
+          )
         : [],
     [config],
   );
   const terminals = useMemo<TerminalItem[]>(
     () =>
       config?.terminals
-        ? Object.entries(config.terminals).map(([k, v]) =>
-            normalizeTerminal(k, v),
+        ? sortByPosition(
+            Object.entries(config.terminals).map(([k, v]) =>
+              normalizeTerminal(k, v),
+            ),
           )
         : [],
     [config],

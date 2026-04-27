@@ -39,6 +39,7 @@ export interface ActionInfo {
   display: ActionDisplay;
   type?: ActionType;
   reuse?: boolean;
+  position?: number;
   inputs?: ActionInputInfo[];
   children?: ActionInfo[];
 }

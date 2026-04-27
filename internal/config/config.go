@@ -65,17 +65,18 @@ type ActionInput struct {
 }
 
 type Action struct {
-	Cmd     string                 `yaml:"cmd"`
-	Label   string                 `yaml:"label,omitempty"`
-	Cwd     string                 `yaml:"cwd,omitempty"`
-	Env     map[string]string      `yaml:"env,omitempty"`
-	Confirm bool                   `yaml:"confirm,omitempty"`
-	Display string                 `yaml:"display,omitempty"`
-	Type    string                 `yaml:"type,omitempty"`
-	Reuse   bool                   `yaml:"reuse,omitempty"`
-	Mode    string                 `yaml:"mode,omitempty"`
-	Inputs  map[string]ActionInput `yaml:"inputs,omitempty"`
-	Actions ActionMap              `yaml:"actions,omitempty"`
+	Cmd      string                 `yaml:"cmd"`
+	Label    string                 `yaml:"label,omitempty"`
+	Cwd      string                 `yaml:"cwd,omitempty"`
+	Env      map[string]string      `yaml:"env,omitempty"`
+	Confirm  bool                   `yaml:"confirm,omitempty"`
+	Display  string                 `yaml:"display,omitempty"`
+	Type     string                 `yaml:"type,omitempty"`
+	Reuse    bool                   `yaml:"reuse,omitempty"`
+	Mode     string                 `yaml:"mode,omitempty"`
+	Position *float64               `yaml:"position,omitempty"`
+	Inputs   map[string]ActionInput `yaml:"inputs,omitempty"`
+	Actions  ActionMap              `yaml:"actions,omitempty"`
 }
 
 // Action.Mode allowed values. Empty falls back to ActionModeRemote on SSH

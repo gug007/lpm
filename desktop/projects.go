@@ -115,8 +115,31 @@ type ActionInfo struct {
 	Display  string            `json:"display"`
 	Type     string            `json:"type"`
 	Reuse    bool              `json:"reuse"`
+	Position *float64          `json:"position,omitempty"`
 	Inputs   []ActionInputInfo `json:"inputs,omitempty"`
 	Children []ActionInfo      `json:"children,omitempty"`
+}
+
+// sortActionNames orders names by Position ascending; entries without a
+// Position are appended afterwards in alphabetical order. The ordering is
+// stable so identical positions fall back to alphabetical.
+func sortActionNames(names []string, posOf func(string) *float64) {
+	sort.SliceStable(names, func(i, j int) bool {
+		pi, pj := posOf(names[i]), posOf(names[j])
+		switch {
+		case pi != nil && pj != nil:
+			if *pi != *pj {
+				return *pi < *pj
+			}
+			return names[i] < names[j]
+		case pi != nil:
+			return true
+		case pj != nil:
+			return false
+		default:
+			return names[i] < names[j]
+		}
+	})
 }
 
 func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state runState) ProjectInfo {
@@ -167,7 +190,9 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state r
 	for aName := range resolved {
 		actionNames = append(actionNames, aName)
 	}
-	sort.Strings(actionNames)
+	sortActionNames(actionNames, func(name string) *float64 {
+		return resolved[name].Position
+	})
 
 	actions := make([]ActionInfo, 0, len(actionNames))
 	for _, aName := range actionNames {
@@ -185,7 +210,9 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state r
 			for cn := range act.Actions {
 				childNames = append(childNames, cn)
 			}
-			sort.Strings(childNames)
+			sortActionNames(childNames, func(name string) *float64 {
+				return act.Actions[name].Position
+			})
 			for _, cn := range childNames {
 				child, _ := act.ResolvedChild(cn)
 				childLabel := child.Label
@@ -193,16 +220,17 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state r
 					childLabel = cn
 				}
 				children = append(children, ActionInfo{
-					Name:    aName + ":" + cn,
-					Label:   childLabel,
-					Cmd:     child.Cmd,
-					Cwd:     child.Cwd,
-					Env:     child.Env,
-					Confirm: child.Confirm,
-					Display: child.Display,
-					Type:    child.Type,
-					Reuse:   child.Reuse,
-					Inputs:  buildInputInfos(child.Inputs),
+					Name:     aName + ":" + cn,
+					Label:    childLabel,
+					Cmd:      child.Cmd,
+					Cwd:      child.Cwd,
+					Env:      child.Env,
+					Confirm:  child.Confirm,
+					Display:  child.Display,
+					Type:     child.Type,
+					Reuse:    child.Reuse,
+					Position: child.Position,
+					Inputs:   buildInputInfos(child.Inputs),
 				})
 			}
 		}
@@ -217,6 +245,7 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state r
 			Display:  act.Display,
 			Type:     act.Type,
 			Reuse:    act.Reuse,
+			Position: act.Position,
 			Inputs:   inputs,
 			Children: children,
 		})

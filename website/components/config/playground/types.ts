@@ -18,6 +18,7 @@ export type ActionDef =
       confirm?: boolean;
       display?: "header" | "menu" | "footer" | "button";
       type?: string;
+      position?: number;
       actions?: Record<string, ActionDef>;
     };
 
@@ -29,6 +30,7 @@ export type TerminalDef =
       cwd?: string;
       env?: Record<string, string>;
       display?: "header" | "menu" | "footer" | "button";
+      position?: number;
     };
 
 export type RawConfig = {
@@ -55,6 +57,7 @@ export type Action = {
   confirm?: boolean;
   display: "header" | "menu" | "footer";
   type?: string;
+  position?: number;
   children: Action[];
 };
 
@@ -62,6 +65,7 @@ export type TerminalItem = {
   key: string;
   label: string;
   display: "header" | "menu" | "footer";
+  position?: number;
 };
 
 export type Pane = {

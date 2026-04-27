@@ -25,6 +25,9 @@ import { PortsButton } from "./project-detail/PortsButton";
 
 const EMPTY_SERVICES: { name: string }[] = [];
 
+const isHeaderDisplay = (d: string) =>
+  d === "" || d === "header" || d === "button";
+
 interface ProjectDetailProps {
   project: ProjectInfo;
   visible?: boolean;
@@ -125,10 +128,7 @@ export function ProjectDetail({
 
   const terminalViewRef = useRef<TerminalViewHandle>(null);
 
-  const isHeader = (d: string) => d === "" || d === "header" || d === "button";
-  const headerActions = (project.actions ?? []).filter((a) => isHeader(a.display));
-  const plainActions = headerActions.filter((a) => !a.children?.length);
-  const dropdownActions = headerActions.filter((a) => a.children?.length);
+  const headerActions = (project.actions ?? []).filter((a) => isHeaderDisplay(a.display));
   const footerActions = (project.actions ?? []).filter((a) => a.display === "footer");
   const menuActions = (project.actions ?? []).filter((a) => a.display === "menu");
 
@@ -269,15 +269,14 @@ export function ProjectDetail({
 
   const showProjectName = getSettings().showProjectName !== false;
 
-  const hasActions = plainActions.length > 0 || dropdownActions.length > 0;
+  const hasActions = headerActions.length > 0;
 
   const {
     wrapped: actionsWrapped,
     rowRef: headerRowRef,
     innerRef: innerContainerRef,
   } = useOverflowWrap([
-    plainActions.length,
-    dropdownActions.length,
+    headerActions.length,
     showProjectName,
     project.running,
     project.allServices.length,
@@ -333,37 +332,33 @@ export function ProjectDetail({
   }
 
   const actionsNode = hasActions ? (
-    <>
-      {plainActions.length > 0 && (
-        <div
-          className={
-            actionsWrapped
-              ? "flex flex-wrap items-center justify-end gap-2"
-              : "flex shrink-0 items-center gap-2"
-          }
-          style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}
-        >
-          {plainActions.map((action) => (
-            <ActionButton
-              key={action.name}
-              onClick={() => handleRunAction(action)}
-              disabled={runningAction !== null}
-              variant="secondary"
-              label={action.label}
-            />
-          ))}
-        </div>
-      )}
-      {dropdownActions.map((action) => (
-        <div key={action.name} style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
+    <div
+      className={
+        actionsWrapped
+          ? "flex flex-wrap items-center justify-end gap-2"
+          : "flex shrink-0 items-center gap-2"
+      }
+      style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}
+    >
+      {headerActions.map((action) =>
+        action.children?.length ? (
           <SplitButton
+            key={action.name}
             action={action}
             disabled={runningAction !== null}
             onRunAction={handleRunAction}
           />
-        </div>
-      ))}
-    </>
+        ) : (
+          <ActionButton
+            key={action.name}
+            onClick={() => handleRunAction(action)}
+            disabled={runningAction !== null}
+            variant="secondary"
+            label={action.label}
+          />
+        ),
+      )}
+    </div>
   ) : null;
 
   const controlsNode = (
@@ -490,7 +485,7 @@ export function ProjectDetail({
       </div>
       {actionsWrapped && hasActions && (
         <div
-          className={`wails-drag flex flex-wrap items-center justify-end gap-2 -mx-3 mt-2 pb-1 transition-[padding] duration-200 ${sidebarCollapsed ? "pl-[100px]" : ""}`}
+          className={`wails-drag -mx-3 mt-2 pb-1 transition-[padding] duration-200 ${sidebarCollapsed ? "pl-[100px]" : ""}`}
         >
           {actionsNode}
         </div>

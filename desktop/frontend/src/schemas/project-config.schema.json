@@ -185,6 +185,10 @@
               "enum": ["remote", "sync"],
               "description": "Where the action runs on SSH projects. \"remote\" (default) runs over ssh on the host; \"sync\" rsyncs ssh.dir into a local mirror, runs the action locally, then rsyncs changes back — useful when you want local tools (e.g. your local Claude Code) to act on remote files."
             },
+            "position": {
+              "type": "number",
+              "description": "Optional sort key. Lower values render first; entries without a position fall back to alphabetical order. Floats are allowed so items can be inserted between existing positions without renumbering."
+            },
             "inputs": {
               "type": "object",
               "additionalProperties": { "$ref": "#/definitions/actionInput" }
@@ -248,6 +252,10 @@
               "default": "header",
               "description": "How the terminal appears in the UI. Defaults to \"header\" when omitted. \"menu\" is still accepted but no longer suggested.",
               "errorMessage": "Invalid \"display\" value. Use \"header\" or \"footer\" (\"button\" → use \"header\")."
+            },
+            "position": {
+              "type": "number",
+              "description": "Optional sort key. Lower values render first; entries without a position fall back to alphabetical order."
             },
             "inputs": {
               "type": "object",

@@ -30,7 +30,9 @@ export function normalizeAction(key: string, def: ActionDef): Action {
     return { key, cmd: def, label: key, display: "header", children: [] };
   }
   const children = def?.actions
-    ? Object.entries(def.actions).map(([k, v]) => normalizeAction(k, v))
+    ? sortByPosition(
+        Object.entries(def.actions).map(([k, v]) => normalizeAction(k, v)),
+      )
     : [];
   return {
     key,
@@ -41,6 +43,7 @@ export function normalizeAction(key: string, def: ActionDef): Action {
     confirm: def?.confirm,
     display: normalizeDisplay(def?.display),
     type: def?.type,
+    position: typeof def?.position === "number" ? def.position : undefined,
     children,
   };
 }
@@ -53,7 +56,26 @@ export function normalizeTerminal(key: string, def: TerminalDef): TerminalItem {
     key,
     label: def?.label ?? key,
     display: normalizeDisplay(def?.display),
+    position: typeof def?.position === "number" ? def.position : undefined,
   };
+}
+
+// sortByPosition matches the desktop server (sortActionNames in projects.go):
+// items with `position` come first sorted ascending, the rest fall back to
+// alphabetical order on `key`. Stable so equal positions keep alpha order.
+export function sortByPosition<T extends { key: string; position?: number }>(
+  items: T[],
+): T[] {
+  return items.slice().sort((a, b) => {
+    const ap = a.position;
+    const bp = b.position;
+    if (ap !== undefined && bp !== undefined) {
+      return ap - bp || a.key.localeCompare(b.key);
+    }
+    if (ap !== undefined) return -1;
+    if (bp !== undefined) return 1;
+    return a.key.localeCompare(b.key);
+  });
 }
 
 export function resolveTerminalCmd(

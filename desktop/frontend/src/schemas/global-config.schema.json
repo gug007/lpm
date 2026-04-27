@@ -77,6 +77,10 @@
             },
             "type": { "type": "string" },
             "reuse": { "type": "boolean" },
+            "position": {
+              "type": "number",
+              "description": "Optional sort key. Lower values render first; entries without a position fall back to alphabetical order. Floats are allowed so items can be inserted between existing positions without renumbering."
+            },
             "inputs": {
               "type": "object",
               "additionalProperties": { "$ref": "#/definitions/actionInput" }
@@ -139,6 +143,10 @@
               "default": "header",
               "description": "Where the action appears. Defaults to \"header\" when omitted. \"menu\" is still accepted but no longer suggested.",
               "errorMessage": "Invalid \"display\" value. Use \"header\" or \"footer\" (\"button\" → use \"header\")."
+            },
+            "position": {
+              "type": "number",
+              "description": "Optional sort key. Lower values render first; entries without a position fall back to alphabetical order."
             },
             "inputs": {
               "type": "object",
