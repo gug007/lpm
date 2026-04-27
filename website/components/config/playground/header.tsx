@@ -15,7 +15,7 @@ export type HeaderProps = {
   plainActions: Action[];
   dropdownActions: Action[];
   menuActions: Action[];
-  buttonTerminals: TerminalItem[];
+  headerTerminals: TerminalItem[];
   menuTerminals: TerminalItem[];
   profileEntries: ProfileEntry[];
   runningKeys: Set<string>;
@@ -43,7 +43,7 @@ export function Header(props: HeaderProps) {
     plainActions,
     dropdownActions,
     menuActions,
-    buttonTerminals,
+    headerTerminals,
     menuTerminals,
     profileEntries,
     runningKeys,
@@ -81,7 +81,7 @@ export function Header(props: HeaderProps) {
             {a.label}
           </SecondaryButton>
         ))}
-        {buttonTerminals.map((t) => (
+        {headerTerminals.map((t) => (
           <SecondaryButton
             key={t.key}
             onClick={() => handleToggleTerminal(t.key)}

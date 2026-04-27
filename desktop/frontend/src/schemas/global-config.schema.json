@@ -66,7 +66,15 @@
             "cwd": { "type": "string" },
             "env": { "$ref": "#/definitions/envMap" },
             "confirm": { "type": "boolean" },
-            "display": { "type": "string", "enum": ["button", "menu", "footer"] },
+            "display": {
+              "anyOf": [
+                { "type": "string", "enum": ["header", "footer"] },
+                { "type": "string", "pattern": "^menu$" }
+              ],
+              "default": "header",
+              "description": "Where the action appears. Defaults to \"header\" when omitted. \"menu\" is still accepted but no longer suggested.",
+              "errorMessage": "Invalid \"display\" value. Use \"header\" or \"footer\" (\"button\" → use \"header\")."
+            },
             "type": { "type": "string" },
             "reuse": { "type": "boolean" },
             "inputs": {
@@ -123,7 +131,15 @@
             "env": { "$ref": "#/definitions/envMap" },
             "confirm": { "type": "boolean" },
             "reuse": { "type": "boolean" },
-            "display": { "type": "string", "enum": ["button", "menu", "footer"] },
+            "display": {
+              "anyOf": [
+                { "type": "string", "enum": ["header", "footer"] },
+                { "type": "string", "pattern": "^menu$" }
+              ],
+              "default": "header",
+              "description": "Where the action appears. Defaults to \"header\" when omitted. \"menu\" is still accepted but no longer suggested.",
+              "errorMessage": "Invalid \"display\" value. Use \"header\" or \"footer\" (\"button\" → use \"header\")."
+            },
             "inputs": {
               "type": "object",
               "additionalProperties": { "$ref": "#/definitions/actionInput" }

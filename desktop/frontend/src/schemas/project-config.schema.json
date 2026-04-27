@@ -170,9 +170,13 @@
             "env": { "$ref": "#/definitions/envMap" },
             "confirm": { "type": "boolean", "description": "Prompt before running." },
             "display": {
-              "type": "string",
-              "enum": ["button", "menu", "footer"],
-              "description": "How the action appears in the UI."
+              "anyOf": [
+                { "type": "string", "enum": ["header", "footer"] },
+                { "type": "string", "pattern": "^menu$" }
+              ],
+              "default": "header",
+              "description": "How the action appears in the UI. Defaults to \"header\" when omitted. \"menu\" is still accepted but no longer suggested.",
+              "errorMessage": "Invalid \"display\" value. Use \"header\" or \"footer\" (\"button\" → use \"header\")."
             },
             "type": { "type": "string" },
             "reuse": { "type": "boolean", "description": "Reuse an existing terminal if one is open." },
@@ -237,8 +241,13 @@
             "confirm": { "type": "boolean" },
             "reuse": { "type": "boolean" },
             "display": {
-              "type": "string",
-              "enum": ["button", "menu", "footer"]
+              "anyOf": [
+                { "type": "string", "enum": ["header", "footer"] },
+                { "type": "string", "pattern": "^menu$" }
+              ],
+              "default": "header",
+              "description": "How the terminal appears in the UI. Defaults to \"header\" when omitted. \"menu\" is still accepted but no longer suggested.",
+              "errorMessage": "Invalid \"display\" value. Use \"header\" or \"footer\" (\"button\" → use \"header\")."
             },
             "inputs": {
               "type": "object",

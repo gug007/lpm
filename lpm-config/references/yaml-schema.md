@@ -111,7 +111,7 @@ actions:
     cwd: ./backend
     label: Run Migrations
     confirm: true
-    display: button
+    display: header
     env:
       RAILS_ENV: production
 ```
@@ -160,7 +160,7 @@ actions:
     type: terminal
     reuse: true
     label: View Logs
-    display: button
+    display: header
 ```
 
 **When to use terminal actions vs terminals section:**
@@ -179,7 +179,7 @@ actions:
     label: Reset DB
     type: background
     confirm: true           # pair with confirm for destructive ones
-    display: button
+    display: header
 ```
 
 **When to pick which `type`:**
@@ -198,7 +198,7 @@ actions:
   deploy:
     cmd: ./deploy.sh staging
     label: Deploy
-    display: button
+    display: header
     confirm: true
     actions:
       production:
@@ -216,7 +216,7 @@ actions:
 actions:
   database:
     label: Database
-    display: button
+    display: header
     cwd: ./backend
     actions:
       migrate:
@@ -240,7 +240,7 @@ Sub-actions inherit `cwd` and `env` from the parent; child values win on conflic
 | `cwd` | string | no | `root` | Working directory. Relative paths resolve from `root`. Supports `~`. Must exist. |
 | `env` | map[string]string | no | — | Environment variables injected into the command. |
 | `confirm` | bool | no | false | Prompt for confirmation before running. Use for destructive or irreversible commands. |
-| `display` | string | no | `menu` | UI placement: `menu` (dropdown), `button` (main button row), or `footer` (terminal footer strip). |
+| `display` | string | no | `header` | UI placement: `header` (main button row, default) or `footer` (terminal footer strip). `menu` is still accepted (legacy) but no longer suggested. `button` is a deprecated alias for `header`. |
 | `type` | string | no | — | Action type. `terminal` runs in a terminal pane; `background` runs hidden and shows a toast on completion. Omit for the default inline runner (modal with streaming output). |
 | `reuse` | bool | no | false | When `type: terminal`, reuse the same terminal pane across runs instead of opening a new one. |
 | `mode` | string | no | — | SSH-only execution mode. `remote` (default on SSH projects) runs the command on the host. `sync` rsyncs `ssh.dir` into a local mirror, runs the action locally, then rsyncs changes back. `sync` is rejected on local projects. See [SSH Action Modes](#ssh-action-modes). |
@@ -249,9 +249,10 @@ Sub-actions inherit `cwd` and `env` from the parent; child values win on conflic
 
 ### `display` Values
 
-- **`menu`** (default) — action appears in a dropdown/overflow menu.
-- **`button`** — action appears as a visible button in the main button row. Use for frequently-used actions.
+- **`header`** (default) — action appears as a visible button in the main button row. Omit `display` to get this.
 - **`footer`** — action appears as a compact button in the terminal footer (right next to the branch switcher). Use for tight, always-one-click controls. Footer also accepts split-button groups (parent `cmd` + nested `actions`).
+- **`menu`** *(legacy)* — action appears in the overflow menu. Still accepted but no longer suggested by autocomplete; may be deprecated in a future version.
+- **`button`** *(deprecated alias for `header`)* — flagged as an error in the editor; runtime still treats it like `header`.
 
 ### Input Fields
 
@@ -300,7 +301,7 @@ terminals:
     cmd: psql myapp_dev
     label: Database
     cwd: ./backend
-    display: button
+    display: header
     env:
       PGUSER: admin
 ```
@@ -313,7 +314,7 @@ terminals:
 | `label` | string | no | key name | Display name shown in the UI. |
 | `cwd` | string | no | `root` | Working directory. Relative paths resolve from `root`. Supports `~`. Must exist. |
 | `env` | map[string]string | no | — | Environment variables injected into the shell. |
-| `display` | string | no | `menu` | UI placement: `menu` (dropdown), `button` (visible button), or `footer` (terminal footer strip). |
+| `display` | string | no | `header` | UI placement: `header` (main button row, default) or `footer` (terminal footer strip). `menu` is still accepted (legacy) but no longer suggested. `button` is a deprecated alias for `header`. |
 | `confirm` | bool | no | false | Prompt before opening. |
 | `reuse` | bool | no | false | Reuse the existing pane on next launch. |
 | `inputs` | map[string]InputField | no | — | Named inputs prompted before opening. Values substitute `{{key}}` in `cmd`. |
@@ -371,12 +372,12 @@ actions:
   migrate:
     cmd: bin/rails db:migrate
     confirm: true
-    display: button
+    display: header
 
 terminals:
   remote-shell:
     cmd: bash -l
-    display: button
+    display: header
 ```
 
 ### `ssh` Fields
@@ -461,7 +462,7 @@ actions:
     cmd: docker system prune -f
     label: Docker Prune
     confirm: true
-    display: button
+    display: header
 
   fetch-all:
     cmd: git fetch --all --prune
@@ -472,7 +473,7 @@ terminals:
   htop:
     cmd: htop
     label: System
-    display: button
+    display: header
 
   claude:
     cmd: claude
@@ -504,11 +505,10 @@ terminals:
 
 | Value | Where it shows | Use for |
 |-------|----------------|---------|
-| `menu` (default) | Dropdown / overflow menu | Anything you don't run constantly. Keeps the UI clean. |
-| `button` | Main button row in the project view | Frequently-used items: tests, database console, logs, restart-key-service. |
+| `header` (default) | Main button row in the project view | The default — anything you want one click away. Omit `display` to get this. |
 | `footer` | Strip at the bottom of the terminal pane, next to the branch switcher | Tight, always-one-click controls — quick-format, redeploy, run-tests. Footer entries render compact and accept split-buttons. |
-
-Leave less frequent commands at the default `menu` to keep the main UI uncluttered.
+| `menu` *(legacy)* | Overflow `⋮` menu | Tucked away. Still accepted at runtime but no longer suggested by autocomplete; may be deprecated. |
+| `button` *(deprecated alias)* | — | Editor flags it as an error and asks you to switch to `header`. |
 
 ---
 
@@ -521,7 +521,7 @@ lpm validates config on load:
 3. All `cmd` fields are non-empty strings. Actions (and terminals) with nested `actions` may omit `cmd`.
 4. All `cwd` paths on local projects point to existing directories. SSH projects skip local cwd checks because `cwd` is a remote path.
 5. Ports are in range 0–65535 with no duplicates across services.
-6. `display` is `button`, `menu`, or `footer` (or omitted for default).
+6. `display` is `header` (default) or `footer`. `menu` is still accepted as a legacy value; `button` is a deprecated alias for `header` (flagged as an error in the editor).
 7. `mode` is `remote` or `sync` (or omitted). `mode: sync` is rejected on local projects.
 8. Profile entries reference defined services.
 9. Nested sub-actions are validated recursively (cmd required if no children, cwd must exist on local projects, mode validated the same way).
@@ -558,7 +558,7 @@ actions:
     cmd: npm test
     cwd: ./frontend
     label: Frontend Tests
-    display: button
+    display: header
 
   deploy:
     cmd: ./scripts/deploy.sh --env {{env}}
@@ -599,7 +599,7 @@ actions:
     type: terminal
     reuse: true
     label: Tail Logs
-    display: button
+    display: header
 
   lint:
     cmd: golangci-lint run ./...
@@ -618,12 +618,12 @@ terminals:
     cmd: psql myapp_dev
     label: Database
     cwd: ./backend
-    display: button
+    display: header
 
   redis:
     cmd: redis-cli
     label: Redis CLI
-    display: button
+    display: header
 
 profiles:
   frontend-only: [frontend]

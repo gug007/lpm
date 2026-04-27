@@ -25,7 +25,7 @@ export type DemoAction = {
   name: string;
   label: string;
   cmd: string;
-  display: "button" | "menu";
+  display: "header" | "menu";
   type?: "terminal";
   agent?: "claude" | "codex";
   confirm?: boolean;
@@ -69,7 +69,7 @@ const CLAUDE_ACTION: DemoAction = {
   name: "claude",
   label: "✻ Claude Code",
   cmd: "claude",
-  display: "button",
+  display: "header",
   type: "terminal",
   agent: "claude",
   output: [],
@@ -79,7 +79,7 @@ const CODEX_ACTION: DemoAction = {
   name: "codex",
   label: "◆ Codex",
   cmd: "codex",
-  display: "button",
+  display: "header",
   type: "terminal",
   agent: "codex",
   output: [],
@@ -176,7 +176,7 @@ const PROJECTS: DemoProject[] = [
         name: "test",
         label: "Run Tests",
         cmd: "pnpm test",
-        display: "button",
+        display: "header",
         durationMs: 1200,
         output: [
           { text: "$ pnpm test", color: "green", delay: 50 },
@@ -194,7 +194,7 @@ const PROJECTS: DemoProject[] = [
         name: "migrate",
         label: "Migrate",
         cmd: "bin/rails db:migrate",
-        display: "button",
+        display: "header",
         confirm: true,
         durationMs: 900,
         output: [
@@ -297,7 +297,7 @@ const PROJECTS: DemoProject[] = [
         name: "test",
         label: "go test",
         cmd: "go test ./...",
-        display: "button",
+        display: "header",
         durationMs: 1100,
         output: [
           { text: "$ go test ./...", color: "green", delay: 50 },
@@ -310,7 +310,7 @@ const PROJECTS: DemoProject[] = [
         name: "build",
         label: "Build",
         cmd: "go build -o bin/server ./cmd/server",
-        display: "button",
+        display: "header",
         durationMs: 700,
         output: [
           { text: "$ go build -o bin/server ./cmd/server", color: "green", delay: 50 },
@@ -373,7 +373,7 @@ const PROJECTS: DemoProject[] = [
         name: "build",
         label: "Build",
         cmd: "pnpm build",
-        display: "button",
+        display: "header",
         durationMs: 1600,
         output: [
           { text: "$ pnpm build", color: "green", delay: 50 },
@@ -388,7 +388,7 @@ const PROJECTS: DemoProject[] = [
         name: "deploy",
         label: "Deploy",
         cmd: "vercel deploy --prod",
-        display: "button",
+        display: "header",
         confirm: true,
         durationMs: 1800,
         output: [
@@ -461,7 +461,7 @@ const PROJECTS: DemoProject[] = [
         name: "train",
         label: "Train",
         cmd: "python -m pipeline.train --full",
-        display: "button",
+        display: "header",
         confirm: true,
         durationMs: 2400,
         output: [
@@ -478,7 +478,7 @@ const PROJECTS: DemoProject[] = [
         name: "eval",
         label: "Evaluate",
         cmd: "python -m pipeline.eval --latest",
-        display: "button",
+        display: "header",
         durationMs: 1800,
         output: [
           { text: "$ python -m pipeline.eval --latest", color: "green", delay: 50 },

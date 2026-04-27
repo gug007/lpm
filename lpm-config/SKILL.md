@@ -48,11 +48,11 @@ sudo apt install tmux
 | "change/update lpm config" | **Modify** an existing config |
 | "remove/delete lpm config" | **Delete** a config file |
 | "remove action/service/terminal from lpm" | **Modify** — remove a section entry |
-| "I want a button that runs X" | **Modify** — add action or terminal with `display: button` |
+| "I want a button that runs X" | **Modify** — add action or terminal (defaults to `display: header`, the main button row) |
 | "add a log viewer", "add a watcher" | **Modify** — likely a terminal action with `type: terminal` and `reuse: true` |
 | "make it reuse the same terminal", "only one terminal" | **Modify** — set `type: terminal` + `reuse: true` on the action |
 | "rename the button", "change the label" | **Modify** — update `label` field on the action/terminal |
-| "add a button with a dropdown of actions" | **Modify** — action group with `display: button` and nested `actions` |
+| "add a button with a dropdown of actions" | **Modify** — action group with nested `actions` (defaults to `display: header`) |
 | "when I click it, give me options to choose" | **Modify** — could be `inputs` (radio options before running) or an action group (sub-actions). Ask the user which they mean. |
 | "group these actions together" | **Modify** — create an action group with nested `actions` |
 | "duplicate this project for another directory" | **Create** — use `parent_name` for a duplicate project |
@@ -144,9 +144,10 @@ When the user asks to add something, ask follow-up questions to pick the right c
      - Reuse → `type: terminal`, `reuse: true`
      - New each time → `type: terminal` (no `reuse`)
    - **One-shot** → regular action
-2. Should it be a visible button or in the menu?
-   - Frequently used → `display: button`
-   - Occasional → leave default (`menu`)
+2. Where should it appear?
+   - Default — header button row (omit `display`, or set `display: header`)
+   - Compact strip at the bottom of the terminal pane → `display: footer`
+   - Hidden in the overflow menu (legacy) → `display: menu`
 3. Is it destructive? → `confirm: true`
 
 **"Make it run in the background / only tell me when it's done"**
@@ -201,9 +202,9 @@ services:
 **"Add a button with a dropdown" / "button with options"**
 
 This is ambiguous — clarify what the user means:
-- **"When I click, I see a list of sub-actions to pick from"** → dropdown-only action group (nested `actions`, no parent `cmd`) with `display: button`.
-- **"When I click, the default runs, but I can pick an alternative from a chevron"** → split-button action group (parent `cmd` + nested `actions`) with `display: button`.
-- **"When I click, it asks me for a parameter then runs"** → single action with `inputs` (e.g. `type: radio` for fixed choices) and `display: button`.
+- **"When I click, I see a list of sub-actions to pick from"** → dropdown-only action group (nested `actions`, no parent `cmd`). Defaults to the header.
+- **"When I click, the default runs, but I can pick an alternative from a chevron"** → split-button action group (parent `cmd` + nested `actions`). Defaults to the header.
+- **"When I click, it asks me for a parameter then runs"** → single action with `inputs` (e.g. `type: radio` for fixed choices). Defaults to the header.
 
 Ask: "Should the button run a default command with alternatives behind a chevron (split button), open a menu of commands (dropdown), or prompt for a parameter before running (inputs)?"
 
@@ -261,7 +262,7 @@ actions:                 # optional — one-shot commands
     cwd: <path>          # optional (remote path on SSH projects)
     env: {}              # optional
     confirm: <bool>      # optional (default: false)
-    display: <string>    # optional (button | menu | footer, default: menu)
+    display: <string>    # optional (header | footer, default: header). "menu" still accepted (legacy).
     type: <string>       # optional — "terminal" (pane) or "background" (hidden + toast)
     reuse: <bool>        # optional — reuse same terminal pane
     mode: <string>       # optional, SSH projects only — "remote" (default) or "sync"
@@ -275,7 +276,7 @@ terminals:               # optional — interactive shells (sugar for actions wi
     label: <string>      # optional
     cwd: <path>          # optional (remote path on SSH projects)
     env: {}              # optional
-    display: <string>    # optional (button | menu | footer, default: menu)
+    display: <string>    # optional (header | footer, default: header). "menu" still accepted (legacy).
     confirm: <bool>      # optional
     reuse: <bool>        # optional — reuse the existing pane on next launch
     inputs: {}           # optional — prompted parameters
@@ -289,7 +290,7 @@ profiles:                # optional — named service subsets
 - Shorthand (`test: go test ./...`) when the command needs no options.
 - Full form when you need `cwd`, `env`, `confirm`, `display`, `type`, `reuse`, `mode`, `inputs`, or a `label`.
 - Set `confirm: true` on destructive actions (migrations, deploys, cleanup).
-- `display: button` for the main button row, `display: footer` for compact controls in the terminal footer (next to the branch switcher), default `menu` for everything else.
+- Omit `display` (or set `display: header`) for the main button row — that is the default. Use `display: footer` for compact controls in the terminal footer (next to the branch switcher). `display: menu` is legacy/no longer suggested.
 - Use `type: terminal` + `reuse: true` for commands that should stay in one persistent pane (log tailers, watchers).
 - Use `type: background` for slow commands you want to fire and forget — lpm shows a toast when they finish.
 - Action groups: parent `cmd` + nested `actions` renders as a split button; nested `actions` alone renders as a dropdown. Children inherit `cwd`, `env`, and `mode`.
@@ -306,7 +307,7 @@ profiles:                # optional — named service subsets
 - All `cmd` fields are non-empty strings (actions or terminals with nested `actions` may omit `cmd`).
 - All `cwd` paths on local projects point to existing directories. SSH projects skip local cwd checks.
 - All ports are in range 0–65535 with no duplicates across services.
-- `display` values are only `button`, `menu`, or `footer`.
+- `display` values are `header` (default) or `footer`. `menu` is still accepted as a legacy value but no longer suggested. `button` is a deprecated alias for `header`.
 - `type` values are only `terminal` or `background` (or omitted).
 - `mode` values are only `remote` or `sync` (or omitted); `sync` requires an SSH project.
 - Profile entries reference defined services.
@@ -359,7 +360,7 @@ actions:
   test:
     cmd: go test ./...
     cwd: ./backend
-    display: button
+    display: header
 
   deploy:
     cmd: ./scripts/deploy.sh --env {{env}}
@@ -393,19 +394,19 @@ actions:
     type: terminal
     reuse: true
     label: Tail Logs
-    display: button
+    display: header
 
   fetch-all:
     cmd: git fetch --all --prune
     label: Fetch All
     type: background
-    display: button
+    display: header
 
 terminals:
   psql:
     cmd: psql myapp_dev
     label: Database
-    display: button
+    display: header
 
 profiles:
   frontend-only: [frontend]
@@ -423,7 +424,7 @@ Agent: [reads config, adds action]
          type: terminal
          reuse: true
          label: Tail Logs
-         display: button
+         display: header
 ```
 
 **Example 4: Add an action group**
@@ -488,7 +489,7 @@ Agent: [reads config, adds action — silent cwd match on ~/.lpm/projects/myapp.
          label: Reset DB
          type: background
          confirm: true
-         display: button
+         display: header
 ```
 
 **Example 9: Pin an action to the terminal footer**
@@ -539,7 +540,7 @@ terminals:
   remote-shell:
     cmd: bash -l
     label: Shell
-    display: button
+    display: header
 ```
 
 **Example 11: Sync-mode action on an SSH project**
@@ -553,7 +554,7 @@ Agent: [adds sync-mode action — rsyncs ~/apps/api locally, runs the command, s
          label: Claude (local)
          type: terminal
          mode: sync
-         display: button
+         display: header
 ```
 
 **Example 12: Split-button action group**
@@ -565,7 +566,7 @@ Agent: [adds split-button group]
        actions.deploy:
          cmd: ./deploy.sh staging
          label: Deploy
-         display: button
+         display: header
          confirm: true
          actions:
            production:

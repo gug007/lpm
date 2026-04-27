@@ -84,17 +84,13 @@ export function PlaygroundPreview({
     [config],
   );
 
-  const buttonActions = actions.filter((a) => a.display === "button");
-  const plainActions = buttonActions.filter((a) => a.children.length === 0);
-  const dropdownActions = buttonActions.filter((a) => a.children.length > 0);
+  const headerActions = actions.filter((a) => a.display === "header");
+  const plainActions = headerActions.filter((a) => a.children.length === 0);
+  const dropdownActions = headerActions.filter((a) => a.children.length > 0);
   const footerActions = actions.filter((a) => a.display === "footer");
-  const menuActions = actions.filter(
-    (a) => a.display !== "button" && a.display !== "footer",
-  );
-  const buttonTerminals = terminals.filter((t) => t.display === "button");
-  const menuTerminals = terminals.filter(
-    (t) => t.display !== "button" && t.display !== "footer",
-  );
+  const menuActions = actions.filter((a) => a.display === "menu");
+  const headerTerminals = terminals.filter((t) => t.display === "header");
+  const menuTerminals = terminals.filter((t) => t.display === "menu");
 
   const runningServices = useMemo(
     () => services.filter((s) => runningKeys.has(s.key)),
@@ -195,7 +191,7 @@ export function PlaygroundPreview({
           plainActions={plainActions}
           dropdownActions={dropdownActions}
           menuActions={menuActions}
-          buttonTerminals={buttonTerminals}
+          headerTerminals={headerTerminals}
           menuTerminals={menuTerminals}
           profileEntries={profileEntries}
           runningKeys={runningKeys}

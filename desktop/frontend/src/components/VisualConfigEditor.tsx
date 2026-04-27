@@ -228,6 +228,20 @@ function Select({ value, onChange, options }: { value: string; onChange: (v: str
   );
 }
 
+function DisplaySelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <Select
+      value={value === "button" ? "" : value}
+      onChange={onChange}
+      options={[
+        { value: "", label: "Header (default)" },
+        { value: "footer", label: "Footer" },
+        ...(value === "menu" ? [{ value: "menu", label: "Menu (legacy)" }] : []),
+      ]}
+    />
+  );
+}
+
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <label className="flex items-center gap-2.5 cursor-pointer">
@@ -572,10 +586,9 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
                     </div>
                     <div className="grid grid-cols-2 gap-6">
                       <Field label="Display">
-                        <Select
+                        <DisplaySelect
                           value={act.display}
                           onChange={(v) => updateAction(i, { display: v })}
-                          options={[{ value: "", label: "Menu" }, { value: "button", label: "Header button" }]}
                         />
                       </Field>
                       <Field label="Type">
@@ -631,10 +644,9 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
                       </Field>
                     </div>
                     <Field label="Display">
-                      <Select
+                      <DisplaySelect
                         value={term.display}
                         onChange={(v) => updateTerminal(i, { display: v })}
-                        options={[{ value: "", label: "Menu" }, { value: "button", label: "Header button" }]}
                       />
                     </Field>
                     <EnvEditor entries={term.env} onChange={(v) => updateTerminal(i, { env: v })} />
