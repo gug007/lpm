@@ -3,7 +3,6 @@ import YAML from "yaml";
 import { toast } from "sonner";
 import { ReadConfig, SaveConfig } from "../../../wailsjs/go/main/App";
 import {
-  CheckIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -21,7 +20,7 @@ type Shape = "button" | "split" | "dropdown";
 type RunMode = "once" | "terminal" | "background";
 
 const SHAPE_PREVIEW_BUTTON_CLASS =
-  "border-[var(--text-muted)] bg-[var(--bg-primary)] text-[var(--text-primary)] shadow-sm";
+  "border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-primary)]";
 
 interface ChildDraft {
   id: string;
@@ -107,7 +106,9 @@ function runModeLabel(mode: RunMode) {
 
 function runModeHint(mode: RunMode, reuse: boolean) {
   if (mode === "terminal") {
-    return reuse ? "Runs in a terminal and reuses it next time." : "Runs in a new terminal.";
+    return reuse
+      ? "Runs in a terminal. Running this action again reuses the same pane."
+      : "Opens a new terminal every time this action runs.";
   }
   if (mode === "background") return "Runs in the background and shows a success notification when done.";
   return "Runs once and displays the result in a modal.";
@@ -232,7 +233,7 @@ export function CreateActionWizard({
   const [cmd, setCmd] = useState("");
   const [children, setChildren] = useState<ChildDraft[]>([newChild()]);
   const [runMode, setRunMode] = useState<RunMode>("once");
-  const [reuse, setReuse] = useState(true);
+  const [reuse, setReuse] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showYaml, setShowYaml] = useState(false);
@@ -251,7 +252,7 @@ export function CreateActionWizard({
     setCmd("");
     setChildren([newChild()]);
     setRunMode("once");
-    setReuse(true);
+    setReuse(false);
     setConfirm(false);
     setShowAdvanced(false);
     setShowYaml(false);
@@ -294,7 +295,6 @@ export function CreateActionWizard({
         : children.some((child) => child.cmd.trim());
   const canContinue = step === 0 ? Boolean(name.trim()) : step === 1 ? Boolean(shape) : step === 2 ? commandIsReady : true;
   const totalSteps = 4;
-  const progress = ((step + 1) / totalSteps) * 100;
   const actionLabel = name.trim() || "New action";
 
   const title =
@@ -368,48 +368,39 @@ export function CreateActionWizard({
     <Modal
       open={open}
       onClose={onClose}
+      backdropClassName="bg-black/50 backdrop-blur-sm"
       contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >
-      <div className="flex max-h-[86vh] w-[min(920px,calc(100vw-32px))] flex-col" onKeyDown={onKeyDown}>
-        <div className="border-b border-[var(--border)] px-5 pb-4 pt-4">
-          <div className="mb-4 flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
-                Create action - Step {step + 1} of {totalSteps}
-              </div>
-              <h2 className="mt-1 text-[18px] font-semibold tracking-tight text-[var(--text-primary)]">{title}</h2>
-              <p className="mt-1 max-w-[440px] text-[12px] leading-5 text-[var(--text-secondary)]">{hint}</p>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close"
-              className="rounded-lg p-1.5 text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              <XIcon />
-            </button>
+      <div className="flex max-h-[88vh] w-[min(960px,calc(100vw-32px))] flex-col" onKeyDown={onKeyDown}>
+        <header className="flex items-start justify-between gap-4 px-8 pb-7 pt-7">
+          <div className="min-w-0 flex-1">
+            <StepDots step={step} total={totalSteps} />
+            <h2 className="mt-5 text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">{title}</h2>
+            <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[var(--text-secondary)]">{hint}</p>
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-[var(--bg-secondary)]">
-            <div
-              className="h-full rounded-full bg-[var(--text-primary)] transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="-mr-2 -mt-2 rounded-xl p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            <XIcon />
+          </button>
+        </header>
 
-        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+        <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] lg:flex-row">
+          <div className="min-h-0 flex-1 overflow-y-auto px-8 py-7">
             {step === 0 && (
               <div className="space-y-5">
                 <label className="block">
-                  <span className="mb-2 block text-[12px] font-medium text-[var(--text-primary)]">Button name</span>
+                  <span className="mb-2 block text-[13px] font-medium text-[var(--text-primary)]">Button name</span>
                   <input
                     ref={nameRef}
                     value={name}
                     onChange={(e) => updateName(e.target.value)}
                     onKeyDown={submitOnEnter}
                     placeholder="Run tests"
-                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-3 text-[16px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)]"
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-3.5 text-[15px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--text-primary)] focus:bg-[var(--bg-primary)]"
                   />
                 </label>
               </div>
@@ -466,26 +457,25 @@ export function CreateActionWizard({
                   <RunModePicker runMode={runMode} reuse={reuse} onRunMode={setRunMode} onReuse={setReuse} />
                 )}
 
-                <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-3">
+                <div className="border-t border-[var(--border)] pt-5">
                   <button
                     type="button"
                     onClick={() => setShowAdvanced((value) => !value)}
-                    className="flex w-full items-center justify-between gap-3 text-left"
+                    className="-mx-2 flex w-[calc(100%+1rem)] items-center justify-between gap-3 rounded-lg px-2 py-1 text-left transition-colors hover:bg-[var(--bg-hover)]"
                   >
                     <span>
-                      <span className="block text-[12px] font-medium text-[var(--text-primary)]">Need anything extra?</span>
-                      <span className="text-[11px] text-[var(--text-muted)]">
-                        Add confirmation, a folder, prompts, or SSH sync only if needed.
+                      <span className="block text-[13px] font-medium text-[var(--text-primary)]">Advanced options</span>
+                      <span className="text-[12px] text-[var(--text-muted)]">
+                        Confirmation, working folder, prompts, or SSH sync.
                       </span>
                     </span>
-                    <span className="flex items-center gap-1 text-[12px] font-medium text-[var(--text-secondary)]">
-                      {showAdvanced ? "Hide" : "Show"}
+                    <span className="text-[var(--text-muted)]">
                       {showAdvanced ? <ChevronDownIcon /> : <ChevronRightIcon />}
                     </span>
                   </button>
 
                   {showAdvanced && (
-                    <div className="mt-4 space-y-4">
+                    <div className="mt-4 space-y-3">
                       {shape !== "dropdown" && (
                         <ToggleRow
                           checked={confirm}
@@ -511,47 +501,51 @@ export function CreateActionWizard({
             )}
 
             {step === 3 && (
-              <div className="space-y-4">
-                <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
-                  <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="space-y-6">
+                <div>
+                  <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate text-[15px] font-semibold text-[var(--text-primary)]">{actionLabel}</div>
-                      <div className="mt-1 text-[12px] text-[var(--text-secondary)]">
+                      <div className="truncate text-[20px] font-semibold tracking-tight text-[var(--text-primary)]">{actionLabel}</div>
+                      <div className="mt-1 text-[12px] text-[var(--text-muted)]">
                         {shape === "button" ? "Header button" : shape === "split" ? "Split header button" : "Header dropdown"}
                       </div>
                     </div>
                     {shape !== "dropdown" && (
-                      <span className="rounded-full border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-[11px] text-[var(--text-secondary)]">
+                      <span className="shrink-0 rounded-full border border-[var(--border)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)]">
                         {runModeLabel(runMode)}
                       </span>
                     )}
                   </div>
-                  <p className="text-[13px] leading-5 text-[var(--text-secondary)]">
+                  <p className="mt-3 text-[13px] leading-6 text-[var(--text-secondary)]">
                     {actionSummary(shape, name, cmd, children, runMode, reuse)}
                   </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {confirm && <SummaryChip>Asks before running</SummaryChip>}
-                    {cwd.trim() && <SummaryChip>Folder: {cwd.trim()}</SummaryChip>}
-                    {Object.keys(payload.inputs as Record<string, unknown> | undefined ?? {}).length > 0 && <SummaryChip>Prompts for input</SummaryChip>}
-                    {syncMode && <SummaryChip>Sync mode</SummaryChip>}
-                    {shape !== "dropdown" && runMode === "terminal" && reuse && <SummaryChip>Reuses terminal</SummaryChip>}
-                  </div>
+                  {(confirm || cwd.trim() || Object.keys(payload.inputs as Record<string, unknown> | undefined ?? {}).length > 0 || syncMode || (shape !== "dropdown" && runMode === "terminal" && reuse)) && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {confirm && <SummaryChip>Asks before running</SummaryChip>}
+                      {cwd.trim() && <SummaryChip>Folder: {cwd.trim()}</SummaryChip>}
+                      {Object.keys(payload.inputs as Record<string, unknown> | undefined ?? {}).length > 0 && <SummaryChip>Prompts for input</SummaryChip>}
+                      {syncMode && <SummaryChip>Sync mode</SummaryChip>}
+                      {shape !== "dropdown" && runMode === "terminal" && reuse && <SummaryChip>Reuses pane on re-run</SummaryChip>}
+                    </div>
+                  )}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setShowYaml((value) => !value)}
-                  className="flex items-center gap-1.5 rounded-lg px-1 py-1 text-[11px] font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                >
-                  {showYaml ? <ChevronDownIcon /> : <ChevronRightIcon />}
-                  {showYaml ? "Hide YAML" : "Show YAML"}
-                </button>
+                <div className="border-t border-[var(--border)] pt-5">
+                  <button
+                    type="button"
+                    onClick={() => setShowYaml((value) => !value)}
+                    className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+                  >
+                    {showYaml ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                    {showYaml ? "Hide YAML" : "Show YAML"}
+                  </button>
 
-                {showYaml && (
-                  <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 font-mono text-[11px] leading-relaxed text-[var(--text-secondary)]">
-                    {YAML.stringify({ actions: { [finalKey]: payload } }, { lineWidth: 0 })}
-                  </pre>
-                )}
+                  {showYaml && (
+                    <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3.5 py-3 font-mono text-[12px] leading-relaxed text-[var(--text-secondary)]">
+                      {YAML.stringify({ actions: { [finalKey]: payload } }, { lineWidth: 0 })}
+                    </pre>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -563,11 +557,11 @@ export function CreateActionWizard({
           />
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-5 py-4">
+        <footer className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-8 py-4">
           <button
             type="button"
             onClick={() => (step === 0 ? onClose() : setStep((current) => current - 1))}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           >
             {step === 0 ? (
               "Cancel"
@@ -579,7 +573,7 @@ export function CreateActionWizard({
           </button>
           <div className="flex items-center gap-3">
             {!canContinue && (
-              <span className="hidden text-[11px] text-[var(--text-muted)] sm:inline">
+              <span className="hidden text-[12px] text-[var(--text-muted)] sm:inline">
                 {step === 0 ? "Name is required" : "Command is required"}
               </span>
             )}
@@ -587,14 +581,38 @@ export function CreateActionWizard({
               type="button"
               onClick={() => void goNext()}
               disabled={!canContinue || saving}
-              className="rounded-lg bg-[var(--text-primary)] px-4 py-2 text-[12px] font-semibold text-[var(--bg-primary)] transition hover:opacity-85 disabled:opacity-40"
+              className="rounded-xl bg-[var(--text-primary)] px-5 py-2.5 text-[13px] font-semibold text-[var(--bg-primary)] shadow-sm transition hover:opacity-90 disabled:opacity-40 disabled:shadow-none"
             >
               {saving ? "Creating..." : primaryLabel}
             </button>
           </div>
-        </div>
+        </footer>
       </div>
     </Modal>
+  );
+}
+
+function StepDots({ step, total }: { step: number; total: number }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-1">
+        {Array.from({ length: total }).map((_, i) => (
+          <span
+            key={i}
+            className={`h-1 rounded-full transition-all duration-300 ${
+              i === step
+                ? "w-6 bg-[var(--text-primary)]"
+                : i < step
+                  ? "w-1 bg-[var(--text-primary)]"
+                  : "w-1 bg-[var(--border)]"
+            }`}
+          />
+        ))}
+      </div>
+      <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
+        {step + 1} / {total}
+      </span>
+    </div>
   );
 }
 
@@ -635,9 +653,9 @@ function ActionPreviewPanel({
   );
 
   return (
-    <aside className="flex border-t border-[var(--border)] px-5 py-5 lg:w-[300px] lg:shrink-0 lg:border-l lg:border-t-0">
+    <aside className="flex border-t border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-7 lg:w-[300px] lg:shrink-0 lg:border-l lg:border-t-0">
       <div className="flex min-h-[140px] flex-1 flex-col lg:min-h-0">
-        <div className="mb-3 text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
+        <div className="mb-4 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
           Preview
         </div>
 
@@ -653,7 +671,7 @@ function ActionPreviewPanel({
                 <button
                   type="button"
                   onClick={() => setOpen((v) => !v)}
-                  className={`flex items-center rounded-r-lg border-l border-[var(--text-muted)] px-1.5 transition-colors hover:bg-[var(--bg-hover)] ${open ? "bg-[var(--bg-hover)]" : ""}`}
+                  className={`flex items-center rounded-r-lg border-l border-[var(--border)] px-1.5 transition-colors hover:bg-[var(--bg-hover)] ${open ? "bg-[var(--bg-hover)]" : ""}`}
                 >
                   <ChevronDownIcon />
                 </button>
@@ -700,29 +718,31 @@ function ShapeChoice({
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition ${
+      className={`group relative flex w-full items-center gap-4 rounded-xl border px-5 py-4 text-left transition ${
         active
-          ? "border-[var(--text-primary)] bg-[var(--bg-hover)]"
-          : "border-[var(--border)] bg-[var(--bg-secondary)] hover:border-[var(--text-muted)]"
+          ? "border-[var(--text-primary)] bg-[var(--bg-primary)]"
+          : "border-[var(--border)] bg-[var(--bg-primary)] hover:border-[var(--text-muted)]"
       }`}
     >
       <span
-        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
-          active ? "border-[var(--text-primary)] bg-[var(--text-primary)] text-[var(--bg-primary)]" : "border-[var(--border)]"
+        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+          active
+            ? "border-[var(--text-primary)] bg-[var(--text-primary)]"
+            : "border-[var(--border)] group-hover:border-[var(--text-muted)]"
         }`}
       >
-        {active && <CheckIcon />}
+        {active && <span className="h-1.5 w-1.5 rounded-full bg-[var(--bg-primary)]" />}
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
-          <span className="text-[14px] font-medium text-[var(--text-primary)]">{title}</span>
+          <span className="text-[14px] font-semibold text-[var(--text-primary)]">{title}</span>
           {badge && (
-            <span className="rounded-full border border-[var(--border)] px-1.5 py-0.5 text-[10px] text-[var(--text-muted)]">
+            <span className="rounded-md bg-[var(--bg-secondary)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">
               {badge}
             </span>
           )}
         </span>
-        <span className="mt-0.5 block text-[12px] text-[var(--text-secondary)]">{description}</span>
+        <span className="mt-0.5 block text-[12px] leading-5 text-[var(--text-secondary)]">{description}</span>
       </span>
       <span className="hidden shrink-0 sm:block">
         <ShapePreviewButton shape={shape} label={previewLabel} />
@@ -746,7 +766,7 @@ function ShapePreviewButton({ shape, label }: { shape: Shape; label: string }) {
     return (
       <span className={`inline-flex items-stretch rounded-lg border text-xs font-medium ${SHAPE_PREVIEW_BUTTON_CLASS}`}>
         <span className="whitespace-nowrap rounded-l-lg px-3.5 py-1.5">{label}</span>
-        <span className="flex items-center rounded-r-lg border-l border-[var(--text-muted)] px-1.5">
+        <span className="flex items-center rounded-r-lg border-l border-[var(--border)] px-1.5">
           <ChevronDownIcon />
         </span>
       </span>
@@ -780,7 +800,7 @@ function CommandField({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-[12px] font-medium text-[var(--text-primary)]">{label}</span>
+      <span className="mb-2 block text-[13px] font-medium text-[var(--text-primary)]">{label}</span>
       <input
         ref={inputRef}
         value={value}
@@ -791,7 +811,7 @@ function CommandField({
           onEnter();
         }}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2.5 font-mono text-[13px] text-[var(--text-primary)] outline-none transition placeholder:font-sans placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)]"
+        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-3 font-mono text-[13px] text-[var(--text-primary)] outline-none transition placeholder:font-sans placeholder:text-[var(--text-muted)] focus:border-[var(--text-primary)]"
       />
     </label>
   );
@@ -805,8 +825,8 @@ function MenuOptionsEditor({
   onChange: (children: ChildDraft[]) => void;
 }) {
   return (
-    <div className="space-y-2">
-      <div className="text-[12px] font-medium text-[var(--text-primary)]">Menu options</div>
+    <div className="space-y-2.5">
+      <div className="text-[13px] font-medium text-[var(--text-primary)]">Menu options</div>
       {children.map((child, index) => (
         <div key={child.id} className="grid grid-cols-[minmax(90px,0.8fr)_minmax(140px,1.4fr)_auto] gap-2">
           <input
@@ -817,7 +837,7 @@ function MenuOptionsEditor({
               )
             }
             placeholder={index === 0 ? "Production" : "Label"}
-            className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-2.5 py-2 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--text-secondary)]"
+            className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)]"
           />
           <input
             value={child.cmd}
@@ -827,14 +847,14 @@ function MenuOptionsEditor({
               )
             }
             placeholder={index === 0 ? "./deploy.sh prod" : "Command"}
-            className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-2.5 py-2 font-mono text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--text-secondary)]"
+            className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)]"
           />
           <button
             type="button"
             onClick={() => onChange(children.filter((item) => item.id !== child.id))}
             disabled={children.length === 1}
             aria-label="Remove option"
-            className="rounded-lg p-2 text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-30"
+            className="rounded-lg p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-30"
           >
             <TrashIcon />
           </button>
@@ -843,7 +863,7 @@ function MenuOptionsEditor({
       <button
         type="button"
         onClick={() => onChange([...children, newChild()])}
-        className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
       >
         <PlusIcon /> Add menu option
       </button>
@@ -864,9 +884,9 @@ function RunModePicker({
 }) {
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <span className="text-[12px] font-medium text-[var(--text-primary)]">How should it run?</span>
-        <span className="text-[11px] text-[var(--text-muted)]">{runModeHint(runMode, reuse)}</span>
+      <div className="mb-2.5 flex items-center justify-between gap-3">
+        <span className="text-[13px] font-medium text-[var(--text-primary)]">How should it run?</span>
+        <span className="text-[12px] text-[var(--text-muted)]">{runModeHint(runMode, reuse)}</span>
       </div>
       <div className="grid grid-cols-3 gap-2">
         <ModeButton active={runMode === "once"} icon={<ZapIcon />} title="Show in modal" onClick={() => onRunMode("once")} />
@@ -876,7 +896,7 @@ function RunModePicker({
       {runMode === "terminal" && (
         <label className="mt-3 flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
           <input type="checkbox" checked={reuse} onChange={(e) => onReuse(e.target.checked)} />
-          Reuse the same terminal pane next time
+          Reuse the same pane when I run this action again
         </label>
       )}
     </div>
@@ -898,10 +918,10 @@ function ModeButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-[12px] font-medium transition ${
+      className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-[12px] font-medium transition ${
         active
-          ? "border-[var(--text-primary)] bg-[var(--text-primary)] text-[var(--bg-primary)]"
-          : "border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          ? "border-[var(--text-primary)] bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-sm"
+          : "border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--text-muted)] hover:text-[var(--text-primary)]"
       }`}
     >
       {icon}
@@ -922,11 +942,11 @@ function ToggleRow({
   description: string;
 }) {
   return (
-    <label className="flex items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2.5">
+    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3.5 py-3 transition-colors hover:border-[var(--text-muted)]">
       <input className="mt-0.5" type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       <span>
-        <span className="block text-[12px] font-medium text-[var(--text-primary)]">{title}</span>
-        <span className="text-[11px] text-[var(--text-muted)]">{description}</span>
+        <span className="block text-[13px] font-medium text-[var(--text-primary)]">{title}</span>
+        <span className="text-[12px] text-[var(--text-muted)]">{description}</span>
       </span>
     </label>
   );
@@ -1027,7 +1047,7 @@ function InputsEditor({ inputs, onChange }: { inputs: InputDraft[]; onChange: (i
 
 function SummaryChip({ children }: { children: ReactNode }) {
   return (
-    <span className="rounded-full border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-[11px] text-[var(--text-secondary)]">
+    <span className="rounded-full border border-[var(--border)] bg-[var(--bg-primary)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)]">
       {children}
     </span>
   );
