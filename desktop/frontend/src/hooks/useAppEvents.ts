@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { toast } from "sonner";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { useAppStore } from "../store/app";
 import { playDoneSound, playErrorSound, playWaitingSound } from "../sounds";
@@ -34,6 +35,9 @@ export function useAppEvents(): void {
       else if (kind === "Waiting") playWaitingSound();
       else if (kind === "Error") playErrorSound();
     });
+    const cancelSyncError = EventsOn("sync-error", (msg: string) => {
+      toast.error(`Sync push failed: ${msg}`);
+    });
 
     return () => {
       if (typeof cancelDock === "function") cancelDock();
@@ -43,6 +47,7 @@ export function useAppEvents(): void {
       if (typeof cancelBranchInstr === "function") cancelBranchInstr();
       if (typeof cancelFeedback === "function") cancelFeedback();
       if (typeof cancelSound === "function") cancelSound();
+      if (typeof cancelSyncError === "function") cancelSyncError();
     };
   }, []);
 }
