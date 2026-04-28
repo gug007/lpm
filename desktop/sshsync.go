@@ -264,7 +264,11 @@ func (a *App) pruneOrphanSyncDirs() {
 }
 
 func rsyncArgs(s *config.SSHSettings, src, dst string) []string {
-	return []string{"-az", "--update", "-e", rsyncShell(s), src, dst}
+	// --force lets rsync remove a non-empty directory when it needs to be
+	// replaced by a non-directory (e.g. a symlinked node_modules in a
+	// Claude agent worktree replacing a previously-synced real directory).
+	// Without it, rsync aborts with "unlinkat: Directory not empty".
+	return []string{"-az", "--update", "--force", "-e", rsyncShell(s), src, dst}
 }
 
 func rsyncShell(s *config.SSHSettings) string {
