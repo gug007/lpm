@@ -15,6 +15,7 @@ import {
   ZapIcon,
 } from "../icons";
 import { Modal } from "../ui/Modal";
+import { useOutsideClick } from "../../hooks/useOutsideClick";
 
 type Shape = "button" | "split" | "dropdown";
 type RunMode = "once" | "terminal" | "background";
@@ -558,6 +559,7 @@ export function CreateActionWizard({
           <ActionPreviewPanel
             name={actionLabel}
             shape={shape}
+            options={children}
           />
         </div>
 
@@ -599,11 +601,38 @@ export function CreateActionWizard({
 function ActionPreviewPanel({
   name,
   shape,
+  options,
 }: {
   name: string;
   shape: Shape;
+  options: ChildDraft[];
 }) {
   const hasName = name.trim().length > 0 && name !== "New action";
+  const [open, setOpen] = useState(false);
+  const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
+  const interactive = hasName && shape !== "button";
+  const visibleOptions = options.filter((option) => option.label.trim() || option.cmd.trim());
+
+  const dropdown = open && (
+    <div className="absolute right-0 top-full z-10 mt-2 w-56 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl">
+      {visibleOptions.length === 0 ? (
+        <div className="px-4 py-2 text-[12px] italic text-[var(--text-muted)]">
+          Add menu options to fill this menu.
+        </div>
+      ) : (
+        visibleOptions.map((option, index) => (
+          <div
+            key={option.id}
+            className="flex items-center gap-2.5 px-4 py-2 text-[12px] text-[var(--text-secondary)]"
+          >
+            <span className="flex-1 truncate">
+              {option.label.trim() || `Option ${index + 1}`}
+            </span>
+          </div>
+        ))
+      )}
+    </div>
+  );
 
   return (
     <aside className="flex border-t border-[var(--border)] px-5 py-5 lg:w-[300px] lg:shrink-0 lg:border-l lg:border-t-0">
@@ -613,12 +642,36 @@ function ActionPreviewPanel({
         </div>
 
         <div className="flex flex-1 items-center justify-center">
-          {hasName ? (
-            <div className="pointer-events-none max-w-full">
-              <ShapePreviewButton shape={shape} label={name} />
+          {!hasName ? (
+            <div className="h-7 w-24 rounded-md border border-dashed border-[var(--border)]" />
+          ) : !interactive ? (
+            <ShapePreviewButton shape={shape} label={name} />
+          ) : shape === "split" ? (
+            <div ref={ref} className="relative">
+              <span className={`inline-flex items-stretch rounded-lg border text-xs font-medium ${SHAPE_PREVIEW_BUTTON_CLASS}`}>
+                <span className="whitespace-nowrap rounded-l-lg px-3.5 py-1.5">{name}</span>
+                <button
+                  type="button"
+                  onClick={() => setOpen((v) => !v)}
+                  className={`flex items-center rounded-r-lg border-l border-[var(--text-muted)] px-1.5 transition-colors hover:bg-[var(--bg-hover)] ${open ? "bg-[var(--bg-hover)]" : ""}`}
+                >
+                  <ChevronDownIcon />
+                </button>
+              </span>
+              {dropdown}
             </div>
           ) : (
-            <div className="h-7 w-24 rounded-md border border-dashed border-[var(--border)]" />
+            <div ref={ref} className="relative">
+              <button
+                type="button"
+                onClick={() => setOpen((v) => !v)}
+                className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--bg-hover)] ${SHAPE_PREVIEW_BUTTON_CLASS} ${open ? "bg-[var(--bg-hover)]" : ""}`}
+              >
+                {name}
+                <ChevronDownIcon />
+              </button>
+              {dropdown}
+            </div>
           )}
         </div>
       </div>
