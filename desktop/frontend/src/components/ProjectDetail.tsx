@@ -7,7 +7,7 @@ import { NotesView } from "./NotesView";
 import { type TerminalViewHandle } from "./TerminalView";
 import { ConfigErrorView } from "./project-detail/ConfigErrorView";
 import { Controls } from "./project-detail/Controls";
-import { CreateActionWizard } from "./project-detail/CreateActionWizard";
+import { ActionWizard } from "./project-detail/ActionWizard";
 import { ActionContextMenu } from "./project-detail/ActionContextMenu";
 import { EmptyTerminalState } from "./project-detail/EmptyTerminalState";
 import { Header } from "./project-detail/Header";
@@ -63,6 +63,7 @@ export function ProjectDetail({
   const [loading, setLoading] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [showCreateAction, setShowCreateAction] = useState(false);
+  const [editingAction, setEditingAction] = useState<ActionInfo | null>(null);
   const [showQuickMenu, setShowQuickMenu] = useState(false);
   const [showTerminalSettings, setShowTerminalSettings] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -353,19 +354,24 @@ export function ProjectDetail({
           onTerminalThemeChange={setTerminalTheme}
         />
 
-        <CreateActionWizard
-          open={showCreateAction}
+        <ActionWizard
+          open={showCreateAction || editingAction !== null}
           projectName={project.name}
           existingActionKeys={existingActionKeys}
           nextPosition={nextHeaderActionPosition}
-          onClose={() => setShowCreateAction(false)}
-          onCreated={() => onRefresh()}
+          editing={editingAction}
+          onClose={() => {
+            setShowCreateAction(false);
+            setEditingAction(null);
+          }}
+          onSaved={() => onRefresh()}
         />
 
         {actionMenu && (
           <ActionContextMenu
             x={actionMenu.x}
             y={actionMenu.y}
+            onEdit={() => setEditingAction(actionMenu.action)}
             onDelete={() => setActionToDelete(actionMenu.action)}
             onClose={() => setActionMenu(null)}
           />

@@ -18,6 +18,17 @@ function queueWrite<T>(key: string, fn: () => Promise<T>): Promise<T> {
   return next;
 }
 
+// The displayed action list merges `actions:` and `terminals:` (backend
+// ResolvedActions). This walks both so edit/delete work for entries declared
+// under either section.
+function findActionSection(doc: ReturnType<typeof YAML.parseDocument>, key: string) {
+  for (const section of ["actions", "terminals"] as const) {
+    const node = doc.get(section, true);
+    if (YAML.isMap(node) && node.has(key)) return { section, node };
+  }
+  return null;
+}
+
 async function tryDeleteAction(
   read: () => Promise<string>,
   save: (content: string) => Promise<unknown>,
@@ -25,19 +36,10 @@ async function tryDeleteAction(
 ): Promise<boolean> {
   const content = await read();
   const doc = YAML.parseDocument(content || "{}");
-  // The displayed action list merges `actions:` and `terminals:` (backend
-  // ResolvedActions). Try both sections so right-click delete works for
-  // entries declared under either.
-  let removed = false;
-  for (const section of ["actions", "terminals"] as const) {
-    const node = doc.get(section, true);
-    if (!YAML.isMap(node) || !node.has(key)) continue;
-    node.delete(key);
-    if (node.items.length === 0) doc.delete(section);
-    removed = true;
-    break;
-  }
-  if (!removed) return false;
+  const match = findActionSection(doc, key);
+  if (!match) return false;
+  match.node.delete(key);
+  if (match.node.items.length === 0) doc.delete(match.section);
   await save(String(doc));
   return true;
 }
@@ -71,6 +73,46 @@ export function deleteAction(projectName: string, key: string) {
     if (removed) return;
     await queueWrite(GLOBAL_KEY, () =>
       tryDeleteAction(ReadGlobalConfig, SaveGlobalConfig, key).then(() => undefined),
+    );
+  });
+}
+
+export interface ActionPatch {
+  set: Record<string, unknown>;
+  remove: readonly string[];
+}
+
+// Patch in place rather than overwriting, so user-authored fields the wizard
+// doesn't manage (cwd, env, inputs, ...) survive an edit.
+async function tryReplaceAction(
+  read: () => Promise<string>,
+  save: (content: string) => Promise<unknown>,
+  key: string,
+  patch: ActionPatch,
+): Promise<boolean> {
+  const content = await read();
+  const doc = YAML.parseDocument(content || "{}");
+  const match = findActionSection(doc, key);
+  if (!match) return false;
+  const entry = match.node.get(key, true);
+  if (!YAML.isMap(entry)) return false;
+  for (const [k, v] of Object.entries(patch.set)) entry.set(k, v);
+  for (const k of patch.remove) entry.delete(k);
+  await save(String(doc));
+  return true;
+}
+
+export function replaceAction(projectName: string, key: string, patch: ActionPatch) {
+  return queueWrite(projectName, async () => {
+    const updated = await tryReplaceAction(
+      () => ReadConfig(projectName),
+      (content) => SaveConfig(projectName, content),
+      key,
+      patch,
+    );
+    if (updated) return;
+    await queueWrite(GLOBAL_KEY, () =>
+      tryReplaceAction(ReadGlobalConfig, SaveGlobalConfig, key, patch).then(() => undefined),
     );
   });
 }

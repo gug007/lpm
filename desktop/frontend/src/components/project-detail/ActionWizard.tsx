@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import YAML from "yaml";
 import { toast } from "sonner";
-import { appendAction } from "../../actionConfig";
+import { appendAction, replaceAction, type ActionPatch } from "../../actionConfig";
 import { slugify } from "../../slugify";
 import { uniqueKey } from "../../uniqueKey";
+import type { ActionInfo } from "../../types";
 import {
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -41,13 +42,18 @@ interface ChildDraft {
   confirm: boolean;
 }
 
-interface CreateActionWizardProps {
+interface ActionWizardProps {
   open: boolean;
   projectName: string;
-  existingActionKeys: string[];
-  nextPosition: number;
+  // When set, the wizard runs in edit mode: prefill from this action and
+  // submit a patch to its YAML key instead of appending a new entry.
+  editing?: ActionInfo | null;
+  // Create-only: collision avoidance for the new YAML key.
+  existingActionKeys?: string[];
+  // Create-only: position assigned to the new entry.
+  nextPosition?: number;
   onClose: () => void;
-  onCreated: () => void;
+  onSaved: () => void;
 }
 
 function newChild(): ChildDraft {
@@ -81,7 +87,7 @@ function runModeHint(mode: RunMode, reuse: boolean) {
   return "Runs once and displays the result in a modal.";
 }
 
-function stepCopy(step: number, shape: Shape): { title: string; hint: string; primary: string } {
+function stepCopy(step: number, shape: Shape, editing: boolean): { title: string; hint: string; primary: string } {
   if (step === 0)
     return {
       title: "What should the button say?",
@@ -100,11 +106,17 @@ function stepCopy(step: number, shape: Shape): { title: string; hint: string; pr
       hint: "Paste the same command you would type in a terminal.",
       primary: "Review action",
     };
-  return {
-    title: "Ready to add it?",
-    hint: "Confirm the simple summary. The button appears in the header after creation.",
-    primary: "Create action",
-  };
+  return editing
+    ? {
+        title: "Ready to save changes?",
+        hint: "Confirm the updated settings. The button updates in the header after saving.",
+        primary: "Save changes",
+      }
+    : {
+        title: "Ready to add it?",
+        hint: "Confirm the simple summary. The button appears in the header after creation.",
+        primary: "Create action",
+      };
 }
 
 function actionSummary(shape: Shape, name: string, cmd: string, children: ChildDraft[], runMode: RunMode, reuse: boolean) {
@@ -120,16 +132,7 @@ function actionSummary(shape: Shape, name: string, cmd: string, children: ChildD
   return `${label} ${runModeHint(runMode, reuse).toLowerCase()} Command: ${cmd || "not set yet"}.`;
 }
 
-function buildActionPayload({
-  shape,
-  name,
-  cmd,
-  children,
-  runMode,
-  reuse,
-  confirm,
-  position,
-}: {
+interface FormDraft {
   shape: Shape;
   name: string;
   cmd: string;
@@ -137,53 +140,112 @@ function buildActionPayload({
   runMode: RunMode;
   reuse: boolean;
   confirm: boolean;
-  position: number;
-}) {
-  const payload: Record<string, unknown> = {
-    label: name.trim(),
-    display: "header",
-    position,
-  };
-
-  if (shape !== "dropdown") {
-    payload.cmd = cmd.trim();
-    if (runMode !== "once") payload.type = runMode;
-    if (runMode === "terminal" && reuse) payload.reuse = true;
-    if (confirm) payload.confirm = true;
-  }
-
-  if (shape !== "button") {
-    const childMap: Record<string, unknown> = {};
-    const used: string[] = [];
-    children
-      .filter((child) => child.cmd.trim())
-      .forEach((child, index) => {
-        const key = uniqueKey(slugify(child.label) || `option-${index + 1}`, used);
-        used.push(key);
-        const childPayload: Record<string, unknown> = {
-          label: child.label.trim() || key,
-          cmd: child.cmd.trim(),
-          position: index + 1,
-        };
-        if (child.runMode !== "once") childPayload.type = child.runMode;
-        if (child.runMode === "terminal" && child.reuse) childPayload.reuse = true;
-        if (child.confirm) childPayload.confirm = true;
-        childMap[key] = childPayload;
-      });
-    payload.actions = childMap;
-  }
-
-  return payload;
 }
 
-export function CreateActionWizard({
+function buildChildMap(children: ChildDraft[]): Record<string, unknown> {
+  const childMap: Record<string, unknown> = {};
+  const used: string[] = [];
+  children
+    .filter((child) => child.cmd.trim())
+    .forEach((child, index) => {
+      const key = uniqueKey(slugify(child.label) || `option-${index + 1}`, used);
+      used.push(key);
+      const childPayload: Record<string, unknown> = {
+        label: child.label.trim() || key,
+        cmd: child.cmd.trim(),
+        position: index + 1,
+      };
+      if (child.runMode !== "once") childPayload.type = child.runMode;
+      if (child.runMode === "terminal" && child.reuse) childPayload.reuse = true;
+      if (child.confirm) childPayload.confirm = true;
+      childMap[key] = childPayload;
+    });
+  return childMap;
+}
+
+// Returns set/remove for the wizard-managed fields. On edit, applying this
+// patch leaves user-authored fields like cwd/env/inputs untouched.
+function buildActionPatch({ shape, name, cmd, children, runMode, reuse, confirm }: FormDraft): ActionPatch {
+  const set: Record<string, unknown> = { label: name.trim() };
+  const remove: string[] = [];
+
+  if (shape === "dropdown") {
+    remove.push("cmd", "type", "reuse", "confirm");
+  } else {
+    set.cmd = cmd.trim();
+    if (runMode !== "once") set.type = runMode;
+    else remove.push("type");
+    if (runMode === "terminal" && reuse) set.reuse = true;
+    else remove.push("reuse");
+    if (confirm) set.confirm = true;
+    else remove.push("confirm");
+  }
+
+  if (shape === "button") remove.push("actions");
+  else set.actions = buildChildMap(children);
+
+  return { set, remove };
+}
+
+function buildCreatePayload(draft: FormDraft, position: number): Record<string, unknown> {
+  const { set } = buildActionPatch(draft);
+  return { ...set, display: "header", position };
+}
+
+function inferShape(action: ActionInfo): Shape {
+  const hasChildren = (action.children?.length ?? 0) > 0;
+  const hasCmd = Boolean(action.cmd);
+  if (hasChildren && hasCmd) return "split";
+  if (hasChildren) return "dropdown";
+  return "button";
+}
+
+function toRunMode(type: string | undefined): RunMode {
+  return type === "terminal" || type === "background" ? type : "once";
+}
+
+function actionToDraft(action: ActionInfo): FormDraft {
+  const children: ChildDraft[] = (action.children ?? []).map((c) => ({
+    id: crypto.randomUUID(),
+    label: c.label,
+    cmd: c.cmd,
+    runMode: toRunMode(c.type),
+    reuse: c.reuse ?? false,
+    confirm: c.confirm,
+  }));
+  return {
+    shape: inferShape(action),
+    name: action.label,
+    cmd: action.cmd,
+    children: children.length ? children : [newChild()],
+    runMode: toRunMode(action.type),
+    reuse: action.reuse ?? false,
+    confirm: action.confirm,
+  };
+}
+
+function defaultDraft(): FormDraft {
+  return {
+    shape: "button",
+    name: "",
+    cmd: "",
+    children: [newChild()],
+    runMode: "once",
+    reuse: false,
+    confirm: false,
+  };
+}
+
+export function ActionWizard({
   open,
   projectName,
-  existingActionKeys,
-  nextPosition,
+  editing,
+  existingActionKeys = [],
+  nextPosition = 1,
   onClose,
-  onCreated,
-}: CreateActionWizardProps) {
+  onSaved,
+}: ActionWizardProps) {
+  const isEditing = Boolean(editing);
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [shape, setShape] = useState<Shape>("button");
@@ -199,28 +261,42 @@ export function CreateActionWizard({
 
   useEffect(() => {
     if (!open) return;
+    const draft = editing ? actionToDraft(editing) : defaultDraft();
     setStep(0);
-    setName("");
-    setShape("button");
-    setCmd("");
-    setChildren([newChild()]);
-    setRunMode("once");
-    setReuse(false);
-    setConfirm(false);
+    setName(draft.name);
+    setShape(draft.shape);
+    setCmd(draft.cmd);
+    setChildren(draft.children);
+    setRunMode(draft.runMode);
+    setReuse(draft.reuse);
+    setConfirm(draft.confirm);
     setShowYaml(false);
     setSaving(false);
     setTimeout(() => nameRef.current?.focus(), 50);
-  }, [open]);
+  }, [open, editing]);
 
   useEffect(() => {
     if (!open || step !== 2) return;
     setTimeout(() => commandRef.current?.focus(), 50);
   }, [open, step, shape]);
 
-  const buildSubmission = () => ({
-    key: uniqueKey(slugify(name) || "new-action", existingActionKeys),
-    payload: buildActionPayload({ shape, name, cmd, children, runMode, reuse, confirm, position: nextPosition }),
-  });
+  const draft: FormDraft = { shape, name, cmd, children, runMode, reuse, confirm };
+
+  type Submission =
+    | { kind: "create"; key: string; payload: Record<string, unknown> }
+    | { kind: "edit"; key: string; payload: Record<string, unknown>; patch: ActionPatch };
+
+  const buildSubmission = (): Submission => {
+    if (editing) {
+      const patch = buildActionPatch(draft);
+      return { kind: "edit", key: editing.name, payload: patch.set, patch };
+    }
+    return {
+      kind: "create",
+      key: uniqueKey(slugify(name) || "new-action", existingActionKeys),
+      payload: buildCreatePayload(draft, nextPosition),
+    };
+  };
 
   const cmdFilled = Boolean(cmd.trim());
   const hasMenuOption = children.some((child) => child.cmd.trim());
@@ -233,7 +309,7 @@ export function CreateActionWizard({
   const totalSteps = 4;
   const actionLabel = name.trim() || "New action";
 
-  const { title, hint, primary: primaryLabel } = stepCopy(step, shape);
+  const { title, hint, primary: primaryLabel } = stepCopy(step, shape, isEditing);
 
   const updateName = (value: string) => {
     setName(value);
@@ -258,13 +334,19 @@ export function CreateActionWizard({
 
     setSaving(true);
     try {
-      const { key, payload } = buildSubmission();
-      await appendAction(projectName, key, payload);
-      toast.success("Action created");
-      onCreated();
+      const submission = buildSubmission();
+      if (submission.kind === "edit") {
+        await replaceAction(projectName, submission.key, submission.patch);
+        toast.success("Action updated");
+      } else {
+        await appendAction(projectName, submission.key, submission.payload);
+        toast.success("Action created");
+      }
+      onSaved();
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not create action");
+      const fallback = editing ? "Could not update action" : "Could not create action";
+      toast.error(err instanceof Error ? err.message : fallback);
     } finally {
       setSaving(false);
     }
@@ -867,6 +949,10 @@ function CommandField({
           onEnter();
         }}
         placeholder={placeholder}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
         className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-3 font-mono text-[13px] text-[var(--text-primary)] outline-none transition placeholder:font-sans placeholder:text-[var(--text-muted)] focus:border-[var(--text-primary)]"
       />
     </label>
@@ -901,13 +987,17 @@ function MenuOptionsEditor({
             <input
               value={child.label}
               onChange={(e) => updateField(child, "label", e.target.value)}
-              placeholder={index === 0 ? "Production" : "Label"}
+              placeholder="Label"
               className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)]"
             />
             <input
               value={child.cmd}
               onChange={(e) => updateField(child, "cmd", e.target.value)}
-              placeholder={index === 0 ? "npm run deploy:production" : "Command"}
+              placeholder="Command"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)]"
             />
             <button
@@ -1017,7 +1107,7 @@ function ModeButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-[12px] font-medium transition ${
+      className={`flex items-center justify-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition ${
         active
           ? "border-[var(--text-primary)] bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-sm"
           : "border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--text-muted)] hover:text-[var(--text-primary)]"
