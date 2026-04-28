@@ -75,7 +75,7 @@ function shouldConfirm(text: string): boolean {
 function runModeLabel(mode: RunMode) {
   if (mode === "terminal") return "Run in new terminal";
   if (mode === "background") return "Run in background";
-  return "Show in modal";
+  return "Run in modal";
 }
 
 function runModeHint(mode: RunMode, reuse: boolean) {
@@ -383,7 +383,7 @@ export function CreateActionWizard({
                     value={cmd}
                     onChange={updateCmd}
                     onEnter={() => void goNext()}
-                    placeholder={shape === "split" ? "./deploy.sh staging" : "npm run dev"}
+                    placeholder={shape === "split" ? "npm run deploy:staging" : "npm run dev"}
                   />
                 )}
 
@@ -434,7 +434,7 @@ export function CreateActionWizard({
                     className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
                   >
                     {showYaml ? <ChevronDownIcon /> : <ChevronRightIcon />}
-                    {showYaml ? "Hide YAML" : "Show YAML"}
+                    {showYaml ? "Hide Config" : "Show Config"}
                   </button>
 
                   {showYaml && (() => {
@@ -454,6 +454,9 @@ export function CreateActionWizard({
             name={actionLabel}
             shape={shape}
             options={children}
+            runMode={runMode}
+            confirm={confirm}
+            cmd={cmd}
           />
         </div>
 
@@ -516,22 +519,43 @@ function StepDots({ step, total }: { step: number; total: number }) {
   );
 }
 
+type DemoState = RunMode | "confirm" | null;
+
 function ActionPreviewPanel({
   name,
   shape,
   options,
+  runMode,
+  confirm,
+  cmd,
 }: {
   name: string;
   shape: Shape;
   options: ChildDraft[];
+  runMode: RunMode;
+  confirm: boolean;
+  cmd: string;
 }) {
   const hasName = name.trim().length > 0 && name !== "New action";
-  const [open, setOpen] = useState(false);
-  const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
-  const interactive = hasName && shape !== "button";
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [running, setRunning] = useState<DemoState>(null);
+  const menuRef = useOutsideClick<HTMLDivElement>(() => setMenuOpen(false), menuOpen);
   const visibleOptions = options.filter((option) => option.label.trim() || option.cmd.trim());
+  const canRun = shape !== "dropdown" && cmd.trim().length > 0;
 
-  const dropdown = open && (
+  useEffect(() => {
+    setRunning(canRun ? runMode : null);
+  }, [runMode, canRun]);
+
+  const triggerRun = () => {
+    if (!canRun) return;
+    setRunning(confirm ? "confirm" : runMode);
+  };
+
+  const handleConfirm = () => setRunning(runMode);
+  const handleCancel = () => setRunning(null);
+
+  const dropdown = menuOpen && (
     <div className="absolute right-0 top-full z-10 mt-2 w-56 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl">
       {visibleOptions.length === 0 ? (
         <div className="px-4 py-2 text-[12px] italic text-[var(--text-muted)]">
@@ -559,19 +583,31 @@ function ActionPreviewPanel({
           Preview
         </div>
 
-        <div className="flex flex-1 items-center justify-center">
+        <div className="flex flex-1 flex-col items-center justify-center gap-5">
           {!hasName ? (
             <div className="h-7 w-24 rounded-md border border-dashed border-[var(--border)]" />
-          ) : !interactive ? (
-            <ShapePreviewButton shape={shape} label={name} />
+          ) : shape === "button" ? (
+            <button
+              type="button"
+              onClick={triggerRun}
+              className={`inline-flex whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--bg-hover)] ${SHAPE_PREVIEW_BUTTON_CLASS}`}
+            >
+              {name}
+            </button>
           ) : shape === "split" ? (
-            <div ref={ref} className="relative">
+            <div ref={menuRef} className="relative">
               <span className={`inline-flex items-stretch rounded-lg border text-xs font-medium ${SHAPE_PREVIEW_BUTTON_CLASS}`}>
-                <span className="whitespace-nowrap rounded-l-lg px-3.5 py-1.5">{name}</span>
                 <button
                   type="button"
-                  onClick={() => setOpen((v) => !v)}
-                  className={`flex items-center rounded-r-lg border-l border-[var(--border)] px-1.5 transition-colors hover:bg-[var(--bg-hover)] ${open ? "bg-[var(--bg-hover)]" : ""}`}
+                  onClick={triggerRun}
+                  className="whitespace-nowrap rounded-l-lg px-3.5 py-1.5 transition-colors hover:bg-[var(--bg-hover)]"
+                >
+                  {name}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen((v) => !v)}
+                  className={`flex items-center rounded-r-lg border-l border-[var(--border)] px-1.5 transition-colors hover:bg-[var(--bg-hover)] ${menuOpen ? "bg-[var(--bg-hover)]" : ""}`}
                 >
                   <ChevronDownIcon />
                 </button>
@@ -579,11 +615,11 @@ function ActionPreviewPanel({
               {dropdown}
             </div>
           ) : (
-            <div ref={ref} className="relative">
+            <div ref={menuRef} className="relative">
               <button
                 type="button"
-                onClick={() => setOpen((v) => !v)}
-                className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--bg-hover)] ${SHAPE_PREVIEW_BUTTON_CLASS} ${open ? "bg-[var(--bg-hover)]" : ""}`}
+                onClick={() => setMenuOpen((v) => !v)}
+                className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--bg-hover)] ${SHAPE_PREVIEW_BUTTON_CLASS} ${menuOpen ? "bg-[var(--bg-hover)]" : ""}`}
               >
                 {name}
                 <ChevronDownIcon />
@@ -591,9 +627,148 @@ function ActionPreviewPanel({
               {dropdown}
             </div>
           )}
+
+          {canRun && (
+            <RunModeDemo
+              key={running ?? "idle"}
+              running={running}
+              cmd={cmd}
+              label={name}
+              onTrigger={triggerRun}
+              onConfirm={handleConfirm}
+              onCancel={handleCancel}
+            />
+          )}
         </div>
       </div>
     </aside>
+  );
+}
+
+function MockModalShell({ width, children }: { width: number; children: ReactNode }) {
+  return (
+    <>
+      <div className="demo-dim absolute inset-0 bg-black/45" />
+      <div
+        className="demo-modal absolute left-1/2 top-1/2 overflow-hidden rounded border border-[var(--border)] bg-[var(--bg-primary)] shadow-lg"
+        style={{ width }}
+      >
+        {children}
+      </div>
+    </>
+  );
+}
+
+function RunModeDemo({
+  running,
+  cmd,
+  label,
+  onTrigger,
+  onConfirm,
+  onCancel,
+}: {
+  running: DemoState;
+  cmd: string;
+  label: string;
+  onTrigger: () => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="relative w-full max-w-[240px] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] shadow-md">
+      <div className="flex h-[14px] items-center gap-1 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-2">
+        <span className="h-1.5 w-1.5 rounded-full bg-[#ff5f57]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-[#febc2e]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-[#28c840]" />
+      </div>
+
+      <div className="flex h-[140px]">
+        <div className="flex w-[36px] shrink-0 flex-col gap-1 border-r border-[var(--border)] bg-[var(--bg-secondary)] p-1.5">
+          <div className="h-1.5 rounded bg-[var(--border)]" />
+          <div className="h-1.5 rounded bg-[var(--border)]" />
+          <div className="h-1.5 w-2/3 rounded bg-[var(--border)] opacity-70" />
+        </div>
+
+        <div className="relative flex flex-1 flex-col overflow-hidden">
+          <div className="flex h-[16px] items-center justify-end border-b border-[var(--border)] px-1.5">
+            <button
+              type="button"
+              onClick={onTrigger}
+              className="max-w-[80px] truncate rounded border border-[var(--border)] bg-[var(--bg-primary)] px-1 py-[1px] text-[7px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
+            >
+              {label}
+            </button>
+          </div>
+
+          <div className="relative flex-1 overflow-hidden p-2">
+            <div className="space-y-1">
+              <div className="h-[3px] w-3/4 rounded bg-[var(--border)] opacity-70" />
+              <div className="h-[3px] w-1/2 rounded bg-[var(--border)] opacity-70" />
+              <div className="h-[3px] w-2/3 rounded bg-[var(--border)] opacity-70" />
+              <div className="h-[3px] w-1/3 rounded bg-[var(--border)] opacity-70" />
+            </div>
+
+            {running === "confirm" && (
+              <MockModalShell width={140}>
+                <div className="space-y-1 px-2 py-1.5">
+                  <div className="text-[8px] font-medium text-[var(--text-primary)]">Run {label}?</div>
+                  <div className="truncate font-mono text-[7px] text-[var(--text-muted)]">$ {cmd}</div>
+                </div>
+                <div className="flex justify-end gap-1 border-t border-[var(--border)] px-1.5 py-1">
+                  <button
+                    type="button"
+                    onClick={onCancel}
+                    className="rounded px-1.5 py-[1px] text-[7px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onConfirm}
+                    className="rounded bg-[var(--text-primary)] px-1.5 py-[1px] text-[7px] font-medium text-[var(--bg-primary)]"
+                  >
+                    Run
+                  </button>
+                </div>
+              </MockModalShell>
+            )}
+
+            {running === "once" && (
+              <MockModalShell width={124}>
+                <div className="flex items-center justify-between border-b border-[var(--border)] px-1.5 py-1">
+                  <span className="truncate text-[7px] font-medium text-[var(--text-primary)]">{label}</span>
+                  <button
+                    type="button"
+                    onClick={onCancel}
+                    className="rounded text-[7px] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="space-y-0.5 px-1.5 py-1 font-mono text-[6px] leading-tight">
+                  <div className="truncate text-[var(--text-primary)]">$ {cmd}</div>
+                  <div className="text-[var(--text-muted)]">output…</div>
+                </div>
+              </MockModalShell>
+            )}
+
+            {running === "terminal" && (
+              <div className="demo-terminal absolute inset-0 bg-black p-1.5 font-mono text-[7px] leading-tight text-white/90">
+                <div className="truncate">$ {cmd}</div>
+                <span className="demo-cursor mt-0.5 inline-block h-[6px] w-[3px] bg-white/80" />
+              </div>
+            )}
+
+            {running === "background" && (
+              <div className="demo-toast absolute right-1.5 top-1.5 flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--bg-primary)] px-1.5 py-1 shadow">
+                <span className="h-1 w-1 animate-pulse rounded-full bg-[var(--text-secondary)]" />
+                <span className="max-w-[90px] truncate text-[7px] text-[var(--text-secondary)]">{label} running…</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -751,7 +926,7 @@ function MenuOptionsEditor({
             <input
               value={child.cmd}
               onChange={(e) => updateField(child, "cmd", e.target.value)}
-              placeholder={index === 0 ? "./deploy.sh prod" : "Command"}
+              placeholder={index === 0 ? "npm run deploy:production" : "Command"}
               className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)]"
             />
             <button
