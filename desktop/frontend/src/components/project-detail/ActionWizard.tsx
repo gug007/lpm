@@ -1055,7 +1055,7 @@ function RunModePicker({
         <span className="text-[12px] text-[var(--text-muted)]">{runModeHint(runMode, reuse)}</span>
       </div>
       <div className="grid grid-cols-3 gap-2">
-        <ModeButton active={runMode === "once"} icon={<ZapIcon />} title="Show in modal" onClick={() => onRunMode("once")} />
+        <ModeButton active={runMode === "once"} icon={<ZapIcon />} title="Run in modal" onClick={() => onRunMode("once")} />
         <ModeButton active={runMode === "terminal"} icon={<TerminalIcon />} title="Run in new terminal" onClick={() => onRunMode("terminal")} />
         <ModeButton active={runMode === "background"} icon={<SparkleIcon />} title="Run in background" onClick={() => onRunMode("background")} />
       </div>
