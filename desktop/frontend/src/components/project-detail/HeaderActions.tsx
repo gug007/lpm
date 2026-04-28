@@ -1,3 +1,4 @@
+import type { MouseEvent } from "react";
 import { ActionsGroup } from "../ActionsDnd";
 import { ActionView } from "../ActionView";
 import { PlusIcon } from "../icons";
@@ -12,6 +13,7 @@ interface HeaderActionsProps {
   wrapped: boolean;
   disabled: boolean;
   onRun: (action: ActionInfo) => void;
+  onContextMenu?: (e: MouseEvent, action: ActionInfo) => void;
   onAddAction: () => void;
 }
 
@@ -23,6 +25,7 @@ export function HeaderActions({
   wrapped,
   disabled,
   onRun,
+  onContextMenu,
   onAddAction,
 }: HeaderActionsProps) {
   return (
@@ -38,7 +41,13 @@ export function HeaderActions({
     >
       {actions.map((action) => (
         <SortableItem key={action.name} id={action.name}>
-          <ActionView action={action} compact={false} disabled={disabled} onRun={onRun} />
+          <ActionView
+            action={action}
+            compact={false}
+            disabled={disabled}
+            onRun={onRun}
+            onContextMenu={onContextMenu}
+          />
         </SortableItem>
       ))}
       <Tooltip content="Create action" side="bottom">

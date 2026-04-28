@@ -1,4 +1,4 @@
-import { type CSSProperties, type RefObject } from "react";
+import { type CSSProperties, type MouseEvent, type RefObject } from "react";
 import { TerminalView, type TerminalViewHandle } from "../TerminalView";
 import { TerminalFooter } from "../TerminalFooter";
 import type { PaneStatus } from "../../hooks/usePaneStatus";
@@ -27,6 +27,7 @@ interface TerminalPaneProps {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onRunAction: (action: ActionInfo) => void;
+  onActionContextMenu?: (e: MouseEvent, action: ActionInfo) => void;
 }
 
 export function TerminalPane({
@@ -47,6 +48,7 @@ export function TerminalPane({
   onZoomIn,
   onZoomOut,
   onRunAction,
+  onActionContextMenu,
 }: TerminalPaneProps) {
   return (
     <div
@@ -73,6 +75,7 @@ export function TerminalPane({
         actions={footerActions}
         actionIds={footerIds}
         onRunAction={onRunAction}
+        onActionContextMenu={onActionContextMenu}
         disabled={disabled}
       />
     </div>

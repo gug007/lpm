@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import YAML from "yaml";
 import { toast } from "sonner";
-import { ReadConfig, SaveConfig } from "../../../wailsjs/go/main/App";
+import { appendAction } from "../../actionConfig";
 import { slugify } from "../../slugify";
+import { uniqueKey } from "../../uniqueKey";
 import {
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -47,14 +48,6 @@ interface CreateActionWizardProps {
   nextPosition: number;
   onClose: () => void;
   onCreated: () => void;
-}
-
-function uniqueKey(base: string, existing: string[]): string {
-  const seed = base || "new-action";
-  if (!existing.includes(seed)) return seed;
-  let i = 2;
-  while (existing.includes(`${seed}-${i}`)) i += 1;
-  return `${seed}-${i}`;
 }
 
 function newChild(): ChildDraft {
@@ -183,18 +176,6 @@ function buildActionPayload({
   return payload;
 }
 
-async function appendAction(projectName: string, key: string, payload: Record<string, unknown>) {
-  const content = await ReadConfig(projectName);
-  const doc = YAML.parseDocument(content || "{}");
-  let actions = doc.get("actions", true);
-  if (!YAML.isMap(actions)) {
-    actions = doc.createNode({});
-    doc.set("actions", actions);
-  }
-  if (YAML.isMap(actions)) actions.set(key, payload);
-  await SaveConfig(projectName, String(doc));
-}
-
 export function CreateActionWizard({
   open,
   projectName,
@@ -237,7 +218,7 @@ export function CreateActionWizard({
   }, [open, step, shape]);
 
   const buildSubmission = () => ({
-    key: uniqueKey(slugify(name), existingActionKeys),
+    key: uniqueKey(slugify(name) || "new-action", existingActionKeys),
     payload: buildActionPayload({ shape, name, cmd, children, runMode, reuse, confirm, position: nextPosition }),
   });
 
