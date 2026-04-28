@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gug007/lpm/internal/config"
+	"github.com/rjeczalik/notify"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -20,10 +21,29 @@ import (
 // "remote may have changed" guarantee for the typical interactive cadence.
 const pullTTL = 5 * time.Second
 
+// syncDebounce coalesces filesystem bursts (save-all, formatter pass,
+// codegen) into a single rsync push. Long enough to absorb a typical
+// editor/AI-tool save burst, short enough that "save → pushed" feels
+// near-immediate. The push goroutine itself serializes on state.mu, so
+// this only governs how often we *try*.
+const syncDebounce = 1500 * time.Millisecond
+
+const syncEventBuffer = 256
+
 type projectSync struct {
 	mu       sync.Mutex
 	path     string
 	lastPull time.Time
+	watcher  *syncWatcher
+}
+
+// syncWatcher watches a project's local mirror and fires debounced
+// rsync pushes when files change. One per project, started on the
+// first successful pull and torn down by removeProjectSync / shutdown.
+type syncWatcher struct {
+	events   chan notify.EventInfo
+	stop     chan struct{}
+	closeOne sync.Once
 }
 
 func projectSyncDir(name string) string {
@@ -77,7 +97,83 @@ func (a *App) ensureProjectSync(cfg *config.ProjectConfig) (string, error) {
 		return "", fmt.Errorf("rsync pull: %s", config.TrimTail(out, 500))
 	}
 	state.lastPull = time.Now()
+
+	// Mirror is now populated; start a watcher so subsequent local edits
+	// auto-push. Idempotent: re-entries find a watcher already running.
+	if state.watcher == nil {
+		state.watcher = a.startSyncWatcher(cfg, state)
+	}
+
 	return state.path, nil
+}
+
+// startSyncWatcher attaches a recursive FSEvents watch to the local
+// mirror. Returns nil if notify.Watch fails (logged to stderr); callers
+// continue without auto-push in that case — onClose still pushes at
+// terminal exit.
+func (a *App) startSyncWatcher(cfg *config.ProjectConfig, state *projectSync) *syncWatcher {
+	w := &syncWatcher{
+		events: make(chan notify.EventInfo, syncEventBuffer),
+		stop:   make(chan struct{}),
+	}
+	if err := notify.Watch(filepath.Join(state.path, "..."), w.events, notify.All); err != nil {
+		fmt.Fprintf(os.Stderr, "sync watcher for %s: %v\n", cfg.Name, err)
+		return nil
+	}
+	go a.runSyncWatcher(cfg, state.path, w)
+	return w
+}
+
+func (w *syncWatcher) close() {
+	w.closeOne.Do(func() {
+		notify.Stop(w.events)
+		close(w.stop)
+	})
+}
+
+// runSyncWatcher debounces fs events and fires a push for each quiet
+// window. pushProjectSyncAsync queues onto state.mu, so a push that
+// arrives during a pull or another push waits its turn rather than
+// racing rsync.
+func (a *App) runSyncWatcher(cfg *config.ProjectConfig, root string, w *syncWatcher) {
+	var timer *time.Timer
+	fire := func() { a.pushProjectSyncAsync(cfg) }
+	for {
+		select {
+		case <-w.stop:
+			if timer != nil {
+				timer.Stop()
+			}
+			return
+		case ev := <-w.events:
+			if ignoreSyncEvent(root, ev.Path()) {
+				continue
+			}
+			if timer == nil {
+				timer = time.AfterFunc(syncDebounce, fire)
+			} else {
+				timer.Reset(syncDebounce)
+			}
+		}
+	}
+}
+
+// ignoreSyncEvent drops events that should never trigger a push:
+// paths outside root, the root itself, and anything inside heavy
+// build/dep directories that we don't want to ship over the wire.
+// Unlike ignoreWatcherEvent, .git changes ARE pushed — local commits
+// in the mirror should propagate.
+func ignoreSyncEvent(root, full string) bool {
+	rel, err := filepath.Rel(root, full)
+	if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
+		return true
+	}
+	for _, seg := range strings.Split(rel, string(filepath.Separator)) {
+		if _, bad := watcherIgnoredDirs[seg]; bad {
+			return true
+		}
+	}
+	return false
 }
 
 // pushProjectSync mirrors local edits back to the remote. Uses --update
@@ -120,10 +216,31 @@ func (a *App) pushProjectSyncAsync(cfg *config.ProjectConfig) {
 
 func (a *App) removeProjectSync(name string) {
 	a.syncMu.Lock()
+	state, ok := a.syncs[name]
 	delete(a.syncs, name)
 	a.syncMu.Unlock()
+	if ok && state.watcher != nil {
+		state.watcher.close()
+	}
 	if err := os.RemoveAll(projectSyncDir(name)); err != nil {
 		fmt.Fprintf(os.Stderr, "remove sync dir %s: %v\n", name, err)
+	}
+}
+
+// stopAllSyncWatchers detaches every active mirror watcher. Called at
+// shutdown so FSEvents goroutines don't outlive the app.
+func (a *App) stopAllSyncWatchers() {
+	a.syncMu.Lock()
+	watchers := make([]*syncWatcher, 0, len(a.syncs))
+	for _, s := range a.syncs {
+		if s.watcher != nil {
+			watchers = append(watchers, s.watcher)
+			s.watcher = nil
+		}
+	}
+	a.syncMu.Unlock()
+	for _, w := range watchers {
+		w.close()
 	}
 }
 

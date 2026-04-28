@@ -253,6 +253,10 @@ func (a *App) shutdown(ctx context.Context) {
 	a.stopAllPortPollers()
 	a.stopAllPortForwards()
 
+	// Detach mirror watchers before waiting on pushes so no new pushes
+	// get queued while we're draining.
+	a.stopAllSyncWatchers()
+
 	// Wait for in-flight sync pushes to finish so we don't truncate
 	// rsync mid-transfer. Bounded so a wedged remote can't block exit.
 	a.waitPushes(30 * time.Second)
