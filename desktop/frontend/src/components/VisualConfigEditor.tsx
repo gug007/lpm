@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import YAML from "yaml";
 import { AddNewPicker, type NewItemType } from "./AddNewPicker";
 import { PlusIcon, TrashIcon, ChevronDownIcon, ChevronRightIcon, ZapIcon, PlayIcon, TerminalIcon, LayersIcon } from "./icons";
+import { uniqueKey } from "../uniqueKey";
 
 // ── form state types ──
 
@@ -180,15 +181,6 @@ function serializeToYaml(form: ConfigForm): string {
   }
 
   return YAML.stringify(doc, { lineWidth: 0 });
-}
-
-// ── helpers ──
-
-function uniqueKey(prefix: string, existing: string[]): string {
-  if (!existing.includes(prefix)) return prefix;
-  let i = 2;
-  while (existing.includes(`${prefix}-${i}`)) i++;
-  return `${prefix}-${i}`;
 }
 
 // ── sub-components ──

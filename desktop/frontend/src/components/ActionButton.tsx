@@ -1,3 +1,5 @@
+import type { MouseEvent } from "react";
+
 const actionStyles = {
   primary:
     "bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-85",
@@ -11,11 +13,13 @@ const actionStyles = {
 
 export function ActionButton({
   onClick,
+  onContextMenu,
   disabled,
   variant,
   label,
 }: {
   onClick: () => void;
+  onContextMenu?: (e: MouseEvent) => void;
   disabled: boolean;
   variant: keyof typeof actionStyles;
   label: string;
@@ -23,8 +27,9 @@ export function ActionButton({
   return (
     <button
       onClick={onClick}
+      onContextMenu={onContextMenu}
       disabled={disabled}
-      className={`shrink-0 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 ${actionStyles[variant]}`}
+      className={`shrink-0 select-none whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 ${actionStyles[variant]}`}
     >
       {label}
     </button>

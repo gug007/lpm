@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { toast } from "sonner";
 import { ActionsDnd } from "./ActionsDnd";
 import { ActionView } from "./ActionView";
 import { ConfigEditor } from "./ConfigEditor";
@@ -6,11 +7,15 @@ import { NotesView } from "./NotesView";
 import { type TerminalViewHandle } from "./TerminalView";
 import { ConfigErrorView } from "./project-detail/ConfigErrorView";
 import { Controls } from "./project-detail/Controls";
+import { ActionWizard } from "./project-detail/ActionWizard";
+import { ActionContextMenu } from "./project-detail/ActionContextMenu";
 import { EmptyTerminalState } from "./project-detail/EmptyTerminalState";
 import { Header } from "./project-detail/Header";
 import { HeaderActions } from "./project-detail/HeaderActions";
 import { Modals } from "./project-detail/Modals";
 import { TerminalPane } from "./project-detail/TerminalPane";
+import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { deleteAction } from "../actionConfig";
 import { EMPTY_SERVICES, noop } from "./project-detail/constants";
 import { useActionsByDisplay } from "../hooks/useActionsByDisplay";
 import { useDetailView } from "../hooks/useDetailView";
@@ -26,6 +31,7 @@ import { countPersistedTabs, getProjectTerminals } from "../terminals";
 import { useAppStore } from "../store/app";
 import {
   isFooterDisplay,
+  type ActionInfo,
   type ActionsLayout,
   type ProjectInfo,
 } from "../types";
@@ -56,9 +62,14 @@ export function ProjectDetail({
   // ── local UI state ──────────────────────────────────────────────────
   const [loading, setLoading] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [showCreateAction, setShowCreateAction] = useState(false);
+  const [editingAction, setEditingAction] = useState<ActionInfo | null>(null);
   const [showQuickMenu, setShowQuickMenu] = useState(false);
   const [showTerminalSettings, setShowTerminalSettings] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [actionMenu, setActionMenu] = useState<{ x: number; y: number; action: ActionInfo } | null>(null);
+  const [actionToDelete, setActionToDelete] = useState<ActionInfo | null>(null);
+  const [deletingAction, setDeletingAction] = useState(false);
   const profileMenuRef = useOutsideClick<HTMLDivElement>(
     () => setShowProfileMenu(false),
     showProfileMenu,
@@ -164,7 +175,12 @@ export function ProjectDetail({
 
   // ── derived layout state ────────────────────────────────────────────
   const showProjectName = getSettings().showProjectName !== false;
-  const hasActions = headerActions.length > 0;
+  const existingActionKeys = useMemo(
+    () => (project.actions ?? []).map((action) => action.name),
+    [project.actions],
+  );
+  const nextHeaderActionPosition =
+    headerActions.reduce((max, action, index) => Math.max(max, action.position ?? index + 1), 0) + 1;
   const showEmptyState = !project.running && detailView === "terminal" && terminalCount === 0;
 
   const {
@@ -194,16 +210,38 @@ export function ProjectDetail({
     );
   }
 
+  const handleActionContextMenu = useCallback((e: MouseEvent, action: ActionInfo) => {
+    e.preventDefault();
+    setActionMenu({ x: e.clientX, y: e.clientY, action });
+  }, []);
+
+  const handleConfirmDeleteAction = async () => {
+    if (!actionToDelete) return;
+    setDeletingAction(true);
+    try {
+      await deleteAction(project.name, actionToDelete.name);
+      toast.success(`Deleted ${actionToDelete.label || actionToDelete.name}`);
+      setActionToDelete(null);
+      onRefresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete action");
+    } finally {
+      setDeletingAction(false);
+    }
+  };
+
   // ── render ──────────────────────────────────────────────────────────
-  const headerActionsNode = hasActions ? (
+  const headerActionsNode = (
     <HeaderActions
       actions={headerActions}
       ids={headerIds}
       wrapped={actionsWrapped}
       disabled={runningAction !== null}
       onRun={handleRunAction}
+      onContextMenu={handleActionContextMenu}
+      onAddAction={() => setShowCreateAction(true)}
     />
-  ) : null;
+  );
 
   const controlsNode = (
     <Controls
@@ -248,7 +286,6 @@ export function ProjectDetail({
           rowRef={headerRowRef}
           innerRef={innerContainerRef}
           actionsWrapped={actionsWrapped}
-          hasActions={hasActions}
           actions={headerActionsNode}
           controls={controlsNode}
         />
@@ -279,6 +316,7 @@ export function ProjectDetail({
           onZoomIn={zoomIn}
           onZoomOut={zoomOut}
           onRunAction={handleRunAction}
+          onActionContextMenu={handleActionContextMenu}
         />
 
         {detailView === "config" && (
@@ -314,6 +352,44 @@ export function ProjectDetail({
           onZoomOut={zoomOut}
           terminalTheme={terminalTheme}
           onTerminalThemeChange={setTerminalTheme}
+        />
+
+        <ActionWizard
+          open={showCreateAction || editingAction !== null}
+          projectName={project.name}
+          existingActionKeys={existingActionKeys}
+          nextPosition={nextHeaderActionPosition}
+          editing={editingAction}
+          onClose={() => {
+            setShowCreateAction(false);
+            setEditingAction(null);
+          }}
+          onSaved={() => onRefresh()}
+        />
+
+        {actionMenu && (
+          <ActionContextMenu
+            x={actionMenu.x}
+            y={actionMenu.y}
+            onEdit={() => setEditingAction(actionMenu.action)}
+            onDelete={() => setActionToDelete(actionMenu.action)}
+            onClose={() => setActionMenu(null)}
+          />
+        )}
+
+        <ConfirmDialog
+          open={actionToDelete !== null}
+          title="Delete action?"
+          body={
+            <>
+              Remove <span className="font-medium text-[var(--text-primary)]">{actionToDelete?.label || actionToDelete?.name}</span> from this project's config. This cannot be undone.
+            </>
+          }
+          confirmLabel="Delete"
+          variant="destructive"
+          disabled={deletingAction}
+          onCancel={() => setActionToDelete(null)}
+          onConfirm={handleConfirmDeleteAction}
         />
       </div>
     </ActionsDnd>

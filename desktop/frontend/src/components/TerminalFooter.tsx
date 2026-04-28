@@ -1,3 +1,4 @@
+import type { MouseEvent } from "react";
 import { useGitStatus } from "../hooks/useGitStatus";
 import { ActionsGroup } from "./ActionsDnd";
 import { ActionView } from "./ActionView";
@@ -10,10 +11,18 @@ interface TerminalFooterProps {
   actions: ActionInfo[];
   actionIds: string[];
   onRunAction: (action: ActionInfo) => void;
+  onActionContextMenu?: (e: MouseEvent, action: ActionInfo) => void;
   disabled: boolean;
 }
 
-export function TerminalFooter({ projectPath, actions, actionIds, onRunAction, disabled }: TerminalFooterProps) {
+export function TerminalFooter({
+  projectPath,
+  actions,
+  actionIds,
+  onRunAction,
+  onActionContextMenu,
+  disabled,
+}: TerminalFooterProps) {
   const gitState = useGitStatus(projectPath);
   const isGitRepo = !!gitState.status?.isGitRepo;
 
@@ -27,7 +36,13 @@ export function TerminalFooter({ projectPath, actions, actionIds, onRunAction, d
     >
       {actions.map((action) => (
         <SortableItem key={action.name} id={action.name}>
-          <ActionView action={action} compact disabled={disabled} onRun={onRunAction} />
+          <ActionView
+            action={action}
+            compact
+            disabled={disabled}
+            onRun={onRunAction}
+            onContextMenu={onActionContextMenu}
+          />
         </SortableItem>
       ))}
       {isGitRepo && <BranchSwitcher projectPath={projectPath} gitState={gitState} />}

@@ -1,6 +1,6 @@
-import { useEffect } from "react";
 import { ChevronRightIcon, ClipboardIcon, CopyIcon, PencilIcon, TrashIcon } from "./icons";
-import { useOutsideClick } from "../hooks/useOutsideClick";
+import { ContextMenuItem } from "./ui/ContextMenuItem";
+import { ContextMenuShell } from "./ui/ContextMenuShell";
 import { launchOpenInTarget, useOpenInTargets } from "../hooks/useOpenInTargets";
 
 interface ProjectContextMenuProps {
@@ -30,66 +30,29 @@ export function ProjectContextMenu({
   onRemove,
   onClose,
 }: ProjectContextMenuProps) {
-  const ref = useOutsideClick<HTMLDivElement>(onClose);
   const openInTargets = useOpenInTargets();
-
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [onClose]);
+  const close = (fn: () => void) => () => {
+    fn();
+    onClose();
+  };
 
   return (
-    <div
-      ref={ref}
-      className="fixed z-50 min-w-[180px] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg"
-      style={{ left: x, top: y }}
-    >
-      <button
-        onClick={() => {
-          onRename();
-          onClose();
-        }}
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-      >
-        <span className="flex-1 truncate">Rename</span>
-        <PencilIcon />
-      </button>
-      <button
-        onClick={() => {
-          onDuplicate();
-          onClose();
-        }}
+    <ContextMenuShell x={x} y={y} minWidth={180} onClose={onClose}>
+      <ContextMenuItem label="Rename" icon={<PencilIcon />} onClick={close(onRename)} />
+      <ContextMenuItem
+        label="Duplicate project"
+        icon={<CopyIcon />}
+        onClick={close(onDuplicate)}
         disabled={busy}
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <span className="flex-1 truncate">Duplicate project</span>
-        <CopyIcon />
-      </button>
-      <button
-        onClick={() => {
-          onDuplicateExcludeUncommitted();
-          onClose();
-        }}
+      />
+      <ContextMenuItem
+        label="Duplicate (committed only)"
+        icon={<CopyIcon />}
+        onClick={close(onDuplicateExcludeUncommitted)}
         disabled={busy}
         title="Duplicate the project and reset the copy to HEAD, discarding staged, unstaged, and untracked changes"
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <span className="flex-1 truncate">Duplicate (committed only)</span>
-        <CopyIcon />
-      </button>
-      <button
-        onClick={() => {
-          onCopyPath();
-          onClose();
-        }}
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-      >
-        <span className="flex-1 truncate">Copy path</span>
-        <ClipboardIcon />
-      </button>
+      />
+      <ContextMenuItem label="Copy path" icon={<ClipboardIcon />} onClick={close(onCopyPath)} />
       {projectPath && openInTargets.length > 0 && (
         <div className="group relative">
           <button
@@ -118,19 +81,15 @@ export function ProjectContextMenu({
       {canRemove && (
         <>
           <div className="my-1 border-t border-[var(--border)]" />
-          <button
-            onClick={() => {
-              onRemove();
-              onClose();
-            }}
+          <ContextMenuItem
+            destructive
+            label="Remove duplicate"
+            icon={<TrashIcon />}
+            onClick={close(onRemove)}
             disabled={busy}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--accent-red)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <span className="flex-1 truncate">Remove duplicate</span>
-            <TrashIcon />
-          </button>
+          />
         </>
       )}
-    </div>
+    </ContextMenuShell>
   );
 }

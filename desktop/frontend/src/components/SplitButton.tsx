@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import type { ActionInfo } from "../types";
 import { ChevronDownIcon } from "./icons";
@@ -38,10 +38,11 @@ interface SplitButtonProps {
   action: ActionInfo;
   disabled: boolean;
   onRunAction: (action: ActionInfo) => void;
+  onContextMenu?: (e: MouseEvent) => void;
   compact?: boolean;
 }
 
-export function SplitButton({ action, disabled, onRunAction, compact = false }: SplitButtonProps) {
+export function SplitButton({ action, disabled, onRunAction, onContextMenu, compact = false }: SplitButtonProps) {
   const [open, setOpen] = useState(false);
   const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
 
@@ -68,7 +69,7 @@ export function SplitButton({ action, disabled, onRunAction, compact = false }: 
 
   if (!isSplit) {
     return (
-      <div ref={ref} className="relative shrink-0">
+      <div ref={ref} onContextMenu={onContextMenu} className="relative shrink-0 select-none">
         <button
           onClick={() => setOpen((v) => !v)}
           disabled={disabled}
@@ -83,7 +84,7 @@ export function SplitButton({ action, disabled, onRunAction, compact = false }: 
   }
 
   return (
-    <div ref={ref} className="relative shrink-0">
+    <div ref={ref} onContextMenu={onContextMenu} className="relative shrink-0 select-none">
       <div className={`inline-flex items-stretch ${s.rounded} ${s.border}`}>
         <button
           onClick={() => onRunAction(action)}

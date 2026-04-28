@@ -7,7 +7,6 @@ interface HeaderProps {
   rowRef: RefObject<HTMLDivElement | null>;
   innerRef: RefObject<HTMLDivElement | null>;
   actionsWrapped: boolean;
-  hasActions: boolean;
   actions: ReactNode;
   controls: ReactNode;
 }
@@ -21,7 +20,6 @@ export function Header({
   rowRef,
   innerRef,
   actionsWrapped,
-  hasActions,
   actions,
   controls,
 }: HeaderProps) {
@@ -40,7 +38,7 @@ export function Header({
           {controls}
         </div>
       </div>
-      {actionsWrapped && hasActions && (
+      {actionsWrapped && (
         <div className={`wails-drag -mx-3 mt-2 pb-1 transition-[padding] duration-200 ${indent}`}>
           {actions}
         </div>
