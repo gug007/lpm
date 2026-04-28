@@ -16,8 +16,7 @@ interface HeaderActionsProps {
 }
 
 // The drag-sortable list of header-display actions. The wrapper is also
-// the droppable zone for cross-group drops from the footer. A trailing
-// plus button starts the guided Create Action flow.
+// the droppable zone for cross-group drops from the footer.
 export function HeaderActions({
   actions,
   ids,

@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import YAML from "yaml";
 import { toast } from "sonner";
 import { ReadConfig, SaveConfig } from "../../../wailsjs/go/main/App";
+import { slugify } from "../../slugify";
 import {
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  HelpCircleIcon,
+  PlayIcon,
   PlusIcon,
   SparkleIcon,
   TerminalIcon,
@@ -22,44 +25,28 @@ type RunMode = "once" | "terminal" | "background";
 const SHAPE_PREVIEW_BUTTON_CLASS =
   "border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-primary)]";
 
+const SHAPE_DESCRIPTION: Record<Shape, string> = {
+  button: "Header button",
+  split: "Split header button",
+  dropdown: "Header dropdown",
+};
+
 interface ChildDraft {
   id: string;
   label: string;
   cmd: string;
-}
-
-interface InputDraft {
-  id: string;
-  key: string;
-  label: string;
-  type: "text" | "password" | "radio";
-  required: boolean;
-  placeholder: string;
-  defaultValue: string;
-  options: string;
+  runMode: RunMode;
+  reuse: boolean;
+  confirm: boolean;
 }
 
 interface CreateActionWizardProps {
   open: boolean;
   projectName: string;
-  isRemote: boolean;
   existingActionKeys: string[];
   nextPosition: number;
   onClose: () => void;
   onCreated: () => void;
-}
-
-function newId() {
-  return crypto.randomUUID();
-}
-
-function slugify(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/['"]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }
 
 function uniqueKey(base: string, existing: string[]): string {
@@ -71,20 +58,7 @@ function uniqueKey(base: string, existing: string[]): string {
 }
 
 function newChild(): ChildDraft {
-  return { id: newId(), label: "", cmd: "" };
-}
-
-function newInput(): InputDraft {
-  return {
-    id: newId(),
-    key: "",
-    label: "",
-    type: "text",
-    required: false,
-    placeholder: "",
-    defaultValue: "",
-    options: "",
-  };
+  return { id: crypto.randomUUID(), label: "", cmd: "", runMode: "once", reuse: false, confirm: false };
 }
 
 function inferRunMode(text: string): RunMode {
@@ -114,6 +88,32 @@ function runModeHint(mode: RunMode, reuse: boolean) {
   return "Runs once and displays the result in a modal.";
 }
 
+function stepCopy(step: number, shape: Shape): { title: string; hint: string; primary: string } {
+  if (step === 0)
+    return {
+      title: "What should the button say?",
+      hint: "Pick a short name. This is what you will click in the project header.",
+      primary: "Continue",
+    };
+  if (step === 1)
+    return {
+      title: "How should it appear?",
+      hint: "Button is best for most actions. Menus are only for related commands.",
+      primary: "Continue",
+    };
+  if (step === 2)
+    return {
+      title: shape === "button" ? "What command should it run?" : "What commands belong in the menu?",
+      hint: "Paste the same command you would type in a terminal.",
+      primary: "Review action",
+    };
+  return {
+    title: "Ready to add it?",
+    hint: "Confirm the simple summary. The button appears in the header after creation.",
+    primary: "Create action",
+  };
+}
+
 function actionSummary(shape: Shape, name: string, cmd: string, children: ChildDraft[], runMode: RunMode, reuse: boolean) {
   const label = name.trim() || "New action";
   if (shape === "dropdown") {
@@ -135,9 +135,6 @@ function buildActionPayload({
   runMode,
   reuse,
   confirm,
-  cwd,
-  inputs,
-  syncMode,
   position,
 }: {
   shape: Shape;
@@ -147,9 +144,6 @@ function buildActionPayload({
   runMode: RunMode;
   reuse: boolean;
   confirm: boolean;
-  cwd: string;
-  inputs: InputDraft[];
-  syncMode: boolean;
   position: number;
 }) {
   const payload: Record<string, unknown> = {
@@ -158,33 +152,12 @@ function buildActionPayload({
     position,
   };
 
-  if (shape !== "dropdown") payload.cmd = cmd.trim();
-  if (shape !== "dropdown" && runMode !== "once") payload.type = runMode;
-  if (shape !== "dropdown" && runMode === "terminal" && reuse) payload.reuse = true;
-  if (shape !== "dropdown" && confirm) payload.confirm = true;
-  if (cwd.trim()) payload.cwd = cwd.trim();
-  if (syncMode) payload.mode = "sync";
-
-  const inputMap: Record<string, unknown> = {};
-  for (const input of inputs) {
-    const key = slugify(input.key || input.label);
-    if (!key) continue;
-    const value: Record<string, unknown> = {};
-    if (input.label.trim()) value.label = input.label.trim();
-    if (input.type !== "text") value.type = input.type;
-    if (input.required) value.required = true;
-    if (input.placeholder.trim()) value.placeholder = input.placeholder.trim();
-    if (input.defaultValue.trim()) value.default = input.defaultValue.trim();
-    if (input.type === "radio") {
-      const options = input.options
-        .split(",")
-        .map((option) => option.trim())
-        .filter(Boolean);
-      if (options.length) value.options = options;
-    }
-    inputMap[key] = value;
+  if (shape !== "dropdown") {
+    payload.cmd = cmd.trim();
+    if (runMode !== "once") payload.type = runMode;
+    if (runMode === "terminal" && reuse) payload.reuse = true;
+    if (confirm) payload.confirm = true;
   }
-  if (shape !== "dropdown" && Object.keys(inputMap).length) payload.inputs = inputMap;
 
   if (shape !== "button") {
     const childMap: Record<string, unknown> = {};
@@ -194,11 +167,15 @@ function buildActionPayload({
       .forEach((child, index) => {
         const key = uniqueKey(slugify(child.label) || `option-${index + 1}`, used);
         used.push(key);
-        childMap[key] = {
+        const childPayload: Record<string, unknown> = {
           label: child.label.trim() || key,
           cmd: child.cmd.trim(),
           position: index + 1,
         };
+        if (child.runMode !== "once") childPayload.type = child.runMode;
+        if (child.runMode === "terminal" && child.reuse) childPayload.reuse = true;
+        if (child.confirm) childPayload.confirm = true;
+        childMap[key] = childPayload;
       });
     payload.actions = childMap;
   }
@@ -221,7 +198,6 @@ async function appendAction(projectName: string, key: string, payload: Record<st
 export function CreateActionWizard({
   open,
   projectName,
-  isRemote,
   existingActionKeys,
   nextPosition,
   onClose,
@@ -235,11 +211,7 @@ export function CreateActionWizard({
   const [runMode, setRunMode] = useState<RunMode>("once");
   const [reuse, setReuse] = useState(false);
   const [confirm, setConfirm] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [showYaml, setShowYaml] = useState(false);
-  const [cwd, setCwd] = useState("");
-  const [inputs, setInputs] = useState<InputDraft[]>([]);
-  const [syncMode, setSyncMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const commandRef = useRef<HTMLInputElement>(null);
@@ -254,11 +226,7 @@ export function CreateActionWizard({
     setRunMode("once");
     setReuse(false);
     setConfirm(false);
-    setShowAdvanced(false);
     setShowYaml(false);
-    setCwd("");
-    setInputs([]);
-    setSyncMode(false);
     setSaving(false);
     setTimeout(() => nameRef.current?.focus(), 50);
   }, [open]);
@@ -268,54 +236,23 @@ export function CreateActionWizard({
     setTimeout(() => commandRef.current?.focus(), 50);
   }, [open, step, shape]);
 
-  const finalKey = useMemo(() => uniqueKey(slugify(name), existingActionKeys), [name, existingActionKeys]);
-  const payload = useMemo(
-    () =>
-      buildActionPayload({
-        shape,
-        name,
-        cmd,
-        children,
-        runMode,
-        reuse,
-        confirm,
-        cwd,
-        inputs,
-        syncMode,
-        position: nextPosition,
-      }),
-    [shape, name, cmd, children, runMode, reuse, confirm, cwd, inputs, syncMode, nextPosition],
-  );
+  const buildSubmission = () => ({
+    key: uniqueKey(slugify(name), existingActionKeys),
+    payload: buildActionPayload({ shape, name, cmd, children, runMode, reuse, confirm, position: nextPosition }),
+  });
 
+  const cmdFilled = Boolean(cmd.trim());
+  const hasMenuOption = children.some((child) => child.cmd.trim());
+  const showRunMode = shape !== "dropdown" && cmdFilled;
+  const showMenuOptions = shape === "dropdown" || (shape === "split" && cmdFilled);
   const commandIsReady =
-    shape === "button"
-      ? Boolean(cmd.trim())
-      : shape === "split"
-        ? Boolean(cmd.trim()) && children.some((child) => child.cmd.trim())
-        : children.some((child) => child.cmd.trim());
-  const canContinue = step === 0 ? Boolean(name.trim()) : step === 1 ? Boolean(shape) : step === 2 ? commandIsReady : true;
+    shape === "button" ? cmdFilled : shape === "split" ? cmdFilled && hasMenuOption : hasMenuOption;
+  const canContinue =
+    step === 0 ? Boolean(name.trim()) : step === 2 ? commandIsReady : true;
   const totalSteps = 4;
   const actionLabel = name.trim() || "New action";
 
-  const title =
-    step === 0
-      ? "What should the button say?"
-      : step === 1
-        ? "How should it appear?"
-        : step === 2
-          ? shape === "button"
-            ? "What command should it run?"
-            : "What commands belong in the menu?"
-          : "Ready to add it?";
-  const hint =
-    step === 0
-      ? "Pick a short name. This is what you will click in the project header."
-      : step === 1
-        ? "Button is best for most actions. Menus are only for related commands."
-        : step === 2
-          ? "Paste the same command you would type in a terminal."
-          : "Confirm the simple summary. The button appears in the header after creation.";
-  const primaryLabel = step === 2 ? "Review action" : step === 3 ? "Create action" : "Continue";
+  const { title, hint, primary: primaryLabel } = stepCopy(step, shape);
 
   const updateName = (value: string) => {
     setName(value);
@@ -340,7 +277,8 @@ export function CreateActionWizard({
 
     setSaving(true);
     try {
-      await appendAction(projectName, finalKey, payload);
+      const { key, payload } = buildSubmission();
+      await appendAction(projectName, key, payload);
       toast.success("Action created");
       onCreated();
       onClose();
@@ -449,54 +387,16 @@ export function CreateActionWizard({
                   />
                 )}
 
-                {shape !== "button" && (
-                  <MenuOptionsEditor children={children} onChange={setChildren} />
+                {showRunMode && (
+                  <>
+                    <RunModePicker runMode={runMode} reuse={reuse} onRunMode={setRunMode} onReuse={setReuse} />
+                    <ConfirmPicker confirm={confirm} onConfirm={setConfirm} />
+                  </>
                 )}
 
-                {shape !== "dropdown" && (
-                  <RunModePicker runMode={runMode} reuse={reuse} onRunMode={setRunMode} onReuse={setReuse} />
+                {showMenuOptions && (
+                  <MenuOptionsEditor options={children} onChange={setChildren} />
                 )}
-
-                <div className="border-t border-[var(--border)] pt-5">
-                  <button
-                    type="button"
-                    onClick={() => setShowAdvanced((value) => !value)}
-                    className="-mx-2 flex w-[calc(100%+1rem)] items-center justify-between gap-3 rounded-lg px-2 py-1 text-left transition-colors hover:bg-[var(--bg-hover)]"
-                  >
-                    <span>
-                      <span className="block text-[13px] font-medium text-[var(--text-primary)]">Advanced options</span>
-                      <span className="text-[12px] text-[var(--text-muted)]">
-                        Confirmation, working folder, prompts, or SSH sync.
-                      </span>
-                    </span>
-                    <span className="text-[var(--text-muted)]">
-                      {showAdvanced ? <ChevronDownIcon /> : <ChevronRightIcon />}
-                    </span>
-                  </button>
-
-                  {showAdvanced && (
-                    <div className="mt-4 space-y-3">
-                      {shape !== "dropdown" && (
-                        <ToggleRow
-                          checked={confirm}
-                          onChange={setConfirm}
-                          title="Ask before running"
-                          description="Recommended for deploys, deletes, and migrations."
-                        />
-                      )}
-                      {isRemote && (
-                        <ToggleRow
-                          checked={syncMode}
-                          onChange={setSyncMode}
-                          title="Run locally on synced copy"
-                          description="Uses sync mode for SSH projects."
-                        />
-                      )}
-                      <CommandField label="Working folder" value={cwd} onChange={setCwd} placeholder="./frontend" />
-                      {shape !== "dropdown" && <InputsEditor inputs={inputs} onChange={setInputs} />}
-                    </div>
-                  )}
-                </div>
               </div>
             )}
 
@@ -507,7 +407,7 @@ export function CreateActionWizard({
                     <div className="min-w-0">
                       <div className="truncate text-[20px] font-semibold tracking-tight text-[var(--text-primary)]">{actionLabel}</div>
                       <div className="mt-1 text-[12px] text-[var(--text-muted)]">
-                        {shape === "button" ? "Header button" : shape === "split" ? "Split header button" : "Header dropdown"}
+                        {SHAPE_DESCRIPTION[shape]}
                       </div>
                     </div>
                     {shape !== "dropdown" && (
@@ -519,13 +419,10 @@ export function CreateActionWizard({
                   <p className="mt-3 text-[13px] leading-6 text-[var(--text-secondary)]">
                     {actionSummary(shape, name, cmd, children, runMode, reuse)}
                   </p>
-                  {(confirm || cwd.trim() || Object.keys(payload.inputs as Record<string, unknown> | undefined ?? {}).length > 0 || syncMode || (shape !== "dropdown" && runMode === "terminal" && reuse)) && (
+                  {shape !== "dropdown" && (confirm || (runMode === "terminal" && reuse)) && (
                     <div className="mt-4 flex flex-wrap gap-2">
                       {confirm && <SummaryChip>Asks before running</SummaryChip>}
-                      {cwd.trim() && <SummaryChip>Folder: {cwd.trim()}</SummaryChip>}
-                      {Object.keys(payload.inputs as Record<string, unknown> | undefined ?? {}).length > 0 && <SummaryChip>Prompts for input</SummaryChip>}
-                      {syncMode && <SummaryChip>Sync mode</SummaryChip>}
-                      {shape !== "dropdown" && runMode === "terminal" && reuse && <SummaryChip>Reuses pane on re-run</SummaryChip>}
+                      {runMode === "terminal" && reuse && <SummaryChip>Reuses pane on re-run</SummaryChip>}
                     </div>
                   )}
                 </div>
@@ -540,11 +437,14 @@ export function CreateActionWizard({
                     {showYaml ? "Hide YAML" : "Show YAML"}
                   </button>
 
-                  {showYaml && (
-                    <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3.5 py-3 font-mono text-[12px] leading-relaxed text-[var(--text-secondary)]">
-                      {YAML.stringify({ actions: { [finalKey]: payload } }, { lineWidth: 0 })}
-                    </pre>
-                  )}
+                  {showYaml && (() => {
+                    const { key, payload } = buildSubmission();
+                    return (
+                      <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3.5 py-3 font-mono text-[12px] leading-relaxed text-[var(--text-secondary)]">
+                        {YAML.stringify({ actions: { [key]: payload } }, { lineWidth: 0 })}
+                      </pre>
+                    );
+                  })()}
                 </div>
               </div>
             )}
@@ -818,51 +718,71 @@ function CommandField({
 }
 
 function MenuOptionsEditor({
-  children,
+  options,
   onChange,
 }: {
-  children: ChildDraft[];
-  onChange: (children: ChildDraft[]) => void;
+  options: ChildDraft[];
+  onChange: (options: ChildDraft[]) => void;
 }) {
+  const updateChild = (id: string, patch: Partial<ChildDraft>) =>
+    onChange(options.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+
+  const updateField = (child: ChildDraft, field: "label" | "cmd", value: string) => {
+    const text = field === "label" ? `${value} ${child.cmd}` : `${child.label} ${value}`;
+    updateChild(child.id, {
+      [field]: value,
+      runMode: child.runMode === "once" ? inferRunMode(text) : child.runMode,
+      confirm: child.confirm || shouldConfirm(text),
+    });
+  };
+
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3">
       <div className="text-[13px] font-medium text-[var(--text-primary)]">Menu options</div>
-      {children.map((child, index) => (
-        <div key={child.id} className="grid grid-cols-[minmax(90px,0.8fr)_minmax(140px,1.4fr)_auto] gap-2">
-          <input
-            value={child.label}
-            onChange={(e) =>
-              onChange(
-                children.map((item) => (item.id === child.id ? { ...item, label: e.target.value } : item)),
-              )
-            }
-            placeholder={index === 0 ? "Production" : "Label"}
-            className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)]"
-          />
-          <input
-            value={child.cmd}
-            onChange={(e) =>
-              onChange(
-                children.map((item) => (item.id === child.id ? { ...item, cmd: e.target.value } : item)),
-              )
-            }
-            placeholder={index === 0 ? "./deploy.sh prod" : "Command"}
-            className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)]"
-          />
-          <button
-            type="button"
-            onClick={() => onChange(children.filter((item) => item.id !== child.id))}
-            disabled={children.length === 1}
-            aria-label="Remove option"
-            className="rounded-lg p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-30"
-          >
-            <TrashIcon />
-          </button>
+      {options.map((child, index) => (
+        <div key={child.id} className="space-y-4">
+          <div className="grid grid-cols-[minmax(90px,0.8fr)_minmax(140px,1.4fr)_auto] gap-2">
+            <input
+              value={child.label}
+              onChange={(e) => updateField(child, "label", e.target.value)}
+              placeholder={index === 0 ? "Production" : "Label"}
+              className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)]"
+            />
+            <input
+              value={child.cmd}
+              onChange={(e) => updateField(child, "cmd", e.target.value)}
+              placeholder={index === 0 ? "./deploy.sh prod" : "Command"}
+              className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)]"
+            />
+            <button
+              type="button"
+              onClick={() => onChange(options.filter((item) => item.id !== child.id))}
+              disabled={options.length === 1}
+              aria-label="Remove option"
+              className="rounded-lg p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-30"
+            >
+              <TrashIcon />
+            </button>
+          </div>
+          {child.cmd.trim() && (
+            <div className="space-y-4 border-l-2 border-[var(--border)] pl-4">
+              <RunModePicker
+                runMode={child.runMode}
+                reuse={child.reuse}
+                onRunMode={(mode) => updateChild(child.id, { runMode: mode })}
+                onReuse={(value) => updateChild(child.id, { reuse: value })}
+              />
+              <ConfirmPicker
+                confirm={child.confirm}
+                onConfirm={(value) => updateChild(child.id, { confirm: value })}
+              />
+            </div>
+          )}
         </div>
       ))}
       <button
         type="button"
-        onClick={() => onChange([...children, newChild()])}
+        onClick={() => onChange([...options, newChild()])}
         className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
       >
         <PlusIcon /> Add menu option
@@ -903,6 +823,29 @@ function RunModePicker({
   );
 }
 
+function ConfirmPicker({
+  confirm,
+  onConfirm,
+}: {
+  confirm: boolean;
+  onConfirm: (value: boolean) => void;
+}) {
+  return (
+    <div>
+      <div className="mb-2.5 flex items-center justify-between gap-3">
+        <span className="text-[13px] font-medium text-[var(--text-primary)]">Confirm before running?</span>
+        <span className="text-[12px] text-[var(--text-muted)]">
+          {confirm ? "Shows a confirmation dialog before running." : "Runs as soon as you click."}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <ModeButton active={!confirm} icon={<PlayIcon />} title="Run immediately" onClick={() => onConfirm(false)} />
+        <ModeButton active={confirm} icon={<HelpCircleIcon />} title="Ask before running" onClick={() => onConfirm(true)} />
+      </div>
+    </div>
+  );
+}
+
 function ModeButton({
   active,
   icon,
@@ -927,121 +870,6 @@ function ModeButton({
       {icon}
       {title}
     </button>
-  );
-}
-
-function ToggleRow({
-  checked,
-  onChange,
-  title,
-  description,
-}: {
-  checked: boolean;
-  onChange: (value: boolean) => void;
-  title: string;
-  description: string;
-}) {
-  return (
-    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3.5 py-3 transition-colors hover:border-[var(--text-muted)]">
-      <input className="mt-0.5" type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      <span>
-        <span className="block text-[13px] font-medium text-[var(--text-primary)]">{title}</span>
-        <span className="text-[12px] text-[var(--text-muted)]">{description}</span>
-      </span>
-    </label>
-  );
-}
-
-function InputsEditor({ inputs, onChange }: { inputs: InputDraft[]; onChange: (inputs: InputDraft[]) => void }) {
-  return (
-    <div>
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-[12px] font-medium text-[var(--text-primary)]">Ask for input before running</span>
-        <button
-          type="button"
-          onClick={() => onChange([...inputs, newInput()])}
-          className="text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-        >
-          Add input
-        </button>
-      </div>
-      {inputs.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-[var(--border)] px-3 py-2 text-[11px] text-[var(--text-muted)]">
-          No prompts added.
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {inputs.map((input) => (
-            <div key={input.id} className="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-2.5">
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  value={input.key}
-                  onChange={(e) => onChange(inputs.map((item) => (item.id === input.id ? { ...item, key: e.target.value } : item)))}
-                  placeholder="tag"
-                  className="rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 text-[11px] text-[var(--text-primary)] outline-none focus:border-[var(--text-secondary)]"
-                />
-                <input
-                  value={input.label}
-                  onChange={(e) => onChange(inputs.map((item) => (item.id === input.id ? { ...item, label: e.target.value } : item)))}
-                  placeholder="Release tag"
-                  className="rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 text-[11px] text-[var(--text-primary)] outline-none focus:border-[var(--text-secondary)]"
-                />
-              </div>
-              <div className="mt-2 grid grid-cols-[1fr_auto] gap-2">
-                <select
-                  value={input.type}
-                  onChange={(e) =>
-                    onChange(inputs.map((item) => (item.id === input.id ? { ...item, type: e.target.value as InputDraft["type"] } : item)))
-                  }
-                  className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1.5 text-[11px] text-[var(--text-primary)] outline-none focus:border-[var(--text-secondary)]"
-                >
-                  <option value="text">Text</option>
-                  <option value="password">Password</option>
-                  <option value="radio">Choice</option>
-                </select>
-                <label className="flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)]">
-                  <input
-                    type="checkbox"
-                    checked={input.required}
-                    onChange={(e) => onChange(inputs.map((item) => (item.id === input.id ? { ...item, required: e.target.checked } : item)))}
-                  />
-                  Required
-                </label>
-              </div>
-              {input.type === "radio" && (
-                <input
-                  value={input.options}
-                  onChange={(e) => onChange(inputs.map((item) => (item.id === input.id ? { ...item, options: e.target.value } : item)))}
-                  placeholder="staging, production"
-                  className="mt-2 w-full rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 text-[11px] text-[var(--text-primary)] outline-none focus:border-[var(--text-secondary)]"
-                />
-              )}
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <input
-                  value={input.placeholder}
-                  onChange={(e) => onChange(inputs.map((item) => (item.id === input.id ? { ...item, placeholder: e.target.value } : item)))}
-                  placeholder="Placeholder"
-                  className="rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 text-[11px] text-[var(--text-primary)] outline-none focus:border-[var(--text-secondary)]"
-                />
-                <input
-                  value={input.defaultValue}
-                  onChange={(e) => onChange(inputs.map((item) => (item.id === input.id ? { ...item, defaultValue: e.target.value } : item)))}
-                  placeholder="Default"
-                  className="rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 text-[11px] text-[var(--text-primary)] outline-none focus:border-[var(--text-secondary)]"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => onChange(inputs.filter((item) => item.id !== input.id))}
-                className="mt-2 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-              >
-                Remove input
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }
 

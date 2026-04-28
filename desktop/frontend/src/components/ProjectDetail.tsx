@@ -324,7 +324,6 @@ export function ProjectDetail({
         <CreateActionWizard
           open={showCreateAction}
           projectName={project.name}
-          isRemote={project.isRemote}
           existingActionKeys={(project.actions ?? []).map((action) => action.name)}
           nextPosition={nextHeaderActionPosition}
           onClose={() => setShowCreateAction(false)}
