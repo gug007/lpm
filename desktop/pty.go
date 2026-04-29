@@ -34,8 +34,14 @@ type ptySession struct {
 	id          string
 	projectName string
 	declared    map[int]bool // service ports declared in cfg; nil for local projects
-	pty         *os.File
-	cmd         *exec.Cmd
+	// remote is cfg.IsRemote() at start time (post-sync-mirror): true when
+	// the underlying shell runs on the SSH host, false for local panes
+	// including sync-mode panes whose work happens in the local mirror.
+	// File drops/pastes consult this to decide whether to upload.
+	remote bool
+	ssh    *config.SSHSettings // SSH settings copied from cfg at start, nil if !remote
+	pty    *os.File
+	cmd    *exec.Cmd
 
 	// onClose runs (in a goroutine) after the underlying process exits.
 	// Used by mode: sync terminals to push the rsync mirror back.
@@ -144,7 +150,15 @@ func (a *App) StartTerminalForConfig(projectName string, terminalName string) (T
 // applies it directly to the local process env.
 func buildTerminalCmd(cfg *config.ProjectConfig, rawCwd string, extraEnv map[string]string) (*exec.Cmd, error) {
 	if cfg.IsRemote() {
-		argv := config.SSHCommandArgv(cfg, rawCwd, extraEnv, `exec "$SHELL" -l`)
+		// SSH doesn't forward TERM_PROGRAM by default, so the local
+		// pty.go cmd.Env setting doesn't reach the remote shell.
+		// Bake it into the remote script so TUIs like Claude Code can
+		// detect kitty-keyboard support and recognize Shift+Enter.
+		remoteEnv := map[string]string{"TERM_PROGRAM": "kitty"}
+		for k, v := range extraEnv {
+			remoteEnv[k] = v
+		}
+		argv := config.SSHCommandArgv(cfg, rawCwd, remoteEnv, `exec "$SHELL" -l`)
 		cmd := exec.Command(argv[0], argv[1:]...)
 		cmd.Dir = config.RemoteLocalSpawnDir(cfg)
 		return cmd, nil
@@ -192,9 +206,13 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 		id:          id,
 		projectName: projectName,
 		declared:    declared,
+		remote:      cfg.IsRemote(),
 		pty:         ptmx,
 		cmd:         cmd,
 		onClose:     onClose,
+	}
+	if sess.remote {
+		sess.ssh = cfg.SSH
 	}
 	sess.cond = sync.NewCond(&sess.mu)
 
@@ -352,6 +370,19 @@ func (a *App) AckTerminalData(id string, charCount int) error {
 		sess.cond.Signal()
 	}
 	return nil
+}
+
+// IsTerminalRemote reports whether the session's shell is running on the
+// SSH host (false for unknown ids, local panes, and sync-mode panes whose
+// shell runs in the local rsync mirror).
+func (a *App) IsTerminalRemote(id string) bool {
+	a.ptyMu.Lock()
+	defer a.ptyMu.Unlock()
+	sess, ok := a.ptySessions[id]
+	if !ok {
+		return false
+	}
+	return sess.remote
 }
 
 // ResizeTerminal updates the PTY window size, triggering SIGWINCH in the shell.

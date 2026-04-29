@@ -12,6 +12,9 @@ import {
   AckTerminalData,
   ReadClipboardFiles,
   SaveClipboardImage,
+  IsTerminalRemote,
+  UploadAndQuoteForTerminal,
+  UploadClipboardImageForTerminal,
 } from "../../wailsjs/go/main/App";
 import { sendTerminalInput, shellQuote } from "../terminal-io";
 import { getTerminalTheme, openTerminalLink } from "./terminal-utils";
@@ -41,6 +44,10 @@ interface InteractivePaneProps {
 const ACK_SIZE = 5000;
 const HIDDEN_BUF_CAP = 1_000_000; // max chars to buffer while hidden (~1MB)
 
+function getTerminalRemote(id: string): Promise<boolean> {
+  return interactiveSessions.get(id)?.remote ?? Promise.resolve(false);
+}
+
 // Global file drop handler — routes drops to the pane under the cursor
 let fileDropInitialized = false;
 function initFileDrop() {
@@ -49,7 +56,15 @@ function initFileDrop() {
   registerFileDropHandler("terminals", (x, y, paths) => {
     const id = terminalIdAtPoint(x, y);
     if (!id) return false;
-    pasteToTerminal(id, formatPastedPaths(paths));
+    getTerminalRemote(id).then((remote) => {
+      if (remote) {
+        UploadAndQuoteForTerminal(id, paths)
+          .then((text) => pasteToTerminal(id, text))
+          .catch((err) => writeTerminalError(id, err));
+      } else {
+        pasteToTerminal(id, formatPastedPaths(paths));
+      }
+    });
     return true;
   });
 }
@@ -91,6 +106,7 @@ interface InteractiveSession {
   hiddenBuf: string[];
   hiddenBufLen: number;
   sessionDead: boolean;
+  remote: Promise<boolean>;
 
   // Installed by the current React mount, cleared on unmount so callbacks
   // closing over stale component state don't fire.
@@ -174,23 +190,22 @@ function saveImageBlob(terminalId: string, blob: File, mimeType: string) {
     const dataUrl = reader.result as string;
     const b64 = dataUrl.split(",")[1];
     if (!b64) return;
-    SaveClipboardImage(b64, mimeType)
-      .then((filePath) => {
-        pasteToTerminal(terminalId, filePath);
-      })
-      .catch((err) => console.warn("SaveClipboardImage failed:", err));
+    getTerminalRemote(terminalId).then((remote) => {
+      if (remote) {
+        UploadClipboardImageForTerminal(terminalId, b64, mimeType)
+          .then((text) => pasteToTerminal(terminalId, text))
+          .catch((err) => writeTerminalError(terminalId, err));
+      } else {
+        SaveClipboardImage(b64, mimeType)
+          .then((filePath) => pasteToTerminal(terminalId, filePath))
+          .catch((err) => console.warn("SaveClipboardImage failed:", err));
+      }
+    });
   };
   reader.readAsDataURL(blob);
 }
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif)$/i;
-
-// xterm's paste() emits CSI ?2004h bracketed-paste markers when the running
-// app enabled them — writing to the PTY directly would skip those, leaving
-// the receiver unable to distinguish a paste from typed input.
-function pasteToTerminal(terminalId: string, text: string): void {
-  interactiveSessions.get(terminalId)?.term.paste(text);
-}
 
 // Single image paths go in unquoted so a path-detecting receiver can stat
 // them; everything else is shell-quoted for shell users.
@@ -199,6 +214,20 @@ function formatPastedPaths(paths: string[]): string {
     return paths[0];
   }
   return paths.map(shellQuote).join(" ");
+}
+
+// xterm's paste() emits CSI ?2004h bracketed-paste markers when the running
+// app enabled them — writing to the PTY directly would skip those, leaving
+// the receiver unable to distinguish a paste from typed input.
+function pasteToTerminal(terminalId: string, text: string): void {
+  interactiveSessions.get(terminalId)?.term.paste(text);
+}
+
+function writeTerminalError(terminalId: string, err: unknown): void {
+  const msg = err instanceof Error ? err.message : String(err);
+  const term = interactiveSessions.get(terminalId)?.term;
+  if (!term) return;
+  term.write(`\r\n\x1b[31mlpm upload failed: ${msg}\x1b[0m\r\n`);
 }
 
 function createInteractiveSession(terminalId: string): InteractiveSession {
@@ -271,6 +300,7 @@ function createInteractiveSession(terminalId: string): InteractiveSession {
     fit,
     search,
     host,
+    remote: IsTerminalRemote(terminalId).catch(() => false),
     visible: true,
     hiddenBuf: [],
     hiddenBufLen: 0,
@@ -370,10 +400,16 @@ function createInteractiveSession(terminalId: string): InteractiveSession {
       ReadClipboardFiles()
         .then((paths) => {
           if (paths && paths.length > 0) {
-            pasteToTerminal(terminalId, formatPastedPaths(paths));
-          } else {
-            fallback();
+            return getTerminalRemote(terminalId).then((remote) => {
+              if (remote) {
+                return UploadAndQuoteForTerminal(terminalId, paths)
+                  .then((text) => pasteToTerminal(terminalId, text))
+                  .catch((err) => writeTerminalError(terminalId, err));
+              }
+              pasteToTerminal(terminalId, formatPastedPaths(paths));
+            });
           }
+          fallback();
         })
         .catch(fallback);
       return;
