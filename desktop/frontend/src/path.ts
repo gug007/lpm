@@ -3,11 +3,11 @@
 // it would pull in — these only need to handle POSIX-style paths the desktop
 // app is producing.
 
-// Returns rel as-is if absolute, otherwise resolves it against base. Strips
-// leading `./` segments. Empty base returns the cleaned relative path; empty
-// relative returns base unchanged.
+// Returns rel as-is if absolute or tilde-prefixed (the Go side expands `~/`),
+// otherwise resolves it against base. Strips leading `./` segments. Empty
+// base returns the cleaned relative path; empty relative returns base.
 export function joinAbs(base: string, rel: string): string {
-  if (rel.startsWith("/")) return rel;
+  if (rel.startsWith("/") || rel.startsWith("~/") || rel === "~") return rel;
   let cleaned = rel;
   while (cleaned.startsWith("./")) cleaned = cleaned.slice(2);
   if (!base) return cleaned;

@@ -290,11 +290,35 @@ func (a *App) OpenIn(targetID, projectPath string) error {
 	if projectPath == "" {
 		return fmt.Errorf("empty project path")
 	}
-	if strings.HasPrefix(projectPath, "~/") {
-		home, _ := os.UserHomeDir()
-		projectPath = filepath.Join(home, projectPath[2:])
-	}
+	projectPath = expandTilde(projectPath)
 	return t.launch(appPath, projectPath)
+}
+
+// expandTilde resolves a leading `~/` (or bare `~`) to the user's home
+// directory. Paths like `~user/foo` (other users) are not supported and
+// pass through unchanged. Returns the input unchanged if the home lookup
+// fails — the downstream stat/read will surface a clearer error.
+var (
+	homeDirOnce sync.Once
+	homeDir     string
+)
+
+func expandTilde(p string) string {
+	if p != "~" && !strings.HasPrefix(p, "~/") {
+		return p
+	}
+	homeDirOnce.Do(func() {
+		if h, err := os.UserHomeDir(); err == nil {
+			homeDir = h
+		}
+	})
+	if homeDir == "" {
+		return p
+	}
+	if p == "~" {
+		return homeDir
+	}
+	return filepath.Join(homeDir, p[2:])
 }
 
 // FileExists reports whether absPath points to a regular file (not a directory).
@@ -304,7 +328,7 @@ func (a *App) FileExists(absPath string) bool {
 	if absPath == "" {
 		return false
 	}
-	info, err := os.Stat(absPath)
+	info, err := os.Stat(expandTilde(absPath))
 	if err != nil {
 		return false
 	}
@@ -322,7 +346,7 @@ func (a *App) ReadFile(absPath string) (string, error) {
 	if absPath == "" {
 		return "", fmt.Errorf("empty file path")
 	}
-	data, err := os.ReadFile(absPath)
+	data, err := os.ReadFile(expandTilde(absPath))
 	if err != nil {
 		return "", err
 	}
@@ -330,6 +354,28 @@ func (a *App) ReadFile(absPath string) (string, error) {
 		return "", fmt.Errorf("file too large to preview (%d bytes)", len(data))
 	}
 	return string(data), nil
+}
+
+// WriteFile replaces absPath's contents with content. Refuses to write if the
+// payload exceeds readFileMaxBytes, if the path is empty, or if it points to a
+// directory. Preserves the existing file mode when overwriting; new files are
+// created with 0644.
+func (a *App) WriteFile(absPath, content string) error {
+	if absPath == "" {
+		return fmt.Errorf("empty file path")
+	}
+	if int64(len(content)) > readFileMaxBytes {
+		return fmt.Errorf("content too large (%d bytes)", len(content))
+	}
+	resolved := expandTilde(absPath)
+	mode := os.FileMode(0644)
+	if info, err := os.Stat(resolved); err == nil {
+		if info.IsDir() {
+			return fmt.Errorf("not a file: %s", absPath)
+		}
+		mode = info.Mode().Perm()
+	}
+	return os.WriteFile(resolved, []byte(content), mode)
 }
 
 // pickFileEditor returns the first installed target that supports openFile,
@@ -355,6 +401,7 @@ func (a *App) OpenFileInEditor(editorID, absPath string, line, col int) error {
 	if absPath == "" {
 		return fmt.Errorf("empty file path")
 	}
+	absPath = expandTilde(absPath)
 	if _, err := os.Stat(absPath); err != nil {
 		return fmt.Errorf("file not found: %s", absPath)
 	}

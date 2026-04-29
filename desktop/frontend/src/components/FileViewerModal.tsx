@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
 import { XIcon } from "./icons";
-import { GitDiff, ReadFile } from "../../wailsjs/go/main/App";
+import { GitDiff, ReadFile, WriteFile } from "../../wailsjs/go/main/App";
 import { ensureLang, getLang, tokenizeLines, type Token } from "../highlight";
 import { basename, relTo } from "../path";
 import { OpenFileWithDropdown } from "./OpenFileWithDropdown";
@@ -182,9 +183,21 @@ export function FileViewerModal({
 }: FileViewerModalProps) {
   const [diffRows, setDiffRows] = useState<DiffRow[] | null>(null);
   const [contentLines, setContentLines] = useState<ContentLine[] | null>(null);
+  const [rawContent, setRawContent] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const wide = useIsWide(SIDE_BY_SIDE_MIN_PX);
+
+  // Reset edit state whenever the viewer is pointed at a different path.
+  useEffect(() => {
+    setEditing(false);
+    setEditValue("");
+    setSaving(false);
+  }, [absPath]);
 
   useEffect(() => {
     if (!open || !absPath) return;
@@ -193,6 +206,7 @@ export function FileViewerModal({
     setError(null);
     setDiffRows(null);
     setContentLines(null);
+    setRawContent("");
 
     (async () => {
       const lang = getLang(absPath);
@@ -202,6 +216,10 @@ export function FileViewerModal({
         projectRoot ? GitDiff(projectRoot, [rel]) : Promise.resolve(""),
       ]);
       if (cancelled) return;
+
+      if (contentRes.status === "fulfilled") {
+        setRawContent(contentRes.value);
+      }
 
       const diffText =
         diffRes.status === "fulfilled" ? diffRes.value.trim() : "";
@@ -234,10 +252,36 @@ export function FileViewerModal({
     return () => {
       cancelled = true;
     };
-  }, [open, absPath, projectRoot]);
+  }, [open, absPath, projectRoot, reloadKey]);
 
   const hasDiff = diffRows !== null;
   const headerLabel = projectRoot ? relTo(absPath, projectRoot) : absPath;
+  const canEdit = !loading && !error;
+  const dirty = editing && editValue !== rawContent;
+
+  const startEdit = () => {
+    setEditValue(rawContent);
+    setEditing(true);
+  };
+  const cancelEdit = () => {
+    setEditing(false);
+    setEditValue("");
+  };
+  const saveEdit = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await WriteFile(absPath, editValue);
+      toast.success("Saved");
+      setEditing(false);
+      setEditValue("");
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Modal
@@ -268,43 +312,87 @@ export function FileViewerModal({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <OpenFileWithDropdown absPath={absPath} line={line} col={col} />
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close"
-              className="rounded-xl p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              <XIcon />
-            </button>
+            {editing ? (
+              <>
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  disabled={saving}
+                  className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void saveEdit()}
+                  disabled={saving || !dirty}
+                  className="rounded-lg bg-[var(--text-primary)] px-3 py-1.5 text-[13px] font-semibold text-[var(--bg-primary)] transition hover:opacity-90 disabled:opacity-40"
+                >
+                  {saving ? "Saving…" : "Save"}
+                </button>
+              </>
+            ) : (
+              <>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={startEdit}
+                    className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                  >
+                    Edit
+                  </button>
+                )}
+                <OpenFileWithDropdown absPath={absPath} line={line} col={col} />
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close"
+                  className="rounded-xl p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                >
+                  <XIcon />
+                </button>
+              </>
+            )}
           </div>
         </header>
 
         <div className="min-h-0 flex-1 overflow-hidden bg-[var(--bg-primary)] font-mono text-[12px] leading-[1.55]">
-          {loading && (
-            <div className="flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]">
-              Loading…
-            </div>
-          )}
-          {!loading && error && (
-            <div className="flex h-full items-center justify-center px-8 text-center text-[13px] text-[var(--accent-red)]">
-              {error}
-            </div>
-          )}
-          {!loading && !error && diffRows && (
-            wide ? (
-              <SideBySideDiff rows={diffRows} highlightLine={line} />
-            ) : (
-              <UnifiedDiff rows={diffRows} highlightLine={line} />
-            )
-          )}
-          {!loading && !error && !diffRows && contentLines && (
-            <ContentView lines={contentLines} highlightLine={line} />
-          )}
-          {!loading && !error && !diffRows && !contentLines && (
-            <div className="flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]">
-              Empty file
-            </div>
+          {editing ? (
+            <textarea
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              spellCheck={false}
+              autoFocus
+              className="block h-full w-full resize-none border-0 bg-[var(--bg-primary)] px-6 py-4 font-mono text-[13px] leading-[1.55] text-[var(--text-primary)] outline-none"
+            />
+          ) : (
+            <>
+              {loading && (
+                <div className="flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]">
+                  Loading…
+                </div>
+              )}
+              {!loading && error && (
+                <div className="flex h-full items-center justify-center px-8 text-center text-[13px] text-[var(--accent-red)]">
+                  {error}
+                </div>
+              )}
+              {!loading && !error && diffRows && (
+                wide ? (
+                  <SideBySideDiff rows={diffRows} highlightLine={line} />
+                ) : (
+                  <UnifiedDiff rows={diffRows} highlightLine={line} />
+                )
+              )}
+              {!loading && !error && !diffRows && contentLines && (
+                <ContentView lines={contentLines} highlightLine={line} />
+              )}
+              {!loading && !error && !diffRows && !contentLines && (
+                <div className="flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]">
+                  Empty file
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
