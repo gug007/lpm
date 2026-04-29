@@ -13,12 +13,19 @@ import { EmptyTerminalState } from "./project-detail/EmptyTerminalState";
 import { Header } from "./project-detail/Header";
 import { HeaderActions } from "./project-detail/HeaderActions";
 import { Modals } from "./project-detail/Modals";
+import { ProfileContextMenu } from "./project-detail/ProfileContextMenu";
+import { ProfileForm } from "./project-detail/ProfileForm";
+import { ServiceContextMenu } from "./project-detail/ServiceContextMenu";
+import { ServiceForm } from "./project-detail/ServiceForm";
 import { TerminalPane } from "./project-detail/TerminalPane";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { deleteAction } from "../actionConfig";
+import { deleteProfile } from "../profileConfig";
+import { deleteService } from "../serviceConfig";
 import { EMPTY_SERVICES, noop } from "./project-detail/constants";
 import { useActionsByDisplay } from "../hooks/useActionsByDisplay";
 import { useDetailView } from "../hooks/useDetailView";
+import { useEntityEditor } from "../hooks/useEntityEditor";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useOverflowWrap } from "../hooks/useOverflowWrap";
@@ -33,7 +40,9 @@ import {
   isFooterDisplay,
   type ActionInfo,
   type ActionsLayout,
+  type ProfileInfo,
   type ProjectInfo,
+  type ServiceInfo,
 } from "../types";
 
 interface ProjectDetailProps {
@@ -74,6 +83,19 @@ export function ProjectDetail({
     () => setShowProfileMenu(false),
     showProfileMenu,
   );
+
+  const serviceEditor = useEntityEditor<ServiceInfo>({
+    projectName: project.name,
+    entityLabel: "service",
+    deleteFn: deleteService,
+    onChanged: onRefresh,
+  });
+  const profileEditor = useEntityEditor<ProfileInfo>({
+    projectName: project.name,
+    entityLabel: "profile",
+    deleteFn: deleteProfile,
+    onChanged: onRefresh,
+  });
 
   const [activeProfile, setActiveProfile] = useState(
     project.activeProfile || project.profiles?.[0]?.name || "",
@@ -273,6 +295,24 @@ export function ProjectDetail({
       onRestart={() => withLoading(() => onRestart(project.name, activeProfile))}
       onRequestRemove={() => setConfirmRemove(true)}
       onShowTerminalSettings={() => setShowTerminalSettings(true)}
+      onAddService={() => {
+        setShowProfileMenu(false);
+        serviceEditor.startCreate();
+      }}
+      onAddProfile={() => {
+        setShowProfileMenu(false);
+        profileEditor.startCreate();
+      }}
+      onEditService={(service) => {
+        setShowProfileMenu(false);
+        serviceEditor.startEdit(service);
+      }}
+      onEditProfile={(profile) => {
+        setShowProfileMenu(false);
+        profileEditor.startEdit(profile);
+      }}
+      onContextMenuService={serviceEditor.showContextMenu}
+      onContextMenuProfile={profileEditor.showContextMenu}
     />
   );
 
@@ -390,6 +430,94 @@ export function ProjectDetail({
           disabled={deletingAction}
           onCancel={() => setActionToDelete(null)}
           onConfirm={handleConfirmDeleteAction}
+        />
+
+        <ServiceForm
+          open={serviceEditor.formOpen}
+          projectName={project.name}
+          services={project.allServices}
+          profiles={project.profiles}
+          editing={serviceEditor.editing}
+          onClose={serviceEditor.closeForm}
+          onSaved={onRefresh}
+          onPickService={serviceEditor.startEdit}
+          onPickProfile={(profile) => {
+            serviceEditor.closeForm();
+            profileEditor.startEdit(profile);
+          }}
+        />
+
+        {serviceEditor.contextMenu && (
+          <ServiceContextMenu
+            x={serviceEditor.contextMenu.x}
+            y={serviceEditor.contextMenu.y}
+            onEdit={serviceEditor.editFromContextMenu}
+            onDelete={serviceEditor.deleteFromContextMenu}
+            onClose={serviceEditor.closeContextMenu}
+          />
+        )}
+
+        <ConfirmDialog
+          open={serviceEditor.toDelete !== null}
+          title="Delete service?"
+          body={
+            <>
+              Remove{" "}
+              <span className="font-medium text-[var(--text-primary)]">
+                {serviceEditor.toDelete?.name}
+              </span>{" "}
+              from this project's config. Any profile that referenced it will be updated.
+            </>
+          }
+          confirmLabel="Delete"
+          variant="destructive"
+          disabled={serviceEditor.deleting}
+          onCancel={serviceEditor.cancelDelete}
+          onConfirm={serviceEditor.confirmDelete}
+        />
+
+        <ProfileForm
+          open={profileEditor.formOpen}
+          projectName={project.name}
+          services={project.allServices}
+          profiles={project.profiles}
+          editing={profileEditor.editing}
+          onClose={profileEditor.closeForm}
+          onSaved={onRefresh}
+          onPickService={(service) => {
+            profileEditor.closeForm();
+            serviceEditor.startEdit(service);
+          }}
+          onPickProfile={profileEditor.startEdit}
+        />
+
+        {profileEditor.contextMenu && (
+          <ProfileContextMenu
+            x={profileEditor.contextMenu.x}
+            y={profileEditor.contextMenu.y}
+            onEdit={profileEditor.editFromContextMenu}
+            onDelete={profileEditor.deleteFromContextMenu}
+            onClose={profileEditor.closeContextMenu}
+          />
+        )}
+
+        <ConfirmDialog
+          open={profileEditor.toDelete !== null}
+          title="Delete profile?"
+          body={
+            <>
+              Remove{" "}
+              <span className="font-medium text-[var(--text-primary)]">
+                {profileEditor.toDelete?.name}
+              </span>{" "}
+              from this project's config. The services it bundled stay.
+            </>
+          }
+          confirmLabel="Delete"
+          variant="destructive"
+          disabled={profileEditor.deleting}
+          onCancel={profileEditor.cancelDelete}
+          onConfirm={profileEditor.confirmDelete}
         />
       </div>
     </ActionsDnd>
