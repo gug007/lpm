@@ -372,6 +372,19 @@ func (a *App) AckTerminalData(id string, charCount int) error {
 	return nil
 }
 
+// IsTerminalRemote reports whether the session's shell is running on the
+// SSH host (false for unknown ids, local panes, and sync-mode panes whose
+// shell runs in the local rsync mirror).
+func (a *App) IsTerminalRemote(id string) bool {
+	a.ptyMu.Lock()
+	defer a.ptyMu.Unlock()
+	sess, ok := a.ptySessions[id]
+	if !ok {
+		return false
+	}
+	return sess.remote
+}
+
 // ResizeTerminal updates the PTY window size, triggering SIGWINCH in the shell.
 func (a *App) ResizeTerminal(id string, cols int, rows int) error {
 	a.ptyMu.Lock()

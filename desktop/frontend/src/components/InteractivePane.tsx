@@ -11,10 +11,12 @@ import {
   ResizeTerminal,
   AckTerminalData,
   ReadClipboardFiles,
+  SaveClipboardImage,
+  IsTerminalRemote,
   UploadAndQuoteForTerminal,
   UploadClipboardImageForTerminal,
 } from "../../wailsjs/go/main/App";
-import { sendTerminalInput } from "../terminal-io";
+import { sendTerminalInput, shellQuote } from "../terminal-io";
 import { getTerminalTheme, openTerminalLink } from "./terminal-utils";
 import { registerFileDropHandler } from "../fileDrop";
 import "@xterm/xterm/css/xterm.css";
@@ -42,6 +44,10 @@ interface InteractivePaneProps {
 const ACK_SIZE = 5000;
 const HIDDEN_BUF_CAP = 1_000_000; // max chars to buffer while hidden (~1MB)
 
+function getTerminalRemote(id: string): Promise<boolean> {
+  return interactiveSessions.get(id)?.remote ?? Promise.resolve(false);
+}
+
 // Global file drop handler — routes drops to the pane under the cursor
 let fileDropInitialized = false;
 function initFileDrop() {
@@ -50,12 +56,15 @@ function initFileDrop() {
   registerFileDropHandler("terminals", (x, y, paths) => {
     const id = terminalIdAtPoint(x, y);
     if (!id) return false;
-    // For remote panes the Go side scp's the files via the existing
-    // ControlMaster socket and returns the paste-ready remote paths;
-    // for local panes it just formats the local paths.
-    UploadAndQuoteForTerminal(id, paths)
-      .then((text) => pasteToTerminal(id, text))
-      .catch((err) => writeTerminalError(id, err));
+    getTerminalRemote(id).then((remote) => {
+      if (remote) {
+        UploadAndQuoteForTerminal(id, paths)
+          .then((text) => pasteToTerminal(id, text))
+          .catch((err) => writeTerminalError(id, err));
+      } else {
+        pasteToTerminal(id, formatPastedPaths(paths));
+      }
+    });
     return true;
   });
 }
@@ -97,6 +106,7 @@ interface InteractiveSession {
   hiddenBuf: string[];
   hiddenBufLen: number;
   sessionDead: boolean;
+  remote: Promise<boolean>;
 
   // Installed by the current React mount, cleared on unmount so callbacks
   // closing over stale component state don't fire.
@@ -180,11 +190,30 @@ function saveImageBlob(terminalId: string, blob: File, mimeType: string) {
     const dataUrl = reader.result as string;
     const b64 = dataUrl.split(",")[1];
     if (!b64) return;
-    UploadClipboardImageForTerminal(terminalId, b64, mimeType)
-      .then((text) => pasteToTerminal(terminalId, text))
-      .catch((err) => writeTerminalError(terminalId, err));
+    getTerminalRemote(terminalId).then((remote) => {
+      if (remote) {
+        UploadClipboardImageForTerminal(terminalId, b64, mimeType)
+          .then((text) => pasteToTerminal(terminalId, text))
+          .catch((err) => writeTerminalError(terminalId, err));
+      } else {
+        SaveClipboardImage(b64, mimeType)
+          .then((filePath) => pasteToTerminal(terminalId, filePath))
+          .catch((err) => console.warn("SaveClipboardImage failed:", err));
+      }
+    });
   };
   reader.readAsDataURL(blob);
+}
+
+const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif)$/i;
+
+// Single image paths go in unquoted so a path-detecting receiver can stat
+// them; everything else is shell-quoted for shell users.
+function formatPastedPaths(paths: string[]): string {
+  if (paths.length === 1 && IMAGE_EXT_RE.test(paths[0])) {
+    return paths[0];
+  }
+  return paths.map(shellQuote).join(" ");
 }
 
 // xterm's paste() emits CSI ?2004h bracketed-paste markers when the running
@@ -271,6 +300,7 @@ function createInteractiveSession(terminalId: string): InteractiveSession {
     fit,
     search,
     host,
+    remote: IsTerminalRemote(terminalId).catch(() => false),
     visible: true,
     hiddenBuf: [],
     hiddenBufLen: 0,
@@ -370,9 +400,14 @@ function createInteractiveSession(terminalId: string): InteractiveSession {
       ReadClipboardFiles()
         .then((paths) => {
           if (paths && paths.length > 0) {
-            return UploadAndQuoteForTerminal(terminalId, paths)
-              .then((text) => pasteToTerminal(terminalId, text))
-              .catch((err) => writeTerminalError(terminalId, err));
+            return getTerminalRemote(terminalId).then((remote) => {
+              if (remote) {
+                return UploadAndQuoteForTerminal(terminalId, paths)
+                  .then((text) => pasteToTerminal(terminalId, text))
+                  .catch((err) => writeTerminalError(terminalId, err));
+              }
+              pasteToTerminal(terminalId, formatPastedPaths(paths));
+            });
           }
           fallback();
         })

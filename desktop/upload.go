@@ -3,10 +3,8 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -47,7 +45,7 @@ func (a *App) UploadAndQuoteForTerminal(terminalID string, localPaths []string) 
 // image to a local temp file and routes through the same upload path,
 // so remote panes get a remote path and local panes get the local temp.
 func (a *App) UploadClipboardImageForTerminal(terminalID, b64Data, mimeType string) (string, error) {
-	localPath, err := saveClipboardImageTemp(b64Data, mimeType)
+	localPath, err := a.SaveClipboardImage(b64Data, mimeType)
 	if err != nil {
 		return "", err
 	}
@@ -143,37 +141,6 @@ func shellQuoteSingle(s string) string {
 		return s
 	}
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
-}
-
-// saveClipboardImageTemp is the file-write half of SaveClipboardImage,
-// reused so UploadClipboardImageForTerminal doesn't need a frontend
-// round-trip just to get a temp path.
-func saveClipboardImageTemp(b64Data, mimeType string) (string, error) {
-	data, err := base64.StdEncoding.DecodeString(b64Data)
-	if err != nil {
-		return "", fmt.Errorf("decode base64: %w", err)
-	}
-	ext := ".png"
-	switch mimeType {
-	case "image/jpeg":
-		ext = ".jpg"
-	case "image/gif":
-		ext = ".gif"
-	case "image/webp":
-		ext = ".webp"
-	case "image/bmp":
-		ext = ".bmp"
-	}
-	f, err := os.CreateTemp("", "clipboard-*"+ext)
-	if err != nil {
-		return "", fmt.Errorf("create temp file: %w", err)
-	}
-	defer f.Close()
-	if _, err := f.Write(data); err != nil {
-		os.Remove(f.Name())
-		return "", fmt.Errorf("write temp file: %w", err)
-	}
-	return f.Name(), nil
 }
 
 func trimOutput(s string) string {
