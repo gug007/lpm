@@ -12,6 +12,7 @@ import {
   ExpandIcon,
   ShrinkIcon,
 } from "./terminal/icons";
+import { TerminalSearchBar } from "./terminal/TerminalSearchBar";
 import { XIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
 import { SortableTab, TabStrip } from "./TerminalTabDnd";
@@ -31,6 +32,7 @@ export interface PaneViewProps {
   visible: boolean;
   focused: boolean;
   fullscreen: boolean;
+  searchActive: boolean;
   canClose: boolean;
   fontSize: number;
   themeOverride: ITheme | null;
@@ -58,6 +60,8 @@ export interface PaneViewProps {
     handle: PaneHandle | null,
   ) => void;
   onClearStatus: (terminalId: string, kind: StatusKind) => void;
+  onFindInPane: (paneId: string, query: string, direction: "next" | "prev") => boolean;
+  onCloseSearch: () => void;
 }
 
 function PaneViewImpl(props: PaneViewProps) {
@@ -66,6 +70,7 @@ function PaneViewImpl(props: PaneViewProps) {
     visible,
     focused,
     fullscreen,
+    searchActive,
     canClose,
     fontSize,
     themeOverride,
@@ -87,6 +92,8 @@ function PaneViewImpl(props: PaneViewProps) {
     onRegisterTerminalHandle,
     onRegisterServiceHandle,
     onClearStatus,
+    onFindInPane,
+    onCloseSearch,
   } = props;
 
   const hasMultipleServices = services.length > 1;
@@ -258,8 +265,16 @@ function PaneViewImpl(props: PaneViewProps) {
         </div>
       </div>
       <div
-        className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${isAllActive ? "divide-x divide-[var(--border)]" : ""}`}
+        className={`relative flex min-h-0 min-w-0 flex-1 overflow-hidden ${isAllActive ? "divide-x divide-[var(--border)]" : ""}`}
       >
+        {searchActive && (
+          <TerminalSearchBar
+            key={`${pane.id}:${activeServiceName ?? activeTerm?.id ?? "empty"}`}
+            onFindNext={(query) => onFindInPane(pane.id, query, "next")}
+            onFindPrevious={(query) => onFindInPane(pane.id, query, "prev")}
+            onClose={onCloseSearch}
+          />
+        )}
         {services.map((svc) => {
           const isVisible = isAllActive || activeServiceName === svc.name;
           return (

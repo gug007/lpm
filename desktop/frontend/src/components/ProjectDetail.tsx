@@ -440,6 +440,11 @@ export function ProjectDetail({
           editing={serviceEditor.editing}
           onClose={serviceEditor.closeForm}
           onSaved={onRefresh}
+          onDelete={
+            serviceEditor.editing && project.allServices.length > 1
+              ? serviceEditor.requestDelete
+              : undefined
+          }
           onPickService={serviceEditor.startEdit}
           onPickProfile={(profile) => {
             serviceEditor.closeForm();
@@ -484,6 +489,7 @@ export function ProjectDetail({
           editing={profileEditor.editing}
           onClose={profileEditor.closeForm}
           onSaved={onRefresh}
+          onDelete={profileEditor.editing ? profileEditor.requestDelete : undefined}
           onPickService={(service) => {
             profileEditor.closeForm();
             serviceEditor.startEdit(service);

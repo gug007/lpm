@@ -3,10 +3,11 @@ import { PaneView, type PaneViewProps } from "./PaneView";
 import type { PaneNode, PaneSplit } from "../paneTree";
 import { firstPaneId } from "../paneTree";
 
-export interface PaneLayoutProps extends Omit<PaneViewProps, "pane" | "focused" | "fullscreen"> {
+export interface PaneLayoutProps extends Omit<PaneViewProps, "pane" | "focused" | "fullscreen" | "searchActive"> {
   node: PaneNode;
   focusedPaneId: string | null;
   fullscreenPaneId: string | null;
+  searchPaneId: string | null;
   onRatioChange: (path: number[], ratio: number) => void;
   path?: number[];
   // services are only rendered on the first leaf in the whole tree.
@@ -16,7 +17,7 @@ export interface PaneLayoutProps extends Omit<PaneViewProps, "pane" | "focused" 
 }
 
 export function PaneLayout(props: PaneLayoutProps) {
-  const { node, path = [], focusedPaneId, fullscreenPaneId, services, primaryPaneId } = props;
+  const { node, path = [], focusedPaneId, fullscreenPaneId, searchPaneId, services, primaryPaneId } = props;
   const rootPrimaryId = primaryPaneId ?? firstPaneId(node);
 
   if (node.kind === "leaf") {
@@ -26,6 +27,7 @@ export function PaneLayout(props: PaneLayoutProps) {
         pane={node}
         focused={focusedPaneId === node.id}
         fullscreen={fullscreenPaneId === node.id}
+        searchActive={searchPaneId === node.id}
         services={node.id === rootPrimaryId ? services : undefined}
       />
     );

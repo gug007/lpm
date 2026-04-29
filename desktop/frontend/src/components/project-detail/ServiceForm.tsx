@@ -46,6 +46,7 @@ interface ServiceFormProps {
   editing?: ServiceInfo | null;
   onClose: () => void;
   onSaved: () => void;
+  onDelete?: () => void;
   // Click on a non-draft preview row swaps the modal to that entry. Profile
   // clicks cross-route to the ProfileForm; service clicks switch the service
   // being edited.
@@ -113,6 +114,7 @@ export function ServiceForm({
   editing,
   onClose,
   onSaved,
+  onDelete,
   onPickService,
   onPickProfile,
 }: ServiceFormProps) {
@@ -343,20 +345,29 @@ export function ServiceForm({
           />
         </div>
 
-        <footer className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-8 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          >
-            Cancel
-          </button>
-          <div className="flex items-center gap-3">
+        <footer className="flex items-center gap-3 border-t border-[var(--border)] px-8 py-4">
+          {isEditing && onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--accent-red)] transition-colors hover:bg-[var(--accent-red)]/10"
+            >
+              Delete service
+            </button>
+          )}
+          <div className="ml-auto flex items-center gap-3">
             {!canSave && errorHint && (
               <span className="hidden text-[12px] text-[var(--text-muted)] sm:inline">
                 {errorHint}
               </span>
             )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              Cancel
+            </button>
             <button
               type="button"
               onClick={() => void submit()}

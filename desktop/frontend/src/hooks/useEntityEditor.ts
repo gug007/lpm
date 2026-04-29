@@ -18,6 +18,7 @@ export interface EntityEditor<T extends NamedEntity> {
   closeContextMenu: () => void;
   editFromContextMenu: () => void;
   deleteFromContextMenu: () => void;
+  requestDelete: () => void;
   cancelDelete: () => void;
   confirmDelete: () => Promise<void>;
 }
@@ -77,6 +78,10 @@ export function useEntityEditor<T extends NamedEntity>({
     setToDelete(contextMenu.entity);
   }, [contextMenu]);
 
+  const requestDelete = useCallback(() => {
+    if (editing) setToDelete(editing);
+  }, [editing]);
+
   const cancelDelete = useCallback(() => setToDelete(null), []);
 
   const confirmDelete = useCallback(async () => {
@@ -86,6 +91,10 @@ export function useEntityEditor<T extends NamedEntity>({
       await deleteFn(projectName, toDelete.name);
       toast.success(`Deleted ${toDelete.name}`);
       setToDelete(null);
+      // Close any open editor form for this entity — the entity no longer
+      // exists, so leaving the form open with stale state would be wrong.
+      setEditing(null);
+      setCreating(false);
       onChanged();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : `Could not delete ${entityLabel}`);
@@ -107,6 +116,7 @@ export function useEntityEditor<T extends NamedEntity>({
     closeContextMenu,
     editFromContextMenu,
     deleteFromContextMenu,
+    requestDelete,
     cancelDelete,
     confirmDelete,
   };
