@@ -40,6 +40,7 @@ export interface TerminalViewHandle {
 export function TerminalView({ projectName, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, runningPaneIDs, donePaneIDs, waitingPaneIDs, errorPaneIDs, visible = true, ref }: TerminalViewProps) {
   const [outputs, setOutputs] = useState<string[]>([]);
   const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null);
+  const [searchPaneId, setSearchPaneId] = useState<string | null>(null);
 
   const terminalHandles = useRef<Map<string, InteractivePaneHandle>>(new Map());
   const serviceHandles = useRef<Map<string, PaneHandle>>(new Map());
@@ -87,6 +88,12 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
       setFullscreenPaneId(null);
     }
   }, [tree, fullscreenPaneId, getPane]);
+
+  useEffect(() => {
+    if (searchPaneId && !getPane(searchPaneId)) {
+      setSearchPaneId(null);
+    }
+  }, [tree, searchPaneId, getPane]);
 
   const { containerStyle, xtermTheme } = useMemo(() => {
     const colors = getTerminalThemeColors(terminalTheme);
@@ -180,25 +187,45 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
     [projectName],
   );
 
-  // Resolves the active tab in a pane to its xterm handle and calls
-  // clear(). Handles both interactive terminals and service log tabs.
-  const handleClearPane = useCallback(
-    (paneId: string) => {
+  const resolveActiveHandle = useCallback(
+    (paneId: string): InteractivePaneHandle | PaneHandle | null => {
       const pane = getPane(paneId);
-      if (!pane) return;
+      if (!pane) return null;
       if (pane.activeServiceName) {
-        serviceHandles.current.get(pane.activeServiceName)?.clear();
-        return;
+        return serviceHandles.current.get(pane.activeServiceName) ?? null;
       }
       const active = pane.tabs[pane.activeTabIdx];
-      if (active) terminalHandles.current.get(active.id)?.clear();
+      return active ? terminalHandles.current.get(active.id) ?? null : null;
     },
     [getPane],
+  );
+
+  const handleClearPane = useCallback(
+    (paneId: string) => {
+      resolveActiveHandle(paneId)?.clear();
+    },
+    [resolveActiveHandle],
   );
 
   const handleToggleFullscreen = useCallback((paneId: string) => {
     setFullscreenPaneId((current) => (current === paneId ? null : paneId));
   }, []);
+
+  const findInPane = useCallback(
+    (paneId: string, query: string, direction: "next" | "prev"): boolean => {
+      const handle = resolveActiveHandle(paneId);
+      if (!handle) return false;
+      return direction === "next" ? handle.findNext(query) : handle.findPrevious(query);
+    },
+    [resolveActiveHandle],
+  );
+
+  const handleCloseSearch = useCallback(() => {
+    setSearchPaneId((current) => {
+      if (current) resolveActiveHandle(current)?.clearSearch();
+      return null;
+    });
+  }, [resolveActiveHandle]);
 
   useEffect(() => {
     setOutputs(new Array(stableServices.length).fill(""));
@@ -293,6 +320,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
       { key: "-", meta: true },
       { key: "w", meta: true },
       { key: "d", meta: true },
+      { key: "f", meta: true },
       { key: "Escape", preventDefault: false },
     ],
     (event, matched) => {
@@ -308,6 +336,12 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
         const pane = getFocusedPane();
         if (!pane) return;
         splitPane(pane.id, event.shiftKey ? "col" : "row");
+        return;
+      }
+      if (matched.key === "f") {
+        const pane = getFocusedPane();
+        if (!pane) return;
+        setSearchPaneId(pane.id);
         return;
       }
       if (matched.key === "Escape" && fullscreenPaneId) {
@@ -346,6 +380,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
             visible={visible}
             focusedPaneId={focusedPaneId}
             fullscreenPaneId={fullscreenPaneId}
+            searchPaneId={searchPaneId}
             canClose={tree.kind === "split"}
             fontSize={fontSize}
             themeOverride={xtermTheme}
@@ -368,6 +403,8 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
             onRegisterServiceHandle={registerServiceHandle}
             onClearStatus={handleClearStatus}
             onRatioChange={setRatio}
+            onFindInPane={findInPane}
+            onCloseSearch={handleCloseSearch}
           />
         </TerminalTabDnd>
       ) : (
