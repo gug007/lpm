@@ -194,6 +194,8 @@ const ZOOM_MIN = 0.6;
 const ZOOM_MAX = 2.5;
 const ZOOM_STEP = 0.1;
 const BASE_DIFF_FONT_PX = 11;
+const DIFF_LINE_HEIGHT = 1.6;
+const LAZY_ROOT_MARGIN_PX = 400;
 
 const clamp = (v: number, min: number, max: number) =>
   Math.min(max, Math.max(min, v));
@@ -214,6 +216,17 @@ function HunkSeparator({ header }: { header: string }) {
       </span>
     </div>
   );
+}
+
+function DiffPlaceholder({
+  rowCount,
+  fontPx,
+}: {
+  rowCount: number;
+  fontPx: number;
+}) {
+  const height = Math.max(40, Math.ceil(rowCount * fontPx * DIFF_LINE_HEIGHT));
+  return <div aria-hidden style={{ height: `${height}px` }} />;
 }
 
 function DiffSide({
@@ -282,8 +295,11 @@ export function SideBySideDiffModal({
   const [loading, setLoading] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [activeFile, setActiveFile] = useState<string | null>(null);
+  const [mounted, setMounted] = useState<Set<string>>(new Set());
   const [zoom, setZoom] = useState(BASE_ZOOM);
   const diffRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
   const wheelStateRef = useRef<{ delta: number; scheduled: boolean }>({
     delta: 0,
     scheduled: false,
@@ -302,7 +318,43 @@ export function SideBySideDiffModal({
     if (!open) return;
     setCollapsed(new Set());
     setActiveFile(files[0]?.path ?? null);
+    setMounted(new Set());
   }, [open, files]);
+
+  // Lazy-mount file diffs as they enter the viewport. Files outside the
+  // visible window render a height-estimated placeholder so the scrollbar
+  // stays correct without paying to mount thousands of rows up front.
+  useEffect(() => {
+    if (!open) return;
+    const root = scrollContainerRef.current;
+    if (!root) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const seen: string[] = [];
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const path = (entry.target as HTMLElement).dataset.filePath;
+          if (path) {
+            seen.push(path);
+            observer.unobserve(entry.target);
+          }
+        }
+        if (seen.length === 0) return;
+        setMounted((prev) => {
+          const next = new Set(prev);
+          for (const p of seen) next.add(p);
+          return next;
+        });
+      },
+      { root, rootMargin: `${LAZY_ROOT_MARGIN_PX}px 0px` },
+    );
+    observerRef.current = observer;
+    diffRefs.current.forEach((el) => observer.observe(el));
+    return () => {
+      observer.disconnect();
+      observerRef.current = null;
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -370,9 +422,19 @@ export function SideBySideDiffModal({
 
   const handleClickFile = (path: string) => {
     setActiveFile(path);
-    diffRefs.current
-      .get(path)
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    // Force-mount the target so scrollIntoView lands on real content rather
+    // than a placeholder that may be slightly off in height.
+    setMounted((prev) => {
+      if (prev.has(path)) return prev;
+      const next = new Set(prev);
+      next.add(path);
+      return next;
+    });
+    requestAnimationFrame(() => {
+      diffRefs.current
+        .get(path)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   };
 
   return (
@@ -446,7 +508,7 @@ export function SideBySideDiffModal({
           ))}
         </div>
 
-        <div className="min-w-0 flex-1 overflow-y-auto">
+        <div ref={scrollContainerRef} className="min-w-0 flex-1 overflow-y-auto">
           {loading && (
             <div className="py-10 text-center text-[11px] text-[var(--text-muted)]">
               Loading diffs...
@@ -458,50 +520,67 @@ export function SideBySideDiffModal({
             </div>
           )}
           {!loading &&
-            fileDiffs.map((file) => (
-              <div
-                key={file.path}
-                ref={(el) => {
-                  if (el) diffRefs.current.set(file.path, el);
-                  else diffRefs.current.delete(file.path);
-                }}
-                className={`border-b border-[var(--border)] last:border-b-0 ${
-                  selected.has(file.path) ? "" : "opacity-60"
-                }`}
-              >
-                <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-2 text-[11px] font-medium text-[var(--text-primary)]">
-                  {file.status === "renamed" && file.oldPath && (
-                    <span className="text-[var(--text-muted)]">
-                      {file.oldPath} →
-                    </span>
-                  )}
-                  <span className="truncate">{file.path}</span>
-                  {file.status !== "modified" && (
-                    <span className={`shrink-0 rounded px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide ${STATUS_BADGE[file.status]}`}>
-                      {file.status}
-                    </span>
-                  )}
-                  {!selected.has(file.path) && (
-                    <span className="ml-2 text-[10px] font-normal text-[var(--text-muted)]">
-                      (excluded)
-                    </span>
+            fileDiffs.map((file) => {
+              const isMounted = mounted.has(file.path);
+              return (
+                <div
+                  key={file.path}
+                  data-file-path={file.path}
+                  ref={(el) => {
+                    const prev = diffRefs.current.get(file.path);
+                    if (prev && prev !== el) {
+                      observerRef.current?.unobserve(prev);
+                    }
+                    if (el) {
+                      diffRefs.current.set(file.path, el);
+                      if (!isMounted) observerRef.current?.observe(el);
+                    } else {
+                      diffRefs.current.delete(file.path);
+                    }
+                  }}
+                  className={`border-b border-[var(--border)] last:border-b-0 ${
+                    selected.has(file.path) ? "" : "opacity-60"
+                  }`}
+                >
+                  <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-2 text-[11px] font-medium text-[var(--text-primary)]">
+                    {file.status === "renamed" && file.oldPath && (
+                      <span className="text-[var(--text-muted)]">
+                        {file.oldPath} →
+                      </span>
+                    )}
+                    <span className="truncate">{file.path}</span>
+                    {file.status !== "modified" && (
+                      <span className={`shrink-0 rounded px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide ${STATUS_BADGE[file.status]}`}>
+                        {file.status}
+                      </span>
+                    )}
+                    {!selected.has(file.path) && (
+                      <span className="ml-2 text-[10px] font-normal text-[var(--text-muted)]">
+                        (excluded)
+                      </span>
+                    )}
+                  </div>
+                  {file.status === "binary" ? (
+                    <div className="px-4 py-3 text-[11px] italic text-[var(--text-muted)]">
+                      Binary file — diff not shown
+                    </div>
+                  ) : isMounted ? (
+                    <div
+                      className="flex font-mono leading-[1.6]"
+                      style={{ fontSize: `${BASE_DIFF_FONT_PX * zoom}px` }}
+                    >
+                      <DiffSide rows={file.rows} side="left" withBorder />
+                      <DiffSide rows={file.rows} side="right" />
+                    </div>
+                  ) : (
+                    <DiffPlaceholder
+                      rowCount={file.rows.length}
+                      fontPx={BASE_DIFF_FONT_PX * zoom}
+                    />
                   )}
                 </div>
-                {file.status === "binary" ? (
-                  <div className="px-4 py-3 text-[11px] italic text-[var(--text-muted)]">
-                    Binary file — diff not shown
-                  </div>
-                ) : (
-                  <div
-                    className="flex font-mono leading-[1.6]"
-                    style={{ fontSize: `${BASE_DIFF_FONT_PX * zoom}px` }}
-                  >
-                    <DiffSide rows={file.rows} side="left" withBorder />
-                    <DiffSide rows={file.rows} side="right" />
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
         </div>
       </div>
     </Modal>
