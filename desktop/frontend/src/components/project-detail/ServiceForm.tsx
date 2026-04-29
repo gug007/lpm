@@ -9,7 +9,7 @@ import {
 import { slugify } from "../../slugify";
 import { uniqueKey } from "../../uniqueKey";
 import type { ProfileInfo, ServiceInfo } from "../../types";
-import { PlusIcon, TrashIcon, XIcon } from "../icons";
+import { ChevronDownIcon, ChevronRightIcon, PlusIcon, TrashIcon, XIcon } from "../icons";
 import { Modal } from "../ui/Modal";
 import { StartMenuPreview } from "./StartMenuPreview";
 
@@ -122,6 +122,7 @@ export function ServiceForm({
   const [cwd, setCwd] = useState("");
   const [port, setPort] = useState("");
   const [env, setEnv] = useState<EnvDraft[]>([]);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -133,12 +134,20 @@ export function ServiceForm({
       setCwd(editing.cwd ?? "");
       setPort(editing.port > 0 ? String(editing.port) : "");
       setEnv(envFromRecord(editing.env));
+      // Auto-expand Advanced when any optional field is already set, so the
+      // user can see existing values without hunting for the disclosure.
+      setAdvancedOpen(
+        Boolean(editing.cwd) ||
+          editing.port > 0 ||
+          Object.keys(editing.env ?? {}).length > 0,
+      );
     } else {
       setName("");
       setCmd("");
       setCwd("");
       setPort("");
       setEnv([]);
+      setAdvancedOpen(false);
     }
     setSaving(false);
     const focusTimer = setTimeout(() => nameRef.current?.focus(), 50);
@@ -270,7 +279,7 @@ export function ServiceForm({
         <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] lg:flex-row">
           <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
             <div className="space-y-5">
-              <Field label="Name" hint="Lowercase letters, digits, dashes. Used as the YAML key.">
+              <Field label="Name" hint="Lowercase letters, digits, dashes.">
                 <input
                   ref={nameRef}
                   value={name}
@@ -290,34 +299,39 @@ export function ServiceForm({
                 />
               </Field>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div className="sm:col-span-2">
-                  <Field
-                    label="Working directory"
-                    hint="Optional. Relative to project root or absolute."
-                  >
+              <AdvancedSection
+                open={advancedOpen}
+                onToggle={() => setAdvancedOpen((v) => !v)}
+              >
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div className="sm:col-span-2">
+                    <Field
+                      label="Working directory"
+                      hint="Relative to project root or absolute."
+                    >
+                      <input
+                        value={cwd}
+                        onChange={(e) => setCwd(e.target.value)}
+                        placeholder="apps/api"
+                        className={inputClass}
+                      />
+                    </Field>
+                  </div>
+                  <Field label="Port">
                     <input
-                      value={cwd}
-                      onChange={(e) => setCwd(e.target.value)}
-                      placeholder="apps/api"
-                      className={inputClass}
+                      value={port}
+                      onChange={(e) => setPort(e.target.value)}
+                      placeholder="3000"
+                      inputMode="numeric"
+                      className={
+                        inputClass + (portValid ? "" : " border-[var(--accent-red,#dc2626)]")
+                      }
                     />
                   </Field>
                 </div>
-                <Field label="Port" hint="Optional.">
-                  <input
-                    value={port}
-                    onChange={(e) => setPort(e.target.value)}
-                    placeholder="3000"
-                    inputMode="numeric"
-                    className={
-                      inputClass + (portValid ? "" : " border-[var(--accent-red,#dc2626)]")
-                    }
-                  />
-                </Field>
-              </div>
 
-              <EnvEditor entries={env} onChange={setEnv} />
+                <EnvEditor entries={env} onChange={setEnv} />
+              </AdvancedSection>
             </div>
           </div>
 
@@ -355,6 +369,31 @@ export function ServiceForm({
         </footer>
       </div>
     </Modal>
+  );
+}
+
+function AdvancedSection({
+  open,
+  onToggle,
+  children,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="border-t border-[var(--border)] pt-5">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+      >
+        {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
+        Advanced
+      </button>
+      {open && <div className="mt-4 space-y-5">{children}</div>}
+    </div>
   );
 }
 
