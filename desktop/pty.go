@@ -150,7 +150,15 @@ func (a *App) StartTerminalForConfig(projectName string, terminalName string) (T
 // applies it directly to the local process env.
 func buildTerminalCmd(cfg *config.ProjectConfig, rawCwd string, extraEnv map[string]string) (*exec.Cmd, error) {
 	if cfg.IsRemote() {
-		argv := config.SSHCommandArgv(cfg, rawCwd, extraEnv, `exec "$SHELL" -l`)
+		// SSH doesn't forward TERM_PROGRAM by default, so the local
+		// pty.go cmd.Env setting doesn't reach the remote shell.
+		// Bake it into the remote script so TUIs like Claude Code can
+		// detect kitty-keyboard support and recognize Shift+Enter.
+		remoteEnv := map[string]string{"TERM_PROGRAM": "kitty"}
+		for k, v := range extraEnv {
+			remoteEnv[k] = v
+		}
+		argv := config.SSHCommandArgv(cfg, rawCwd, remoteEnv, `exec "$SHELL" -l`)
 		cmd := exec.Command(argv[0], argv[1:]...)
 		cmd.Dir = config.RemoteLocalSpawnDir(cfg)
 		return cmd, nil
