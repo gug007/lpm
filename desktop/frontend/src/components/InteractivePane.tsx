@@ -1,5 +1,5 @@
 import { useRef, useEffect, useImperativeHandle, type Ref } from "react";
-import { Terminal, type ITheme } from "@xterm/xterm";
+import { Terminal, type IDisposable, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -18,6 +18,7 @@ import {
 } from "../../wailsjs/go/main/App";
 import { sendTerminalInput, shellQuote } from "../terminal-io";
 import { getTerminalTheme, openTerminalLink } from "./terminal-utils";
+import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { registerFileDropHandler } from "../fileDrop";
 import "@xterm/xterm/css/xterm.css";
 
@@ -37,6 +38,7 @@ interface InteractivePaneProps {
   onScrollStateChange?: (atBottom: boolean) => void;
   themeOverride?: ITheme | null;
   onExit?: (exitCode: number) => void;
+  cwd?: string;
   ref?: Ref<InteractivePaneHandle>;
 }
 
@@ -108,6 +110,9 @@ interface InteractiveSession {
   sessionDead: boolean;
   remote: Promise<boolean>;
 
+  cwd: string;
+  pathLinkDisposable: IDisposable | null;
+
   // Installed by the current React mount, cleared on unmount so callbacks
   // closing over stale component state don't fire.
   onScrollState?: (atBottom: boolean) => void;
@@ -123,6 +128,7 @@ export { interactiveSessions };
 
 function disposeSession(s: InteractiveSession) {
   s.destroy();
+  s.pathLinkDisposable?.dispose();
   s.term.dispose();
   s.host.remove();
 }
@@ -230,7 +236,7 @@ function writeTerminalError(terminalId: string, err: unknown): void {
   term.write(`\r\n\x1b[31mlpm upload failed: ${msg}\x1b[0m\r\n`);
 }
 
-function createInteractiveSession(terminalId: string): InteractiveSession {
+function createInteractiveSession(terminalId: string, cwd: string): InteractiveSession {
   const host = document.createElement("div");
   host.className = "absolute inset-0 overflow-hidden";
   host.setAttribute("data-terminal-id", terminalId);
@@ -306,9 +312,17 @@ function createInteractiveSession(terminalId: string): InteractiveSession {
     hiddenBufLen: 0,
     sessionDead: false,
     themeOverride: null,
+    cwd,
+    pathLinkDisposable: null,
     flush: () => {},
     destroy: () => {},
   };
+
+  try {
+    session.pathLinkDisposable = registerPathLinkProvider(term, {
+      getCwd: () => session.cwd,
+    });
+  } catch {}
 
   ensureThemeObserver();
 
@@ -448,10 +462,13 @@ function createInteractiveSession(terminalId: string): InteractiveSession {
   return session;
 }
 
-function getOrCreateInteractiveSession(terminalId: string): InteractiveSession {
+function getOrCreateInteractiveSession(terminalId: string, cwd: string): InteractiveSession {
   const existing = interactiveSessions.get(terminalId);
-  if (existing) return existing;
-  const session = createInteractiveSession(terminalId);
+  if (existing) {
+    existing.cwd = cwd;
+    return existing;
+  }
+  const session = createInteractiveSession(terminalId, cwd);
   interactiveSessions.set(terminalId, session);
   return session;
 }
@@ -463,6 +480,7 @@ export function InteractivePane({
   onScrollStateChange,
   themeOverride,
   onExit,
+  cwd = "",
   ref,
 }: InteractivePaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -505,7 +523,7 @@ export function InteractivePane({
 
     initFileDrop();
 
-    const session = getOrCreateInteractiveSession(terminalId);
+    const session = getOrCreateInteractiveSession(terminalId, cwd);
     sessionRef.current = session;
 
     session.term.options.fontSize = fontSize;
@@ -566,6 +584,12 @@ export function InteractivePane({
       session.fit.fit();
     } catch {}
   }, [fontSize]);
+
+  useEffect(() => {
+    const session = sessionRef.current;
+    if (!session) return;
+    session.cwd = cwd;
+  }, [cwd]);
 
   useEffect(() => {
     const session = sessionRef.current;

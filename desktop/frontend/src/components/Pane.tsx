@@ -1,10 +1,11 @@
 import { useRef, useEffect, useImperativeHandle, type Ref, type ReactNode } from "react";
-import { Terminal, type ITheme } from "@xterm/xterm";
+import { Terminal, type IDisposable, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { getTerminalTheme, openTerminalLink } from "./terminal-utils";
+import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { ChevronRightIcon } from "./icons";
 import "@xterm/xterm/css/xterm.css";
 
@@ -21,12 +22,14 @@ interface PaneSession {
   host: HTMLDivElement;
   prevLines: string[];
   stickToBottom: boolean;
+  cwd: string;
+  pathLinkDisposable: IDisposable | null;
   onScrollState?: (atBottom: boolean) => void;
 }
 
 const paneSessions = new Map<string, PaneSession>();
 
-function createPaneSession(opts: { fontSize: number; theme: ITheme }): PaneSession {
+function createPaneSession(opts: { fontSize: number; theme: ITheme; cwd: string }): PaneSession {
   const host = document.createElement("div");
   host.className = "absolute inset-0 overflow-hidden";
 
@@ -58,7 +61,15 @@ function createPaneSession(opts: { fontSize: number; theme: ITheme }): PaneSessi
     host,
     prevLines: [],
     stickToBottom: true,
+    cwd: opts.cwd,
+    pathLinkDisposable: null,
   };
+
+  try {
+    session.pathLinkDisposable = registerPathLinkProvider(term, {
+      getCwd: () => session.cwd,
+    });
+  } catch {}
 
   term.onScroll(() => {
     const buf = term.buffer.active;
@@ -73,6 +84,7 @@ function createPaneSession(opts: { fontSize: number; theme: ITheme }): PaneSessi
 export function disposePaneSession(key: string): void {
   const session = paneSessions.get(key);
   if (!session) return;
+  session.pathLinkDisposable?.dispose();
   session.term.dispose();
   session.host.remove();
   paneSessions.delete(key);
@@ -97,10 +109,11 @@ interface PaneProps {
   onScrollStateChange?: (atBottom: boolean) => void;
   themeOverride?: ITheme | null;
   sessionKey?: string;
+  cwd?: string;
   ref?: Ref<PaneHandle>;
 }
 
-export function Pane({ label, onLabelClick, labelActions, output, visible = true, fontSize = 12, onScrollStateChange, themeOverride, sessionKey, ref }: PaneProps) {
+export function Pane({ label, onLabelClick, labelActions, output, visible = true, fontSize = 12, onScrollStateChange, themeOverride, sessionKey, cwd = "", ref }: PaneProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const sessionRef = useRef<PaneSession | null>(null);
     const scrollCallbackRef = useRef(onScrollStateChange);
@@ -148,19 +161,20 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
         if (cached) {
           session = cached;
         } else {
-          session = createPaneSession({ fontSize, theme: initialTheme });
+          session = createPaneSession({ fontSize, theme: initialTheme, cwd });
           paneSessions.set(sessionKey, session);
         }
       } else {
-        session = createPaneSession({ fontSize, theme: initialTheme });
+        session = createPaneSession({ fontSize, theme: initialTheme, cwd });
       }
 
       sessionRef.current = session;
 
-      // A cached session may have been created earlier with different theme
-      // or fontSize — push the current values before attaching.
+      // A cached session may have been created earlier with different theme,
+      // fontSize, or cwd — push the current values before attaching.
       session.term.options.fontSize = fontSize;
       session.term.options.theme = initialTheme;
+      session.cwd = cwd;
 
       el.appendChild(session.host);
 
@@ -229,6 +243,12 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
       session.term.options.fontSize = fontSize;
       try { session.fit.fit(); } catch {}
     }, [fontSize]);
+
+    useEffect(() => {
+      const session = sessionRef.current;
+      if (!session) return;
+      session.cwd = cwd;
+    }, [cwd]);
 
     useEffect(() => {
       if (!visible) return;

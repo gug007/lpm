@@ -183,7 +183,7 @@ const rowBg = (type: DiffLine["type"]) => {
     case "del":
       return "bg-red-500/10";
     case "empty":
-      return "bg-[var(--bg-secondary)]";
+      return "diff-empty-hatch";
     default:
       return "";
   }
@@ -208,12 +208,18 @@ const STATUS_BADGE: Record<FileStatus, string> = {
   binary: "bg-[var(--bg-hover)] text-[var(--text-muted)]",
 };
 
+// Git emits hunk headers like `@@ -1,98 +1,110 @@ functionName(...)`. The
+// numeric range is noise to a reader; the optional trailing context (the name
+// of the enclosing function) is the useful part.
+const HUNK_PREFIX_RE = /^@@\s+-\d+(?:,\d+)?\s+\+\d+(?:,\d+)?\s+@@\s?/;
+
 function HunkSeparator({ header }: { header: string }) {
+  const context = header.replace(HUNK_PREFIX_RE, "").trim();
   return (
-    <div className="sticky left-0 flex bg-[var(--bg-secondary)] text-[var(--text-muted)]">
-      <span className="truncate px-3 py-0.5 text-[0.85em] italic">
-        {header}
-      </span>
+    <div className="sticky left-0 flex h-5 items-center bg-[var(--bg-secondary)] text-[var(--text-muted)]">
+      {context && (
+        <span className="truncate px-3 text-[0.85em] italic">{context}</span>
+      )}
     </div>
   );
 }
@@ -442,8 +448,8 @@ export function SideBySideDiffModal({
       open={open}
       onClose={onClose}
       zIndexClassName="z-[110]"
-      containerClassName="!items-start"
-      contentClassName="mt-10 w-screen h-[calc(100vh-1.75rem)] flex flex-col bg-[var(--bg-primary)]"
+      backdropClassName="bg-black/50 backdrop-blur-sm"
+      contentClassName="flex h-[90vh] w-[min(1480px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >
       <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">

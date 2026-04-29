@@ -25,6 +25,7 @@ export interface ServiceTabInfo {
   name: string;
   output: string;
   sessionKey: string;
+  cwd: string;
 }
 
 export interface PaneViewProps {
@@ -41,6 +42,9 @@ export interface PaneViewProps {
   waitingPaneIDs?: Set<string>;
   errorPaneIDs?: Set<string>;
   services?: ServiceTabInfo[];
+  // Absolute working directory used to resolve relative paths printed in
+  // interactive shells (typically the project root).
+  interactiveCwd: string;
   onFocusPane: (paneId: string) => void;
   onFocusTab: (paneId: string, tabIdx: number) => void;
   onFocusService: (paneId: string, serviceName: string) => void;
@@ -79,6 +83,7 @@ function PaneViewImpl(props: PaneViewProps) {
     waitingPaneIDs,
     errorPaneIDs,
     services = [],
+    interactiveCwd,
     onFocusPane,
     onFocusTab,
     onFocusService,
@@ -293,6 +298,7 @@ function PaneViewImpl(props: PaneViewProps) {
                 visible={visible && isVisible}
                 fontSize={fontSize}
                 themeOverride={themeOverride}
+                cwd={svc.cwd}
                 label={isAllActive ? svc.name : undefined}
                 onLabelClick={
                   isAllActive
@@ -320,6 +326,7 @@ function PaneViewImpl(props: PaneViewProps) {
                 visible={visible && isActive}
                 fontSize={fontSize}
                 themeOverride={themeOverride}
+                cwd={interactiveCwd}
               />
             </div>
           );

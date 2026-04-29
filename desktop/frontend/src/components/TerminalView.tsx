@@ -15,10 +15,12 @@ import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { useTerminals, type TerminalStartOpts } from "../hooks/useTerminals";
 import { useTTSHotkeys } from "../hooks/useTTSHotkeys";
 import { TTSControls } from "./TTSControls";
+import { joinAbs } from "../path";
 
 interface TerminalViewProps {
   projectName: string;
-  services: { name: string }[];
+  projectRoot: string;
+  services: { name: string; cwd?: string }[];
   terminalTheme: TerminalThemeName;
   onTerminalCountChange?: (count: number) => void;
   fontSize: number;
@@ -37,7 +39,7 @@ export interface TerminalViewHandle {
   createTerminalWithCmd(label: string, cmd: string, opts?: TerminalStartOpts): void;
 }
 
-export function TerminalView({ projectName, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, runningPaneIDs, donePaneIDs, waitingPaneIDs, errorPaneIDs, visible = true, ref }: TerminalViewProps) {
+export function TerminalView({ projectName, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, runningPaneIDs, donePaneIDs, waitingPaneIDs, errorPaneIDs, visible = true, ref }: TerminalViewProps) {
   const [outputs, setOutputs] = useState<string[]>([]);
   const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null);
   const [searchPaneId, setSearchPaneId] = useState<string | null>(null);
@@ -116,8 +118,9 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
         name: svc.name,
         output: outputs[idx] ?? "",
         sessionKey: `${projectName}:${svc.name}`,
+        cwd: projectRoot ? joinAbs(projectRoot, svc.cwd ?? "") : "",
       })),
-    [stableServices, outputs, projectName],
+    [stableServices, outputs, projectName, projectRoot],
   );
 
   // Session keys for all service Panes owned by this TerminalView.
@@ -385,6 +388,7 @@ export function TerminalView({ projectName, services, terminalTheme, onTerminalC
             fontSize={fontSize}
             themeOverride={xtermTheme}
             services={serviceTabInfos}
+            interactiveCwd={projectRoot}
             runningPaneIDs={runningPaneIDs}
             donePaneIDs={donePaneIDs}
             waitingPaneIDs={waitingPaneIDs}

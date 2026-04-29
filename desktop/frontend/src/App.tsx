@@ -11,6 +11,7 @@ import { TmuxInstaller } from "./components/TmuxInstaller";
 import { FeedbackModal } from "./components/FeedbackModal";
 import { NewProjectPicker } from "./components/NewProjectPicker";
 import { AddSSHProjectModal } from "./components/AddSSHProjectModal";
+import { FileViewerHost } from "./components/FileViewerHost";
 import { Toaster } from "sonner";
 import { SidebarIcon } from "./components/icons";
 import { useWindowResizeSaver } from "./hooks/useWindowResizeSaver";
@@ -249,6 +250,7 @@ export default function App() {
         onClose={closeSSHModal}
         onCreate={addSSHProject}
       />
+      <FileViewerHost />
     </div>
   );
 }

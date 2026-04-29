@@ -21,11 +21,12 @@ type OpenInTarget struct {
 }
 
 type targetDef struct {
-	id      string
-	label   string
-	iconPng string
-	detect  func() string
-	launch  func(appPath, projectPath string) error
+	id       string
+	label    string
+	iconPng  string
+	detect   func() string
+	launch   func(appPath, projectPath string) error
+	openFile func(appPath, filePath string, line, col int) error
 }
 
 func iconDataURI(name string) string {
@@ -111,6 +112,37 @@ end tell`, appleScriptEscape(projectPath))
 	return launchAppleScript(script)
 }
 
+// formatPathSpec produces "path", "path:line", or "path:line:col" depending on inputs.
+// Most editors with a CLI accept this form (VS Code/Cursor/Windsurf via -g, Sublime/Zed bare).
+func formatPathSpec(path string, line, col int) string {
+	if line <= 0 {
+		return path
+	}
+	if col <= 0 {
+		return fmt.Sprintf("%s:%d", path, line)
+	}
+	return fmt.Sprintf("%s:%d:%d", path, line, col)
+}
+
+// vscodeFamilyOpenFile returns an openFile func for VS Code-derived editors that ship
+// a CLI binary at <App>/Contents/Resources/app/bin/<binName> and accept `-g path:line:col`.
+func vscodeFamilyOpenFile(binName string) func(string, string, int, int) error {
+	return func(appPath, filePath string, line, col int) error {
+		bin := filepath.Join(appPath, "Contents", "Resources", "app", "bin", binName)
+		return exec.Command(bin, "-g", formatPathSpec(filePath, line, col)).Run()
+	}
+}
+
+func sublimeOpenFile(appPath, filePath string, line, col int) error {
+	bin := filepath.Join(appPath, "Contents", "SharedSupport", "bin", "subl")
+	return exec.Command(bin, formatPathSpec(filePath, line, col)).Run()
+}
+
+func zedOpenFile(appPath, filePath string, line, col int) error {
+	bin := filepath.Join(appPath, "Contents", "MacOS", "cli")
+	return exec.Command(bin, formatPathSpec(filePath, line, col)).Run()
+}
+
 func launchGhostty(_ string, projectPath string) error {
 	shell := os.Getenv("SHELL")
 	if shell == "" {
@@ -133,7 +165,8 @@ var targets = []targetDef{
 			}
 			return detectByPrefix("Cursor")
 		},
-		launch: func(_, path string) error { return launchOpenA("Cursor", path) },
+		launch:   func(_, path string) error { return launchOpenA("Cursor", path) },
+		openFile: vscodeFamilyOpenFile("cursor"),
 	},
 	{
 		id: "vscode", label: "VS Code", iconPng: "vscode.png",
@@ -143,7 +176,8 @@ var targets = []targetDef{
 				"/Applications/Code.app",
 			)
 		},
-		launch: func(_, path string) error { return launchOpenA("Visual Studio Code", path) },
+		launch:   func(_, path string) error { return launchOpenA("Visual Studio Code", path) },
+		openFile: vscodeFamilyOpenFile("code"),
 	},
 	{
 		id: "vscode-insiders", label: "VS Code Insiders", iconPng: "vscode-insiders.png",
@@ -153,17 +187,20 @@ var targets = []targetDef{
 				"/Applications/Code - Insiders.app",
 			)
 		},
-		launch: func(_, path string) error { return launchOpenA("Visual Studio Code - Insiders", path) },
+		launch:   func(_, path string) error { return launchOpenA("Visual Studio Code - Insiders", path) },
+		openFile: vscodeFamilyOpenFile("code-insiders"),
 	},
 	{
 		id: "windsurf", label: "Windsurf", iconPng: "windsurf.png",
-		detect: func() string { return detectByPaths("/Applications/Windsurf.app") },
-		launch: func(_, path string) error { return launchOpenA("Windsurf", path) },
+		detect:   func() string { return detectByPaths("/Applications/Windsurf.app") },
+		launch:   func(_, path string) error { return launchOpenA("Windsurf", path) },
+		openFile: vscodeFamilyOpenFile("windsurf"),
 	},
 	{
 		id: "zed", label: "Zed", iconPng: "zed.png",
-		detect: func() string { return detectByPaths("/Applications/Zed.app", "/Applications/Zed Preview.app") },
-		launch: func(_, path string) error { return launchOpenA("Zed", path) },
+		detect:   func() string { return detectByPaths("/Applications/Zed.app", "/Applications/Zed Preview.app") },
+		launch:   func(_, path string) error { return launchOpenA("Zed", path) },
+		openFile: zedOpenFile,
 	},
 	{
 		id: "xcode", label: "Xcode", iconPng: "xcode.png",
@@ -172,8 +209,9 @@ var targets = []targetDef{
 	},
 	{
 		id: "sublime-text", label: "Sublime Text", iconPng: "sublime-text.png",
-		detect: func() string { return detectByPaths("/Applications/Sublime Text.app") },
-		launch: func(_, path string) error { return launchOpenA("Sublime Text", path) },
+		detect:   func() string { return detectByPaths("/Applications/Sublime Text.app") },
+		launch:   func(_, path string) error { return launchOpenA("Sublime Text", path) },
+		openFile: sublimeOpenFile,
 	},
 	{
 		id: "terminal", label: "Terminal", iconPng: "terminal.png",
@@ -257,4 +295,87 @@ func (a *App) OpenIn(targetID, projectPath string) error {
 		projectPath = filepath.Join(home, projectPath[2:])
 	}
 	return t.launch(appPath, projectPath)
+}
+
+// FileExists reports whether absPath points to a regular file (not a directory).
+// Used by the terminal link provider to filter out false-positive path matches
+// before underlining them.
+func (a *App) FileExists(absPath string) bool {
+	if absPath == "" {
+		return false
+	}
+	info, err := os.Stat(absPath)
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
+}
+
+// Cap to keep the renderer responsive — anything larger than this and the
+// "open externally" path is the right answer anyway.
+const readFileMaxBytes = 5 * 1024 * 1024 // 5 MiB
+
+// ReadFile returns the contents of absPath. Errors out if the file is too
+// large or doesn't exist; in those cases the modal can render a placeholder
+// and prompt the user to open it externally.
+func (a *App) ReadFile(absPath string) (string, error) {
+	if absPath == "" {
+		return "", fmt.Errorf("empty file path")
+	}
+	data, err := os.ReadFile(absPath)
+	if err != nil {
+		return "", err
+	}
+	if int64(len(data)) > readFileMaxBytes {
+		return "", fmt.Errorf("file too large to preview (%d bytes)", len(data))
+	}
+	return string(data), nil
+}
+
+// pickFileEditor returns the first installed target that supports openFile,
+// in registry order. Used as the auto-detect fallback when no preference is set.
+func pickFileEditor() *targetDef {
+	for i := range targets {
+		t := &targets[i]
+		if t.openFile == nil {
+			continue
+		}
+		if t.detect() != "" {
+			return t
+		}
+	}
+	return nil
+}
+
+// OpenFileInEditor opens absPath in the user's preferred editor, jumping to
+// line:col when both are positive. Empty editorID auto-picks the first
+// installed editor that supports file-level open. Falls back to `open path`
+// when nothing better is available.
+func (a *App) OpenFileInEditor(editorID, absPath string, line, col int) error {
+	if absPath == "" {
+		return fmt.Errorf("empty file path")
+	}
+	if _, err := os.Stat(absPath); err != nil {
+		return fmt.Errorf("file not found: %s", absPath)
+	}
+
+	if editorID != "" {
+		t, ok := targetsByID[editorID]
+		if !ok {
+			return fmt.Errorf("unknown editor: %s", editorID)
+		}
+		appPath := t.detect()
+		if appPath == "" {
+			return fmt.Errorf("%s is not installed", t.label)
+		}
+		if t.openFile != nil {
+			return t.openFile(appPath, absPath, line, col)
+		}
+		return exec.Command("open", "-a", t.label, absPath).Run()
+	}
+
+	if t := pickFileEditor(); t != nil {
+		return t.openFile(t.detect(), absPath, line, col)
+	}
+	return exec.Command("open", absPath).Run()
 }

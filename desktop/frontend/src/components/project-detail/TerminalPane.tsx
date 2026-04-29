@@ -58,6 +58,7 @@ export function TerminalPane({
       <TerminalView
         ref={terminalRef}
         projectName={projectName}
+        projectRoot={projectRoot}
         services={services}
         terminalTheme={terminalTheme}
         onTerminalCountChange={onTerminalCountChange}
