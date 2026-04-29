@@ -248,6 +248,25 @@ func SSHArgs(s *SSHSettings) []string {
 	return args
 }
 
+// SCPArgs returns scp options that piggyback on the same ControlMaster
+// socket SSHArgs uses, so an scp call from a long-lived terminal session
+// reuses the open mux instead of opening a new auth/handshake.
+// Differs from SSHArgs only by dropping -t and using -P for port.
+func SCPArgs(s *SSHSettings) []string {
+	args := []string{
+		"-o", "ControlMaster=auto",
+		"-o", "ControlPath=" + SSHControlPath(),
+		"-o", "ControlPersist=10m",
+	}
+	if s.Port > 0 && s.Port != 22 {
+		args = append(args, "-P", strconv.Itoa(s.Port))
+	}
+	if key := strings.TrimSpace(s.Key); key != "" {
+		args = append(args, "-i", ExpandHome(key))
+	}
+	return args
+}
+
 // SSHControlDir is the parent directory for SSH ControlMaster sockets.
 // /tmp keeps the path short enough that <dir>/cm-<%C-hash> stays under
 // the 104-byte sun_path limit; the per-uid suffix avoids collisions on

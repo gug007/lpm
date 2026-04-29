@@ -34,8 +34,14 @@ type ptySession struct {
 	id          string
 	projectName string
 	declared    map[int]bool // service ports declared in cfg; nil for local projects
-	pty         *os.File
-	cmd         *exec.Cmd
+	// remote is cfg.IsRemote() at start time (post-sync-mirror): true when
+	// the underlying shell runs on the SSH host, false for local panes
+	// including sync-mode panes whose work happens in the local mirror.
+	// File drops/pastes consult this to decide whether to upload.
+	remote bool
+	ssh    *config.SSHSettings // SSH settings copied from cfg at start, nil if !remote
+	pty    *os.File
+	cmd    *exec.Cmd
 
 	// onClose runs (in a goroutine) after the underlying process exits.
 	// Used by mode: sync terminals to push the rsync mirror back.
@@ -192,9 +198,13 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 		id:          id,
 		projectName: projectName,
 		declared:    declared,
+		remote:      cfg.IsRemote(),
 		pty:         ptmx,
 		cmd:         cmd,
 		onClose:     onClose,
+	}
+	if sess.remote {
+		sess.ssh = cfg.SSH
 	}
 	sess.cond = sync.NewCond(&sess.mu)
 

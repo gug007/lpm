@@ -11,9 +11,10 @@ import {
   ResizeTerminal,
   AckTerminalData,
   ReadClipboardFiles,
-  SaveClipboardImage,
+  UploadAndQuoteForTerminal,
+  UploadClipboardImageForTerminal,
 } from "../../wailsjs/go/main/App";
-import { sendTerminalInput, shellQuote } from "../terminal-io";
+import { sendTerminalInput } from "../terminal-io";
 import { getTerminalTheme, openTerminalLink } from "./terminal-utils";
 import { registerFileDropHandler } from "../fileDrop";
 import "@xterm/xterm/css/xterm.css";
@@ -49,7 +50,12 @@ function initFileDrop() {
   registerFileDropHandler("terminals", (x, y, paths) => {
     const id = terminalIdAtPoint(x, y);
     if (!id) return false;
-    pasteToTerminal(id, formatPastedPaths(paths));
+    // For remote panes the Go side scp's the files via the existing
+    // ControlMaster socket and returns the paste-ready remote paths;
+    // for local panes it just formats the local paths.
+    UploadAndQuoteForTerminal(id, paths)
+      .then((text) => pasteToTerminal(id, text))
+      .catch((err) => writeTerminalError(id, err));
     return true;
   });
 }
@@ -174,16 +180,12 @@ function saveImageBlob(terminalId: string, blob: File, mimeType: string) {
     const dataUrl = reader.result as string;
     const b64 = dataUrl.split(",")[1];
     if (!b64) return;
-    SaveClipboardImage(b64, mimeType)
-      .then((filePath) => {
-        pasteToTerminal(terminalId, filePath);
-      })
-      .catch((err) => console.warn("SaveClipboardImage failed:", err));
+    UploadClipboardImageForTerminal(terminalId, b64, mimeType)
+      .then((text) => pasteToTerminal(terminalId, text))
+      .catch((err) => writeTerminalError(terminalId, err));
   };
   reader.readAsDataURL(blob);
 }
-
-const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif)$/i;
 
 // xterm's paste() emits CSI ?2004h bracketed-paste markers when the running
 // app enabled them — writing to the PTY directly would skip those, leaving
@@ -192,13 +194,11 @@ function pasteToTerminal(terminalId: string, text: string): void {
   interactiveSessions.get(terminalId)?.term.paste(text);
 }
 
-// Single image paths go in unquoted so a path-detecting receiver can stat
-// them; everything else is shell-quoted for shell users.
-function formatPastedPaths(paths: string[]): string {
-  if (paths.length === 1 && IMAGE_EXT_RE.test(paths[0])) {
-    return paths[0];
-  }
-  return paths.map(shellQuote).join(" ");
+function writeTerminalError(terminalId: string, err: unknown): void {
+  const msg = err instanceof Error ? err.message : String(err);
+  const term = interactiveSessions.get(terminalId)?.term;
+  if (!term) return;
+  term.write(`\r\n\x1b[31mlpm upload failed: ${msg}\x1b[0m\r\n`);
 }
 
 function createInteractiveSession(terminalId: string): InteractiveSession {
@@ -370,10 +370,11 @@ function createInteractiveSession(terminalId: string): InteractiveSession {
       ReadClipboardFiles()
         .then((paths) => {
           if (paths && paths.length > 0) {
-            pasteToTerminal(terminalId, formatPastedPaths(paths));
-          } else {
-            fallback();
+            return UploadAndQuoteForTerminal(terminalId, paths)
+              .then((text) => pasteToTerminal(terminalId, text))
+              .catch((err) => writeTerminalError(terminalId, err));
           }
+          fallback();
         })
         .catch(fallback);
       return;
