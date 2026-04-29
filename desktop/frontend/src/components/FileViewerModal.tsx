@@ -5,6 +5,7 @@ import { XIcon } from "./icons";
 import { GitDiff, ReadFile, WriteFile } from "../../wailsjs/go/main/App";
 import { ensureLang, getLang, tokenizeLines, type Token } from "../highlight";
 import { basename, relTo } from "../path";
+import { MonacoEditor } from "./MonacoEditor";
 import { OpenFileWithDropdown } from "./OpenFileWithDropdown";
 
 // Inner width above which a diff renders in two columns. Below this we fall
@@ -358,12 +359,12 @@ export function FileViewerModal({
 
         <div className="min-h-0 flex-1 overflow-hidden bg-[var(--bg-primary)] font-mono text-[12px] leading-[1.55]">
           {editing ? (
-            <textarea
+            <MonacoEditor
               value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              spellCheck={false}
-              autoFocus
-              className="block h-full w-full resize-none border-0 bg-[var(--bg-primary)] px-6 py-4 font-mono text-[13px] leading-[1.55] text-[var(--text-primary)] outline-none"
+              onChange={setEditValue}
+              language={getLang(absPath)}
+              modelUri={`lpm-file://${absPath}`}
+              onSave={() => void saveEdit()}
             />
           ) : (
             <>

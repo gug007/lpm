@@ -2,7 +2,7 @@ import { ReadGlobalConfig, SaveGlobalConfig } from "../../wailsjs/go/main/App";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { useYamlEditor } from "../hooks/useYamlEditor";
 import { ChevronLeftIcon } from "./icons";
-import { MonacoYamlEditor } from "./MonacoYamlEditor";
+import { MonacoEditor } from "./MonacoEditor";
 import { GLOBAL_MODEL_URI } from "../monaco-setup";
 
 const load = () => ReadGlobalConfig();
@@ -37,9 +37,10 @@ export function GlobalConfigEditor({ onBack }: { onBack: () => void }) {
 
       <div className="mt-4 flex min-h-0 flex-1 flex-col relative rounded-lg border border-[var(--border)] overflow-hidden">
         <div className="min-h-0 flex-1">
-          <MonacoYamlEditor
+          <MonacoEditor
             value={content}
             onChange={setContent}
+            language="yaml"
             modelUri={GLOBAL_MODEL_URI}
             onSave={handleSave}
           />

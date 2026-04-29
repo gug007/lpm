@@ -10,9 +10,10 @@ const MAX_EDITOR_FONT_SIZE = 24;
 
 type Monaco = typeof monacoNs;
 
-interface MonacoYamlEditorProps {
+interface MonacoEditorProps {
   value: string;
   onChange: (value: string) => void;
+  language: string;
   modelUri: string;
   onSave?: () => void;
   onToggleView?: () => void;
@@ -51,13 +52,14 @@ function defineThemes(monaco: Monaco) {
   });
 }
 
-export function MonacoYamlEditor({
+export function MonacoEditor({
   value,
   onChange,
+  language,
   modelUri,
   onSave,
   onToggleView,
-}: MonacoYamlEditorProps) {
+}: MonacoEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monacoNs.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
@@ -80,9 +82,14 @@ export function MonacoYamlEditor({
     monacoRef.current = monaco;
     defineThemes(monaco);
 
+    const modelLang = language || "plaintext";
     const uri = monaco.Uri.parse(modelUri);
+    const existing = monaco.editor.getModel(uri);
     const model =
-      monaco.editor.getModel(uri) ?? monaco.editor.createModel(value, "yaml", uri);
+      existing ?? monaco.editor.createModel(value, modelLang, uri);
+    if (existing && existing.getLanguageId() !== modelLang) {
+      monaco.editor.setModelLanguage(existing, modelLang);
+    }
     if (model.getValue() !== value) {
       suppressChangeRef.current = true;
       model.setValue(value);
@@ -167,29 +174,31 @@ export function MonacoYamlEditor({
     };
     hostRef.current?.addEventListener("wheel", wheelHandler, { passive: false });
 
-    editor.addCommand(
-      monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF,
-      () => {
-        const current = model.getValue();
-        let formatted: string;
-        try {
-          const doc = parseDocument(current);
-          if (doc.errors.length > 0) return;
-          formatted = doc.toString({ indent: 2, lineWidth: 0 });
-        } catch {
-          return;
-        }
-        if (formatted === current) return;
-        editor.executeEdits("format", [
-          {
-            range: model.getFullModelRange(),
-            text: formatted,
-            forceMoveMarkers: true,
-          },
-        ]);
-        editor.pushUndoStop();
-      },
-    );
+    if (modelLang === "yaml") {
+      editor.addCommand(
+        monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF,
+        () => {
+          const current = model.getValue();
+          let formatted: string;
+          try {
+            const doc = parseDocument(current);
+            if (doc.errors.length > 0) return;
+            formatted = doc.toString({ indent: 2, lineWidth: 0 });
+          } catch {
+            return;
+          }
+          if (formatted === current) return;
+          editor.executeEdits("format", [
+            {
+              range: model.getFullModelRange(),
+              text: formatted,
+              forceMoveMarkers: true,
+            },
+          ]);
+          editor.pushUndoStop();
+        },
+      );
+    }
 
     setReady(true);
 
@@ -226,21 +235,24 @@ export function MonacoYamlEditor({
   }, [value, ready]);
 
   const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+  const showFormatHint = language === "yaml";
 
   return (
     <div className="relative h-full w-full">
       <div ref={hostRef} className="h-full w-full" />
-      <div
-        className="pointer-events-none absolute top-3 right-4 select-none font-mono text-[10px] font-medium uppercase tracking-wider text-neutral-500/70 dark:text-neutral-400/60"
-        aria-hidden
-      >
-        <kbd>{isMac ? "⇧" : "Shift"}</kbd>
-        <span className="mx-0.5">+</span>
-        <kbd>{isMac ? "⌥" : "Alt"}</kbd>
-        <span className="mx-0.5">+</span>
-        <kbd>F</kbd>
-        <span className="ml-2 normal-case tracking-normal">format</span>
-      </div>
+      {showFormatHint && (
+        <div
+          className="pointer-events-none absolute top-3 right-4 select-none font-mono text-[10px] font-medium uppercase tracking-wider text-neutral-500/70 dark:text-neutral-400/60"
+          aria-hidden
+        >
+          <kbd>{isMac ? "⇧" : "Shift"}</kbd>
+          <span className="mx-0.5">+</span>
+          <kbd>{isMac ? "⌥" : "Alt"}</kbd>
+          <span className="mx-0.5">+</span>
+          <kbd>F</kbd>
+          <span className="ml-2 normal-case tracking-normal">format</span>
+        </div>
+      )}
     </div>
   );
 }

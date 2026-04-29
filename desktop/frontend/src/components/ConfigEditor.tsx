@@ -3,7 +3,7 @@ import { ReadConfig, SaveConfig, GenerateProjectConfig } from "../../wailsjs/go/
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { useYamlEditor } from "../hooks/useYamlEditor";
 import { VisualConfigEditor } from "./VisualConfigEditor";
-import { MonacoYamlEditor } from "./MonacoYamlEditor";
+import { MonacoEditor } from "./MonacoEditor";
 import { PROJECT_MODEL_URI } from "../monaco-setup";
 import { ChevronLeftIcon } from "./icons";
 import { AIButton } from "./ui/AIButton";
@@ -106,9 +106,10 @@ export function ConfigEditor({ projectName, onSaved, onBack, onToggleView }: Con
         <VisualConfigEditor content={content} onChange={setContent} />
       ) : (
         <div className="relative flex-1 overflow-hidden">
-          <MonacoYamlEditor
+          <MonacoEditor
             value={content}
             onChange={setContent}
+            language="yaml"
             modelUri={PROJECT_MODEL_URI}
             onSave={handleSave}
             onToggleView={onToggleView}
