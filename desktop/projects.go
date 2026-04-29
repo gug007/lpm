@@ -42,10 +42,11 @@ type ProjectInfo struct {
 }
 
 type ServiceInfo struct {
-	Name string `json:"name"`
-	Cmd  string `json:"cmd"`
-	Cwd  string `json:"cwd"`
-	Port int    `json:"port"`
+	Name string            `json:"name"`
+	Cmd  string            `json:"cmd"`
+	Cwd  string            `json:"cwd"`
+	Port int               `json:"port"`
+	Env  map[string]string `json:"env,omitempty"`
 }
 
 type ProfileInfo struct {
@@ -152,6 +153,7 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state r
 				Cmd:  svc.Cmd,
 				Cwd:  svc.Cwd,
 				Port: svc.Port,
+				Env:  svc.Env,
 			})
 		}
 		return out

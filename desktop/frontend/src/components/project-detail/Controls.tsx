@@ -1,11 +1,11 @@
-import { type RefObject } from "react";
+import { type MouseEvent, type RefObject } from "react";
 import { OpenInDropdown } from "../OpenInDropdown";
 import { ChevronDownIcon, MenuIcon } from "../icons";
 import { NO_DRAG_STYLE } from "./constants";
 import { PortsButton } from "./PortsButton";
 import { QuickPopover } from "./QuickPopover";
 import { StartMenu } from "./StartMenu";
-import type { ActionInfo, ProjectInfo } from "../../types";
+import type { ActionInfo, ProfileInfo, ProjectInfo, ServiceInfo } from "../../types";
 
 interface ControlsProps {
   project: ProjectInfo;
@@ -30,6 +30,12 @@ interface ControlsProps {
   onRestart: () => void;
   onRequestRemove: () => void;
   onShowTerminalSettings: () => void;
+  onAddService: () => void;
+  onAddProfile: () => void;
+  onEditService: (service: ServiceInfo) => void;
+  onEditProfile: (profile: ProfileInfo) => void;
+  onContextMenuService?: (e: MouseEvent, service: ServiceInfo) => void;
+  onContextMenuProfile?: (e: MouseEvent, profile: ProfileInfo) => void;
 }
 
 export function Controls({
@@ -55,6 +61,12 @@ export function Controls({
   onRestart,
   onRequestRemove,
   onShowTerminalSettings,
+  onAddService,
+  onAddProfile,
+  onEditService,
+  onEditProfile,
+  onContextMenuService,
+  onContextMenuProfile,
 }: ControlsProps) {
   return (
     <>
@@ -89,21 +101,25 @@ export function Controls({
           />
         )}
       </div>
-      {project.allServices.length > 0 && (
-        <StartStopGroup
-          project={project}
-          loading={loading}
-          activeProfile={activeProfile}
-          runningServiceNames={runningServiceNames}
-          showProfileMenu={showProfileMenu}
-          profileMenuRef={profileMenuRef}
-          onStart={onStart}
-          onStop={onStop}
-          onToggleProfileMenu={onToggleProfileMenu}
-          onPickProfile={onPickProfile}
-          onToggleService={onToggleService}
-        />
-      )}
+      <StartStopGroup
+        project={project}
+        loading={loading}
+        activeProfile={activeProfile}
+        runningServiceNames={runningServiceNames}
+        showProfileMenu={showProfileMenu}
+        profileMenuRef={profileMenuRef}
+        onStart={onStart}
+        onStop={onStop}
+        onToggleProfileMenu={onToggleProfileMenu}
+        onPickProfile={onPickProfile}
+        onToggleService={onToggleService}
+        onAddService={onAddService}
+        onAddProfile={onAddProfile}
+        onEditService={onEditService}
+        onEditProfile={onEditProfile}
+        onContextMenuService={onContextMenuService}
+        onContextMenuProfile={onContextMenuProfile}
+      />
     </>
   );
 }
@@ -120,6 +136,12 @@ interface StartStopGroupProps {
   onToggleProfileMenu: () => void;
   onPickProfile: (name: string) => void;
   onToggleService: (name: string) => void;
+  onAddService: () => void;
+  onAddProfile: () => void;
+  onEditService: (service: ServiceInfo) => void;
+  onEditProfile: (profile: ProfileInfo) => void;
+  onContextMenuService?: (e: MouseEvent, service: ServiceInfo) => void;
+  onContextMenuProfile?: (e: MouseEvent, profile: ProfileInfo) => void;
 }
 
 function StartStopGroup({
@@ -134,42 +156,53 @@ function StartStopGroup({
   onToggleProfileMenu,
   onPickProfile,
   onToggleService,
+  onAddService,
+  onAddProfile,
+  onEditService,
+  onEditProfile,
+  onContextMenuService,
+  onContextMenuProfile,
 }: StartStopGroupProps) {
-  const hasMultipleServices = project.allServices.length > 1;
-  const radius = hasMultipleServices ? "rounded-l-lg" : "rounded-lg";
+  // The chevron is always available so users can manage services and
+  // profiles even when the project has zero or one service. Only the
+  // primary Start/Stop button is hidden when there are no services to run.
+  const hasServices = project.allServices.length > 0;
   return (
     <div ref={profileMenuRef} className="relative flex" style={NO_DRAG_STYLE}>
-      {project.running ? (
-        <button
-          onClick={onStop}
-          disabled={loading}
-          className={`${radius} px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 bg-[var(--accent-red)] text-white hover:opacity-85`}
-        >
-          Stop
-        </button>
-      ) : (
-        <button
-          onClick={onStart}
-          disabled={loading}
-          className={`${radius} px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-85`}
-        >
-          Start
-        </button>
-      )}
-      {hasMultipleServices && (
-        <button
-          onClick={onToggleProfileMenu}
-          disabled={loading}
-          className={`rounded-r-lg border-l px-1.5 py-1.5 transition-all disabled:opacity-40 hover:opacity-85 ${
-            project.running
+      {hasServices ? (
+        project.running ? (
+          <button
+            onClick={onStop}
+            disabled={loading}
+            className="rounded-l-lg px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 bg-[var(--accent-red)] text-white hover:opacity-85"
+          >
+            Stop
+          </button>
+        ) : (
+          <button
+            onClick={onStart}
+            disabled={loading}
+            className="rounded-l-lg px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-85"
+          >
+            Start
+          </button>
+        )
+      ) : null}
+      <button
+        onClick={onToggleProfileMenu}
+        disabled={loading}
+        aria-label="Services and profiles"
+        className={`${hasServices ? "rounded-r-lg border-l" : "rounded-lg border"} px-1.5 py-1.5 transition-all disabled:opacity-40 hover:opacity-85 ${
+          hasServices
+            ? project.running
               ? "border-white/20 bg-[var(--accent-red)] text-white"
               : "border-[var(--bg-primary)]/20 bg-[var(--text-primary)] text-[var(--bg-primary)]"
-          }`}
-        >
-          <ChevronDownIcon />
-        </button>
-      )}
-      {hasMultipleServices && showProfileMenu && (
+            : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        }`}
+      >
+        <ChevronDownIcon />
+      </button>
+      {showProfileMenu && (
         <StartMenu
           profiles={project.profiles}
           services={project.allServices}
@@ -178,6 +211,12 @@ function StartStopGroup({
           runningServiceNames={runningServiceNames}
           onPickProfile={onPickProfile}
           onToggleService={onToggleService}
+          onAddService={onAddService}
+          onAddProfile={onAddProfile}
+          onEditService={onEditService}
+          onEditProfile={onEditProfile}
+          onContextMenuService={onContextMenuService}
+          onContextMenuProfile={onContextMenuProfile}
         />
       )}
     </div>

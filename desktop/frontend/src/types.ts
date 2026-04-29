@@ -3,6 +3,7 @@ export interface ServiceInfo {
   cmd: string;
   cwd: string;
   port: number;
+  env?: Record<string, string>;
 }
 
 export interface ProfileInfo {
