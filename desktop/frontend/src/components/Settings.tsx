@@ -105,6 +105,9 @@ export function Settings({
   const { fontSize: terminalFontSize, zoomIn: terminalZoomIn, zoomOut: terminalZoomOut } =
     useTerminalFontSize();
   const { theme: terminalTheme, setTheme: setTerminalTheme } = useTerminalTheme();
+  const [openFilesInDefaultApp, setOpenFilesInDefaultApp] = useState(
+    settings.terminalOpenInDefaultApp ?? false,
+  );
 
   useEffect(() => {
     if (!ttsEnabled) return;
@@ -387,6 +390,18 @@ export function Settings({
                   <TerminalThemePreview theme={terminalTheme} fontSize={terminalFontSize} />
                 </div>
               </div>
+              <SettingsRow
+                label="Open files in default app"
+                description="Click a file path in the terminal to open it in the OS default app instead of the in-app preview"
+              >
+                <Toggle
+                  enabled={openFilesInDefaultApp}
+                  onChange={(v) => {
+                    setOpenFilesInDefaultApp(v);
+                    saveSettings({ terminalOpenInDefaultApp: v });
+                  }}
+                />
+              </SettingsRow>
             </SettingsSection>
           )}
 

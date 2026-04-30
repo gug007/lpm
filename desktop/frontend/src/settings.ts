@@ -12,6 +12,7 @@ export interface Settings {
   projectOrder?: string[];
   terminalTheme?: string;
   terminalFontSize?: number;
+  terminalOpenInDefaultApp?: boolean;
   editorFontSize?: number;
   windowWidth?: number;
   windowHeight?: number;
@@ -48,6 +49,7 @@ export async function loadSettings(): Promise<Settings> {
       projectOrder: s.projectOrder,
       terminalTheme: s.terminalTheme,
       terminalFontSize: s.terminalFontSize,
+      terminalOpenInDefaultApp: s.terminalOpenInDefaultApp,
       editorFontSize: s.editorFontSize,
       windowWidth: s.windowWidth,
       windowHeight: s.windowHeight,

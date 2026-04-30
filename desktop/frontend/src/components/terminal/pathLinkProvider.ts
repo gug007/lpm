@@ -5,8 +5,11 @@ import type {
   ILinkProvider,
   Terminal,
 } from "@xterm/xterm";
+import { toast } from "sonner";
 import { joinAbs } from "../../path";
+import { getSettings } from "../../settings";
 import { openFileViewer } from "../../store/fileViewer";
+import { OpenPathInDefaultApp } from "../../../wailsjs/go/main/App";
 
 // Matches paths with at least one separator and a file extension, optionally
 // followed by `:line` or `:line:col`. The lookbehind enforces a token boundary
@@ -80,6 +83,10 @@ export function registerPathLinkProvider(
           range,
           text: text.slice(m.startIdx, m.endIdx),
           activate: () => {
+            if (getSettings().terminalOpenInDefaultApp) {
+              OpenPathInDefaultApp(abs).catch((err) => toast.error(`Open in Default app: ${err}`));
+              return;
+            }
             openFileViewer({
               absPath: abs,
               line: m.line,

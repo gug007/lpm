@@ -2,9 +2,17 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useOpenInTargets, type OpenInTarget } from "../hooks/useOpenInTargets";
-import { OpenFileInEditor } from "../../wailsjs/go/main/App";
+import { OpenFileInEditor, OpenPathInDefaultApp } from "../../wailsjs/go/main/App";
 
 const SELECTED_KEY = "lpm.openFileWith.selectedId";
+const DEFAULT_APP_ID = "__default_app__";
+// Synthetic target injected after the editor list. Empty `icon` is a
+// sentinel — TargetIcon renders an inline SVG instead of an <img>.
+const DEFAULT_APP_TARGET: OpenInTarget = {
+  id: DEFAULT_APP_ID,
+  label: "Default app",
+  icon: "",
+};
 
 interface OpenFileWithDropdownProps {
   absPath: string;
@@ -14,22 +22,29 @@ interface OpenFileWithDropdownProps {
 
 export function OpenFileWithDropdown({ absPath, line, col }: OpenFileWithDropdownProps) {
   const [open, setOpen] = useState(false);
-  const targets = useOpenInTargets();
+  const editorTargets = useOpenInTargets();
+  const targets = useMemo<OpenInTarget[]>(
+    () => [...editorTargets, DEFAULT_APP_TARGET],
+    [editorTargets],
+  );
   const [selectedId, setSelectedId] = useState<string>(
     () => localStorage.getItem(SELECTED_KEY) ?? "",
   );
   const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
 
   const selected = useMemo(() => {
-    if (targets.length === 0) return null;
     return targets.find((t) => t.id === selectedId) ?? targets[0];
   }, [targets, selectedId]);
 
-  if (targets.length === 0 || !selected) return null;
+  if (!selected) return null;
 
   const launch = async (t: OpenInTarget) => {
     try {
-      await OpenFileInEditor(t.id, absPath, line, col);
+      if (t.id === DEFAULT_APP_ID) {
+        await OpenPathInDefaultApp(absPath);
+      } else {
+        await OpenFileInEditor(t.id, absPath, line, col);
+      }
     } catch (err) {
       toast.error(`Open in ${t.label}: ${err}`);
     }
@@ -50,7 +65,7 @@ export function OpenFileWithDropdown({ absPath, line, col }: OpenFileWithDropdow
           title={`Open in ${selected.label}`}
           className="flex items-center gap-2 rounded-l-lg border-r border-[var(--border)] px-2.5 py-1.5 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         >
-          <img src={selected.icon} alt="" className="h-4 w-4 shrink-0" />
+          <TargetIcon target={selected} />
           <span>Open in {selected.label}</span>
         </button>
         <button
@@ -73,7 +88,7 @@ export function OpenFileWithDropdown({ absPath, line, col }: OpenFileWithDropdow
                 t.id === selected.id ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
               }`}
             >
-              <img src={t.icon} alt="" className="h-4 w-4 shrink-0" />
+              <TargetIcon target={t} />
               <span className="flex-1 truncate">{t.label}</span>
             </button>
           ))}
@@ -81,6 +96,29 @@ export function OpenFileWithDropdown({ absPath, line, col }: OpenFileWithDropdow
       )}
     </div>
   );
+}
+
+function TargetIcon({ target }: { target: OpenInTarget }) {
+  if (target.id === DEFAULT_APP_ID) {
+    return (
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="h-4 w-4 shrink-0 text-[var(--text-secondary)]"
+      >
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+        <polyline points="15 3 21 3 21 9" />
+        <line x1="10" y1="14" x2="21" y2="3" />
+      </svg>
+    );
+  }
+  return <img src={target.icon} alt="" className="h-4 w-4 shrink-0" />;
 }
 
 function ChevronDown() {

@@ -393,17 +393,28 @@ func pickFileEditor() *targetDef {
 	return nil
 }
 
+// resolveExistingFile validates absPath, expands a leading ~, and stats
+// the result so callers get a clear "file not found" error before
+// attempting to launch an editor or external app.
+func resolveExistingFile(absPath string) (string, error) {
+	if absPath == "" {
+		return "", fmt.Errorf("empty file path")
+	}
+	resolved := expandTilde(absPath)
+	if _, err := os.Stat(resolved); err != nil {
+		return "", fmt.Errorf("file not found: %s", resolved)
+	}
+	return resolved, nil
+}
+
 // OpenFileInEditor opens absPath in the user's preferred editor, jumping to
 // line:col when both are positive. Empty editorID auto-picks the first
 // installed editor that supports file-level open. Falls back to `open path`
 // when nothing better is available.
 func (a *App) OpenFileInEditor(editorID, absPath string, line, col int) error {
-	if absPath == "" {
-		return fmt.Errorf("empty file path")
-	}
-	absPath = expandTilde(absPath)
-	if _, err := os.Stat(absPath); err != nil {
-		return fmt.Errorf("file not found: %s", absPath)
+	absPath, err := resolveExistingFile(absPath)
+	if err != nil {
+		return err
 	}
 
 	if editorID != "" {
@@ -423,6 +434,17 @@ func (a *App) OpenFileInEditor(editorID, absPath string, line, col int) error {
 
 	if t := pickFileEditor(); t != nil {
 		return t.openFile(t.detect(), absPath, line, col)
+	}
+	return exec.Command("open", absPath).Run()
+}
+
+// OpenPathInDefaultApp opens absPath in the OS default application via
+// macOS Launch Services. Used by the terminal file-click handler when the
+// user has opted out of the in-app preview.
+func (a *App) OpenPathInDefaultApp(absPath string) error {
+	absPath, err := resolveExistingFile(absPath)
+	if err != nil {
+		return err
 	}
 	return exec.Command("open", absPath).Run()
 }
