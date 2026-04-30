@@ -29,7 +29,6 @@ interface ControlsProps {
   onOpenNotes: () => void;
   onRestart: () => void;
   onRequestRemove: () => void;
-  onShowTerminalSettings: () => void;
   onAddService: () => void;
   onAddProfile: () => void;
   onEditService: (service: ServiceInfo) => void;
@@ -60,7 +59,6 @@ export function Controls({
   onOpenNotes,
   onRestart,
   onRequestRemove,
-  onShowTerminalSettings,
   onAddService,
   onAddProfile,
   onEditService,
@@ -97,7 +95,6 @@ export function Controls({
             onOpenNotes={onOpenNotes}
             onRestart={onRestart}
             onRemove={onRequestRemove}
-            onTerminalSettings={onShowTerminalSettings}
           />
         )}
       </div>

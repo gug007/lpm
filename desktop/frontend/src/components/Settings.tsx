@@ -3,6 +3,17 @@ import { toast } from "sonner";
 import { getSettings, saveSettings } from "../settings";
 import { applyTheme, type Theme } from "../theme";
 import { useEventListener } from "../hooks/useEventListener";
+import {
+  MIN_TERMINAL_FONT_SIZE,
+  MAX_TERMINAL_FONT_SIZE,
+  useTerminalFontSize,
+} from "../hooks/useTerminalFontSize";
+import { useTerminalTheme } from "../hooks/useTerminalTheme";
+import {
+  type TerminalThemeName,
+  terminalThemeNames,
+  getTerminalThemeColors,
+} from "../terminal-themes";
 import { ProgressBar } from "./ui/ProgressBar";
 import { BrowserOpenURL, EventsOn } from "../../wailsjs/runtime/runtime";
 import {
@@ -87,8 +98,12 @@ export function Settings({
   const [ttsVoice, setTtsVoice] = useState(settings.ttsVoice ?? "af_heart");
   const [ttsSpeed, setTtsSpeed] = useState(settings.ttsSpeed ?? 1.0);
   const [kokoroStatus, setKokoroStatus] = useState<KokoroStatus>("idle");
-  type SettingsTab = "general" | "tts" | "ai" | "backup";
+  type SettingsTab = "general" | "terminal" | "tts" | "ai" | "backup";
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
+
+  const { fontSize: terminalFontSize, zoomIn: terminalZoomIn, zoomOut: terminalZoomOut } =
+    useTerminalFontSize();
+  const { theme: terminalTheme, setTheme: setTerminalTheme } = useTerminalTheme();
 
   useEffect(() => {
     if (!ttsEnabled) return;
@@ -259,6 +274,7 @@ export function Settings({
 
   const navItems: [SettingsTab, string][] = [
     ["general", "General"],
+    ["terminal", "Terminal"],
     ...(settings.experimentalTTS ? [["tts", "Text to Speech"] as [SettingsTab, string]] : []),
     ["ai", "AI & Integrations"],
     ["backup", "Backup & Transfer"],
@@ -325,6 +341,50 @@ export function Settings({
               </SettingsRow>
             </SettingsSection>
             </>
+          )}
+
+          {activeTab === "terminal" && (
+            <SettingsSection title="Terminal">
+              <SettingsRow label="Font size" description="Used by the built-in terminal">
+                <div className="flex items-center gap-2 rounded-md border border-[var(--border)] px-2 py-1">
+                  <button
+                    onClick={terminalZoomOut}
+                    disabled={terminalFontSize <= MIN_TERMINAL_FONT_SIZE}
+                    className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+                    aria-label="Decrease terminal font size"
+                  >
+                    −
+                  </button>
+                  <span className="min-w-[1.5rem] text-center font-mono text-xs tabular-nums text-[var(--text-primary)]">
+                    {terminalFontSize}
+                  </span>
+                  <button
+                    onClick={terminalZoomIn}
+                    disabled={terminalFontSize >= MAX_TERMINAL_FONT_SIZE}
+                    className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+                    aria-label="Increase terminal font size"
+                  >
+                    +
+                  </button>
+                </div>
+              </SettingsRow>
+              <SettingsRow label="Theme" description="Color scheme for the built-in terminal">
+                <select
+                  value={terminalTheme}
+                  onChange={(e) => setTerminalTheme(e.target.value as TerminalThemeName)}
+                  className={SELECT_CLASS}
+                >
+                  {terminalThemeNames.map((name) => (
+                    <option key={name} value={name}>
+                      {name === "default" ? "Default" : name}
+                    </option>
+                  ))}
+                </select>
+              </SettingsRow>
+              <SettingsRow label="Preview" description="Sample of the selected theme">
+                <TerminalThemePreview theme={terminalTheme} fontSize={terminalFontSize} />
+              </SettingsRow>
+            </SettingsSection>
           )}
 
           {activeTab === "tts" && (
@@ -602,6 +662,20 @@ function InstallingOverlay({ phase, progress }: { phase: "downloading" | "instal
           <p className="text-xs text-[var(--text-muted)]">The app will restart when finished</p>
         )}
       </div>
+    </div>
+  );
+}
+
+function TerminalThemePreview({ theme, fontSize }: { theme: TerminalThemeName; fontSize: number }) {
+  const colors = getTerminalThemeColors(theme);
+  const bg = colors?.bg ?? "var(--terminal-bg, #111)";
+  const fg = colors?.fg ?? "var(--terminal-fg, #ddd)";
+  return (
+    <div
+      className="flex h-12 w-32 items-center justify-center rounded border border-[var(--border)] font-mono"
+      style={{ background: bg, color: fg, fontSize: `${fontSize}px` }}
+    >
+      <span>$ lpm</span>
     </div>
   );
 }

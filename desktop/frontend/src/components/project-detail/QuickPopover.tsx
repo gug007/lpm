@@ -1,6 +1,6 @@
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import type { ActionInfo } from "../../types";
-import { TrashIcon, RefreshIcon, PencilIcon, SettingsIcon, MessageIcon } from "../icons";
+import { TrashIcon, RefreshIcon, PencilIcon, MessageIcon } from "../icons";
 import { PlayIcon } from "./icons";
 
 const sectionLabelClass = "px-4 pb-1.5 pt-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]";
@@ -16,7 +16,6 @@ interface QuickPopoverProps {
   onOpenNotes: () => void;
   onRestart: () => void;
   onRemove: () => void;
-  onTerminalSettings: () => void;
 }
 
 export function QuickPopover({
@@ -29,7 +28,6 @@ export function QuickPopover({
   onOpenNotes,
   onRestart,
   onRemove,
-  onTerminalSettings,
 }: QuickPopoverProps) {
   const ref = useOutsideClick<HTMLDivElement>(onClose);
 
@@ -40,11 +38,6 @@ export function QuickPopover({
 
   const handleEditConfig = () => {
     onEditConfig();
-    onClose();
-  };
-
-  const handleTerminalSettings = () => {
-    onTerminalSettings();
     onClose();
   };
 
@@ -97,13 +90,6 @@ export function QuickPopover({
         <MessageIcon />
         <span className="flex-1 truncate">Notes</span>
         <kbd className="ml-auto text-[10px] text-[var(--text-muted)]">⌘⇧N</kbd>
-      </button>
-      <button
-        onClick={handleTerminalSettings}
-        className={`${menuItemClass} text-[var(--text-secondary)]`}
-      >
-        <SettingsIcon />
-        <span className="flex-1 truncate">Terminal Settings</span>
       </button>
       {running && (
         <button

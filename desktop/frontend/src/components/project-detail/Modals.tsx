@@ -1,9 +1,7 @@
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { ActionInputsModal } from "./ActionInputsModal";
 import { ActionTerminal } from "./ActionTerminal";
-import { TerminalSettingsModal } from "./TerminalSettingsModal";
 import type { ProjectActionsModals } from "../../hooks/useProjectActions";
-import type { TerminalThemeName } from "../../terminal-themes";
 
 interface ModalsProps {
   projectName: string;
@@ -13,14 +11,6 @@ interface ModalsProps {
   removeBusy: boolean;
   onCancelRemove: () => void;
   onConfirmRemove: () => Promise<void> | void;
-  // Terminal settings
-  terminalSettingsOpen: boolean;
-  onCloseTerminalSettings: () => void;
-  fontSize: number;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  terminalTheme: TerminalThemeName;
-  onTerminalThemeChange: (theme: TerminalThemeName) => void;
 }
 
 // One place for every modal/dialog the project view can show. Bundling
@@ -33,13 +23,6 @@ export function Modals({
   removeBusy,
   onCancelRemove,
   onConfirmRemove,
-  terminalSettingsOpen,
-  onCloseTerminalSettings,
-  fontSize,
-  onZoomIn,
-  onZoomOut,
-  terminalTheme,
-  onTerminalThemeChange,
 }: ModalsProps) {
   const { confirm, inputs, running } = actionModals;
   return (
@@ -67,16 +50,6 @@ export function Modals({
       {running.action && (
         <ActionTerminal label={running.action.label} onClose={running.onClose} />
       )}
-
-      <TerminalSettingsModal
-        open={terminalSettingsOpen}
-        onClose={onCloseTerminalSettings}
-        fontSize={fontSize}
-        onZoomIn={onZoomIn}
-        onZoomOut={onZoomOut}
-        terminalTheme={terminalTheme}
-        onTerminalThemeChange={onTerminalThemeChange}
-      />
 
       <ConfirmDialog
         open={confirmRemoveOpen}

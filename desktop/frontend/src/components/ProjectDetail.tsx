@@ -74,7 +74,6 @@ export function ProjectDetail({
   const [showCreateAction, setShowCreateAction] = useState(false);
   const [editingAction, setEditingAction] = useState<ActionInfo | null>(null);
   const [showQuickMenu, setShowQuickMenu] = useState(false);
-  const [showTerminalSettings, setShowTerminalSettings] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [actionMenu, setActionMenu] = useState<{ x: number; y: number; action: ActionInfo } | null>(null);
   const [actionToDelete, setActionToDelete] = useState<ActionInfo | null>(null);
@@ -114,7 +113,7 @@ export function ProjectDetail({
   const terminalRef = useRef<TerminalViewHandle>(null);
 
   // ── extracted hooks ─────────────────────────────────────────────────
-  const { theme: terminalTheme, setTheme: setTerminalTheme, themeStyle } = useTerminalTheme();
+  const { theme: terminalTheme, themeStyle } = useTerminalTheme();
   const { fontSize, zoomIn, zoomOut } = useTerminalFontSize();
   const paneStatus = usePaneStatus(project.statusEntries);
   const { headerActions, footerActions, menuActions, headerIds, footerIds, layout: actionsLayout } =
@@ -294,7 +293,6 @@ export function ProjectDetail({
       onOpenNotes={() => switchDetailView("notes")}
       onRestart={() => withLoading(() => onRestart(project.name, activeProfile))}
       onRequestRemove={() => setConfirmRemove(true)}
-      onShowTerminalSettings={() => setShowTerminalSettings(true)}
       onAddService={() => {
         setShowProfileMenu(false);
         serviceEditor.startCreate();
@@ -385,13 +383,6 @@ export function ProjectDetail({
             await onRemove(project.name);
             setConfirmRemove(false);
           }}
-          terminalSettingsOpen={showTerminalSettings}
-          onCloseTerminalSettings={() => setShowTerminalSettings(false)}
-          fontSize={fontSize}
-          onZoomIn={zoomIn}
-          onZoomOut={zoomOut}
-          terminalTheme={terminalTheme}
-          onTerminalThemeChange={setTerminalTheme}
         />
 
         <ActionWizard
