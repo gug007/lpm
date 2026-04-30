@@ -19,6 +19,7 @@ import {
   ZapIcon,
 } from "../icons";
 import { Modal } from "../ui/Modal";
+import { TrafficLights } from "../ui/TrafficLights";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 
 type Shape = "button" | "split" | "dropdown";
@@ -740,9 +741,7 @@ function RunModeDemo({
   return (
     <div className="relative w-full max-w-[240px] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] shadow-md">
       <div className="flex h-[14px] items-center gap-1 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-2">
-        <span className="h-1.5 w-1.5 rounded-full bg-[#ff5f57]" />
-        <span className="h-1.5 w-1.5 rounded-full bg-[#febc2e]" />
-        <span className="h-1.5 w-1.5 rounded-full bg-[#28c840]" />
+        <TrafficLights size="sm" />
       </div>
 
       <div className="flex h-[140px]">

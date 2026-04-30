@@ -34,6 +34,7 @@ import {
 import type { main } from "../../wailsjs/go/models";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Modal } from "./ui/Modal";
+import { TrafficLights } from "./ui/TrafficLights";
 
 const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
@@ -368,22 +369,24 @@ export function Settings({
                   </button>
                 </div>
               </SettingsRow>
-              <SettingsRow label="Theme" description="Color scheme for the built-in terminal">
-                <select
-                  value={terminalTheme}
-                  onChange={(e) => setTerminalTheme(e.target.value as TerminalThemeName)}
-                  className={SELECT_CLASS}
-                >
-                  {terminalThemeNames.map((name) => (
-                    <option key={name} value={name}>
-                      {name === "default" ? "Default" : name}
-                    </option>
-                  ))}
-                </select>
-              </SettingsRow>
-              <SettingsRow label="Preview" description="Sample of the selected theme">
-                <TerminalThemePreview theme={terminalTheme} fontSize={terminalFontSize} />
-              </SettingsRow>
+              <div>
+                <SettingsRow label="Theme" description="Color scheme for the built-in terminal">
+                  <select
+                    value={terminalTheme}
+                    onChange={(e) => setTerminalTheme(e.target.value as TerminalThemeName)}
+                    className={SELECT_CLASS}
+                  >
+                    {terminalThemeNames.map((name) => (
+                      <option key={name} value={name}>
+                        {name === "default" ? "Default" : name}
+                      </option>
+                    ))}
+                  </select>
+                </SettingsRow>
+                <div className="px-4 pb-3">
+                  <TerminalThemePreview theme={terminalTheme} fontSize={terminalFontSize} />
+                </div>
+              </div>
             </SettingsSection>
           )}
 
@@ -668,14 +671,36 @@ function InstallingOverlay({ phase, progress }: { phase: "downloading" | "instal
 
 function TerminalThemePreview({ theme, fontSize }: { theme: TerminalThemeName; fontSize: number }) {
   const colors = getTerminalThemeColors(theme);
-  const bg = colors?.bg ?? "var(--terminal-bg, #111)";
-  const fg = colors?.fg ?? "var(--terminal-fg, #ddd)";
+  const bg = colors?.bg ?? "var(--terminal-bg)";
+  const fg = colors?.fg ?? "var(--terminal-fg)";
+  const header = colors?.header ?? "var(--terminal-header)";
+  const headerText = colors?.headerText ?? "var(--terminal-header-text)";
+  const cursor = colors?.cursor ?? fg;
+  const bodyFontSize = Math.min(fontSize, 11);
+
   return (
     <div
-      className="flex h-12 w-32 items-center justify-center rounded border border-[var(--border)] font-mono"
-      style={{ background: bg, color: fg, fontSize: `${fontSize}px` }}
+      className="w-full overflow-hidden rounded-md border border-[var(--border)] font-mono shadow-sm"
+      style={{ background: bg, color: fg }}
     >
-      <span>$ lpm</span>
+      <div
+        className="flex items-center gap-1.5 px-2 py-1.5"
+        style={{ background: header, color: headerText }}
+      >
+        <TrafficLights />
+        <span className="ml-1 truncate text-[10px] leading-none">terminal</span>
+      </div>
+      <div className="px-2 py-1.5 leading-tight" style={{ fontSize: `${bodyFontSize}px` }}>
+        <div>$ lpm start</div>
+        <div style={{ opacity: 0.7 }}>✓ web running on :3000</div>
+        <div className="flex items-center">
+          <span>$&nbsp;</span>
+          <span
+            className="demo-cursor inline-block"
+            style={{ width: "0.55em", height: "1em", background: cursor }}
+          />
+        </div>
+      </div>
     </div>
   );
 }

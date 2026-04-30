@@ -38,6 +38,7 @@ func defaultSettings() Settings {
 	return Settings{
 		Theme:             "dark",
 		DoubleClickToggle: false,
+		TerminalTheme:     "claude-dark",
 	}
 }
 

@@ -35,7 +35,7 @@ export function useTerminalTheme(): UseTerminalThemeResult {
 
   const setTheme = async (next: TerminalThemeName) => {
     setThemeState(next);
-    await saveSettings({ terminalTheme: next === "default" ? undefined : next });
+    await saveSettings({ terminalTheme: next });
     notifyTerminalSettingsChanged();
   };
 
