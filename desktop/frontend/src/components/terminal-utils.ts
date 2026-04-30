@@ -2,13 +2,14 @@ import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 
 export const openTerminalLink = (_e: MouseEvent, uri: string) => BrowserOpenURL(uri);
 
-// ANSI color palette matching iTerm2 defaults for consistent rendering
+// ANSI color palette matching iTerm2 defaults for consistent rendering,
+// except blue is brightened for legibility on dark backgrounds.
 export const ansiColors = {
   black: "#000000",
   red: "#c91b00",
   green: "#00c200",
   yellow: "#c7c400",
-  blue: "#0225c7",
+  blue: "#3b8eea",
   magenta: "#c930c7",
   cyan: "#00c5c7",
   white: "#c7c7c7",
