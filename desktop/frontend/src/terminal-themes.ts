@@ -55,7 +55,7 @@ const themes: Readonly<Record<Exclude<TerminalThemeName, "default">, TerminalThe
     headerActive: "rgba(255,255,255,0.08)", tabActive: "#c9d1d9",
   },
   "claude-dark": {
-    bg: "#2e2e2e", fg: "#c8c8c8", selection: "#484848", cursor: "#c8c8c8",
+    bg: "#2b2b2b", fg: "#c8c8c8", selection: "#484848", cursor: "#c8c8c8",
     header: "#252525", headerText: "#8a8a8a", headerHover: "rgba(255,255,255,0.04)",
     headerActive: "rgba(255,255,255,0.08)", tabActive: "#d4d4d4",
   },
