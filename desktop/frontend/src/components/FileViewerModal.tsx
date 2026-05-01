@@ -5,6 +5,7 @@ import { XIcon } from "./icons";
 import { GitDiff, ReadFile, WriteFile } from "../../wailsjs/go/main/App";
 import { ensureLang, getLang, tokenizeLines, type Token } from "../highlight";
 import { basename, relTo } from "../path";
+import { useEventListener } from "../hooks/useEventListener";
 import { MonacoEditor } from "./MonacoEditor";
 import { OpenFileWithDropdown } from "./OpenFileWithDropdown";
 
@@ -213,6 +214,22 @@ export function FileViewerModal({
     setZoom((z) => clamp(+(z - ZOOM_STEP).toFixed(2), ZOOM_MIN, ZOOM_MAX));
   const zoomReset = () => setZoom(BASE_ZOOM);
 
+  // Capture phase on window so we beat xterm's keydown handler — xterm calls
+  // stopPropagation on keys it consumes, which would otherwise eat Escape
+  // before it reaches Modal's bubble-phase document listener.
+  useEventListener(
+    "keydown",
+    (e) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      onClose();
+    },
+    window,
+    open && !editing,
+    true,
+  );
+
   // Cmd/Ctrl + (= / - / 0) to zoom; Cmd/Ctrl + scroll-wheel (and trackpad
   // pinch, which fires wheel with ctrlKey=true) to zoom continuously. Skip
   // when editing — Monaco owns these gestures inside its own editor surface.
@@ -339,6 +356,7 @@ export function FileViewerModal({
     <Modal
       open={open}
       onClose={onClose}
+      closeOnEscape={!editing}
       backdropClassName="bg-black/50 backdrop-blur-sm"
       contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >

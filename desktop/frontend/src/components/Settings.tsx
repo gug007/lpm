@@ -91,7 +91,6 @@ export function Settings({
 }: SettingsProps) {
   const settings = getSettings();
 
-  // General
   const [theme, setTheme] = useState<Theme>(settings.theme);
   const [dblClick, setDblClick] = useState(settings.doubleClickToToggle);
   const [soundEnabled, setSoundEnabled] = useState(settings.soundNotifications ?? false);
@@ -117,7 +116,6 @@ export function Settings({
       .catch(() => setKokoroStatus("not-installed"));
   }, [ttsEnabled]);
 
-  // About & Updates
   const [version, setVersion] = useState("");
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
   const [latestVersion, setLatestVersion] = useState("");

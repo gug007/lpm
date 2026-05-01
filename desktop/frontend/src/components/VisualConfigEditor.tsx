@@ -4,8 +4,6 @@ import { AddNewPicker, type NewItemType } from "./AddNewPicker";
 import { PlusIcon, TrashIcon, ChevronDownIcon, ChevronRightIcon, ZapIcon, PlayIcon, TerminalIcon, LayersIcon } from "./icons";
 import { uniqueKey } from "../uniqueKey";
 
-// ── form state types ──
-
 interface ServiceEntry {
   key: string;
   cmd: string;
@@ -57,8 +55,6 @@ interface ConfigForm {
   terminals: TerminalEntry[];
   profiles: ProfileEntry[];
 }
-
-// ── parse / serialize helpers ──
 
 function parseEntry(key: string, v: unknown): { key: string; cmd: string; cwd: string; env: [string, string][] } {
   const isStr = typeof v === "string";
@@ -182,8 +178,6 @@ function serializeToYaml(form: ConfigForm): string {
 
   return YAML.stringify(doc, { lineWidth: 0 });
 }
-
-// ── sub-components ──
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -431,8 +425,6 @@ function CardHeader({
   );
 }
 
-// ── main component ──
-
 interface VisualConfigEditorProps {
   content: string;
   onChange: (yaml: string) => void;
@@ -453,8 +445,6 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
       return next;
     });
   };
-
-  // ── updaters ──
 
   const updateService = (i: number, patch: Partial<ServiceEntry>) =>
     update({ services: form.services.map((s, j) => (j === i ? { ...s, ...patch } : s)) });
@@ -716,8 +706,6 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
     </div>
   );
 }
-
-// ── layout helpers ──
 
 function Section({ title, count, icon, children }: { title: string; count: number; icon?: React.ReactNode; children: React.ReactNode }) {
   return (

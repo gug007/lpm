@@ -18,14 +18,12 @@ export function useTTSHotkeys(terminalId: string | null) {
     },
   );
 
-  // Cmd+Shift+S — Stop reading
   useKeyboardShortcut(
     { key: "s", meta: true, shift: true },
     () => stopReading(),
     status !== "idle",
   );
 
-  // Cmd+Shift+P — Pause/Resume toggle
   useKeyboardShortcut(
     { key: "p", meta: true, shift: true },
     () => togglePause(),

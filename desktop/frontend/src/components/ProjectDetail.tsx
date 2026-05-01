@@ -68,7 +68,6 @@ export function ProjectDetail({
   onRefresh,
   onRemove,
 }: ProjectDetailProps) {
-  // ── local UI state ──────────────────────────────────────────────────
   const [loading, setLoading] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [showCreateAction, setShowCreateAction] = useState(false);
@@ -112,7 +111,6 @@ export function ProjectDetail({
 
   const terminalRef = useRef<TerminalViewHandle>(null);
 
-  // ── extracted hooks ─────────────────────────────────────────────────
   const { theme: terminalTheme, themeStyle } = useTerminalTheme();
   const { fontSize, zoomIn, zoomOut } = useTerminalFontSize();
   const paneStatus = usePaneStatus(project.statusEntries);
@@ -138,7 +136,6 @@ export function ProjectDetail({
   });
   const { runningAction, handleRunAction, modals: actionModals } = projectActions;
 
-  // ── action drag-and-drop ────────────────────────────────────────────
   const reorderActions = useAppStore((s) => s.reorderActions);
   const handleMoveActions = useCallback(
     (next: ActionsLayout) => reorderActions(project.name, next),
@@ -160,7 +157,6 @@ export function ProjectDetail({
     [project.actions],
   );
 
-  // ── start/stop/profile/service handlers ─────────────────────────────
   const withLoading = async (fn: () => Promise<void>) => {
     setLoading(true);
     try {
@@ -194,7 +190,6 @@ export function ProjectDetail({
     [project.running, project.services],
   );
 
-  // ── derived layout state ────────────────────────────────────────────
   const showProjectName = getSettings().showProjectName !== false;
   const existingActionKeys = useMemo(
     () => (project.actions ?? []).map((action) => action.name),
@@ -215,7 +210,6 @@ export function ProjectDetail({
     project.allServices.length,
   ]);
 
-  // ── early return: invalid YAML ──────────────────────────────────────
   if (project.configError) {
     return (
       <ConfigErrorView
@@ -251,7 +245,6 @@ export function ProjectDetail({
     }
   };
 
-  // ── render ──────────────────────────────────────────────────────────
   const headerActionsNode = (
     <HeaderActions
       actions={headerActions}
