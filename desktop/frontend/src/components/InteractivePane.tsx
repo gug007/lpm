@@ -245,7 +245,8 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   // values from props before the session is ever attached.
   const term = new Terminal({
     fontSize: 12,
-    fontFamily: "'SF Mono', Menlo, Monaco, 'Courier New', monospace",
+    fontFamily:
+      "'SF Mono', Menlo, Monaco, 'Courier New', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', monospace",
     cursorBlink: true,
     disableStdin: false,
     scrollback: 10000,

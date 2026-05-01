@@ -111,7 +111,6 @@ func (a *App) CheckForUpdate() (*UpdateInfo, error) {
 	latest := strings.TrimPrefix(release.TagName, "v")
 	current := strings.TrimPrefix(Version, "v")
 
-	// Find the DMG asset matching current architecture
 	suffix := fmt.Sprintf("macos-%s.dmg", goruntime.GOARCH)
 	a.pendingDownloadURL = ""
 	for _, asset := range release.Assets {
@@ -160,7 +159,6 @@ func (a *App) InstallUpdate() error {
 	}
 	appDir := filepath.Dir(appPath)
 
-	// Download DMG to temp file
 	emitStatus("downloading")
 	tmpFile, err := os.CreateTemp("", "lpm-update-*.dmg")
 	if err != nil {
@@ -191,7 +189,6 @@ func (a *App) InstallUpdate() error {
 	}
 	tmpFile.Close()
 
-	// Mount DMG to a known temp path
 	emitStatus("installing")
 	mountPoint, err := os.MkdirTemp("", "lpm-mount-*")
 	if err != nil {
@@ -208,7 +205,6 @@ func (a *App) InstallUpdate() error {
 	}
 	defer exec.Command("hdiutil", "detach", mountPoint, "-quiet").Run()
 
-	// Find .app inside mounted volume
 	entries, err := os.ReadDir(mountPoint)
 	if err != nil {
 		return fmt.Errorf("failed to read mounted DMG: %w", err)

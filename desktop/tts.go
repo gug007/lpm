@@ -92,7 +92,6 @@ func (a *App) startTTS(text string, voice string, speed float64) error {
 		speed = 1.0
 	}
 
-	// Stop any existing session
 	a.stopTTSLocked()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -123,10 +122,9 @@ func (a *App) startTTS(text string, voice string, speed float64) error {
 
 	runtime.EventsEmit(a.ctx, "tts-state", ttsStatePlaying)
 
-	// Read goroutine: parse JSON lines from the Python process
 	go func() {
 		scanner := bufio.NewScanner(stdout)
-		// Allow large audio chunks (up to 10MB per line)
+		// Audio chunks can exceed bufio's 64KB default; allow up to 10MB.
 		scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
 
 		for scanner.Scan() {
@@ -146,10 +144,8 @@ func (a *App) startTTS(text string, voice string, speed float64) error {
 			}
 		}
 
-		// Wait for process exit
 		_ = cmd.Wait()
 
-		// Mark session stopped unless already cleaned up
 		a.ttsMu.Lock()
 		if a.ttsSession == sess {
 			a.ttsSession = nil
@@ -162,7 +158,6 @@ func (a *App) startTTS(text string, voice string, speed float64) error {
 		sess.mu.Unlock()
 
 		if wasPlaying {
-			// Normal completion
 			runtime.EventsEmit(a.ctx, "tts-state", ttsStateStopped)
 		}
 	}()

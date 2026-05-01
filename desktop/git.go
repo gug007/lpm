@@ -385,7 +385,6 @@ func (a *App) GitCommit(cwd, message string, files []string) error {
 	}
 	// Reset staging area so we only commit what's selected.
 	runGit(cwd, "reset", "HEAD") // ignore error on initial commit (no HEAD yet)
-	// Stage selected files in one call.
 	addArgs := append([]string{"add", "--"}, files...)
 	if _, err := runGit(cwd, addArgs...); err != nil {
 		return fmt.Errorf("staging files: %w", err)
@@ -525,11 +524,10 @@ func (a *App) GitDiff(cwd string, files []string) (string, error) {
 	if len(files) == 0 {
 		return "", fmt.Errorf("no files")
 	}
-	// Diff for tracked files (staged + unstaged).
 	args := append([]string{"diff", "HEAD", "--"}, files...)
 	tracked, _ := runGit(cwd, args...)
 
-	// Detect untracked files in one call instead of per-file.
+	// One ls-files call instead of one per file.
 	lsArgs := append([]string{"ls-files", "--"}, files...)
 	lsOut, _ := runGit(cwd, lsArgs...)
 	trackedSet := make(map[string]bool)
