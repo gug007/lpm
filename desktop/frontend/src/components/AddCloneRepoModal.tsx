@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Modal } from "./ui/Modal";
 import { XIcon } from "./icons";
 import { slugify } from "../slugify";
@@ -8,13 +11,28 @@ import { BrowseFolder } from "../../wailsjs/go/main/App";
 function deriveNameFromUrl(url: string): string {
   const trimmed = url.trim();
   if (!trimmed) return "";
-  let tail = trimmed
-    .replace(/\/+$/, "")
-    .split(/[\/:]/)
-    .pop() ?? "";
+  let tail = trimmed.replace(/\/+$/, "").split(/[\/:]/).pop() ?? "";
   tail = tail.replace(/\.git$/i, "");
   return slugify(tail);
 }
+
+const schema = z.object({
+  url: z.string().trim().min(1, "Enter a repository URL."),
+  branch: z.string().trim(),
+  destParent: z.string().trim().min(1, "Pick a destination folder."),
+  name: z
+    .string()
+    .refine((v) => slugify(v).length > 0, "Enter a project name."),
+});
+
+type FormValues = z.infer<typeof schema>;
+
+const DEFAULT_VALUES: FormValues = {
+  url: "",
+  branch: "",
+  destParent: "",
+  name: "",
+};
 
 export function AddCloneRepoModal() {
   const open = useAppStore((s) => s.cloneModalOpen);
@@ -22,87 +40,66 @@ export function AddCloneRepoModal() {
   const busy = useAppStore((s) => s.addingCloneProject);
   const onCreate = useAppStore((s) => s.addCloneProject);
 
-  const [url, setUrl] = useState("");
-  const [branch, setBranch] = useState("");
-  const [destParent, setDestParent] = useState("");
-  const [name, setName] = useState("");
-  const [nameTouched, setNameTouched] = useState(false);
-
-  const [urlBlurred, setUrlBlurred] = useState(false);
-  const [destBlurred, setDestBlurred] = useState(false);
-  const [nameBlurred, setNameBlurred] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [submitError, setSubmitError] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    reset,
+    formState: { errors, dirtyFields },
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: DEFAULT_VALUES,
+    mode: "onBlur",
+  });
 
   useEffect(() => {
     if (open) return;
-    setUrl("");
-    setBranch("");
-    setDestParent("");
-    setName("");
-    setNameTouched(false);
-    setUrlBlurred(false);
-    setDestBlurred(false);
-    setNameBlurred(false);
-    setSubmitted(false);
-    setSubmitError("");
+    reset(DEFAULT_VALUES);
     setShowAdvanced(false);
-  }, [open]);
+    setSubmitError("");
+  }, [open, reset]);
 
+  const url = watch("url");
+  const nameDirty = !!dirtyFields.name;
   useEffect(() => {
-    if (nameTouched) return;
-    const suggested = deriveNameFromUrl(url);
-    setName((prev) => (prev === suggested ? prev : suggested));
-  }, [url, nameTouched]);
-
-  const trimmedUrl = url.trim();
-  const finalName = slugify(name);
-  const trimmedDest = destParent.trim();
-
-  const urlError = trimmedUrl.length === 0 ? "Enter a repository URL." : "";
-  const destError =
-    trimmedDest.length === 0 ? "Pick a destination folder." : "";
-  const nameError =
-    finalName.length === 0 ? "Enter a project name." : "";
-
-  const showUrlError = (urlBlurred || submitted) && !!urlError;
-  const showDestError = (destBlurred || submitted) && !!destError;
-  const showNameError = (nameBlurred || submitted) && !!nameError;
-
-  const canSubmit =
-    !busy && !urlError && !destError && !nameError;
+    if (nameDirty) return;
+    setValue("name", deriveNameFromUrl(url), { shouldDirty: false });
+  }, [url, nameDirty, setValue]);
 
   const pickDest = async () => {
     if (busy) return;
     try {
       const dir = await BrowseFolder();
       if (dir) {
-        setDestParent(dir);
-        setDestBlurred(true);
+        setValue("destParent", dir, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
       }
     } catch {
       // BrowseFolder is the user's own picker; cancellations are normal.
     }
   };
 
-  const submit = async () => {
-    setSubmitted(true);
-    if (!canSubmit) return;
+  const onSubmit = handleSubmit(async (values) => {
     setSubmitError("");
     try {
       await onCreate({
-        name: finalName,
-        url: trimmedUrl,
-        branch: branch.trim(),
-        destParent: trimmedDest,
+        name: slugify(values.name),
+        url: values.url,
+        branch: values.branch,
+        destParent: values.destParent,
       });
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : String(err ?? "Clone failed");
       setSubmitError(msg);
     }
-  };
+  });
 
   const inputClass =
     "w-full rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--text-muted)] disabled:opacity-60";
@@ -131,12 +128,7 @@ export function AddCloneRepoModal() {
       zIndexClassName="z-[60]"
       contentClassName="w-[460px] rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-5 shadow-xl"
     >
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void submit();
-        }}
-      >
+      <form onSubmit={onSubmit} noValidate>
         <div className="flex items-start justify-between">
           <h3 className="text-base font-semibold text-[var(--text-primary)]">
             Clone repository
@@ -170,15 +162,14 @@ export function AddCloneRepoModal() {
             </label>
             <input
               autoFocus
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              onBlur={() => setUrlBlurred(true)}
               placeholder="https://github.com/owner/repo.git"
-              className={`${inputClass} ${showUrlError ? errorInputClass : ""}`}
+              aria-invalid={!!errors.url}
+              className={`${inputClass} ${errors.url ? errorInputClass : ""}`}
+              {...register("url")}
               {...textInputProps}
             />
             {hintText("HTTPS or SSH URL. Uses your existing Git credentials.")}
-            {showUrlError && errorText(urlError)}
+            {errors.url && errorText(errors.url.message ?? "")}
           </div>
 
           <div>
@@ -188,10 +179,11 @@ export function AddCloneRepoModal() {
             <div className="grid grid-cols-[1fr_auto] gap-2">
               <input
                 readOnly
-                value={destParent}
                 placeholder="Pick a parent folder…"
-                className={`${inputClass} ${showDestError ? errorInputClass : ""}`}
+                aria-invalid={!!errors.destParent}
+                className={`${inputClass} ${errors.destParent ? errorInputClass : ""}`}
                 onClick={pickDest}
+                {...register("destParent")}
                 {...textInputProps}
               />
               <button
@@ -204,7 +196,7 @@ export function AddCloneRepoModal() {
               </button>
             </div>
             {hintText("Repository will be cloned into a new subfolder here.")}
-            {showDestError && errorText(destError)}
+            {errors.destParent && errorText(errors.destParent.message ?? "")}
           </div>
 
           <div>
@@ -212,17 +204,13 @@ export function AddCloneRepoModal() {
               Project name
             </label>
             <input
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                setNameTouched(true);
-              }}
-              onBlur={() => setNameBlurred(true)}
               placeholder="my-repo"
-              className={`${inputClass} ${showNameError ? errorInputClass : ""}`}
+              aria-invalid={!!errors.name}
+              className={`${inputClass} ${errors.name ? errorInputClass : ""}`}
+              {...register("name")}
               {...textInputProps}
             />
-            {showNameError && errorText(nameError)}
+            {errors.name && errorText(errors.name.message ?? "")}
           </div>
 
           <div>
@@ -249,10 +237,9 @@ export function AddCloneRepoModal() {
                   </span>
                 </label>
                 <input
-                  value={branch}
-                  onChange={(e) => setBranch(e.target.value)}
                   placeholder="main"
                   className={inputClass}
+                  {...register("branch")}
                   {...textInputProps}
                 />
                 {hintText(
@@ -274,7 +261,7 @@ export function AddCloneRepoModal() {
           </button>
           <button
             type="submit"
-            disabled={!canSubmit}
+            disabled={busy}
             className="rounded-lg bg-[var(--text-primary)] px-4 py-2 text-sm font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-40"
           >
             {busy ? "Cloning…" : "Clone repository"}
@@ -290,4 +277,3 @@ export function AddCloneRepoModal() {
     </Modal>
   );
 }
-
