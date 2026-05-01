@@ -69,11 +69,11 @@ export function useProjectActions({
         // Route no-input terminals through the restore-aware RPC so the
         // backend can rewrite startCmd/resumeCmd; templated ones substitute
         // here and run ad-hoc.
-        const actionName = action.reuse ? action.name : undefined;
         if (!action.inputs?.length) {
           await terminalViewRef.current?.createTerminalWithCmd(action.label, action.cmd, {
             configName: action.name,
-            actionName,
+            actionName: action.name,
+            reuse: action.reuse,
           });
           return;
         }
@@ -84,7 +84,8 @@ export function useProjectActions({
         await terminalViewRef.current?.createTerminalWithCmd(action.label, cmd, {
           cwd: action.cwd,
           env: action.env,
-          actionName,
+          actionName: action.name,
+          reuse: action.reuse,
         });
       } catch (err) {
         toast.error(`${action.label}: ${err}`);

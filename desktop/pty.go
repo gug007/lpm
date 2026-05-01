@@ -149,6 +149,33 @@ func (a *App) StartTerminalForConfig(projectName string, terminalName string) (T
 	return TerminalLaunch{ID: id, StartCmd: startCmd, ResumeCmd: resumeCmd}, nil
 }
 
+// Like StartTerminalForConfig but skips the port check and resume-id
+// rewrite (frontend re-injects the persisted resumeCmd), and falls back
+// to a plain shell if the action was renamed or removed since persist.
+func (a *App) StartTerminalForRestore(projectName string, terminalName string) (string, error) {
+	cfg, err := config.LoadProject(projectName)
+	if err != nil {
+		return "", fmt.Errorf("load project: %w", err)
+	}
+	act, ok := cfg.ResolvedAction(terminalName)
+	if !ok || act.Type != "terminal" {
+		return a.startTerminalInternal(cfg, projectName, "", nil, nil)
+	}
+
+	spawnCfg := cfg
+	var onClose func()
+	if cfg.IsRemote() && act.Mode == config.ActionModeSync {
+		local, err := a.ensureProjectSync(cfg)
+		if err != nil {
+			return "", err
+		}
+		spawnCfg = config.LocalMirrorCfg(cfg, local)
+		onClose = func() { a.pushProjectSyncAsync(cfg) }
+	}
+
+	return a.startTerminalInternal(spawnCfg, projectName, act.Cwd, act.Env, onClose)
+}
+
 // buildTerminalCmd produces the *exec.Cmd to spawn under a PTY. For SSH
 // projects, extraEnv is baked into the remote script (env applies on the
 // remote). Local projects ignore extraEnv here — startTerminalInternal

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { StartTerminal, StartTerminalForConfig, StartTerminalWithCwdEnv, StopTerminal } from "../../wailsjs/go/main/App";
+import { StartTerminal, StartTerminalForConfig, StartTerminalForRestore, StartTerminalWithCwdEnv, StopTerminal } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { sendTerminalInput } from "../terminal-io";
 import { isInteractivePaneSessionDead } from "../components/InteractivePane";
@@ -30,6 +30,7 @@ export interface TerminalStartOpts {
   cwd?: string;
   env?: Record<string, string>;
   actionName?: string;
+  reuse?: boolean;
 }
 
 // Injection waits for pty output to go quiet for PROMPT_IDLE_MS before
@@ -261,7 +262,7 @@ export function useTerminals(
       // When reuse is requested, find an existing live terminal tagged with
       // the same actionName. A dead session (process exited) falls through
       // so the user gets a fresh PTY instead of typing into a dead tab.
-      if (opts?.actionName && treeRef.current) {
+      if (opts?.reuse && opts?.actionName && treeRef.current) {
         for (const pane of collectPanes(treeRef.current)) {
           const idx = pane.tabs.findIndex(
             (t) =>
@@ -629,7 +630,13 @@ async function reifyTreeWithFreshPtys(
     // tab) is allowed. A truly empty pane is dropped.
     if (persistedTabs.length === 0 && !node.activeServiceName) return null;
     try {
-      const ids = await Promise.all(persistedTabs.map(() => StartTerminal(projectName)));
+      const ids = await Promise.all(
+        persistedTabs.map((t) =>
+          t.actionName
+            ? StartTerminalForRestore(projectName, t.actionName)
+            : StartTerminal(projectName),
+        ),
+      );
       ids.forEach((id) => startedIds.push(id));
       const tabs = ids.map((id, i) =>
         makeTerminal(id, persistedTabs[i].label ?? "Terminal", {
