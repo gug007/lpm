@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Modal } from "./ui/Modal";
 import { CheckIcon, ChevronDownIcon, ServerIcon, XIcon } from "./icons";
 import { useOutsideClick } from "../hooks/useOutsideClick";
@@ -6,21 +9,46 @@ import { slugify } from "../slugify";
 import { useAppStore } from "../store/app";
 import { ListSSHHosts } from "../../wailsjs/go/main/App";
 import type { main } from "../../wailsjs/go/models";
+import {
+  portInputSchema,
+  projectNameSchema,
+  sshHostSchema,
+  sshUserSchema,
+} from "../forms/schemas";
+import {
+  modalErrorInputClass,
+  modalInputClass,
+  modalInputDefaults,
+} from "../forms/styles";
 
 const MANUAL_PICKER = "__manual__";
+
+const schema = z.object({
+  name: projectNameSchema,
+  host: sshHostSchema,
+  user: sshUserSchema,
+  port: portInputSchema,
+  key: z.string().trim(),
+  dir: z.string().trim(),
+});
+
+type FormValues = z.infer<typeof schema>;
+
+const DEFAULT_VALUES: FormValues = {
+  name: "",
+  host: "",
+  user: "",
+  port: "",
+  key: "",
+  dir: "",
+};
 
 export function AddSSHProjectModal() {
   const open = useAppStore((s) => s.sshModalOpen);
   const busy = useAppStore((s) => s.addingSSHProject);
   const onClose = useAppStore((s) => s.closeSSHModal);
   const onCreate = useAppStore((s) => s.addSSHProject);
-  const [name, setName] = useState("");
-  const [nameTouched, setNameTouched] = useState(false);
-  const [host, setHost] = useState("");
-  const [user, setUser] = useState("");
-  const [port, setPort] = useState("");
-  const [key, setKey] = useState("");
-  const [dir, setDir] = useState("");
+
   const [sshHosts, setSshHosts] = useState<main.SSHConfigHost[]>([]);
   const [picker, setPicker] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -29,15 +57,23 @@ export function AddSSHProjectModal() {
     pickerOpen,
   );
 
+  const {
+    control,
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    reset,
+    formState: { errors, dirtyFields },
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: DEFAULT_VALUES,
+    mode: "onBlur",
+  });
+
   useEffect(() => {
     if (!open) return;
-    setName("");
-    setNameTouched(false);
-    setHost("");
-    setUser("");
-    setPort("");
-    setKey("");
-    setDir("");
+    reset(DEFAULT_VALUES);
     setPicker("");
     setPickerOpen(false);
     let cancelled = false;
@@ -51,31 +87,7 @@ export function AddSSHProjectModal() {
     return () => {
       cancelled = true;
     };
-  }, [open]);
-
-  const onPickerChange = (val: string) => {
-    setPicker(val);
-    if (val === "" || val === MANUAL_PICKER) {
-      setHost("");
-      setUser("");
-      setPort("");
-      setKey("");
-      return;
-    }
-    const match = sshHosts.find((h) => h.name === val);
-    if (!match) return;
-    // Save the Host alias, not HostName, so OpenSSH still applies alias-scoped
-    // options such as ProxyJump, ProxyCommand, and canonical HostName.
-    setHost(match.name);
-    setUser(match.user);
-    setPort(match.port && match.port > 0 ? String(match.port) : "");
-    setKey(match.identityFile);
-  };
-
-  // Fields stay hidden until the user picks an option from the SSH config
-  // dropdown. With no config file at all, there's no picker — show fields
-  // directly.
-  const showFields = sshHosts.length === 0 || picker !== "";
+  }, [open, reset]);
 
   const pickerMatch = sshHosts.find((h) => h.name === picker);
   const pickerLabel =
@@ -87,68 +99,78 @@ export function AddSSHProjectModal() {
           : pickerMatch.name
         : "";
 
+  const applyPicker = (val: string) => {
+    setPicker(val);
+    if (val === "" || val === MANUAL_PICKER) {
+      setValue("host", "");
+      setValue("user", "");
+      setValue("port", "");
+      setValue("key", "");
+      return;
+    }
+    const match = sshHosts.find((h) => h.name === val);
+    if (!match) return;
+    // Save the Host alias, not HostName, so OpenSSH still applies alias-scoped
+    // options such as ProxyJump, ProxyCommand, and canonical HostName.
+    setValue("host", match.name);
+    setValue("user", match.user);
+    setValue(
+      "port",
+      match.port && match.port > 0 ? String(match.port) : "",
+    );
+    setValue("key", match.identityFile);
+  };
+
+  const choosePickerOption = (val: string) => {
+    applyPicker(val);
+    setPickerOpen(false);
+  };
+
+  const showFields = sshHosts.length === 0 || picker !== "";
+
+  const host = watch("host");
+  const user = watch("user");
+  const nameDirty = !!dirtyFields.name;
+
   // If the user edits the Host field after picking a configured host, the
   // dropdown's "selected" label would silently lie about what they're
   // connecting to. Switch the picker to manual mode so the UI matches the
   // form state.
-  const onHostInput = (v: string) => {
-    setHost(v);
-    if (picker !== "" && picker !== MANUAL_PICKER) {
-      const expected = pickerMatch
-        ? pickerMatch.hostName || pickerMatch.name
-        : "";
-      if (v !== expected) setPicker(MANUAL_PICKER);
-    }
-  };
-
-  const choosePickerOption = (val: string) => {
-    onPickerChange(val);
-    setPickerOpen(false);
-  };
+  useEffect(() => {
+    if (picker === "" || picker === MANUAL_PICKER) return;
+    const expected = pickerMatch
+      ? pickerMatch.hostName || pickerMatch.name
+      : "";
+    if (host !== expected) setPicker(MANUAL_PICKER);
+  }, [host, picker, pickerMatch]);
 
   useEffect(() => {
-    if (nameTouched) return;
+    if (nameDirty) return;
     const u = user.trim();
-    // When a configured host is picked, prefer the alias for the name slug —
-    // `host` may be a raw IP from the `HostName` directive.
+    // Prefer the alias for the slug — `host` may be a raw IP from `HostName`.
     const h = (pickerMatch ? pickerMatch.name : host).trim();
     if (!u && !h) return;
     const suggested = slugify(u && h ? `${u}-${h}` : u || h);
-    setName((prev) => (prev === suggested ? prev : suggested));
-  }, [host, user, pickerMatch, nameTouched]);
+    setValue("name", suggested, { shouldDirty: false });
+  }, [host, user, pickerMatch, nameDirty, setValue]);
 
-  const portNum = port.trim() === "" ? 22 : Number(port);
-  const portValid = Number.isFinite(portNum) && portNum >= 1 && portNum <= 65535;
-  const finalName = slugify(name);
-  const canCreate =
-    !busy &&
-    finalName.length > 0 &&
-    host.trim().length > 0 &&
-    user.trim().length > 0 &&
-    portValid;
-
-  const submit = async () => {
-    if (!canCreate) return;
+  const onSubmit = handleSubmit(async (values) => {
+    const portNum = values.port === "" ? 22 : Number(values.port);
     await onCreate({
-      name: finalName,
-      host: host.trim(),
-      user: user.trim(),
+      name: slugify(values.name),
+      host: values.host,
+      user: values.user,
       port: portNum,
-      key: key.trim(),
-      dir: dir.trim(),
+      key: values.key,
+      dir: values.dir,
     });
-  };
+  });
 
-  const inputClass =
-    "w-full rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--text-muted)] disabled:opacity-60";
-  const textInputProps = {
-    className: inputClass,
-    autoComplete: "off",
-    autoCorrect: "off",
-    autoCapitalize: "off",
-    spellCheck: false,
-    disabled: busy,
-  } as const;
+  const textInputProps = { ...modalInputDefaults, disabled: busy } as const;
+
+  const errorText = (msg: string) => (
+    <p className="mt-1 text-[11px] text-[var(--danger,#f87171)]">{msg}</p>
+  );
 
   return (
     <Modal
@@ -159,12 +181,7 @@ export function AddSSHProjectModal() {
       zIndexClassName="z-[60]"
       contentClassName="w-[460px] rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-5 shadow-xl"
     >
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void submit();
-        }}
-      >
+      <form onSubmit={onSubmit} noValidate>
         <div className="flex items-start justify-between">
           <h3 className="text-base font-semibold text-[var(--text-primary)]">
             Connect to SSH host
@@ -196,12 +213,10 @@ export function AddSSHProjectModal() {
                   type="button"
                   onClick={() => setPickerOpen((p) => !p)}
                   disabled={busy}
-                  className={`${inputClass} flex items-center justify-between text-left ${pickerOpen ? "border-[var(--text-muted)]" : ""}`}
+                  className={`${modalInputClass} flex items-center justify-between text-left ${pickerOpen ? "border-[var(--text-muted)]" : ""}`}
                 >
                   <span
-                    className={
-                      pickerLabel ? "" : "text-[var(--text-muted)]"
-                    }
+                    className={pickerLabel ? "" : "text-[var(--text-muted)]"}
                   >
                     {pickerLabel || "Select a host…"}
                   </span>
@@ -276,11 +291,13 @@ export function AddSSHProjectModal() {
                 </label>
                 <input
                   autoFocus
-                  value={host}
-                  onChange={(e) => onHostInput(e.target.value)}
                   placeholder="example.com or 10.0.0.5"
+                  aria-invalid={!!errors.host}
+                  className={`${modalInputClass} ${errors.host ? modalErrorInputClass : ""}`}
+                  {...register("host")}
                   {...textInputProps}
                 />
+                {errors.host && errorText(errors.host.message ?? "")}
               </div>
 
               <div>
@@ -288,27 +305,42 @@ export function AddSSHProjectModal() {
                   User
                 </label>
                 <input
-                  value={user}
-                  onChange={(e) => setUser(e.target.value)}
                   placeholder="root"
+                  aria-invalid={!!errors.user}
+                  className={`${modalInputClass} ${errors.user ? modalErrorInputClass : ""}`}
+                  {...register("user")}
                   {...textInputProps}
                 />
+                {errors.user && errorText(errors.user.message ?? "")}
               </div>
 
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
                   Port
                 </label>
-                <input
-                  value={port}
-                  onChange={(e) =>
-                    setPort(e.target.value.replace(/[^0-9]/g, ""))
-                  }
-                  placeholder="22"
-                  inputMode="numeric"
-                  className={inputClass}
-                  disabled={busy}
+                <Controller
+                  control={control}
+                  name="port"
+                  render={({ field }) => (
+                    <input
+                      ref={field.ref}
+                      name={field.name}
+                      value={field.value}
+                      onBlur={field.onBlur}
+                      onChange={(e) =>
+                        field.onChange(
+                          e.target.value.replace(/[^0-9]/g, ""),
+                        )
+                      }
+                      placeholder="22"
+                      inputMode="numeric"
+                      aria-invalid={!!errors.port}
+                      className={`${modalInputClass} ${errors.port ? modalErrorInputClass : ""}`}
+                      disabled={busy}
+                    />
+                  )}
                 />
+                {errors.port && errorText(errors.port.message ?? "")}
               </div>
 
               <div className="col-span-2">
@@ -319,9 +351,9 @@ export function AddSSHProjectModal() {
                   </span>
                 </label>
                 <input
-                  value={key}
-                  onChange={(e) => setKey(e.target.value)}
                   placeholder="~/.ssh/id_ed25519"
+                  className={modalInputClass}
+                  {...register("key")}
                   {...textInputProps}
                 />
                 <p className="mt-1 text-[11px] text-[var(--text-muted)]">
@@ -337,9 +369,9 @@ export function AddSSHProjectModal() {
                   </span>
                 </label>
                 <input
-                  value={dir}
-                  onChange={(e) => setDir(e.target.value)}
                   placeholder="/var/www/app"
+                  className={modalInputClass}
+                  {...register("dir")}
                   {...textInputProps}
                 />
                 <p className="mt-1 text-[11px] text-[var(--text-muted)]">
@@ -352,14 +384,13 @@ export function AddSSHProjectModal() {
                   Project name
                 </label>
                 <input
-                  value={name}
-                  onChange={(e) => {
-                    setName(e.target.value);
-                    setNameTouched(true);
-                  }}
                   placeholder="my-server"
+                  aria-invalid={!!errors.name}
+                  className={`${modalInputClass} ${errors.name ? modalErrorInputClass : ""}`}
+                  {...register("name")}
                   {...textInputProps}
                 />
+                {errors.name && errorText(errors.name.message ?? "")}
               </div>
             </>
           )}
@@ -376,7 +407,7 @@ export function AddSSHProjectModal() {
           </button>
           <button
             type="submit"
-            disabled={!canCreate}
+            disabled={busy}
             className="rounded-lg bg-[var(--text-primary)] px-4 py-2 text-sm font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-40"
           >
             {busy ? "Creating…" : "Add project"}

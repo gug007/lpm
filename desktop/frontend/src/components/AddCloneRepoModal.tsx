@@ -7,6 +7,12 @@ import { XIcon } from "./icons";
 import { slugify } from "../slugify";
 import { useAppStore } from "../store/app";
 import { BrowseFolder } from "../../wailsjs/go/main/App";
+import { gitUrlSchema, projectNameSchema } from "../forms/schemas";
+import {
+  modalErrorInputClass,
+  modalInputClass,
+  modalInputDefaults,
+} from "../forms/styles";
 
 function deriveNameFromUrl(url: string): string {
   const trimmed = url.trim();
@@ -17,12 +23,10 @@ function deriveNameFromUrl(url: string): string {
 }
 
 const schema = z.object({
-  url: z.string().trim().min(1, "Enter a repository URL."),
+  url: gitUrlSchema,
   branch: z.string().trim(),
   destParent: z.string().trim().min(1, "Pick a destination folder."),
-  name: z
-    .string()
-    .refine((v) => slugify(v).length > 0, "Enter a project name."),
+  name: projectNameSchema,
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -101,16 +105,7 @@ export function AddCloneRepoModal() {
     }
   });
 
-  const inputClass =
-    "w-full rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--text-muted)] disabled:opacity-60";
-  const errorInputClass = "border-[var(--danger,#f87171)]";
-  const textInputProps = {
-    autoComplete: "off",
-    autoCorrect: "off",
-    autoCapitalize: "off",
-    spellCheck: false,
-    disabled: busy,
-  } as const;
+  const textInputProps = { ...modalInputDefaults, disabled: busy } as const;
 
   const errorText = (msg: string) => (
     <p className="mt-1 text-[11px] text-[var(--danger,#f87171)]">{msg}</p>
@@ -164,7 +159,7 @@ export function AddCloneRepoModal() {
               autoFocus
               placeholder="https://github.com/owner/repo.git"
               aria-invalid={!!errors.url}
-              className={`${inputClass} ${errors.url ? errorInputClass : ""}`}
+              className={`${modalInputClass} ${errors.url ? modalErrorInputClass : ""}`}
               {...register("url")}
               {...textInputProps}
             />
@@ -181,7 +176,7 @@ export function AddCloneRepoModal() {
                 readOnly
                 placeholder="Pick a parent folder…"
                 aria-invalid={!!errors.destParent}
-                className={`${inputClass} ${errors.destParent ? errorInputClass : ""}`}
+                className={`${modalInputClass} ${errors.destParent ? modalErrorInputClass : ""}`}
                 onClick={pickDest}
                 {...register("destParent")}
                 {...textInputProps}
@@ -206,7 +201,7 @@ export function AddCloneRepoModal() {
             <input
               placeholder="my-repo"
               aria-invalid={!!errors.name}
-              className={`${inputClass} ${errors.name ? errorInputClass : ""}`}
+              className={`${modalInputClass} ${errors.name ? modalErrorInputClass : ""}`}
               {...register("name")}
               {...textInputProps}
             />
@@ -238,7 +233,7 @@ export function AddCloneRepoModal() {
                 </label>
                 <input
                   placeholder="main"
-                  className={inputClass}
+                  className={modalInputClass}
                   {...register("branch")}
                   {...textInputProps}
                 />

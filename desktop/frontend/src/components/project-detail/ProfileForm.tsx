@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { toast } from "sonner";
 import { appendProfile, renameProfile, replaceProfile } from "../../profileConfig";
-import { slugify } from "../../slugify";
-import { uniqueKey } from "../../uniqueKey";
+import { computeDesiredKey } from "../../forms/keys";
+import { slugifiedNameSchema } from "../../forms/schemas";
 import type { ProfileInfo, ServiceInfo } from "../../types";
 import { CheckIcon, XIcon } from "../icons";
 import { Modal } from "../ui/Modal";
@@ -16,12 +19,10 @@ const inputClass =
 interface ProfileFormProps {
   open: boolean;
   projectName: string;
-  // All services available in this project — checklist source and preview list.
   services: ServiceInfo[];
   // All current profiles — used to render a realistic preview and to avoid
   // YAML key collisions on create.
   profiles: ProfileInfo[];
-  // When set, prefill from this profile and patch its YAML key in place.
   editing?: ProfileInfo | null;
   onClose: () => void;
   onSaved: () => void;
@@ -32,6 +33,13 @@ interface ProfileFormProps {
   onPickService?: (service: ServiceInfo) => void;
   onPickProfile?: (profile: ProfileInfo) => void;
 }
+
+interface FormValues {
+  name: string;
+  services: string[];
+}
+
+const DEFAULT_VALUES: FormValues = { name: "", services: [] };
 
 export function ProfileForm({
   open,
@@ -46,58 +54,80 @@ export function ProfileForm({
   onPickProfile,
 }: ProfileFormProps) {
   const isEditing = Boolean(editing);
-  const [name, setName] = useState("");
-  const [picked, setPicked] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
-  const nameRef = useRef<HTMLInputElement>(null);
+
+  const schema = useMemo(() => {
+    const otherKeys = profiles
+      .filter((p) => !editing || p.name !== editing.name)
+      .map((p) => p.name);
+    return z.object({
+      name: slugifiedNameSchema({
+        emptyMessage: "Name is required",
+        entity: "profile",
+        editingName: editing?.name ?? null,
+        otherNames: otherKeys,
+      }),
+      services: z.array(z.string()).min(1, "Pick at least one service"),
+    });
+  }, [profiles, editing]);
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    getValues,
+    reset,
+    trigger,
+    setFocus,
+    formState: { errors, isValid },
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: DEFAULT_VALUES,
+    mode: "onChange",
+  });
 
   useEffect(() => {
     if (!open) return;
     if (editing) {
-      setName(editing.name);
-      setPicked(new Set(editing.services));
+      reset({ name: editing.name, services: [...editing.services] });
     } else {
-      setName("");
-      setPicked(new Set());
+      reset(DEFAULT_VALUES);
     }
     setSaving(false);
-    const focusTimer = setTimeout(() => nameRef.current?.focus(), 50);
-    return () => clearTimeout(focusTimer);
-  }, [open, editing]);
+    const t = setTimeout(() => {
+      setFocus("name");
+      void trigger();
+    }, 50);
+    return () => clearTimeout(t);
+  }, [open, editing, reset, setFocus, trigger]);
 
-  const trimmedName = name.trim();
-
-  // Names of all profiles *other than* the one currently being edited. Used
-  // to guard against collisions when creating or renaming.
-  const otherProfileKeys = useMemo(
-    () => profiles.filter((p) => !editing || p.name !== editing.name).map((p) => p.name),
-    [profiles, editing],
+  const watchedName = watch("name");
+  const watchedServices = watch("services");
+  const pickedSet = useMemo(
+    () => new Set(watchedServices),
+    [watchedServices],
   );
 
-  const desiredKey = useMemo(() => {
-    const slug = slugify(trimmedName);
-    if (editing) return slug || editing.name;
-    return uniqueKey(slug || FALLBACK_KEY, profiles.map((p) => p.name));
-  }, [editing, profiles, trimmedName]);
+  const trimmedName = watchedName.trim();
 
-  const renameCollision = isEditing && otherProfileKeys.includes(desiredKey);
+  const desiredKey = useMemo(
+    () =>
+      computeDesiredKey({
+        rawName: trimmedName,
+        editingName: editing?.name ?? null,
+        existingNames: profiles.map((p) => p.name),
+        fallback: FALLBACK_KEY,
+      }),
+    [editing, profiles, trimmedName],
+  );
 
   // Preserve service order for stable YAML diffs: emit picked services in
   // the same order they appear in the project's service list.
   const orderedPicked = useMemo(
-    () => services.map((s) => s.name).filter((n) => picked.has(n)),
-    [services, picked],
+    () => services.map((s) => s.name).filter((n) => pickedSet.has(n)),
+    [services, pickedSet],
   );
-
-  const errorHint = !trimmedName
-    ? "Name is required"
-    : picked.size === 0
-      ? "Pick at least one service"
-      : renameCollision
-        ? `A profile named "${desiredKey}" already exists`
-        : "";
-
-  const canSave = !errorHint && !saving;
 
   const previewProfileEntries = useMemo(() => {
     const others = profiles.filter((p) => !editing || p.name !== editing.name);
@@ -112,42 +142,58 @@ export function ProfileForm({
     [services],
   );
 
-  const submit = async () => {
-    if (!canSave) return;
+  const errorHint =
+    errors.name?.message || errors.services?.message || "";
+  const canSave = isValid && !saving;
+
+  const toggle = (svcName: string) => {
+    const current = new Set(getValues("services"));
+    if (current.has(svcName)) current.delete(svcName);
+    else current.add(svcName);
+    const ordered = services.map((s) => s.name).filter((n) => current.has(n));
+    setValue("services", ordered, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+  };
+
+  const onSubmit = handleSubmit(async (values) => {
     setSaving(true);
     try {
+      const targetKey = computeDesiredKey({
+        rawName: values.name,
+        editingName: editing?.name ?? null,
+        existingNames: profiles.map((p) => p.name),
+        fallback: FALLBACK_KEY,
+      });
+      const orderedServices = services
+        .map((s) => s.name)
+        .filter((n) => values.services.includes(n));
       if (editing) {
-        await renameProfile(projectName, editing.name, desiredKey);
-        await replaceProfile(projectName, desiredKey, orderedPicked);
+        await renameProfile(projectName, editing.name, targetKey);
+        await replaceProfile(projectName, targetKey, orderedServices);
         toast.success("Profile updated");
       } else {
-        await appendProfile(projectName, desiredKey, orderedPicked);
+        await appendProfile(projectName, targetKey, orderedServices);
         toast.success("Profile created");
       }
       onSaved();
       onClose();
     } catch (err) {
-      const fallback = editing ? "Could not update profile" : "Could not create profile";
+      const fallback = editing
+        ? "Could not update profile"
+        : "Could not create profile";
       toast.error(err instanceof Error ? err.message : fallback);
     } finally {
       setSaving(false);
     }
-  };
+  });
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
-      void submit();
+      void onSubmit();
     }
-  };
-
-  const toggle = (svcName: string) => {
-    setPicked((prev) => {
-      const next = new Set(prev);
-      if (next.has(svcName)) next.delete(svcName);
-      else next.add(svcName);
-      return next;
-    });
   };
 
   return (
@@ -157,96 +203,99 @@ export function ProfileForm({
       backdropClassName="bg-black/50 backdrop-blur-sm"
       contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >
-      <div
-        className="flex max-h-[88vh] w-[min(800px,calc(100vw-32px))] flex-col"
-        onKeyDown={onKeyDown}
-      >
-        <header className="flex items-start justify-between gap-4 px-8 pb-6 pt-7">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">
-              {isEditing ? "Edit profile" : "Add profile"}
-            </h2>
-            <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[var(--text-secondary)]">
-              A profile is a named bundle of services to start together — for example, a
-              minimal "frontend-only" set for design work.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="-mr-2 -mt-2 rounded-xl p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          >
-            <XIcon />
-          </button>
-        </header>
-
-        <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] lg:flex-row">
-          <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
-            <div className="space-y-5">
-              <label className="block">
-                <span className="mb-1.5 block text-[13px] font-medium text-[var(--text-primary)]">
-                  Name
-                </span>
-                <input
-                  ref={nameRef}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="frontend-only"
-                  className={inputClass}
-                />
-                <span className="mt-1.5 block text-[11px] text-[var(--text-muted)]">
-                  Click this name in the start menu to launch the bundle.
-                </span>
-              </label>
-
-              <ServiceChecklist services={services} picked={picked} onToggle={toggle} />
+      <form onSubmit={onSubmit} noValidate>
+        <div
+          className="flex max-h-[88vh] w-[min(800px,calc(100vw-32px))] flex-col"
+          onKeyDown={onKeyDown}
+        >
+          <header className="flex items-start justify-between gap-4 px-8 pb-6 pt-7">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">
+                {isEditing ? "Edit profile" : "Add profile"}
+              </h2>
+              <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[var(--text-secondary)]">
+                A profile is a named bundle of services to start together — for example, a
+                minimal "frontend-only" set for design work.
+              </p>
             </div>
-          </div>
-
-          <StartMenuPreview
-            services={previewServiceEntries}
-            profiles={previewProfileEntries}
-            asideWidthClass="lg:w-[320px]"
-            onPickService={onPickService}
-            onPickProfile={onPickProfile}
-          />
-        </div>
-
-        <footer className="flex items-center gap-3 border-t border-[var(--border)] px-8 py-4">
-          {isEditing && onDelete && (
-            <button
-              type="button"
-              onClick={onDelete}
-              className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--accent-red)] transition-colors hover:bg-[var(--accent-red)]/10"
-            >
-              Delete profile
-            </button>
-          )}
-          <div className="ml-auto flex items-center gap-3">
-            {!canSave && errorHint && (
-              <span className="hidden text-[12px] text-[var(--text-muted)] sm:inline">
-                {errorHint}
-              </span>
-            )}
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              aria-label="Close"
+              className="-mr-2 -mt-2 rounded-xl p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
             >
-              Cancel
+              <XIcon />
             </button>
-            <button
-              type="button"
-              onClick={() => void submit()}
-              disabled={!canSave}
-              className="rounded-xl bg-[var(--text-primary)] px-5 py-2.5 text-[13px] font-semibold text-[var(--bg-primary)] shadow-sm transition hover:opacity-90 disabled:opacity-40 disabled:shadow-none"
-            >
-              {saving ? "Saving..." : isEditing ? "Save changes" : "Add profile"}
-            </button>
+          </header>
+
+          <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] lg:flex-row">
+            <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
+              <div className="space-y-5">
+                <label className="block">
+                  <span className="mb-1.5 block text-[13px] font-medium text-[var(--text-primary)]">
+                    Name
+                  </span>
+                  <input
+                    placeholder="frontend-only"
+                    className={inputClass}
+                    {...register("name")}
+                  />
+                  <span className="mt-1.5 block text-[11px] text-[var(--text-muted)]">
+                    Click this name in the start menu to launch the bundle.
+                  </span>
+                </label>
+
+                <ServiceChecklist
+                  services={services}
+                  picked={pickedSet}
+                  onToggle={toggle}
+                />
+              </div>
+            </div>
+
+            <StartMenuPreview
+              services={previewServiceEntries}
+              profiles={previewProfileEntries}
+              asideWidthClass="lg:w-[320px]"
+              onPickService={onPickService}
+              onPickProfile={onPickProfile}
+            />
           </div>
-        </footer>
-      </div>
+
+          <footer className="flex items-center gap-3 border-t border-[var(--border)] px-8 py-4">
+            {isEditing && onDelete && (
+              <button
+                type="button"
+                onClick={onDelete}
+                className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--accent-red)] transition-colors hover:bg-[var(--accent-red)]/10"
+              >
+                Delete profile
+              </button>
+            )}
+            <div className="ml-auto flex items-center gap-3">
+              {!canSave && errorHint && (
+                <span className="hidden text-[12px] text-[var(--text-muted)] sm:inline">
+                  {errorHint}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!canSave}
+                className="rounded-xl bg-[var(--text-primary)] px-5 py-2.5 text-[13px] font-semibold text-[var(--bg-primary)] shadow-sm transition hover:opacity-90 disabled:opacity-40 disabled:shadow-none"
+              >
+                {saving ? "Saving..." : isEditing ? "Save changes" : "Add profile"}
+              </button>
+            </div>
+          </footer>
+        </div>
+      </form>
     </Modal>
   );
 }
