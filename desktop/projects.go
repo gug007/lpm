@@ -112,6 +112,7 @@ type ActionInfo struct {
 	Label    string            `json:"label"`
 	Cmd      string            `json:"cmd"`
 	Cwd      string            `json:"cwd"`
+	Port     int               `json:"port,omitempty"`
 	Env      map[string]string `json:"env,omitempty"`
 	Confirm  bool              `json:"confirm"`
 	Display  string            `json:"display"`
@@ -227,6 +228,7 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state r
 					Label:    childLabel,
 					Cmd:      child.Cmd,
 					Cwd:      child.Cwd,
+					Port:     child.Port,
 					Env:      child.Env,
 					Confirm:  child.Confirm,
 					Display:  child.Display,
@@ -243,6 +245,7 @@ func toProjectInfo(name string, cfg *config.ProjectConfig, running bool, state r
 			Label:    label,
 			Cmd:      act.Cmd,
 			Cwd:      act.Cwd,
+			Port:     act.Port,
 			Env:      act.Env,
 			Confirm:  act.Confirm,
 			Display:  act.Display,

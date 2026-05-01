@@ -1,7 +1,5 @@
 // Package portcheck detects local TCP port conflicts before lpm starts
-// a project's services. Self-conflicts (the holder belongs to the
-// project being restarted) are filtered out — the existing session is
-// killed before the new one launches.
+// services or runs port-bound actions.
 package portcheck
 
 import (
@@ -9,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gug007/lpm/internal/config"
@@ -29,8 +29,6 @@ type Conflict struct {
 	LpmProject string
 }
 
-// HolderPhrase returns the holder identity as a noun phrase, e.g.
-// `lpm project "frontend"` or `node (PID 1234)`.
 func (c Conflict) HolderPhrase() string {
 	switch {
 	case c.LpmProject != "":
@@ -44,10 +42,8 @@ func (c Conflict) HolderPhrase() string {
 	}
 }
 
-// Probe returns the listener for the given TCP port and whether the
-// port is taken. lsof identifies the holder (including listeners using
-// SO_REUSEPORT, which a bind probe alone can miss on macOS); CanBind
-// catches the rare case where lsof is unavailable.
+// Probe falls back to CanBind when lsof is unavailable. lsof is needed
+// to catch SO_REUSEPORT listeners that a bind probe alone misses on macOS.
 func Probe(port int) (Holder, bool) {
 	if h, ok := lookupHolders([]int{port})[port]; ok {
 		return h, true
@@ -58,10 +54,8 @@ func Probe(port int) (Holder, bool) {
 	return Holder{}, false
 }
 
-// CanBind reports whether 127.0.0.1:port is free for a new TCP listener
-// under Go's default REUSEADDR semantics. False positives are possible
-// with foreign listeners that hold the port via SO_REUSEPORT — pair
-// with Probe when that distinction matters.
+// CanBind can return true even when something is listening with
+// SO_REUSEPORT on macOS; pair with Probe when that distinction matters.
 func CanBind(port int) bool {
 	l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
@@ -71,10 +65,57 @@ func CanBind(port int) bool {
 	return true
 }
 
-// Check returns the conflicts that would prevent starting the given
-// services in cfg. Conflicts caused by the project's own currently-
-// running session are filtered out. SSH projects bind on the remote host
-// and are skipped — the local host's ports are irrelevant.
+// FreePort delegates to stopLpmProject for lpm-owned holders so the
+// caller can perform side cleanup (state caches, event emits); external
+// PIDs receive SIGTERM directly.
+func FreePort(port int, stopLpmProject func(string) error) error {
+	if port <= 0 {
+		return nil
+	}
+	holder, taken := Probe(port)
+	if !taken {
+		return nil
+	}
+	project := walkToProject(holder.PID, lpmPaneIndex(), processParents())
+
+	switch {
+	case project != "":
+		if stopLpmProject == nil {
+			return fmt.Errorf("port %d held by lpm project %q (no stopper provided)", port, project)
+		}
+		if err := stopLpmProject(project); err != nil {
+			return fmt.Errorf("stop lpm project %q: %w", project, err)
+		}
+	case holder.PID > 0:
+		proc, err := os.FindProcess(holder.PID)
+		if err != nil {
+			return fmt.Errorf("find PID %d: %w", holder.PID, err)
+		}
+		if err := proc.Signal(syscall.SIGTERM); err != nil {
+			return fmt.Errorf("SIGTERM PID %d: %w", holder.PID, err)
+		}
+	default:
+		return fmt.Errorf("port %d held by an unidentifiable process", port)
+	}
+	return waitBindable(port, freePortGrace)
+}
+
+const freePortGrace = 5 * time.Second
+
+func waitBindable(port int, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if CanBind(port) {
+			return nil
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return fmt.Errorf("port %d still in use after %s", port, timeout)
+}
+
+// Check filters out self-conflicts (StartProjectServices kills the
+// existing session before launching the new one) and skips SSH projects
+// (they bind on the remote, not locally).
 func Check(cfg *config.ProjectConfig, serviceNames []string) []Conflict {
 	if cfg == nil || cfg.IsRemote() {
 		return nil
@@ -130,8 +171,29 @@ func Check(cfg *config.ProjectConfig, serviceNames []string) []Conflict {
 	return conflicts
 }
 
-// Format returns an error describing the conflicts as a multi-line,
-// actionable message. Returns nil when there are no conflicts.
+func FormatActionPort(actionName string, port int) error {
+	return Format(CheckActionPort(actionName, port))
+}
+
+// CheckActionPort never skips self-conflicts (unlike Check, since
+// actions have no "self-restart" semantics).
+func CheckActionPort(actionName string, port int) []Conflict {
+	if port <= 0 {
+		return nil
+	}
+	holder, taken := Probe(port)
+	if !taken {
+		return nil
+	}
+	project := walkToProject(holder.PID, lpmPaneIndex(), processParents())
+	return []Conflict{{
+		Service:    actionName,
+		Port:       port,
+		Holder:     holder,
+		LpmProject: project,
+	}}
+}
+
 func Format(conflicts []Conflict) error {
 	if len(conflicts) == 0 {
 		return nil
@@ -153,10 +215,8 @@ func Format(conflicts []Conflict) error {
 	return errors.New(b.String())
 }
 
-// lookupHolders queries lsof once for the given ports and returns a
-// map of port → holder. Empty when lsof is missing, fails, or finds
-// no listeners. Each `-iTCP:N` adds an OR clause so we get all matches
-// in a single subprocess.
+// lookupHolders batches all ports into one lsof call (each `-iTCP:N`
+// adds an OR clause).
 func lookupHolders(ports []int) map[int]Holder {
 	if len(ports) == 0 {
 		return nil
@@ -179,9 +239,8 @@ func lookupHolders(ports []int) map[int]Holder {
 	return parseLsof(string(out))
 }
 
-// parseLsof reads `lsof -F pcn` output. Each process record begins with
-// `pPID` and `cCOMMAND`, then one or more `nADDR:PORT` lines per matched
-// file. The first holder seen for each port wins.
+// parseLsof reads `lsof -F pcn` field-prefixed output: `pPID` then
+// `cCOMMAND` then one or more `nADDR:PORT` lines per matched file.
 func parseLsof(s string) map[int]Holder {
 	result := map[int]Holder{}
 	var current Holder
@@ -209,8 +268,6 @@ func parseLsof(s string) map[int]Holder {
 	return result
 }
 
-// portFromAddr extracts the port from an lsof `n` field, which has the
-// shape `addr:port` — e.g. `*:3000`, `127.0.0.1:8080`, `[::1]:443`.
 func portFromAddr(addr string) (int, bool) {
 	i := strings.LastIndex(addr, ":")
 	if i < 0 {
@@ -281,9 +338,8 @@ func processParents() map[int]int {
 	return parents
 }
 
-// walkToProject walks pid's parent chain and returns the first lpm
-// project found in paneIdx. Empty when pid (or its ancestors) don't
-// belong to any tracked tmux pane.
+// walkToProject returns the lpm project owning pid (or an ancestor),
+// empty when no ancestor belongs to a tracked tmux pane.
 func walkToProject(pid int, paneIdx map[int]string, parents map[int]int) string {
 	if pid <= 1 || len(paneIdx) == 0 {
 		return ""

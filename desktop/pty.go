@@ -14,6 +14,7 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/gug007/lpm/internal/config"
+	"github.com/gug007/lpm/internal/portcheck"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -120,6 +121,10 @@ func (a *App) StartTerminalForConfig(projectName string, terminalName string) (T
 	act, ok := cfg.ResolvedAction(terminalName)
 	if !ok || act.Type != "terminal" {
 		return TerminalLaunch{}, fmt.Errorf("terminal %q not found in project %q", terminalName, projectName)
+	}
+
+	if err := portcheck.FormatActionPort(terminalName, act.Port); err != nil {
+		return TerminalLaunch{}, err
 	}
 
 	// mode: sync runs the terminal locally against an rsync mirror of

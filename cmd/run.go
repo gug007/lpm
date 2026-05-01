@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gug007/lpm/internal/config"
+	"github.com/gug007/lpm/internal/portcheck"
 	"github.com/spf13/cobra"
 )
 
@@ -35,6 +36,10 @@ var runCmd = &cobra.Command{
 				fatalf("project %q has no actions defined", projectName)
 			}
 			fatalf("action %q not found in project %q\nAvailable actions: %s", actionName, projectName, strings.Join(available, ", "))
+		}
+
+		if err := portcheck.FormatActionPort(actionName, action.Port); err != nil {
+			fatalf("Cannot run %q: %s", actionName, err)
 		}
 
 		cwd := config.ResolveCwd(cfg.Root, action.Cwd)

@@ -9,7 +9,7 @@ export function PortConflictDialog() {
 
   if (!portConflict) return null;
 
-  const { name: projectName, conflicts } = portConflict;
+  const { title, conflicts } = portConflict;
   const hasUnknown = conflicts.some((c) => !c.lpmProject && c.pid <= 0);
   const plural = conflicts.length > 1;
 
@@ -23,7 +23,7 @@ export function PortConflictDialog() {
     >
       <div className="px-6 pt-6 pb-5">
         <h2 className="text-base font-semibold text-[var(--text-primary)]">
-          Cannot start "{projectName}"
+          {title}
         </h2>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
           {hasUnknown

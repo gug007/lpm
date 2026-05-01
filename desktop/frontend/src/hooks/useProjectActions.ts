@@ -1,8 +1,13 @@
 import { useState, type RefObject } from "react";
 import { toast } from "sonner";
-import { RunAction, RunActionBackground } from "../../wailsjs/go/main/App";
+import {
+  CheckActionPortConflict,
+  RunAction,
+  RunActionBackground,
+} from "../../wailsjs/go/main/App";
 import type { TerminalViewHandle } from "../components/TerminalView";
 import type { ActionInfo } from "../types";
+import { useAppStore } from "../store/app";
 
 export interface UseProjectActionsOptions {
   projectName: string;
@@ -40,9 +45,24 @@ export function useProjectActions({
   const [inputsAction, setInputsAction] = useState<ActionInfo | null>(null);
   const [pendingInputValues, setPendingInputValues] = useState<Record<string, string> | null>(null);
 
+  const ensurePortFree = async (action: ActionInfo): Promise<boolean> => {
+    if (!action.port) return true;
+    try {
+      const conflicts = (await CheckActionPortConflict(projectName, action.name)) || [];
+      if (conflicts.length === 0) return true;
+      return await useAppStore
+        .getState()
+        .triggerPortConflictPrompt(`Cannot run "${action.label}"`, conflicts);
+    } catch (err) {
+      toast.error(`Failed to run "${action.label}": ${err}`);
+      return false;
+    }
+  };
+
   const executeAction = async (action: ActionInfo, inputValues: Record<string, string> = {}) => {
     setConfirmAction(null);
     setPendingInputValues(null);
+    if (!(await ensurePortFree(action))) return;
     if (action.type === "terminal") {
       onSwitchToTerminal();
       try {

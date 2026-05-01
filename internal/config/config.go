@@ -68,6 +68,7 @@ type Action struct {
 	Cmd      string                 `yaml:"cmd"`
 	Label    string                 `yaml:"label,omitempty"`
 	Cwd      string                 `yaml:"cwd,omitempty"`
+	Port     int                    `yaml:"port,omitempty"`
 	Env      map[string]string      `yaml:"env,omitempty"`
 	Confirm  bool                   `yaml:"confirm,omitempty"`
 	Display  string                 `yaml:"display,omitempty"`
@@ -657,6 +658,11 @@ func LoadProjectCached(name string, cache map[string]*ProjectConfig) (*ProjectCo
 	return &cfg, nil
 }
 
+// isValidPort accepts 0 (unset) and any value in the standard TCP range.
+func isValidPort(port int) bool {
+	return port >= 0 && port <= 65535
+}
+
 func (p *ProjectConfig) Validate() error {
 	var errs []string
 
@@ -670,7 +676,7 @@ func (p *ProjectConfig) Validate() error {
 		if strings.TrimSpace(p.SSH.User) == "" {
 			errs = append(errs, "ssh: missing user")
 		}
-		if p.SSH.Port < 0 || p.SSH.Port > 65535 {
+		if !isValidPort(p.SSH.Port) {
 			errs = append(errs, fmt.Sprintf("ssh: invalid port %d", p.SSH.Port))
 		}
 		if d := strings.TrimSpace(p.SSH.Dir); d != "" && !strings.HasPrefix(d, "/") && !strings.HasPrefix(d, "~") {
@@ -691,7 +697,7 @@ func (p *ProjectConfig) Validate() error {
 		if strings.TrimSpace(svc.Cmd) == "" {
 			errs = append(errs, fmt.Sprintf("service %q: missing cmd", name))
 		}
-		if svc.Port < 0 || svc.Port > 65535 {
+		if !isValidPort(svc.Port) {
 			errs = append(errs, fmt.Sprintf("service %q: invalid port %d", name, svc.Port))
 		}
 		if svc.Port > 0 {
@@ -903,6 +909,11 @@ func validateActionMap(root string, remote bool, label string, actions ActionMap
 			errs = append(errs, fmt.Sprintf("%s: mode %q is only valid on SSH projects", where, ActionModeSync))
 		}
 	}
+	checkPort := func(port int, where string) {
+		if !isValidPort(port) {
+			errs = append(errs, fmt.Sprintf("%s: invalid port %d", where, port))
+		}
+	}
 	for name, act := range actions {
 		where := fmt.Sprintf("%s %q", label, name)
 		if strings.TrimSpace(act.Cmd) == "" && len(act.Actions) == 0 {
@@ -910,6 +921,7 @@ func validateActionMap(root string, remote bool, label string, actions ActionMap
 		}
 		check(act.Cwd, where)
 		checkMode(act.Mode, where)
+		checkPort(act.Port, where)
 		for childName, child := range act.Actions {
 			childWhere := fmt.Sprintf("%s.%q", where, childName)
 			if strings.TrimSpace(child.Cmd) == "" {
@@ -917,6 +929,7 @@ func validateActionMap(root string, remote bool, label string, actions ActionMap
 			}
 			check(child.Cwd, childWhere)
 			checkMode(child.Mode, childWhere)
+			checkPort(child.Port, childWhere)
 		}
 	}
 	return errs

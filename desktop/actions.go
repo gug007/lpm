@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gug007/lpm/internal/config"
+	"github.com/gug007/lpm/internal/portcheck"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -25,6 +26,7 @@ type ActionDone struct {
 type actionPlan struct {
 	cmdStr string
 	cwd    string
+	port   int
 	// onExit, when non-nil, runs after the command terminates. Used by
 	// mode: sync to push the rsync mirror back to the remote.
 	onExit func()
@@ -58,6 +60,7 @@ func (a *App) resolveActionCommand(projectName, actionName string, inputValues m
 		return &actionPlan{
 			cmdStr: config.BuildLocalScript(action.Env, rawCmd),
 			cwd:    filepath.Join(local, action.Cwd),
+			port:   action.Port,
 			onExit: func() { a.pushProjectSyncAsync(cfg) },
 		}, nil
 	}
@@ -66,12 +69,14 @@ func (a *App) resolveActionCommand(projectName, actionName string, inputValues m
 		return &actionPlan{
 			cmdStr: config.SSHCommandLine(cfg, action.Cwd, action.Env, rawCmd),
 			cwd:    cfg.Root,
+			port:   action.Port,
 		}, nil
 	}
 
 	return &actionPlan{
 		cmdStr: config.BuildLocalScript(action.Env, rawCmd),
 		cwd:    config.ResolveCwd(cfg.Root, action.Cwd),
+		port:   action.Port,
 	}, nil
 }
 
@@ -80,6 +85,9 @@ func (a *App) resolveActionCommand(projectName, actionName string, inputValues m
 func (a *App) RunAction(projectName string, actionName string, inputValues map[string]string) error {
 	plan, err := a.resolveActionCommand(projectName, actionName, inputValues)
 	if err != nil {
+		return err
+	}
+	if err := portcheck.FormatActionPort(actionName, plan.port); err != nil {
 		return err
 	}
 
@@ -126,6 +134,9 @@ func (a *App) RunAction(projectName string, actionName string, inputValues map[s
 func (a *App) RunActionBackground(projectName string, actionName string, inputValues map[string]string) error {
 	plan, err := a.resolveActionCommand(projectName, actionName, inputValues)
 	if err != nil {
+		return err
+	}
+	if err := portcheck.FormatActionPort(actionName, plan.port); err != nil {
 		return err
 	}
 

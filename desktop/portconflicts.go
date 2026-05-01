@@ -2,9 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"syscall"
-	"time"
 
 	"github.com/gug007/lpm/internal/config"
 	"github.com/gug007/lpm/internal/portcheck"
@@ -41,8 +38,6 @@ func toPortConflictInfoList(cs []portcheck.Conflict) []PortConflictInfo {
 	return out
 }
 
-// CheckPortConflicts returns the port conflicts that would prevent
-// starting the named project with the given profile.
 func (a *App) CheckPortConflicts(name, profile string) ([]PortConflictInfo, error) {
 	cfg, err := config.LoadProject(name)
 	if err != nil {
@@ -51,8 +46,8 @@ func (a *App) CheckPortConflicts(name, profile string) ([]PortConflictInfo, erro
 	return toPortConflictInfoList(portcheck.Check(cfg, cfg.ServicesForProfile(profile))), nil
 }
 
-// CheckPortConflictsForServices is CheckPortConflicts with an explicit
-// service list, bypassing profile resolution.
+// CheckPortConflictsForServices skips profile resolution; the caller
+// supplies the exact service set being started.
 func (a *App) CheckPortConflictsForServices(name string, services []string) ([]PortConflictInfo, error) {
 	cfg, err := config.LoadProject(name)
 	if err != nil {
@@ -61,40 +56,20 @@ func (a *App) CheckPortConflictsForServices(name string, services []string) ([]P
 	return toPortConflictInfoList(portcheck.Check(cfg, services)), nil
 }
 
-// ResolvePortConflict releases the port held by the conflict's owner.
-// Lpm projects are stopped via StopProject; external PIDs receive
-// SIGTERM and are given up to ~5s to release the port. The function
-// returns an error when the port is still bound after the grace period.
-func (a *App) ResolvePortConflict(c PortConflictInfo) error {
-	if c.LpmProject != "" {
-		if err := a.StopProject(c.LpmProject); err != nil {
-			return fmt.Errorf("stop %q: %w", c.LpmProject, err)
-		}
-	} else {
-		if c.PID <= 0 {
-			return fmt.Errorf("no process identified for port %d", c.Port)
-		}
-		proc, err := os.FindProcess(c.PID)
-		if err != nil {
-			return fmt.Errorf("find PID %d: %w", c.PID, err)
-		}
-		if err := proc.Signal(syscall.SIGTERM); err != nil {
-			return fmt.Errorf("SIGTERM PID %d: %w", c.PID, err)
-		}
+func (a *App) CheckActionPortConflict(projectName, actionName string) ([]PortConflictInfo, error) {
+	cfg, err := config.LoadProject(projectName)
+	if err != nil {
+		return nil, err
 	}
-	return waitPortFree(c.Port, 5*time.Second)
+	action, ok := cfg.ResolvedAction(actionName)
+	if !ok {
+		return nil, fmt.Errorf("action %q not found in project %q", actionName, projectName)
+	}
+	return toPortConflictInfoList(portcheck.CheckActionPort(actionName, action.Port)), nil
 }
 
-// waitPortFree polls until the port can accept a new TCP listener or
-// the deadline passes. Bind probe is sufficient here: we already know
-// the holder (we just SIGTERM'd it), so we don't need lsof to attribute.
-func waitPortFree(port int, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if portcheck.CanBind(port) {
-			return nil
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-	return fmt.Errorf("port %d still in use after %s", port, timeout)
+// ResolvePortConflict stops lpm-owned holders via StopProject (full
+// state cleanup) and SIGTERMs external holders.
+func (a *App) ResolvePortConflict(c PortConflictInfo) error {
+	return portcheck.FreePort(c.Port, a.StopProject)
 }

@@ -48,8 +48,7 @@ export interface SSHProjectParams {
 }
 
 export interface PortConflictPrompt {
-  name: string;
-  profile: string;
+  title: string;
   conflicts: main.PortConflictInfo[];
 }
 
@@ -90,6 +89,10 @@ interface AppState {
   toggleService: (name: string, service: string) => Promise<void>;
   cancelPortConflict: () => void;
   confirmPortConflict: () => Promise<void>;
+  triggerPortConflictPrompt: (
+    title: string,
+    conflicts: main.PortConflictInfo[],
+  ) => Promise<boolean>;
   addProject: () => void;
   closeAddProjectPicker: () => void;
   pickAddProjectKind: (kind: "local" | "ssh") => Promise<void>;
@@ -197,6 +200,11 @@ function projectsEqual(a: ProjectInfo[], b: ProjectInfo[]): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+// Held outside zustand state because functions don't belong in store
+// snapshots (devtools, persistence, etc.). At most one prompt is open
+// at a time, so a single slot is enough.
+let resolvePortConflictPromise: ((ok: boolean) => void) | null = null;
+
 export const useAppStore = create<AppState>((set, get) => ({
   projects: [],
 
@@ -255,8 +263,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const conflicts = (await CheckPortConflicts(name, profile)) || [];
       if (conflicts.length > 0) {
-        set({ portConflict: { name, profile, conflicts } });
-        return;
+        const ok = await get().triggerPortConflictPrompt(
+          `Cannot start "${name}"`,
+          conflicts,
+        );
+        if (!ok) return;
       }
       await StartProject(name, profile);
       await get().refreshProjects();
@@ -293,7 +304,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().startProject(name, "");
   },
 
-  cancelPortConflict: () => set({ portConflict: null, resolvingPortConflict: false }),
+  cancelPortConflict: () => {
+    resolvePortConflictPromise?.(false);
+    resolvePortConflictPromise = null;
+    set({ portConflict: null, resolvingPortConflict: false });
+  },
 
   confirmPortConflict: async () => {
     const prompt = get().portConflict;
@@ -302,13 +317,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       await Promise.all(prompt.conflicts.map((c) => ResolvePortConflict(c)));
       set({ portConflict: null, resolvingPortConflict: false });
-      await StartProject(prompt.name, prompt.profile);
-      await get().refreshProjects();
+      resolvePortConflictPromise?.(true);
+      resolvePortConflictPromise = null;
     } catch (err) {
       set({ resolvingPortConflict: false });
-      toast.error(`Failed to start ${prompt.name}: ${err}`);
+      toast.error(`Failed to free port: ${err}`);
     }
   },
+
+  triggerPortConflictPrompt: (title, conflicts) =>
+    new Promise<boolean>((resolve) => {
+      resolvePortConflictPromise?.(false);
+      resolvePortConflictPromise = resolve;
+      set({ portConflict: { title, conflicts } });
+    }),
 
   toggleService: async (name, service) => {
     try {

@@ -46,6 +46,7 @@ export interface ActionInfo {
   label: string;
   cmd: string;
   cwd?: string;
+  port?: number;
   env?: Record<string, string>;
   confirm: boolean;
   display: ActionDisplay;
