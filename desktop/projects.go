@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gug007/lpm/internal/config"
+	"github.com/gug007/lpm/internal/portcheck"
 	"github.com/gug007/lpm/internal/tmux"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"gopkg.in/yaml.v3"
@@ -414,6 +415,9 @@ func (a *App) StartProject(name, profile string) error {
 	if err != nil {
 		return err
 	}
+	if err := portcheck.Format(portcheck.Check(cfg, cfg.ServicesForProfile(profile))); err != nil {
+		return err
+	}
 	a.invalidateSessionCache(name)
 	if err := tmux.StartProject(cfg, profile); err != nil {
 		return err
@@ -438,6 +442,9 @@ func (a *App) StartProjectWithServices(name string, services []string) error {
 		if _, ok := cfg.Services[svc]; !ok {
 			return fmt.Errorf("service %q not found", svc)
 		}
+	}
+	if err := portcheck.Format(portcheck.Check(cfg, services)); err != nil {
+		return err
 	}
 	a.invalidateSessionCache(name)
 	if err := tmux.StartProjectServices(cfg, services); err != nil {
@@ -473,6 +480,9 @@ func (a *App) ToggleProjectService(name, serviceName string) error {
 	var next []string
 	switch {
 	case idx < 0:
+		if err := portcheck.Format(portcheck.Check(cfg, []string{serviceName})); err != nil {
+			return err
+		}
 		if _, err := tmux.SplitSessionPane(cfg, svc); err != nil {
 			return err
 		}

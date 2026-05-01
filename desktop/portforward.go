@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gug007/lpm/internal/config"
+	"github.com/gug007/lpm/internal/portcheck"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -89,7 +90,7 @@ func (a *App) AddPortForward(project string, remotePort int, localPort int) (Por
 		// type `localhost:3000` to hit a remote :3000, and almost
 		// always something else has the port if it isn't free. Fall
 		// back to a free port only on conflict.
-		if isLocalPortFree(remotePort) {
+		if portcheck.CanBind(remotePort) {
 			localPort = remotePort
 		} else {
 			localPort, err = pickFreeLocalPort()
@@ -243,18 +244,6 @@ func pickFreeLocalPort() (int, error) {
 	}
 	defer l.Close()
 	return l.Addr().(*net.TCPAddr).Port, nil
-}
-
-// isLocalPortFree probes whether nothing is listening on 127.0.0.1:port.
-// Used to decide between mirroring the remote port and falling back to
-// a randomly-picked one.
-func isLocalPortFree(port int) bool {
-	l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
-	if err != nil {
-		return false
-	}
-	_ = l.Close()
-	return true
 }
 
 // waitForLocalListen polls until something accepts on 127.0.0.1:port.

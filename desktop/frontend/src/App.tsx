@@ -11,6 +11,7 @@ import { TmuxInstaller } from "./components/TmuxInstaller";
 import { FeedbackModal } from "./components/FeedbackModal";
 import { NewProjectPicker } from "./components/NewProjectPicker";
 import { AddSSHProjectModal } from "./components/AddSSHProjectModal";
+import { PortConflictDialog } from "./components/PortConflictDialog";
 import { FileViewerHost } from "./components/FileViewerHost";
 import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverlayHost";
 import { Toaster } from "sonner";
@@ -42,6 +43,10 @@ export default function App() {
   const addProjectPickerOpen = useAppStore((s) => s.addProjectPickerOpen);
   const sshModalOpen = useAppStore((s) => s.sshModalOpen);
   const addingSSHProject = useAppStore((s) => s.addingSSHProject);
+  const portConflict = useAppStore((s) => s.portConflict);
+  const resolvingPortConflict = useAppStore((s) => s.resolvingPortConflict);
+  const cancelPortConflict = useAppStore((s) => s.cancelPortConflict);
+  const confirmPortConflict = useAppStore((s) => s.confirmPortConflict);
 
   const setView = useAppStore((s) => s.setView);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
@@ -250,6 +255,14 @@ export default function App() {
         busy={addingSSHProject}
         onClose={closeSSHModal}
         onCreate={addSSHProject}
+      />
+      <PortConflictDialog
+        open={!!portConflict}
+        projectName={portConflict?.name ?? ""}
+        conflicts={portConflict?.conflicts ?? []}
+        busy={resolvingPortConflict}
+        onCancel={cancelPortConflict}
+        onConfirm={confirmPortConflict}
       />
       <FileViewerHost />
       <TerminalDropOverlayHost />

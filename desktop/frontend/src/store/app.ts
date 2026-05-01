@@ -10,6 +10,7 @@ import {
 } from "../types";
 import {
   BrowseFolder,
+  CheckPortConflicts,
   CreateProject,
   CreateSSHProject,
   DuplicateProject,
@@ -17,12 +18,14 @@ import {
   ReadConfig,
   RemoveProject,
   ReorderProjects,
+  ResolvePortConflict,
   SaveConfig,
   SetProjectLabel,
   StartProject,
   StopProject,
   ToggleProjectService,
 } from "../../wailsjs/go/main/App";
+import type { main } from "../../wailsjs/go/models";
 import { getSettings } from "../settings";
 import { forgetProjectTerminals } from "../terminals";
 import { activeChatStorageKey } from "../components/NotesView";
@@ -44,6 +47,12 @@ export interface SSHProjectParams {
   dir: string;
 }
 
+export interface PortConflictPrompt {
+  name: string;
+  profile: string;
+  conflicts: main.PortConflictInfo[];
+}
+
 interface AppState {
   projects: ProjectInfo[];
 
@@ -58,6 +67,8 @@ interface AppState {
   addProjectPickerOpen: boolean;
   sshModalOpen: boolean;
   addingSSHProject: boolean;
+  portConflict: PortConflictPrompt | null;
+  resolvingPortConflict: boolean;
 
   setView: (view: View) => void;
   setSidebarCollapsed: (next: boolean | ((prev: boolean) => boolean)) => void;
@@ -77,6 +88,8 @@ interface AppState {
   restartProject: (name: string, profile: string) => Promise<void>;
   toggleProjectRunning: (name: string) => Promise<void>;
   toggleService: (name: string, service: string) => Promise<void>;
+  cancelPortConflict: () => void;
+  confirmPortConflict: () => Promise<void>;
   addProject: () => void;
   closeAddProjectPicker: () => void;
   pickAddProjectKind: (kind: "local" | "ssh") => Promise<void>;
@@ -198,6 +211,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   addProjectPickerOpen: false,
   sshModalOpen: false,
   addingSSHProject: false,
+  portConflict: null,
+  resolvingPortConflict: false,
 
   setView: (view) => set({ view }),
 
@@ -238,6 +253,11 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   startProject: async (name, profile) => {
     try {
+      const conflicts = (await CheckPortConflicts(name, profile)) || [];
+      if (conflicts.length > 0) {
+        set({ portConflict: { name, profile, conflicts } });
+        return;
+      }
       await StartProject(name, profile);
       await get().refreshProjects();
     } catch (err) {
@@ -257,8 +277,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   restartProject: async (name, profile) => {
     try {
       await StopProject(name);
-      await StartProject(name, profile);
-      await get().refreshProjects();
+      await get().startProject(name, profile);
     } catch (err) {
       toast.error(`Failed to restart ${name}: ${err}`);
     }
@@ -267,15 +286,27 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggleProjectRunning: async (name) => {
     const project = get().projects.find((p) => p.name === name);
     if (!project) return;
+    if (project.running) {
+      await get().stopProject(name);
+      return;
+    }
+    await get().startProject(name, "");
+  },
+
+  cancelPortConflict: () => set({ portConflict: null, resolvingPortConflict: false }),
+
+  confirmPortConflict: async () => {
+    const prompt = get().portConflict;
+    if (!prompt) return;
+    set({ resolvingPortConflict: true });
     try {
-      if (project.running) {
-        await StopProject(name);
-      } else {
-        await StartProject(name, "");
-      }
+      await Promise.all(prompt.conflicts.map((c) => ResolvePortConflict(c)));
+      set({ portConflict: null, resolvingPortConflict: false });
+      await StartProject(prompt.name, prompt.profile);
       await get().refreshProjects();
     } catch (err) {
-      toast.error(`Failed to toggle ${name}: ${err}`);
+      set({ resolvingPortConflict: false });
+      toast.error(`Failed to start ${prompt.name}: ${err}`);
     }
   },
 

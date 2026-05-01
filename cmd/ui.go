@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/gug007/lpm/internal/config"
+	"github.com/gug007/lpm/internal/portcheck"
 	"github.com/gug007/lpm/internal/tmux"
 )
 
@@ -97,6 +98,9 @@ func runProject(name, profile string, attach bool) {
 	cfg, err := config.LoadProject(name)
 	if err != nil {
 		fatal(err)
+	}
+	if err := portcheck.Format(portcheck.Check(cfg, cfg.ServicesForProfile(profile))); err != nil {
+		fatalf("Cannot start %q: %s", name, err)
 	}
 	if err := tmux.StartProject(cfg, profile); err != nil {
 		fatal(err)
