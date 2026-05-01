@@ -12,6 +12,7 @@ import { FeedbackModal } from "./components/FeedbackModal";
 import { NewProjectPicker } from "./components/NewProjectPicker";
 import { AddSSHProjectModal } from "./components/AddSSHProjectModal";
 import { FileViewerHost } from "./components/FileViewerHost";
+import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverlayHost";
 import { Toaster } from "sonner";
 import { SidebarIcon } from "./components/icons";
 import { useWindowResizeSaver } from "./hooks/useWindowResizeSaver";
@@ -251,6 +252,7 @@ export default function App() {
         onCreate={addSSHProject}
       />
       <FileViewerHost />
+      <TerminalDropOverlayHost />
     </div>
   );
 }

@@ -137,6 +137,45 @@ body {
 .demo-toast    { animation: run-toast-in  300ms cubic-bezier(0.2, 0.9, 0.3, 1) both; }
 .demo-cursor   { animation: term-cursor   1s steps(1) infinite; }
 
+@keyframes terminal-drop-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes terminal-drop-card-in {
+  from { opacity: 0; transform: scale(0.94) translateY(2px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.terminal-drop-overlay {
+  animation: terminal-drop-fade-in 120ms ease-out;
+}
+
+.terminal-drop-tint {
+  background-color: var(--accent-blue);
+  opacity: 0.06;
+}
+
+.terminal-drop-outline {
+  border: 1.5px dashed var(--accent-blue);
+  opacity: 0.55;
+}
+
+.terminal-drop-card {
+  background: var(--bg-primary);
+  box-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.18), 0 4px 12px -4px rgba(0, 0, 0, 0.10);
+  animation: terminal-drop-card-in 200ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+[data-theme="dark"] .terminal-drop-card {
+  box-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.55), 0 4px 12px -4px rgba(0, 0, 0, 0.40);
+}
+
+.terminal-drop-icon {
+  background-color: color-mix(in srgb, var(--accent-blue) 14%, transparent);
+  color: var(--accent-blue);
+}
+
 /* Diagonal hatch for empty cells in side-by-side diffs — matches VS Code's
    missing-region treatment so the eye reads "no content here" without
    leaving a confusing flat block. */
