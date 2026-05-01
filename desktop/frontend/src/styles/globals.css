@@ -148,7 +148,6 @@ body {
 }
 
 .terminal-drop-overlay {
-  /* Apple iOS easing — snappy, no overshoot. */
   animation: terminal-drop-fade-in 220ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
@@ -157,8 +156,6 @@ body {
 }
 
 .terminal-drop-ring {
-  /* Inset stroke instead of a dashed border — Apple uses smooth, hairline
-     rings (like macOS button outlines) rather than dashed drop targets. */
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-blue) 35%, transparent);
 }
 
@@ -167,9 +164,6 @@ body {
   animation: terminal-drop-content-in 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
-/* Diagonal hatch for empty cells in side-by-side diffs — matches VS Code's
-   missing-region treatment so the eye reads "no content here" without
-   leaving a confusing flat block. */
 .diff-empty-hatch {
   background-image: repeating-linear-gradient(
     -45deg,
