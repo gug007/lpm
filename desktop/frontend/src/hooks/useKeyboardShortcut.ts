@@ -25,20 +25,6 @@ function matches(event: KeyboardEvent, shortcut: KeyboardShortcut): boolean {
   return true;
 }
 
-/**
- * Runs `handler` when the user presses a key combo matching `shortcut`.
- *
- * `shortcut.meta: true` matches either Cmd or Ctrl (so shortcuts work on
- * macOS and other platforms without a separate binding).
- *
- * By default the matching event's `preventDefault()` is called — set
- * `shortcut.preventDefault: false` to opt out.
- *
- * Pass an array of shortcuts to bind several combos to the same handler
- * (the matched `KeyboardShortcut` is passed as the second argument).
- *
- * Pass `enabled: false` to temporarily disable the binding.
- */
 export function useKeyboardShortcut(
   shortcut: KeyboardShortcut | KeyboardShortcut[],
   handler: (event: KeyboardEvent, matched: KeyboardShortcut) => void,

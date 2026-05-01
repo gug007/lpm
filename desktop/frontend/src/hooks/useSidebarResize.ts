@@ -4,11 +4,6 @@ import { getSettings, saveSettings } from "../settings";
 const MIN_WIDTH = 160;
 const MAX_WIDTH = 400;
 
-/**
- * Manages the sidebar's resizable width. Returns the current width and a
- * mousedown handler to attach to a drag handle. Persists the width to
- * settings on release.
- */
 export function useSidebarResize() {
   const [width, setWidth] = useState(() => getSettings().sidebarWidth || 260);
   const widthRef = useRef(width);

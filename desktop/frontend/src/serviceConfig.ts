@@ -20,9 +20,8 @@ function ensureServicesMap(doc: ReturnType<typeof YAML.parseDocument>) {
   return YAML.isMap(verified) ? verified : null;
 }
 
-// Walk every profile's service-name list and apply `update` to each entry.
-// Used by rename and delete to keep top-level `profiles:` references in sync
-// with the canonical `services:` keys.
+// Keeps top-level `profiles:` references in sync with the canonical
+// `services:` keys (used by rename and delete).
 function forEachProfileServiceRef(
   doc: ReturnType<typeof YAML.parseDocument>,
   update: (list: YAML.YAMLSeq, index: number, name: string) => void,
@@ -87,8 +86,8 @@ export function renameService(projectName: string, oldKey: string, newKey: strin
   });
 }
 
-// Removes the service entry plus any profile membership references so the
-// resulting YAML still passes validation.
+// Also removes profile membership references so the resulting YAML
+// still passes validation.
 export function deleteService(projectName: string, key: string) {
   return editProjectDoc(projectName, (doc) => {
     const services = getServicesMap(doc);

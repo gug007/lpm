@@ -8,14 +8,6 @@ import { useEventListener } from "./useEventListener";
 type GitStatus = main.GitStatus;
 type Branch = main.Branch;
 
-/**
- * Loads git status and branches for a project and keeps them fresh:
- *   - initial fetch on mount / projectPath change
- *   - refetches on window focus
- *   - refetches when the backend emits "git-changed" for this project's path
- *
- * Returns the current status, branches, and a stable `refresh` callback.
- */
 export function useGitStatus(projectPath: string) {
   const [status, setStatus] = useState<GitStatus | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);

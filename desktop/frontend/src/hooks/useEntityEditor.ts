@@ -30,9 +30,6 @@ interface Options {
   onChanged: () => void;
 }
 
-// useEntityEditor consolidates the modal/context-menu/delete-confirm state
-// for a single named entity type (services or profiles). Both have the same
-// shape of edit affordances, so this hook is shared by ProjectDetail.
 export function useEntityEditor<T extends NamedEntity>({
   projectName,
   entityLabel,

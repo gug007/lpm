@@ -15,9 +15,7 @@ export interface UseTerminalFontSizeResult {
   zoomOut: () => void;
 }
 
-// Tracks the terminal font size with bounded zoom. Persisted lazily —
-// only saves when the value changes, not on every render. Awaits the
-// save before broadcasting so peer hooks read the fresh cached value.
+// Awaits the save before broadcasting so peer hooks read the fresh cached value.
 export function useTerminalFontSize(): UseTerminalFontSizeResult {
   const [fontSize, setFontSize] = useState(() => getSettings().terminalFontSize || DEFAULT_TERMINAL_FONT_SIZE);
 

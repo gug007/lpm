@@ -1,19 +1,8 @@
 import { type DependencyList, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-/**
- * Detects when a flex row's content can't fit on a single line and toggles a
- * `wrapped` flag so the caller can re-render the overflowing section onto its
- * own row.
- *
- * Attach `rowRef` to the row whose width bounds the available space and
- * `innerRef` to the flex container whose children determine the needed width.
- * Pass layout-affecting values as `deps`; whenever any of them changes the
- * cached fit threshold is invalidated and the layout is re-measured.
- *
- * Hysteresis: once wrapped, we cache the row width required to fit inline and
- * only unwrap when the row grows past that threshold, preventing oscillation
- * at the boundary.
- */
+// Hysteresis: once wrapped, cache the row width required to fit inline
+// and only unwrap when the row grows past that threshold, preventing
+// oscillation at the boundary.
 export function useOverflowWrap(deps: DependencyList) {
   const rowRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);

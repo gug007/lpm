@@ -26,10 +26,7 @@ export interface UseTerminalThemeResult {
   themeStyle: React.CSSProperties | undefined;
 }
 
-// Tracks the user's terminal theme choice and exposes the CSS variables
-// to apply. "default" is persisted as undefined so users can revert to
-// the OS default by re-picking it. Awaits the save before broadcasting
-// so peer hooks read the fresh cached value.
+// Awaits the save before broadcasting so peer hooks read the fresh cached value.
 export function useTerminalTheme(): UseTerminalThemeResult {
   const [theme, setThemeState] = useState<TerminalThemeName>(readSavedTheme);
 

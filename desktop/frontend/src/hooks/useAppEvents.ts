@@ -4,10 +4,6 @@ import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { useAppStore } from "../store/app";
 import { playDoneSound, playErrorSound, playWaitingSound } from "../sounds";
 
-/**
- * Subscribes to backend events that drive global app state (menu navigation,
- * dock integration, sound notifications) and forwards them to the store.
- */
 export function useAppEvents(): void {
   useEffect(() => {
     const { selectProject, setView, setFeedbackOpen } = useAppStore.getState();

@@ -2,17 +2,8 @@ import { useEffect, useRef } from "react";
 
 type EventTargetLike = Window | Document | HTMLElement | MediaQueryList;
 
-/**
- * Attaches an event listener to `target` (defaults to `window`) for the
- * duration of the component's lifetime.
- *
- * The handler is stored in a ref so callers don't need to memoize it —
- * the listener is only re-attached when `eventName`, `target`, or `enabled`
- * changes.
- *
- * Overloads are provided for `window`, `document`, and `MediaQueryList` so
- * event names are strongly typed at the call site.
- */
+// Handler is stored in a ref so callers don't need to memoize it — the
+// listener only re-attaches when eventName, target, or enabled changes.
 export function useEventListener<K extends keyof WindowEventMap>(
   eventName: K,
   handler: (event: WindowEventMap[K]) => void,

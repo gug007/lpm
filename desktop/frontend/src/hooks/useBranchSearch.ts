@@ -4,11 +4,8 @@ import { main } from "../../wailsjs/go/models";
 
 const SEARCH_DEBOUNCE_MS = 120;
 
-/**
- * Debounced backend branch search. Returns null while idle (no query, or
- * dropdown closed) so callers can fall back to a cached list. Returns an
- * array (possibly empty) once results arrive.
- */
+// Returns null while idle so callers can fall back to a cached list;
+// returns an array (possibly empty) once results arrive.
 export function useBranchSearch(
   projectPath: string,
   query: string,

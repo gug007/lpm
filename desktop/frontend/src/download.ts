@@ -1,6 +1,5 @@
-// bytesToBlobUrl copies into a fresh ArrayBuffer so Blob's BlobPart typing
-// accepts the result regardless of the source buffer shape, then returns a
-// blob: URL the caller is responsible for revoking.
+// Copies into a fresh ArrayBuffer so Blob's BlobPart typing accepts the
+// result regardless of the source buffer shape. Caller revokes the URL.
 export function bytesToBlobUrl(bytes: Uint8Array, mimeType: string): string {
   const buffer = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(buffer).set(bytes);
@@ -18,7 +17,6 @@ export function downloadBlob(bytes: Uint8Array, filename: string, mimeType: stri
   URL.revokeObjectURL(url);
 }
 
-// base64ToBytes decodes a standard (padded) base64 string into a Uint8Array.
 // Used for bytes crossing the Wails bridge: Go's json.Marshal emits []byte
 // as base64, so the Wails-generated Array<number> type is a lie.
 export function base64ToBytes(b64: string): Uint8Array {
@@ -30,9 +28,8 @@ export function base64ToBytes(b64: string): Uint8Array {
   return bytes;
 }
 
-// bytesToBase64 is the inverse of base64ToBytes. String.fromCharCode has an
-// argument cap on some engines, so chunk large inputs. `apply` accepts the
-// typed array directly (array-like), so no extra copy per chunk.
+// String.fromCharCode has an argument cap on some engines, so chunk large
+// inputs. `apply` accepts the typed array directly — no extra copy per chunk.
 export function bytesToBase64(bytes: Uint8Array): string {
   const CHUNK = 0x8000;
   let binary = "";

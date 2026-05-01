@@ -1,8 +1,6 @@
 import { LoadTerminals, SaveTerminals } from "../wailsjs/go/main/App";
 import { main } from "../wailsjs/go/models";
 
-// Persisted tab (one terminal inside a pane) — labels and optional
-// startCmd/resumeCmd so restore can re-inject them after a restart.
 export interface PersistedTab {
   label: string;
   startCmd?: string;
@@ -10,10 +8,8 @@ export interface PersistedTab {
   actionName?: string;
 }
 
-// Persisted pane tree shape — mirrors the Go binding (main.PaneNode) so
-// it can round trip through the wails layer without type contortions.
-// Leaf nodes hold `tabs[]` + `activeTabIdx`; split nodes hold
-// `direction`/`ratio`/`a`/`b`.
+// Mirrors the Go binding (main.PaneNode) so it round-trips through the
+// wails layer without type contortions.
 export interface PersistedPaneNode {
   kind: string;
   // leaf
@@ -64,9 +60,9 @@ export function getProjectTerminals(projectName: string): ProjectTerminalState {
   return cached.projects[projectName] ?? { detailView: "terminal" };
 }
 
-// Count tabs across a persisted pane tree. Used to seed terminal count
-// before the async restore reifies the tree — without this, callers fall
-// back to the legacy `terminals[]` field and miss new-format data.
+// Seeds the terminal count before the async restore reifies the tree.
+// Without this, callers fall back to the legacy `terminals[]` field and
+// miss new-format data.
 export function countPersistedTabs(node: PersistedPaneNode | undefined): number {
   if (!node) return 0;
   if (node.kind === "leaf") return node.tabs?.length ?? 0;

@@ -4,13 +4,6 @@ import { useAppStore } from "../store/app";
 
 const POLL_INTERVAL_MS = 10_000;
 
-/**
- * Keeps the store's project list in sync with the backend:
- *   - initial fetch on mount
- *   - polls every 10s while the tab is visible
- *   - pauses the interval when the tab is hidden, re-fetches on return
- *   - re-fetches when the backend emits "projects-changed" or "status-changed"
- */
 export function useProjectsSync(): void {
   useEffect(() => {
     const refresh = useAppStore.getState().refreshProjects;

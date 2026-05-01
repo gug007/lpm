@@ -14,11 +14,8 @@ export interface UseDetailViewResult {
   switchDetailView: (view: DetailView) => void;
 }
 
-// Owns the terminal/config/notes tab state for a project view: persists
-// the choice per-project, snaps back to "terminal" when the view is
-// hidden, and binds the ⌘E (config) / ⌘⇧N (notes) shortcuts. The ⌘T
-// shortcut lives at the call site because it composes with the
-// terminal-view ref, which doesn't belong here.
+// ⌘T lives at the call site because it composes with the terminal-view
+// ref, which doesn't belong here.
 export function useDetailView({ projectName, visible }: UseDetailViewOptions): UseDetailViewResult {
   const [detailView, setDetailView] = useState<DetailView>("terminal");
 
