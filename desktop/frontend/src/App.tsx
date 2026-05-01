@@ -35,18 +35,10 @@ export default function App() {
   const selected = useAppStore((s) => s.selected);
   const view = useAppStore((s) => s.view);
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
-  const feedbackOpen = useAppStore((s) => s.feedbackOpen);
   const tmuxReady = useAppStore((s) => s.tmuxReady);
   const visited = useAppStore((s) => s.visited);
   const duplicatingName = useAppStore((s) => s.duplicatingName);
   const removingName = useAppStore((s) => s.removingName);
-  const addProjectPickerOpen = useAppStore((s) => s.addProjectPickerOpen);
-  const sshModalOpen = useAppStore((s) => s.sshModalOpen);
-  const addingSSHProject = useAppStore((s) => s.addingSSHProject);
-  const portConflict = useAppStore((s) => s.portConflict);
-  const resolvingPortConflict = useAppStore((s) => s.resolvingPortConflict);
-  const cancelPortConflict = useAppStore((s) => s.cancelPortConflict);
-  const confirmPortConflict = useAppStore((s) => s.confirmPortConflict);
 
   const setView = useAppStore((s) => s.setView);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
@@ -62,10 +54,6 @@ export default function App() {
   const toggleProjectRunning = useAppStore((s) => s.toggleProjectRunning);
   const toggleService = useAppStore((s) => s.toggleService);
   const addProject = useAppStore((s) => s.addProject);
-  const closeAddProjectPicker = useAppStore((s) => s.closeAddProjectPicker);
-  const pickAddProjectKind = useAppStore((s) => s.pickAddProjectKind);
-  const closeSSHModal = useAppStore((s) => s.closeSSHModal);
-  const addSSHProject = useAppStore((s) => s.addSSHProject);
   const duplicateProject = useAppStore((s) => s.duplicateProject);
   const removeProject = useAppStore((s) => s.removeProject);
   const renameProject = useAppStore((s) => s.renameProject);
@@ -244,26 +232,10 @@ export default function App() {
           )}
         </main>
       </div>
-      {feedbackOpen && <FeedbackModal onClose={() => setFeedbackOpen(false)} />}
-      <NewProjectPicker
-        open={addProjectPickerOpen}
-        onClose={closeAddProjectPicker}
-        onPick={pickAddProjectKind}
-      />
-      <AddSSHProjectModal
-        open={sshModalOpen}
-        busy={addingSSHProject}
-        onClose={closeSSHModal}
-        onCreate={addSSHProject}
-      />
-      <PortConflictDialog
-        open={!!portConflict}
-        projectName={portConflict?.name ?? ""}
-        conflicts={portConflict?.conflicts ?? []}
-        busy={resolvingPortConflict}
-        onCancel={cancelPortConflict}
-        onConfirm={confirmPortConflict}
-      />
+      <FeedbackModal />
+      <NewProjectPicker />
+      <AddSSHProjectModal />
+      <PortConflictDialog />
       <FileViewerHost />
       <TerminalDropOverlayHost />
     </div>

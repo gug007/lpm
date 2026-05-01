@@ -12,6 +12,15 @@ import { OpenFileWithDropdown } from "./OpenFileWithDropdown";
 // back to a single column with del-then-add stacking.
 const SIDE_BY_SIDE_MIN_PX = 1100;
 
+const BASE_ZOOM = 1;
+const ZOOM_MIN = 0.6;
+const ZOOM_MAX = 2.5;
+const ZOOM_STEP = 0.1;
+const BASE_FONT_PX = 12;
+
+const clamp = (v: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, v));
+
 type CellKind = "context" | "add" | "del" | "empty";
 
 interface DiffCell {
@@ -191,7 +200,49 @@ export function FileViewerModal({
   const [editValue, setEditValue] = useState("");
   const [saving, setSaving] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [zoom, setZoom] = useState(BASE_ZOOM);
+  const wheelStateRef = useRef<{ delta: number; scheduled: boolean }>({
+    delta: 0,
+    scheduled: false,
+  });
   const wide = useIsWide(SIDE_BY_SIDE_MIN_PX);
+
+  const zoomIn = () =>
+    setZoom((z) => clamp(+(z + ZOOM_STEP).toFixed(2), ZOOM_MIN, ZOOM_MAX));
+  const zoomOut = () =>
+    setZoom((z) => clamp(+(z - ZOOM_STEP).toFixed(2), ZOOM_MIN, ZOOM_MAX));
+  const zoomReset = () => setZoom(BASE_ZOOM);
+
+  // Cmd/Ctrl + (= / - / 0) to zoom; Cmd/Ctrl + scroll-wheel (and trackpad
+  // pinch, which fires wheel with ctrlKey=true) to zoom continuously. Skip
+  // when editing — Monaco owns these gestures inside its own editor surface.
+  useEffect(() => {
+    if (!open || editing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.key === "=" || e.key === "+") { e.preventDefault(); zoomIn(); }
+      else if (e.key === "-" || e.key === "_") { e.preventDefault(); zoomOut(); }
+      else if (e.key === "0") { e.preventDefault(); zoomReset(); }
+    };
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      wheelStateRef.current.delta += e.deltaY;
+      if (wheelStateRef.current.scheduled) return;
+      wheelStateRef.current.scheduled = true;
+      requestAnimationFrame(() => {
+        const d = wheelStateRef.current.delta;
+        wheelStateRef.current = { delta: 0, scheduled: false };
+        setZoom((z) => clamp(+(z - d * 0.01).toFixed(2), ZOOM_MIN, ZOOM_MAX));
+      });
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("wheel", onWheel);
+    };
+  }, [open, editing]);
 
   // Reset edit state whenever the viewer is pointed at a different path.
   useEffect(() => {
@@ -334,6 +385,36 @@ export function FileViewerModal({
               </>
             ) : (
               <>
+                <div className="flex items-center gap-0.5 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] p-0.5 text-[var(--text-muted)]">
+                  <button
+                    type="button"
+                    onClick={zoomOut}
+                    disabled={zoom <= ZOOM_MIN}
+                    aria-label="Zoom out"
+                    title="Zoom out (⌘-)"
+                    className="rounded px-1.5 text-[13px] leading-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+                  >
+                    −
+                  </button>
+                  <button
+                    type="button"
+                    onClick={zoomReset}
+                    title="Reset zoom (⌘0)"
+                    className="min-w-[42px] rounded px-1.5 text-[11px] tabular-nums transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                  >
+                    {Math.round(zoom * 100)}%
+                  </button>
+                  <button
+                    type="button"
+                    onClick={zoomIn}
+                    disabled={zoom >= ZOOM_MAX}
+                    aria-label="Zoom in"
+                    title="Zoom in (⌘+)"
+                    className="rounded px-1.5 text-[13px] leading-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+                  >
+                    +
+                  </button>
+                </div>
                 {canEdit && (
                   <button
                     type="button"
@@ -357,7 +438,10 @@ export function FileViewerModal({
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-hidden bg-[var(--bg-primary)] font-mono text-[12px] leading-[1.55]">
+        <div
+          className="min-h-0 flex-1 overflow-hidden bg-[var(--bg-primary)] font-mono leading-[1.55]"
+          style={editing ? undefined : { fontSize: `${BASE_FONT_PX * zoom}px` }}
+        >
           {editing ? (
             <MonacoEditor
               value={editValue}
@@ -504,7 +588,7 @@ function DiffColumn({
               isTarget ? "ring-1 ring-yellow-400/60 bg-yellow-500/15" : ""
             }`}
           >
-            <span className="sticky left-0 z-[1] inline-flex w-12 shrink-0 select-none justify-end bg-inherit pr-2 text-[var(--text-muted)]/60">
+            <span className="sticky left-0 z-[1] inline-flex w-12 shrink-0 select-none justify-end bg-[var(--bg-primary)] pr-2 text-[var(--text-muted)]">
               {cell.lineNo || ""}
             </span>
             <span className="whitespace-pre pr-6">
@@ -560,7 +644,7 @@ function UnifiedDiff({
                 isTarget ? "ring-1 ring-yellow-400/60 bg-yellow-500/15" : ""
               }`}
             >
-              <span className="sticky left-0 z-[1] inline-flex w-12 shrink-0 select-none justify-end bg-inherit pr-2 text-[var(--text-muted)]/60">
+              <span className="sticky left-0 z-[1] inline-flex w-12 shrink-0 select-none justify-end bg-[var(--bg-primary)] pr-2 text-[var(--text-muted)]">
                 {row.lineNo || ""}
               </span>
               <span className="w-4 shrink-0 select-none text-[var(--text-muted)]/60">
@@ -599,7 +683,7 @@ function ContentView({
                 isTarget ? "ring-1 ring-yellow-400/60 bg-yellow-500/15" : ""
               }`}
             >
-              <span className="sticky left-0 z-[1] inline-flex w-12 shrink-0 select-none justify-end bg-inherit pr-2 text-[var(--text-muted)]/60">
+              <span className="sticky left-0 z-[1] inline-flex w-12 shrink-0 select-none justify-end bg-[var(--bg-primary)] pr-2 text-[var(--text-muted)]">
                 {row.lineNo}
               </span>
               <span className="whitespace-pre pr-6">

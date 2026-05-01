@@ -4,10 +4,8 @@ import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { GetVersion, GetPlatform } from "../../wailsjs/go/main/App";
 import { XIcon, ChevronLeftIcon } from "./icons";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
+import { useAppStore } from "../store/app";
 
-interface FeedbackModalProps {
-  onClose: () => void;
-}
 
 const REPO = "gug007/lpm";
 
@@ -129,7 +127,16 @@ function strictEncode(s: string): string {
   );
 }
 
-export function FeedbackModal({ onClose }: FeedbackModalProps) {
+export function FeedbackModal() {
+  const open = useAppStore((s) => s.feedbackOpen);
+  if (!open) return null;
+  return <FeedbackModalContents />;
+}
+
+function FeedbackModalContents() {
+  const setFeedbackOpen = useAppStore((s) => s.setFeedbackOpen);
+  const onClose = () => setFeedbackOpen(false);
+
   const [kind, setKind] = useState<KindDef | null>(null);
   const [title, setTitle] = useState("");
   const [values, setValues] = useState<Record<string, string>>({});

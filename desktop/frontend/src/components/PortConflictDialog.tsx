@@ -1,29 +1,21 @@
-import { main } from "../../wailsjs/go/models";
+import { useAppStore } from "../store/app";
 import { Modal } from "./ui/Modal";
 
-interface Props {
-  open: boolean;
-  projectName: string;
-  conflicts: main.PortConflictInfo[];
-  busy: boolean;
-  onCancel: () => void;
-  onConfirm: () => void;
-}
+export function PortConflictDialog() {
+  const portConflict = useAppStore((s) => s.portConflict);
+  const busy = useAppStore((s) => s.resolvingPortConflict);
+  const onCancel = useAppStore((s) => s.cancelPortConflict);
+  const onConfirm = useAppStore((s) => s.confirmPortConflict);
 
-export function PortConflictDialog({
-  open,
-  projectName,
-  conflicts,
-  busy,
-  onCancel,
-  onConfirm,
-}: Props) {
+  if (!portConflict) return null;
+
+  const { name: projectName, conflicts } = portConflict;
   const hasUnknown = conflicts.some((c) => !c.lpmProject && c.pid <= 0);
   const plural = conflicts.length > 1;
 
   return (
     <Modal
-      open={open}
+      open
       onClose={onCancel}
       closeOnBackdrop={!busy}
       closeOnEscape={!busy}

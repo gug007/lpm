@@ -1,13 +1,8 @@
+import { useAppStore } from "../store/app";
 import { FolderIcon, ServerIcon } from "./icons";
 import { IconListMenu, type IconListMenuItem } from "./ui/IconListMenu";
 
 export type NewProjectKind = "local" | "ssh";
-
-interface NewProjectPickerProps {
-  open: boolean;
-  onClose: () => void;
-  onPick: (kind: NewProjectKind) => void;
-}
 
 const items: IconListMenuItem<NewProjectKind>[] = [
   {
@@ -26,7 +21,11 @@ const items: IconListMenuItem<NewProjectKind>[] = [
   },
 ];
 
-export function NewProjectPicker({ open, onClose, onPick }: NewProjectPickerProps) {
+export function NewProjectPicker() {
+  const open = useAppStore((s) => s.addProjectPickerOpen);
+  const onClose = useAppStore((s) => s.closeAddProjectPicker);
+  const onPick = useAppStore((s) => s.pickAddProjectKind);
+
   return (
     <IconListMenu
       open={open}

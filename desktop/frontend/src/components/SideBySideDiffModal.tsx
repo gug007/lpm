@@ -253,7 +253,7 @@ function DiffSide({
         const line = side === "left" ? row.left : row.right;
         return (
           <div key={i} className={`flex w-max min-w-full ${rowBg(line.type)}`}>
-            <span className="sticky left-0 z-[1] w-10 shrink-0 select-none bg-inherit pr-2 text-right text-[0.9em] text-[var(--text-muted)]/40">
+            <span className="sticky left-0 z-[1] w-10 shrink-0 select-none bg-[var(--bg-primary)] pr-2 text-right text-[0.9em] text-[var(--text-muted)]">
               {line.lineNo ?? ""}
             </span>
             <span className="whitespace-pre pr-4">{renderContent(line)}</span>

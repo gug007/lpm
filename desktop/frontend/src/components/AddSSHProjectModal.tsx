@@ -3,31 +3,17 @@ import { Modal } from "./ui/Modal";
 import { CheckIcon, ChevronDownIcon, ServerIcon, XIcon } from "./icons";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { slugify } from "../slugify";
+import { useAppStore } from "../store/app";
 import { ListSSHHosts } from "../../wailsjs/go/main/App";
 import type { main } from "../../wailsjs/go/models";
 
 const MANUAL_PICKER = "__manual__";
 
-interface AddSSHProjectModalProps {
-  open: boolean;
-  busy: boolean;
-  onClose: () => void;
-  onCreate: (params: {
-    name: string;
-    host: string;
-    user: string;
-    port: number;
-    key: string;
-    dir: string;
-  }) => Promise<void> | void;
-}
-
-export function AddSSHProjectModal({
-  open,
-  busy,
-  onClose,
-  onCreate,
-}: AddSSHProjectModalProps) {
+export function AddSSHProjectModal() {
+  const open = useAppStore((s) => s.sshModalOpen);
+  const busy = useAppStore((s) => s.addingSSHProject);
+  const onClose = useAppStore((s) => s.closeSSHModal);
+  const onCreate = useAppStore((s) => s.addSSHProject);
   const [name, setName] = useState("");
   const [nameTouched, setNameTouched] = useState(false);
   const [host, setHost] = useState("");
