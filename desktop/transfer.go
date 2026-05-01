@@ -488,7 +488,6 @@ func applyImport(tmp string, overwrite bool, report *ImportReport) error {
 		return err
 	}
 
-	// projects/
 	projSrc := filepath.Join(tmp, "projects")
 	if entries, err := os.ReadDir(projSrc); err == nil {
 		if err := os.MkdirAll(config.ProjectsDir(), 0755); err != nil {

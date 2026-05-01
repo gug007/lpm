@@ -115,18 +115,15 @@ func (a *App) startup(ctx context.Context) {
 	go a.pruneOrphanSyncDirs()
 	go a.resumePortPollers()
 
-	// Start Unix socket server for external tool integration
 	a.socketServer = NewSocketServer(a)
 	if err := a.socketServer.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: failed to start socket server: %v\n", err)
 	}
 
-	// Start PID sweep to clear stale agent status entries
 	a.statusStore.StartPIDSweep(ctx, func(project, key string) {
 		runtime.EventsEmit(a.ctx, "status-changed", project)
 	})
 
-	// Auto-install agent hooks (Claude Code, Codex) for running indicator
 	go a.installAgentHooks()
 }
 

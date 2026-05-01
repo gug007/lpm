@@ -52,7 +52,6 @@ func (a *App) ResetClaudeHooks() error {
 		return fmt.Errorf("invalid JSON in Claude settings: %w", err)
 	}
 
-	// Remove all entries containing the lpm-hook marker.
 	if hooks, _ := settings["hooks"].(map[string]any); hooks != nil {
 		for event, entries := range hooks {
 			arr, ok := entries.([]any)
@@ -85,7 +84,6 @@ func (a *App) ResetClaudeHooks() error {
 		return err
 	}
 
-	// Reinstall fresh hooks.
 	a.installClaudeCodeHooks()
 	return nil
 }
@@ -157,22 +155,18 @@ func (a *App) installCodexHooks() {
 	configPath := filepath.Join(codexDir, "config.toml")
 	hooksPath := filepath.Join(codexDir, "hooks.json")
 
-	// Check if codex is installed
 	if _, err := os.Stat(codexDir); err != nil {
 		return
 	}
 
-	// Check if hooks already installed
 	if data, err := os.ReadFile(hooksPath); err == nil {
 		if strings.Contains(string(data), lpmHookMarker) {
 			return
 		}
 	}
 
-	// Enable codex_hooks feature in config.toml
 	a.enableCodexHooksFeature(configPath)
 
-	// Build hooks.json
 	setRunning := sendCmd(`set_status '$LPM_PROJECT_NAME' codex Running --icon=sparkle --color=#10A37F --pane=$LPM_PANE_ID`)
 	setDone := sendCmd(`set_status '$LPM_PROJECT_NAME' codex Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID`)
 
@@ -195,7 +189,6 @@ func (a *App) installCodexHooks() {
 		},
 	}
 
-	// If hooks.json exists, merge; otherwise create
 	var existing map[string]any
 	if data, err := os.ReadFile(hooksPath); err == nil {
 		_ = json.Unmarshal(data, &existing)
@@ -230,7 +223,6 @@ func (a *App) enableCodexHooksFeature(configPath string) {
 		return
 	}
 
-	// Append feature flag
 	if strings.Contains(content, "[features]") {
 		content = strings.Replace(content, "[features]", "[features]\ncodex_hooks = true", 1)
 	} else {

@@ -299,7 +299,6 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 			}
 		}
 
-		// Process exited
 		exitCode := 0
 		if err := cmd.Wait(); err != nil {
 			if exitErr, ok := err.(*exec.ExitError); ok {
