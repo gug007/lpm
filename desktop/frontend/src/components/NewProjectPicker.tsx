@@ -1,8 +1,8 @@
 import { useAppStore } from "../store/app";
-import { FolderIcon, ServerIcon } from "./icons";
+import { CloudBranchIcon, FolderIcon, ServerIcon } from "./icons";
 import { IconListMenu, type IconListMenuItem } from "./ui/IconListMenu";
 
-export type NewProjectKind = "local" | "ssh";
+export type NewProjectKind = "local" | "ssh" | "clone";
 
 const items: IconListMenuItem<NewProjectKind>[] = [
   {
@@ -11,6 +11,13 @@ const items: IconListMenuItem<NewProjectKind>[] = [
     color: "#facc15",
     label: "Local Folder",
     desc: "A project on this machine — pick a folder on disk",
+  },
+  {
+    key: "clone",
+    icon: <CloudBranchIcon />,
+    color: "#a78bfa",
+    label: "Clone Repository",
+    desc: "Clone from a Git repo URL into a local folder",
   },
   {
     key: "ssh",

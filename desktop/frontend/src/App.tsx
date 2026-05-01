@@ -11,6 +11,7 @@ import { TmuxInstaller } from "./components/TmuxInstaller";
 import { FeedbackModal } from "./components/FeedbackModal";
 import { NewProjectPicker } from "./components/NewProjectPicker";
 import { AddSSHProjectModal } from "./components/AddSSHProjectModal";
+import { AddCloneRepoModal } from "./components/AddCloneRepoModal";
 import { PortConflictDialog } from "./components/PortConflictDialog";
 import { FileViewerHost } from "./components/FileViewerHost";
 import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverlayHost";
@@ -235,6 +236,7 @@ export default function App() {
       <FeedbackModal />
       <NewProjectPicker />
       <AddSSHProjectModal />
+      <AddCloneRepoModal />
       <PortConflictDialog />
       <FileViewerHost />
       <TerminalDropOverlayHost />

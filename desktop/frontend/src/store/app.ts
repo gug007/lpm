@@ -12,6 +12,7 @@ import {
   BrowseFolder,
   CheckPortConflicts,
   CreateProject,
+  CreateProjectFromClone,
   CreateSSHProject,
   DuplicateProject,
   ListProjects,
@@ -47,6 +48,13 @@ export interface SSHProjectParams {
   dir: string;
 }
 
+export interface CloneProjectParams {
+  name: string;
+  url: string;
+  branch: string;
+  destParent: string;
+}
+
 export interface PortConflictPrompt {
   title: string;
   conflicts: main.PortConflictInfo[];
@@ -66,6 +74,8 @@ interface AppState {
   addProjectPickerOpen: boolean;
   sshModalOpen: boolean;
   addingSSHProject: boolean;
+  cloneModalOpen: boolean;
+  addingCloneProject: boolean;
   portConflict: PortConflictPrompt | null;
   resolvingPortConflict: boolean;
 
@@ -95,10 +105,16 @@ interface AppState {
   ) => Promise<boolean>;
   addProject: () => void;
   closeAddProjectPicker: () => void;
-  pickAddProjectKind: (kind: "local" | "ssh") => Promise<void>;
+  pickAddProjectKind: (kind: "local" | "ssh" | "clone") => Promise<void>;
   closeSSHModal: () => void;
   addSSHProject: (params: SSHProjectParams) => Promise<void>;
-  duplicateProject: (name: string, excludeUncommitted?: boolean) => Promise<void>;
+  openAddCloneModal: () => void;
+  closeAddCloneModal: () => void;
+  addCloneProject: (params: CloneProjectParams) => Promise<void>;
+  duplicateProject: (
+    name: string,
+    excludeUncommitted?: boolean,
+  ) => Promise<void>;
   removeProject: (name: string) => Promise<void>;
   renameProject: (name: string, label: string) => Promise<void>;
   reorderProjects: (order: string[]) => Promise<void>;
@@ -145,13 +161,17 @@ async function persistActionUpdates(
     const update = updates.get(String(item.key.value));
     if (!update) continue;
     if (YAML.isScalar(item.value) && typeof item.value.value === "string") {
-      const seed: Record<string, unknown> = { cmd: item.value.value, position: update.position };
+      const seed: Record<string, unknown> = {
+        cmd: item.value.value,
+        position: update.position,
+      };
       if (typeof update.display === "string") seed.display = update.display;
       item.value = doc.createNode(seed);
     } else if (YAML.isMap(item.value)) {
       item.value.set("position", update.position);
       if (update.display === null) item.value.delete("display");
-      else if (typeof update.display === "string") item.value.set("display", update.display);
+      else if (typeof update.display === "string")
+        item.value.set("display", update.display);
     }
   }
   await SaveConfig(projectName, String(doc));
@@ -219,6 +239,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   addProjectPickerOpen: false,
   sshModalOpen: false,
   addingSSHProject: false,
+  cloneModalOpen: false,
+  addingCloneProject: false,
   portConflict: null,
   resolvingPortConflict: false,
 
@@ -351,6 +373,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ sshModalOpen: true });
       return;
     }
+    if (kind === "clone") {
+      set({ cloneModalOpen: true });
+      return;
+    }
     try {
       const dir = await BrowseFolder();
       if (!dir) return;
@@ -364,6 +390,36 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   closeSSHModal: () => set({ sshModalOpen: false }),
+
+  openAddCloneModal: () => set({ cloneModalOpen: true }),
+
+  closeAddCloneModal: () => set({ cloneModalOpen: false }),
+
+  addCloneProject: async (params) => {
+    if (get().addingCloneProject) return;
+    const name = params.name.trim();
+    const url = params.url.trim();
+    const branch = params.branch.trim();
+    const destParent = params.destParent.trim();
+    if (!name || !url || !destParent) {
+      throw new Error(
+        "Repository URL, destination, and project name are required.",
+      );
+    }
+    set({ addingCloneProject: true });
+    try {
+      await CreateProjectFromClone(name, url, branch, destParent);
+      await get().refreshProjects();
+      set({
+        selected: name,
+        view: "projects",
+        cloneModalOpen: false,
+      });
+      toast.success(`Cloned ${name}`);
+    } finally {
+      set({ addingCloneProject: false });
+    }
+  },
 
   addSSHProject: async (params) => {
     if (get().addingSSHProject) return;
@@ -462,7 +518,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({
       projects: s.projects.map((p) =>
         p.name === projectName
-          ? { ...p, actions: sortActionsByPosition(applyActionUpdates(p.actions ?? [], updates)) }
+          ? {
+              ...p,
+              actions: sortActionsByPosition(
+                applyActionUpdates(p.actions ?? [], updates),
+              ),
+            }
           : p,
       ),
     }));
