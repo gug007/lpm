@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { StatusDot } from "./StatusDot";
-import { getSettings } from "../settings";
+import { getSettings } from "../store/settings";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { InstallUpdate } from "../../wailsjs/go/main/App";
 import { type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { getSettings, saveSettings } from "../settings";
+import { useSettingsStore } from "../store/settings";
 import { applyTheme, type Theme } from "../theme";
 import { useEventListener } from "../hooks/useEventListener";
 import {
@@ -89,14 +89,23 @@ export function Settings({
   pendingUpdateCheck = false,
   onConsumedUpdateCheck,
 }: SettingsProps) {
-  const settings = getSettings();
+  const theme = useSettingsStore((s) => s.theme);
+  const dblClick = useSettingsStore((s) => s.doubleClickToToggle);
+  const soundEnabled = useSettingsStore((s) => s.soundNotifications ?? false);
+  const ttsEnabled = useSettingsStore((s) => s.ttsEnabled ?? false);
+  const ttsVoice = useSettingsStore((s) => s.ttsVoice ?? "af_heart");
+  const ttsSpeed = useSettingsStore((s) => s.ttsSpeed ?? 1.0);
+  const openFilesInDefaultApp = useSettingsStore(
+    (s) => s.terminalOpenInDefaultApp ?? false,
+  );
+  const experimentalTTS = useSettingsStore((s) => s.experimentalTTS);
+  const updateSettings = useSettingsStore((s) => s.update);
 
-  const [theme, setTheme] = useState<Theme>(settings.theme);
-  const [dblClick, setDblClick] = useState(settings.doubleClickToToggle);
-  const [soundEnabled, setSoundEnabled] = useState(settings.soundNotifications ?? false);
-  const [ttsEnabled, setTtsEnabled] = useState(settings.ttsEnabled ?? false);
-  const [ttsVoice, setTtsVoice] = useState(settings.ttsVoice ?? "af_heart");
-  const [ttsSpeed, setTtsSpeed] = useState(settings.ttsSpeed ?? 1.0);
+  const setTheme = (next: Theme) => {
+    SetDarkMode(applyTheme(next));
+    void updateSettings({ theme: next });
+  };
+
   const [kokoroStatus, setKokoroStatus] = useState<KokoroStatus>("idle");
   type SettingsTab = "general" | "terminal" | "tts" | "ai" | "backup";
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
@@ -104,9 +113,6 @@ export function Settings({
   const { fontSize: terminalFontSize, zoomIn: terminalZoomIn, zoomOut: terminalZoomOut } =
     useTerminalFontSize();
   const { theme: terminalTheme, setTheme: setTerminalTheme } = useTerminalTheme();
-  const [openFilesInDefaultApp, setOpenFilesInDefaultApp] = useState(
-    settings.terminalOpenInDefaultApp ?? false,
-  );
 
   useEffect(() => {
     if (!ttsEnabled) return;
@@ -146,12 +152,6 @@ export function Settings({
     if (status === "downloading") setInstallPhase("downloading");
     else if (status === "installing") setInstallPhase("installing");
   }), []);
-
-  useEffect(() => {
-    const dark = applyTheme(theme);
-    saveSettings({ theme });
-    SetDarkMode(dark);
-  }, [theme]);
 
   useEventListener(
     "change",
@@ -277,7 +277,7 @@ export function Settings({
   const navItems: [SettingsTab, string][] = [
     ["general", "General"],
     ["terminal", "Terminal"],
-    ...(settings.experimentalTTS ? [["tts", "Text to Speech"] as [SettingsTab, string]] : []),
+    ...(experimentalTTS ? [["tts", "Text to Speech"] as [SettingsTab, string]] : []),
     ["ai", "AI & Integrations"],
     ["backup", "Backup & Transfer"],
   ];
@@ -316,10 +316,10 @@ export function Settings({
                 </div>
               </SettingsRow>
               <SettingsRow label="Double-click to start/stop" description="Double-click a project in sidebar to toggle it">
-                <Toggle enabled={dblClick} onChange={(v) => { setDblClick(v); saveSettings({ doubleClickToToggle: v }); }} />
+                <Toggle enabled={dblClick} onChange={(v) => updateSettings({ doubleClickToToggle: v })} />
               </SettingsRow>
               <SettingsRow label="Sound notifications" description="Play sounds when agents finish or need approval">
-                <Toggle enabled={soundEnabled} onChange={(v) => { setSoundEnabled(v); saveSettings({ soundNotifications: v }); }} />
+                <Toggle enabled={soundEnabled} onChange={(v) => updateSettings({ soundNotifications: v })} />
               </SettingsRow>
               <SettingsRow label="Global Config" description="Shared actions and terminals across all projects">
                 <button onClick={() => onNavigate("global-config")} className={BTN_SECONDARY}>Edit</button>
@@ -394,10 +394,7 @@ export function Settings({
               >
                 <Toggle
                   enabled={openFilesInDefaultApp}
-                  onChange={(v) => {
-                    setOpenFilesInDefaultApp(v);
-                    saveSettings({ terminalOpenInDefaultApp: v });
-                  }}
+                  onChange={(v) => updateSettings({ terminalOpenInDefaultApp: v })}
                 />
               </SettingsRow>
             </SettingsSection>
@@ -409,12 +406,12 @@ export function Settings({
                 label="Enable"
                 description={ttsEnabled ? "Cmd+Shift+R to read selected text" : "Read terminal text aloud using Kokoro"}
               >
-                <Toggle enabled={ttsEnabled} onChange={(v) => { setTtsEnabled(v); saveSettings({ ttsEnabled: v }); }} />
+                <Toggle enabled={ttsEnabled} onChange={(v) => updateSettings({ ttsEnabled: v })} />
               </SettingsRow>
               {ttsEnabled && (
                 <>
                   <SettingsRow label="Voice" description="Kokoro voice">
-                    <select value={ttsVoice} onChange={(e) => { setTtsVoice(e.target.value); saveSettings({ ttsVoice: e.target.value }); }} className={SELECT_CLASS}>
+                    <select value={ttsVoice} onChange={(e) => updateSettings({ ttsVoice: e.target.value })} className={SELECT_CLASS}>
                       <option value="af_heart">af_heart</option>
                       <option value="af_bella">af_bella</option>
                       <option value="af_sarah">af_sarah</option>
@@ -423,7 +420,7 @@ export function Settings({
                     </select>
                   </SettingsRow>
                   <SettingsRow label="Speed" description="Playback speed">
-                    <select value={ttsSpeed} onChange={(e) => { const v = parseFloat(e.target.value); setTtsSpeed(v); saveSettings({ ttsSpeed: v }); }} className={SELECT_CLASS}>
+                    <select value={ttsSpeed} onChange={(e) => updateSettings({ ttsSpeed: parseFloat(e.target.value) })} className={SELECT_CLASS}>
                       <option value={0.5}>0.5x</option>
                       <option value={0.75}>0.75x</option>
                       <option value={1.0}>1.0x</option>

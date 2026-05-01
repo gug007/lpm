@@ -9,7 +9,7 @@ import {
 } from "../../wailsjs/go/main/App";
 import { EventsEmit } from "../../wailsjs/runtime/runtime";
 import { AI_CLI_OPTIONS, aiDefaultModel, aiPickLabel, resolveAIPick, type AICLI } from "../types";
-import { getSettings, saveSettings } from "../settings";
+import { getSettings, saveSettings } from "../store/settings";
 import { slugify } from "../slugify";
 
 interface CreateBranchModalProps {

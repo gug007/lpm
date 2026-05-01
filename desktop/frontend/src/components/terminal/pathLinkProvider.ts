@@ -7,7 +7,7 @@ import type {
 } from "@xterm/xterm";
 import { toast } from "sonner";
 import { joinAbs } from "../../path";
-import { getSettings } from "../../settings";
+import { getSettings } from "../../store/settings";
 import { openFileViewer } from "../../store/fileViewer";
 import { OpenPathInDefaultApp } from "../../../wailsjs/go/main/App";
 

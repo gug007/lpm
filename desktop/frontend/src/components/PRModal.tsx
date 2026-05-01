@@ -19,7 +19,7 @@ import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useBranchSearch } from "../hooks/useBranchSearch";
 import { AI_CLI_OPTIONS, aiDefaultModel, aiPickLabel, resolveAIPick, type AICLI } from "../types";
 import { EventsEmit, BrowserOpenURL } from "../../wailsjs/runtime/runtime";
-import { getSettings, saveSettings } from "../settings";
+import { getSettings, saveSettings } from "../store/settings";
 import { Tooltip } from "./ui/Tooltip";
 
 type BranchCommit = main.BranchCommit;

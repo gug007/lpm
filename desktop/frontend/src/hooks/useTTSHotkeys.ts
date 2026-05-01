@@ -1,7 +1,7 @@
 import { useKeyboardShortcut } from "./useKeyboardShortcut";
 import { getTerminalSelection } from "./useTerminalSelection";
 import { useTTSStore } from "../store/tts";
-import { getSettings } from "../settings";
+import { getSettings } from "../store/settings";
 
 export function useTTSHotkeys(terminalId: string | null) {
   const status = useTTSStore((s) => s.status);

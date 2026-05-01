@@ -9,7 +9,7 @@ import { ChevronLeftIcon } from "./icons";
 import { AIButton } from "./ui/AIButton";
 import { AIGenerateModal } from "./AIGenerateModal";
 import { type AICLI } from "../types";
-import { getSettings, saveSettings } from "../settings";
+import { getSettings, saveSettings } from "../store/settings";
 
 interface ConfigEditorProps {
   projectName: string;

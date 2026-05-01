@@ -33,7 +33,7 @@ import { usePaneStatus } from "../hooks/usePaneStatus";
 import { useProjectActions } from "../hooks/useProjectActions";
 import { useTerminalFontSize } from "../hooks/useTerminalFontSize";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
-import { getSettings } from "../settings";
+import { getSettings } from "../store/settings";
 import { countPersistedTabs, getProjectTerminals } from "../terminals";
 import { useAppStore } from "../store/app";
 import {

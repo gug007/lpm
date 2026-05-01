@@ -11,6 +11,10 @@ export const terminalThemeNames = [
 
 export type TerminalThemeName = (typeof terminalThemeNames)[number];
 
+export function isTerminalThemeName(value: string | undefined): value is TerminalThemeName {
+  return !!value && terminalThemeNames.includes(value as TerminalThemeName);
+}
+
 export interface TerminalThemeColors {
   bg: string;
   fg: string;

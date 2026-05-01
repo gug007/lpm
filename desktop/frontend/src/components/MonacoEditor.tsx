@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type * as monacoNs from "monaco-editor";
 import { parseDocument } from "yaml";
 import { setupMonaco } from "../monaco-setup";
-import { getSettings, saveSettings } from "../settings";
+import { getSettings, saveSettings } from "../store/settings";
 
 const DEFAULT_EDITOR_FONT_SIZE = 13;
 const MIN_EDITOR_FONT_SIZE = 8;

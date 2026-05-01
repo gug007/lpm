@@ -26,7 +26,7 @@ import {
   ToggleProjectService,
 } from "../../wailsjs/go/main/App";
 import type { main } from "../../wailsjs/go/models";
-import { getSettings } from "../settings";
+import { getSettings } from "./settings";
 import { forgetProjectTerminals } from "../terminals";
 import { activeChatStorageKey } from "../components/NotesView";
 

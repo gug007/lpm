@@ -1,4 +1,4 @@
-import { getSettings } from "./settings";
+import { getSettings } from "./store/settings";
 
 let audioCtx: AudioContext | null = null;
 

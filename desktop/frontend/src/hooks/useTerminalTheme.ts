@@ -1,24 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
-import { getSettings, saveSettings } from "../settings";
+import { useCallback, useMemo } from "react";
+import { useSettingsStore } from "../store/settings";
 import {
   type TerminalThemeName,
-  terminalThemeNames,
+  isTerminalThemeName,
   getTerminalThemeColors,
   terminalThemeCssVars,
 } from "../terminal-themes";
-import {
-  TERMINAL_SETTINGS_CHANGED_EVENT,
-  notifyTerminalSettingsChanged,
-} from "./terminalSettingsEvents";
 
 const DEFAULT_THEME: TerminalThemeName = "claude-dark";
-
-function readSavedTheme(): TerminalThemeName {
-  const saved = getSettings().terminalTheme;
-  return saved && terminalThemeNames.includes(saved as TerminalThemeName)
-    ? (saved as TerminalThemeName)
-    : DEFAULT_THEME;
-}
 
 export interface UseTerminalThemeResult {
   theme: TerminalThemeName;
@@ -26,24 +15,18 @@ export interface UseTerminalThemeResult {
   themeStyle: React.CSSProperties | undefined;
 }
 
-// Awaits the save before broadcasting so peer hooks read the fresh cached value.
 export function useTerminalTheme(): UseTerminalThemeResult {
-  const [theme, setThemeState] = useState<TerminalThemeName>(readSavedTheme);
+  const theme = useSettingsStore((s) =>
+    isTerminalThemeName(s.terminalTheme) ? s.terminalTheme : DEFAULT_THEME,
+  );
+  const update = useSettingsStore((s) => s.update);
 
-  const setTheme = async (next: TerminalThemeName) => {
-    setThemeState(next);
-    await saveSettings({ terminalTheme: next });
-    notifyTerminalSettingsChanged();
-  };
-
-  useEffect(() => {
-    const sync = () => {
-      const next = readSavedTheme();
-      setThemeState((cur) => (cur === next ? cur : next));
-    };
-    window.addEventListener(TERMINAL_SETTINGS_CHANGED_EVENT, sync);
-    return () => window.removeEventListener(TERMINAL_SETTINGS_CHANGED_EVENT, sync);
-  }, []);
+  const setTheme = useCallback(
+    (next: TerminalThemeName) => {
+      void update({ terminalTheme: next });
+    },
+    [update],
+  );
 
   const themeStyle = useMemo(() => {
     const colors = getTerminalThemeColors(theme);

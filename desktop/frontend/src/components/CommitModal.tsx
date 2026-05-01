@@ -18,7 +18,7 @@ import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { AI_CLI_OPTIONS, aiDefaultModel, aiPickLabel, resolveAIPick, type AICLI } from "../types";
 import { EventsEmit } from "../../wailsjs/runtime/runtime";
-import { getSettings, saveSettings } from "../settings";
+import { getSettings, saveSettings } from "../store/settings";
 import { ChangedFilesTree } from "./ChangedFilesTree";
 import { SideBySideDiffModal } from "./SideBySideDiffModal";
 import { Tooltip } from "./ui/Tooltip";

@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
-import { loadSettings } from "./settings";
+import { loadSettings } from "./store/settings";
 import { loadTerminals } from "./terminals";
 import { applyTheme } from "./theme";
 import { hydrateAppStore } from "./store/app";

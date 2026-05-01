@@ -9,7 +9,7 @@ import {
   RenameBranch,
   SyncBranch,
 } from "../../wailsjs/go/main/App";
-import { getSettings, saveSettings, DEFAULT_PULL_STRATEGY, type GitPullStrategy } from "../settings";
+import { getSettings, saveSettings, DEFAULT_PULL_STRATEGY, type GitPullStrategy } from "../store/settings";
 import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useEventListener } from "../hooks/useEventListener";

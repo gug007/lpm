@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { getSettings, saveSettings } from "../settings";
+import { getSettings, saveSettings } from "../store/settings";
 
 const MIN_WIDTH = 160;
 const MAX_WIDTH = 400;

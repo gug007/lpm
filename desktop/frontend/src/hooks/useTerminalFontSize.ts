@@ -1,9 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { getSettings, saveSettings } from "../settings";
-import {
-  TERMINAL_SETTINGS_CHANGED_EVENT,
-  notifyTerminalSettingsChanged,
-} from "./terminalSettingsEvents";
+import { useCallback } from "react";
+import { useSettingsStore } from "../store/settings";
 
 export const DEFAULT_TERMINAL_FONT_SIZE = 12;
 export const MIN_TERMINAL_FONT_SIZE = 8;
@@ -15,26 +11,25 @@ export interface UseTerminalFontSizeResult {
   zoomOut: () => void;
 }
 
-// Awaits the save before broadcasting so peer hooks read the fresh cached value.
 export function useTerminalFontSize(): UseTerminalFontSizeResult {
-  const [fontSize, setFontSize] = useState(() => getSettings().terminalFontSize || DEFAULT_TERMINAL_FONT_SIZE);
+  const fontSize = useSettingsStore(
+    (s) => s.terminalFontSize ?? DEFAULT_TERMINAL_FONT_SIZE,
+  );
+  const update = useSettingsStore((s) => s.update);
 
-  useEffect(() => {
-    if (getSettings().terminalFontSize === fontSize) return;
-    saveSettings({ terminalFontSize: fontSize }).then(notifyTerminalSettingsChanged);
-  }, [fontSize]);
+  const step = useCallback(
+    (delta: number) => {
+      const next = Math.min(
+        MAX_TERMINAL_FONT_SIZE,
+        Math.max(MIN_TERMINAL_FONT_SIZE, fontSize + delta),
+      );
+      if (next !== fontSize) void update({ terminalFontSize: next });
+    },
+    [fontSize, update],
+  );
 
-  useEffect(() => {
-    const sync = () => {
-      const next = getSettings().terminalFontSize || DEFAULT_TERMINAL_FONT_SIZE;
-      setFontSize((cur) => (cur === next ? cur : next));
-    };
-    window.addEventListener(TERMINAL_SETTINGS_CHANGED_EVENT, sync);
-    return () => window.removeEventListener(TERMINAL_SETTINGS_CHANGED_EVENT, sync);
-  }, []);
-
-  const zoomIn = useCallback(() => setFontSize((s) => Math.min(s + 1, MAX_TERMINAL_FONT_SIZE)), []);
-  const zoomOut = useCallback(() => setFontSize((s) => Math.max(s - 1, MIN_TERMINAL_FONT_SIZE)), []);
+  const zoomIn = useCallback(() => step(1), [step]);
+  const zoomOut = useCallback(() => step(-1), [step]);
 
   return { fontSize, zoomIn, zoomOut };
 }

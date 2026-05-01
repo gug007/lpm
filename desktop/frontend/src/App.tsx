@@ -20,7 +20,7 @@ import { useWindowResizeSaver } from "./hooks/useWindowResizeSaver";
 import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
 import { useProjectsSync } from "./hooks/useProjectsSync";
 import { useAppEvents } from "./hooks/useAppEvents";
-import { getSettings, saveSettings } from "./settings";
+import { getSettings, saveSettings } from "./store/settings";
 import { useAppStore } from "./store/app";
 
 import {

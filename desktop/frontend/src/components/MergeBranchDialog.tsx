@@ -20,7 +20,7 @@ import { BranchIcon, ChevronDownIcon, CloudBranchIcon, XIcon } from "./icons";
 import { relativeTime } from "../relativeTime";
 import { AIPickerButton } from "./ui/AIPickerButton";
 import { AI_CLI_OPTIONS, aiDefaultModel, aiPickLabel, resolveAIPick, type AICLI } from "../types";
-import { getSettings, saveSettings } from "../settings";
+import { getSettings, saveSettings } from "../store/settings";
 
 const MERGE_CONFLICT_PROGRESS_EVENT = "merge-conflict-progress";
 const FETCH_DEBOUNCE_MS = 30_000;
