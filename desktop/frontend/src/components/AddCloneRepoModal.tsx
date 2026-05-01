@@ -33,6 +33,7 @@ export function AddCloneRepoModal() {
   const [nameBlurred, setNameBlurred] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     if (open) return;
@@ -46,6 +47,7 @@ export function AddCloneRepoModal() {
     setNameBlurred(false);
     setSubmitted(false);
     setSubmitError("");
+    setShowAdvanced(false);
   }, [open]);
 
   useEffect(() => {
@@ -181,23 +183,6 @@ export function AddCloneRepoModal() {
 
           <div>
             <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
-              Branch{" "}
-              <span className="font-normal text-[var(--text-muted)]">
-                (optional)
-              </span>
-            </label>
-            <input
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-              placeholder="main"
-              className={inputClass}
-              {...textInputProps}
-            />
-            {hintText("Leave blank to use the repository's default branch.")}
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
               Destination folder
             </label>
             <div className="grid grid-cols-[1fr_auto] gap-2">
@@ -238,6 +223,43 @@ export function AddCloneRepoModal() {
               {...textInputProps}
             />
             {showNameError && errorText(nameError)}
+          </div>
+
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              disabled={busy}
+              aria-expanded={showAdvanced}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-secondary)] disabled:opacity-40"
+            >
+              <span
+                className={`inline-block transition-transform ${showAdvanced ? "rotate-90" : ""}`}
+              >
+                ›
+              </span>
+              Advanced
+            </button>
+            {showAdvanced && (
+              <div className="mt-2">
+                <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
+                  Branch{" "}
+                  <span className="font-normal text-[var(--text-muted)]">
+                    (optional)
+                  </span>
+                </label>
+                <input
+                  value={branch}
+                  onChange={(e) => setBranch(e.target.value)}
+                  placeholder="main"
+                  className={inputClass}
+                  {...textInputProps}
+                />
+                {hintText(
+                  "Leave blank to use the repository's default branch.",
+                )}
+              </div>
+            )}
           </div>
         </div>
 
