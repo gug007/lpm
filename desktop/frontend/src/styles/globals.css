@@ -152,11 +152,11 @@ body {
 }
 
 .terminal-drop-tint {
-  background-color: color-mix(in srgb, var(--accent-blue) 5%, transparent);
+  background-color: color-mix(in srgb, var(--accent-blue) 14%, transparent);
 }
 
 .terminal-drop-ring {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-blue) 35%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-blue) 65%, transparent);
 }
 
 .terminal-drop-content {
