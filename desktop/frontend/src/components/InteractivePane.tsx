@@ -246,7 +246,7 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   const term = new Terminal({
     fontSize: 12,
     fontFamily:
-      "'SF Mono', Menlo, Monaco, 'Courier New', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', monospace",
+      "'SF Mono', Menlo, Monaco, 'Courier New', 'Segoe UI Emoji', 'Noto Color Emoji', monospace",
     cursorBlink: true,
     disableStdin: false,
     scrollback: 10000,
