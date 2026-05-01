@@ -130,12 +130,10 @@ func StartProjectServices(cfg *config.ProjectConfig, serviceNames []string) erro
 	}
 	firstPaneID := strings.TrimSpace(string(out))
 
-	// Send command to first pane
 	if err := sendKeys(firstPaneID, buildCommand(cfg, svc)); err != nil {
 		return fmt.Errorf("failed to start %s: %w", firstService, err)
 	}
 
-	// Split and send commands for remaining services
 	for i, name := range serviceNames[1:] {
 		svc, ok := cfg.Services[name]
 		if !ok {
@@ -143,9 +141,9 @@ func StartProjectServices(cfg *config.ProjectConfig, serviceNames []string) erro
 		}
 		spawnDir := paneSpawnDir(cfg, svc)
 
-		splitType := "-h" // horizontal split
+		splitType := "-h"
 		if i > 0 {
-			splitType = "-v" // vertical split for 3rd+ panes
+			splitType = "-v"
 		}
 
 		split := exec.Command("tmux", "split-window", splitType, "-t", cfg.Name, "-P", "-F", "#{pane_id}")

@@ -14,8 +14,6 @@ export interface PaneStatus {
   error: Set<string>;
 }
 
-// Buckets pane IDs by their current status entry so TerminalView can
-// render the right indicator per pane in a single pass.
 export function usePaneStatus(entries: StatusEntry[] | undefined): PaneStatus {
   return useMemo(() => {
     const running = new Set<string>();

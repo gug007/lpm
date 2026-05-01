@@ -608,10 +608,6 @@ export function useTerminals(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function resolveActiveAfterClose(prevActive: number, removed: number, remaining: number): number {
   if (remaining === 0) return 0;
   if (prevActive === removed) return Math.min(removed, remaining - 1);
