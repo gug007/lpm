@@ -12,9 +12,8 @@ export function queueWrite<T>(key: string, fn: () => Promise<T>): Promise<T> {
   return next;
 }
 
-// editProjectDoc parses the project YAML, runs `mutate` on the parsed
-// document, and writes the result back. The whole cycle runs inside the
-// per-project queue so concurrent edits are serialized.
+// The whole read-mutate-write cycle runs inside the per-project queue
+// so concurrent edits are serialized.
 export function editProjectDoc(
   projectName: string,
   mutate: (doc: ReturnType<typeof YAML.parseDocument>) => void,

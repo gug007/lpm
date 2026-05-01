@@ -24,11 +24,8 @@ export interface UseActionsDndResult {
   onDragEnd: (event: DragEndEvent) => void;
 }
 
-// Drives the actions DragOverlay/DndContext: tracks the in-flight id for
-// the overlay, configures the standard pointer + keyboard sensors, and
-// translates a drag-end into the next ActionsLayout via the pure helpers
-// in actionsDndLayout.ts. 5 px pointer activation lets a quick click on a
-// button still pass through to its onClick.
+// 5px pointer activation lets a quick click on a button still pass
+// through to its onClick.
 export function useActionsDnd({ layout, onMove }: UseActionsDndOptions): UseActionsDndResult {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),

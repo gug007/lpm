@@ -15,11 +15,8 @@ export interface UseActionsByDisplayResult {
   layout: ActionsLayout;
 }
 
-// Single-pass split of project.actions into the three render groups
-// (header / footer / menu) with the header/footer id arrays and a
-// stable ActionsLayout. Bundled in one memo so the references stay
-// pinned to project.actions identity — useful for downstream
-// SortableContexts and the DnD layout.
+// Bundled in one memo so the references stay pinned to project.actions
+// identity — needed by downstream SortableContexts and the DnD layout.
 export function useActionsByDisplay(actions: ActionInfo[] | undefined): UseActionsByDisplayResult {
   return useMemo(() => {
     const header: ActionInfo[] = [];

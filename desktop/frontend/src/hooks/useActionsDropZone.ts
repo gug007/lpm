@@ -15,9 +15,6 @@ export interface UseActionsDropZoneResult {
   hintClass: string;
 }
 
-// Registers a group's container as a droppable and returns the Tailwind
-// class describing how it should highlight during a drag. Hides the
-// ZONE_ID synthetic-id convention from the consumer.
 export function useActionsDropZone(group: ActionGroup): UseActionsDropZoneResult {
   const { setNodeRef, isOver, active } = useDroppable({ id: ZONE_ID[group] });
   const hintClass = isOver ? HINT_OVER : active ? HINT_AVAILABLE : "";

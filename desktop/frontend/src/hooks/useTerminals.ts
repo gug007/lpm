@@ -70,11 +70,8 @@ function nextPaneId(): string {
   return `pane-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
-/**
- * Produces a label like "Terminal N" where N is the smallest positive
- * integer not already used by an existing terminal in the tree. Avoids
- * duplicates after terminals are closed and re-created in different order.
- */
+// Picks the smallest positive integer not already used so labels don't
+// collide after terminals are closed and re-created in different order.
 function pickTerminalLabel(node: PaneNode | null): string {
   if (!node) return "Terminal 1";
   const used = new Set<number>();
@@ -98,12 +95,6 @@ function appendTerminal(pane: PaneLeaf, term: TerminalInstance): PaneLeaf {
   };
 }
 
-/**
- * Manages the project's pane tree: a split layout where each leaf is a
- * pane with its own list of terminal tabs. Handles restore on mount,
- * persistence on every mutation, and teardown of pty sessions + pending
- * cmd injections on unmount.
- */
 export function useTerminals(
   projectName: string,
   onTerminalCountChange?: (count: number) => void,
@@ -697,10 +688,6 @@ function treeToPersisted(node: PaneNode): PersistedPaneNode {
   };
 }
 
-/**
- * Upgrades the legacy terminals[] array (no tree) into a single root pane
- * containing all saved entries as tabs.
- */
 function legacyEntriesToTree(entries: PersistedTerminalEntry[] | undefined): PersistedPaneNode | null {
   if (!entries || entries.length === 0) return null;
   return {

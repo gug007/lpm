@@ -7,11 +7,7 @@ import type { ActionInfo } from "../types";
 export interface UseProjectActionsOptions {
   projectName: string;
   terminalViewRef: RefObject<TerminalViewHandle | null>;
-  // Called before a "terminal"-type action runs so the UI is on the
-  // terminal tab when the new pane appears.
   onSwitchToTerminal: () => void;
-  // Called when the running-action modal closes; ProjectDetail uses it
-  // to also dismiss the QuickPopover that may have triggered the action.
   onCloseRunning?: () => void;
 }
 
@@ -33,11 +29,6 @@ export interface UseProjectActionsResult {
   modals: ProjectActionsModals;
 }
 
-// Owns the action-execution state machine: routing through inputs and
-// confirm modals when needed, then dispatching to the right runner
-// (terminal pane / background / RPC). Modal state is exposed as a
-// structured `modals` object so the consumer can render dialogs without
-// reaching into individual setters.
 export function useProjectActions({
   projectName,
   terminalViewRef,
