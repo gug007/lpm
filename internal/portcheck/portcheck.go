@@ -280,9 +280,6 @@ func portFromAddr(addr string) (int, bool) {
 	return p, true
 }
 
-// lpmPaneIndex maps each tmux pane shell PID to the lpm project whose
-// session contains that pane. Used to attribute a port conflict to a
-// sibling project rather than a stray external process.
 func lpmPaneIndex() map[int]string {
 	idx := map[int]string{}
 	out, err := exec.Command("tmux", "list-panes", "-a", "-F", "#{pane_pid} #{session_name}").Output()
@@ -311,9 +308,8 @@ func lpmPaneIndex() map[int]string {
 	return idx
 }
 
-// processParents reads the entire process table once and returns a
-// pid → ppid map. Avoids one `ps` invocation per ancestor step in
-// walkToProject.
+// processParents bulk-reads the table so walkToProject doesn't spawn a
+// `ps` per ancestor.
 func processParents() map[int]int {
 	out, err := exec.Command("ps", "-e", "-o", "pid=,ppid=").Output()
 	if err != nil {
@@ -338,8 +334,6 @@ func processParents() map[int]int {
 	return parents
 }
 
-// walkToProject returns the lpm project owning pid (or an ancestor),
-// empty when no ancestor belongs to a tracked tmux pane.
 func walkToProject(pid int, paneIdx map[int]string, parents map[int]int) string {
 	if pid <= 1 || len(paneIdx) == 0 {
 		return ""
