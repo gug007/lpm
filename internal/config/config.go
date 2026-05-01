@@ -658,7 +658,7 @@ func LoadProjectCached(name string, cache map[string]*ProjectConfig) (*ProjectCo
 	return &cfg, nil
 }
 
-// isValidPort accepts 0 (unset) and any value in the standard TCP range.
+// isValidPort treats 0 as "unset" (not bound).
 func isValidPort(port int) bool {
 	return port >= 0 && port <= 65535
 }

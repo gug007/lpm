@@ -7,9 +7,8 @@ import (
 	"github.com/gug007/lpm/internal/portcheck"
 )
 
-// PortConflictInfo is the wails-exported representation of a port
-// conflict. PID is 0 when the holder isn't identifiable; LpmProject
-// is empty for external processes.
+// PortConflictInfo: PID is 0 when the holder isn't identifiable;
+// LpmProject is empty for external processes.
 type PortConflictInfo struct {
 	Service     string `json:"service"`
 	Port        int    `json:"port"`
@@ -46,8 +45,6 @@ func (a *App) CheckPortConflicts(name, profile string) ([]PortConflictInfo, erro
 	return toPortConflictInfoList(portcheck.Check(cfg, cfg.ServicesForProfile(profile))), nil
 }
 
-// CheckPortConflictsForServices skips profile resolution; the caller
-// supplies the exact service set being started.
 func (a *App) CheckPortConflictsForServices(name string, services []string) ([]PortConflictInfo, error) {
 	cfg, err := config.LoadProject(name)
 	if err != nil {
@@ -68,8 +65,6 @@ func (a *App) CheckActionPortConflict(projectName, actionName string) ([]PortCon
 	return toPortConflictInfoList(portcheck.CheckActionPort(actionName, action.Port)), nil
 }
 
-// ResolvePortConflict stops lpm-owned holders via StopProject (full
-// state cleanup) and SIGTERMs external holders.
 func (a *App) ResolvePortConflict(c PortConflictInfo) error {
 	return portcheck.FreePort(c.Port, a.StopProject)
 }
