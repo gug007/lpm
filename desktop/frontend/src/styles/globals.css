@@ -142,38 +142,29 @@ body {
   to { opacity: 1; }
 }
 
-@keyframes terminal-drop-card-in {
-  from { opacity: 0; transform: scale(0.94) translateY(2px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+@keyframes terminal-drop-content-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 .terminal-drop-overlay {
-  animation: terminal-drop-fade-in 120ms ease-out;
+  /* Apple iOS easing — snappy, no overshoot. */
+  animation: terminal-drop-fade-in 220ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .terminal-drop-tint {
-  background-color: var(--accent-blue);
-  opacity: 0.06;
+  background-color: color-mix(in srgb, var(--accent-blue) 5%, transparent);
 }
 
-.terminal-drop-outline {
-  border: 1.5px dashed var(--accent-blue);
-  opacity: 0.55;
+.terminal-drop-ring {
+  /* Inset stroke instead of a dashed border — Apple uses smooth, hairline
+     rings (like macOS button outlines) rather than dashed drop targets. */
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-blue) 35%, transparent);
 }
 
-.terminal-drop-card {
-  background: var(--bg-primary);
-  box-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.18), 0 4px 12px -4px rgba(0, 0, 0, 0.10);
-  animation: terminal-drop-card-in 200ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
-}
-
-[data-theme="dark"] .terminal-drop-card {
-  box-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.55), 0 4px 12px -4px rgba(0, 0, 0, 0.40);
-}
-
-.terminal-drop-icon {
-  background-color: color-mix(in srgb, var(--accent-blue) 14%, transparent);
+.terminal-drop-content {
   color: var(--accent-blue);
+  animation: terminal-drop-content-in 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
 /* Diagonal hatch for empty cells in side-by-side diffs — matches VS Code's
