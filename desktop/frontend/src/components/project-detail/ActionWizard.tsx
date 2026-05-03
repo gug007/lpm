@@ -7,7 +7,6 @@ import { uniqueKey } from "../../uniqueKey";
 import type { ActionInfo } from "../../types";
 import {
   ChevronDownIcon,
-  ChevronLeftIcon,
   ChevronRightIcon,
   HelpCircleIcon,
   PlayIcon,
@@ -28,11 +27,23 @@ type RunMode = "once" | "terminal" | "background";
 const SHAPE_PREVIEW_BUTTON_CLASS =
   "border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-primary)]";
 
-const SHAPE_DESCRIPTION: Record<Shape, string> = {
-  button: "Header button",
-  split: "Split header button",
-  dropdown: "Header dropdown",
-};
+const TERMINAL_KEYWORDS = /\b(tail|watch|log|logs|shell|console|server)\b/;
+const BACKGROUND_KEYWORDS = /\b(fetch|pull|build|install|compile|generate)\b/;
+const CONFIRM_KEYWORDS = /\b(deploy|migrate|reset|drop|delete|destroy|remove|kill|prune)\b/i;
+
+const NEW_ACTION_KEY = "new-action";
+const PLACEHOLDER_LABEL = "New action";
+
+const SHAPE_OPTIONS: Array<{
+  shape: Shape;
+  title: string;
+  description: string;
+  badge?: string;
+}> = [
+  { shape: "button", title: "Button", description: "One click runs one command.", badge: "Recommended" },
+  { shape: "split", title: "Split button", description: "A main command plus a small menu." },
+  { shape: "dropdown", title: "Dropdown menu", description: "Just a menu of related commands." },
+];
 
 interface ChildDraft {
   id: string;
@@ -63,19 +74,23 @@ function newChild(): ChildDraft {
 
 function inferRunMode(text: string): RunMode {
   const value = text.toLowerCase();
-  if (/\b(tail|watch|log|logs|shell|console|server)\b/.test(value)) return "terminal";
-  if (/\b(fetch|pull|build|install|compile|generate)\b/.test(value)) return "background";
+  if (TERMINAL_KEYWORDS.test(value)) return "terminal";
+  if (BACKGROUND_KEYWORDS.test(value)) return "background";
   return "once";
 }
 
 function shouldConfirm(text: string): boolean {
-  return /\b(deploy|migrate|reset|drop|delete|destroy|remove|kill|prune)\b/i.test(text);
+  return CONFIRM_KEYWORDS.test(text);
 }
 
-function runModeLabel(mode: RunMode) {
-  if (mode === "terminal") return "Run in new terminal";
-  if (mode === "background") return "Run in background";
-  return "Run in modal";
+// Auto-suggests run mode and confirm flag from the action's text. Run mode is
+// only inferred while still on its default ("once"); confirm is sticky once on.
+function applyAutoSettings(prev: FormDraft, nextName: string, nextCmd: string): Partial<FormDraft> {
+  const text = `${nextName} ${nextCmd}`;
+  const patch: Partial<FormDraft> = {};
+  if (prev.runMode === "once") patch.runMode = inferRunMode(text);
+  if (!prev.confirm && shouldConfirm(text)) patch.confirm = true;
+  return patch;
 }
 
 function runModeHint(mode: RunMode, reuse: boolean) {
@@ -88,49 +103,33 @@ function runModeHint(mode: RunMode, reuse: boolean) {
   return "Runs once and displays the result in a modal.";
 }
 
-function stepCopy(step: number, shape: Shape, editing: boolean): { title: string; hint: string; primary: string } {
-  if (step === 0)
+function wizardCopy(editing: boolean): { title: string; hint: string; primary: string } {
+  if (editing) {
     return {
-      title: "What should the button say?",
-      hint: "Pick a short name. This is what you will click in the project header.",
-      primary: "Continue",
+      title: "Edit action",
+      hint: "Update how this header action behaves.",
+      primary: "Save changes",
     };
-  if (step === 1)
-    return {
-      title: "How should it appear?",
-      hint: "Button is best for most actions. Menus are only for related commands.",
-      primary: "Continue",
-    };
-  if (step === 2)
-    return {
-      title: shape === "button" ? "What command should it run?" : "What commands belong in the menu?",
-      hint: "Paste the same command you would type in a terminal.",
-      primary: "Review action",
-    };
-  return editing
-    ? {
-        title: "Ready to save changes?",
-        hint: "Confirm the updated settings. The button updates in the header after saving.",
-        primary: "Save changes",
-      }
-    : {
-        title: "Ready to add it?",
-        hint: "Confirm the simple summary. The button appears in the header after creation.",
-        primary: "Create action",
-      };
+  }
+  return {
+    title: "Add a header action",
+    hint: "Pick a name, choose how it shows, and set the command to run.",
+    primary: "Create action",
+  };
 }
 
-function actionSummary(shape: Shape, name: string, cmd: string, children: ChildDraft[], runMode: RunMode, reuse: boolean) {
-  const label = name.trim() || "New action";
-  if (shape === "dropdown") {
-    const count = children.filter((child) => child.cmd.trim()).length;
-    return `${label} adds a header menu with ${count || "your"} command${count === 1 ? "" : "s"}.`;
+// Returns the first missing-field message, or null when the form is valid.
+function getMissingHint(draft: FormDraft, hasMenuOption: boolean): string | null {
+  const nameFilled = Boolean(draft.name.trim());
+  const cmdFilled = Boolean(draft.cmd.trim());
+  if (!nameFilled) return "Name is required";
+  if (draft.shape === "button") return cmdFilled ? null : "Command is required";
+  if (draft.shape === "split") {
+    if (!cmdFilled) return "Default command is required";
+    if (!hasMenuOption) return "Add at least one menu option";
+    return null;
   }
-  if (shape === "split") {
-    const count = children.filter((child) => child.cmd.trim()).length;
-    return `${label} runs a default command and includes ${count || "extra"} menu option${count === 1 ? "" : "s"}.`;
-  }
-  return `${label} ${runModeHint(runMode, reuse).toLowerCase()} Command: ${cmd || "not set yet"}.`;
+  return hasMenuOption ? null : "Add at least one menu option";
 }
 
 interface FormDraft {
@@ -193,6 +192,25 @@ function buildCreatePayload(draft: FormDraft, position: number): Record<string, 
   return { ...set, display: "header", position };
 }
 
+type Submission =
+  | { kind: "create"; key: string; payload: Record<string, unknown> }
+  | { kind: "edit"; key: string; payload: Record<string, unknown>; patch: ActionPatch };
+
+function buildSubmission(
+  draft: FormDraft,
+  context: { editing: ActionInfo | null | undefined; existingActionKeys: string[]; nextPosition: number },
+): Submission {
+  if (context.editing) {
+    const patch = buildActionPatch(draft);
+    return { kind: "edit", key: context.editing.name, payload: patch.set, patch };
+  }
+  return {
+    kind: "create",
+    key: uniqueKey(slugify(draft.name) || NEW_ACTION_KEY, context.existingActionKeys),
+    payload: buildCreatePayload(draft, context.nextPosition),
+  };
+}
+
 function inferShape(action: ActionInfo): Shape {
   const hasChildren = (action.children?.length ?? 0) > 0;
   const hasCmd = Boolean(action.cmd);
@@ -247,14 +265,7 @@ export function ActionWizard({
   onSaved,
 }: ActionWizardProps) {
   const isEditing = Boolean(editing);
-  const [step, setStep] = useState(0);
-  const [name, setName] = useState("");
-  const [shape, setShape] = useState<Shape>("button");
-  const [cmd, setCmd] = useState("");
-  const [children, setChildren] = useState<ChildDraft[]>([newChild()]);
-  const [runMode, setRunMode] = useState<RunMode>("once");
-  const [reuse, setReuse] = useState(false);
-  const [confirm, setConfirm] = useState(false);
+  const [draft, setDraft] = useState<FormDraft>(defaultDraft);
   const [showYaml, setShowYaml] = useState(false);
   const [saving, setSaving] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -262,80 +273,40 @@ export function ActionWizard({
 
   useEffect(() => {
     if (!open) return;
-    const draft = editing ? actionToDraft(editing) : defaultDraft();
-    setStep(0);
-    setName(draft.name);
-    setShape(draft.shape);
-    setCmd(draft.cmd);
-    setChildren(draft.children);
-    setRunMode(draft.runMode);
-    setReuse(draft.reuse);
-    setConfirm(draft.confirm);
+    setDraft(editing ? actionToDraft(editing) : defaultDraft());
     setShowYaml(false);
     setSaving(false);
     setTimeout(() => nameRef.current?.focus(), 50);
   }, [open, editing]);
 
-  useEffect(() => {
-    if (!open || step !== 2) return;
-    setTimeout(() => commandRef.current?.focus(), 50);
-  }, [open, step, shape]);
-
-  const draft: FormDraft = { shape, name, cmd, children, runMode, reuse, confirm };
-
-  type Submission =
-    | { kind: "create"; key: string; payload: Record<string, unknown> }
-    | { kind: "edit"; key: string; payload: Record<string, unknown>; patch: ActionPatch };
-
-  const buildSubmission = (): Submission => {
-    if (editing) {
-      const patch = buildActionPatch(draft);
-      return { kind: "edit", key: editing.name, payload: patch.set, patch };
-    }
-    return {
-      kind: "create",
-      key: uniqueKey(slugify(name) || "new-action", existingActionKeys),
-      payload: buildCreatePayload(draft, nextPosition),
-    };
-  };
-
+  const { shape, name, cmd, children, runMode, reuse, confirm } = draft;
+  const nameFilled = Boolean(name.trim());
   const cmdFilled = Boolean(cmd.trim());
   const hasMenuOption = children.some((child) => child.cmd.trim());
-  const showRunMode = shape !== "dropdown" && cmdFilled;
-  const showMenuOptions = shape === "dropdown" || (shape === "split" && cmdFilled);
-  const commandIsReady =
-    shape === "button" ? cmdFilled : shape === "split" ? cmdFilled && hasMenuOption : hasMenuOption;
-  const canContinue =
-    step === 0 ? Boolean(name.trim()) : step === 2 ? commandIsReady : true;
-  const totalSteps = 4;
-  const actionLabel = name.trim() || "New action";
+  const showShape = nameFilled;
+  const showCommand = nameFilled && shape !== "dropdown";
+  const showRunMode = showCommand && cmdFilled;
+  const showMenuOptions = nameFilled && (shape === "dropdown" || (shape === "split" && cmdFilled));
+  const missingHint = getMissingHint(draft, hasMenuOption);
+  const formIsValid = missingHint === null;
+  const actionLabel = name.trim() || PLACEHOLDER_LABEL;
+  const { title, hint, primary: primaryLabel } = wizardCopy(isEditing);
+  const savingLabel = isEditing ? "Saving..." : "Creating...";
 
-  const { title, hint, primary: primaryLabel } = stepCopy(step, shape, isEditing);
+  const updateField = <K extends keyof FormDraft>(key: K, value: FormDraft[K]) =>
+    setDraft((prev) => ({ ...prev, [key]: value }));
 
-  const updateName = (value: string) => {
-    setName(value);
-    const inferred = inferRunMode(`${value} ${cmd}`);
-    setRunMode((current) => (current === "once" ? inferred : current));
-    if (shouldConfirm(value)) setConfirm(true);
-  };
+  const updateName = (value: string) =>
+    setDraft((prev) => ({ ...prev, name: value, ...applyAutoSettings(prev, value, prev.cmd) }));
 
-  const updateCmd = (value: string) => {
-    setCmd(value);
-    const inferred = inferRunMode(`${name} ${value}`);
-    setRunMode((current) => (current === "once" ? inferred : current));
-    if (shouldConfirm(`${name} ${value}`)) setConfirm(true);
-  };
+  const updateCmd = (value: string) =>
+    setDraft((prev) => ({ ...prev, cmd: value, ...applyAutoSettings(prev, prev.name, value) }));
 
-  const goNext = async () => {
-    if (!canContinue || saving) return;
-    if (step < 3) {
-      setStep((current) => current + 1);
-      return;
-    }
-
+  const submit = async () => {
+    if (!formIsValid || saving) return;
     setSaving(true);
     try {
-      const submission = buildSubmission();
+      const submission = buildSubmission(draft, { editing, existingActionKeys, nextPosition });
       if (submission.kind === "edit") {
         await replaceAction(projectName, submission.key, submission.patch);
         toast.success("Action updated");
@@ -346,24 +317,23 @@ export function ActionWizard({
       onSaved();
       onClose();
     } catch (err) {
-      const fallback = editing ? "Could not update action" : "Could not create action";
+      const fallback = isEditing ? "Could not update action" : "Could not create action";
       toast.error(err instanceof Error ? err.message : fallback);
     } finally {
       setSaving(false);
     }
   };
 
+  const handleNameEnter = () => {
+    if (showCommand) commandRef.current?.focus();
+    else if (formIsValid) void submit();
+  };
+
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
-      void goNext();
+      void submit();
     }
-  };
-
-  const submitOnEnter = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    void goNext();
   };
 
   return (
@@ -374,10 +344,9 @@ export function ActionWizard({
       contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >
       <div className="flex max-h-[88vh] w-[min(960px,calc(100vw-32px))] flex-col" onKeyDown={onKeyDown}>
-        <header className="flex items-start justify-between gap-4 px-8 pb-7 pt-7">
+        <header className="flex items-start justify-between gap-4 px-8 pb-6 pt-7">
           <div className="min-w-0 flex-1">
-            <StepDots step={step} total={totalSteps} />
-            <h2 className="mt-5 text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">{title}</h2>
+            <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">{title}</h2>
             <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[var(--text-secondary)]">{hint}</p>
           </div>
           <button
@@ -391,131 +360,95 @@ export function ActionWizard({
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] lg:flex-row">
-          <div className="min-h-0 flex-1 overflow-y-auto px-8 py-7">
-            {step === 0 && (
-              <div className="space-y-5">
-                <label className="block">
-                  <span className="mb-2 block text-[13px] font-medium text-[var(--text-primary)]">Button name</span>
-                  <input
-                    ref={nameRef}
-                    value={name}
-                    onChange={(e) => updateName(e.target.value)}
-                    onKeyDown={submitOnEnter}
-                    placeholder="Run tests"
-                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-3.5 text-[15px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--text-primary)] focus:bg-[var(--bg-primary)]"
-                  />
-                </label>
-              </div>
-            )}
+          <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-8 py-7">
+            <FieldSection label="Button name">
+              <input
+                ref={nameRef}
+                value={name}
+                onChange={(e) => updateName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  handleNameEnter();
+                }}
+                placeholder="Run tests"
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-3.5 text-[15px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--text-primary)] focus:bg-[var(--bg-primary)]"
+              />
+            </FieldSection>
 
-            {step === 1 && (
-              <div className="space-y-3">
-                <ShapeChoice
-                  active={shape === "button"}
-                  shape="button"
-                  title="Button"
-                  badge="Recommended"
-                  description="One click runs one command. Best for most actions."
-                  previewLabel={actionLabel}
-                  onClick={() => setShape("button")}
-                />
-                <ShapeChoice
-                  active={shape === "split"}
-                  shape="split"
-                  title="Split button"
-                  description="A main command plus a small menu of alternatives."
-                  previewLabel={actionLabel}
-                  onClick={() => setShape("split")}
-                />
-                <ShapeChoice
-                  active={shape === "dropdown"}
-                  shape="dropdown"
-                  title="Dropdown menu"
-                  description="Only a menu. Good for grouped commands like database tasks."
-                  previewLabel={actionLabel}
-                  onClick={() => setShape("dropdown")}
-                />
-              </div>
-            )}
-
-            {step === 2 && (
-              <div className="space-y-5">
-                {shape !== "dropdown" && (
-                  <CommandField
-                    inputRef={commandRef}
-                    label={shape === "split" ? "Default command" : "Command"}
-                    value={cmd}
-                    onChange={updateCmd}
-                    onEnter={() => void goNext()}
-                    placeholder={shape === "split" ? "npm run deploy:staging" : "npm run dev"}
-                  />
-                )}
-
-                {showRunMode && (
-                  <>
-                    <RunModePicker runMode={runMode} reuse={reuse} onRunMode={setRunMode} onReuse={setReuse} />
-                    <ConfirmPicker confirm={confirm} onConfirm={setConfirm} />
-                  </>
-                )}
-
-                {showMenuOptions && (
-                  <MenuOptionsEditor options={children} onChange={setChildren} />
-                )}
-              </div>
-            )}
-
-            {step === 3 && (
-              <div className="space-y-6">
-                <div>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate text-[20px] font-semibold tracking-tight text-[var(--text-primary)]">{actionLabel}</div>
-                      <div className="mt-1 text-[12px] text-[var(--text-muted)]">
-                        {SHAPE_DESCRIPTION[shape]}
-                      </div>
-                    </div>
-                    {shape !== "dropdown" && (
-                      <span className="shrink-0 rounded-full border border-[var(--border)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)]">
-                        {runModeLabel(runMode)}
-                      </span>
-                    )}
+            {showShape && (
+              <Reveal>
+                <FieldSection label="How should it appear?">
+                  <div className="space-y-1.5">
+                    {SHAPE_OPTIONS.map((option) => (
+                      <ShapeChoice
+                        key={option.shape}
+                        active={shape === option.shape}
+                        shape={option.shape}
+                        title={option.title}
+                        badge={option.badge}
+                        description={option.description}
+                        previewLabel={actionLabel}
+                        onClick={() => updateField("shape", option.shape)}
+                      />
+                    ))}
                   </div>
-                  <p className="mt-3 text-[13px] leading-6 text-[var(--text-secondary)]">
-                    {actionSummary(shape, name, cmd, children, runMode, reuse)}
-                  </p>
-                  {shape !== "dropdown" && (confirm || (runMode === "terminal" && reuse)) && (
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {confirm && <SummaryChip>Asks before running</SummaryChip>}
-                      {runMode === "terminal" && reuse && <SummaryChip>Reuses pane on re-run</SummaryChip>}
-                    </div>
-                  )}
-                </div>
+                </FieldSection>
+              </Reveal>
+            )}
 
-                <div className="border-t border-[var(--border)] pt-5">
-                  <button
-                    type="button"
-                    onClick={() => setShowYaml((value) => !value)}
-                    className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
-                  >
-                    {showYaml ? <ChevronDownIcon /> : <ChevronRightIcon />}
-                    {showYaml ? "Hide Config" : "Show Config"}
-                  </button>
+            {showCommand && (
+              <Reveal>
+                <CommandField
+                  inputRef={commandRef}
+                  label={shape === "split" ? "Default command" : "Command"}
+                  value={cmd}
+                  onChange={updateCmd}
+                  onEnter={() => void submit()}
+                  placeholder={shape === "split" ? "npm run deploy:staging" : "npm run dev"}
+                />
+              </Reveal>
+            )}
 
-                  {showYaml && (() => {
-                    const { key, payload } = buildSubmission();
-                    return (
-                      <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3.5 py-3 font-mono text-[12px] leading-relaxed text-[var(--text-secondary)]">
-                        {YAML.stringify({ actions: { [key]: payload } }, { lineWidth: 0 })}
-                      </pre>
-                    );
-                  })()}
+            {showRunMode && (
+              <Reveal>
+                <div className="space-y-7">
+                  <RunModePicker
+                    runMode={runMode}
+                    reuse={reuse}
+                    onRunMode={(mode) => updateField("runMode", mode)}
+                    onReuse={(value) => updateField("reuse", value)}
+                  />
+                  <ConfirmPicker
+                    confirm={confirm}
+                    onConfirm={(value) => updateField("confirm", value)}
+                  />
                 </div>
-              </div>
+              </Reveal>
+            )}
+
+            {showMenuOptions && (
+              <Reveal>
+                <MenuOptionsEditor
+                  options={children}
+                  onChange={(options) => updateField("children", options)}
+                />
+              </Reveal>
+            )}
+
+            {formIsValid && (
+              <Reveal>
+                <YamlPreview
+                  expanded={showYaml}
+                  onToggle={() => setShowYaml((value) => !value)}
+                  submission={buildSubmission(draft, { editing, existingActionKeys, nextPosition })}
+                />
+              </Reveal>
             )}
           </div>
 
           <ActionPreviewPanel
-            name={actionLabel}
+            name={name}
             shape={shape}
             options={children}
             runMode={runMode}
@@ -527,30 +460,22 @@ export function ActionWizard({
         <footer className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-8 py-4">
           <button
             type="button"
-            onClick={() => (step === 0 ? onClose() : setStep((current) => current - 1))}
-            className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            onClick={onClose}
+            className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           >
-            {step === 0 ? (
-              "Cancel"
-            ) : (
-              <>
-                <ChevronLeftIcon /> Back
-              </>
-            )}
+            Cancel
           </button>
           <div className="flex items-center gap-3">
-            {!canContinue && (
-              <span className="hidden text-[12px] text-[var(--text-muted)] sm:inline">
-                {step === 0 ? "Name is required" : "Command is required"}
-              </span>
+            {missingHint && (
+              <span className="hidden text-[12px] text-[var(--text-muted)] sm:inline">{missingHint}</span>
             )}
             <button
               type="button"
-              onClick={() => void goNext()}
-              disabled={!canContinue || saving}
+              onClick={() => void submit()}
+              disabled={!formIsValid || saving}
               className="rounded-xl bg-[var(--text-primary)] px-5 py-2.5 text-[13px] font-semibold text-[var(--bg-primary)] shadow-sm transition hover:opacity-90 disabled:opacity-40 disabled:shadow-none"
             >
-              {saving ? "Creating..." : primaryLabel}
+              {saving ? savingLabel : primaryLabel}
             </button>
           </div>
         </footer>
@@ -559,26 +484,45 @@ export function ActionWizard({
   );
 }
 
-function StepDots({ step, total }: { step: number; total: number }) {
+function FieldSection({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-2.5">
-      <div className="flex items-center gap-1">
-        {Array.from({ length: total }).map((_, i) => (
-          <span
-            key={i}
-            className={`h-1 rounded-full transition-all duration-300 ${
-              i === step
-                ? "w-6 bg-[var(--text-primary)]"
-                : i < step
-                  ? "w-1 bg-[var(--text-primary)]"
-                  : "w-1 bg-[var(--border)]"
-            }`}
-          />
-        ))}
-      </div>
-      <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
-        {step + 1} / {total}
-      </span>
+    <div className="space-y-2.5">
+      <div className="text-[13px] font-medium text-[var(--text-primary)]">{label}</div>
+      {children}
+    </div>
+  );
+}
+
+// Animates children in on mount. Used to fade-and-slide newly revealed
+// form sections as the user fills the wizard.
+function Reveal({ children }: { children: ReactNode }) {
+  return <div className="field-reveal">{children}</div>;
+}
+
+function YamlPreview({
+  expanded,
+  onToggle,
+  submission,
+}: {
+  expanded: boolean;
+  onToggle: () => void;
+  submission: Submission;
+}) {
+  return (
+    <div className="border-t border-[var(--border)] pt-5">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+      >
+        {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+        {expanded ? "Hide config" : "Show config"}
+      </button>
+      {expanded && (
+        <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3.5 py-3 font-mono text-[12px] leading-relaxed text-[var(--text-secondary)]">
+          {YAML.stringify({ actions: { [submission.key]: submission.payload } }, { lineWidth: 0 })}
+        </pre>
+      )}
     </div>
   );
 }
@@ -600,7 +544,8 @@ function ActionPreviewPanel({
   confirm: boolean;
   cmd: string;
 }) {
-  const hasName = name.trim().length > 0 && name !== "New action";
+  const displayLabel = name.trim();
+  const hasName = displayLabel.length > 0;
   const [menuOpen, setMenuOpen] = useState(false);
   const [running, setRunning] = useState<DemoState>(null);
   const menuRef = useOutsideClick<HTMLDivElement>(() => setMenuOpen(false), menuOpen);
@@ -656,7 +601,7 @@ function ActionPreviewPanel({
               onClick={triggerRun}
               className={`inline-flex whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--bg-hover)] ${SHAPE_PREVIEW_BUTTON_CLASS}`}
             >
-              {name}
+              {displayLabel}
             </button>
           ) : shape === "split" ? (
             <div ref={menuRef} className="relative">
@@ -666,7 +611,7 @@ function ActionPreviewPanel({
                   onClick={triggerRun}
                   className="whitespace-nowrap rounded-l-lg px-3.5 py-1.5 transition-colors hover:bg-[var(--bg-hover)]"
                 >
-                  {name}
+                  {displayLabel}
                 </button>
                 <button
                   type="button"
@@ -685,7 +630,7 @@ function ActionPreviewPanel({
                 onClick={() => setMenuOpen((v) => !v)}
                 className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--bg-hover)] ${SHAPE_PREVIEW_BUTTON_CLASS} ${menuOpen ? "bg-[var(--bg-hover)]" : ""}`}
               >
-                {name}
+                {displayLabel}
                 <ChevronDownIcon />
               </button>
               {dropdown}
@@ -697,7 +642,7 @@ function ActionPreviewPanel({
               key={running ?? "idle"}
               running={running}
               cmd={cmd}
-              label={name}
+              label={displayLabel}
               onTrigger={triggerRun}
               onConfirm={handleConfirm}
               onCancel={handleCancel}
@@ -855,31 +800,31 @@ function ShapeChoice({
     <button
       type="button"
       onClick={onClick}
-      className={`group relative flex w-full items-center gap-4 rounded-xl border px-5 py-4 text-left transition ${
+      className={`group relative flex w-full items-center gap-3 rounded-lg border px-3.5 py-2.5 text-left transition ${
         active
           ? "border-[var(--text-primary)] bg-[var(--bg-primary)]"
           : "border-[var(--border)] bg-[var(--bg-primary)] hover:border-[var(--text-muted)]"
       }`}
     >
       <span
-        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
           active
             ? "border-[var(--text-primary)] bg-[var(--text-primary)]"
             : "border-[var(--border)] group-hover:border-[var(--text-muted)]"
         }`}
       >
-        {active && <span className="h-1.5 w-1.5 rounded-full bg-[var(--bg-primary)]" />}
+        {active && <span className="h-1 w-1 rounded-full bg-[var(--bg-primary)]" />}
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
-          <span className="text-[14px] font-semibold text-[var(--text-primary)]">{title}</span>
+          <span className="text-[13px] font-semibold text-[var(--text-primary)]">{title}</span>
           {badge && (
             <span className="rounded-md bg-[var(--bg-secondary)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">
               {badge}
             </span>
           )}
+          <span className="truncate text-[12px] text-[var(--text-secondary)]">{description}</span>
         </span>
-        <span className="mt-0.5 block text-[12px] leading-5 text-[var(--text-secondary)]">{description}</span>
       </span>
       <span className="hidden shrink-0 sm:block">
         <ShapePreviewButton shape={shape} label={previewLabel} />
@@ -1118,10 +1063,3 @@ function ModeButton({
   );
 }
 
-function SummaryChip({ children }: { children: ReactNode }) {
-  return (
-    <span className="rounded-full border border-[var(--border)] bg-[var(--bg-primary)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)]">
-      {children}
-    </span>
-  );
-}
