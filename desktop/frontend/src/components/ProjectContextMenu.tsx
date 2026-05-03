@@ -30,7 +30,7 @@ export function ProjectContextMenu({
   onRemove,
   onClose,
 }: ProjectContextMenuProps) {
-  const openInTargets = useOpenInTargets();
+  const openInTargets = useOpenInTargets().filter((t) => !t.fileOnly);
   const close = (fn: () => void) => () => {
     fn();
     onClose();

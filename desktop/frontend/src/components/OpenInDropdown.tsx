@@ -8,7 +8,8 @@ export function OpenInDropdown({ projectPath }: {
   projectPath: string;
 }) {
   const [open, setOpen] = useState(false);
-  const targets = useOpenInTargets();
+  const allTargets = useOpenInTargets();
+  const targets = useMemo(() => allTargets.filter((t) => !t.fileOnly), [allTargets]);
   const [selectedId, setSelectedId] = useState<string>(() => localStorage.getItem(SELECTED_KEY) ?? "");
   const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
 

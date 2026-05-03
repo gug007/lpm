@@ -15,15 +15,17 @@ import (
 var openInIcons embed.FS
 
 type OpenInTarget struct {
-	ID    string `json:"id"`
-	Label string `json:"label"`
-	Icon  string `json:"icon"`
+	ID       string `json:"id"`
+	Label    string `json:"label"`
+	Icon     string `json:"icon"`
+	FileOnly bool   `json:"fileOnly,omitempty"`
 }
 
 type targetDef struct {
 	id       string
 	label    string
 	iconPng  string
+	fileOnly bool
 	detect   func() string
 	launch   func(appPath, projectPath string) error
 	openFile func(appPath, filePath string, line, col int) error
@@ -214,6 +216,11 @@ var targets = []targetDef{
 		openFile: sublimeOpenFile,
 	},
 	{
+		id: "typora", label: "Typora", iconPng: "typora.png", fileOnly: true,
+		detect: func() string { return detectByPaths("/Applications/Typora.app") },
+		launch: func(_, path string) error { return launchOpenA("Typora", path) },
+	},
+	{
 		id: "terminal", label: "Terminal", iconPng: "terminal.png",
 		detect: func() string {
 			return detectByPaths("/System/Applications/Utilities/Terminal.app", "/Applications/Utilities/Terminal.app")
@@ -269,9 +276,10 @@ func (a *App) ListOpenInTargets() []OpenInTarget {
 			continue
 		}
 		out = append(out, OpenInTarget{
-			ID:    t.id,
-			Label: t.label,
-			Icon:  iconDataURI(t.iconPng),
+			ID:       t.id,
+			Label:    t.label,
+			Icon:     iconDataURI(t.iconPng),
+			FileOnly: t.fileOnly,
 		})
 	}
 	listCache = out
