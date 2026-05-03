@@ -3,7 +3,16 @@ import { StartTerminal, StartTerminalForConfig, StartTerminalForRestore, StartTe
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { sendTerminalInput } from "../terminal-io";
 import { isInteractivePaneSessionDead } from "../components/InteractivePane";
-import { getProjectTerminals, saveProjectTerminals, type PersistedPaneNode, type PersistedTerminalEntry } from "../terminals";
+import {
+  appendHistoryEntry,
+  getProjectTerminals,
+  removeHistoryEntry,
+  saveProjectTerminals,
+  updateProjectTerminalsCache,
+  type PersistedHistoryEntry,
+  type PersistedPaneNode,
+  type PersistedTerminalEntry,
+} from "../terminals";
 import {
   type PaneNode,
   type PaneLeaf,
@@ -51,6 +60,7 @@ export interface UseTerminalsResult {
   focusedPaneId: string | null;
   createTerminal: () => Promise<void>;
   createTerminalWithCmd: (label: string, cmd: string, opts?: TerminalStartOpts) => Promise<void>;
+  resumeFromHistory: (entry: PersistedHistoryEntry) => Promise<void>;
   addTerminalToPane: (paneId: string) => Promise<void>;
   closeTerminal: (paneId: string, tabIdx: number) => void;
   focusTerminal: (paneId: string, tabIdx: number) => void;
@@ -309,6 +319,32 @@ export function useTerminals(
     [projectName, addTerminal, applyTree, scheduleCmdInject],
   );
 
+  const resumeFromHistory = useCallback(
+    async (entry: PersistedHistoryEntry) => {
+      let id: string;
+      try {
+        id = entry.actionName
+          ? await StartTerminalForRestore(projectName, entry.actionName)
+          : await StartTerminal(projectName);
+      } catch {
+        return;
+      }
+      const stateAfterRemove = removeHistoryEntry(
+        getProjectTerminals(projectName),
+        entry.resumeCmd,
+      );
+      updateProjectTerminalsCache(projectName, stateAfterRemove);
+      const term = makeTerminal(id, entry.label, {
+        startCmd: entry.startCmd,
+        resumeCmd: entry.resumeCmd,
+        actionName: entry.actionName,
+      });
+      addTerminal(term);
+      scheduleCmdInject(id, entry.resumeCmd);
+    },
+    [projectName, addTerminal, scheduleCmdInject],
+  );
+
   const addTerminalToPane = useCallback(
     async (paneId: string) => {
       try {
@@ -330,13 +366,37 @@ export function useTerminals(
     [applyTree],
   );
 
+  const recordClosingTabs = useCallback(
+    (tabs: TerminalInstance[]) => {
+      const eligible = tabs.filter((t): t is TerminalInstance & { resumeCmd: string } =>
+        Boolean(t.resumeCmd),
+      );
+      if (eligible.length === 0) return;
+      let state = getProjectTerminals(projectName);
+      const closedAt = Date.now();
+      for (const t of eligible) {
+        state = appendHistoryEntry(state, {
+          label: t.label,
+          startCmd: t.startCmd,
+          resumeCmd: t.resumeCmd,
+          actionName: t.actionName,
+          closedAt,
+        });
+      }
+      updateProjectTerminalsCache(projectName, state);
+    },
+    [projectName],
+  );
+
   const closeTerminal = useCallback(
     (paneId: string, tabIdx: number) => {
       const current = treeRef.current;
       if (!current) return;
       const pane = findPane(current, paneId);
       if (!pane || !pane.tabs[tabIdx]) return;
-      StopTerminal(pane.tabs[tabIdx].id).catch(() => {});
+      const closingTab = pane.tabs[tabIdx];
+      StopTerminal(closingTab.id).catch(() => {});
+      recordClosingTabs([closingTab]);
 
       // Collapse the pane only when it would otherwise be empty — panes
       // that hold a persistent service tab stay alive even with no
@@ -351,7 +411,7 @@ export function useTerminals(
       const next = mapPane(current, paneId, (p) => ({ ...p, tabs: newTabs, activeTabIdx: newActive }));
       applyTree(next);
     },
-    [applyTree, collapsePane],
+    [applyTree, collapsePane, recordClosingTabs],
   );
 
   const focusTerminal = useCallback(
@@ -513,9 +573,10 @@ export function useTerminals(
       const pane = findPane(current, paneId);
       if (!pane) return;
       pane.tabs.forEach((t) => StopTerminal(t.id).catch(() => {}));
+      recordClosingTabs(pane.tabs);
       collapsePane(current, paneId);
     },
-    [collapsePane],
+    [collapsePane, recordClosingTabs],
   );
 
   // Divider drag mutates the tree on every frame. setRatioAtPath returns
@@ -583,6 +644,7 @@ export function useTerminals(
     focusedPaneId,
     createTerminal,
     createTerminalWithCmd,
+    resumeFromHistory,
     addTerminalToPane,
     closeTerminal,
     focusTerminal,

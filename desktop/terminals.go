@@ -41,12 +41,21 @@ type TerminalEntry struct {
 	ResumeCmd string `json:"resumeCmd,omitempty"`
 }
 
+type HistoryEntry struct {
+	Label      string `json:"label"`
+	StartCmd   string `json:"startCmd,omitempty"`
+	ResumeCmd  string `json:"resumeCmd"`
+	ActionName string `json:"actionName,omitempty"`
+	ClosedAt   int64  `json:"closedAt"`
+}
+
 type ProjectTerminalState struct {
 	DetailView      string          `json:"detailView"`
 	ActiveTab       string          `json:"activeTab,omitempty"`
 	Panes           *PaneNode       `json:"panes,omitempty"`
 	FocusedPanePath []int           `json:"focusedPanePath,omitempty"`
 	Terminals       []TerminalEntry `json:"terminals,omitempty"`
+	History         []HistoryEntry  `json:"history,omitempty"`
 }
 
 type TerminalsConfig struct {

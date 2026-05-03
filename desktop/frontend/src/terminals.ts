@@ -31,6 +31,14 @@ export interface PersistedTerminalEntry {
   resumeCmd?: string;
 }
 
+export interface PersistedHistoryEntry {
+  label: string;
+  startCmd?: string;
+  resumeCmd: string;
+  actionName?: string;
+  closedAt: number;
+}
+
 export interface ProjectTerminalState {
   detailView: string;
   activeTab?: string;
@@ -38,7 +46,10 @@ export interface ProjectTerminalState {
   focusedPanePath?: number[];
   // Legacy field — read on load for migration, never written back.
   terminals?: PersistedTerminalEntry[];
+  history?: PersistedHistoryEntry[];
 }
+
+export const TERMINAL_HISTORY_CAP = 20;
 
 export interface TerminalsConfig {
   projects: Record<string, ProjectTerminalState>;
@@ -80,10 +91,42 @@ export async function saveProjectTerminals(
   await SaveTerminals(main.TerminalsConfig.createFrom(cached));
 }
 
+// Stages a change in memory so a follow-up persist() in the same code
+// path flushes it alongside its own write instead of two back-to-back.
+export function updateProjectTerminalsCache(
+  projectName: string,
+  next: ProjectTerminalState,
+): void {
+  cached = {
+    ...cached,
+    projects: { ...cached.projects, [projectName]: next },
+  };
+}
+
 // Without this, the next saveProjectTerminals call would write the
 // whole cache back and resurrect the deleted entry.
 export function forgetProjectTerminals(projectName: string): void {
   if (!(projectName in cached.projects)) return;
   const { [projectName]: _removed, ...rest } = cached.projects;
   cached = { ...cached, projects: rest };
+}
+
+export function appendHistoryEntry(
+  state: ProjectTerminalState,
+  entry: PersistedHistoryEntry,
+): ProjectTerminalState {
+  const existing = state.history ?? [];
+  const filtered = existing.filter((h) => h.resumeCmd !== entry.resumeCmd);
+  const next = [entry, ...filtered].slice(0, TERMINAL_HISTORY_CAP);
+  return { ...state, history: next };
+}
+
+export function removeHistoryEntry(
+  state: ProjectTerminalState,
+  resumeCmd: string,
+): ProjectTerminalState {
+  const existing = state.history ?? [];
+  const next = existing.filter((h) => h.resumeCmd !== resumeCmd);
+  if (next.length === existing.length) return state;
+  return { ...state, history: next };
 }

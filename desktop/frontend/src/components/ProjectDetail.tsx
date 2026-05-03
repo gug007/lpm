@@ -17,6 +17,7 @@ import { ProfileContextMenu } from "./project-detail/ProfileContextMenu";
 import { ProfileForm } from "./project-detail/ProfileForm";
 import { ServiceContextMenu } from "./project-detail/ServiceContextMenu";
 import { ServiceForm } from "./project-detail/ServiceForm";
+import { TerminalHistoryModal } from "./project-detail/TerminalHistoryModal";
 import { TerminalPane } from "./project-detail/TerminalPane";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { deleteAction } from "../actionConfig";
@@ -34,7 +35,13 @@ import { useProjectActions } from "../hooks/useProjectActions";
 import { useTerminalFontSize } from "../hooks/useTerminalFontSize";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
 import { getSettings } from "../store/settings";
-import { countPersistedTabs, getProjectTerminals } from "../terminals";
+import {
+  countPersistedTabs,
+  getProjectTerminals,
+  removeHistoryEntry,
+  saveProjectTerminals,
+  type PersistedHistoryEntry,
+} from "../terminals";
 import { useAppStore } from "../store/app";
 import {
   isFooterDisplay,
@@ -77,6 +84,10 @@ export function ProjectDetail({
   const [actionMenu, setActionMenu] = useState<{ x: number; y: number; action: ActionInfo } | null>(null);
   const [actionToDelete, setActionToDelete] = useState<ActionInfo | null>(null);
   const [deletingAction, setDeletingAction] = useState(false);
+  const [historyEntries, setHistoryEntries] = useState<PersistedHistoryEntry[]>(
+    () => getProjectTerminals(project.name).history ?? [],
+  );
+  const [showHistory, setShowHistory] = useState(false);
   const profileMenuRef = useOutsideClick<HTMLDivElement>(
     () => setShowProfileMenu(false),
     showProfileMenu,
@@ -108,6 +119,10 @@ export function ProjectDetail({
     const saved = getProjectTerminals(project.name);
     return countPersistedTabs(saved.panes) || (saved.terminals?.length ?? 0);
   });
+
+  useEffect(() => {
+    setHistoryEntries(getProjectTerminals(project.name).history ?? []);
+  }, [project.name, terminalCount]);
 
   const terminalRef = useRef<TerminalViewHandle>(null);
 
@@ -184,6 +199,31 @@ export function ProjectDetail({
     setShowProfileMenu(false);
     runAndShowTerminal(() => onStart(project.name, profile));
   };
+
+  const handleOpenHistory = useCallback(() => {
+    setShowHistory(true);
+  }, []);
+
+  const handleResumeFromHistory = useCallback(
+    (entry: PersistedHistoryEntry) => {
+      setShowHistory(false);
+      switchDetailView("terminal");
+      terminalRef.current?.resumeFromHistory(entry);
+    },
+    [switchDetailView],
+  );
+
+  const handleForgetHistory = useCallback(
+    async (entry: PersistedHistoryEntry) => {
+      const next = removeHistoryEntry(
+        getProjectTerminals(project.name),
+        entry.resumeCmd,
+      );
+      await saveProjectTerminals(project.name, next);
+      setHistoryEntries(next.history ?? []);
+    },
+    [project.name],
+  );
 
   const runningServiceNames = useMemo(
     () => (project.running ? new Set(project.services.map((s) => s.name)) : null),
@@ -268,6 +308,7 @@ export function ProjectDetail({
       showQuickMenu={showQuickMenu}
       showProfileMenu={showProfileMenu}
       profileMenuRef={profileMenuRef}
+      hasHistory={historyEntries.length > 0}
       onToggleQuickMenu={() => {
         setShowProfileMenu(false);
         setShowQuickMenu((v) => !v);
@@ -282,6 +323,7 @@ export function ProjectDetail({
       onPickProfile={handlePickProfile}
       onToggleService={handleToggleServiceClick}
       onRunAction={handleRunAction}
+      onOpenHistory={handleOpenHistory}
       onEditConfig={() => switchDetailView("config")}
       onOpenNotes={() => switchDetailView("notes")}
       onRestart={() => withLoading(() => onRestart(project.name, activeProfile))}
@@ -390,6 +432,15 @@ export function ProjectDetail({
           }}
           onSaved={() => onRefresh()}
         />
+
+        {showHistory && (
+          <TerminalHistoryModal
+            entries={historyEntries}
+            onResume={handleResumeFromHistory}
+            onForget={handleForgetHistory}
+            onClose={() => setShowHistory(false)}
+          />
+        )}
 
         {actionMenu && (
           <ActionContextMenu

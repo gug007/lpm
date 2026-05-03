@@ -13,6 +13,7 @@ import { ansiColors } from "./terminal-utils";
 import { TerminalIcon } from "./icons";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { useTerminals, type TerminalStartOpts } from "../hooks/useTerminals";
+import { type PersistedHistoryEntry } from "../terminals";
 import { useTTSHotkeys } from "../hooks/useTTSHotkeys";
 import { TTSControls } from "./TTSControls";
 import { joinAbs } from "../path";
@@ -37,6 +38,7 @@ interface TerminalViewProps {
 export interface TerminalViewHandle {
   createTerminal(): void;
   createTerminalWithCmd(label: string, cmd: string, opts?: TerminalStartOpts): void;
+  resumeFromHistory(entry: PersistedHistoryEntry): void;
 }
 
 export function TerminalView({ projectName, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, runningPaneIDs, donePaneIDs, waitingPaneIDs, errorPaneIDs, visible = true, ref }: TerminalViewProps) {
@@ -57,6 +59,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     focusedPaneId,
     createTerminal,
     createTerminalWithCmd,
+    resumeFromHistory,
     addTerminalToPane,
     closeTerminal,
     focusTerminal,
@@ -367,8 +370,8 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
   useImperativeHandle(
     ref,
-    () => ({ createTerminal, createTerminalWithCmd }),
-    [createTerminal, createTerminalWithCmd],
+    () => ({ createTerminal, createTerminalWithCmd, resumeFromHistory }),
+    [createTerminal, createTerminalWithCmd, resumeFromHistory],
   );
 
   return (

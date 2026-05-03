@@ -1,6 +1,6 @@
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import type { ActionInfo } from "../../types";
-import { TrashIcon, RefreshIcon, PencilIcon, MessageIcon } from "../icons";
+import { HistoryIcon, TrashIcon, RefreshIcon, PencilIcon, MessageIcon } from "../icons";
 import { PlayIcon } from "./icons";
 
 const sectionLabelClass = "px-4 pb-1.5 pt-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]";
@@ -10,8 +10,10 @@ interface QuickPopoverProps {
   actions: ActionInfo[];
   running: boolean;
   actionBusy: boolean;
+  hasHistory: boolean;
   onClose: () => void;
   onRunAction: (action: ActionInfo) => void;
+  onOpenHistory: () => void;
   onEditConfig: () => void;
   onOpenNotes: () => void;
   onRestart: () => void;
@@ -22,8 +24,10 @@ export function QuickPopover({
   actions,
   running,
   actionBusy,
+  hasHistory,
   onClose,
   onRunAction,
+  onOpenHistory,
   onEditConfig,
   onOpenNotes,
   onRestart,
@@ -91,6 +95,15 @@ export function QuickPopover({
         <span className="flex-1 truncate">Notes</span>
         <kbd className="ml-auto text-[10px] text-[var(--text-muted)]">⌘⇧N</kbd>
       </button>
+      {hasHistory && (
+        <button
+          onClick={() => { onOpenHistory(); onClose(); }}
+          className={`${menuItemClass} text-[var(--text-secondary)]`}
+        >
+          <HistoryIcon />
+          <span className="flex-1 truncate">Resume Session</span>
+        </button>
+      )}
       {running && (
         <button
           onClick={handleRestart}
