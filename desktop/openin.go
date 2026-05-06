@@ -140,6 +140,24 @@ func sublimeOpenFile(appPath, filePath string, line, col int) error {
 	return exec.Command(bin, formatPathSpec(filePath, line, col)).Run()
 }
 
+// jetbrainsFamilyOpenFile returns an openFile func for IntelliJ-platform IDEs
+// (WebStorm, IntelliJ IDEA, PyCharm, …) that ship a CLI launcher at
+// <App>/Contents/MacOS/<binName> and accept `--line N [--column M] <path>`.
+func jetbrainsFamilyOpenFile(binName string) func(string, string, int, int) error {
+	return func(appPath, filePath string, line, col int) error {
+		bin := filepath.Join(appPath, "Contents", "MacOS", binName)
+		args := []string{}
+		if line > 0 {
+			args = append(args, "--line", fmt.Sprintf("%d", line))
+			if col > 0 {
+				args = append(args, "--column", fmt.Sprintf("%d", col))
+			}
+		}
+		args = append(args, filePath)
+		return exec.Command(bin, args...).Run()
+	}
+}
+
 func zedOpenFile(appPath, filePath string, line, col int) error {
 	bin := filepath.Join(appPath, "Contents", "MacOS", "cli")
 	return exec.Command(bin, formatPathSpec(filePath, line, col)).Run()
@@ -214,6 +232,17 @@ var targets = []targetDef{
 		detect:   func() string { return detectByPaths("/Applications/Sublime Text.app") },
 		launch:   func(_, path string) error { return launchOpenA("Sublime Text", path) },
 		openFile: sublimeOpenFile,
+	},
+	{
+		id: "webstorm", label: "WebStorm", iconPng: "webstorm.png",
+		detect: func() string {
+			if p := detectByPaths("/Applications/WebStorm.app"); p != "" {
+				return p
+			}
+			return detectByPrefix("WebStorm")
+		},
+		launch:   func(_, path string) error { return launchOpenA("WebStorm", path) },
+		openFile: jetbrainsFamilyOpenFile("webstorm"),
 	},
 	{
 		id: "typora", label: "Typora", iconPng: "typora.png", fileOnly: true,
