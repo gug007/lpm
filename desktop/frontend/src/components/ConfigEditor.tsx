@@ -4,21 +4,27 @@ import {
   SaveConfig,
   ReadRepoConfig,
   SaveRepoConfig,
+  ReadGlobalConfig,
+  SaveGlobalConfig,
   GenerateProjectConfig,
 } from "../../wailsjs/go/main/App";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { useYamlEditor } from "../hooks/useYamlEditor";
 import { VisualConfigEditor } from "./VisualConfigEditor";
 import { MonacoEditor } from "./MonacoEditor";
-import { PROJECT_MODEL_URI, REPO_MODEL_URI } from "../monaco-setup";
-import { ChevronLeftIcon } from "./icons";
+import {
+  PROJECT_MODEL_URI,
+  REPO_MODEL_URI,
+  GLOBAL_MODEL_URI,
+} from "../monaco-setup";
+import { ChevronLeftIcon, CodeIcon, HelpCircleIcon } from "./icons";
 import { AIButton } from "./ui/AIButton";
 import { SegmentedControl } from "./ui/SegmentedControl";
 import { AIGenerateModal } from "./AIGenerateModal";
 import { type AICLI } from "../types";
 import { getSettings, saveSettings } from "../store/settings";
 
-type ConfigTarget = "user" | "repo";
+type ConfigTarget = "user" | "repo" | "global";
 
 interface ConfigEditorProps {
   projectName: string;
@@ -60,14 +66,27 @@ export function ConfigEditor({
     (content: string) => SaveRepoConfig(projectName, content),
     [projectName],
   );
+  const globalLoad = useCallback(() => ReadGlobalConfig(), []);
+  const globalSave = useCallback(
+    (content: string) => SaveGlobalConfig(content),
+    [],
+  );
 
   const userEditor = useYamlEditor(userLoad, userSave);
   const repoEditor = useYamlEditor(repoLoad, repoSave);
-  const active = target === "user" ? userEditor : repoEditor;
+  const globalEditor = useYamlEditor(globalLoad, globalSave);
+  const active =
+    target === "user" ? userEditor : target === "repo" ? repoEditor : globalEditor;
+  const modelUri =
+    target === "user"
+      ? PROJECT_MODEL_URI
+      : target === "repo"
+        ? REPO_MODEL_URI
+        : GLOBAL_MODEL_URI;
 
-  // Repo file has no `name:` so the form view (which binds project identity)
-  // doesn't apply \u2014 force YAML when on the repo target.
-  const effectiveMode = target === "repo" ? "yaml" : mode;
+  // Form view binds to project identity, which only exists in user config \u2014
+  // force YAML for repo and global targets.
+  const effectiveMode = target === "user" ? mode : "yaml";
 
   const [aiOpen, setAiOpen] = useState(false);
 
@@ -96,53 +115,71 @@ export function ConfigEditor({
           <div className="flex items-center gap-2">
             <button
               onClick={() => BrowserOpenURL("https://lpm.cx/config")}
-              className="rounded px-2 py-1 text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
               title="Open configuration reference"
             >
-              Docs
+              <HelpCircleIcon />
             </button>
-            {!isRemote && (
-              <SegmentedControl
-                value={target}
-                onChange={setTarget}
-                options={[
-                  {
-                    value: "user",
-                    label: "User",
-                    tooltip: "Your personal settings for this project. Only you see them.",
-                  },
-                  {
-                    value: "repo",
-                    label: "Repo",
-                    tooltip:
-                      "Settings saved inside the project folder. Anyone who opens this project gets the same actions, services, and profiles.",
-                  },
-                ]}
-              />
-            )}
-            {target === "user" && (
-              <SegmentedControl
-                value={mode}
-                onChange={changeMode}
-                options={[
-                  {
-                    value: "form",
-                    label: "Form",
-                    tooltip: "Easy editor with fields and toggles.",
-                  },
-                  {
-                    value: "yaml",
-                    label: "Source",
-                    tooltip: "Edit the raw config text. Use for advanced options the form doesn't show.",
-                  },
-                ]}
-              />
-            )}
-            {target === "user" && (
+            <SegmentedControl
+              value={target}
+              onChange={setTarget}
+              options={
+                isRemote
+                  ? [
+                      {
+                        value: "user",
+                        label: "User",
+                        tooltip: "Your personal settings for this project. Only you see them.",
+                      },
+                      {
+                        value: "global",
+                        label: "Global",
+                        tooltip:
+                          "Defaults shared across all your projects. Used when a project doesn't override them.",
+                      },
+                    ]
+                  : [
+                      {
+                        value: "user",
+                        label: "User",
+                        tooltip: "Your personal settings for this project. Only you see them.",
+                      },
+                      {
+                        value: "repo",
+                        label: "Repo",
+                        tooltip:
+                          "Settings saved inside the project folder. Anyone who opens this project gets the same actions, services, and profiles.",
+                      },
+                      {
+                        value: "global",
+                        label: "Global",
+                        tooltip:
+                          "Defaults shared across all your projects. Used when a project doesn't override them.",
+                      },
+                    ]
+              }
+            />
+            <div
+              className={`flex items-center gap-2 ${
+                target === "user" ? "" : "invisible pointer-events-none"
+              }`}
+              aria-hidden={target !== "user"}
+            >
+              <button
+                onClick={() => changeMode(mode === "form" ? "yaml" : "form")}
+                className={`flex h-6 w-6 items-center justify-center rounded transition-colors ${
+                  mode === "yaml"
+                    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                    : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                }`}
+                title={mode === "form" ? "Switch to source view" : "Switch to form view"}
+              >
+                <CodeIcon />
+              </button>
               <AIButton onClick={() => setAiOpen(true)} title="Generate config with AI">
                 Generate with AI
               </AIButton>
-            )}
+            </div>
           </div>
         </div>
       )}
@@ -155,7 +192,7 @@ export function ConfigEditor({
             value={active.content}
             onChange={active.setContent}
             language="yaml"
-            modelUri={target === "repo" ? REPO_MODEL_URI : PROJECT_MODEL_URI}
+            modelUri={modelUri}
             onSave={active.handleSave}
             onToggleView={onToggleView}
           />
