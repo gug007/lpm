@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -176,6 +178,145 @@ func TestMergeActionFallback_KeyOnlyInGlobalIsCopied(t *testing.T) {
 	got := merged["only-global"]
 	if got.Cmd != "g" || got.Display != "footer" {
 		t.Errorf("got %+v, want global entry copied", got)
+	}
+}
+
+func TestMergeServiceFallback_FieldLevelOverride(t *testing.T) {
+	repo := ServiceMap{
+		"api": Service{Cmd: "go run .", Port: 8080, Env: map[string]string{"DB": "pg"}},
+	}
+	project := ServiceMap{
+		"api": Service{Port: 9090}, // user wants a different port; cmd/env inherit
+	}
+	merged := mergeServiceFallback(project, repo)
+	got := merged["api"]
+	if got.Cmd != "go run ." {
+		t.Errorf("Cmd = %q, want inherited", got.Cmd)
+	}
+	if got.Port != 9090 {
+		t.Errorf("Port = %d, want 9090 (project override)", got.Port)
+	}
+	if got.Env["DB"] != "pg" {
+		t.Errorf("Env[DB] = %q, want inherited", got.Env["DB"])
+	}
+}
+
+func TestMergeProfilesFallback_KeyLevel(t *testing.T) {
+	repo := map[string][]string{
+		"full":    {"api", "web"},
+		"backend": {"api", "db"},
+	}
+	project := map[string][]string{
+		"backend": {"api"}, // project's slice fully replaces repo's
+	}
+	merged := mergeProfilesFallback(project, repo)
+	if got := merged["backend"]; len(got) != 1 || got[0] != "api" {
+		t.Errorf("backend = %v, want [api]", got)
+	}
+	if got := merged["full"]; len(got) != 2 || got[0] != "api" || got[1] != "web" {
+		t.Errorf("full = %v, want inherited [api web]", got)
+	}
+}
+
+func TestApplyDefaults_RepoLayersBetweenProjectAndGlobal(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	globalPath := filepath.Join(home, ".lpm", "global.yml")
+	if err := os.MkdirAll(filepath.Dir(globalPath), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(globalPath, []byte(`
+actions:
+  deploy:
+    cmd: echo from-global
+    confirm: true
+  global-only:
+    cmd: g
+`), 0o644); err != nil {
+		t.Fatalf("write global: %v", err)
+	}
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".lpm.yml"), []byte(`
+services:
+  api:
+    cmd: go run .
+    port: 8080
+actions:
+  deploy:
+    cmd: echo from-repo
+  repo-only:
+    cmd: r
+profiles:
+  backend: [api]
+`), 0o644); err != nil {
+		t.Fatalf("write repo: %v", err)
+	}
+
+	cfg := &ProjectConfig{
+		Root: root,
+		Services: ServiceMap{
+			"api": Service{Port: 9090},
+		},
+	}
+	cfg.ApplyDefaults()
+
+	if got := cfg.Services["api"].Port; got != 9090 {
+		t.Errorf("api.Port = %d, want 9090 (project)", got)
+	}
+	if got := cfg.Services["api"].Cmd; got != "go run ." {
+		t.Errorf("api.Cmd = %q, want inherited from repo", got)
+	}
+	if got := cfg.Actions["deploy"].Cmd; got != "echo from-repo" {
+		t.Errorf("deploy.Cmd = %q, want repo (overrides global)", got)
+	}
+	if !cfg.Actions["deploy"].Confirm {
+		t.Error("deploy.Confirm = false, want inherited from global")
+	}
+	if got := cfg.Actions["repo-only"].Cmd; got != "r" {
+		t.Errorf("repo-only.Cmd = %q, want %q", got, "r")
+	}
+	if got := cfg.Actions["global-only"].Cmd; got != "g" {
+		t.Errorf("global-only.Cmd = %q, want %q", got, "g")
+	}
+	if got := cfg.Profiles["backend"]; len(got) != 1 || got[0] != "api" {
+		t.Errorf("profile backend = %v, want [api]", got)
+	}
+}
+
+func TestApplyDefaults_MissingRepoFileIsNoOp(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	cfg := &ProjectConfig{
+		Root:    t.TempDir(), // no .lpm.yml inside
+		Actions: ActionMap{"local": Action{Cmd: "x"}},
+	}
+	cfg.ApplyDefaults()
+	if got := cfg.Actions["local"].Cmd; got != "x" {
+		t.Errorf("local.Cmd = %q, want unchanged", got)
+	}
+}
+
+func TestApplyDefaults_SkipsRepoForRemote(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+	// A .lpm.yml at this path exists but should be ignored for SSH projects
+	// since the path is a stale local copy, not the remote source of truth.
+	if err := os.WriteFile(filepath.Join(root, ".lpm.yml"), []byte(`
+actions:
+  ghost: { cmd: should-not-load }
+`), 0o644); err != nil {
+		t.Fatalf("write repo: %v", err)
+	}
+	cfg := &ProjectConfig{
+		Root: root,
+		SSH:  &SSHSettings{Host: "h", User: "u"},
+	}
+	cfg.ApplyDefaults()
+	if _, ok := cfg.Actions["ghost"]; ok {
+		t.Error("ghost action loaded; SSH projects must skip repo file")
 	}
 }
 

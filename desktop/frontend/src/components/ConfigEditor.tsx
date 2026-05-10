@@ -1,27 +1,44 @@
 import { useRef, useCallback, useState } from "react";
-import { ReadConfig, SaveConfig, GenerateProjectConfig } from "../../wailsjs/go/main/App";
+import {
+  ReadConfig,
+  SaveConfig,
+  ReadRepoConfig,
+  SaveRepoConfig,
+  GenerateProjectConfig,
+} from "../../wailsjs/go/main/App";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { useYamlEditor } from "../hooks/useYamlEditor";
 import { VisualConfigEditor } from "./VisualConfigEditor";
 import { MonacoEditor } from "./MonacoEditor";
-import { PROJECT_MODEL_URI } from "../monaco-setup";
+import { PROJECT_MODEL_URI, GLOBAL_MODEL_URI } from "../monaco-setup";
 import { ChevronLeftIcon } from "./icons";
 import { AIButton } from "./ui/AIButton";
+import { SegmentedControl } from "./ui/SegmentedControl";
 import { AIGenerateModal } from "./AIGenerateModal";
 import { type AICLI } from "../types";
 import { getSettings, saveSettings } from "../store/settings";
+
+type ConfigTarget = "user" | "repo";
 
 interface ConfigEditorProps {
   projectName: string;
   onSaved: (newName: string) => void;
   onBack?: () => void;
   onToggleView?: () => void;
+  isRemote?: boolean;
 }
 
-export function ConfigEditor({ projectName, onSaved, onBack, onToggleView }: ConfigEditorProps) {
+export function ConfigEditor({
+  projectName,
+  onSaved,
+  onBack,
+  onToggleView,
+  isRemote = false,
+}: ConfigEditorProps) {
   const onSavedRef = useRef(onSaved);
   onSavedRef.current = onSaved;
 
+  const [target, setTarget] = useState<ConfigTarget>("user");
   const [mode, setMode] = useState<"form" | "yaml">(() => getSettings().configEditorMode ?? "form");
 
   const changeMode = (next: "form" | "yaml") => {
@@ -30,24 +47,35 @@ export function ConfigEditor({ projectName, onSaved, onBack, onToggleView }: Con
     saveSettings({ configEditorMode: next });
   };
 
-  const load = useCallback(() => ReadConfig(projectName), [projectName]);
-  const save = useCallback(
+  const userLoad = useCallback(() => ReadConfig(projectName), [projectName]);
+  const userSave = useCallback(
     async (content: string) => {
       const newName = await SaveConfig(projectName, content);
       onSavedRef.current(newName);
     },
     [projectName],
   );
+  const repoLoad = useCallback(() => ReadRepoConfig(projectName), [projectName]);
+  const repoSave = useCallback(
+    (content: string) => SaveRepoConfig(projectName, content),
+    [projectName],
+  );
 
-  const { content, setContent, dirty, saving, error, handleSave } =
-    useYamlEditor(load, save);
+  const userEditor = useYamlEditor(userLoad, userSave);
+  const repoEditor = useYamlEditor(repoLoad, repoSave);
+  const active = target === "user" ? userEditor : repoEditor;
+
+  // Repo file has no `name:` so the form view (which binds project identity)
+  // doesn't apply \u2014 force YAML when on the repo target.
+  const effectiveMode = target === "repo" ? "yaml" : mode;
 
   const [aiOpen, setAiOpen] = useState(false);
 
   const handleAIGenerate = async (cli: AICLI, extraPrompt: string) => {
     const yaml = await GenerateProjectConfig(projectName, cli, extraPrompt);
-    setContent(yaml);
+    userEditor.setContent(yaml);
     changeMode("yaml");
+    setTarget("user");
     setAiOpen(false);
   };
 
@@ -73,64 +101,81 @@ export function ConfigEditor({ projectName, onSaved, onBack, onToggleView }: Con
             >
               Docs
             </button>
-            <div className="flex rounded-md border border-[var(--border)] p-0.5">
-              <button
-                onClick={() => changeMode("form")}
-                className={`rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                  mode === "form"
-                    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-                }`}
-              >
-                Form
-              </button>
-              <button
-                onClick={() => changeMode("yaml")}
-                className={`rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                  mode === "yaml"
-                    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-                }`}
-              >
-                Source
-              </button>
-            </div>
-            <AIButton onClick={() => setAiOpen(true)} title="Generate config with AI">
-              Generate with AI
-            </AIButton>
+            {!isRemote && (
+              <SegmentedControl
+                value={target}
+                onChange={setTarget}
+                options={[
+                  {
+                    value: "user",
+                    label: "User",
+                    tooltip: "Your personal settings for this project. Only you see them.",
+                  },
+                  {
+                    value: "repo",
+                    label: "Repo",
+                    tooltip:
+                      "Settings saved inside the project folder. Anyone who opens this project gets the same actions, services, and profiles.",
+                  },
+                ]}
+              />
+            )}
+            {target === "user" && (
+              <SegmentedControl
+                value={mode}
+                onChange={changeMode}
+                options={[
+                  {
+                    value: "form",
+                    label: "Form",
+                    tooltip: "Easy editor with fields and toggles.",
+                  },
+                  {
+                    value: "yaml",
+                    label: "Source",
+                    tooltip: "Edit the raw config text. Use for advanced options the form doesn't show.",
+                  },
+                ]}
+              />
+            )}
+            {target === "user" && (
+              <AIButton onClick={() => setAiOpen(true)} title="Generate config with AI">
+                Generate with AI
+              </AIButton>
+            )}
           </div>
         </div>
       )}
 
-      {mode === "form" ? (
-        <VisualConfigEditor content={content} onChange={setContent} />
+      {effectiveMode === "form" ? (
+        <VisualConfigEditor content={active.content} onChange={active.setContent} />
       ) : (
         <div className="relative flex-1 overflow-hidden">
           <MonacoEditor
-            value={content}
-            onChange={setContent}
+            value={active.content}
+            onChange={active.setContent}
             language="yaml"
-            modelUri={PROJECT_MODEL_URI}
-            onSave={handleSave}
+            modelUri={target === "repo" ? GLOBAL_MODEL_URI : PROJECT_MODEL_URI}
+            onSave={active.handleSave}
             onToggleView={onToggleView}
           />
         </div>
       )}
 
-      {(dirty || error) && (
+      {(active.dirty || active.error) && (
         <div className="absolute bottom-4 right-4 z-10 flex items-end gap-2">
-          {error && (
+          {active.error && (
             <pre className="max-w-[420px] whitespace-pre-wrap rounded-lg border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/10 px-3 py-2 text-left text-[11px] leading-relaxed text-[var(--accent-red)] shadow-lg">
-              {error}
+              {active.error}
             </pre>
           )}
           <span className="mb-2 text-[10px] text-[var(--text-muted)]">{"\u2318"}S</span>
           <button
-            onClick={handleSave}
-            disabled={!dirty || saving}
+            onClick={active.handleSave}
+            disabled={!active.dirty || active.saving}
             className="rounded-lg bg-[var(--text-primary)] px-3.5 py-1.5 text-xs font-medium text-[var(--bg-primary)] shadow-lg transition-all hover:opacity-85 disabled:opacity-40"
           >
-            {saving ? "Saving..." : "Save"}
+            {active.saving ? "Saving..." : "Save"}
           </button>
         </div>
       )}

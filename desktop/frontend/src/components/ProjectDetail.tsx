@@ -399,6 +399,7 @@ export function ProjectDetail({
               onSaved={onRefresh}
               onBack={() => switchDetailView("terminal")}
               onToggleView={() => switchDetailView("terminal")}
+              isRemote={project.isRemote}
             />
           </div>
         )}

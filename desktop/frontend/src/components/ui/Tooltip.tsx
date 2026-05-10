@@ -6,9 +6,10 @@ interface TooltipProps {
   children: ReactNode;
   side?: "top" | "bottom";
   align?: "start" | "center" | "end";
+  wide?: boolean;
 }
 
-export function Tooltip({ content, children, side = "top", align = "center" }: TooltipProps) {
+export function Tooltip({ content, children, side = "top", align = "center", wide = false }: TooltipProps) {
   const triggerRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLSpanElement>(null);
   const [visible, setVisible] = useState(false);
@@ -58,7 +59,11 @@ export function Tooltip({ content, children, side = "top", align = "center" }: T
           ref={tooltipRef}
           role="tooltip"
           style={{ top: pos.top, left: pos.left }}
-          className="pointer-events-none fixed z-[9999] whitespace-nowrap rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 font-mono text-[10px] font-medium text-[var(--text-primary)] shadow-lg transition-opacity duration-100"
+          className={`pointer-events-none fixed z-[9999] rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 font-medium text-[var(--text-primary)] shadow-lg transition-opacity duration-100 ${
+            wide
+              ? "max-w-[260px] whitespace-normal text-[11px] leading-snug"
+              : "whitespace-nowrap font-mono text-[10px]"
+          }`}
         >
           {content}
           <span

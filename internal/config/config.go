@@ -436,12 +436,21 @@ func SSHCommandLine(cfg *ProjectConfig, cwd string, env map[string]string, cmd s
 	return strings.Join(args, " ")
 }
 
-// ApplyGlobalDefaults merges entries from ~/.lpm/global.yml into p.Actions
-// and p.Terminals, filling in fields the project leaves unset. Used so a
-// sparse override (e.g. `myAction: {position: 3}`) passes Validate() — with
-// global's cmd inherited, "missing cmd" no longer fires. LoadProject already
-// runs this; SaveConfig calls it manually before validating raw YAML.
-func (p *ProjectConfig) ApplyGlobalDefaults() {
+// ApplyDefaults layers shared defaults under the project's own entries, in
+// order user-project ← <root>/.lpm.yml ← ~/.lpm/global.yml. Field-level
+// merge means a project can override one field (e.g. a port) and inherit
+// the rest. The repo layer is skipped for SSH projects since the file
+// lives on the remote. Sparse overrides (e.g. `myAction: {position: 3}`)
+// rely on this so they pass Validate() with cmd/cwd inherited from a
+// shared source.
+func (p *ProjectConfig) ApplyDefaults() {
+	if !p.IsRemote() {
+		repo := LoadRepo(p.Root)
+		p.Services = mergeServiceFallback(p.Services, repo.Services)
+		p.Actions = mergeActionFallback(p.Actions, repo.Actions)
+		p.Terminals = TerminalMap(mergeActionFallback(ActionMap(p.Terminals), ActionMap(repo.Terminals)))
+		p.Profiles = mergeProfilesFallback(p.Profiles, repo.Profiles)
+	}
 	global := LoadGlobal()
 	p.Actions = mergeActionFallback(p.Actions, global.Actions)
 	p.Terminals = TerminalMap(mergeActionFallback(ActionMap(p.Terminals), ActionMap(global.Terminals)))
@@ -489,6 +498,16 @@ type GlobalConfig struct {
 	Terminals TerminalMap `yaml:"terminals,omitempty"`
 }
 
+// RepoConfig is the schema for `<root>/.lpm.yml` — a checked-in file that
+// teammates share. Project-identity fields (name, root, parent_name, ssh)
+// are intentionally absent; those belong to each user's project entry.
+type RepoConfig struct {
+	Services  ServiceMap          `yaml:"services,omitempty"`
+	Actions   ActionMap           `yaml:"actions,omitempty"`
+	Terminals TerminalMap         `yaml:"terminals,omitempty"`
+	Profiles  map[string][]string `yaml:"profiles,omitempty"`
+}
+
 func LpmDir() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".lpm")
@@ -516,6 +535,43 @@ func LoadGlobal() *GlobalConfig {
 	var cfg GlobalConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return &GlobalConfig{}
+	}
+	expandActionCwds(cfg.Actions)
+	expandActionCwds(ActionMap(cfg.Terminals))
+	return &cfg
+}
+
+// RepoPath returns <root>/.lpm.yml — the per-repo, checked-in config file.
+// Empty when root is empty (e.g. an SSH project before its remote root is
+// known locally).
+func RepoPath(root string) string {
+	if root == "" {
+		return ""
+	}
+	return filepath.Join(ExpandHome(root), ".lpm.yml")
+}
+
+// LoadRepo reads <root>/.lpm.yml. Returns an empty RepoConfig when the file
+// is missing or unparseable, mirroring LoadGlobal — an unreadable repo file
+// shouldn't block project loads.
+func LoadRepo(root string) *RepoConfig {
+	path := RepoPath(root)
+	if path == "" {
+		return &RepoConfig{}
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return &RepoConfig{}
+	}
+	var cfg RepoConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return &RepoConfig{}
+	}
+	for name, svc := range cfg.Services {
+		if svc.Cwd != "" {
+			svc.Cwd = ExpandHome(svc.Cwd)
+			cfg.Services[name] = svc
+		}
 	}
 	expandActionCwds(cfg.Actions)
 	expandActionCwds(ActionMap(cfg.Terminals))
@@ -655,7 +711,7 @@ func LoadProjectCached(name string, cache map[string]*ProjectConfig) (*ProjectCo
 
 	expandLocalCwds(&cfg)
 
-	cfg.ApplyGlobalDefaults()
+	cfg.ApplyDefaults()
 
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -874,6 +930,66 @@ func mergeActionFallback(dst, src ActionMap) ActionMap {
 			continue
 		}
 		dst[k] = mergeAction(dstAct, srcAct)
+	}
+	return dst
+}
+
+// mergeServiceFallback merges src (defaults) into dst (overrides) the same
+// way mergeActionFallback merges actions: when both define the same key,
+// fields set on the dst entry win and zero-valued fields inherit from src.
+// Used to layer per-repo defaults under per-user project services.
+func mergeServiceFallback(dst, src ServiceMap) ServiceMap {
+	if len(src) == 0 {
+		return dst
+	}
+	if dst == nil {
+		dst = make(ServiceMap, len(src))
+	}
+	for k, srcSvc := range src {
+		dstSvc, exists := dst[k]
+		if !exists {
+			dst[k] = srcSvc
+			continue
+		}
+		dst[k] = mergeService(dstSvc, srcSvc)
+	}
+	return dst
+}
+
+func mergeService(project, fallback Service) Service {
+	out := project
+	if out.Cmd == "" {
+		out.Cmd = fallback.Cmd
+	}
+	if out.Cwd == "" {
+		out.Cwd = fallback.Cwd
+	}
+	if out.Port == 0 {
+		out.Port = fallback.Port
+	}
+	if len(out.Env) == 0 {
+		out.Env = fallback.Env
+	}
+	if len(out.Profiles) == 0 {
+		out.Profiles = fallback.Profiles
+	}
+	return out
+}
+
+// mergeProfilesFallback layers profile defaults under project profiles. Each
+// profile's service list is treated as an opaque slice — the project's slice
+// fully replaces the fallback's when both define the same profile name.
+func mergeProfilesFallback(dst, src map[string][]string) map[string][]string {
+	if len(src) == 0 {
+		return dst
+	}
+	if dst == nil {
+		dst = make(map[string][]string, len(src))
+	}
+	for k, v := range src {
+		if _, exists := dst[k]; !exists {
+			dst[k] = v
+		}
 	}
 	return dst
 }

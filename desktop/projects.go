@@ -743,11 +743,12 @@ func (a *App) SaveConfig(name string, content string) (string, error) {
 	if err := yaml.Unmarshal([]byte(content), &parsed); err != nil {
 		return "", fmt.Errorf("invalid YAML: %w", err)
 	}
-	// Merge globals before validating so sparse override entries (e.g.
-	// `myAction: {position: 3}`) inherit cmd/cwd from global.yml and don't
-	// fail "missing cmd". The original `content` is what gets written; we
-	// only mutate `parsed` for validation.
-	parsed.ApplyGlobalDefaults()
+	// Layer in <root>/.lpm.yml and ~/.lpm/global.yml before validating so
+	// sparse override entries (e.g. `myAction: {position: 3}`) inherit cmd
+	// and cwd from a shared source and don't fail "missing cmd". The
+	// original `content` is what gets written; we only mutate `parsed` for
+	// validation.
+	parsed.ApplyDefaults()
 	if err := parsed.Validate(); err != nil {
 		return "", err
 	}
@@ -894,6 +895,59 @@ func (a *App) SaveGlobalConfig(content string) error {
 		return err
 	}
 	if err := os.WriteFile(config.GlobalPath(), []byte(content), 0644); err != nil {
+		return err
+	}
+	runtime.EventsEmit(a.ctx, "projects-changed")
+	return nil
+}
+
+// repoPathForProject resolves the project's <root>/.lpm.yml path. Returns an
+// error for SSH or rootless projects since the file lives on the remote (or
+// nowhere); the frontend uses this to gate the "Edit Repo" affordance.
+func repoPathForProject(name string) (string, error) {
+	cfg, err := config.LoadProjectRaw(name)
+	if err != nil {
+		return "", err
+	}
+	if cfg.IsRemote() {
+		return "", fmt.Errorf("repo config is not available for SSH projects")
+	}
+	if strings.TrimSpace(cfg.Root) == "" {
+		return "", fmt.Errorf("project %q has no root", name)
+	}
+	return config.RepoPath(cfg.Root), nil
+}
+
+// ReadRepoConfig returns the contents of <root>/.lpm.yml for the project.
+// Empty string when the file doesn't exist yet — the editor opens with a
+// blank canvas so the user can create one.
+func (a *App) ReadRepoConfig(name string) (string, error) {
+	path, err := repoPathForProject(name)
+	if err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return string(data), nil
+}
+
+// SaveRepoConfig writes <root>/.lpm.yml. Validates that the YAML matches the
+// RepoConfig schema (subset of project schema, no name/root/ssh).
+func (a *App) SaveRepoConfig(name string, content string) error {
+	path, err := repoPathForProject(name)
+	if err != nil {
+		return err
+	}
+	var parsed config.RepoConfig
+	if err := yaml.Unmarshal([]byte(content), &parsed); err != nil {
+		return fmt.Errorf("invalid YAML: %w", err)
+	}
+	if err := writeConfigFile(path, content); err != nil {
 		return err
 	}
 	runtime.EventsEmit(a.ctx, "projects-changed")

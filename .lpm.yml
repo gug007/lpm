@@ -1,0 +1,37 @@
+services:
+  dev:
+    cmd: ./cleanup.sh && wails dev
+    cwd: ./desktop
+  alpha:
+    cmd: PATH="$HOME/go/bin:$PATH" wails3 dev
+    cwd: ./desktop
+  website:
+    cmd: npm run dev
+    cwd: ./website
+    port: 3000
+
+profiles:
+  dev:
+    - dev
+
+actions:
+  release:
+    label: 🚀 Release
+    type: background
+    cmd: ./scripts/release.sh {{bump}}
+    confirm: true
+    inputs:
+      bump:
+        type: radio
+        label: What kind of release?
+        options:
+          - label: Patch — bug fixes (0.0.X)
+            value: patch
+          - label: Minor — new features (0.X.0)
+            value: minor
+          - label: Major — breaking changes (X.0.0)
+            value: major
+        default: patch
+        required: true
+    position: 1
+    display: footer
