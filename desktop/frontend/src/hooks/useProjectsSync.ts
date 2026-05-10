@@ -6,16 +6,18 @@ const POLL_INTERVAL_MS = 10_000;
 
 export function useProjectsSync(): void {
   useEffect(() => {
-    const refresh = useAppStore.getState().refreshProjects;
-    refresh();
+    const { refreshProjects, refreshTemplates } = useAppStore.getState();
+    refreshProjects();
+    refreshTemplates();
 
     let interval: ReturnType<typeof setInterval> | null = setInterval(
-      refresh,
+      refreshProjects,
       POLL_INTERVAL_MS,
     );
 
-    const cancelChanged = EventsOn("projects-changed", refresh);
-    const cancelStatus = EventsOn("status-changed", refresh);
+    const cancelChanged = EventsOn("projects-changed", refreshProjects);
+    const cancelStatus = EventsOn("status-changed", refreshProjects);
+    const cancelTemplates = EventsOn("templates-changed", refreshTemplates);
 
     const onVisibility = () => {
       if (document.hidden) {
@@ -24,8 +26,8 @@ export function useProjectsSync(): void {
           interval = null;
         }
       } else {
-        refresh();
-        if (!interval) interval = setInterval(refresh, POLL_INTERVAL_MS);
+        refreshProjects();
+        if (!interval) interval = setInterval(refreshProjects, POLL_INTERVAL_MS);
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
@@ -35,6 +37,7 @@ export function useProjectsSync(): void {
       document.removeEventListener("visibilitychange", onVisibility);
       if (typeof cancelChanged === "function") cancelChanged();
       if (typeof cancelStatus === "function") cancelStatus();
+      if (typeof cancelTemplates === "function") cancelTemplates();
     };
   }, []);
 }

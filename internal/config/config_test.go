@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -260,7 +261,9 @@ profiles:
 			"api": Service{Port: 9090},
 		},
 	}
-	cfg.ApplyDefaults()
+	if err := cfg.ApplyDefaults(); err != nil {
+		t.Fatalf("ApplyDefaults: %v", err)
+	}
 
 	if got := cfg.Services["api"].Port; got != 9090 {
 		t.Errorf("api.Port = %d, want 9090 (project)", got)
@@ -292,7 +295,9 @@ func TestApplyDefaults_MissingRepoFileIsNoOp(t *testing.T) {
 		Root:    t.TempDir(), // no .lpm.yml inside
 		Actions: ActionMap{"local": Action{Cmd: "x"}},
 	}
-	cfg.ApplyDefaults()
+	if err := cfg.ApplyDefaults(); err != nil {
+		t.Fatalf("ApplyDefaults: %v", err)
+	}
 	if got := cfg.Actions["local"].Cmd; got != "x" {
 		t.Errorf("local.Cmd = %q, want unchanged", got)
 	}
@@ -314,9 +319,175 @@ actions:
 		Root: root,
 		SSH:  &SSHSettings{Host: "h", User: "u"},
 	}
-	cfg.ApplyDefaults()
+	if err := cfg.ApplyDefaults(); err != nil {
+		t.Fatalf("ApplyDefaults: %v", err)
+	}
 	if _, ok := cfg.Actions["ghost"]; ok {
 		t.Error("ghost action loaded; SSH projects must skip repo file")
+	}
+}
+
+func writeFile(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir %q: %v", path, err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatalf("write %q: %v", path, err)
+	}
+}
+
+func TestTemplatePath_BareNameResolvesToTemplatesDir(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	got := TemplatePath("rails", "/anywhere")
+	want := filepath.Join(home, ".lpm", "templates", "rails.yml")
+	if got != want {
+		t.Errorf("TemplatePath(rails) = %q, want %q", got, want)
+	}
+	// Existing extension stays as-is.
+	if got := TemplatePath("rails.yaml", "/anywhere"); got != filepath.Join(home, ".lpm", "templates", "rails.yaml") {
+		t.Errorf("TemplatePath(rails.yaml) = %q", got)
+	}
+}
+
+func TestTemplatePath_RelativeAndAbsolutePaths(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if got := TemplatePath("./shared.yml", "/proj"); got != filepath.Join("/proj", "shared.yml") {
+		t.Errorf("relative path = %q", got)
+	}
+	if got := TemplatePath("/abs/x.yml", "/proj"); got != "/abs/x.yml" {
+		t.Errorf("absolute path = %q", got)
+	}
+	if got := TemplatePath("~/x.yml", "/proj"); got != filepath.Join(home, "x.yml") {
+		t.Errorf("tilde path = %q", got)
+	}
+}
+
+func TestApplyDefaults_ExtendsTemplateLayersBetweenProjectAndRepo(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	writeFile(t, filepath.Join(home, ".lpm", "templates", "rails.yml"), `
+actions:
+  deploy:
+    cmd: rails-deploy
+    confirm: true
+  console:
+    cmd: rails c
+`)
+
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".lpm.yml"), `
+extends: [rails]
+actions:
+  deploy:
+    cmd: custom-deploy
+`)
+
+	cfg := &ProjectConfig{Root: root}
+	if err := cfg.ApplyDefaults(); err != nil {
+		t.Fatalf("ApplyDefaults: %v", err)
+	}
+	if got := cfg.Actions["deploy"].Cmd; got != "custom-deploy" {
+		t.Errorf("deploy.Cmd = %q, want repo override", got)
+	}
+	if !cfg.Actions["deploy"].Confirm {
+		t.Error("deploy.Confirm = false, want inherited from template")
+	}
+	if got := cfg.Actions["console"].Cmd; got != "rails c" {
+		t.Errorf("console.Cmd = %q, want from template", got)
+	}
+}
+
+func TestApplyDefaults_ExtendsLeftWinsOnCollision(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	tmplDir := filepath.Join(home, ".lpm", "templates")
+	writeFile(t, filepath.Join(tmplDir, "a.yml"), "actions:\n  shared: { cmd: from-a }\n")
+	writeFile(t, filepath.Join(tmplDir, "b.yml"), "actions:\n  shared: { cmd: from-b }\n")
+
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".lpm.yml"), "extends: [a, b]\n")
+
+	cfg := &ProjectConfig{Root: root}
+	if err := cfg.ApplyDefaults(); err != nil {
+		t.Fatalf("ApplyDefaults: %v", err)
+	}
+	if got := cfg.Actions["shared"].Cmd; got != "from-a" {
+		t.Errorf("shared.Cmd = %q, want from-a (left wins)", got)
+	}
+}
+
+func TestApplyDefaults_ExtendsRecursive(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	tmplDir := filepath.Join(home, ".lpm", "templates")
+	writeFile(t, filepath.Join(tmplDir, "leaf.yml"), "actions:\n  l: { cmd: leaf }\n")
+	writeFile(t, filepath.Join(tmplDir, "middle.yml"), "extends: [leaf]\nactions:\n  m: { cmd: middle }\n")
+
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".lpm.yml"), "extends: [middle]\n")
+
+	cfg := &ProjectConfig{Root: root}
+	if err := cfg.ApplyDefaults(); err != nil {
+		t.Fatalf("ApplyDefaults: %v", err)
+	}
+	if got := cfg.Actions["l"].Cmd; got != "leaf" {
+		t.Errorf("recursive leaf not loaded: l.Cmd = %q", got)
+	}
+	if got := cfg.Actions["m"].Cmd; got != "middle" {
+		t.Errorf("middle.Cmd = %q", got)
+	}
+}
+
+func TestApplyDefaults_ExtendsCycleErrors(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	tmplDir := filepath.Join(home, ".lpm", "templates")
+	writeFile(t, filepath.Join(tmplDir, "x.yml"), "extends: [y]\n")
+	writeFile(t, filepath.Join(tmplDir, "y.yml"), "extends: [x]\n")
+
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".lpm.yml"), "extends: [x]\n")
+
+	cfg := &ProjectConfig{Root: root}
+	err := cfg.ApplyDefaults()
+	if err == nil {
+		t.Fatal("expected cycle error, got nil")
+	}
+	if !strings.Contains(err.Error(), "cycle") {
+		t.Errorf("expected cycle in error, got %v", err)
+	}
+}
+
+func TestApplyDefaults_MissingTemplateErrors(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".lpm.yml"), "extends: [does-not-exist]\n")
+
+	cfg := &ProjectConfig{Root: root}
+	if err := cfg.ApplyDefaults(); err == nil {
+		t.Fatal("expected error for missing template, got nil")
+	}
+}
+
+func TestApplyDefaults_ExtendsRelativePath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+	// Template lives next to .lpm.yml, referenced via relative path.
+	writeFile(t, filepath.Join(root, "team.yml"), "actions:\n  t: { cmd: team }\n")
+	writeFile(t, filepath.Join(root, ".lpm.yml"), "extends: [./team.yml]\n")
+
+	cfg := &ProjectConfig{Root: root}
+	if err := cfg.ApplyDefaults(); err != nil {
+		t.Fatalf("ApplyDefaults: %v", err)
+	}
+	if got := cfg.Actions["t"].Cmd; got != "team" {
+		t.Errorf("relative-path template not loaded: t.Cmd = %q", got)
 	}
 }
 

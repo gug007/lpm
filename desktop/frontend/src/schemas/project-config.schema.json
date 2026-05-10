@@ -8,6 +8,11 @@
   ],
   "additionalProperties": false,
   "properties": {
+    "extends": {
+      "type": "array",
+      "description": "Templates to layer underneath this project. Refs are bare names (resolved from ~/.lpm/templates/<name>.yml), absolute paths, or paths relative to this file. The first item wins on collision; project-local entries override all of them.",
+      "items": { "type": "string" }
+    },
     "name": {
       "type": "string",
       "description": "Project name. Defaults to the config filename."

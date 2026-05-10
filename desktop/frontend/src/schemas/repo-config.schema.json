@@ -5,6 +5,11 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "extends": {
+      "type": "array",
+      "description": "Templates to layer underneath this config. Refs are bare names (resolved from ~/.lpm/templates/<name>.yml), absolute paths, or paths relative to this file. The first item wins on collision; this file overrides all of them.",
+      "items": { "type": "string" }
+    },
     "services": {
       "description": "Long-running processes managed by lpm.",
       "oneOf": [

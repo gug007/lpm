@@ -27,8 +27,6 @@ function ensureServicesMap(doc: ReturnType<typeof YAML.parseDocument>) {
   return YAML.isMap(verified) ? verified : null;
 }
 
-// Walks the top-level `profiles:` map's per-profile service lists. Used by
-// rename and delete to keep references in sync with the canonical keys.
 function forEachProfileServiceRef(
   doc: ReturnType<typeof YAML.parseDocument>,
   update: (list: YAML.YAMLSeq, index: number, name: string) => void,
@@ -46,7 +44,6 @@ function forEachProfileServiceRef(
   }
 }
 
-// Merge order: project ← `<root>/.lpm.yml`.
 function serviceLayers(projectName: string): readonly ConfigLayer[] {
   return [projectLayer(projectName), repoLayer(projectName)];
 }
@@ -62,9 +59,8 @@ export function appendService(
   });
 }
 
-// Patches in place rather than overwriting, so user-authored fields the form
-// doesn't manage (e.g. per-service profiles list) survive an edit. Walks
-// project then repo so a `.lpm.yml`-defined service is edited where it lives.
+// Patches in place so user-authored fields the form doesn't manage
+// (e.g. per-service profiles list) survive an edit.
 export async function replaceService(projectName: string, key: string, patch: ServicePatch) {
   await editFirstLayer(serviceLayers(projectName), (doc) => {
     const services = getServicesMap(doc);
@@ -86,8 +82,8 @@ export async function replaceService(projectName: string, key: string, patch: Se
   });
 }
 
-// Walks every layer in one pass: renames the service in the topmost layer
-// that has it, and rewrites any profile references in every layer they appear.
+// Renames in the topmost layer that has the service; profile refs are
+// rewritten in every layer so nothing dangles under the old name.
 export async function renameService(projectName: string, oldKey: string, newKey: string) {
   if (oldKey === newKey) return;
   let renamed = false;
@@ -113,9 +109,7 @@ export async function renameService(projectName: string, oldKey: string, newKey:
   });
 }
 
-// Removes the service from the topmost layer that has it, and strips any
-// profile references in every layer they appear, so the resulting YAML
-// still passes validation.
+// Strips profile refs across all layers so the resulting YAML stays valid.
 export async function deleteService(projectName: string, key: string) {
   let removed = false;
   await editAllLayers(serviceLayers(projectName), (doc) => {

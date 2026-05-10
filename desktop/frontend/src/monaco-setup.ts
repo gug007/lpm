@@ -21,6 +21,7 @@ export const REPO_SCHEMA_URI = "lpm://schemas/repo-config.json";
 export const PROJECT_MODEL_URI = "inmemory://lpm/project.yml";
 export const GLOBAL_MODEL_URI = "inmemory://lpm/global.yml";
 export const REPO_MODEL_URI = "inmemory://lpm/repo.yml";
+export const TEMPLATE_MODEL_URI = "inmemory://lpm/template.yml";
 
 let configured = false;
 
@@ -54,7 +55,9 @@ export function setupMonaco(): typeof monaco {
       },
       {
         uri: REPO_SCHEMA_URI,
-        fileMatch: [REPO_MODEL_URI],
+        // Templates share the RepoConfig shape, so the same schema covers
+        // both file types — Monaco picks it up via two model URIs.
+        fileMatch: [REPO_MODEL_URI, TEMPLATE_MODEL_URI],
         schema: repoSchema as object,
       },
     ],

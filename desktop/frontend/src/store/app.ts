@@ -14,10 +14,14 @@ import {
   CreateProject,
   CreateProjectFromClone,
   CreateSSHProject,
+  CreateTemplate,
+  DeleteTemplate,
   DuplicateProject,
   ListProjects,
+  ListTemplates,
   ReadConfig,
   RemoveProject,
+  RenameTemplate,
   ReorderProjects,
   ResolvePortConflict,
   SaveConfig,
@@ -38,7 +42,10 @@ export type View =
   | "global-config"
   | "commit-instructions"
   | "pr-instructions"
-  | "branch-instructions";
+  | "branch-instructions"
+  | "template";
+
+export type SettingsTab = "general" | "terminal" | "tts" | "ai" | "global-config" | "templates" | "backup";
 
 export interface SSHProjectParams {
   name: string;
@@ -63,9 +70,12 @@ export interface PortConflictPrompt {
 
 interface AppState {
   projects: ProjectInfo[];
+  templates: main.TemplateInfo[];
 
   selected: string | null;
+  selectedTemplate: string | null;
   view: View;
+  settingsTab: SettingsTab;
   sidebarCollapsed: boolean;
   feedbackOpen: boolean;
   tmuxReady: boolean | null;
@@ -81,6 +91,7 @@ interface AppState {
   resolvingPortConflict: boolean;
 
   setView: (view: View) => void;
+  setSettingsTab: (tab: SettingsTab) => void;
   setSidebarCollapsed: (next: boolean | ((prev: boolean) => boolean)) => void;
   setFeedbackOpen: (open: boolean) => void;
   setTmuxReady: (ready: boolean | null) => void;
@@ -92,6 +103,11 @@ interface AppState {
   pruneVisitedToProjects: () => void;
 
   refreshProjects: () => Promise<void>;
+  refreshTemplates: () => Promise<void>;
+  selectTemplate: (name: string) => void;
+  createTemplate: (name: string) => Promise<void>;
+  removeTemplate: (name: string) => Promise<void>;
+  renameTemplate: (oldName: string, newName: string) => Promise<void>;
 
   startProject: (name: string, profile: string) => Promise<void>;
   stopProject: (name: string) => Promise<void>;
@@ -256,11 +272,22 @@ function projectsEqual(a: ProjectInfo[], b: ProjectInfo[]): boolean {
 // at a time, so a single slot is enough.
 let resolvePortConflictPromise: ((ok: boolean) => void) | null = null;
 
+function templatesEqual(a: main.TemplateInfo[], b: main.TemplateInfo[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].name !== b[i].name || a[i].path !== b[i].path) return false;
+  }
+  return true;
+}
+
 export const useAppStore = create<AppState>((set, get) => ({
   projects: [],
+  templates: [],
 
   selected: null,
+  selectedTemplate: null,
   view: "projects",
+  settingsTab: "general",
   sidebarCollapsed: false,
   feedbackOpen: false,
   tmuxReady: null,
@@ -277,6 +304,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setView: (view) => set({ view }),
 
+  setSettingsTab: (settingsTab) => set({ settingsTab }),
+
   setSidebarCollapsed: (next) =>
     set((s) => ({
       sidebarCollapsed:
@@ -287,7 +316,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setTmuxReady: (tmuxReady) => set({ tmuxReady }),
 
-  selectProject: (name) => set({ selected: name, view: "projects" }),
+  selectProject: (name) => set({ selected: name, selectedTemplate: null, view: "projects" }),
 
   clearSelection: () => set({ selected: null }),
 
@@ -309,6 +338,57 @@ export const useAppStore = create<AppState>((set, get) => ({
       set((s) => (projectsEqual(s.projects, list) ? s : { projects: list }));
     } catch (err) {
       console.error("Failed to load projects:", err);
+    }
+  },
+
+  refreshTemplates: async () => {
+    try {
+      const list = (await ListTemplates()) || [];
+      set((s) => (templatesEqual(s.templates, list) ? s : { templates: list }));
+    } catch (err) {
+      console.error("Failed to load templates:", err);
+    }
+  },
+
+  selectTemplate: (name) =>
+    set({ selectedTemplate: name, settingsTab: "templates", view: "template" }),
+
+  createTemplate: async (name) => {
+    try {
+      await CreateTemplate(name);
+      await get().refreshTemplates();
+      set({ selectedTemplate: name, view: "template" });
+    } catch (err) {
+      toast.error(`Failed to create template: ${err}`);
+      throw err;
+    }
+  },
+
+  removeTemplate: async (name) => {
+    try {
+      await DeleteTemplate(name);
+      await get().refreshTemplates();
+      set((s) =>
+        s.selectedTemplate === name
+          ? { selectedTemplate: null, view: s.view === "template" ? "projects" : s.view }
+          : s,
+      );
+    } catch (err) {
+      toast.error(`Failed to delete template: ${err}`);
+    }
+  },
+
+  renameTemplate: async (oldName, newName) => {
+    if (oldName === newName) return;
+    try {
+      await RenameTemplate(oldName, newName);
+      await get().refreshTemplates();
+      set((s) =>
+        s.selectedTemplate === oldName ? { selectedTemplate: newName } : s,
+      );
+    } catch (err) {
+      toast.error(`Failed to rename template: ${err}`);
+      throw err;
     }
   },
 

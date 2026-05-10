@@ -250,21 +250,6 @@ export function ProjectDetail({
     project.allServices.length,
   ]);
 
-  if (project.configError) {
-    return (
-      <ConfigErrorView
-        projectName={project.name}
-        error={project.configError}
-        showProjectName={showProjectName}
-        sidebarCollapsed={sidebarCollapsed}
-        showConfigEditor={detailView === "config"}
-        onShowConfigEditor={() => switchDetailView("config")}
-        onCloseConfigEditor={() => switchDetailView("terminal")}
-        onRefresh={onRefresh}
-      />
-    );
-  }
-
   const handleActionContextMenu = useCallback((e: MouseEvent, action: ActionInfo) => {
     e.preventDefault();
     setActionMenu({ x: e.clientX, y: e.clientY, action });
@@ -348,6 +333,23 @@ export function ProjectDetail({
       onContextMenuProfile={profileEditor.showContextMenu}
     />
   );
+
+  // Rules of Hooks: the configError branch must come after every hook so
+  // a project flipping between error and ok renders the same hook count.
+  if (project.configError) {
+    return (
+      <ConfigErrorView
+        projectName={project.name}
+        error={project.configError}
+        showProjectName={showProjectName}
+        sidebarCollapsed={sidebarCollapsed}
+        showConfigEditor={detailView === "config"}
+        onShowConfigEditor={() => switchDetailView("config")}
+        onCloseConfigEditor={() => switchDetailView("terminal")}
+        onRefresh={onRefresh}
+      />
+    );
+  }
 
   return (
     <ActionsDnd layout={actionsLayout} onMove={handleMoveActions} renderOverlay={renderActionOverlay}>

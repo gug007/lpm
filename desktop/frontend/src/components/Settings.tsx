@@ -35,6 +35,9 @@ import type { main } from "../../wailsjs/go/models";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Modal } from "./ui/Modal";
 import { TrafficLights } from "./ui/TrafficLights";
+import { RenameInput } from "./RenameInput";
+import { PencilIcon, TrashIcon } from "./icons";
+import { useAppStore, type SettingsTab } from "../store/app";
 
 const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
@@ -54,6 +57,7 @@ const BTN_SECONDARY =
 
 const SELECT_CLASS =
   "rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1.5 text-xs text-[var(--text-primary)]";
+
 
 import type { View } from "../store/app";
 
@@ -107,8 +111,13 @@ export function Settings({
   };
 
   const [kokoroStatus, setKokoroStatus] = useState<KokoroStatus>("idle");
-  type SettingsTab = "general" | "terminal" | "tts" | "ai" | "backup";
-  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
+  const activeTab = useAppStore((s) => s.settingsTab);
+  const setActiveTab = useAppStore((s) => s.setSettingsTab);
+  const templates = useAppStore((s) => s.templates);
+  const selectTemplate = useAppStore((s) => s.selectTemplate);
+  const createTemplate = useAppStore((s) => s.createTemplate);
+  const removeTemplate = useAppStore((s) => s.removeTemplate);
+  const renameTemplate = useAppStore((s) => s.renameTemplate);
 
   const { fontSize: terminalFontSize, zoomIn: terminalZoomIn, zoomOut: terminalZoomOut } =
     useTerminalFontSize();
@@ -138,6 +147,9 @@ export function Settings({
   const [showVaultImport, setShowVaultImport] = useState(false);
   const [importOverwrite, setImportOverwrite] = useState(false);
   const [importReport, setImportReport] = useState<main.ImportReport | null>(null);
+  const [creatingTemplate, setCreatingTemplate] = useState(false);
+  const [renamingTemplate, setRenamingTemplate] = useState<string | null>(null);
+  const [confirmDeleteTemplate, setConfirmDeleteTemplate] = useState<string | null>(null);
 
   useEffect(() => {
     if (showImportOptions) setImportOverwrite(false);
@@ -279,6 +291,8 @@ export function Settings({
     ["terminal", "Terminal"],
     ...(experimentalTTS ? [["tts", "Text to Speech"] as [SettingsTab, string]] : []),
     ["ai", "AI & Integrations"],
+    ["global-config", "Global Config"],
+    ["templates", "Templates"],
     ["backup", "Backup & Transfer"],
   ];
 
@@ -320,9 +334,6 @@ export function Settings({
               </SettingsRow>
               <SettingsRow label="Sound notifications" description="Play sounds when agents finish or need approval">
                 <Toggle enabled={soundEnabled} onChange={(v) => updateSettings({ soundNotifications: v })} />
-              </SettingsRow>
-              <SettingsRow label="Global Config" description="Shared actions and terminals across all projects">
-                <button onClick={() => onNavigate("global-config")} className={BTN_SECONDARY}>Edit</button>
               </SettingsRow>
             </SettingsSection>
 
@@ -457,6 +468,124 @@ export function Settings({
             </SettingsSection>
           )}
 
+          {activeTab === "global-config" && (
+            <SettingsSection
+              title="Global Config"
+              description="Actions and terminals defined here are available in every project. Stored in ~/.lpm/global.yml."
+            >
+              <SettingsRow
+                label="Edit global config"
+                description="Open the YAML editor."
+              >
+                <button
+                  onClick={() => onNavigate("global-config")}
+                  className={BTN_SECONDARY}
+                >
+                  Edit
+                </button>
+              </SettingsRow>
+            </SettingsSection>
+          )}
+
+          {activeTab === "templates" && (
+            <SettingsSection
+              title="Templates"
+              description="Reusable services, actions, and profiles. Reference one from any project's config with `extends: [name]`"
+            >
+              {templates.length === 0 && !creatingTemplate && (
+                <div className="px-4 py-3 text-[11px] text-[var(--text-muted)]">
+                  No templates yet.
+                </div>
+              )}
+              {templates.map((tmpl) => {
+                const isRenaming = renamingTemplate === tmpl.name;
+                return (
+                  <div
+                    key={tmpl.name}
+                    className="flex items-center gap-3 px-4 py-2.5 text-sm"
+                  >
+                    {isRenaming ? (
+                      <RenameInput
+                        initialValue={tmpl.name}
+                        onCommit={async (value) => {
+                          const next = value.trim();
+                          setRenamingTemplate(null);
+                          if (!next || next === tmpl.name) return;
+                          try {
+                            await renameTemplate(tmpl.name, next);
+                          } catch {
+                            // toast already surfaced by the store
+                          }
+                        }}
+                        onCancel={() => setRenamingTemplate(null)}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => selectTemplate(tmpl.name)}
+                        className="flex-1 truncate text-left font-mono text-[12px] text-[var(--text-primary)] hover:text-[var(--accent-cyan)]"
+                        title="Edit template"
+                      >
+                        {tmpl.name}
+                      </button>
+                    )}
+                    {!isRenaming && (
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          onClick={() => selectTemplate(tmpl.name)}
+                          className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                          title="Edit config"
+                        >
+                          <PencilIcon />
+                        </button>
+                        <button
+                          onClick={() => setRenamingTemplate(tmpl.name)}
+                          className="rounded px-2 py-0.5 text-[11px] text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                          title="Rename"
+                        >
+                          Rename
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteTemplate(tmpl.name)}
+                          className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-red-400"
+                          title="Delete"
+                        >
+                          <TrashIcon />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {creatingTemplate && (
+                <div className="flex items-center gap-3 px-4 py-2.5">
+                  <RenameInput
+                    initialValue=""
+                    onCommit={async (value) => {
+                      const name = value.trim();
+                      setCreatingTemplate(false);
+                      if (!name) return;
+                      try {
+                        await createTemplate(name);
+                      } catch {
+                        // toast already surfaced by the store
+                      }
+                    }}
+                    onCancel={() => setCreatingTemplate(false)}
+                  />
+                </div>
+              )}
+              <div className="flex items-center justify-end px-4 py-2.5">
+                <button
+                  onClick={() => setCreatingTemplate(true)}
+                  className={BTN_SECONDARY}
+                  disabled={creatingTemplate}
+                >
+                  New template
+                </button>
+              </div>
+            </SettingsSection>
+          )}
+
           {activeTab === "backup" && (
             <>
             <SettingsSection title="Backup & Transfer">
@@ -526,6 +655,27 @@ export function Settings({
           />
 
           <ImportReportModal report={importReport} onClose={() => setImportReport(null)} />
+
+          <ConfirmDialog
+            open={confirmDeleteTemplate !== null}
+            title="Delete template"
+            variant="destructive"
+            confirmLabel="Delete"
+            body={
+              <>
+                Delete{" "}
+                <span className="font-medium text-[var(--text-primary)]">
+                  {confirmDeleteTemplate}
+                </span>
+                ? Configs that <code>extends</code> this template will fail to load until the reference is removed.
+              </>
+            }
+            onCancel={() => setConfirmDeleteTemplate(null)}
+            onConfirm={() => {
+              if (confirmDeleteTemplate) removeTemplate(confirmDeleteTemplate);
+              setConfirmDeleteTemplate(null);
+            }}
+          />
 
           <PassphraseModal
             open={showVaultExport}

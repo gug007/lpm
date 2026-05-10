@@ -5,6 +5,11 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "extends": {
+      "type": "array",
+      "description": "Templates to layer underneath the global config. Refs are bare names (resolved from ~/.lpm/templates/<name>.yml), absolute paths, or paths relative to ~/.lpm/.",
+      "items": { "type": "string" }
+    },
     "actions": {
       "oneOf": [
         {

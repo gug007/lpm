@@ -222,6 +222,7 @@ type ProjectConfig struct {
 	Label      string              `yaml:"label,omitempty"`
 	ParentName string              `yaml:"parent_name,omitempty"`
 	SSH        *SSHSettings        `yaml:"ssh,omitempty"`
+	Extends    []string            `yaml:"extends,omitempty"`
 	Services   ServiceMap          `yaml:"services,omitempty"`
 	Actions    ActionMap           `yaml:"actions,omitempty"`
 	Terminals  TerminalMap         `yaml:"terminals,omitempty"`
@@ -437,23 +438,32 @@ func SSHCommandLine(cfg *ProjectConfig, cwd string, env map[string]string, cmd s
 }
 
 // ApplyDefaults layers shared defaults under the project's own entries, in
-// order user-project ← <root>/.lpm.yml ← ~/.lpm/global.yml. Field-level
-// merge means a project can override one field (e.g. a port) and inherit
-// the rest. The repo layer is skipped for SSH projects since the file
-// lives on the remote. Sparse overrides (e.g. `myAction: {position: 3}`)
-// rely on this so they pass Validate() with cmd/cwd inherited from a
-// shared source.
-func (p *ProjectConfig) ApplyDefaults() {
+// order user-project ← <root>/.lpm.yml ← ~/.lpm/global.yml. Each layer
+// flattens its own `extends:` templates first, so a sparse override
+// (e.g. `myAction: {position: 3}`) can inherit cmd/cwd from a template
+// referenced anywhere in the chain. The repo layer is skipped for SSH
+// projects since the file lives on the remote.
+func (p *ProjectConfig) ApplyDefaults() error {
+	if err := flattenProjectExtends(p, filepath.Dir(ProjectPath(p.Name))); err != nil {
+		return err
+	}
 	if !p.IsRemote() {
-		repo := LoadRepo(p.Root)
+		repo, err := LoadRepo(p.Root)
+		if err != nil {
+			return err
+		}
 		p.Services = mergeServiceFallback(p.Services, repo.Services)
 		p.Actions = mergeActionFallback(p.Actions, repo.Actions)
 		p.Terminals = TerminalMap(mergeActionFallback(ActionMap(p.Terminals), ActionMap(repo.Terminals)))
 		p.Profiles = mergeProfilesFallback(p.Profiles, repo.Profiles)
 	}
-	global := LoadGlobal()
+	global, err := LoadGlobal()
+	if err != nil {
+		return err
+	}
 	p.Actions = mergeActionFallback(p.Actions, global.Actions)
 	p.Terminals = TerminalMap(mergeActionFallback(ActionMap(p.Terminals), ActionMap(global.Terminals)))
+	return nil
 }
 
 // ResolvedActions returns project actions merged with the terminals section;
@@ -494,6 +504,7 @@ func (p *ProjectConfig) IsDuplicate() bool {
 }
 
 type GlobalConfig struct {
+	Extends   []string    `yaml:"extends,omitempty"`
 	Actions   ActionMap   `yaml:"actions,omitempty"`
 	Terminals TerminalMap `yaml:"terminals,omitempty"`
 }
@@ -501,7 +512,9 @@ type GlobalConfig struct {
 // RepoConfig is the schema for `<root>/.lpm.yml` — a checked-in file that
 // teammates share. Project-identity fields (name, root, parent_name, ssh)
 // are intentionally absent; those belong to each user's project entry.
+// Templates under `~/.lpm/templates/` reuse the same schema.
 type RepoConfig struct {
+	Extends   []string            `yaml:"extends,omitempty"`
 	Services  ServiceMap          `yaml:"services,omitempty"`
 	Actions   ActionMap           `yaml:"actions,omitempty"`
 	Terminals TerminalMap         `yaml:"terminals,omitempty"`
@@ -521,24 +534,57 @@ func ProjectsDir() string {
 	return filepath.Join(LpmDir(), "projects")
 }
 
+func TemplatesDir() string {
+	return filepath.Join(LpmDir(), "templates")
+}
+
+// Resolves a bare name (no separators) to `~/.lpm/templates/<name>.yml`,
+// `~`-prefixed and absolute paths as-is, and any relative path against
+// `baseDir` — the directory of the file declaring `extends`.
+func TemplatePath(ref, baseDir string) string {
+	if strings.HasPrefix(ref, "~") {
+		return ExpandHome(ref)
+	}
+	if filepath.IsAbs(ref) {
+		return ref
+	}
+	if strings.ContainsAny(ref, `/\`) {
+		return filepath.Join(baseDir, ref)
+	}
+	name := ref
+	if !strings.HasSuffix(name, ".yml") && !strings.HasSuffix(name, ".yaml") {
+		name += ".yml"
+	}
+	return filepath.Join(TemplatesDir(), name)
+}
+
 // NotesDir returns the on-disk directory that holds the encrypted notes DB
 // and attachment blobs for the given project.
 func NotesDir(project string) string {
 	return filepath.Join(LpmDir(), "notes", project)
 }
 
-func LoadGlobal() *GlobalConfig {
-	data, err := os.ReadFile(GlobalPath())
+// A missing file yields an empty config; broken YAML or a bad extends ref
+// returns an error.
+func LoadGlobal() (*GlobalConfig, error) {
+	path := GlobalPath()
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return &GlobalConfig{}
+		if os.IsNotExist(err) {
+			return &GlobalConfig{}, nil
+		}
+		return nil, fmt.Errorf("read global config: %w", err)
 	}
 	var cfg GlobalConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return &GlobalConfig{}
+		return nil, fmt.Errorf("parse global config: %w", err)
 	}
 	expandActionCwds(cfg.Actions)
 	expandActionCwds(ActionMap(cfg.Terminals))
-	return &cfg
+	if err := flattenGlobalExtends(&cfg, filepath.Dir(path)); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
 }
 
 // RepoPath returns <root>/.lpm.yml — the per-repo, checked-in config file.
@@ -551,22 +597,32 @@ func RepoPath(root string) string {
 	return filepath.Join(ExpandHome(root), ".lpm.yml")
 }
 
-// LoadRepo reads <root>/.lpm.yml. Returns an empty RepoConfig when the file
-// is missing or unparseable, mirroring LoadGlobal — an unreadable repo file
-// shouldn't block project loads.
-func LoadRepo(root string) *RepoConfig {
+// A missing file yields an empty config; broken YAML or a bad extends ref
+// returns an error.
+func LoadRepo(root string) (*RepoConfig, error) {
 	path := RepoPath(root)
 	if path == "" {
-		return &RepoConfig{}
+		return &RepoConfig{}, nil
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return &RepoConfig{}
+		if os.IsNotExist(err) {
+			return &RepoConfig{}, nil
+		}
+		return nil, fmt.Errorf("read repo config: %w", err)
 	}
 	var cfg RepoConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return &RepoConfig{}
+		return nil, fmt.Errorf("parse repo config: %w", err)
 	}
+	expandRepoCwds(&cfg)
+	if err := flattenRepoExtends(&cfg, filepath.Dir(path), nil); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+func expandRepoCwds(cfg *RepoConfig) {
 	for name, svc := range cfg.Services {
 		if svc.Cwd != "" {
 			svc.Cwd = ExpandHome(svc.Cwd)
@@ -575,11 +631,115 @@ func LoadRepo(root string) *RepoConfig {
 	}
 	expandActionCwds(cfg.Actions)
 	expandActionCwds(ActionMap(cfg.Terminals))
-	return &cfg
+}
+
+// `visited` tracks absolute paths in the current load chain to detect
+// cycles; pass nil at top-level entry points.
+func loadTemplate(absPath string, visited map[string]bool) (*RepoConfig, error) {
+	canonical, err := filepath.Abs(absPath)
+	if err != nil {
+		return nil, fmt.Errorf("resolve template %q: %w", absPath, err)
+	}
+	if visited[canonical] {
+		return nil, fmt.Errorf("template extends cycle at %q", canonical)
+	}
+	data, err := os.ReadFile(canonical)
+	if err != nil {
+		return nil, fmt.Errorf("read template %q: %w", canonical, err)
+	}
+	var cfg RepoConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("parse template %q: %w", canonical, err)
+	}
+	expandRepoCwds(&cfg)
+
+	if visited == nil {
+		visited = map[string]bool{}
+	}
+	visited[canonical] = true
+	defer delete(visited, canonical)
+
+	if err := flattenRepoExtends(&cfg, filepath.Dir(canonical), visited); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+func mergeRepoUnder(base, sub *RepoConfig) {
+	base.Services = mergeServiceFallback(base.Services, sub.Services)
+	base.Actions = mergeActionFallback(base.Actions, sub.Actions)
+	base.Terminals = TerminalMap(mergeActionFallback(ActionMap(base.Terminals), ActionMap(sub.Terminals)))
+	base.Profiles = mergeProfilesFallback(base.Profiles, sub.Profiles)
+}
+
+func walkExtends(refs []string, baseDir string, visited map[string]bool, apply func(*RepoConfig)) error {
+	for _, ref := range refs {
+		sub, err := loadTemplate(TemplatePath(ref, baseDir), visited)
+		if err != nil {
+			return err
+		}
+		apply(sub)
+	}
+	return nil
+}
+
+func flattenRepoExtends(base *RepoConfig, baseDir string, visited map[string]bool) error {
+	if err := walkExtends(base.Extends, baseDir, visited, func(sub *RepoConfig) {
+		mergeRepoUnder(base, sub)
+	}); err != nil {
+		return err
+	}
+	base.Extends = nil
+	return nil
+}
+
+func flattenGlobalExtends(base *GlobalConfig, baseDir string) error {
+	if err := walkExtends(base.Extends, baseDir, nil, func(sub *RepoConfig) {
+		base.Actions = mergeActionFallback(base.Actions, sub.Actions)
+		base.Terminals = TerminalMap(mergeActionFallback(ActionMap(base.Terminals), ActionMap(sub.Terminals)))
+	}); err != nil {
+		return err
+	}
+	base.Extends = nil
+	return nil
+}
+
+// `selfPath` is the (possibly not-yet-written) absolute path of the file
+// declaring `extends`, seeded into the visited set so a self-cycle is
+// caught before the file hits disk.
+func ValidateTemplateRefs(extends []string, selfPath string) error {
+	canonical, err := filepath.Abs(selfPath)
+	if err != nil {
+		return fmt.Errorf("resolve %q: %w", selfPath, err)
+	}
+	visited := map[string]bool{canonical: true}
+	baseDir := filepath.Dir(canonical)
+	for _, ref := range extends {
+		if _, err := loadTemplate(TemplatePath(ref, baseDir), visited); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func flattenProjectExtends(p *ProjectConfig, baseDir string) error {
+	if err := walkExtends(p.Extends, baseDir, nil, func(sub *RepoConfig) {
+		p.Services = mergeServiceFallback(p.Services, sub.Services)
+		p.Actions = mergeActionFallback(p.Actions, sub.Actions)
+		p.Terminals = TerminalMap(mergeActionFallback(ActionMap(p.Terminals), ActionMap(sub.Terminals)))
+		p.Profiles = mergeProfilesFallback(p.Profiles, sub.Profiles)
+	}); err != nil {
+		return err
+	}
+	p.Extends = nil
+	return nil
 }
 
 func EnsureDirs() error {
-	return os.MkdirAll(ProjectsDir(), 0755)
+	if err := os.MkdirAll(ProjectsDir(), 0o755); err != nil {
+		return err
+	}
+	return os.MkdirAll(TemplatesDir(), 0o755)
 }
 
 func ValidateName(name string) error {
@@ -711,7 +871,9 @@ func LoadProjectCached(name string, cache map[string]*ProjectConfig) (*ProjectCo
 
 	expandLocalCwds(&cfg)
 
-	cfg.ApplyDefaults()
+	if err := cfg.ApplyDefaults(); err != nil {
+		return nil, err
+	}
 
 	if err := cfg.Validate(); err != nil {
 		return nil, err

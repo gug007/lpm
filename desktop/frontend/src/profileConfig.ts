@@ -25,7 +25,6 @@ function ensureProfilesMap(doc: ReturnType<typeof YAML.parseDocument>) {
   return YAML.isMap(verified) ? verified : null;
 }
 
-// Merge order: project ← `<root>/.lpm.yml`.
 function profileLayers(projectName: string): readonly ConfigLayer[] {
   return [projectLayer(projectName), repoLayer(projectName)];
 }

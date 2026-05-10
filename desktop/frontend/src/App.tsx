@@ -3,6 +3,7 @@ import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { Settings } from "./components/Settings";
 import { GlobalConfigEditor } from "./components/GlobalConfigEditor";
+import { TemplateEditor } from "./components/TemplateEditor";
 import { CommitInstructionsEditor } from "./components/CommitInstructionsEditor";
 import { PRInstructionsEditor } from "./components/PRInstructionsEditor";
 import { BranchNameInstructionsEditor } from "./components/BranchNameInstructionsEditor";
@@ -40,6 +41,7 @@ export default function App() {
   const visited = useAppStore((s) => s.visited);
   const duplicatingName = useAppStore((s) => s.duplicatingName);
   const removingName = useAppStore((s) => s.removingName);
+  const selectedTemplate = useAppStore((s) => s.selectedTemplate);
 
   const setView = useAppStore((s) => s.setView);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
@@ -201,6 +203,13 @@ export default function App() {
           )}
           {view === "branch-instructions" && (
             <BranchNameInstructionsEditor onBack={() => setView("settings")} />
+          )}
+          {view === "template" && selectedTemplate && (
+            <TemplateEditor
+              key={selectedTemplate}
+              name={selectedTemplate}
+              onBack={() => setView("settings")}
+            />
           )}
           {visitedProjects.map((project) => {
             const isSelected = view === "projects" && selected === project.name;

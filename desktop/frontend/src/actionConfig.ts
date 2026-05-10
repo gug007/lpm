@@ -11,9 +11,8 @@ import {
 export const ACTION_SECTIONS = ["actions", "terminals"] as const;
 export type ActionSection = (typeof ACTION_SECTIONS)[number];
 
-// The displayed action list merges `actions:` and `terminals:` (backend
-// ResolvedActions). This walks both so edit/delete work for entries declared
-// under either section.
+// The UI surface merges `actions:` and `terminals:` (see ResolvedActions),
+// so edit/delete must look in both sections to find any displayed entry.
 function findActionSection(doc: ReturnType<typeof YAML.parseDocument>, key: string) {
   for (const section of ACTION_SECTIONS) {
     const node = doc.get(section, true);
@@ -22,7 +21,6 @@ function findActionSection(doc: ReturnType<typeof YAML.parseDocument>, key: stri
   return null;
 }
 
-// Merge order: project ← `<root>/.lpm.yml` ← `~/.lpm/global.yml`.
 function actionLayers(projectName: string): readonly ConfigLayer[] {
   return [projectLayer(projectName), repoLayer(projectName), globalLayer];
 }

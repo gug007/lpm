@@ -288,10 +288,18 @@ func (a *App) ListProjects() ([]ProjectInfo, error) {
 	for _, name := range names {
 		cfg, err := config.LoadProjectCached(name, cache)
 		if err != nil {
+			// Frontend treats slice fields as non-nullable; nil would marshal
+			// to `null` and crash consumers that read `.length` before the
+			// configError short-circuit kicks in.
 			projects = append(projects, ProjectInfo{
-				Name:        name,
-				ConfigError: err.Error(),
-				ParentName:  config.PeekParent(name),
+				Name:          name,
+				ConfigError:   err.Error(),
+				ParentName:    config.PeekParent(name),
+				Services:      []ServiceInfo{},
+				AllServices:   []ServiceInfo{},
+				Actions:       []ActionInfo{},
+				Profiles:      []ProfileInfo{},
+				StatusEntries: []StatusEntry{},
 			})
 			continue
 		}
@@ -748,7 +756,9 @@ func (a *App) SaveConfig(name string, content string) (string, error) {
 	// and cwd from a shared source and don't fail "missing cmd". The
 	// original `content` is what gets written; we only mutate `parsed` for
 	// validation.
-	parsed.ApplyDefaults()
+	if err := parsed.ApplyDefaults(); err != nil {
+		return "", err
+	}
 	if err := parsed.Validate(); err != nil {
 		return "", err
 	}

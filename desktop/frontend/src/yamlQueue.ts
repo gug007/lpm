@@ -70,8 +70,6 @@ export function editProjectDoc(projectName: string, mutate: (doc: Doc) => void) 
   return editLayer(projectLayer(projectName), mutate);
 }
 
-// Reads-mutates-writes each layer in order, saving only when `attempt`
-// reports a change. When `stopOnFirst`, exits as soon as one layer is saved.
 async function walkLayers(
   layers: readonly ConfigLayer[],
   attempt: (doc: Doc) => boolean,
@@ -94,9 +92,8 @@ async function walkLayers(
   return any;
 }
 
-// Walks layers in merge order; the first one whose `attempt` returns true is
-// saved and the walk stops. Used for "edit the entry where it actually lives"
-// flows so a repo or global definition gets updated in place.
+// Edits the entry where it actually lives, so a repo or global definition
+// gets updated in place rather than shadowed by an unintended project entry.
 export function editFirstLayer(
   layers: readonly ConfigLayer[],
   attempt: (doc: Doc) => boolean,
@@ -104,9 +101,8 @@ export function editFirstLayer(
   return walkLayers(layers, attempt, true);
 }
 
-// Visits every layer; layers that report no change aren't saved. Used when
-// the same logical update may need to apply across layers (e.g. stripping
-// stale references that can live anywhere).
+// For cross-layer fixups (e.g. stripping a stale reference that may live
+// in any layer), not for entries with a single home.
 export async function editAllLayers(
   layers: readonly ConfigLayer[],
   attempt: (doc: Doc) => boolean,
