@@ -5,6 +5,7 @@ import { configureMonacoYaml } from "monaco-yaml";
 
 import projectSchema from "./schemas/project-config.schema.json";
 import globalSchema from "./schemas/global-config.schema.json";
+import repoSchema from "./schemas/repo-config.schema.json";
 
 declare global {
   interface Window {
@@ -16,8 +17,10 @@ type WorkerLabel = string;
 
 export const PROJECT_SCHEMA_URI = "lpm://schemas/project-config.json";
 export const GLOBAL_SCHEMA_URI = "lpm://schemas/global-config.json";
+export const REPO_SCHEMA_URI = "lpm://schemas/repo-config.json";
 export const PROJECT_MODEL_URI = "inmemory://lpm/project.yml";
 export const GLOBAL_MODEL_URI = "inmemory://lpm/global.yml";
+export const REPO_MODEL_URI = "inmemory://lpm/repo.yml";
 
 let configured = false;
 
@@ -48,6 +51,11 @@ export function setupMonaco(): typeof monaco {
         uri: GLOBAL_SCHEMA_URI,
         fileMatch: [GLOBAL_MODEL_URI],
         schema: globalSchema as object,
+      },
+      {
+        uri: REPO_SCHEMA_URI,
+        fileMatch: [REPO_MODEL_URI],
+        schema: repoSchema as object,
       },
     ],
   });

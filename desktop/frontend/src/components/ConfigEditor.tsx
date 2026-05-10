@@ -10,7 +10,7 @@ import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { useYamlEditor } from "../hooks/useYamlEditor";
 import { VisualConfigEditor } from "./VisualConfigEditor";
 import { MonacoEditor } from "./MonacoEditor";
-import { PROJECT_MODEL_URI, GLOBAL_MODEL_URI } from "../monaco-setup";
+import { PROJECT_MODEL_URI, REPO_MODEL_URI } from "../monaco-setup";
 import { ChevronLeftIcon } from "./icons";
 import { AIButton } from "./ui/AIButton";
 import { SegmentedControl } from "./ui/SegmentedControl";
@@ -155,7 +155,7 @@ export function ConfigEditor({
             value={active.content}
             onChange={active.setContent}
             language="yaml"
-            modelUri={target === "repo" ? GLOBAL_MODEL_URI : PROJECT_MODEL_URI}
+            modelUri={target === "repo" ? REPO_MODEL_URI : PROJECT_MODEL_URI}
             onSave={active.handleSave}
             onToggleView={onToggleView}
           />

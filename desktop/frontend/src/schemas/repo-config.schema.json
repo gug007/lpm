@@ -1,0 +1,237 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LPM Repo Config",
+  "description": "Shared per-repo config (.lpm.yml at the project root). Project-identity fields (name, root, parent_name, ssh) live in each user's project file, not here. Field shapes mirror project-config.schema.json — keep them in sync when adding fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "services": {
+      "description": "Long-running processes managed by lpm.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/service" }
+        },
+        {
+          "type": "array",
+          "items": {
+            "allOf": [
+              { "$ref": "#/definitions/service" },
+              {
+                "type": "object",
+                "required": ["name"],
+                "properties": { "name": { "type": "string" } }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "actions": {
+      "description": "One-shot commands exposed as buttons or menu items.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/action" }
+        },
+        {
+          "type": "array",
+          "items": {
+            "allOf": [
+              { "$ref": "#/definitions/action" },
+              {
+                "type": "object",
+                "required": ["name"],
+                "properties": { "name": { "type": "string" } }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "terminals": {
+      "description": "Interactive terminal panes.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/terminal" }
+        },
+        {
+          "type": "array",
+          "items": {
+            "allOf": [
+              { "$ref": "#/definitions/terminal" },
+              {
+                "type": "object",
+                "required": ["name"],
+                "properties": { "name": { "type": "string" } }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "profiles": {
+      "type": "object",
+      "description": "Named subsets of services. `default` is used when no profile is selected.",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    }
+  },
+  "definitions": {
+    "envMap": {
+      "type": "object",
+      "description": "Environment variables passed to the process.",
+      "additionalProperties": { "type": "string" }
+    },
+    "service": {
+      "oneOf": [
+        { "type": "string", "description": "Shorthand for { cmd: ... }." },
+        {
+          "type": "object",
+          "required": ["cmd"],
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string", "description": "Key used when the service is defined in array form." },
+            "cmd": { "type": "string", "description": "Shell command to run." },
+            "cwd": { "type": "string", "description": "Working directory, relative to project root or absolute." },
+            "port": { "type": "integer", "minimum": 0, "maximum": 65535 },
+            "env": { "$ref": "#/definitions/envMap" },
+            "profiles": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      ]
+    },
+    "action": {
+      "oneOf": [
+        { "type": "string", "description": "Shorthand for { cmd: ... }." },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string", "description": "Key used when the action is defined in array form." },
+            "cmd": { "type": "string" },
+            "label": { "type": "string" },
+            "cwd": { "type": "string" },
+            "port": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535,
+              "description": "Port the action wants free. Holders are surfaced via a confirmation dialog (or as an error in the CLI) before the action runs."
+            },
+            "env": { "$ref": "#/definitions/envMap" },
+            "confirm": { "type": "boolean", "description": "Prompt before running." },
+            "display": {
+              "anyOf": [
+                { "type": "string", "enum": ["header", "footer"] },
+                { "type": "string", "pattern": "^menu$" }
+              ],
+              "default": "header",
+              "description": "How the action appears in the UI. Defaults to \"header\" when omitted. \"menu\" is still accepted but no longer suggested.",
+              "errorMessage": "Invalid \"display\" value. Use \"header\" or \"footer\" (\"button\" → use \"header\")."
+            },
+            "type": { "type": "string" },
+            "reuse": { "type": "boolean", "description": "Reuse an existing terminal if one is open." },
+            "mode": {
+              "type": "string",
+              "enum": ["remote", "sync"],
+              "description": "Where the action runs on SSH projects. \"remote\" (default) runs over ssh on the host; \"sync\" rsyncs ssh.dir into a local mirror, runs the action locally, then rsyncs changes back — useful when you want local tools (e.g. your local Claude Code) to act on remote files."
+            },
+            "position": {
+              "type": "number",
+              "description": "Optional sort key. Lower values render first; entries without a position fall back to alphabetical order. Floats are allowed so items can be inserted between existing positions without renumbering."
+            },
+            "inputs": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/definitions/actionInput" }
+            },
+            "actions": {
+              "type": "object",
+              "description": "Nested sub-actions inherit cwd/env/mode.",
+              "additionalProperties": { "$ref": "#/definitions/action" }
+            }
+          }
+        }
+      ]
+    },
+    "actionInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string" },
+        "type": { "type": "string" },
+        "required": { "type": "boolean" },
+        "placeholder": { "type": "string" },
+        "default": { "type": "string" },
+        "options": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "required": ["label", "value"],
+                "additionalProperties": false,
+                "properties": {
+                  "label": { "type": "string" },
+                  "value": { "type": "string" }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "terminal": {
+      "oneOf": [
+        { "type": "string", "description": "Shorthand for { cmd: ... }." },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string", "description": "Key used when the terminal is defined in array form." },
+            "cmd": { "type": "string" },
+            "label": { "type": "string" },
+            "cwd": { "type": "string" },
+            "port": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535,
+              "description": "Port the terminal wants free. Holders are surfaced via a confirmation dialog before the terminal launches."
+            },
+            "env": { "$ref": "#/definitions/envMap" },
+            "confirm": { "type": "boolean" },
+            "reuse": { "type": "boolean" },
+            "display": {
+              "anyOf": [
+                { "type": "string", "enum": ["header", "footer"] },
+                { "type": "string", "pattern": "^menu$" }
+              ],
+              "default": "header",
+              "description": "How the terminal appears in the UI. Defaults to \"header\" when omitted. \"menu\" is still accepted but no longer suggested.",
+              "errorMessage": "Invalid \"display\" value. Use \"header\" or \"footer\" (\"button\" → use \"header\")."
+            },
+            "position": {
+              "type": "number",
+              "description": "Optional sort key. Lower values render first; entries without a position fall back to alphabetical order."
+            },
+            "inputs": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/definitions/actionInput" }
+            },
+            "actions": {
+              "type": "object",
+              "description": "Nested sub-actions for split-button style terminals.",
+              "additionalProperties": { "$ref": "#/definitions/action" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
