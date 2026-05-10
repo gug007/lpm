@@ -35,9 +35,9 @@ import type { main } from "../../wailsjs/go/models";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Modal } from "./ui/Modal";
 import { TrafficLights } from "./ui/TrafficLights";
-import { RenameInput } from "./RenameInput";
-import { PencilIcon, TrashIcon } from "./icons";
+import { CheckIcon, PencilIcon, TrashIcon } from "./icons";
 import { useAppStore, type SettingsTab } from "../store/app";
+import { modalInputDefaults } from "../forms/styles";
 
 const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
@@ -148,7 +148,8 @@ export function Settings({
   const [importOverwrite, setImportOverwrite] = useState(false);
   const [importReport, setImportReport] = useState<main.ImportReport | null>(null);
   const [creatingTemplate, setCreatingTemplate] = useState(false);
-  const [renamingTemplate, setRenamingTemplate] = useState<string | null>(null);
+  const [newTemplateName, setNewTemplateName] = useState("");
+  const [creatingTemplateBusy, setCreatingTemplateBusy] = useState(false);
   const [confirmDeleteTemplate, setConfirmDeleteTemplate] = useState<string | null>(null);
 
   useEffect(() => {
@@ -490,95 +491,29 @@ export function Settings({
           {activeTab === "templates" && (
             <SettingsSection
               title="Templates"
-              description="Reusable services, actions, and profiles. Reference one from any project's config with `extends: [name]`"
+              description="Reusable bundles of services, actions, and profiles. Add one to any project to share its setup."
             >
               {templates.length === 0 && !creatingTemplate && (
                 <div className="px-4 py-3 text-[11px] text-[var(--text-muted)]">
                   No templates yet.
                 </div>
               )}
-              {templates.map((tmpl) => {
-                const isRenaming = renamingTemplate === tmpl.name;
-                return (
-                  <div
-                    key={tmpl.name}
-                    className="flex items-center gap-3 px-4 py-2.5 text-sm"
-                  >
-                    {isRenaming ? (
-                      <RenameInput
-                        initialValue={tmpl.name}
-                        onCommit={async (value) => {
-                          const next = value.trim();
-                          setRenamingTemplate(null);
-                          if (!next || next === tmpl.name) return;
-                          try {
-                            await renameTemplate(tmpl.name, next);
-                          } catch {
-                            // toast already surfaced by the store
-                          }
-                        }}
-                        onCancel={() => setRenamingTemplate(null)}
-                      />
-                    ) : (
-                      <button
-                        onClick={() => selectTemplate(tmpl.name)}
-                        className="flex-1 truncate text-left font-mono text-[12px] text-[var(--text-primary)] hover:text-[var(--accent-cyan)]"
-                        title="Edit template"
-                      >
-                        {tmpl.name}
-                      </button>
-                    )}
-                    {!isRenaming && (
-                      <div className="flex shrink-0 items-center gap-1">
-                        <button
-                          onClick={() => selectTemplate(tmpl.name)}
-                          className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                          title="Edit config"
-                        >
-                          <PencilIcon />
-                        </button>
-                        <button
-                          onClick={() => setRenamingTemplate(tmpl.name)}
-                          className="rounded px-2 py-0.5 text-[11px] text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                          title="Rename"
-                        >
-                          Rename
-                        </button>
-                        <button
-                          onClick={() => setConfirmDeleteTemplate(tmpl.name)}
-                          className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-red-400"
-                          title="Delete"
-                        >
-                          <TrashIcon />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              {creatingTemplate && (
-                <div className="flex items-center gap-3 px-4 py-2.5">
-                  <RenameInput
-                    initialValue=""
-                    onCommit={async (value) => {
-                      const name = value.trim();
-                      setCreatingTemplate(false);
-                      if (!name) return;
-                      try {
-                        await createTemplate(name);
-                      } catch {
-                        // toast already surfaced by the store
-                      }
-                    }}
-                    onCancel={() => setCreatingTemplate(false)}
-                  />
-                </div>
-              )}
+              {templates.map((tmpl) => (
+                <TemplateRow
+                  key={tmpl.name}
+                  name={tmpl.name}
+                  onEditConfig={() => selectTemplate(tmpl.name)}
+                  onRename={renameTemplate}
+                  onDelete={() => setConfirmDeleteTemplate(tmpl.name)}
+                />
+              ))}
               <div className="flex items-center justify-end px-4 py-2.5">
                 <button
-                  onClick={() => setCreatingTemplate(true)}
+                  onClick={() => {
+                    setNewTemplateName("");
+                    setCreatingTemplate(true);
+                  }}
                   className={BTN_SECONDARY}
-                  disabled={creatingTemplate}
                 >
                   New template
                 </button>
@@ -674,6 +609,27 @@ export function Settings({
             onConfirm={() => {
               if (confirmDeleteTemplate) removeTemplate(confirmDeleteTemplate);
               setConfirmDeleteTemplate(null);
+            }}
+          />
+
+          <NewTemplateModal
+            open={creatingTemplate}
+            value={newTemplateName}
+            busy={creatingTemplateBusy}
+            onChange={setNewTemplateName}
+            onCancel={() => setCreatingTemplate(false)}
+            onSubmit={async () => {
+              const name = newTemplateName.trim();
+              if (!name || creatingTemplateBusy) return;
+              setCreatingTemplateBusy(true);
+              try {
+                await createTemplate(name);
+                setCreatingTemplate(false);
+              } catch {
+                // toast surfaced by store; modal stays open for retry
+              } finally {
+                setCreatingTemplateBusy(false);
+              }
             }}
           />
 
@@ -939,6 +895,163 @@ function KokoroEngineRow({ status, onStatusChange }: { status: KokoroStatus; onS
         <RefreshIcon spinning />
       )}
     </SettingsRow>
+  );
+}
+
+function TemplateRow({
+  name,
+  onEditConfig,
+  onRename,
+  onDelete,
+}: {
+  name: string;
+  onEditConfig: () => void;
+  onRename: (oldName: string, newName: string) => Promise<void>;
+  onDelete: () => void;
+}) {
+  const [renaming, setRenaming] = useState(false);
+  const [value, setValue] = useState(name);
+  const dirty = value.trim().length > 0 && value.trim() !== name;
+
+  const startRename = () => {
+    setValue(name);
+    setRenaming(true);
+  };
+
+  const commit = async () => {
+    setRenaming(false);
+    if (!dirty) return;
+    try {
+      await onRename(name, value.trim());
+    } catch {
+      // toast surfaced by store
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-2.5 text-sm">
+      {renaming ? (
+        <>
+          <input
+            autoFocus
+            {...modalInputDefaults}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (dirty) commit();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                setRenaming(false);
+              }
+            }}
+            onFocus={(e) => e.currentTarget.select()}
+            className="min-w-0 flex-1 rounded border border-[var(--accent-cyan)] bg-[var(--bg-primary)] px-1 py-0 font-mono text-[12px] text-[var(--text-primary)] outline-none"
+          />
+          <button
+            onClick={commit}
+            disabled={!dirty}
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-green)] disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--text-muted)]"
+            title="Save (Esc to cancel)"
+          >
+            <CheckIcon />
+          </button>
+        </>
+      ) : (
+        <>
+          <button
+            onClick={startRename}
+            className="flex-1 truncate text-left font-mono text-[12px] text-[var(--text-primary)] hover:text-[var(--accent-cyan)]"
+            title="Rename"
+          >
+            {name}
+          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              onClick={onEditConfig}
+              className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              title="Edit config"
+            >
+              <PencilIcon />
+            </button>
+            <button
+              onClick={onDelete}
+              className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-red-400"
+              title="Delete"
+            >
+              <TrashIcon />
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function NewTemplateModal({
+  open,
+  value,
+  busy,
+  onChange,
+  onCancel,
+  onSubmit,
+}: {
+  open: boolean;
+  value: string;
+  busy: boolean;
+  onChange: (next: string) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+}) {
+  const canSubmit = value.trim().length > 0 && !busy;
+  return (
+    <Modal
+      open={open}
+      onClose={onCancel}
+      zIndexClassName="z-[60]"
+      contentClassName="w-[420px] rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-6 shadow-xl"
+    >
+      <h3 className="text-base font-semibold text-[var(--text-primary)]">New template</h3>
+      <p className="mt-1 text-xs text-[var(--text-muted)]">
+        Pick a short, memorable name. You'll use it to add this template to your projects.
+      </p>
+      <input
+        autoFocus
+        {...modalInputDefaults}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && canSubmit) {
+            e.preventDefault();
+            onSubmit();
+          }
+        }}
+        placeholder="e.g. rails"
+        className="mt-4 w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 font-mono text-sm outline-none focus:border-[var(--text-primary)]/40"
+      />
+      <div className="mt-3 text-[11px] text-[var(--text-muted)]">
+        After saving, add this snippet to any project's config:
+        <pre className="mt-1 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 font-mono text-[11px] text-[var(--text-primary)]">
+{`extends: [${value.trim() || "your-name"}]`}
+        </pre>
+      </div>
+      <div className="mt-5 flex justify-end gap-2">
+        <button
+          onClick={onCancel}
+          className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onSubmit}
+          disabled={!canSubmit}
+          className="rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-85 disabled:opacity-40"
+        >
+          {busy ? "Creating…" : "Create"}
+        </button>
+      </div>
+    </Modal>
   );
 }
 

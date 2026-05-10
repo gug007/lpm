@@ -21,8 +21,11 @@ export function TemplateEditor({
       title={`Template · ${name}`}
       description={
         <>
-          Reusable services, actions, and profiles. Reference from any project
-          with <code className="font-mono">extends: [{name}]</code>.
+          A reusable bundle of services, actions, and profiles. Add to any
+          project's config to use:{" "}
+          <code className="rounded bg-[var(--bg-secondary)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text-primary)]">
+            extends: [{name}]
+          </code>
         </>
       }
       modelUri={TEMPLATE_MODEL_URI}
