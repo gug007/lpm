@@ -1,5 +1,12 @@
 import YAML from "yaml";
-import { editProjectDoc } from "./yamlQueue";
+import {
+  type ConfigLayer,
+  editAllLayers,
+  editFirstLayer,
+  editProjectDoc,
+  projectLayer,
+  repoLayer,
+} from "./yamlQueue";
 
 export interface ServicePatch {
   set: Record<string, unknown>;
@@ -20,8 +27,8 @@ function ensureServicesMap(doc: ReturnType<typeof YAML.parseDocument>) {
   return YAML.isMap(verified) ? verified : null;
 }
 
-// Keeps top-level `profiles:` references in sync with the canonical
-// `services:` keys (used by rename and delete).
+// Walks the top-level `profiles:` map's per-profile service lists. Used by
+// rename and delete to keep references in sync with the canonical keys.
 function forEachProfileServiceRef(
   doc: ReturnType<typeof YAML.parseDocument>,
   update: (list: YAML.YAMLSeq, index: number, name: string) => void,
@@ -39,6 +46,11 @@ function forEachProfileServiceRef(
   }
 }
 
+// Merge order: project ← `<root>/.lpm.yml`.
+function serviceLayers(projectName: string): readonly ConfigLayer[] {
+  return [projectLayer(projectName), repoLayer(projectName)];
+}
+
 export function appendService(
   projectName: string,
   key: string,
@@ -50,12 +62,13 @@ export function appendService(
   });
 }
 
-// Patch in place rather than overwriting, so user-authored fields the form
-// doesn't manage (e.g. per-service profiles list) survive an edit.
-export function replaceService(projectName: string, key: string, patch: ServicePatch) {
-  return editProjectDoc(projectName, (doc) => {
+// Patches in place rather than overwriting, so user-authored fields the form
+// doesn't manage (e.g. per-service profiles list) survive an edit. Walks
+// project then repo so a `.lpm.yml`-defined service is edited where it lives.
+export async function replaceService(projectName: string, key: string, patch: ServicePatch) {
+  await editFirstLayer(serviceLayers(projectName), (doc) => {
     const services = getServicesMap(doc);
-    if (!services || !services.has(key)) return;
+    if (!services || !services.has(key)) return false;
 
     // Compact `name: cmd-string` form needs to be promoted to a mapping
     // before fields can be patched onto it.
@@ -65,38 +78,63 @@ export function replaceService(projectName: string, key: string, patch: ServiceP
       services.set(key, doc.createNode({ cmd }));
     }
     const entry = services.get(key, true);
-    if (!YAML.isMap(entry)) return;
+    if (!YAML.isMap(entry)) return false;
 
     for (const [k, v] of Object.entries(patch.set)) entry.set(k, v);
     for (const k of patch.remove) entry.delete(k);
+    return true;
   });
 }
 
-export function renameService(projectName: string, oldKey: string, newKey: string) {
-  if (oldKey === newKey) return Promise.resolve();
-  return editProjectDoc(projectName, (doc) => {
-    const services = getServicesMap(doc);
-    if (!services || !services.has(oldKey)) return;
-    const entry = services.get(oldKey, true);
-    services.delete(oldKey);
-    services.set(newKey, entry);
-    forEachProfileServiceRef(doc, (list, i, name) => {
-      if (name === oldKey) list.set(i, newKey);
-    });
-  });
-}
-
-// Also removes profile membership references so the resulting YAML
-// still passes validation.
-export function deleteService(projectName: string, key: string) {
-  return editProjectDoc(projectName, (doc) => {
-    const services = getServicesMap(doc);
-    if (services?.has(key)) {
-      services.delete(key);
-      if (services.items.length === 0) doc.delete("services");
+// Walks every layer in one pass: renames the service in the topmost layer
+// that has it, and rewrites any profile references in every layer they appear.
+export async function renameService(projectName: string, oldKey: string, newKey: string) {
+  if (oldKey === newKey) return;
+  let renamed = false;
+  await editAllLayers(serviceLayers(projectName), (doc) => {
+    let changed = false;
+    if (!renamed) {
+      const services = getServicesMap(doc);
+      if (services?.has(oldKey)) {
+        const entry = services.get(oldKey, true);
+        services.delete(oldKey);
+        services.set(newKey, entry);
+        renamed = true;
+        changed = true;
+      }
     }
     forEachProfileServiceRef(doc, (list, i, name) => {
-      if (name === key) list.delete(i);
+      if (name === oldKey) {
+        list.set(i, newKey);
+        changed = true;
+      }
     });
+    return changed;
+  });
+}
+
+// Removes the service from the topmost layer that has it, and strips any
+// profile references in every layer they appear, so the resulting YAML
+// still passes validation.
+export async function deleteService(projectName: string, key: string) {
+  let removed = false;
+  await editAllLayers(serviceLayers(projectName), (doc) => {
+    let changed = false;
+    if (!removed) {
+      const services = getServicesMap(doc);
+      if (services?.has(key)) {
+        services.delete(key);
+        if (services.items.length === 0) doc.delete("services");
+        removed = true;
+        changed = true;
+      }
+    }
+    forEachProfileServiceRef(doc, (list, i, name) => {
+      if (name === key) {
+        list.delete(i);
+        changed = true;
+      }
+    });
+    return changed;
   });
 }
