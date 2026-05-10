@@ -102,7 +102,7 @@ export function ConfigEditor({
     <div className="flex h-full flex-col">
       {onBack && (
         <div className="flex items-center justify-between gap-3 px-6 pt-3 pb-2">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               onClick={onBack}
               className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
@@ -111,8 +111,6 @@ export function ConfigEditor({
               <ChevronLeftIcon />
             </button>
             <span className="text-sm font-medium text-[var(--text-primary)]">Config</span>
-          </div>
-          <div className="flex items-center gap-2">
             <button
               onClick={() => BrowserOpenURL("https://lpm.cx/config")}
               className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
@@ -120,6 +118,8 @@ export function ConfigEditor({
             >
               <HelpCircleIcon />
             </button>
+          </div>
+          <div className="flex items-center gap-2">
             <SegmentedControl
               value={target}
               onChange={setTarget}
@@ -165,6 +165,7 @@ export function ConfigEditor({
               }`}
               aria-hidden={target !== "user"}
             >
+              <span aria-hidden className="mx-1 h-4 w-px bg-[var(--border)]" />
               <button
                 onClick={() => changeMode(mode === "form" ? "yaml" : "form")}
                 className={`flex h-6 w-6 items-center justify-center rounded transition-colors ${
