@@ -998,7 +998,7 @@ function RunModePicker({
         <span className="text-[13px] font-medium text-[var(--text-primary)]">How should it run?</span>
         <span className="text-[12px] text-[var(--text-muted)]">{runModeHint(runMode, reuse)}</span>
       </div>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 overflow-hidden rounded-lg border border-[var(--border)]">
         <ModeButton active={runMode === "once"} icon={<ZapIcon />} title="Show in modal" onClick={() => onRunMode("once")} />
         <ModeButton active={runMode === "terminal"} icon={<TerminalIcon />} title="Run in new terminal" onClick={() => onRunMode("terminal")} />
         <ModeButton active={runMode === "background"} icon={<SparkleIcon />} title="Run in background" onClick={() => onRunMode("background")} />
@@ -1028,7 +1028,7 @@ function ConfirmPicker({
           {confirm ? "Shows a confirmation dialog before running." : "Runs as soon as you click."}
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-[var(--border)]">
         <ModeButton active={!confirm} icon={<PlayIcon />} title="Run immediately" onClick={() => onConfirm(false)} />
         <ModeButton active={confirm} icon={<HelpCircleIcon />} title="Ask before running" onClick={() => onConfirm(true)} />
       </div>
@@ -1051,10 +1051,10 @@ function ModeButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center justify-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition ${
+      className={`flex items-center justify-center gap-1.5 border-r border-[var(--border)] px-2.5 py-1.5 text-[11px] font-medium transition last:border-r-0 ${
         active
-          ? "border-[var(--text-primary)] bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-sm"
-          : "border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--text-muted)] hover:text-[var(--text-primary)]"
+          ? "bg-[var(--text-primary)] text-[var(--bg-primary)]"
+          : "bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
       }`}
     >
       {icon}
