@@ -743,6 +743,11 @@ func (a *App) SaveConfig(name string, content string) (string, error) {
 	if err := yaml.Unmarshal([]byte(content), &parsed); err != nil {
 		return "", fmt.Errorf("invalid YAML: %w", err)
 	}
+	// Merge globals before validating so sparse override entries (e.g.
+	// `myAction: {position: 3}`) inherit cmd/cwd from global.yml and don't
+	// fail "missing cmd". The original `content` is what gets written; we
+	// only mutate `parsed` for validation.
+	parsed.ApplyGlobalDefaults()
 	if err := parsed.Validate(); err != nil {
 		return "", err
 	}

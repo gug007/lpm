@@ -6,6 +6,9 @@ import {
   SaveGlobalConfig,
 } from "../wailsjs/go/main/App";
 
+export const ACTION_SECTIONS = ["actions", "terminals"] as const;
+export type ActionSection = (typeof ACTION_SECTIONS)[number];
+
 // Serialize read-modify-write per project (and a single queue for global)
 // so concurrent callers can't interleave reads and clobber each other.
 const writeQueues = new Map<string, Promise<unknown>>();
@@ -22,7 +25,7 @@ function queueWrite<T>(key: string, fn: () => Promise<T>): Promise<T> {
 // ResolvedActions). This walks both so edit/delete work for entries declared
 // under either section.
 function findActionSection(doc: ReturnType<typeof YAML.parseDocument>, key: string) {
-  for (const section of ["actions", "terminals"] as const) {
+  for (const section of ACTION_SECTIONS) {
     const node = doc.get(section, true);
     if (YAML.isMap(node) && node.has(key)) return { section, node };
   }

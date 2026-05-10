@@ -30,6 +30,7 @@ import type { main } from "../../wailsjs/go/models";
 import { getSettings } from "./settings";
 import { forgetProjectTerminals } from "../terminals";
 import { activeChatStorageKey } from "../components/NotesView";
+import { ACTION_SECTIONS, type ActionSection } from "../actionConfig";
 
 export type View =
   | "projects"
@@ -137,42 +138,67 @@ function sortActionsByPosition(actions: ActionInfo[]): ActionInfo[] {
   });
 }
 
+type DisplayGroup = "header" | "footer" | null;
+
 interface ActionUpdate {
   position: number;
   // undefined → leave display untouched (within-group reorder, preserves
   // legacy values like "button"). null → delete display (move to header
   // default). string → set display.
   display?: string | null;
+  // Where to write a sparse override when the key isn't already in the
+  // project YAML — derived from the resolved action's type so a global
+  // terminal override lands in `terminals:`, not `actions:`.
+  section: ActionSection;
+}
+
+function buildSeed(update: ActionUpdate, cmd?: string): Record<string, unknown> {
+  const seed: Record<string, unknown> = { position: update.position };
+  if (cmd !== undefined) seed.cmd = cmd;
+  if (typeof update.display === "string") seed.display = update.display;
+  return seed;
 }
 
 // parseDocument (vs parse + stringify) keeps comments and unrelated
 // formatting; shorthand string entries are widened to map form so the
-// position/display fields have somewhere to attach.
+// position/display fields have somewhere to attach. Keys present in the
+// project YAML get an in-place patch; keys that only exist in global.yml
+// get a sparse override entry appended (just position + display) so other
+// fields keep inheriting from global.
 async function persistActionUpdates(
   projectName: string,
   updates: Map<string, ActionUpdate>,
 ): Promise<void> {
   const content = await ReadConfig(projectName);
-  const doc = YAML.parseDocument(content);
-  const actions = doc.get("actions", true);
-  if (!YAML.isMap(actions)) return;
-  for (const item of actions.items) {
-    if (!YAML.isScalar(item.key)) continue;
-    const update = updates.get(String(item.key.value));
-    if (!update) continue;
-    if (YAML.isScalar(item.value) && typeof item.value.value === "string") {
-      const seed: Record<string, unknown> = {
-        cmd: item.value.value,
-        position: update.position,
-      };
-      if (typeof update.display === "string") seed.display = update.display;
-      item.value = doc.createNode(seed);
-    } else if (YAML.isMap(item.value)) {
-      item.value.set("position", update.position);
-      if (update.display === null) item.value.delete("display");
-      else if (typeof update.display === "string")
-        item.value.set("display", update.display);
+  const doc = YAML.parseDocument(content || "{}");
+  const remaining = new Map(updates);
+  for (const section of ACTION_SECTIONS) {
+    const node = doc.get(section, true);
+    if (!YAML.isMap(node)) continue;
+    for (const item of node.items) {
+      if (!YAML.isScalar(item.key)) continue;
+      const key = String(item.key.value);
+      const update = remaining.get(key);
+      if (!update) continue;
+      if (YAML.isScalar(item.value) && typeof item.value.value === "string") {
+        item.value = doc.createNode(buildSeed(update, item.value.value));
+      } else if (YAML.isMap(item.value)) {
+        item.value.set("position", update.position);
+        if (update.display === null) item.value.delete("display");
+        else if (typeof update.display === "string")
+          item.value.set("display", update.display);
+      }
+      remaining.delete(key);
     }
+  }
+  for (const [key, update] of remaining) {
+    let section = doc.get(update.section, true);
+    if (!YAML.isMap(section)) {
+      doc.set(update.section, doc.createNode({}));
+      section = doc.get(update.section, true);
+    }
+    if (!YAML.isMap(section)) continue;
+    section.set(key, buildSeed(update));
   }
   await SaveConfig(projectName, String(doc));
 }
@@ -182,15 +208,20 @@ function buildActionUpdates(
   layout: ActionsLayout,
 ): Map<string, ActionUpdate> {
   const updates = new Map<string, ActionUpdate>();
-  const previousGroup = new Map<string, "header" | "footer" | null>();
+  const previousGroup = new Map<string, DisplayGroup>();
+  const sectionByKey = new Map<string, ActionSection>();
   for (const a of current) {
     if (isHeaderDisplay(a.display)) previousGroup.set(a.name, "header");
     else if (isFooterDisplay(a.display)) previousGroup.set(a.name, "footer");
     else previousGroup.set(a.name, null);
+    sectionByKey.set(a.name, a.type === "terminal" ? "terminals" : "actions");
   }
-  const visit = (keys: string[], group: "header" | "footer") => {
+  const visit = (keys: string[], group: Exclude<DisplayGroup, null>) => {
     keys.forEach((key, i) => {
-      const update: ActionUpdate = { position: i + 1 };
+      const update: ActionUpdate = {
+        position: i + 1,
+        section: sectionByKey.get(key) ?? "actions",
+      };
       if (previousGroup.get(key) !== group) {
         update.display = group === "header" ? null : "footer";
       }

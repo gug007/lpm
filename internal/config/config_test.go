@@ -126,3 +126,89 @@ services:
 		t.Fatal("expected error for duplicate name")
 	}
 }
+
+func ptr[T any](v T) *T { return &v }
+
+func TestMergeActionFallback_SparseOverrideInheritsAllFields(t *testing.T) {
+	global := ActionMap{
+		"deploy": Action{
+			Cmd:     "./deploy.sh",
+			Label:   "Deploy",
+			Cwd:     "scripts",
+			Env:     map[string]string{"NODE_ENV": "prod"},
+			Confirm: true,
+			Display: "header",
+		},
+	}
+	project := ActionMap{
+		"deploy": Action{Position: ptr(3.0), Display: "footer"},
+	}
+
+	merged := mergeActionFallback(project, global)
+	got := merged["deploy"]
+
+	if got.Cmd != "./deploy.sh" {
+		t.Errorf("Cmd = %q, want %q (inherited)", got.Cmd, "./deploy.sh")
+	}
+	if got.Label != "Deploy" {
+		t.Errorf("Label = %q, want %q (inherited)", got.Label, "Deploy")
+	}
+	if got.Cwd != "scripts" {
+		t.Errorf("Cwd = %q, want %q (inherited)", got.Cwd, "scripts")
+	}
+	if got.Env["NODE_ENV"] != "prod" {
+		t.Errorf("Env[NODE_ENV] = %q, want %q (inherited)", got.Env["NODE_ENV"], "prod")
+	}
+	if !got.Confirm {
+		t.Error("Confirm = false, want true (inherited)")
+	}
+	if got.Display != "footer" {
+		t.Errorf("Display = %q, want %q (project override)", got.Display, "footer")
+	}
+	if got.Position == nil || *got.Position != 3.0 {
+		t.Errorf("Position = %v, want 3 (project override)", got.Position)
+	}
+}
+
+func TestMergeActionFallback_KeyOnlyInGlobalIsCopied(t *testing.T) {
+	global := ActionMap{"only-global": Action{Cmd: "g", Display: "footer"}}
+	merged := mergeActionFallback(nil, global)
+	got := merged["only-global"]
+	if got.Cmd != "g" || got.Display != "footer" {
+		t.Errorf("got %+v, want global entry copied", got)
+	}
+}
+
+func TestMergeActionFallback_RecursiveChildren(t *testing.T) {
+	global := ActionMap{
+		"parent": Action{
+			Cmd: "parent-cmd",
+			Actions: ActionMap{
+				"a": Action{Cmd: "child-a"},
+				"b": Action{Cmd: "child-b", Position: ptr(1.0)},
+			},
+		},
+	}
+	project := ActionMap{
+		"parent": Action{
+			Actions: ActionMap{
+				"b": Action{Position: ptr(5.0)},
+			},
+		},
+	}
+	merged := mergeActionFallback(project, global)
+	parent := merged["parent"]
+	if parent.Cmd != "parent-cmd" {
+		t.Errorf("parent.Cmd = %q, want inherited", parent.Cmd)
+	}
+	if got := parent.Actions["a"].Cmd; got != "child-a" {
+		t.Errorf("child a inherited Cmd = %q, want %q", got, "child-a")
+	}
+	b := parent.Actions["b"]
+	if b.Cmd != "child-b" {
+		t.Errorf("child b Cmd = %q, want %q (inherited)", b.Cmd, "child-b")
+	}
+	if b.Position == nil || *b.Position != 5.0 {
+		t.Errorf("child b Position = %v, want 5 (project override)", b.Position)
+	}
+}

@@ -436,6 +436,17 @@ func SSHCommandLine(cfg *ProjectConfig, cwd string, env map[string]string, cmd s
 	return strings.Join(args, " ")
 }
 
+// ApplyGlobalDefaults merges entries from ~/.lpm/global.yml into p.Actions
+// and p.Terminals, filling in fields the project leaves unset. Used so a
+// sparse override (e.g. `myAction: {position: 3}`) passes Validate() — with
+// global's cmd inherited, "missing cmd" no longer fires. LoadProject already
+// runs this; SaveConfig calls it manually before validating raw YAML.
+func (p *ProjectConfig) ApplyGlobalDefaults() {
+	global := LoadGlobal()
+	p.Actions = mergeActionFallback(p.Actions, global.Actions)
+	p.Terminals = TerminalMap(mergeActionFallback(ActionMap(p.Terminals), ActionMap(global.Terminals)))
+}
+
 // ResolvedActions returns project actions merged with the terminals section;
 // actions win on name collision.
 func (p *ProjectConfig) ResolvedActions() ActionMap {
@@ -644,10 +655,7 @@ func LoadProjectCached(name string, cache map[string]*ProjectConfig) (*ProjectCo
 
 	expandLocalCwds(&cfg)
 
-	// Merge global actions/terminals (project entries take precedence)
-	global := LoadGlobal()
-	cfg.Actions = mergeActionFallback(cfg.Actions, global.Actions)
-	cfg.Terminals = TerminalMap(mergeActionFallback(ActionMap(cfg.Terminals), ActionMap(global.Terminals)))
+	cfg.ApplyGlobalDefaults()
 
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -843,8 +851,15 @@ func portableCopy(cfg *ProjectConfig) *ProjectConfig {
 	return &out
 }
 
-// mergeActionFallback copies entries from src into dst only where dst does
-// not already have the key. Returns dst (allocated if nil and src is non-empty).
+// mergeActionFallback merges src (global) into dst (project) field-by-field
+// when both define the same key, so a project YAML can hold a sparse entry
+// like `myAction: {position: 3}` to override only layout fields and inherit
+// everything else (cmd, cwd, env, ...) from global. Keys that exist only in
+// src are copied as-is. Returns dst (allocated if nil and src is non-empty).
+//
+// Caveat: bool fields (Confirm, Reuse) treat false as "inherit", so a project
+// can't sparse-override a global's true to false; redefine the action fully
+// in the project to do that.
 func mergeActionFallback(dst, src ActionMap) ActionMap {
 	if len(src) == 0 {
 		return dst
@@ -852,12 +867,60 @@ func mergeActionFallback(dst, src ActionMap) ActionMap {
 	if dst == nil {
 		dst = make(ActionMap, len(src))
 	}
-	for k, v := range src {
-		if _, exists := dst[k]; !exists {
-			dst[k] = v
+	for k, srcAct := range src {
+		dstAct, exists := dst[k]
+		if !exists {
+			dst[k] = srcAct
+			continue
 		}
+		dst[k] = mergeAction(dstAct, srcAct)
 	}
 	return dst
+}
+
+// mergeAction returns the field-level merger of project (precedence) and
+// global (fallback). Zero values on the project side inherit from global.
+// Children are merged recursively via mergeActionFallback.
+func mergeAction(project, global Action) Action {
+	out := project
+	if out.Cmd == "" {
+		out.Cmd = global.Cmd
+	}
+	if out.Label == "" {
+		out.Label = global.Label
+	}
+	if out.Cwd == "" {
+		out.Cwd = global.Cwd
+	}
+	if out.Port == 0 {
+		out.Port = global.Port
+	}
+	if len(out.Env) == 0 {
+		out.Env = global.Env
+	}
+	if !out.Confirm {
+		out.Confirm = global.Confirm
+	}
+	if out.Display == "" {
+		out.Display = global.Display
+	}
+	if out.Type == "" {
+		out.Type = global.Type
+	}
+	if !out.Reuse {
+		out.Reuse = global.Reuse
+	}
+	if out.Mode == "" {
+		out.Mode = global.Mode
+	}
+	if out.Position == nil {
+		out.Position = global.Position
+	}
+	if len(out.Inputs) == 0 {
+		out.Inputs = global.Inputs
+	}
+	out.Actions = mergeActionFallback(out.Actions, global.Actions)
+	return out
 }
 
 func portableActionMap(src ActionMap, mapCwd func(string) string) ActionMap {
