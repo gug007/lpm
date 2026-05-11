@@ -1,10 +1,6 @@
 import { useDroppable } from "@dnd-kit/core";
 import { ZONE_ID, type ActionGroup } from "../components/actionsDndLayout";
 
-// Available state whispers (dashed inset outline + faint tint) so users
-// see candidate zones without the page lighting up; over state shouts
-// (solid ring + brighter tint) so the landing spot is unambiguous.
-// Inset keeps the indicator from overflowing into siblings.
 const HINT_BASE = "transition-all duration-150";
 const HINT_AVAILABLE =
   "outline outline-1 outline-dashed outline-[var(--accent-blue)]/30 bg-[var(--accent-blue)]/[0.03]";

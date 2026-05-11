@@ -2,10 +2,6 @@ import { useEffect, useState } from "react";
 
 const QUERY = "(prefers-reduced-motion: reduce)";
 
-// React-friendly subscription to the OS reduced-motion preference.
-// Components use this to gate animations and transitions so users who
-// have asked for less motion don't see overshoot, scale, or lengthy
-// fades.
 export function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(() => window.matchMedia(QUERY).matches);
   useEffect(() => {
