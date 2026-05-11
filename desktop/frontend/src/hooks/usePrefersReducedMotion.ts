@@ -7,13 +7,8 @@ const QUERY = "(prefers-reduced-motion: reduce)";
 // have asked for less motion don't see overshoot, scale, or lengthy
 // fades.
 export function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(() =>
-    typeof window !== "undefined" && typeof window.matchMedia === "function"
-      ? window.matchMedia(QUERY).matches
-      : false,
-  );
+  const [reduced, setReduced] = useState(() => window.matchMedia(QUERY).matches);
   useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
     const mql = window.matchMedia(QUERY);
     const handler = (event: MediaQueryListEvent) => setReduced(event.matches);
     mql.addEventListener("change", handler);

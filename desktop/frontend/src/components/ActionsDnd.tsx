@@ -1,5 +1,6 @@
 import { type CSSProperties, type ReactNode } from "react";
 import {
+  type Announcements,
   type CollisionDetection,
   DndContext,
   DragOverlay,
@@ -73,28 +74,26 @@ function describeTarget(id: string | number): string {
   return s;
 }
 
-const accessibility = {
-  announcements: {
-    onDragStart({ active }: { active: { id: string | number } }) {
-      return `Picked up action ${active.id}.`;
-    },
-    onDragOver({ active, over }: { active: { id: string | number }; over: { id: string | number } | null }) {
-      if (!over) return `Action ${active.id} is no longer over a drop zone.`;
-      return `Action ${active.id} is over ${describeTarget(over.id)}.`;
-    },
-    onDragEnd({ active, over }: { active: { id: string | number }; over: { id: string | number } | null }) {
-      if (!over) return `Action ${active.id} was dropped.`;
-      return `Action ${active.id} was dropped on ${describeTarget(over.id)}.`;
-    },
-    onDragCancel({ active }: { active: { id: string | number } }) {
-      return `Action drag cancelled. Action ${active.id} returned to its original position.`;
-    },
-  },
-  screenReaderInstructions: {
-    draggable:
-      "To pick up an action, press space or enter. While dragging, use the arrow keys to move the action between zones. Press space or enter again to drop, or press escape to cancel.",
-  },
+const announcements: Announcements = {
+  onDragStart: ({ active }) => `Picked up action ${active.id}.`,
+  onDragOver: ({ active, over }) =>
+    over
+      ? `Action ${active.id} is over ${describeTarget(over.id)}.`
+      : `Action ${active.id} is no longer over a drop zone.`,
+  onDragEnd: ({ active, over }) =>
+    over
+      ? `Action ${active.id} was dropped on ${describeTarget(over.id)}.`
+      : `Action ${active.id} was dropped.`,
+  onDragCancel: ({ active }) =>
+    `Action drag cancelled. Action ${active.id} returned to its original position.`,
 };
+
+const screenReaderInstructions = {
+  draggable:
+    "To pick up an action, press space or enter. While dragging, use the arrow keys to move the action between zones. Press space or enter again to drop, or press escape to cancel.",
+};
+
+const accessibility = { announcements, screenReaderInstructions };
 
 // Module-scoped — passing a fresh object each render forces dnd-kit's
 // useAutoScroller to teardown/setup on every parent re-render.

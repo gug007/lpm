@@ -15,15 +15,13 @@ export function ActionsSortableItem({ id, children }: ActionsSortableItemProps) 
     transition,
   };
   // Drop position is conveyed by the dashed placeholder where the
-  // dragged item will land plus the sibling-shift from SortableContext —
-  // no extra insertion bar needed.
+  // dragged item will land plus the sibling-shift from SortableContext.
   const wrapperClass = isDragging
-    ? "border-2 border-dashed border-[var(--accent-blue)]/50 rounded-md cursor-grabbing"
+    ? "rounded-md border-2 border-dashed border-[var(--accent-blue)]/50 cursor-grabbing [&>*]:opacity-0"
     : "cursor-grab";
-  const childStyle: React.CSSProperties | undefined = isDragging ? { opacity: 0 } : undefined;
   return (
     <div ref={setNodeRef} style={style} className={wrapperClass} {...attributes} {...listeners}>
-      <div style={childStyle}>{children}</div>
+      {children}
     </div>
   );
 }

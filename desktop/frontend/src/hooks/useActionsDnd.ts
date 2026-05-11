@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type DragEndEvent,
   type DragOverEvent,
@@ -138,8 +138,5 @@ export function useActionsDnd({ layout, onPreview, onMove }: UseActionsDndOption
     onMoveRef.current(final, baseline);
   }, [revertToBaseline]);
 
-  return useMemo(
-    () => ({ sensors, activeId, overGroup, onDragStart, onDragOver, onDragCancel, onDragEnd }),
-    [sensors, activeId, overGroup, onDragStart, onDragOver, onDragCancel, onDragEnd],
-  );
+  return { sensors, activeId, overGroup, onDragStart, onDragOver, onDragCancel, onDragEnd };
 }
