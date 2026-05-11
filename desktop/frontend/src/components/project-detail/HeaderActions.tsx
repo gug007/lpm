@@ -1,8 +1,8 @@
 import type { MouseEvent } from "react";
-import { ActionsGroup } from "../ActionsDnd";
+import { ActionsGroup, EmptyDropHint } from "../ActionsDnd";
 import { ActionView } from "../ActionView";
 import { PlusIcon } from "../icons";
-import { SortableItem } from "../ui/SortableList";
+import { ActionsSortableItem } from "../ActionsSortableItem";
 import { Tooltip } from "../ui/Tooltip";
 import type { ActionInfo } from "../../types";
 import { NO_DRAG_STYLE } from "./constants";
@@ -40,7 +40,7 @@ export function HeaderActions({
       style={NO_DRAG_STYLE}
     >
       {actions.map((action) => (
-        <SortableItem key={action.name} id={action.name}>
+        <ActionsSortableItem key={action.name} id={action.name}>
           <ActionView
             action={action}
             compact={false}
@@ -48,8 +48,9 @@ export function HeaderActions({
             onRun={onRun}
             onContextMenu={onContextMenu}
           />
-        </SortableItem>
+        </ActionsSortableItem>
       ))}
+      {actions.length === 0 && <EmptyDropHint />}
       <Tooltip content="Create action" side="bottom">
         <button
           type="button"

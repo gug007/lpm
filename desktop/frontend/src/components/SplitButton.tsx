@@ -80,14 +80,14 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
       <button
         onClick={() => onRunAction(action)}
         disabled={disabled}
-        className={`whitespace-nowrap ${s.roundedL} ${s.padding} font-medium ${s.text} transition-colors ${s.hover} disabled:opacity-40`}
+        className={`whitespace-nowrap ${s.roundedL} ${s.padding} font-medium ${s.text} transition-all duration-100 active:scale-[0.97] ${s.hover} disabled:cursor-not-allowed disabled:opacity-40`}
       >
         {action.label}
       </button>
       <button
         onClick={() => setOpen((v) => !v)}
         disabled={disabled}
-        className={`flex items-center ${s.roundedR} ${s.dividerBorder} ${s.chevronPad} transition-colors ${s.hover} disabled:opacity-40 ${open ? s.active : s.text}`}
+        className={`flex items-center ${s.roundedR} ${s.dividerBorder} ${s.chevronPad} transition-all duration-100 active:scale-[0.97] ${s.hover} disabled:cursor-not-allowed disabled:opacity-40 ${open ? s.active : s.text}`}
       >
         <ChevronDownIcon />
       </button>
@@ -96,7 +96,7 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
     <button
       onClick={() => setOpen((v) => !v)}
       disabled={disabled}
-      className={`inline-flex items-center gap-1 whitespace-nowrap ${s.rounded} ${s.border} ${s.padding} font-medium ${s.text} transition-colors ${s.hover} disabled:opacity-40`}
+      className={`inline-flex items-center gap-1 whitespace-nowrap ${s.rounded} ${s.border} ${s.padding} font-medium ${s.text} transition-all duration-100 active:scale-[0.97] ${s.hover} disabled:cursor-not-allowed disabled:opacity-40`}
     >
       {action.label}
       <ChevronDownIcon />
@@ -104,7 +104,7 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
   );
 
   return (
-    <div ref={triggerRef} onContextMenu={onContextMenu} className="shrink-0 select-none">
+    <div ref={triggerRef} onContextMenu={onContextMenu} className="shrink-0 cursor-grab select-none">
       {trigger}
       {dropdown}
     </div>
