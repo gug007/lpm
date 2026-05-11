@@ -3,7 +3,7 @@ import { useGitStatus } from "../hooks/useGitStatus";
 import { ActionsGroup } from "./ActionsDnd";
 import { ActionView } from "./ActionView";
 import { BranchSwitcher } from "./BranchSwitcher";
-import { SortableItem } from "./ui/SortableList";
+import { ActionsSortableItem } from "./ActionsSortableItem";
 import type { ActionInfo } from "../types";
 
 interface TerminalFooterProps {
@@ -35,7 +35,7 @@ export function TerminalFooter({
       className="flex shrink-0 items-center justify-end gap-1 bg-[var(--terminal-bg)] px-2 py-1"
     >
       {actions.map((action) => (
-        <SortableItem key={action.name} id={action.name}>
+        <ActionsSortableItem key={action.name} id={action.name}>
           <ActionView
             action={action}
             compact
@@ -43,7 +43,7 @@ export function TerminalFooter({
             onRun={onRunAction}
             onContextMenu={onActionContextMenu}
           />
-        </SortableItem>
+        </ActionsSortableItem>
       ))}
       {isGitRepo && <BranchSwitcher projectPath={projectPath} gitState={gitState} />}
     </ActionsGroup>

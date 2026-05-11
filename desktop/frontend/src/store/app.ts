@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { create, type StoreApi } from "zustand";
 import { toast } from "sonner";
 import YAML from "yaml";
 import {
@@ -89,6 +89,8 @@ interface AppState {
   addingCloneProject: boolean;
   portConflict: PortConflictPrompt | null;
   resolvingPortConflict: boolean;
+  actionsUndoStack: Record<string, ActionsLayout[]>;
+  actionsRedoStack: Record<string, ActionsLayout[]>;
 
   setView: (view: View) => void;
   setSettingsTab: (tab: SettingsTab) => void;
@@ -135,9 +137,20 @@ interface AppState {
   removeProject: (name: string) => Promise<void>;
   renameProject: (name: string, label: string) => Promise<void>;
   reorderProjects: (order: string[]) => Promise<void>;
-  reorderActions: (projectName: string, layout: ActionsLayout) => Promise<void>;
+  reorderActions: (
+    projectName: string,
+    layout: ActionsLayout,
+    baseline?: ActionsLayout,
+  ) => Promise<void>;
+  // Optimistic update without undo push or persist; final commit
+  // happens on drop via reorderActions(baseline).
+  previewReorderActions: (projectName: string, layout: ActionsLayout) => void;
+  undoActionsReorder: (projectName: string) => Promise<boolean>;
+  redoActionsReorder: (projectName: string) => Promise<boolean>;
   refreshAfterRename: (newName?: string) => Promise<void>;
 }
+
+const ACTIONS_HISTORY_CAP = 20;
 
 // Mirrors the backend's sortActionNames (projects.go) so optimistic updates
 // match what the next ListProjects will return.
@@ -173,6 +186,25 @@ function buildSeed(update: ActionUpdate, cmd?: string): Record<string, unknown> 
   if (cmd !== undefined) seed.cmd = cmd;
   if (typeof update.display === "string") seed.display = update.display;
   return seed;
+}
+
+// Per-project write chain so a quick reorder + undo can't race two
+// read-modify-write SaveConfig calls through each other.
+const actionsWriteChain = new Map<string, Promise<void>>();
+
+function serializeActionsWrite(
+  projectName: string,
+  task: () => Promise<void>,
+): Promise<void> {
+  const prev = actionsWriteChain.get(projectName) ?? Promise.resolve();
+  const next = prev.catch(() => undefined).then(task);
+  actionsWriteChain.set(projectName, next);
+  next.finally(() => {
+    if (actionsWriteChain.get(projectName) === next) {
+      actionsWriteChain.delete(projectName);
+    }
+  });
+  return next;
 }
 
 // parseDocument (vs parse + stringify) keeps comments and unrelated
@@ -263,8 +295,90 @@ function applyActionUpdates(
   });
 }
 
+function captureActionsLayout(actions: ActionInfo[] | undefined): ActionsLayout {
+  const header: string[] = [];
+  const footer: string[] = [];
+  for (const a of sortActionsByPosition(actions ?? [])) {
+    if (isHeaderDisplay(a.display)) header.push(a.name);
+    else if (isFooterDisplay(a.display)) footer.push(a.name);
+  }
+  return { header, footer };
+}
+
+function pushHistory(
+  stack: Record<string, ActionsLayout[]>,
+  projectName: string,
+  layout: ActionsLayout,
+): Record<string, ActionsLayout[]> {
+  const prev = stack[projectName] ?? [];
+  const next = [...prev, layout];
+  if (next.length > ACTIONS_HISTORY_CAP) next.splice(0, next.length - ACTIONS_HISTORY_CAP);
+  return { ...stack, [projectName]: next };
+}
+
 function projectsEqual(a: ProjectInfo[], b: ProjectInfo[]): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+type AppSet = StoreApi<AppState>["setState"];
+type AppGet = StoreApi<AppState>["getState"];
+
+function applyActionsLayoutToStore(
+  set: AppSet,
+  projectName: string,
+  project: ProjectInfo,
+  layout: ActionsLayout,
+  stackUpdater?: (s: AppState) => Partial<AppState>,
+): Map<string, ActionUpdate> {
+  const updates = buildActionUpdates(project.actions ?? [], layout);
+  set((s) => ({
+    ...(stackUpdater ? stackUpdater(s) : {}),
+    projects: s.projects.map((p) =>
+      p.name === projectName
+        ? { ...p, actions: sortActionsByPosition(applyActionUpdates(p.actions ?? [], updates)) }
+        : p,
+    ),
+  }));
+  return updates;
+}
+
+// On failure, resync from disk so the optimistic state doesn't drift.
+async function persistActionsLayoutOrRecover(
+  get: AppGet,
+  projectName: string,
+  updates: Map<string, ActionUpdate>,
+): Promise<void> {
+  try {
+    await serializeActionsWrite(projectName, () =>
+      persistActionUpdates(projectName, updates),
+    );
+  } catch (err) {
+    toast.error(`Failed to save action order: ${err}`);
+    await get().refreshProjects();
+  }
+}
+
+async function shiftHistoryEntry(
+  set: AppSet,
+  get: AppGet,
+  projectName: string,
+  direction: "undo" | "redo",
+): Promise<boolean> {
+  const state = get();
+  const fromKey = direction === "undo" ? "actionsUndoStack" : "actionsRedoStack";
+  const toKey = direction === "undo" ? "actionsRedoStack" : "actionsUndoStack";
+  const stack = state[fromKey][projectName] ?? [];
+  if (stack.length === 0) return false;
+  const project = state.projects.find((p) => p.name === projectName);
+  if (!project) return false;
+  const target = stack[stack.length - 1];
+  const currentLayout = captureActionsLayout(project.actions);
+  const updates = applyActionsLayoutToStore(set, projectName, project, target, (s) => ({
+    [fromKey]: { ...s[fromKey], [projectName]: stack.slice(0, -1) },
+    [toKey]: pushHistory(s[toKey], projectName, currentLayout),
+  }));
+  await persistActionsLayoutOrRecover(get, projectName, updates);
+  return true;
 }
 
 // Held outside zustand state because functions don't belong in store
@@ -301,6 +415,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   addingCloneProject: false,
   portConflict: null,
   resolvingPortConflict: false,
+  actionsUndoStack: {},
+  actionsRedoStack: {},
 
   setView: (view) => set({ view }),
 
@@ -617,34 +733,33 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  reorderActions: async (projectName, layout) => {
+  reorderActions: async (projectName, layout, baseline) => {
     const project = get().projects.find((p) => p.name === projectName);
     if (!project) return;
-    // Position values can collide across groups without affecting display
-    // because the header/footer/menu filter runs after the sort. Display
-    // is only touched when an action's group actually changed, so legacy
-    // header values like "button" survive a within-group reorder.
-    const updates = buildActionUpdates(project.actions ?? [], layout);
-
-    set((s) => ({
-      projects: s.projects.map((p) =>
-        p.name === projectName
-          ? {
-              ...p,
-              actions: sortActionsByPosition(
-                applyActionUpdates(p.actions ?? [], updates),
-              ),
-            }
-          : p,
-      ),
+    // Position values can collide across groups because the header/
+    // footer/menu filter runs after the sort. Display is only touched
+    // when an action's group changed, so legacy values like "button"
+    // survive a within-group reorder.
+    const prevLayout = baseline ?? captureActionsLayout(project.actions);
+    const updates = applyActionsLayoutToStore(set, projectName, project, layout, (s) => ({
+      actionsUndoStack: pushHistory(s.actionsUndoStack, projectName, prevLayout),
+      actionsRedoStack: { ...s.actionsRedoStack, [projectName]: [] },
     }));
+    await persistActionsLayoutOrRecover(get, projectName, updates);
+  },
 
-    try {
-      await persistActionUpdates(projectName, updates);
-    } catch (err) {
-      toast.error(`Failed to save action order: ${err}`);
-      await get().refreshProjects();
-    }
+  previewReorderActions: (projectName, layout) => {
+    const project = get().projects.find((p) => p.name === projectName);
+    if (!project) return;
+    applyActionsLayoutToStore(set, projectName, project, layout);
+  },
+
+  undoActionsReorder: async (projectName) => {
+    return shiftHistoryEntry(set, get, projectName, "undo");
+  },
+
+  redoActionsReorder: async (projectName) => {
+    return shiftHistoryEntry(set, get, projectName, "redo");
   },
 
   refreshAfterRename: async (newName) => {

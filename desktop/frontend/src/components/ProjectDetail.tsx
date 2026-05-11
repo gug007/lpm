@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { toast } from "sonner";
 import { ActionsDnd } from "./ActionsDnd";
+import { type ActionGroup } from "./actionsDndLayout";
 import { ActionView } from "./ActionView";
 import { ConfigEditor } from "./ConfigEditor";
 import { NotesView } from "./NotesView";
@@ -25,6 +26,7 @@ import { deleteProfile } from "../profileConfig";
 import { deleteService } from "../serviceConfig";
 import { EMPTY_SERVICES, noop } from "./project-detail/constants";
 import { useActionsByDisplay } from "../hooks/useActionsByDisplay";
+import { useActionsUndo } from "../hooks/useActionsUndo";
 import { useDetailView } from "../hooks/useDetailView";
 import { useEntityEditor } from "../hooks/useEntityEditor";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
@@ -142,6 +144,7 @@ export function ProjectDetail({
     terminalRef.current?.createTerminal();
   }, [switchDetailView]);
   useKeyboardShortcut({ key: "t", meta: true }, handleNewTerminal, visible);
+  useActionsUndo({ projectName: project.name, visible });
 
   const projectActions = useProjectActions({
     projectName: project.name,
@@ -152,24 +155,40 @@ export function ProjectDetail({
   const { runningAction, handleRunAction, modals: actionModals } = projectActions;
 
   const reorderActions = useAppStore((s) => s.reorderActions);
+  const previewReorderActions = useAppStore((s) => s.previewReorderActions);
   const handleMoveActions = useCallback(
-    (next: ActionsLayout) => reorderActions(project.name, next),
+    (next: ActionsLayout, baseline: ActionsLayout) =>
+      reorderActions(project.name, next, baseline),
     [reorderActions, project.name],
   );
+  const handlePreviewActions = useCallback(
+    (next: ActionsLayout) => previewReorderActions(project.name, next),
+    [previewReorderActions, project.name],
+  );
+  // Ref-tracked actions so the overlay renderer stays stable across
+  // every preview re-render — dnd-kit holds the renderOverlay reference
+  // for the duration of the drag, so a fresh function each frame would
+  // cause needless DragOverlay reconciliation.
+  const actionsRef = useRef(project.actions);
+  actionsRef.current = project.actions;
   const renderActionOverlay = useCallback(
-    (id: string) => {
-      const action = (project.actions ?? []).find((a) => a.name === id);
+    (id: string, overGroup: ActionGroup | null) => {
+      const action = (actionsRef.current ?? []).find((a) => a.name === id);
       if (!action) return null;
+      // Mirror the destination form factor while hovering, so the user
+      // sees how the action will look in the zone they're aiming for —
+      // not the zone they came from.
+      const compact = overGroup ? overGroup === "footer" : isFooterDisplay(action.display);
       return (
         <ActionView
           action={action}
-          compact={isFooterDisplay(action.display)}
+          compact={compact}
           disabled={false}
           onRun={noop}
         />
       );
     },
-    [project.actions],
+    [],
   );
 
   const withLoading = async (fn: () => Promise<void>) => {
@@ -352,7 +371,12 @@ export function ProjectDetail({
   }
 
   return (
-    <ActionsDnd layout={actionsLayout} onMove={handleMoveActions} renderOverlay={renderActionOverlay}>
+    <ActionsDnd
+      layout={actionsLayout}
+      onMove={handleMoveActions}
+      onPreview={handlePreviewActions}
+      renderOverlay={renderActionOverlay}
+    >
       <div className="flex h-full flex-col">
         <Header
           projectName={project.name}

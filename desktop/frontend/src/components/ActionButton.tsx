@@ -29,7 +29,7 @@ export function ActionButton({
       onClick={onClick}
       onContextMenu={onContextMenu}
       disabled={disabled}
-      className={`shrink-0 select-none whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 ${actionStyles[variant]}`}
+      className={`shrink-0 cursor-grab select-none whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 ${actionStyles[variant]}`}
     >
       {label}
     </button>
