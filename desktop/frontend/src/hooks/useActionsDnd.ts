@@ -23,9 +23,9 @@ import {
 
 export interface UseActionsDndOptions {
   layout: ActionsLayout;
-  // Optimistic preview during drag — should NOT push undo / persist.
+  // No undo, no persist — repeated mid-drag.
   onPreview: (next: ActionsLayout) => void;
-  // Final commit on drop — pushes undo (using `baseline`) and persists.
+  // Pushes undo against baseline and persists — fired once on drop.
   onMove: (next: ActionsLayout, baseline: ActionsLayout) => void;
 }
 
@@ -39,17 +39,16 @@ export interface UseActionsDndResult {
   onDragEnd: (event: DragEndEvent) => void;
 }
 
-// 5px pointer activation lets a quick click pass through to onClick;
-// touch needs a longer delay so taps don't accidentally pick up.
+// Activation thresholds let a quick click / tap pass through to onClick
+// rather than start a drag.
 const POINTER_OPTS = { activationConstraint: { distance: 5 } } as const;
 const TOUCH_OPTS = { activationConstraint: { delay: 200, tolerance: 8 } } as const;
 const KEYBOARD_OPTS = { coordinateGetter: sortableKeyboardCoordinates } as const;
 
 // Multi-container sortable: snapshot layout at drag-start, preview only
-// when the dragged item's group changes (within-zone reorder is free
-// via SortableContext), commit on drop with the snapshot as the undo
-// baseline. Latest values reach handlers via refs because dnd-kit
-// holds the handler reference for the whole drag.
+// on cross-zone moves (within-zone reorder rides on SortableContext for
+// free), commit on drop against the snapshot. Handlers read live values
+// via refs because dnd-kit holds the handler reference for the whole drag.
 export function useActionsDnd({ layout, onPreview, onMove }: UseActionsDndOptions): UseActionsDndResult {
   const sensors = useSensors(
     useSensor(PointerSensor, POINTER_OPTS),
@@ -67,8 +66,7 @@ export function useActionsDnd({ layout, onPreview, onMove }: UseActionsDndOption
   onPreviewRef.current = onPreview;
   onMoveRef.current = onMove;
 
-  // Drop the baseline if the component unmounts mid-drag so a stale
-  // value can't leak into a remount.
+  // Prevent a stale baseline from leaking across an unmount mid-drag.
   useEffect(() => () => { baselineRef.current = null; }, []);
 
   const onDragStart = useCallback((event: DragStartEvent) => {
@@ -77,8 +75,6 @@ export function useActionsDnd({ layout, onPreview, onMove }: UseActionsDndOption
     baselineRef.current = layoutRef.current;
   }, []);
 
-  // Roll the optimistic preview back to the snapshot taken at drag
-  // start. No-op when nothing was previewed.
   const revertToBaseline = useCallback((baseline: ActionsLayout) => {
     if (!sameLayout(layoutRef.current, baseline)) onPreviewRef.current(baseline);
   }, []);

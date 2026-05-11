@@ -142,11 +142,8 @@ interface AppState {
     layout: ActionsLayout,
     baseline?: ActionsLayout,
   ) => Promise<void>;
-  // Same optimistic update as reorderActions but without the undo push or
-  // YAML persist. Used by the drag-and-drop flow to preview cross-zone
-  // moves while the pointer is still down — siblings in the destination
-  // zone visually shift to make room (the multi-container sortable
-  // pattern). Final commit happens on drop via reorderActions(baseline).
+  // Optimistic update without undo push or persist; final commit
+  // happens on drop via reorderActions(baseline).
   previewReorderActions: (projectName: string, layout: ActionsLayout) => void;
   undoActionsReorder: (projectName: string) => Promise<boolean>;
   redoActionsReorder: (projectName: string) => Promise<boolean>;
@@ -191,10 +188,8 @@ function buildSeed(update: ActionUpdate, cmd?: string): Record<string, unknown> 
   return seed;
 }
 
-// Per-project write chain. Without this, a quick sequence of reorders
-// (e.g. drop, immediate undo) can race two SaveConfig writes through
-// each other since each one read-modify-writes the YAML file. Chaining
-// guarantees they apply in call order.
+// Per-project write chain so a quick reorder + undo can't race two
+// read-modify-write SaveConfig calls through each other.
 const actionsWriteChain = new Map<string, Promise<void>>();
 
 function serializeActionsWrite(
@@ -204,7 +199,6 @@ function serializeActionsWrite(
   const prev = actionsWriteChain.get(projectName) ?? Promise.resolve();
   const next = prev.catch(() => undefined).then(task);
   actionsWriteChain.set(projectName, next);
-  // Drop the entry once the chain settles so we don't leak Map entries.
   next.finally(() => {
     if (actionsWriteChain.get(projectName) === next) {
       actionsWriteChain.delete(projectName);
@@ -329,10 +323,6 @@ function projectsEqual(a: ProjectInfo[], b: ProjectInfo[]): boolean {
 type AppSet = StoreApi<AppState>["setState"];
 type AppGet = StoreApi<AppState>["getState"];
 
-// Replace one project's actions in the store with the given layout and
-// optionally fold in undo/redo stack mutations from the same set call.
-// Returns the updates map so the caller can hand it to the persistence
-// layer.
 function applyActionsLayoutToStore(
   set: AppSet,
   projectName: string,
@@ -352,8 +342,7 @@ function applyActionsLayoutToStore(
   return updates;
 }
 
-// Persist via the per-project write chain. On failure, surface the
-// error and resync from disk so the optimistic state doesn't drift.
+// On failure, resync from disk so the optimistic state doesn't drift.
 async function persistActionsLayoutOrRecover(
   get: AppGet,
   projectName: string,
@@ -369,8 +358,6 @@ async function persistActionsLayoutOrRecover(
   }
 }
 
-// Pop the top of the undo or redo stack, push the inverse onto the
-// other stack, and commit. Returns false when there's nothing to shift.
 async function shiftHistoryEntry(
   set: AppSet,
   get: AppGet,
@@ -749,12 +736,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   reorderActions: async (projectName, layout, baseline) => {
     const project = get().projects.find((p) => p.name === projectName);
     if (!project) return;
-    // Position values can collide across groups without affecting display
-    // because the header/footer/menu filter runs after the sort. Display
-    // is only touched when an action's group actually changed, so legacy
-    // header values like "button" survive a within-group reorder.
-    // Baseline (when supplied by the drag flow) is the layout at drag-
-    // start, so the undo entry survives any intermediate previews.
+    // Position values can collide across groups because the header/
+    // footer/menu filter runs after the sort. Display is only touched
+    // when an action's group changed, so legacy values like "button"
+    // survive a within-group reorder.
     const prevLayout = baseline ?? captureActionsLayout(project.actions);
     const updates = applyActionsLayoutToStore(set, projectName, project, layout, (s) => ({
       actionsUndoStack: pushHistory(s.actionsUndoStack, projectName, prevLayout),
