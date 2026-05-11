@@ -14,8 +14,6 @@ export function ActionsSortableItem({ id, children }: ActionsSortableItemProps) 
     transform: CSS.Transform.toString(transform),
     transition,
   };
-  // Drop position is conveyed by the dashed placeholder where the
-  // dragged item will land plus the sibling-shift from SortableContext.
   const wrapperClass = isDragging
     ? "rounded-md border-2 border-dashed border-[var(--accent-blue)]/50 cursor-grabbing [&>*]:opacity-0"
     : "cursor-grab";

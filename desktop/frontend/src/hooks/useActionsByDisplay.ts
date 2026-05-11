@@ -16,12 +16,9 @@ export interface UseActionsByDisplayResult {
   layout: ActionsLayout;
 }
 
-// Bundled in one memo so the references stay pinned to project.actions
-// identity. The `layout` object is additionally cached against its
-// previous value: when actions change but the resulting header/footer
-// id sequences are unchanged, we hand back the SAME `layout` reference
-// so downstream consumers (SortableContext items, DnD baseline ref,
-// effect deps) don't see false-positive identity churn.
+// `layout` is cached against its previous value so that downstream
+// consumers (SortableContext items, DnD baseline ref) don't see
+// identity churn when actions change but the id sequences don't.
 export function useActionsByDisplay(actions: ActionInfo[] | undefined): UseActionsByDisplayResult {
   const layoutCache = useRef<ActionsLayout | null>(null);
   return useMemo(() => {

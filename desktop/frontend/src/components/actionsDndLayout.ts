@@ -1,30 +1,21 @@
-// Pure layout helpers for the actions drag-and-drop feature. Kept apart
-// from ActionsDnd.tsx so the React component stays focused on
-// orchestration and these reorder operations are easy to read and test.
-
 import type { ActionsLayout } from "../types";
 
 export type ActionGroup = "header" | "footer";
 
-// Single source of truth for the synthetic-zone id namespace. Real
-// action names cannot collide because action names go through slugify
-// and don't contain colons.
+// Prefixed so it can't collide with action names (slugify excludes colons).
 export const ZONE_ID_PREFIX = "actions-zone:";
 
-// Synthetic droppable IDs let a drag onto the empty area of a group
-// (e.g. footer with no actions) resolve to the group itself rather than
-// to no target.
+// Drops onto a group's empty area need a target; without these synthetic
+// ids the drop would resolve to no target and the move would no-op.
 export const ZONE_ID: Record<ActionGroup, string> = {
   header: `${ZONE_ID_PREFIX}header`,
   footer: `${ZONE_ID_PREFIX}footer`,
 };
 
-/** True when an id refers to a synthetic group-zone droppable rather than an action. */
 export function isZoneId(id: string): boolean {
   return id.startsWith(ZONE_ID_PREFIX);
 }
 
-/** Find which group an action id currently lives in, or null if absent from both. */
 export function groupOf(layout: ActionsLayout, id: string): ActionGroup | null {
   if (layout.header.includes(id)) return "header";
   if (layout.footer.includes(id)) return "footer";
@@ -36,7 +27,6 @@ export interface DropTarget {
   index: number;
 }
 
-/** Resolve a dnd-kit `over` id into the target group and insertion index, or null if unknown. */
 export function resolveTarget(overId: string, layout: ActionsLayout): DropTarget | null {
   if (overId === ZONE_ID.header) return { group: "header", index: layout.header.length };
   if (overId === ZONE_ID.footer) return { group: "footer", index: layout.footer.length };
@@ -47,7 +37,6 @@ export function resolveTarget(overId: string, layout: ActionsLayout): DropTarget
   return null;
 }
 
-/** Apply a drag move by removing the dragged id from both groups and inserting at the clamped target. */
 export function applyMove(
   layout: ActionsLayout,
   draggedId: string,
@@ -63,7 +52,6 @@ export function applyMove(
   return next;
 }
 
-/** Structural equality check for two action layouts (header and footer order both match). */
 export function sameLayout(a: ActionsLayout, b: ActionsLayout): boolean {
   return arrayEq(a.header, b.header) && arrayEq(a.footer, b.footer);
 }
