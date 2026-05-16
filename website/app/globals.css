@@ -100,3 +100,60 @@ body {
 .animate-bounce-soft {
   animation: bounce-soft 2.2s ease-in-out infinite;
 }
+
+@keyframes caret-blink {
+  0%, 49% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
+}
+.animate-caret-blink {
+  animation: caret-blink 1.1s steps(1, end) infinite;
+}
+
+@keyframes cta-breath {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px rgba(229, 229, 229, 0.08),
+      0 0 0 0 rgba(229, 229, 229, 0);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(229, 229, 229, 0.2),
+      0 0 18px 2px rgba(229, 229, 229, 0.07);
+  }
+}
+.animate-cta-breath {
+  animation: cta-breath 3.4s ease-in-out infinite;
+}
+
+@keyframes icon-glow {
+  0%, 100% {
+    box-shadow:
+      inset 0 0 0 1px rgba(46, 46, 46, 1),
+      0 0 0 0 rgba(229, 229, 229, 0);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 1px rgba(70, 70, 70, 1),
+      0 0 28px 0 rgba(229, 229, 229, 0.06);
+  }
+}
+.animate-icon-glow {
+  animation: icon-glow 3.4s ease-in-out infinite;
+}
+
+.empty-grid {
+  background-image:
+    linear-gradient(to right, rgba(229, 229, 229, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(229, 229, 229, 0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(ellipse 55% 55% at 50% 50%, #000 20%, transparent 75%);
+  -webkit-mask-image: radial-gradient(
+    ellipse 55% 55% at 50% 50%,
+    #000 20%,
+    transparent 75%
+  );
+}

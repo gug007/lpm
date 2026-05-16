@@ -63,6 +63,8 @@ type ProjectViewProps = {
   onGitCreateBranch: (name: string) => void;
   onGitRenameBranch: (oldName: string, newName: string) => void;
   onGitDeleteBranch: (name: string) => void;
+  startButtonRef?: React.Ref<HTMLButtonElement>;
+  startRingPulse?: boolean;
 };
 
 function reconcileServices(
@@ -100,6 +102,8 @@ export function DemoProjectView({
   onGitCreateBranch,
   onGitRenameBranch,
   onGitDeleteBranch,
+  startButtonRef,
+  startRingPulse,
 }: ProjectViewProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
@@ -295,6 +299,8 @@ export function DemoProjectView({
           }
         }}
         runningServices={runningServices}
+        startButtonRef={startButtonRef}
+        startRingPulse={startRingPulse}
       />
 
       {tree ? (
@@ -549,26 +555,36 @@ function EmptyState({
   onOpenTerminal: () => void;
 }) {
   return (
-    <div className="flex flex-1 min-h-0 flex-col items-center justify-center px-8">
-      <div className="flex max-w-sm flex-col items-center gap-4 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#2e2e2e] bg-[#242424] text-[#919191]">
-          <Terminal className="w-5 h-5" strokeWidth={1.5} />
+    <div className="relative flex flex-1 min-h-0 flex-col items-center justify-center px-8">
+      <div className="pointer-events-none absolute inset-0 empty-grid" aria-hidden />
+      <div className="relative flex max-w-md flex-col items-center gap-6 text-center">
+        <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-[#2e2e2e] bg-[#242424] text-[#b3b3b3] animate-icon-glow">
+          <Terminal className="h-6 w-6" strokeWidth={1.5} />
+          <span
+            aria-hidden
+            className="absolute bottom-3.5 right-3.5 h-2 w-[3px] bg-[#e5e5e5] animate-caret-blink"
+          />
         </div>
-        <div className="flex flex-col items-center gap-1">
-          <h3 className="text-sm font-medium text-[#e5e5e5]">
-            No active terminals
+        <div className="flex flex-col items-center gap-2">
+          <h3 className="text-base font-semibold tracking-tight text-[#e5e5e5]">
+            Ready when you are,{" "}
+            <span className="font-mono text-[#e5e5e5]">{projectName}</span>
           </h3>
-          <p className="text-xs text-[#919191] leading-relaxed">
-            Click Start to run {projectName}, or open a terminal.
+          <p className="max-w-xs text-xs leading-relaxed text-[#919191]">
+            Hit{" "}
+            <span className="rounded-md border border-[#2e2e2e] bg-[#242424] px-1.5 py-px font-mono text-[10px] text-[#b3b3b3]">
+              Start
+            </span>{" "}
+            to spin up services, or open a terminal to poke around.
           </p>
         </div>
         <button
           type="button"
           onClick={onOpenTerminal}
-          className="flex items-center gap-2 rounded-lg border border-[#2e2e2e] bg-[#242424] px-3.5 py-1.5 text-xs font-medium text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] transition-colors"
+          className="flex items-center gap-2 rounded-lg border border-[#2e2e2e] bg-[#242424] px-4 py-2 text-xs font-medium text-[#e5e5e5] transition-colors hover:bg-[#2a2a2a] animate-cta-breath"
         >
-          <Terminal className="w-3.5 h-3.5" />
-          New Terminal
+          <Terminal className="h-4 w-4" strokeWidth={1.75} />
+          <span>New terminal</span>
         </button>
       </div>
     </div>
@@ -703,6 +719,8 @@ type HeaderProps = {
   onStartProfile: (name: string) => void;
   onToggleService: (name: string) => void;
   onOpenAction: (a: DemoAction) => void;
+  startButtonRef?: React.Ref<HTMLButtonElement>;
+  startRingPulse?: boolean;
 };
 
 function Header({
@@ -721,6 +739,8 @@ function Header({
   onStartProfile,
   onToggleService,
   onOpenAction,
+  startButtonRef,
+  startRingPulse,
 }: HeaderProps) {
   const showSplit = project.services.length > 1 || project.profiles.length > 1;
   const startColor = anyRunning
@@ -788,9 +808,12 @@ function Header({
 
         <div className="relative flex shrink-0">
           <button
+            ref={startButtonRef}
             type="button"
             onClick={onStartStop}
-            className={`${showSplit ? "rounded-l-lg" : "rounded-lg"} px-3.5 py-1.5 text-xs font-medium transition-all hover:opacity-85 ${startColor}`}
+            className={`${showSplit ? "rounded-l-lg" : "rounded-lg"} px-3.5 py-1.5 text-xs font-medium transition-all hover:opacity-85 ${startColor} ${
+              startRingPulse && !anyRunning ? "start-ring-pulse" : ""
+            }`}
           >
             {anyRunning ? "Stop" : "Start"}
           </button>
