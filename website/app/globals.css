@@ -88,3 +88,15 @@ body {
     0 0 24px -2px rgba(99, 102, 241, 0.25),
     0 10px 25px -5px rgba(0, 0, 0, 0.08);
 }
+
+@keyframes bounce-soft {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+.animate-bounce-soft {
+  animation: bounce-soft 2.2s ease-in-out infinite;
+}

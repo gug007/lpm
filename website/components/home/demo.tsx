@@ -23,9 +23,17 @@ export function DemoSection() {
     <section id="demo" className="scroll-mt-20 py-16 sm:py-20">
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
         <SectionHeader
-          eyebrow="Interactive demo"
+          eyebrow={
+            <span className="inline-flex items-center gap-1.5">
+              <span className="relative inline-flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              </span>
+              Live interactive demo
+            </span>
+          }
           title="Projects, terminals, Claude Code or Codex — one click each"
-          description="Switch projects, start services, launch Claude Code or Codex — all from one native macOS app. Try it right in your browser."
+          description="Not a screenshot — switch projects, start services, launch Claude Code or Codex right here in your browser."
           className="mb-10"
         />
         <DemoApp heightCss="min(560px, 70vh)" />

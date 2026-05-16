@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { MousePointer2 } from "lucide-react";
 import INITIAL_PROJECTS, {
   type DemoBranch,
   type DemoGit,
@@ -70,6 +71,11 @@ export function DemoApp({ heightCss }: DemoAppProps) {
     () => initialGitState(INITIAL_PROJECTS),
   );
   const [adding, setAdding] = useState(false);
+  const [hasInteracted, setHasInteracted] = useState(false);
+
+  const markInteracted = () => {
+    if (!hasInteracted) setHasInteracted(true);
+  };
 
   const project = useMemo(
     () => projects.find((p) => p.name === selected) ?? projects[0],
@@ -190,6 +196,7 @@ export function DemoApp({ heightCss }: DemoAppProps) {
 
   return (
     <div
+      onPointerDownCapture={markInteracted}
       className="relative flex overflow-hidden rounded-xl border border-gray-200 dark:border-[#2e2e2e] shadow-2xl shadow-gray-200/60 dark:shadow-black/60 bg-[#1a1a1a]"
       style={{ height: heightCss ?? "min(640px, calc(100vh - 180px))" }}
     >
@@ -223,6 +230,23 @@ export function DemoApp({ heightCss }: DemoAppProps) {
         onClose={() => setAdding(false)}
         onCreate={handleAddProject}
       />
+
+      <div
+        aria-hidden={hasInteracted}
+        className={`pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center pb-6 transition-all duration-500 ${
+          hasInteracted
+            ? "translate-y-2 opacity-0"
+            : "translate-y-0 opacity-100 animate-bounce-soft"
+        }`}
+      >
+        <div className="flex items-center gap-2 rounded-full border border-white/15 bg-black/75 px-3.5 py-1.5 text-[12px] font-medium text-white shadow-2xl backdrop-blur-md">
+          <MousePointer2
+            className="h-3.5 w-3.5 text-indigo-300"
+            strokeWidth={2.25}
+          />
+          <span>Click to try — this is a real demo, not a screenshot</span>
+        </div>
+      </div>
     </div>
   );
 }
