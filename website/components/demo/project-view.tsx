@@ -581,7 +581,7 @@ function EmptyState({
         <button
           type="button"
           onClick={onOpenTerminal}
-          className="flex items-center gap-2 rounded-lg border border-[#2e2e2e] bg-[#242424] px-4 py-2 text-xs font-medium text-[#e5e5e5] transition-colors hover:bg-[#2a2a2a] animate-cta-breath"
+          className="flex items-center gap-2 rounded-lg border border-[#2e2e2e] bg-[#242424] px-4 py-2 text-xs font-medium text-[#e5e5e5] transition-colors hover:bg-[#2a2a2a] animate-cta-breath focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
         >
           <Terminal className="h-4 w-4" strokeWidth={1.75} />
           <span>New terminal</span>
@@ -750,7 +750,7 @@ function Header({
     ? "border-white/20 bg-red-500 text-white"
     : "border-gray-900/20 bg-white text-gray-900";
   return (
-    <div className="flex items-center gap-3 px-4 h-12 shrink-0">
+    <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 h-12 shrink-0">
       <div className="flex flex-col min-w-0">
         <h1 className="truncate text-base font-semibold text-[#e5e5e5]">
           {project.label ?? project.name}
@@ -765,18 +765,20 @@ function Header({
             key={a.name}
             type="button"
             onClick={() => onOpenAction(a)}
-            className="rounded-lg border border-[#2e2e2e] bg-[#242424] px-2.5 py-1.5 text-xs font-medium text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] transition-colors"
+            className="hidden lg:inline-flex rounded-lg border border-[#2e2e2e] bg-[#242424] px-2.5 py-1.5 text-xs font-medium text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
           >
             {a.label}
           </button>
         ))}
-        {menuActions.length > 0 && (
+        {(menuActions.length > 0 || headerActions.length > 0) && (
           <div className="relative">
             <button
               type="button"
               onClick={onToggleMenu}
               aria-label="More actions"
-              className={`flex items-center justify-center rounded-lg border px-2 py-1.5 transition-colors ${
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              className={`flex items-center justify-center rounded-lg border px-2 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 ${
                 menuOpen
                   ? "border-transparent bg-[#333333] text-[#e5e5e5]"
                   : "border-[#2e2e2e] bg-[#242424] text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
@@ -786,16 +788,39 @@ function Header({
             </button>
             {menuOpen && (
               <div
+                role="menu"
                 className="absolute right-0 top-full z-40 mt-1 w-52 rounded-lg border border-[#2e2e2e] bg-[#242424] py-1 shadow-xl"
                 onMouseLeave={onCloseMenu}
               >
-                <DropdownSectionLabel>Actions</DropdownSectionLabel>
+                {headerActions.length > 0 && (
+                  <div className="lg:hidden">
+                    <DropdownSectionLabel>Quick actions</DropdownSectionLabel>
+                    {headerActions.map((a) => (
+                      <button
+                        key={`hdr-${a.name}`}
+                        type="button"
+                        role="menuitem"
+                        onClick={() => onOpenAction(a)}
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:bg-[#2a2a2a]"
+                      >
+                        <span className="truncate">{a.label}</span>
+                      </button>
+                    ))}
+                    {menuActions.length > 0 && (
+                      <div className="mx-3 my-1 border-t border-[#2e2e2e]" />
+                    )}
+                  </div>
+                )}
+                {menuActions.length > 0 && (
+                  <DropdownSectionLabel>Actions</DropdownSectionLabel>
+                )}
                 {menuActions.map((a) => (
                   <button
                     key={a.name}
                     type="button"
+                    role="menuitem"
                     onClick={() => onOpenAction(a)}
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-mono text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-mono text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:bg-[#2a2a2a]"
                   >
                     <Terminal className="w-3 h-3 shrink-0 text-[#919191]" />
                     <span className="truncate">{a.label}</span>
@@ -811,7 +836,8 @@ function Header({
             ref={startButtonRef}
             type="button"
             onClick={onStartStop}
-            className={`${showSplit ? "rounded-l-lg" : "rounded-lg"} px-3.5 py-1.5 text-xs font-medium transition-all hover:opacity-85 ${startColor} ${
+            aria-label={anyRunning ? "Stop services" : "Start services"}
+            className={`${showSplit ? "rounded-l-lg" : "rounded-lg"} px-3.5 py-1.5 text-xs font-medium transition-all hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1a1a] ${startColor} ${
               startRingPulse && !anyRunning ? "start-ring-pulse" : ""
             }`}
           >
@@ -821,7 +847,10 @@ function Header({
             <button
               type="button"
               onClick={onToggleStart}
-              className={`rounded-r-lg border-l px-1.5 py-1.5 transition-all hover:opacity-85 ${startChevronBorder}`}
+              aria-label="Choose profile or services"
+              aria-expanded={startOpen}
+              aria-haspopup="menu"
+              className={`rounded-r-lg border-l px-1.5 py-1.5 transition-all hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1a1a] ${startChevronBorder}`}
             >
               <ChevronDown className="w-3.5 h-3.5" strokeWidth={1.5} />
             </button>
@@ -843,8 +872,9 @@ function Header({
                       <button
                         key={p.name}
                         type="button"
+                        role="menuitem"
                         onClick={() => onStartProfile(p.name)}
-                        className="flex w-full items-start gap-2 px-3 py-2 text-left text-xs text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
+                        className="flex w-full items-start gap-2 px-3 py-2 text-left text-xs text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:bg-[#2a2a2a]"
                       >
                         <span className="mt-[5px] flex h-3.5 w-3.5 shrink-0 items-center justify-center">
                           {isActive && (
@@ -894,12 +924,14 @@ function ServiceMenuItem({
   return (
     <button
       type="button"
+      role="menuitemcheckbox"
+      aria-checked={running}
       onClick={onClick}
-      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-[#2a2a2a] ${
+      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-[#2a2a2a] focus-visible:outline-none focus-visible:bg-[#2a2a2a] ${
         running ? "text-[#e5e5e5] font-medium" : "text-[#b3b3b3]"
       }`}
     >
-      <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+      <span aria-hidden="true" className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
         {running && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
       </span>
       <span className="flex-1 truncate font-mono">{service.name}</span>

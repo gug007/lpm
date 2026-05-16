@@ -302,8 +302,9 @@ export function DemoBranchSwitcher({
           type="button"
           onClick={onSync}
           disabled={busy}
+          aria-label={busy ? "Syncing" : `Sync: pull ${git.behind}, push ${git.ahead}`}
           title={busy ? "Syncing…" : `Pull ${git.behind}, push ${git.ahead}`}
-          className="flex items-center gap-1 rounded-md border border-[#2e2e2e] bg-[#242424] px-2 py-1 text-[10px] font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-50"
+          className="flex items-center gap-1 rounded-md border border-[#2e2e2e] bg-[#242424] px-2 py-1 text-[10px] font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
         >
           <SyncIcon spinning={busy} />
           {git.behind > 0 && (
@@ -323,8 +324,11 @@ export function DemoBranchSwitcher({
             setBranchOpen((v) => !v);
           }}
           disabled={busy}
+          aria-label={`Current branch: ${git.branch}. Switch branch`}
+          aria-expanded={branchOpen}
+          aria-haspopup="menu"
           title={busy ? "Switching branch…" : "Switch branch"}
-          className="flex items-center gap-1.5 rounded-md border border-[#2e2e2e] bg-[#242424] px-2.5 py-1 text-[10px] font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-md border border-[#2e2e2e] bg-[#242424] px-2.5 py-1 text-[10px] font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
         >
           <BranchIcon />
           <span className="max-w-[160px] truncate">{git.branch}</span>

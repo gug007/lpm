@@ -51,15 +51,24 @@ export function PaneHeader({
   onSplitDown,
 }: PaneHeaderProps) {
   return (
-    <div className="flex-shrink-0 flex items-center gap-0.5 bg-[#2d2d2d] px-1.5 py-1">
+    <div role="tablist" className="flex-shrink-0 flex items-center gap-0.5 bg-[#2d2d2d] px-1.5 py-1">
       <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
         {tabs.map((tab, i) => {
           const active = i === activeIdx;
           return (
             <div
               key={tab.key}
+              role="tab"
+              tabIndex={0}
+              aria-selected={active}
               onClick={() => onSelectTab(i)}
-              className={`group flex min-w-0 items-center gap-1.5 rounded-md px-2 py-0.5 cursor-pointer transition-colors ${
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSelectTab(i);
+                }
+              }}
+              className={`group flex min-w-0 items-center gap-1.5 rounded-md px-2 py-0.5 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 ${
                 active
                   ? "bg-white/[0.1] text-[#d4d4d4]"
                   : "text-[#a0a0a0] hover:bg-white/[0.04] hover:text-[#d4d4d4]"
@@ -67,6 +76,7 @@ export function PaneHeader({
             >
               {tab.type === "service" ? (
                 <span
+                  aria-hidden="true"
                   className={`inline-block w-2 h-2 rounded-full shrink-0 ${
                     tab.running
                       ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]"
@@ -74,7 +84,7 @@ export function PaneHeader({
                   }`}
                 />
               ) : (
-                <TerminalIcon className="w-3 h-3 text-[#8e8e8e] shrink-0" />
+                <TerminalIcon aria-hidden="true" className="w-3 h-3 text-[#8e8e8e] shrink-0" />
               )}
               <span className="font-mono text-[11px] font-medium truncate">
                 {tab.label}
@@ -91,7 +101,7 @@ export function PaneHeader({
                   onCloseTab(i);
                 }}
                 aria-label={`Close ${tab.label}`}
-                className="rounded text-[#8e8e8e] hover:text-gray-100 transition-colors shrink-0 leading-none"
+                className="rounded text-[#8e8e8e] hover:text-gray-100 transition-colors shrink-0 leading-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -104,7 +114,7 @@ export function PaneHeader({
             onClick={onNewTab}
             aria-label="New terminal"
             title="New terminal"
-            className="rounded-md px-1.5 py-0.5 text-[#8e8e8e] hover:bg-white/[0.08] hover:text-gray-100 transition-colors shrink-0"
+            className="rounded-md px-1.5 py-0.5 text-[#8e8e8e] hover:bg-white/[0.08] hover:text-gray-100 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
           >
             <Plus className="w-3 h-3" />
           </button>
@@ -116,7 +126,7 @@ export function PaneHeader({
           onClick={onSplitRight}
           aria-label="Split right"
           title="Split right"
-          className="rounded-md px-1.5 py-0.5 text-[#8e8e8e] hover:bg-white/[0.08] hover:text-gray-100 transition-colors shrink-0"
+          className="hidden sm:inline-flex rounded-md px-1.5 py-0.5 text-[#8e8e8e] hover:bg-white/[0.08] hover:text-gray-100 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
         >
           <Columns2 className="w-3 h-3" />
         </button>
@@ -127,7 +137,7 @@ export function PaneHeader({
           onClick={onSplitDown}
           aria-label="Split down"
           title="Split down"
-          className="rounded-md px-1.5 py-0.5 text-[#8e8e8e] hover:bg-white/[0.08] hover:text-gray-100 transition-colors shrink-0"
+          className="hidden sm:inline-flex rounded-md px-1.5 py-0.5 text-[#8e8e8e] hover:bg-white/[0.08] hover:text-gray-100 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
         >
           <Rows2 className="w-3 h-3" />
         </button>

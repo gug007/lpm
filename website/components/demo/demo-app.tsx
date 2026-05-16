@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MousePointer2 } from "lucide-react";
 import INITIAL_PROJECTS, {
   type DemoBranch,
@@ -16,7 +16,14 @@ import {
 
 type DemoAppProps = {
   heightCss?: string;
+  heightCssSm?: string;
 };
+
+type AutoCursorState =
+  | { phase: "hidden" }
+  | { phase: "travel"; x: number; y: number }
+  | { phase: "tap"; x: number; y: number }
+  | { phase: "fade"; x: number; y: number };
 
 function initialGitState(projects: DemoProject[]): Record<string, DemoGit> {
   const out: Record<string, DemoGit> = {};
@@ -61,7 +68,7 @@ function buildProjectFromInput(
   };
 }
 
-export function DemoApp({ heightCss }: DemoAppProps) {
+export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
   const [projects, setProjects] = useState<DemoProject[]>(INITIAL_PROJECTS);
   const [selected, setSelected] = useState<string>(INITIAL_PROJECTS[0].name);
   const [runningByProject, setRunningByProject] = useState<
@@ -72,10 +79,142 @@ export function DemoApp({ heightCss }: DemoAppProps) {
   );
   const [adding, setAdding] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
+  const [autoCursor, setAutoCursor] = useState<AutoCursorState>({
+    phase: "hidden",
+  });
+  const [ringPulseOn, setRingPulseOn] = useState(false);
+  const [isInView, setIsInView] = useState(false);
+  const [glowActive, setGlowActive] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const startButtonRef = useRef<HTMLButtonElement | null>(null);
+  const autoCursorRanRef = useRef(false);
+  const interactedRef = useRef(false);
+  const hasBeenSeenRef = useRef(false);
 
   const markInteracted = () => {
+    interactedRef.current = true;
     if (!hasInteracted) setHasInteracted(true);
+    setAutoCursor({ phase: "hidden" });
+    setRingPulseOn(false);
   };
+
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          setIsInView(entry.isIntersecting);
+        }
+      },
+      { threshold: 0.4 },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!isInView || hasBeenSeenRef.current) return;
+    hasBeenSeenRef.current = true;
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReducedMotion) return;
+    setGlowActive(true);
+    const timeout = window.setTimeout(() => setGlowActive(false), 1200);
+    return () => window.clearTimeout(timeout);
+  }, [isInView]);
+
+  useEffect(() => {
+    if (!isInView || autoCursorRanRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
+    if (typeof window === "undefined") return;
+
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    if (prefersReducedMotion) {
+      autoCursorRanRef.current = true;
+      return;
+    }
+
+    const startBtn = startButtonRef.current;
+    if (!startBtn) return;
+    autoCursorRanRef.current = true;
+
+    let cancelled = false;
+    let timers: ReturnType<typeof setTimeout>[] = [];
+    const clearTimers = () => {
+      for (const t of timers) clearTimeout(t);
+      timers = [];
+    };
+
+    const abort = () => {
+      if (cancelled) return;
+      cancelled = true;
+      clearTimers();
+      setAutoCursor({ phase: "hidden" });
+      setRingPulseOn(false);
+    };
+
+    const onPointerMove = () => abort();
+    const onPointerDown = () => abort();
+    container.addEventListener("pointermove", onPointerMove, { passive: true });
+    container.addEventListener("pointerdown", onPointerDown, { passive: true });
+
+    const containerRect = container.getBoundingClientRect();
+    const btnRect = startBtn.getBoundingClientRect();
+    const targetX = btnRect.left + btnRect.width / 2 - containerRect.left;
+    const targetY = btnRect.top + btnRect.height / 2 - containerRect.top;
+    const startX = containerRect.width * 0.45;
+    const startY = containerRect.height * 0.65;
+
+    setRingPulseOn(true);
+
+    timers.push(
+      setTimeout(() => {
+        if (cancelled) return;
+        setAutoCursor({ phase: "travel", x: startX, y: startY });
+      }, 600),
+    );
+    timers.push(
+      setTimeout(() => {
+        if (cancelled) return;
+        setAutoCursor({ phase: "travel", x: targetX, y: targetY });
+      }, 680),
+    );
+    timers.push(
+      setTimeout(() => {
+        if (cancelled) return;
+        setAutoCursor({ phase: "tap", x: targetX, y: targetY });
+      }, 1700),
+    );
+    timers.push(
+      setTimeout(() => {
+        if (cancelled) return;
+        setAutoCursor({ phase: "fade", x: targetX, y: targetY });
+        setRingPulseOn(false);
+        if (!interactedRef.current) {
+          interactedRef.current = true;
+          setHasInteracted(true);
+        }
+      }, 2150),
+    );
+    timers.push(
+      setTimeout(() => {
+        if (cancelled) return;
+        setAutoCursor({ phase: "hidden" });
+      }, 2600),
+    );
+
+    return () => {
+      cancelled = true;
+      clearTimers();
+      container.removeEventListener("pointermove", onPointerMove);
+      container.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [isInView]);
 
   const project = useMemo(
     () => projects.find((p) => p.name === selected) ?? projects[0],
@@ -196,9 +335,18 @@ export function DemoApp({ heightCss }: DemoAppProps) {
 
   return (
     <div
+      ref={containerRef}
       onPointerDownCapture={markInteracted}
-      className="relative flex overflow-hidden rounded-xl border border-gray-200 dark:border-[#2e2e2e] shadow-2xl shadow-gray-200/60 dark:shadow-black/60 bg-[#1a1a1a]"
-      style={{ height: heightCss ?? "min(640px, calc(100vh - 180px))" }}
+      className={`relative flex overflow-hidden rounded-xl border border-gray-200 dark:border-[#2e2e2e] shadow-2xl shadow-gray-200/60 dark:shadow-black/60 bg-[#1a1a1a] h-[var(--demo-h)] sm:h-[var(--demo-h-sm)] transition-[box-shadow] duration-700 ${
+        glowActive ? "ring-2 ring-indigo-500/30" : "ring-0 ring-transparent"
+      }`}
+      style={
+        {
+          "--demo-h": heightCss ?? "min(520px, calc(100vh - 140px))",
+          "--demo-h-sm":
+            heightCssSm ?? heightCss ?? "min(640px, calc(100vh - 180px))",
+        } as React.CSSProperties
+      }
     >
       <DemoSidebar
         projects={projects}
@@ -224,6 +372,8 @@ export function DemoApp({ heightCss }: DemoAppProps) {
         onGitCreateBranch={handleCreateBranch}
         onGitRenameBranch={handleRenameBranch}
         onGitDeleteBranch={handleDeleteBranch}
+        startButtonRef={startButtonRef}
+        startRingPulse={ringPulseOn && !hasInteracted}
       />
       <DemoAddProjectModal
         open={adding}
@@ -231,20 +381,54 @@ export function DemoApp({ heightCss }: DemoAppProps) {
         onCreate={handleAddProject}
       />
 
+      {autoCursor.phase !== "hidden" && (
+        <div
+          aria-hidden
+          className={`pointer-events-none absolute z-40 transition-[transform,opacity] ${
+            autoCursor.phase === "travel"
+              ? "duration-[1000ms] ease-[cubic-bezier(0.22,1,0.36,1)] opacity-100"
+              : autoCursor.phase === "fade"
+                ? "duration-[400ms] ease-out opacity-0"
+                : "duration-150 ease-out opacity-100"
+          }`}
+          style={{
+            top: 0,
+            left: 0,
+            transform: `translate3d(${autoCursor.x}px, ${autoCursor.y}px, 0)`,
+          }}
+        >
+          <div className="relative">
+            {autoCursor.phase === "tap" && (
+              <span className="auto-cursor-tap absolute -left-2 -top-2 h-9 w-9 rounded-full border-2 border-indigo-300/70 bg-indigo-300/20" />
+            )}
+            <MousePointer2
+              className="relative h-5 w-5 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)]"
+              strokeWidth={1.75}
+              fill="white"
+            />
+          </div>
+        </div>
+      )}
+
       <div
-        aria-hidden={hasInteracted}
-        className={`pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center pb-6 transition-all duration-500 ${
-          hasInteracted
+        role="status"
+        aria-live="polite"
+        aria-hidden={hasInteracted || !isInView}
+        className={`pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center px-3 pb-3 sm:pb-6 transition-all duration-500 ${
+          hasInteracted || !isInView
             ? "translate-y-2 opacity-0"
-            : "translate-y-0 opacity-100 animate-bounce-soft"
+            : "translate-y-0 opacity-100 motion-safe:animate-bounce-soft"
         }`}
       >
-        <div className="flex items-center gap-2 rounded-full border border-white/15 bg-black/75 px-3.5 py-1.5 text-[12px] font-medium text-white shadow-2xl backdrop-blur-md">
+        <div className="flex items-center gap-2 rounded-full border border-white/15 bg-black/75 px-3.5 py-1.5 text-[11px] sm:text-[12px] font-medium text-white shadow-2xl backdrop-blur-md">
           <MousePointer2
-            className="h-3.5 w-3.5 text-indigo-300"
+            className="h-3.5 w-3.5 text-indigo-300 shrink-0"
             strokeWidth={2.25}
           />
-          <span>Click to try — this is a real demo, not a screenshot</span>
+          <span className="sm:hidden">Tap anything — it works</span>
+          <span className="hidden sm:inline">
+            Yes, this really works. Click anything.
+          </span>
         </div>
       </div>
     </div>
