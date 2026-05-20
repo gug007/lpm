@@ -203,27 +203,27 @@ export function RenameProjectModal({
                 onChange={(e) => setSearch(e.target.value)}
                 className="mx-2 mt-2 appearance-none rounded-md border border-transparent bg-[var(--bg-primary)] px-2.5 py-1.5 text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--text-muted)]"
               />
-              {search === "" && (
-                <div className="border-b border-[var(--border)]">
-                  <div className="px-3 pt-3 pb-1 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-                    Suggested
-                  </div>
-                  <div className="grid grid-cols-8 gap-0.5 px-1.5 pb-2">
-                    {SUGGESTED_EMOJIS.map((emoji) => (
-                      <button
-                        key={emoji}
-                        type="button"
-                        onPointerDown={(e) => e.preventDefault()}
-                        onClick={() => insertEmoji(emoji)}
-                        className="flex aspect-square items-center justify-center rounded-md text-xl transition-colors hover:bg-[var(--bg-hover)]"
-                      >
-                        <span aria-hidden>{emoji}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
               <EmojiPicker.Viewport className="relative flex-1 outline-none">
+                {search === "" && (
+                  <div className="border-b border-[var(--border)]">
+                    <div className="px-3 pt-3 pb-1 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
+                      Suggested
+                    </div>
+                    <div className="grid grid-cols-8 gap-0.5 px-1.5 pb-2">
+                      {SUGGESTED_EMOJIS.map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onPointerDown={(e) => e.preventDefault()}
+                          onClick={() => insertEmoji(emoji)}
+                          className="flex aspect-square items-center justify-center rounded-md text-xl transition-colors hover:bg-[var(--bg-hover)]"
+                        >
+                          <span aria-hidden>{emoji}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <EmojiPicker.Loading className="absolute inset-0 flex items-center justify-center text-[11px] text-[var(--text-muted)]">
                   Loading…
                 </EmojiPicker.Loading>
