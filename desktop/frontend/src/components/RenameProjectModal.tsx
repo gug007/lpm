@@ -209,7 +209,10 @@ export function RenameProjectModal({
                       </div>
                     ),
                     Row: ({ children, ...props }) => (
-                      <div {...props} className="scroll-my-1 px-1.5">
+                      <div
+                        {...props}
+                        className="scroll-my-1 gap-0.5 px-1.5"
+                      >
                         {children}
                       </div>
                     ),
@@ -220,7 +223,7 @@ export function RenameProjectModal({
                           e.preventDefault();
                           onPointerDown?.(e);
                         }}
-                        className="flex size-8 items-center justify-center rounded-md text-lg transition-colors data-[active]:bg-[var(--bg-hover)]"
+                        className="flex aspect-square flex-1 items-center justify-center rounded-md text-xl transition-colors data-[active]:bg-[var(--bg-hover)]"
                       >
                         {emoji.emoji}
                       </button>
