@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { EmojiPicker } from "frimousse";
 import { Modal } from "./ui/Modal";
+import { SmileIcon } from "./icons";
 import { useEventListener } from "../hooks/useEventListener";
 import { modalInputDefaults } from "../forms/styles";
 
@@ -145,9 +146,9 @@ export function RenameProjectModal({
             onClick={() => setShowPicker((v) => !v)}
             aria-label="Insert emoji"
             aria-pressed={showPicker}
-            className={`absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-base transition-colors hover:bg-[var(--bg-hover)] ${showPicker ? "bg-[var(--bg-hover)]" : ""}`}
+            className={`absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${showPicker ? "bg-[var(--bg-hover)] text-[var(--text-primary)]" : "text-[var(--text-muted)]"}`}
           >
-            <span aria-hidden>🙂</span>
+            <SmileIcon size={16} />
           </button>
         </div>
 
