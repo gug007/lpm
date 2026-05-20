@@ -241,9 +241,14 @@ export function RenameProjectModal({
                         {category.label}
                       </div>
                     ),
-                    Row: ({ children, ...props }) => (
+                    Row: ({ children, style, ...props }) => (
                       <div
                         {...props}
+                        style={{
+                          ...style,
+                          display: "grid",
+                          gridTemplateColumns: "repeat(8, minmax(0, 1fr))",
+                        }}
                         className="scroll-my-1 gap-0.5 px-1.5"
                       >
                         {children}
@@ -256,7 +261,7 @@ export function RenameProjectModal({
                           e.preventDefault();
                           onPointerDown?.(e);
                         }}
-                        className="flex aspect-square flex-1 items-center justify-center rounded-md text-xl transition-colors data-[active]:bg-[var(--bg-hover)]"
+                        className="flex aspect-square items-center justify-center rounded-md text-xl transition-colors data-[active]:bg-[var(--bg-hover)]"
                       >
                         {emoji.emoji}
                       </button>
