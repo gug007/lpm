@@ -10,7 +10,7 @@ import { SortableItem, SortableList } from "./ui/SortableList";
 import { useSidebarResize } from "../hooks/useSidebarResize";
 import { ProjectContextMenu } from "./ProjectContextMenu";
 import { ProjectNameDisplay } from "./ProjectNameDisplay";
-import { RenameInput } from "./RenameInput";
+import { RenameProjectModal } from "./RenameProjectModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { SpinnerIcon } from "./project-detail/icons";
 
@@ -169,7 +169,6 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
             const isSelected = selected === project.name;
             const isContextTarget = contextMenu?.name === project.name;
             const isBusy = duplicatingName === project.name || removingName === project.name;
-            const isRenaming = renamingName === project.name;
             const parent = project.parentName ? projectByName.get(project.parentName) : undefined;
             const name = <ProjectNameDisplay project={project} parent={parent} />;
             const showCheck = status.isDone && !status.isWaiting && !status.isError;
@@ -199,24 +198,13 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                 ) : (
                   <StatusDot running={project.running} />
                 )}
-                {isRenaming ? (
-                  <RenameInput
-                    initialValue={project.label ?? project.name}
-                    onCommit={(value) => {
-                      onRenameProject(project.name, value);
-                      setRenamingName(null);
-                    }}
-                    onCancel={() => setRenamingName(null)}
-                  />
-                ) : (
-                  <span
-                    className="truncate"
-                    style={project.configError ? MUTED_STYLE : status.isDone ? DONE_STYLE : undefined}
-                    title={project.configError || (project.parentName ? `Duplicate of ${project.parentName}` : undefined)}
-                  >
-                    {status.className ? <span className={status.className}>{name}</span> : name}
-                  </span>
-                )}
+                <span
+                  className="truncate"
+                  style={project.configError ? MUTED_STYLE : status.isDone ? DONE_STYLE : undefined}
+                  title={project.configError || (project.parentName ? `Duplicate of ${project.parentName}` : undefined)}
+                >
+                  {status.className ? <span className={status.className}>{name}</span> : name}
+                </span>
                 {status.isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
                 {showCheck && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
               </button>
@@ -268,6 +256,18 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
         onConfirm={() => {
           if (confirmRemoveDuplicate) onRemoveProject(confirmRemoveDuplicate);
           setConfirmRemoveDuplicate(null);
+        }}
+      />
+      <RenameProjectModal
+        open={renamingName !== null}
+        initialValue={
+          renamingName
+            ? projectByName.get(renamingName)?.label ?? renamingName
+            : ""
+        }
+        onClose={() => setRenamingName(null)}
+        onSubmit={(value) => {
+          if (renamingName) onRenameProject(renamingName, value);
         }}
       />
 
