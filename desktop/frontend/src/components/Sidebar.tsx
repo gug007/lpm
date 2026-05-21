@@ -4,7 +4,7 @@ import { getSettings } from "../store/settings";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { InstallUpdate } from "../../wailsjs/go/main/App";
 import { type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
-import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon, HelpCircleIcon } from "./icons";
+import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon, HelpCircleIcon, MoreVerticalIcon } from "./icons";
 import { ProgressBar } from "./ui/ProgressBar";
 import { SortableItem, SortableList } from "./ui/SortableList";
 import { useSidebarResize } from "../hooks/useSidebarResize";
@@ -174,40 +174,58 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
             const showCheck = status.isDone && !status.isWaiting && !status.isError;
 
             const rowButton = (
-              <button
-                onClick={() => onSelect(project.name)}
-                onDoubleClick={() => {
-                  if (getSettings().doubleClickToToggle) onToggle(project.name);
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setContextMenu({ name: project.name, x: e.clientX, y: e.clientY });
-                }}
-                className={`flex w-full select-none items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                  isSelected
-                    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                } ${isContextTarget ? "ring-1 ring-inset ring-[var(--accent-cyan)]/60" : ""}`}
-              >
-                {isBusy ? (
-                  <span className="shrink-0 text-[var(--text-muted)]">
-                    <SpinnerIcon />
-                  </span>
-                ) : project.configError ? (
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Config error" />
-                ) : (
-                  <StatusDot running={project.running} />
-                )}
-                <span
-                  className="truncate"
-                  style={project.configError ? MUTED_STYLE : status.isDone ? DONE_STYLE : undefined}
-                  title={project.configError || (project.parentName ? `Duplicate of ${project.parentName}` : undefined)}
+              <div className="group relative">
+                <button
+                  onClick={() => onSelect(project.name)}
+                  onDoubleClick={() => {
+                    if (getSettings().doubleClickToToggle) onToggle(project.name);
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setContextMenu({ name: project.name, x: e.clientX, y: e.clientY });
+                  }}
+                  className={`flex w-full select-none items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors group-hover:pr-9 ${
+                    isContextTarget ? "pr-9" : ""
+                  } ${
+                    isSelected
+                      ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                      : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                  } ${isContextTarget ? "ring-1 ring-inset ring-[var(--accent-cyan)]/60" : ""}`}
                 >
-                  {status.className ? <span className={status.className}>{name}</span> : name}
-                </span>
-                {status.isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
-                {showCheck && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
-              </button>
+                  {isBusy ? (
+                    <span className="shrink-0 text-[var(--text-muted)]">
+                      <SpinnerIcon />
+                    </span>
+                  ) : project.configError ? (
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Config error" />
+                  ) : (
+                    <StatusDot running={project.running} />
+                  )}
+                  <span
+                    className="truncate"
+                    style={project.configError ? MUTED_STYLE : status.isDone ? DONE_STYLE : undefined}
+                    title={project.configError || (project.parentName ? `Duplicate of ${project.parentName}` : undefined)}
+                  >
+                    {status.className ? <span className={status.className}>{name}</span> : name}
+                  </span>
+                  {status.isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
+                  {showCheck && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setContextMenu({ name: project.name, x: rect.left, y: rect.bottom + 4 });
+                  }}
+                  className={`absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
+                    isContextTarget ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                  }`}
+                  title="More options"
+                  aria-label="More options"
+                >
+                  <MoreVerticalIcon />
+                </button>
+              </div>
             );
 
             if (isChild) {

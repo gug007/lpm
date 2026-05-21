@@ -47,3 +47,4 @@ export function SendIcon() { return <svg {...iconProps}><path d="M22 2 11 13" />
 export function DownloadIcon({ size = 14 }: { size?: number } = {}) { return <svg {...iconProps} width={size} height={size}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>; }
 export function PortForwardIcon() { return <svg {...iconProps}><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /><circle cx="5" cy="12" r="1" /></svg>; }
 export function HistoryIcon() { return <svg {...iconProps}><path d="M3 3v5h5" /><path d="M3.05 13a9 9 0 1 0 .49-4.36L3 8" /><path d="M12 7v5l3 2" /></svg>; }
+export function MoreVerticalIcon() { return <svg {...iconProps} fill="currentColor" stroke="none"><circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" /></svg>; }
