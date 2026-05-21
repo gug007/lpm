@@ -1,0 +1,39 @@
+version: '3'
+
+vars:
+  APP_NAME: "lpm"
+  BIN_DIR: "bin"
+  VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
+
+includes:
+  common: ./build/Taskfile.yml
+  darwin: ./build/darwin/Taskfile.yml
+
+tasks:
+  build:
+    summary: Builds the application
+    cmds:
+      - task: darwin:build
+
+  package:
+    summary: Builds and packages the application into a .app bundle
+    cmds:
+      - task: darwin:package
+
+  run:
+    summary: Runs the packaged application
+    cmds:
+      - task: darwin:run
+
+  dev:
+    summary: Runs the application in development mode
+    cmds:
+      - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
+
+  dev:frontend:
+    summary: Runs the Vite dev server
+    cmds:
+      - task: common:dev:frontend
+        vars:
+          VITE_PORT:
+            ref: .VITE_PORT

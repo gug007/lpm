@@ -8,8 +8,10 @@ lpm
 
 # Desktop app (Wails)
 desktop/desktop
+desktop/.task/
 desktop/bin/
 desktop/build/bin/
+desktop/build/darwin/icons.icns
 desktop/frontend/dist/
 desktop/frontend/node_modules/
 desktop/frontend/wailsjs/
