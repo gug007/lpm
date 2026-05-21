@@ -19,6 +19,7 @@ import {
   ZapIcon,
 } from "../icons";
 import { Modal } from "../ui/Modal";
+import { SegmentedControl } from "../ui/SegmentedControl";
 import { TrafficLights } from "../ui/TrafficLights";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 
@@ -403,14 +404,21 @@ export function ActionWizard({
       backdropClassName="bg-black/50 backdrop-blur-sm"
       contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >
-      <div className="flex max-h-[88vh] w-[min(960px,calc(100vw-32px))] flex-col" onKeyDown={onKeyDown}>
+      <div className="flex h-[min(720px,88vh)] w-[min(960px,calc(100vw-32px))] flex-col" onKeyDown={onKeyDown}>
         <header className="flex items-start justify-between gap-4 px-8 pb-6 pt-7">
           <div className="min-w-0 flex-1">
             <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">{title}</h2>
             <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[var(--text-secondary)]">{hint}</p>
           </div>
           <div className="flex items-center gap-3">
-            <ModeToggle mode={mode} onForm={switchToForm} onEditor={switchToEditor} />
+            <SegmentedControl
+              value={mode}
+              onChange={(next) => (next === "editor" ? switchToEditor() : switchToForm())}
+              options={[
+                { value: "form", label: "Form" },
+                { value: "editor", label: "Editor" },
+              ]}
+            />
             <button
               type="button"
               onClick={onClose}
@@ -562,39 +570,6 @@ export function ActionWizard({
         </footer>
       </div>
     </Modal>
-  );
-}
-
-function ModeToggle({
-  mode,
-  onForm,
-  onEditor,
-}: {
-  mode: "form" | "editor";
-  onForm: () => void;
-  onEditor: () => void;
-}) {
-  const base =
-    "rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors";
-  const active = "bg-[var(--bg-primary)] text-[var(--text-primary)] shadow-sm";
-  const inactive = "text-[var(--text-muted)] hover:text-[var(--text-primary)]";
-  return (
-    <div className="flex items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-1">
-      <button
-        type="button"
-        onClick={onForm}
-        className={`${base} ${mode === "form" ? active : inactive}`}
-      >
-        Form
-      </button>
-      <button
-        type="button"
-        onClick={onEditor}
-        className={`${base} ${mode === "editor" ? active : inactive}`}
-      >
-        Editor
-      </button>
-    </div>
   );
 }
 
