@@ -293,6 +293,10 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 			go sess.onClose()
 		}
 
+		if sess.onClose != nil {
+			go sess.onClose()
+		}
+
 		a.ptyMu.Lock()
 		delete(a.ptySessions, id)
 		a.ptyMu.Unlock()
