@@ -3,6 +3,7 @@
 
 export function AckTerminalData(...args: any[]): Promise<any>;
 export function AddPortForward(...args: any[]): Promise<any>;
+export function AttachProject(...args: any[]): Promise<any>;
 export function BrowseFolder(...args: any[]): Promise<any>;
 export function CheckAICLIs(...args: any[]): Promise<any>;
 export function CheckActionPortConflict(...args: any[]): Promise<any>;
@@ -23,10 +24,12 @@ export function CreateSSHProject(...args: any[]): Promise<any>;
 export function CreateTemplate(...args: any[]): Promise<any>;
 export function DeleteBranch(...args: any[]): Promise<any>;
 export function DeleteTemplate(...args: any[]): Promise<any>;
+export function DetachProject(...args: any[]): Promise<any>;
 export function DismissPortSuggestion(...args: any[]): Promise<any>;
 export function DuplicateProject(...args: any[]): Promise<any>;
 export function ExportConfig(...args: any[]): Promise<any>;
 export function FileExists(...args: any[]): Promise<any>;
+export function FocusDetachedWindow(...args: any[]): Promise<any>;
 export function GenerateBranchName(...args: any[]): Promise<any>;
 export function GenerateCommitMessage(...args: any[]): Promise<any>;
 export function GeneratePRDescription(...args: any[]): Promise<any>;
@@ -58,6 +61,7 @@ export function InstallTmux(...args: any[]): Promise<any>;
 export function InstallUpdate(...args: any[]): Promise<any>;
 export function IsTerminalRemote(...args: any[]): Promise<any>;
 export function ListBranches(...args: any[]): Promise<any>;
+export function ListDetachedProjects(...args: any[]): Promise<any>;
 export function ListOpenInTargets(...args: any[]): Promise<any>;
 export function ListPortForwards(...args: any[]): Promise<any>;
 export function ListProjects(...args: any[]): Promise<any>;

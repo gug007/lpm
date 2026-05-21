@@ -85,6 +85,10 @@ func main() {
 		app.Event.Emit(eventFilesDropped, payload)
 	})
 
+	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(_ *application.ApplicationEvent) {
+		appInstance.RestoreDetachedWindows()
+	})
+
 	if err := app.Run(); err != nil {
 		panic(err)
 	}

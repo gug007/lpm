@@ -1,4 +1,4 @@
-import { ChevronRightIcon, ClipboardIcon, CopyIcon, PencilIcon, TrashIcon } from "./icons";
+import { ChevronRightIcon, ClipboardIcon, CopyIcon, DetachIcon, PencilIcon, TrashIcon } from "./icons";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
 import { launchOpenInTarget, useOpenInTargets } from "../hooks/useOpenInTargets";
@@ -8,11 +8,14 @@ interface ProjectContextMenuProps {
   y: number;
   busy: boolean;
   canRemove: boolean;
+  isDetached: boolean;
   projectPath: string | null;
   onRename: () => void;
   onDuplicate: () => void;
   onDuplicateExcludeUncommitted: () => void;
   onCopyPath: () => void;
+  onDetach: () => void;
+  onAttach: () => void;
   onRemove: () => void;
   onClose: () => void;
 }
@@ -22,11 +25,14 @@ export function ProjectContextMenu({
   y,
   busy,
   canRemove,
+  isDetached,
   projectPath,
   onRename,
   onDuplicate,
   onDuplicateExcludeUncommitted,
   onCopyPath,
+  onDetach,
+  onAttach,
   onRemove,
   onClose,
 }: ProjectContextMenuProps) {
@@ -53,6 +59,19 @@ export function ProjectContextMenu({
         title="Duplicate the project and reset the copy to HEAD, discarding staged, unstaged, and untracked changes"
       />
       <ContextMenuItem label="Copy path" icon={<ClipboardIcon />} onClick={close(onCopyPath)} />
+      {isDetached ? (
+        <ContextMenuItem
+          label="Attach to main window"
+          icon={<DetachIcon />}
+          onClick={close(onAttach)}
+        />
+      ) : (
+        <ContextMenuItem
+          label="Detach to new window"
+          icon={<DetachIcon />}
+          onClick={close(onDetach)}
+        />
+      )}
       {projectPath && openInTargets.length > 0 && (
         <div className="group relative">
           <button

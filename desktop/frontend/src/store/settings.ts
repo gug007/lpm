@@ -13,6 +13,14 @@ function isGitPullStrategy(value: string | undefined): value is GitPullStrategy 
   return !!value && (GIT_PULL_STRATEGIES as readonly string[]).includes(value);
 }
 
+export interface DetachedWindowState {
+  detached: boolean;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+}
+
 export interface Settings {
   theme: Theme;
   doubleClickToToggle: boolean;
@@ -38,6 +46,7 @@ export interface Settings {
   ttsVoice?: string;
   ttsSpeed?: number;
   preferredEditor?: string;
+  detachedWindows?: Record<string, DetachedWindowState>;
 }
 
 const defaults: Settings = {
@@ -83,6 +92,23 @@ function normalize(s: main.Settings): Settings {
     ttsVoice: s.ttsVoice || undefined,
     ttsSpeed: s.ttsSpeed,
     preferredEditor: s.preferredEditor || undefined,
+    detachedWindows: s.detachedWindows
+      ? Object.fromEntries(
+          Object.entries(s.detachedWindows).map(([name, raw]) => {
+            const st = raw as Partial<DetachedWindowState> | undefined;
+            return [
+              name,
+              {
+                detached: !!st?.detached,
+                x: st?.x,
+                y: st?.y,
+                width: st?.width,
+                height: st?.height,
+              },
+            ];
+          }),
+        )
+      : undefined,
   };
 }
 

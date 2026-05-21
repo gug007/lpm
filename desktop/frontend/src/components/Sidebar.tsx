@@ -4,7 +4,7 @@ import { getSettings } from "../store/settings";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { InstallUpdate } from "../../wailsjs/go/main/App";
 import { type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
-import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon, HelpCircleIcon, MoreVerticalIcon } from "./icons";
+import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon, HelpCircleIcon, MoreVerticalIcon, DetachIcon } from "./icons";
 import { ProgressBar } from "./ui/ProgressBar";
 import { SortableItem, SortableList } from "./ui/SortableList";
 import { useSidebarResize } from "../hooks/useSidebarResize";
@@ -31,6 +31,9 @@ interface SidebarProps {
   onRemoveProject: (name: string) => void;
   onRenameProject: (name: string, label: string) => void;
   onReorder: (order: string[]) => void;
+  onDetachProject: (name: string) => void;
+  onAttachProject: (name: string) => void;
+  detached: Set<string>;
   showSettings: boolean;
   duplicatingName: string | null;
   removingName: string | null;
@@ -61,7 +64,7 @@ function computeStatus(project: ProjectInfo): ProjectStatus {
   return { isRunning, isDone, isWaiting, isError, className };
 }
 
-export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onSettings, onFeedback, onAddProject, onDuplicateProject, onRemoveProject, onRenameProject, onReorder, showSettings, duplicatingName, removingName }: SidebarProps) {
+export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onSettings, onFeedback, onAddProject, onDuplicateProject, onRemoveProject, onRenameProject, onReorder, onDetachProject, onAttachProject, detached, showSettings, duplicatingName, removingName }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -166,7 +169,8 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
         <SortableList ids={topLevelNames} onReorder={handleReorder}>
           {rows.map(({ project, isChild }) => {
             const status = computeStatus(project);
-            const isSelected = selected === project.name;
+            const isDetached = detached.has(project.name);
+            const isSelected = selected === project.name && !isDetached;
             const isContextTarget = contextMenu?.name === project.name;
             const isBusy = duplicatingName === project.name || removingName === project.name;
             const parent = project.parentName ? projectByName.get(project.parentName) : undefined;
@@ -210,6 +214,14 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                   >
                     {status.className ? <span className={status.className}>{name}</span> : name}
                   </span>
+                  {isDetached && (
+                    <span
+                      className="shrink-0 text-[var(--text-muted)]"
+                      title="Open in a separate window — click to focus"
+                    >
+                      <DetachIcon />
+                    </span>
+                  )}
                   {status.isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
                   {showCheck && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
                 </button>
@@ -251,6 +263,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           y={contextMenu.y}
           busy={duplicatingName !== null || removingName !== null}
           canRemove={Boolean(contextProject?.parentName)}
+          isDetached={detached.has(contextMenu.name)}
           projectPath={contextProject?.root ?? null}
           onRename={() => setRenamingName(contextMenu.name)}
           onDuplicate={() => onDuplicateProject(contextMenu.name)}
@@ -258,6 +271,8 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           onCopyPath={() => {
             if (contextProject?.root) navigator.clipboard.writeText(contextProject.root);
           }}
+          onDetach={() => onDetachProject(contextMenu.name)}
+          onAttach={() => onAttachProject(contextMenu.name)}
           onRemove={() => setConfirmRemoveDuplicate(contextMenu.name)}
           onClose={() => setContextMenu(null)}
         />

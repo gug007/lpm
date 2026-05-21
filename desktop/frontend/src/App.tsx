@@ -22,15 +22,11 @@ import { useWindowResizeSaver } from "./hooks/useWindowResizeSaver";
 import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
 import { useProjectsSync } from "./hooks/useProjectsSync";
 import { useAppEvents } from "./hooks/useAppEvents";
+import { useProjectWatcher } from "./hooks/useProjectWatcher";
 import { getSettings, saveSettings } from "./store/settings";
 import { useAppStore } from "./store/app";
 
-import {
-  InstallTmux,
-  StartWatchingProject,
-  StopWatchingProject,
-  TmuxInstalled,
-} from "../wailsjs/go/main/App";
+import { InstallTmux, TmuxInstalled } from "../wailsjs/go/main/App";
 
 export default function App() {
   const projects = useAppStore((s) => s.projects);
@@ -39,6 +35,7 @@ export default function App() {
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
   const tmuxReady = useAppStore((s) => s.tmuxReady);
   const visited = useAppStore((s) => s.visited);
+  const detached = useAppStore((s) => s.detached);
   const duplicatingName = useAppStore((s) => s.duplicatingName);
   const removingName = useAppStore((s) => s.removingName);
   const selectedTemplate = useAppStore((s) => s.selectedTemplate);
@@ -61,7 +58,17 @@ export default function App() {
   const removeProject = useAppStore((s) => s.removeProject);
   const renameProject = useAppStore((s) => s.renameProject);
   const reorderProjects = useAppStore((s) => s.reorderProjects);
+  const detachProject = useAppStore((s) => s.detachProject);
+  const attachProject = useAppStore((s) => s.attachProject);
+  const focusDetachedProject = useAppStore((s) => s.focusDetachedProject);
   const refreshAfterRename = useAppStore((s) => s.refreshAfterRename);
+
+  const handleSelect = async (name: string) => {
+    // Race guard: if the window closed between sidebar paint and click,
+    // fall back to in-pane selection instead of swallowing the click.
+    if (detached.has(name) && (await focusDetachedProject(name))) return;
+    selectProject(name);
+  };
 
   const isSettingsView = view !== "projects";
   const selectedProject = projects.find((p) => p.name === selected) || null;
@@ -102,17 +109,7 @@ export default function App() {
     }
   }, [selected]);
 
-  useEffect(() => {
-    const root = view === "projects" ? selectedProject?.root : null;
-    if (!root) {
-      StopWatchingProject().catch(() => {});
-      return;
-    }
-    StartWatchingProject(root).catch(() => {});
-    return () => {
-      StopWatchingProject().catch(() => {});
-    };
-  }, [selectedProject?.root, view]);
+  useProjectWatcher(view === "projects" ? selectedProject?.root : null);
 
   useEffect(() => {
     if (selected) markVisited(selected);
@@ -126,8 +123,12 @@ export default function App() {
     if (projects.length > 0) pruneVisitedToProjects();
   }, [projects, pruneVisitedToProjects]);
 
+  // Hide detached projects from main-window content — their detail view
+  // lives in their own window, and rendering it inline too would duplicate
+  // terminal mounts and steal focus from the detached webview.
   const visitedProjects = projects.filter(
-    (p) => p.name === selected || visited.has(p.name),
+    (p) =>
+      !detached.has(p.name) && (p.name === selected || visited.has(p.name)),
   );
 
   if (tmuxReady === null) {
@@ -163,7 +164,7 @@ export default function App() {
           selected={view === "projects" ? selected : null}
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}
-          onSelect={selectProject}
+          onSelect={handleSelect}
           onToggle={toggleProjectRunning}
           onSettings={() => setView("settings")}
           onFeedback={() => setFeedbackOpen(true)}
@@ -172,6 +173,9 @@ export default function App() {
           onRemoveProject={removeProject}
           onRenameProject={renameProject}
           onReorder={reorderProjects}
+          onDetachProject={detachProject}
+          onAttachProject={attachProject}
+          detached={detached}
           showSettings={isSettingsView}
           duplicatingName={duplicatingName}
           removingName={removingName}

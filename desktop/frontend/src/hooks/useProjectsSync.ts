@@ -4,20 +4,33 @@ import { useAppStore } from "../store/app";
 
 const POLL_INTERVAL_MS = 10_000;
 
-export function useProjectsSync(): void {
-  useEffect(() => {
-    const { refreshProjects, refreshTemplates } = useAppStore.getState();
-    refreshProjects();
-    refreshTemplates();
+interface ProjectsSyncOptions {
+  // Detached windows skip templates (only the main settings UI shows
+  // them) and the 10s poll fallback (the main window already polls and
+  // broadcasts via projects-changed, so a per-window poll multiplies
+  // ListProjects load by the number of detached windows).
+  mode?: "main" | "detached";
+}
 
-    let interval: ReturnType<typeof setInterval> | null = setInterval(
-      refreshProjects,
-      POLL_INTERVAL_MS,
-    );
+export function useProjectsSync(options: ProjectsSyncOptions = {}): void {
+  const isMain = (options.mode ?? "main") === "main";
+  useEffect(() => {
+    const { refreshProjects, refreshTemplates, refreshDetached } =
+      useAppStore.getState();
+    refreshProjects();
+    refreshDetached();
+    if (isMain) refreshTemplates();
+
+    let interval: ReturnType<typeof setInterval> | null = isMain
+      ? setInterval(refreshProjects, POLL_INTERVAL_MS)
+      : null;
 
     const cancelChanged = EventsOn("projects-changed", refreshProjects);
     const cancelStatus = EventsOn("status-changed", refreshProjects);
-    const cancelTemplates = EventsOn("templates-changed", refreshTemplates);
+    const cancelDetached = EventsOn("detached-changed", refreshDetached);
+    const cancelTemplates = isMain
+      ? EventsOn("templates-changed", refreshTemplates)
+      : null;
 
     const onVisibility = () => {
       if (document.hidden) {
@@ -27,7 +40,9 @@ export function useProjectsSync(): void {
         }
       } else {
         refreshProjects();
-        if (!interval) interval = setInterval(refreshProjects, POLL_INTERVAL_MS);
+        if (isMain && !interval) {
+          interval = setInterval(refreshProjects, POLL_INTERVAL_MS);
+        }
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
@@ -37,7 +52,8 @@ export function useProjectsSync(): void {
       document.removeEventListener("visibilitychange", onVisibility);
       if (typeof cancelChanged === "function") cancelChanged();
       if (typeof cancelStatus === "function") cancelStatus();
+      if (typeof cancelDetached === "function") cancelDetached();
       if (typeof cancelTemplates === "function") cancelTemplates();
     };
-  }, []);
+  }, [isMain]);
 }

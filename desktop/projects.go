@@ -1003,6 +1003,7 @@ func (a *App) RemoveProject(name string) error {
 	}
 	a.statusStore.ClearProject(name)
 	a.removeTerminalsEntry(name)
+	a.closeDetachedWindowFor(name)
 	a.removeSettingsReferences(name)
 	a.removeNotes(name)
 	a.wails.Event.Emit("projects-changed")
@@ -1021,28 +1022,31 @@ func (a *App) removeTerminalsEntry(name string) {
 }
 
 func (a *App) removeSettingsReferences(name string) {
-	a.settingsMu.Lock()
-	settings := a.loadSettingsLocked()
-	changed := false
-	if idx := slices.Index(settings.ProjectOrder, name); idx >= 0 {
-		settings.ProjectOrder = slices.Delete(settings.ProjectOrder, idx, idx+1)
-		changed = true
-	}
-	if settings.LastSelectedProject == name {
-		settings.LastSelectedProject = ""
-		changed = true
-	}
-	if changed {
-		if err := a.saveSettingsLocked(settings); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: failed to save settings after removing %s: %v\n", name, err)
+	var nextOrder []string
+	err := a.withSettings(func(s *Settings) bool {
+		changed := false
+		if idx := slices.Index(s.ProjectOrder, name); idx >= 0 {
+			s.ProjectOrder = slices.Delete(s.ProjectOrder, idx, idx+1)
+			changed = true
 		}
+		if s.LastSelectedProject == name {
+			s.LastSelectedProject = ""
+			changed = true
+		}
+		if _, ok := s.DetachedWindows[name]; ok {
+			delete(s.DetachedWindows, name)
+			changed = true
+		}
+		nextOrder = s.ProjectOrder
+		return changed
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to save settings after removing %s: %v\n", name, err)
+		return
 	}
-	a.settingsMu.Unlock()
-	if changed {
-		a.cacheMu.Lock()
-		a.projectOrder = settings.ProjectOrder
-		a.cacheMu.Unlock()
-	}
+	a.cacheMu.Lock()
+	a.projectOrder = nextOrder
+	a.cacheMu.Unlock()
 }
 
 // removeAllWithRetry wraps os.RemoveAll with linear backoff on ENOTEMPTY.

@@ -78,6 +78,13 @@ type App struct {
 	// concurrently when a burst of declared ports is detected at once
 	// (e.g. multi-service profile starting).
 	autoForwardSem chan struct{}
+
+	detachedMu      sync.Mutex
+	detachedWindows map[string]*detachedEntry // projectName -> entry
+	// Set during ServiceShutdown so the detached window close hook leaves
+	// the persisted Detached flag alone — letting the next launch restore
+	// windows that were open at quit-time.
+	shuttingDown bool
 }
 
 func NewApp() *App {
@@ -95,6 +102,7 @@ func NewApp() *App {
 		dismissed:       make(map[string]map[int]bool),
 		pollers:         make(map[string]context.CancelFunc),
 		autoForwardSem:  make(chan struct{}, 4),
+		detachedWindows: make(map[string]*detachedEntry),
 	}
 }
 
@@ -210,19 +218,18 @@ func resolveUserPath() {
 }
 
 func (a *App) SaveWindowSize(width, height int) {
-	if width < minWindowWidth || height < minWindowHeight ||
-		width > maxWindowWidth || height > maxWindowHeight {
+	if !validWindowBounds(width, height) {
 		return
 	}
 	if width == a.lastWinW && height == a.lastWinH {
 		return
 	}
-	a.settingsMu.Lock()
-	defer a.settingsMu.Unlock()
-	s := a.loadSettingsLocked()
-	s.WindowWidth = width
-	s.WindowHeight = height
-	if err := a.saveSettingsLocked(s); err == nil {
+	err := a.withSettings(func(s *Settings) bool {
+		s.WindowWidth = width
+		s.WindowHeight = height
+		return true
+	})
+	if err == nil {
 		a.lastWinW = width
 		a.lastWinH = height
 	}
@@ -230,6 +237,9 @@ func (a *App) SaveWindowSize(width, height int) {
 
 func (a *App) ServiceShutdown() error {
 	a.shutdownOnce.Do(func() {
+		a.detachedMu.Lock()
+		a.shuttingDown = true
+		a.detachedMu.Unlock()
 		a.StopWatchingProject()
 		a.StopTTS()
 
