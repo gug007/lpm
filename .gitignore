@@ -8,6 +8,7 @@ lpm
 
 # Desktop app (Wails)
 desktop/desktop
+desktop/bin/
 desktop/build/bin/
 desktop/frontend/dist/
 desktop/frontend/node_modules/
