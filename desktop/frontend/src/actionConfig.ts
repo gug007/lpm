@@ -66,3 +66,14 @@ export async function replaceAction(projectName: string, key: string, patch: Act
     return true;
   });
 }
+
+// Whole-payload replacement for the YAML editor: drops every existing field
+// on the entry and writes only what the user supplied.
+export async function replaceActionPayload(projectName: string, key: string, payload: Record<string, unknown>) {
+  await editFirstLayer(actionLayers(projectName), (doc) => {
+    const match = findActionSection(doc, key);
+    if (!match) return false;
+    match.node.set(key, payload);
+    return true;
+  });
+}

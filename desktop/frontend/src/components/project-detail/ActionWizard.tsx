@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import YAML from "yaml";
 import { toast } from "sonner";
-import { appendAction, replaceAction, type ActionPatch } from "../../actionConfig";
+import { appendAction, replaceAction, replaceActionPayload, type ActionPatch } from "../../actionConfig";
+import { MonacoEditor } from "../MonacoEditor";
 import { slugify } from "../../slugify";
 import { uniqueKey } from "../../uniqueKey";
 import type { ActionInfo } from "../../types";
@@ -268,6 +269,9 @@ export function ActionWizard({
   const [draft, setDraft] = useState<FormDraft>(defaultDraft);
   const [showYaml, setShowYaml] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [mode, setMode] = useState<"form" | "editor">("form");
+  const [editorContent, setEditorContent] = useState("");
+  const [editorError, setEditorError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const commandRef = useRef<HTMLInputElement>(null);
 
@@ -276,6 +280,8 @@ export function ActionWizard({
     setDraft(editing ? actionToDraft(editing) : defaultDraft());
     setShowYaml(false);
     setSaving(false);
+    setMode("form");
+    setEditorError(null);
     setTimeout(() => nameRef.current?.focus(), 50);
   }, [open, editing]);
 
@@ -303,7 +309,12 @@ export function ActionWizard({
     setDraft((prev) => ({ ...prev, cmd: value, ...applyAutoSettings(prev, prev.name, value) }));
 
   const submit = async () => {
-    if (!formIsValid || saving) return;
+    if (saving) return;
+    if (mode === "editor") {
+      await submitFromEditor();
+      return;
+    }
+    if (!formIsValid) return;
     setSaving(true);
     try {
       const submission = buildSubmission(draft, { editing, existingActionKeys, nextPosition });
@@ -322,6 +333,53 @@ export function ActionWizard({
     } finally {
       setSaving(false);
     }
+  };
+
+  const submitFromEditor = async () => {
+    let parsed: unknown;
+    try {
+      parsed = YAML.parse(editorContent);
+    } catch (err) {
+      setEditorError(err instanceof Error ? err.message : "Invalid YAML");
+      return;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      setEditorError("YAML must be a mapping of action fields");
+      return;
+    }
+    const payload = parsed as Record<string, unknown>;
+    setEditorError(null);
+    setSaving(true);
+    try {
+      if (editing) {
+        await replaceActionPayload(projectName, editing.name, payload);
+        toast.success("Action updated");
+      } else {
+        const key = uniqueKey(slugify(String(payload.label ?? "")) || NEW_ACTION_KEY, existingActionKeys);
+        const withPosition = { display: "header", position: nextPosition, ...payload };
+        await appendAction(projectName, key, withPosition);
+        toast.success("Action created");
+      }
+      onSaved();
+      onClose();
+    } catch (err) {
+      const fallback = isEditing ? "Could not update action" : "Could not create action";
+      toast.error(err instanceof Error ? err.message : fallback);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const switchToEditor = () => {
+    const submission = buildSubmission(draft, { editing, existingActionKeys, nextPosition });
+    setEditorContent(YAML.stringify(submission.payload, { lineWidth: 0 }));
+    setEditorError(null);
+    setMode("editor");
+  };
+
+  const switchToForm = () => {
+    setEditorError(null);
+    setMode("form");
   };
 
   const handleNameEnter = () => {
@@ -349,16 +407,35 @@ export function ActionWizard({
             <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">{title}</h2>
             <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[var(--text-secondary)]">{hint}</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="-mr-2 -mt-2 rounded-xl p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          >
-            <XIcon />
-          </button>
+          <div className="flex items-center gap-3">
+            <ModeToggle mode={mode} onForm={switchToForm} onEditor={switchToEditor} />
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="-mr-2 -mt-2 rounded-xl p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              <XIcon />
+            </button>
+          </div>
         </header>
 
+        {mode === "editor" ? (
+          <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] px-8 py-6">
+            <div className="min-h-[420px] flex-1 overflow-hidden rounded-xl border border-[var(--border)]">
+              <MonacoEditor
+                value={editorContent}
+                onChange={setEditorContent}
+                language="yaml"
+                modelUri={`inmemory://action-${editing?.name ?? "new"}.yaml`}
+                onSave={() => void submit()}
+              />
+            </div>
+            {editorError && (
+              <p className="mt-3 text-[12px] text-[var(--text-error,#e15252)]">{editorError}</p>
+            )}
+          </div>
+        ) : (
         <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] lg:flex-row">
           <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-8 py-7">
             <FieldSection label="Button name">
@@ -456,6 +533,7 @@ export function ActionWizard({
             cmd={cmd}
           />
         </div>
+        )}
 
         <footer className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-8 py-4">
           <button
@@ -466,13 +544,13 @@ export function ActionWizard({
             Cancel
           </button>
           <div className="flex items-center gap-3">
-            {missingHint && (
+            {mode === "form" && missingHint && (
               <span className="hidden text-[12px] text-[var(--text-muted)] sm:inline">{missingHint}</span>
             )}
             <button
               type="button"
               onClick={() => void submit()}
-              disabled={!formIsValid || saving}
+              disabled={saving || (mode === "form" && !formIsValid)}
               className="rounded-xl bg-[var(--text-primary)] px-5 py-2.5 text-[13px] font-semibold text-[var(--bg-primary)] shadow-sm transition hover:opacity-90 disabled:opacity-40 disabled:shadow-none"
             >
               {saving ? savingLabel : primaryLabel}
@@ -481,6 +559,39 @@ export function ActionWizard({
         </footer>
       </div>
     </Modal>
+  );
+}
+
+function ModeToggle({
+  mode,
+  onForm,
+  onEditor,
+}: {
+  mode: "form" | "editor";
+  onForm: () => void;
+  onEditor: () => void;
+}) {
+  const base =
+    "rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors";
+  const active = "bg-[var(--bg-primary)] text-[var(--text-primary)] shadow-sm";
+  const inactive = "text-[var(--text-muted)] hover:text-[var(--text-primary)]";
+  return (
+    <div className="flex items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-1">
+      <button
+        type="button"
+        onClick={onForm}
+        className={`${base} ${mode === "form" ? active : inactive}`}
+      >
+        Form
+      </button>
+      <button
+        type="button"
+        onClick={onEditor}
+        className={`${base} ${mode === "editor" ? active : inactive}`}
+      >
+        Editor
+      </button>
+    </div>
   );
 }
 
