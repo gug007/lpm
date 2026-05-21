@@ -2,9 +2,7 @@ services:
   dev:
     cmd: ./cleanup.sh && wails3 dev
     cwd: ./desktop
-  alpha:
-    cmd: PATH="$HOME/go/bin:$PATH" wails3 dev
-    cwd: ./desktop
+
   website:
     cmd: npm run dev
     cwd: ./website
@@ -13,7 +11,7 @@ services:
 profiles:
   dev:
     - dev
-
+ 
 actions:
   release:
     label: 🚀 Release
