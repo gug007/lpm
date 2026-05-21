@@ -11,10 +11,12 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
+    "allowJs": true,
+    "checkJs": false,
     "baseUrl": "src",
     "paths": {
       "wailsjs/*": ["../wailsjs/*"]
     }
   },
-  "include": ["src", "wailsjs"]
+  "include": ["src", "wailsjs", "bindings"]
 }

@@ -8,7 +8,6 @@ import (
 
 	"github.com/gug007/lpm/internal/aigen"
 	"github.com/gug007/lpm/internal/config"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 const aiProgressEvent = "ai-generate-output"
@@ -57,7 +56,7 @@ func (a *App) GenerateCommitMessage(cwd, cli, model string, files []string) (str
 		return "", err
 	}
 	return aigen.GenerateText(a.ctx, selected, model, cwd, prompt+diff, func(msg string) {
-		runtime.EventsEmit(a.ctx, commitMsgProgressEvent, msg)
+		a.wails.Event.Emit(commitMsgProgressEvent, msg)
 	})
 }
 
@@ -167,7 +166,7 @@ func (a *App) GeneratePRTitle(cwd, cli, model, base string) (string, error) {
 		return "", err
 	}
 	return aigen.GenerateText(a.ctx, selected, model, cwd, prompt, func(msg string) {
-		runtime.EventsEmit(a.ctx, prTitleProgressEvent, msg)
+		a.wails.Event.Emit(prTitleProgressEvent, msg)
 	})
 }
 
@@ -185,7 +184,7 @@ func (a *App) GeneratePRDescription(cwd, cli, model, base string) (string, error
 		return "", err
 	}
 	return aigen.GenerateText(a.ctx, selected, model, cwd, prompt, func(msg string) {
-		runtime.EventsEmit(a.ctx, prDescriptionProgressEvent, msg)
+		a.wails.Event.Emit(prDescriptionProgressEvent, msg)
 	})
 }
 
@@ -245,7 +244,7 @@ func (a *App) GenerateBranchName(cwd, cli, model string) (string, error) {
 		return "", err
 	}
 	return aigen.GenerateText(a.ctx, selected, model, cwd, prompt, func(msg string) {
-		runtime.EventsEmit(a.ctx, branchNameProgressEvent, msg)
+		a.wails.Event.Emit(branchNameProgressEvent, msg)
 	})
 }
 
@@ -283,7 +282,7 @@ func (a *App) ResolveMergeConflictsWithAI(cwd, cli, model string) (string, error
 		return "", err
 	}
 	return aigen.RunWithWrites(a.ctx, selected, model, cwd, mergeConflictPrompt, func(msg string) {
-		runtime.EventsEmit(a.ctx, mergeConflictProgressEvent, msg)
+		a.wails.Event.Emit(mergeConflictProgressEvent, msg)
 	})
 }
 
@@ -304,7 +303,7 @@ func (a *App) GenerateProjectConfig(projectName, cli, extraPrompt string) (strin
 		ProjectDir:  cfg.Root,
 		ExtraPrompt: extraPrompt,
 		Progress: func(msg string) {
-			runtime.EventsEmit(a.ctx, aiProgressEvent, msg)
+			a.wails.Event.Emit(aiProgressEvent, msg)
 		},
 	})
 }

@@ -240,6 +240,7 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   const host = document.createElement("div");
   host.className = "absolute inset-0 overflow-hidden";
   host.setAttribute("data-terminal-id", terminalId);
+  host.setAttribute("data-file-drop-target", "");
 
   // fontSize and theme are placeholders — the React mount sets the real
   // values from props before the session is ever attached.

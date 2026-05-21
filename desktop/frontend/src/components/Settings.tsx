@@ -17,7 +17,6 @@ import {
 import { ProgressBar } from "./ui/ProgressBar";
 import { BrowserOpenURL, EventsOn } from "../../wailsjs/runtime/runtime";
 import {
-  SetDarkMode,
   GetVersion,
   CheckForUpdate,
   InstallUpdate,
@@ -106,7 +105,7 @@ export function Settings({
   const updateSettings = useSettingsStore((s) => s.update);
 
   const setTheme = (next: Theme) => {
-    SetDarkMode(applyTheme(next));
+    applyTheme(next);
     void updateSettings({ theme: next });
   };
 
@@ -169,8 +168,7 @@ export function Settings({
   useEventListener(
     "change",
     () => {
-      const dark = applyTheme("system");
-      SetDarkMode(dark);
+      applyTheme("system");
     },
     darkModeQuery,
     theme === "system",
@@ -1105,7 +1103,7 @@ function ImportReportModal({
           note="These projects reference folders that don't exist on this Mac. Clone or create them, then reopen the project."
         >
           <ul className="flex flex-col gap-1 text-xs font-mono">
-            {missingRoots.map((mr) => (
+            {missingRoots.map((mr: any) => (
               <li key={mr.project} className="rounded bg-[var(--bg-active)] px-2 py-0.5">
                 <span className="text-[var(--text-primary)]">{mr.project}</span>
                 <span className="text-[var(--text-muted)]"> → {mr.root}</span>

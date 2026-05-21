@@ -10,42 +10,24 @@ import "C"
 
 import (
 	"unsafe"
-
-	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 //export checkForUpdatesClicked
 func checkForUpdatesClicked() {
-	if dockApp != nil && dockApp.ctx != nil {
-		ctx := dockApp.ctx
-		go func() {
-			wailsRuntime.WindowShow(ctx)
-			dockApp.checkForUpdateAndEmit()
-		}()
+	if dockApp == nil || dockApp.mainWindow == nil {
+		return
 	}
+	go func() {
+		dockApp.mainWindow.Show()
+		dockApp.checkForUpdateAndEmit()
+	}()
 }
 
 //export openSettingsClicked
-func openSettingsClicked() {
-	if dockApp != nil && dockApp.ctx != nil {
-		ctx := dockApp.ctx
-		go func() {
-			wailsRuntime.WindowShow(ctx)
-			wailsRuntime.EventsEmit(ctx, "menu-open-settings")
-		}()
-	}
-}
+func openSettingsClicked() { dockApp.showAndEmit("menu-open-settings") }
 
 //export sendFeedbackClicked
-func sendFeedbackClicked() {
-	if dockApp != nil && dockApp.ctx != nil {
-		ctx := dockApp.ctx
-		go func() {
-			wailsRuntime.WindowShow(ctx)
-			wailsRuntime.EventsEmit(ctx, "menu-open-feedback")
-		}()
-	}
-}
+func sendFeedbackClicked() { dockApp.showAndEmit("menu-open-feedback") }
 
 func installAppMenuExtras() {
 	cVersion := C.CString(Version)

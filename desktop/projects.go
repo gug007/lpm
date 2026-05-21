@@ -13,7 +13,6 @@ import (
 	"github.com/gug007/lpm/internal/config"
 	"github.com/gug007/lpm/internal/portcheck"
 	"github.com/gug007/lpm/internal/tmux"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"gopkg.in/yaml.v3"
 )
 
@@ -393,7 +392,7 @@ func (a *App) SetProjectLabel(name, label string) error {
 	if err := config.SaveProject(cfg); err != nil {
 		return err
 	}
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.wails.Event.Emit("projects-changed")
 	return nil
 }
 
@@ -435,7 +434,7 @@ func (a *App) StartProject(name, profile string) error {
 	}
 	a.setRunningState(name, runState{profile: profile})
 	a.startPortPoller(name)
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.wails.Event.Emit("projects-changed")
 	return nil
 }
 
@@ -463,7 +462,7 @@ func (a *App) StartProjectWithServices(name string, services []string) error {
 	}
 	a.setRunningState(name, runState{services: slices.Clone(services)})
 	a.startPortPoller(name)
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.wails.Event.Emit("projects-changed")
 	return nil
 }
 
@@ -513,7 +512,7 @@ func (a *App) ToggleProjectService(name, serviceName string) error {
 
 	a.setRunningState(name, runState{services: next})
 	a.invalidateSessionCache(name)
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.wails.Event.Emit("projects-changed")
 	return nil
 }
 
@@ -575,7 +574,7 @@ func (a *App) StopProject(name string) error {
 	if err := tmux.KillSession(cfg.Name); err != nil {
 		return err
 	}
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.wails.Event.Emit("projects-changed")
 	return nil
 }
 
@@ -831,7 +830,7 @@ func (a *App) CreateProject(name string, root string) error {
 	if err := config.SaveProject(cfg); err != nil {
 		return err
 	}
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.wails.Event.Emit("projects-changed")
 	return nil
 }
 
@@ -881,7 +880,7 @@ func (a *App) CreateSSHProject(name string, ssh SSHConfig) error {
 	if err := config.SaveProject(cfg); err != nil {
 		return err
 	}
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.wails.Event.Emit("projects-changed")
 	return nil
 }
 
@@ -907,7 +906,7 @@ func (a *App) SaveGlobalConfig(content string) error {
 	if err := os.WriteFile(config.GlobalPath(), []byte(content), 0644); err != nil {
 		return err
 	}
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.wails.Event.Emit("projects-changed")
 	return nil
 }
 
@@ -960,14 +959,12 @@ func (a *App) SaveRepoConfig(name string, content string) error {
 	if err := writeConfigFile(path, content); err != nil {
 		return err
 	}
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.wails.Event.Emit("projects-changed")
 	return nil
 }
 
 func (a *App) BrowseFolder() (string, error) {
-	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "Select project folder",
-	})
+	return a.chooseFolder("Select project folder", false)
 }
 
 func (a *App) RemoveProject(name string) error {
@@ -1008,7 +1005,7 @@ func (a *App) RemoveProject(name string) error {
 	a.removeTerminalsEntry(name)
 	a.removeSettingsReferences(name)
 	a.removeNotes(name)
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.wails.Event.Emit("projects-changed")
 	return nil
 }
 

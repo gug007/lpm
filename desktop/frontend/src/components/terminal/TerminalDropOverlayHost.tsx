@@ -1,21 +1,15 @@
 import { useEffect, useState } from "react";
-import { registerFileDropHandler } from "../../fileDrop";
 import { TerminalDropOverlay } from "./TerminalDropOverlay";
 
 interface DropTarget {
   rect: DOMRect;
-  count: number;
 }
 
-function countDraggedFiles(dt: DataTransfer): number {
-  let n = 0;
-  for (const item of dt.items) {
-    if (item.kind === "file") n++;
-  }
-  return n;
-}
-
-function findTerminalAt(x: number, y: number): HTMLElement | null {
+// v3's native drag interception swallows DOM dragover on macOS. The runtime.js
+// shim re-publishes v3's drag callbacks as `wails:handleDragEnter/Over/Leave`
+// CustomEvents and a `wails:filesDropped` event on drop. File count is not
+// exposed during the drag, so the overlay shows a generic label.
+function terminalAt(x: number, y: number): HTMLElement | null {
   return (
     document
       .elementFromPoint(x, y)
@@ -27,55 +21,41 @@ export function TerminalDropOverlayHost() {
   const [target, setTarget] = useState<DropTarget | null>(null);
 
   useEffect(() => {
+    // Gate Over events on an explicit Enter so a stale post-drop Over
+    // (which v3 sometimes fires after HandlePlatformFileDrop) can't
+    // re-show the overlay.
+    let dragActive = false;
     let lastId: string | null = null;
     const clear = () => {
+      dragActive = false;
       lastId = null;
       setTarget(null);
     };
 
-    const onDragOver = (e: DragEvent) => {
-      const dt = e.dataTransfer;
-      if (!dt || !dt.types.includes("Files")) return;
-      e.preventDefault();
-      dt.dropEffect = "copy";
-      const el = findTerminalAt(e.clientX, e.clientY);
+    const onEnter = () => {
+      dragActive = true;
+    };
+    const onOver = (e: Event) => {
+      if (!dragActive) return;
+      const [x, y] = (e as CustomEvent<[number, number]>).detail ?? [];
+      if (typeof x !== "number" || typeof y !== "number") return;
+      const el = terminalAt(x, y);
       const id = el?.dataset.terminalId ?? null;
-      // dragover fires ~60/s; only commit a re-render when the targeted
-      // pane changes. Same id ⇒ same rect.
       if (id === lastId) return;
       lastId = id;
-      setTarget(
-        el ? { rect: el.getBoundingClientRect(), count: countDraggedFiles(dt) } : null,
-      );
+      setTarget(el ? { rect: el.getBoundingClientRect() } : null);
     };
 
-    // relatedTarget === null means the cursor left the document entirely.
-    const onDragLeave = (e: DragEvent) => {
-      if (e.relatedTarget === null) clear();
-    };
-
-    document.addEventListener("dragenter", onDragOver);
-    document.addEventListener("dragover", onDragOver);
-    document.addEventListener("dragleave", onDragLeave);
-    document.addEventListener("drop", clear);
-
-    // Wails consumes the OS-level drop, so the document drop event above
-    // often never fires. Hook the Wails registry as the authoritative
-    // "drop landed" signal and pass it through (return false).
-    const cleanupWails = registerFileDropHandler(
-      "terminal-overlay-reset",
-      () => {
-        clear();
-        return false;
-      },
-    );
+    window.addEventListener("wails:handleDragEnter", onEnter);
+    window.addEventListener("wails:handleDragOver", onOver);
+    window.addEventListener("wails:handleDragLeave", clear);
+    window.addEventListener("wails:filesDropped", clear);
 
     return () => {
-      document.removeEventListener("dragenter", onDragOver);
-      document.removeEventListener("dragover", onDragOver);
-      document.removeEventListener("dragleave", onDragLeave);
-      document.removeEventListener("drop", clear);
-      cleanupWails();
+      window.removeEventListener("wails:handleDragEnter", onEnter);
+      window.removeEventListener("wails:handleDragOver", onOver);
+      window.removeEventListener("wails:handleDragLeave", clear);
+      window.removeEventListener("wails:filesDropped", clear);
     };
   }, []);
 
@@ -90,7 +70,7 @@ export function TerminalDropOverlayHost() {
         height: target.rect.height,
       }}
     >
-      <TerminalDropOverlay fileCount={target.count} />
+      <TerminalDropOverlay fileCount={1} />
     </div>
   );
 }

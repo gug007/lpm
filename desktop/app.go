@@ -13,7 +13,7 @@ import (
 
 	"github.com/gug007/lpm/internal/config"
 	"github.com/gug007/lpm/internal/tmux"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 const (
@@ -24,7 +24,11 @@ const (
 )
 
 type App struct {
-	ctx context.Context
+	ctx        context.Context
+	wails      *application.App
+	mainWindow *application.WebviewWindow
+
+	shutdownOnce sync.Once
 
 	cacheMu      sync.RWMutex
 	sessionCache map[string]string   // projectName -> session name
@@ -94,7 +98,7 @@ func NewApp() *App {
 	}
 }
 
-func (a *App) startup(ctx context.Context) {
+func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
 	a.ctx = ctx
 	resolveUserPath()
 
@@ -121,10 +125,11 @@ func (a *App) startup(ctx context.Context) {
 	}
 
 	a.statusStore.StartPIDSweep(ctx, func(project, key string) {
-		runtime.EventsEmit(a.ctx, "status-changed", project)
+		a.wails.Event.Emit("status-changed", project)
 	})
 
 	go a.installAgentHooks()
+	return nil
 }
 
 // TmuxInstalled reports whether tmux is available on the system.
@@ -141,7 +146,7 @@ func (a *App) InstallTmux() error {
 		return fmt.Errorf("Homebrew is required to install tmux.\n\nInstall it from https://brew.sh and relaunch the app.")
 	}
 
-	runtime.EventsEmit(a.ctx, "tmux-install-output", "==> Installing tmux via Homebrew…")
+	a.wails.Event.Emit("tmux-install-output", "==> Installing tmux via Homebrew…")
 
 	cmd := exec.Command(brewPath, "install", "tmux")
 	stdout, err := cmd.StdoutPipe()
@@ -156,7 +161,7 @@ func (a *App) InstallTmux() error {
 
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
-		runtime.EventsEmit(a.ctx, "tmux-install-output", scanner.Text())
+		a.wails.Event.Emit("tmux-install-output", scanner.Text())
 	}
 
 	if err := cmd.Wait(); err != nil {
@@ -223,42 +228,45 @@ func (a *App) SaveWindowSize(width, height int) {
 	}
 }
 
-func (a *App) shutdown(ctx context.Context) {
-	a.StopWatchingProject()
-	a.StopTTS()
+func (a *App) ServiceShutdown() error {
+	a.shutdownOnce.Do(func() {
+		a.StopWatchingProject()
+		a.StopTTS()
 
-	if a.socketServer != nil {
-		a.socketServer.Stop()
-	}
+		if a.socketServer != nil {
+			a.socketServer.Stop()
+		}
 
-	a.streamMu.Lock()
-	for name, cancel := range a.streams {
-		cancel()
-		delete(a.streams, name)
-	}
-	a.streamMu.Unlock()
+		a.streamMu.Lock()
+		for name, cancel := range a.streams {
+			cancel()
+			delete(a.streams, name)
+		}
+		a.streamMu.Unlock()
 
-	a.ptyMu.Lock()
-	for id, sess := range a.ptySessions {
-		sess.wake()
-		_ = sess.cmd.Process.Signal(syscall.SIGHUP)
-		_ = sess.pty.Close()
-		delete(a.ptySessions, id)
-	}
-	a.ptyMu.Unlock()
+		a.ptyMu.Lock()
+		for id, sess := range a.ptySessions {
+			sess.wake()
+			_ = sess.cmd.Process.Signal(syscall.SIGHUP)
+			_ = sess.pty.Close()
+			delete(a.ptySessions, id)
+		}
+		a.ptyMu.Unlock()
 
-	a.stopAllPortPollers()
-	a.stopAllPortForwards()
+		a.stopAllPortPollers()
+		a.stopAllPortForwards()
 
-	// Detach mirror watchers before waiting on pushes so no new pushes
-	// get queued while we're draining.
-	a.stopAllSyncWatchers()
+		// Detach mirror watchers before waiting on pushes so no new pushes
+		// get queued while we're draining.
+		a.stopAllSyncWatchers()
 
-	// Wait for in-flight sync pushes to finish so we don't truncate
-	// rsync mid-transfer. Bounded so a wedged remote can't block exit.
-	a.waitPushes(30 * time.Second)
+		// Wait for in-flight sync pushes to finish so we don't truncate
+		// rsync mid-transfer. Bounded so a wedged remote can't block exit.
+		a.waitPushes(30 * time.Second)
 
-	a.notes.closeAll()
+		a.notes.closeAll()
+	})
+	return nil
 }
 
 func (a *App) waitPushes(timeout time.Duration) {
@@ -276,14 +284,27 @@ func (a *App) waitPushes(timeout time.Duration) {
 
 func (a *App) ClearStatus(project string, paneID string, value string) {
 	if a.statusStore.ClearByPaneValue(project, paneID, value) {
-		runtime.EventsEmit(a.ctx, "status-changed", project)
+		a.wails.Event.Emit("status-changed", project)
 	}
 }
 
-func (a *App) SetDarkMode(dark bool) {
-	if dark {
-		runtime.WindowSetDarkTheme(a.ctx)
-	} else {
-		runtime.WindowSetLightTheme(a.ctx)
+func (a *App) showAndEmit(event string, data ...any) {
+	if a == nil || a.mainWindow == nil {
+		return
 	}
+	go func() {
+		a.mainWindow.Show()
+		a.wails.Event.Emit(event, data...)
+	}()
+}
+
+func (a *App) chooseFolder(title string, canCreate bool) (string, error) {
+	d := a.wails.Dialog.OpenFile().
+		CanChooseDirectories(true).
+		CanChooseFiles(false).
+		SetTitle(title)
+	if canCreate {
+		d = d.CanCreateDirectories(true)
+	}
+	return d.PromptForSingleSelection()
 }

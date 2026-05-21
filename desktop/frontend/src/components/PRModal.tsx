@@ -106,7 +106,7 @@ export function PRModal({
         if (cancelled) return;
         setBase(defaultBranch);
         setGhAvailable(ghOk);
-        setBranches(branchList.filter((b) => b.name !== currentBranch));
+        setBranches(branchList.filter((b: any) => b.name !== currentBranch));
         if (cliAvail) {
           const avail: Record<string, boolean> = {
             claude: cliAvail.claude,

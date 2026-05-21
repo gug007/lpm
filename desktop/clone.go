@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/gug007/lpm/internal/config"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // CreateProjectFromClone clones a git repo into <destParent>/<name>, then
@@ -35,7 +34,7 @@ func (a *App) CreateProjectFromClone(name, url, branch, destParent string) error
 		return err
 	}
 
-	runtime.EventsEmit(a.ctx, "projects-changed")
+	a.wails.Event.Emit("projects-changed")
 	return nil
 }
 

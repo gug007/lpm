@@ -88,7 +88,7 @@ export function CommitModal({
         if (cancelled) return;
         const list = f || [];
         setFiles(list);
-        setSelected(new Set(list.map((x) => x.path)));
+        setSelected(new Set(list.map((x: any) => x.path)));
       })
       .catch(() => {
         if (!cancelled) setFiles([]);
@@ -191,7 +191,7 @@ export function CommitModal({
     const f = await GitChangedFiles(projectPath);
     const list = f || [];
     setFiles(list);
-    const valid = new Set(list.map((x) => x.path));
+    const valid = new Set(list.map((x: any) => x.path));
     setSelected((prev) => {
       const next = new Set<string>();
       for (const p of prev) if (valid.has(p)) next.add(p);

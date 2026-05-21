@@ -15,7 +15,6 @@ import (
 	"github.com/creack/pty"
 	"github.com/gug007/lpm/internal/config"
 	"github.com/gug007/lpm/internal/portcheck"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // Wails v2 WKWebView IPC drops certain high bytes (notably 0xD1) in JS→Go
@@ -299,7 +298,7 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 			}
 			// Replace invalid UTF-8 so JSON serialization is safe
 			text := strings.ToValidUTF8(string(pending), "\uFFFD")
-			runtime.EventsEmit(a.ctx, "pty-output-"+id, text)
+			a.wails.Event.Emit("pty-output-"+id, text)
 			a.sniffPortsFromOutput(sess.projectName, sess.declared, text)
 			pending = pending[:0]
 			timerRunning = false
@@ -337,7 +336,7 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 				exitCode = exitErr.ExitCode()
 			}
 		}
-		runtime.EventsEmit(a.ctx, "pty-exit-"+id, exitCode)
+		a.wails.Event.Emit("pty-exit-"+id, exitCode)
 
 		if sess.onClose != nil {
 			go sess.onClose()

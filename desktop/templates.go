@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/gug007/lpm/internal/config"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"gopkg.in/yaml.v3"
 )
 
@@ -92,7 +91,7 @@ func (a *App) SaveTemplate(name, content string) error {
 	if err := writeConfigFile(path, content); err != nil {
 		return err
 	}
-	runtime.EventsEmit(a.ctx, "templates-changed")
+	a.wails.Event.Emit("templates-changed")
 	return nil
 }
 
@@ -112,7 +111,7 @@ func (a *App) CreateTemplate(name string) error {
 	if err := os.WriteFile(path, []byte{}, 0o644); err != nil {
 		return err
 	}
-	runtime.EventsEmit(a.ctx, "templates-changed")
+	a.wails.Event.Emit("templates-changed")
 	return nil
 }
 
@@ -124,7 +123,7 @@ func (a *App) DeleteTemplate(name string) error {
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	runtime.EventsEmit(a.ctx, "templates-changed")
+	a.wails.Event.Emit("templates-changed")
 	return nil
 }
 
@@ -149,6 +148,6 @@ func (a *App) RenameTemplate(oldName, newName string) error {
 	if err := os.Rename(oldPath, newPath); err != nil {
 		return err
 	}
-	runtime.EventsEmit(a.ctx, "templates-changed")
+	a.wails.Event.Emit("templates-changed")
 	return nil
 }
