@@ -25,9 +25,9 @@ dev_mode:
       - "*.go"
     git_ignore: true
   executes:
-    - cmd: go build -o bin/lpm-desktop .
+    - cmd: go build -o bin/lpm .
       type: blocking
     - cmd: npm --prefix frontend run dev
       type: background
-    - cmd: ./bin/lpm-desktop
+    - cmd: ./bin/lpm
       type: primary

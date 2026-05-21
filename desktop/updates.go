@@ -131,7 +131,7 @@ func appBundlePath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Walk up from e.g. /Applications/lpm.app/Contents/MacOS/lpm-desktop
+	// Walk up from e.g. /Applications/lpm.app/Contents/MacOS/lpm
 	for dir := filepath.Dir(exe); dir != "/" && dir != "."; dir = filepath.Dir(dir) {
 		if strings.HasSuffix(dir, ".app") {
 			return dir, nil
