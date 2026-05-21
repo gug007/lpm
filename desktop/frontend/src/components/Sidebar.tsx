@@ -173,7 +173,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
             const name = <ProjectNameDisplay project={project} parent={parent} />;
             const showCheck = status.isDone && !status.isWaiting && !status.isError;
 
-            const rowButton = (
+            const rowItem = (
               <div className="group relative">
                 <button
                   onClick={() => onSelect(project.name)}
@@ -184,13 +184,15 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                     e.preventDefault();
                     setContextMenu({ name: project.name, x: e.clientX, y: e.clientY });
                   }}
-                  className={`flex w-full select-none items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors group-hover:pr-9 ${
-                    isContextTarget ? "pr-9" : ""
+                  className={`flex w-full select-none items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                    isContextTarget
+                      ? "pr-9 ring-1 ring-inset ring-[var(--accent-cyan)]/60"
+                      : "group-hover:pr-9"
                   } ${
                     isSelected
                       ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
                       : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                  } ${isContextTarget ? "ring-1 ring-inset ring-[var(--accent-cyan)]/60" : ""}`}
+                  }`}
                 >
                   {isBusy ? (
                     <span className="shrink-0 text-[var(--text-muted)]">
@@ -214,14 +216,18 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
+                    // useOutsideClick's mousedown already closed the menu — skip the reopen so the second click toggles off.
+                    if (isContextTarget) return;
                     const rect = e.currentTarget.getBoundingClientRect();
                     setContextMenu({ name: project.name, x: rect.left, y: rect.bottom + 4 });
                   }}
                   className={`absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
-                    isContextTarget ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                    isContextTarget
+                      ? "opacity-100"
+                      : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100"
                   }`}
                   title="More options"
-                  aria-label="More options"
+                  aria-label={`More options for ${project.name}`}
                 >
                   <MoreVerticalIcon />
                 </button>
@@ -229,11 +235,11 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
             );
 
             if (isChild) {
-              return <div key={project.name}>{rowButton}</div>;
+              return <div key={project.name}>{rowItem}</div>;
             }
             return (
               <SortableItem key={project.name} id={project.name}>
-                {rowButton}
+                {rowItem}
               </SortableItem>
             );
           })}
