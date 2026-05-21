@@ -272,6 +272,7 @@ export function ActionWizard({
   const [mode, setMode] = useState<"form" | "editor">("form");
   const [editorContent, setEditorContent] = useState("");
   const [editorError, setEditorError] = useState<string | null>(null);
+  const [editorSeed, setEditorSeed] = useState(0);
   const nameRef = useRef<HTMLInputElement>(null);
   const commandRef = useRef<HTMLInputElement>(null);
 
@@ -374,6 +375,7 @@ export function ActionWizard({
     const submission = buildSubmission(draft, { editing, existingActionKeys, nextPosition });
     setEditorContent(YAML.stringify(submission.payload, { lineWidth: 0 }));
     setEditorError(null);
+    setEditorSeed((n) => n + 1);
     setMode("editor");
   };
 
@@ -424,10 +426,11 @@ export function ActionWizard({
           <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] px-8 py-6">
             <div className="min-h-[420px] flex-1 overflow-hidden rounded-xl border border-[var(--border)]">
               <MonacoEditor
+                key={`action-editor-${editing?.name ?? "new"}-${editorSeed}`}
                 value={editorContent}
                 onChange={setEditorContent}
                 language="yaml"
-                modelUri={`inmemory://action-${editing?.name ?? "new"}.yaml`}
+                modelUri={`inmemory://action-${editing?.name ?? "new"}-${editorSeed}.yaml`}
                 onSave={() => void submit()}
               />
             </div>

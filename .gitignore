@@ -14,7 +14,7 @@ desktop/build/bin/
 desktop/build/darwin/icons.icns
 desktop/frontend/dist/
 desktop/frontend/node_modules/
-desktop/frontend/wailsjs/
+desktop/frontend/bindings/
 desktop/frontend/package.json.md5
 
 # Dependencies
