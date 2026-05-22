@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
+import { SerializeAddon } from "@xterm/addon-serialize";
 import {
   EventsOn,
 } from "../../wailsjs/runtime/runtime";
@@ -18,6 +19,7 @@ import {
 } from "../../wailsjs/go/main/App";
 import { sendTerminalInput, shellQuote } from "../terminal-io";
 import { getTerminalTheme, openTerminalLink } from "./terminal-utils";
+import { handleCopyShortcut } from "./terminal/copySelection";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { registerFileDropHandler } from "../fileDrop";
 import "@xterm/xterm/css/xterm.css";
@@ -102,6 +104,7 @@ interface InteractiveSession {
   term: Terminal;
   fit: FitAddon;
   search: SearchAddon | null;
+  serialize: SerializeAddon | null;
   host: HTMLDivElement;
 
   visible: boolean;
@@ -265,6 +268,11 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     search = new SearchAddon();
     term.loadAddon(search);
   } catch {}
+  let serialize: SerializeAddon | null = null;
+  try {
+    serialize = new SerializeAddon();
+    term.loadAddon(serialize);
+  } catch {}
   try {
     term.loadAddon(new WebLinksAddon(openTerminalLink));
   } catch {}
@@ -277,17 +285,9 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   // Intercept Cmd+key combos before kitty keyboard protocol encodes them.
   // Without this, Cmd+V/C/etc. are sent as CSI u sequences instead of
   // triggering paste/copy/other OS-level shortcuts.
-  term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+  term.attachCustomKeyEventHandler((e) => {
+    if (handleCopyShortcut(e, term, serialize)) return false;
     if (!e.metaKey) return true;
-    if (e.key === "v") {
-      return false;
-    }
-    if (e.key === "c" && e.type === "keydown") {
-      const selection = term.getSelection();
-      if (selection) navigator.clipboard.writeText(selection).catch(() => {});
-      return false;
-    }
-    // Let all other Cmd+key combos fall through to the browser
     return false;
   });
 
@@ -307,6 +307,7 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     term,
     fit,
     search,
+    serialize,
     host,
     remote: IsTerminalRemote(terminalId).catch(() => false),
     visible: true,
