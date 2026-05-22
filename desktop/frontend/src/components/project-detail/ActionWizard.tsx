@@ -410,7 +410,7 @@ export function ActionWizard({
       backdropClassName="bg-black/50 backdrop-blur-sm"
       contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >
-      <div className="flex max-h-[92vh] min-h-[480px] w-[min(960px,calc(100vw-32px))] flex-col" onKeyDown={onKeyDown}>
+      <div className="flex h-[min(820px,92vh)] w-[min(960px,calc(100vw-32px))] flex-col" onKeyDown={onKeyDown}>
         <header className="flex items-start justify-between gap-4 px-8 pb-6 pt-7">
           <div className="min-w-0 flex-1">
             <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">{title}</h2>
