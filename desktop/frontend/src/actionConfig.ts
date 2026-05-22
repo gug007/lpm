@@ -25,6 +25,20 @@ function findActionSection(doc: ReturnType<typeof YAML.parseDocument>, key: stri
   return null;
 }
 
+// True when the entry carries the action's body (cmd, child actions, or the
+// scalar-string shorthand for cmd). Thin overrides that only set per-user
+// metadata like position aren't definitions — they layer on top of one.
+function hasActionBody(entry: unknown): boolean {
+  if (YAML.isScalar(entry)) {
+    const value = (entry as YAML.Scalar).value;
+    return typeof value === "string" && value.trim() !== "";
+  }
+  if (YAML.isMap(entry)) {
+    return entry.has("cmd") || entry.has("actions");
+  }
+  return false;
+}
+
 function actionLayers(projectName: string): readonly ConfigLayer[] {
   return [projectLayer(projectName), repoLayer(projectName), globalLayer];
 }
@@ -48,8 +62,10 @@ export function appendActionToLayer(
   return editProjectDoc(projectName, mutate);
 }
 
-// Returns the topmost layer (in project → repo → global order) that defines
-// the action key, matching where editFirstLayer will write an edit.
+// Returns the topmost layer that carries the action's body — the one
+// replaceAction will write into. Layers with only thin overrides
+// (position, etc.) are skipped, since edits should land where the action
+// is actually defined.
 export async function findActionSource(
   projectName: string,
   key: string,
@@ -63,7 +79,10 @@ export async function findActionSource(
     try {
       const content = await layer.read();
       const doc = YAML.parseDocument(content || "{}");
-      if (findActionSection(doc, key)) return name;
+      const match = findActionSection(doc, key);
+      if (!match) continue;
+      const entry = match.node.get(key, true);
+      if (hasActionBody(entry)) return name;
     } catch {
       continue;
     }
@@ -89,13 +108,15 @@ export interface ActionPatch {
 }
 
 // Patches in place rather than overwriting, so user-authored fields the
-// wizard doesn't manage (cwd, env, inputs, ...) survive an edit.
+// wizard doesn't manage (env, inputs, ...) survive an edit. Skips layers
+// whose entry is just a thin override (no cmd / actions) so edits land
+// on the canonical definition, not on top of a position-only override.
 export async function replaceAction(projectName: string, key: string, patch: ActionPatch) {
   await editFirstLayer(actionLayers(projectName), (doc) => {
     const match = findActionSection(doc, key);
     if (!match) return false;
     const entry = match.node.get(key, true);
-    if (!YAML.isMap(entry)) return false;
+    if (!YAML.isMap(entry) || !hasActionBody(entry)) return false;
     for (const [k, v] of Object.entries(patch.set)) entry.set(k, v);
     for (const k of patch.remove) entry.delete(k);
     return true;
@@ -103,11 +124,14 @@ export async function replaceAction(projectName: string, key: string, patch: Act
 }
 
 // Whole-payload replacement for the YAML editor: drops every existing field
-// on the entry and writes only what the user supplied.
+// on the entry and writes only what the user supplied. Same source-layer
+// rule as replaceAction.
 export async function replaceActionPayload(projectName: string, key: string, payload: Record<string, unknown>) {
   await editFirstLayer(actionLayers(projectName), (doc) => {
     const match = findActionSection(doc, key);
     if (!match) return false;
+    const entry = match.node.get(key, true);
+    if (!hasActionBody(entry)) return false;
     match.node.set(key, payload);
     return true;
   });
