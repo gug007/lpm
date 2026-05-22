@@ -86,10 +86,9 @@ function normalize(text: string): string {
 
 function detectRules(selection: string): CleanRules {
   const gutter = detectGutterPrefix(selection);
-  if (!gutter) return { gutter: null, dedent: 0 };
   // Measure indent against the gutter-stripped text so any padding the agent
   // added inside the gutter is also captured.
-  const stripped = stripGutter(selection, gutter);
+  const stripped = gutter ? stripGutter(selection, gutter) : selection;
   return { gutter, dedent: commonIndent(stripped) };
 }
 
