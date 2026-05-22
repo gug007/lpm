@@ -10,7 +10,7 @@ Agent uses a tool --> [Running]
 Tool requires approval (permission prompt appears) --> [Waiting]
 
 User approves --> [Running]
-User rejects  --> Agent continues (PreToolUse) or gives up (Stop --> [Done])
+User rejects  --> [Done]
 
 Agent finishes responding --> [Done]
 
