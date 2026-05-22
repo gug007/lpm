@@ -130,11 +130,10 @@ function runModeHint(mode: RunMode, reuse: boolean) {
   return "Runs once and displays the result in a modal.";
 }
 
-function wizardCopy(editing: boolean): { title: string; hint: string; primary: string } {
+function wizardCopy(editing: boolean): { title: string; hint?: string; primary: string } {
   if (editing) {
     return {
       title: "Edit action",
-      hint: "Update how this header action behaves.",
       primary: "Save changes",
     };
   }
@@ -324,14 +323,23 @@ export function ActionWizard({
 
   useEffect(() => {
     if (!open) return;
-    setDraft(editing ? actionToDraft(editing) : defaultDraft());
+    const nextDraft = editing ? actionToDraft(editing) : defaultDraft();
+    setDraft(nextDraft);
     setShowYaml(false);
     setSaving(false);
-    setMode("form");
     setEditorError(null);
     setEditSource(null);
-    setTimeout(() => nameRef.current?.focus(), 50);
-  }, [open, editing]);
+    const initialMode = readStoredMode();
+    if (initialMode === "editor") {
+      const submission = buildSubmission(nextDraft, { editing, existingActionKeys, nextPosition });
+      setEditorContent(YAML.stringify(submission.payload, { lineWidth: 0 }));
+      setEditorSeed((n) => n + 1);
+      setMode("editor");
+    } else {
+      setMode("form");
+      setTimeout(() => nameRef.current?.focus(), 50);
+    }
+  }, [open, editing, existingActionKeys, nextPosition]);
 
   useEffect(() => {
     if (!open || !editing) return;
@@ -435,11 +443,13 @@ export function ActionWizard({
     setEditorError(null);
     setEditorSeed((n) => n + 1);
     setMode("editor");
+    writeStoredMode("editor");
   };
 
   const switchToForm = () => {
     setEditorError(null);
     setMode("form");
+    writeStoredMode("form");
   };
 
   const handleNameEnter = () => {
@@ -466,7 +476,7 @@ export function ActionWizard({
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">{title}</h2>
-              <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[var(--text-secondary)]">{hint}</p>
+              {hint && <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[var(--text-secondary)]">{hint}</p>}
             </div>
             <button
               type="button"
