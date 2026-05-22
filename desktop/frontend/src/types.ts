@@ -113,10 +113,11 @@ const CLAUDE_EFFORTS: AIEffortOption[] = [
 ];
 
 // Codex's `-c model_reasoning_effort=...` config accepts
-// minimal/low/medium/high/xhigh — no "max" (that's Claude-only).
+// low/medium/high/xhigh. `minimal` exists in the codex CLI source but
+// is rejected by current GPT-5.x models — kept out to avoid surfacing
+// an option that errors at run time. "max" is Claude-only.
 const CODEX_EFFORTS: AIEffortOption[] = [
   { value: "", label: "Default" },
-  { value: "minimal", label: "Minimal" },
   { value: "low", label: "Low" },
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
@@ -141,9 +142,9 @@ export const AI_CLI_OPTIONS: AICLIOption[] = [
     models: [
       { value: "", label: "Default" },
       { value: "gpt-5.5", label: "GPT-5.5" },
-      { value: "gpt-5.5-mini", label: "GPT-5.5 Mini" },
       { value: "gpt-5.4", label: "GPT-5.4" },
       { value: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
+      { value: "gpt-5.4-nano", label: "GPT-5.4 Nano" },
       { value: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
     ],
     efforts: CODEX_EFFORTS,

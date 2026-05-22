@@ -90,7 +90,7 @@ export function AIActionModal({
       backdropClassName="bg-black/60 backdrop-blur-sm"
       closeOnBackdrop={!generating}
       closeOnEscape={!generating}
-      contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
+      contentClassName="rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
       zIndexClassName="z-[60]"
     >
       <div className="flex w-[min(640px,calc(100vw-32px))] flex-col">
