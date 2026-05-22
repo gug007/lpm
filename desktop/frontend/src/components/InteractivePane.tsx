@@ -46,7 +46,6 @@ interface InteractivePaneProps {
 
 // Flow control: ack in batches to reduce IPC calls (matches VS Code's approach)
 const ACK_SIZE = 5000;
-const HIDDEN_BUF_CAP = 1_000_000; // max chars to buffer while hidden (~1MB)
 
 function getTerminalRemote(id: string): Promise<boolean> {
   return interactiveSessions.get(id)?.remote ?? Promise.resolve(false);
@@ -107,9 +106,6 @@ interface InteractiveSession {
   serialize: SerializeAddon | null;
   host: HTMLDivElement;
 
-  visible: boolean;
-  hiddenBuf: string[];
-  hiddenBufLen: number;
   sessionDead: boolean;
   remote: Promise<boolean>;
 
@@ -122,7 +118,6 @@ interface InteractiveSession {
   onExit?: (exitCode: number) => void;
   themeOverride: ITheme | null;
 
-  flush: () => void;
   destroy: () => void;
 }
 
@@ -310,14 +305,10 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     serialize,
     host,
     remote: IsTerminalRemote(terminalId).catch(() => false),
-    visible: true,
-    hiddenBuf: [],
-    hiddenBufLen: 0,
     sessionDead: false,
     themeOverride: null,
     cwd,
     pathLinkDisposable: null,
-    flush: () => {},
     destroy: () => {},
   };
 
@@ -338,30 +329,11 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     }
   };
 
-  // Visibility-gated write: when hidden, buffer data; flush on visible.
-  // Capped to prevent unbounded memory growth from long-running background output.
-  // Don't ack while hidden — let backend flow control pause naturally.
-  // Ack on flush so xterm.js renders before backend resumes sending.
-  // Overflow: ack-and-drop so backend unacked doesn't get a permanent floor
-  // (otherwise the reader can stay paused forever after the next pause).
+  // Always write + ack, even when the pane is hidden. xterm.js keeps its own
+  // bounded scrollback, so background terminals stay drained and long-running
+  // processes (AI agents, scripts) never block on a full PTY buffer.
   const writeData = (data: string) => {
-    if (!session.visible) {
-      if (session.hiddenBufLen < HIDDEN_BUF_CAP) {
-        session.hiddenBuf.push(data);
-        session.hiddenBufLen += data.length;
-      } else {
-        ackData(data.length);
-      }
-      return;
-    }
     term.write(data, () => ackData(data.length));
-  };
-  session.flush = () => {
-    if (session.hiddenBuf.length === 0) return;
-    const joined = session.hiddenBuf.join("");
-    session.hiddenBuf = [];
-    session.hiddenBufLen = 0;
-    term.write(joined, () => ackData(joined.length));
   };
 
   const markDead = (msg: string, ansiColor: string) => {
@@ -595,17 +567,9 @@ export function InteractivePane({
   }, [cwd]);
 
   useEffect(() => {
+    if (!visible) return;
     const session = sessionRef.current;
     if (!session) return;
-    if (!visible) {
-      session.visible = false;
-      return;
-    }
-    // Flush synchronously before flipping visible so any pty-output
-    // events arriving after this point see an empty buffer and write
-    // directly in order — no flush/write race.
-    session.flush();
-    session.visible = true;
     const term = session.term;
     const fit = session.fit;
     requestAnimationFrame(() => {
