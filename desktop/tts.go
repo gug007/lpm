@@ -9,8 +9,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // ttsState constants emitted via the "tts-state" event.
@@ -120,7 +118,7 @@ func (a *App) startTTS(text string, voice string, speed float64) error {
 	a.ttsSession = sess
 	a.ttsMu.Unlock()
 
-	runtime.EventsEmit(a.ctx, "tts-state", ttsStatePlaying)
+	a.wails.Event.Emit("tts-state", ttsStatePlaying)
 
 	go func() {
 		scanner := bufio.NewScanner(stdout)
@@ -135,12 +133,12 @@ func (a *App) startTTS(text string, voice string, speed float64) error {
 
 			switch chunk.Type {
 			case "audio":
-				runtime.EventsEmit(a.ctx, "tts-audio", chunk.Audio)
+				a.wails.Event.Emit("tts-audio", chunk.Audio)
 			case "done":
 				// synthesis complete; playback may still be ongoing
 			case "error":
-				runtime.EventsEmit(a.ctx, "tts-state", ttsStateError)
-				runtime.EventsEmit(a.ctx, "tts-error", chunk.Error)
+				a.wails.Event.Emit("tts-state", ttsStateError)
+				a.wails.Event.Emit("tts-error", chunk.Error)
 			}
 		}
 
@@ -158,7 +156,7 @@ func (a *App) startTTS(text string, voice string, speed float64) error {
 		sess.mu.Unlock()
 
 		if wasPlaying {
-			runtime.EventsEmit(a.ctx, "tts-state", ttsStateStopped)
+			a.wails.Event.Emit("tts-state", ttsStateStopped)
 		}
 	}()
 
@@ -191,7 +189,7 @@ func (a *App) stopTTSLocked() {
 	}
 	sess.cancel()
 
-	runtime.EventsEmit(a.ctx, "tts-state", ttsStateStopped)
+	a.wails.Event.Emit("tts-state", ttsStateStopped)
 }
 
 // PauseTTS pauses the current TTS session by sending SIGSTOP to the
@@ -218,7 +216,7 @@ func (a *App) PauseTTS() error {
 		}
 	}
 	sess.state = ttsStatePaused
-	runtime.EventsEmit(a.ctx, "tts-state", ttsStatePaused)
+	a.wails.Event.Emit("tts-state", ttsStatePaused)
 	return nil
 }
 
@@ -246,7 +244,7 @@ func (a *App) ResumeTTS() error {
 		}
 	}
 	sess.state = ttsStatePlaying
-	runtime.EventsEmit(a.ctx, "tts-state", ttsStatePlaying)
+	a.wails.Event.Emit("tts-state", ttsStatePlaying)
 	return nil
 }
 

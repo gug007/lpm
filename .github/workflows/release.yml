@@ -30,8 +30,10 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+      - name: Install Wails3
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.95
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
 
       - name: Import certificate
         env:
@@ -57,13 +59,9 @@ jobs:
           mkdir -p "$HOME/.private_keys"
           echo "$APPLE_API_KEY_BASE64" | base64 --decode > "$HOME/.private_keys/AuthKey_${APPLE_API_KEY_ID}.p8"
 
-      - name: Install frontend dependencies
-        working-directory: desktop/frontend
-        run: npm install
-
       - name: Build arm64
         working-directory: desktop
-        run: wails build -platform darwin/arm64 -ldflags "-X main.Version=${VERSION}"
+        run: wails3 task package ARCH=arm64 VERSION=${VERSION}
 
       - name: Sign arm64
         run: |
@@ -71,30 +69,30 @@ jobs:
             --sign "$SIGNING_IDENTITY" \
             --entitlements desktop/build/darwin/entitlements.release.plist \
             --timestamp \
-            desktop/build/bin/lpm.app
-          codesign --verify --verbose=2 desktop/build/bin/lpm.app
+            desktop/bin/lpm.app
+          codesign --verify --verbose=2 desktop/bin/lpm.app
 
       - name: Notarize arm64
         env:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
         run: |
-          ditto -c -k --keepParent desktop/build/bin/lpm.app "$RUNNER_TEMP/lpm-arm64.zip"
+          ditto -c -k --keepParent desktop/bin/lpm.app "$RUNNER_TEMP/lpm-arm64.zip"
           xcrun notarytool submit "$RUNNER_TEMP/lpm-arm64.zip" \
             --key "$HOME/.private_keys/AuthKey_${APPLE_API_KEY_ID}.p8" \
             --key-id "$APPLE_API_KEY_ID" \
             --issuer "$APPLE_API_ISSUER_ID" \
             --wait --timeout 30m
-          xcrun stapler staple desktop/build/bin/lpm.app
+          xcrun stapler staple desktop/bin/lpm.app
 
       - name: Package arm64
         run: |
-          bash scripts/create-dmg.sh desktop/build/bin/lpm.app desktop/build/bin/lpm-desktop-macos-arm64.dmg
-          rm -rf desktop/build/bin/lpm.app
+          bash scripts/create-dmg.sh desktop/bin/lpm.app desktop/bin/lpm-desktop-macos-arm64.dmg
+          rm -rf desktop/bin/lpm.app desktop/bin/lpm
 
       - name: Build amd64
         working-directory: desktop
-        run: wails build -platform darwin/amd64 -ldflags "-X main.Version=${VERSION}"
+        run: wails3 task package ARCH=amd64 VERSION=${VERSION}
 
       - name: Sign amd64
         run: |
@@ -102,26 +100,26 @@ jobs:
             --sign "$SIGNING_IDENTITY" \
             --entitlements desktop/build/darwin/entitlements.release.plist \
             --timestamp \
-            desktop/build/bin/lpm.app
-          codesign --verify --verbose=2 desktop/build/bin/lpm.app
+            desktop/bin/lpm.app
+          codesign --verify --verbose=2 desktop/bin/lpm.app
 
       - name: Notarize amd64
         env:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
         run: |
-          ditto -c -k --keepParent desktop/build/bin/lpm.app "$RUNNER_TEMP/lpm-amd64.zip"
+          ditto -c -k --keepParent desktop/bin/lpm.app "$RUNNER_TEMP/lpm-amd64.zip"
           xcrun notarytool submit "$RUNNER_TEMP/lpm-amd64.zip" \
             --key "$HOME/.private_keys/AuthKey_${APPLE_API_KEY_ID}.p8" \
             --key-id "$APPLE_API_KEY_ID" \
             --issuer "$APPLE_API_ISSUER_ID" \
             --wait --timeout 30m
-          xcrun stapler staple desktop/build/bin/lpm.app
+          xcrun stapler staple desktop/bin/lpm.app
 
       - name: Package amd64
         run: |
-          bash scripts/create-dmg.sh desktop/build/bin/lpm.app desktop/build/bin/lpm-desktop-macos-amd64.dmg
-          rm -rf desktop/build/bin/lpm.app
+          bash scripts/create-dmg.sh desktop/bin/lpm.app desktop/bin/lpm-desktop-macos-amd64.dmg
+          rm -rf desktop/bin/lpm.app desktop/bin/lpm
 
       - name: Build CLI darwin/arm64
         run: |
@@ -189,8 +187,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            desktop/build/bin/lpm-desktop-macos-arm64.dmg
-            desktop/build/bin/lpm-desktop-macos-amd64.dmg
+            desktop/bin/lpm-desktop-macos-arm64.dmg
+            desktop/bin/lpm-desktop-macos-amd64.dmg
             dist/lpm_darwin_arm64.tar.gz
             dist/lpm_darwin_amd64.tar.gz
         env:

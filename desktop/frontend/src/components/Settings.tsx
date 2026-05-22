@@ -17,7 +17,6 @@ import {
 import { ProgressBar } from "./ui/ProgressBar";
 import { BrowserOpenURL, EventsOn } from "../../wailsjs/runtime/runtime";
 import {
-  SetDarkMode,
   GetVersion,
   CheckForUpdate,
   InstallUpdate,
@@ -106,7 +105,7 @@ export function Settings({
   const updateSettings = useSettingsStore((s) => s.update);
 
   const setTheme = (next: Theme) => {
-    SetDarkMode(applyTheme(next));
+    applyTheme(next);
     void updateSettings({ theme: next });
   };
 
@@ -169,8 +168,7 @@ export function Settings({
   useEventListener(
     "change",
     () => {
-      const dark = applyTheme("system");
-      SetDarkMode(dark);
+      applyTheme("system");
     },
     darkModeQuery,
     theme === "system",
@@ -450,9 +448,14 @@ export function Settings({
           {activeTab === "ai" && (
             <SettingsSection title="AI & Integrations">
               <SettingsRow label="Claude Code Hooks" description={HOOKS_DESCRIPTION[hooksStatus]}>
-                <button onClick={handleCheckHooks} disabled={hooksStatus === "checking"} className={BTN_SECONDARY}>
-                  {hooksStatus === "checking" ? <RefreshIcon spinning /> : "Check"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button onClick={handleCheckHooks} disabled={hooksStatus === "checking" || resettingHooks} className={BTN_SECONDARY}>
+                    {hooksStatus === "checking" ? <RefreshIcon spinning /> : "Check"}
+                  </button>
+                  <button onClick={handleResetHooks} disabled={resettingHooks || hooksStatus === "checking"} className={BTN_SECONDARY}>
+                    {resettingHooks ? <RefreshIcon spinning /> : "Reset"}
+                  </button>
+                </div>
               </SettingsRow>
               <SettingsRow label="Commit Instructions" description="Custom instructions for AI commit messages">
                 <button onClick={() => onNavigate("commit-instructions")} className={BTN_SECONDARY}>Edit</button>
@@ -1105,7 +1108,7 @@ function ImportReportModal({
           note="These projects reference folders that don't exist on this Mac. Clone or create them, then reopen the project."
         >
           <ul className="flex flex-col gap-1 text-xs font-mono">
-            {missingRoots.map((mr) => (
+            {missingRoots.map((mr: any) => (
               <li key={mr.project} className="rounded bg-[var(--bg-active)] px-2 py-0.5">
                 <span className="text-[var(--text-primary)]">{mr.project}</span>
                 <span className="text-[var(--text-muted)]"> → {mr.root}</span>

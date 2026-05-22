@@ -4,7 +4,9 @@ import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
+import { SerializeAddon } from "@xterm/addon-serialize";
 import { getTerminalTheme, openTerminalLink } from "./terminal-utils";
+import { copyTerminalSelection, handleCopyShortcut } from "./terminal/copySelection";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { ChevronRightIcon } from "./icons";
 import "@xterm/xterm/css/xterm.css";
@@ -19,6 +21,7 @@ interface PaneSession {
   term: Terminal;
   fit: FitAddon;
   search: SearchAddon | null;
+  serialize: SerializeAddon | null;
   host: HTMLDivElement;
   prevLines: string[];
   stickToBottom: boolean;
@@ -49,8 +52,12 @@ function createPaneSession(opts: { fontSize: number; theme: ITheme; cwd: string 
 
   let search: SearchAddon | null = null;
   try { search = new SearchAddon(); term.loadAddon(search); } catch {}
+  let serialize: SerializeAddon | null = null;
+  try { serialize = new SerializeAddon(); term.loadAddon(serialize); } catch {}
   try { term.loadAddon(new WebLinksAddon(openTerminalLink)); } catch {}
   try { const u = new Unicode11Addon(); term.loadAddon(u); term.unicode.activeVersion = "11"; } catch {}
+
+  term.attachCustomKeyEventHandler((e) => !handleCopyShortcut(e, term, serialize));
 
   term.open(host);
 
@@ -58,6 +65,7 @@ function createPaneSession(opts: { fontSize: number; theme: ITheme; cwd: string 
     term,
     fit,
     search,
+    serialize,
     host,
     prevLines: [],
     stickToBottom: true,
@@ -185,8 +193,7 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
       try { session.fit.fit(); } catch {}
 
       const handleMouseUp = () => {
-        const selection = session.term.getSelection();
-        if (selection) navigator.clipboard.writeText(selection).catch(() => {});
+        copyTerminalSelection(session.term, session.serialize);
       };
       session.host.addEventListener("mouseup", handleMouseUp);
 

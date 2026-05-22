@@ -19,7 +19,6 @@ import (
 	"github.com/gug007/lpm/desktop/notes"
 	"github.com/gug007/lpm/desktop/vault"
 	"github.com/gug007/lpm/internal/config"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -355,10 +354,7 @@ func (a *App) NotesReadAttachment(project, hash string) (string, error) {
 func (a *App) NotesSaveAttachment(project, hash, name string) (result string, err error) {
 	defer recoverAs("save attachment", &err)
 
-	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
-		Title:                "Save attachment to folder",
-		CanCreateDirectories: true,
-	})
+	dir, err := a.chooseFolder("Save attachment to folder", true)
 	if err != nil {
 		return "", err
 	}
@@ -388,10 +384,7 @@ func (a *App) NotesSaveAttachment(project, hash, name string) (result string, er
 func (a *App) VaultExportKey(passphrase string) (result string, err error) {
 	defer recoverAs("vault export", &err)
 
-	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
-		Title:                "Choose folder for lpm vault key",
-		CanCreateDirectories: true,
-	})
+	dir, err := a.chooseFolder("Choose folder for lpm vault key", true)
 	if err != nil {
 		return "", err
 	}
@@ -424,12 +417,10 @@ func (a *App) VaultExportKey(passphrase string) (result string, err error) {
 func (a *App) VaultImportKey(passphrase string) (err error) {
 	defer recoverAs("vault import", &err)
 
-	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "Import lpm vault key",
-		Filters: []runtime.FileFilter{
-			{DisplayName: "JSON (*.json)", Pattern: "*.json"},
-		},
-	})
+	path, err := a.wails.Dialog.OpenFile().
+		SetTitle("Import lpm vault key").
+		AddFilter("JSON (*.json)", "*.json").
+		PromptForSingleSelection()
 	if err != nil {
 		return err
 	}

@@ -14,7 +14,6 @@ import (
 
 	"github.com/gug007/lpm/internal/config"
 	"github.com/gug007/lpm/internal/portcheck"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // Event names emitted to the frontend so all writers/readers share the
@@ -156,11 +155,11 @@ func (a *App) AddPortForward(project string, remotePort int, localPort int) (Por
 	go func() {
 		<-exitCh
 		a.removePortForward(project, pf)
-		runtime.EventsEmit(a.ctx, eventPortsChanged, project)
+		a.wails.Event.Emit(eventPortsChanged, project)
 	}()
 
 	a.markPortSuggested(project, remotePort)
-	runtime.EventsEmit(a.ctx, eventPortsChanged, project)
+	a.wails.Event.Emit(eventPortsChanged, project)
 	return PortForward{LocalPort: localPort, RemotePort: remotePort}, nil
 }
 
@@ -184,7 +183,7 @@ func (a *App) RemovePortForward(project string, localPort int) error {
 	if found != nil {
 		found.cancel()
 	}
-	runtime.EventsEmit(a.ctx, eventPortsChanged, project)
+	a.wails.Event.Emit(eventPortsChanged, project)
 	return nil
 }
 
@@ -220,7 +219,7 @@ func (a *App) stopProjectPortForwards(project string) {
 	delete(a.suggested, project)
 	delete(a.dismissed, project)
 	a.suggestedMu.Unlock()
-	runtime.EventsEmit(a.ctx, eventPortsChanged, project)
+	a.wails.Event.Emit(eventPortsChanged, project)
 }
 
 // stopAllPortForwards kills every forward across every project. Called
@@ -335,7 +334,7 @@ func (a *App) observePort(project string, port int, declared map[int]bool) {
 		return
 	}
 
-	runtime.EventsEmit(a.ctx, eventPortsChanged, project)
+	a.wails.Event.Emit(eventPortsChanged, project)
 }
 
 // autoForward opens a tunnel without user interaction and pushes a
@@ -345,14 +344,14 @@ func (a *App) observePort(project string, port int, declared map[int]bool) {
 func (a *App) autoForward(project string, remotePort int) {
 	pf, err := a.AddPortForward(project, remotePort, 0)
 	if err != nil {
-		runtime.EventsEmit(a.ctx, eventPortForwardFailed, map[string]any{
+		a.wails.Event.Emit(eventPortForwardFailed, map[string]any{
 			"project":    project,
 			"remotePort": remotePort,
 			"error":      err.Error(),
 		})
 		return
 	}
-	runtime.EventsEmit(a.ctx, eventPortAutoForwarded, map[string]any{
+	a.wails.Event.Emit(eventPortAutoForwarded, map[string]any{
 		"project":    project,
 		"remotePort": remotePort,
 		"localPort":  pf.LocalPort,
@@ -424,7 +423,7 @@ func (a *App) DismissPortSuggestion(project string, port int) {
 	}
 	a.dismissed[project][port] = true
 	a.suggestedMu.Unlock()
-	runtime.EventsEmit(a.ctx, eventPortsChanged, project)
+	a.wails.Event.Emit(eventPortsChanged, project)
 }
 
 // ClearPortSuggestions dismisses every currently-suggested port for a
@@ -441,7 +440,7 @@ func (a *App) ClearPortSuggestions(project string) {
 		a.dismissed[project][port] = true
 	}
 	a.suggestedMu.Unlock()
-	runtime.EventsEmit(a.ctx, eventPortsChanged, project)
+	a.wails.Event.Emit(eventPortsChanged, project)
 }
 
 // GetSuggestedPorts returns the ports we've detected on the remote that

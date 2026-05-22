@@ -65,11 +65,17 @@ func (a *App) GitStatus(cwd string) GitStatus {
 	}
 
 	var staged, unstaged, untracked int
-	for _, entry := range entries {
+	for i := 0; i < len(entries); i++ {
+		entry := entries[i]
 		if len(entry) < 2 {
 			continue
 		}
 		x, y := entry[0], entry[1]
+		// Renames/copies emit a trailing from-path chunk; skip it so it isn't
+		// counted as a separate change.
+		if x == 'R' || x == 'C' || y == 'R' || y == 'C' {
+			i++
+		}
 		if x == '?' && y == '?' {
 			untracked++
 			continue
@@ -314,8 +320,6 @@ type ChangedFile struct {
 }
 
 // GitChangedFiles returns the list of uncommitted files in the working tree.
-// Files that appear in both the index and worktree are deduplicated into a
-// single entry so the UI shows one row per path.
 func (a *App) GitChangedFiles(cwd string) []ChangedFile {
 	// Don't use runGit here — it calls TrimSpace which strips the leading
 	// space from porcelain status entries like " M file.txt", corrupting paths.
@@ -325,27 +329,35 @@ func (a *App) GitChangedFiles(cwd string) []ChangedFile {
 	if err != nil {
 		return nil
 	}
-	out := string(raw)
-	seen := make(map[string]int) // path → index in files
-	var files []ChangedFile
+	return parseChangedFiles(string(raw))
+}
+
+// parseChangedFiles parses `git status --porcelain=v1 -z` output. Each record
+// is "XY <path>\x00"; for renames/copies the format is "XY <new>\x00<old>\x00"
+// — the from-path chunk has no XY prefix and must be skipped so it isn't
+// mistaken for a separate entry.
+func parseChangedFiles(out string) []ChangedFile {
 	entries := strings.Split(out, "\x00")
-	for _, entry := range entries {
+	files := make([]ChangedFile, 0, len(entries))
+	for i := 0; i < len(entries); i++ {
+		entry := entries[i]
 		if len(entry) < 4 {
 			continue
 		}
 		x, y := entry[0], entry[1]
 		path := entry[3:]
 
+		if x == 'R' || x == 'C' || y == 'R' || y == 'C' {
+			i++
+		}
+
 		if x == '?' && y == '?' {
-			seen[path] = len(files)
 			files = append(files, ChangedFile{Path: path, Status: "untracked", Staged: false})
 			continue
 		}
 
 		status := "modified"
 		staged := false
-
-		// Prefer the index (staged) status as the label.
 		if x != ' ' && x != '?' {
 			staged = true
 			switch x {
@@ -353,23 +365,14 @@ func (a *App) GitChangedFiles(cwd string) []ChangedFile {
 				status = "added"
 			case 'D':
 				status = "deleted"
-			case 'R':
+			case 'R', 'C':
 				status = "renamed"
 			}
-		} else if y != ' ' {
-			switch y {
-			case 'D':
-				status = "deleted"
-			}
+		} else if y == 'D' {
+			status = "deleted"
 		}
 
-		if idx, ok := seen[path]; ok {
-			// Already recorded — keep as unstaged so git-add picks up working tree changes.
-			files[idx].Staged = false
-		} else {
-			seen[path] = len(files)
-			files = append(files, ChangedFile{Path: path, Status: status, Staged: staged})
-		}
+		files = append(files, ChangedFile{Path: path, Status: status, Staged: staged})
 	}
 	return files
 }

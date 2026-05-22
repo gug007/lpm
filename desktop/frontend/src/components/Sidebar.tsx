@@ -4,7 +4,7 @@ import { getSettings } from "../store/settings";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { InstallUpdate } from "../../wailsjs/go/main/App";
 import { type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
-import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon, HelpCircleIcon } from "./icons";
+import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon, HelpCircleIcon, MoreVerticalIcon, DetachIcon } from "./icons";
 import { ProgressBar } from "./ui/ProgressBar";
 import { SortableItem, SortableList } from "./ui/SortableList";
 import { useSidebarResize } from "../hooks/useSidebarResize";
@@ -31,6 +31,9 @@ interface SidebarProps {
   onRemoveProject: (name: string) => void;
   onRenameProject: (name: string, label: string) => void;
   onReorder: (order: string[]) => void;
+  onDetachProject: (name: string) => void;
+  onAttachProject: (name: string) => void;
+  detached: Set<string>;
   showSettings: boolean;
   duplicatingName: string | null;
   removingName: string | null;
@@ -61,7 +64,7 @@ function computeStatus(project: ProjectInfo): ProjectStatus {
   return { isRunning, isDone, isWaiting, isError, className };
 }
 
-export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onSettings, onFeedback, onAddProject, onDuplicateProject, onRemoveProject, onRenameProject, onReorder, showSettings, duplicatingName, removingName }: SidebarProps) {
+export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onSettings, onFeedback, onAddProject, onDuplicateProject, onRemoveProject, onRenameProject, onReorder, onDetachProject, onAttachProject, detached, showSettings, duplicatingName, removingName }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -166,56 +169,89 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
         <SortableList ids={topLevelNames} onReorder={handleReorder}>
           {rows.map(({ project, isChild }) => {
             const status = computeStatus(project);
-            const isSelected = selected === project.name;
+            const isDetached = detached.has(project.name);
+            const isSelected = selected === project.name && !isDetached;
             const isContextTarget = contextMenu?.name === project.name;
             const isBusy = duplicatingName === project.name || removingName === project.name;
             const parent = project.parentName ? projectByName.get(project.parentName) : undefined;
             const name = <ProjectNameDisplay project={project} parent={parent} />;
             const showCheck = status.isDone && !status.isWaiting && !status.isError;
 
-            const rowButton = (
-              <button
-                onClick={() => onSelect(project.name)}
-                onDoubleClick={() => {
-                  if (getSettings().doubleClickToToggle) onToggle(project.name);
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setContextMenu({ name: project.name, x: e.clientX, y: e.clientY });
-                }}
-                className={`flex w-full select-none items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                  isSelected
-                    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                } ${isContextTarget ? "ring-1 ring-inset ring-[var(--accent-cyan)]/60" : ""}`}
-              >
-                {isBusy ? (
-                  <span className="shrink-0 text-[var(--text-muted)]">
-                    <SpinnerIcon />
-                  </span>
-                ) : project.configError ? (
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Config error" />
-                ) : (
-                  <StatusDot running={project.running} />
-                )}
-                <span
-                  className="truncate"
-                  style={project.configError ? MUTED_STYLE : status.isDone ? DONE_STYLE : undefined}
-                  title={project.configError || (project.parentName ? `Duplicate of ${project.parentName}` : undefined)}
+            const rowItem = (
+              <div className="group relative">
+                <button
+                  onClick={() => onSelect(project.name)}
+                  onDoubleClick={() => {
+                    if (getSettings().doubleClickToToggle) onToggle(project.name);
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setContextMenu({ name: project.name, x: e.clientX, y: e.clientY });
+                  }}
+                  className={`flex w-full select-none items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                    isContextTarget
+                      ? "pr-9 ring-1 ring-inset ring-[var(--accent-cyan)]/60"
+                      : "group-hover:pr-9"
+                  } ${
+                    isSelected
+                      ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                      : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                  }`}
                 >
-                  {status.className ? <span className={status.className}>{name}</span> : name}
-                </span>
-                {status.isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
-                {showCheck && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
-              </button>
+                  {isBusy ? (
+                    <span className="shrink-0 text-[var(--text-muted)]">
+                      <SpinnerIcon />
+                    </span>
+                  ) : project.configError ? (
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Config error" />
+                  ) : (
+                    <StatusDot running={project.running} />
+                  )}
+                  <span
+                    className="truncate"
+                    style={project.configError ? MUTED_STYLE : status.isDone ? DONE_STYLE : undefined}
+                    title={project.configError || (project.parentName ? `Duplicate of ${project.parentName}` : undefined)}
+                  >
+                    {status.className ? <span className={status.className}>{name}</span> : name}
+                  </span>
+                  {isDetached && (
+                    <span
+                      className="shrink-0 text-[var(--text-muted)]"
+                      title="Open in a separate window — click to focus"
+                    >
+                      <DetachIcon />
+                    </span>
+                  )}
+                  {status.isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
+                  {showCheck && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // useOutsideClick's mousedown already closed the menu — skip the reopen so the second click toggles off.
+                    if (isContextTarget) return;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setContextMenu({ name: project.name, x: rect.left, y: rect.bottom + 4 });
+                  }}
+                  className={`absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
+                    isContextTarget
+                      ? "opacity-100"
+                      : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100"
+                  }`}
+                  title="More options"
+                  aria-label={`More options for ${project.name}`}
+                >
+                  <MoreVerticalIcon />
+                </button>
+              </div>
             );
 
             if (isChild) {
-              return <div key={project.name}>{rowButton}</div>;
+              return <div key={project.name}>{rowItem}</div>;
             }
             return (
               <SortableItem key={project.name} id={project.name}>
-                {rowButton}
+                {rowItem}
               </SortableItem>
             );
           })}
@@ -227,6 +263,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           y={contextMenu.y}
           busy={duplicatingName !== null || removingName !== null}
           canRemove={Boolean(contextProject?.parentName)}
+          isDetached={detached.has(contextMenu.name)}
           projectPath={contextProject?.root ?? null}
           onRename={() => setRenamingName(contextMenu.name)}
           onDuplicate={() => onDuplicateProject(contextMenu.name)}
@@ -234,6 +271,8 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           onCopyPath={() => {
             if (contextProject?.root) navigator.clipboard.writeText(contextProject.root);
           }}
+          onDetach={() => onDetachProject(contextMenu.name)}
+          onAttach={() => onAttachProject(contextMenu.name)}
           onRemove={() => setConfirmRemoveDuplicate(contextMenu.name)}
           onClose={() => setContextMenu(null)}
         />

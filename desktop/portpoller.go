@@ -12,7 +12,6 @@ import (
 
 	"github.com/gug007/lpm/internal/config"
 	"github.com/gug007/lpm/internal/tmux"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 const (
@@ -153,7 +152,7 @@ func (a *App) runPortPoller(ctx context.Context, project string, cfg *config.Pro
 			// and the popover/badge subscriber needs to render the
 			// settled state. Subsequent polls only emit on real change.
 			if firstPoll || pruned {
-				runtime.EventsEmit(a.ctx, eventPortsChanged, project)
+				a.wails.Event.Emit(eventPortsChanged, project)
 			}
 			firstPoll = false
 		}

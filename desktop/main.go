@@ -3,10 +3,8 @@ package main
 import (
 	"embed"
 
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 //go:embed all:frontend/dist
@@ -15,60 +13,83 @@ var assets embed.FS
 //go:embed build/appicon.png
 var appIcon []byte
 
+const eventFilesDropped = "files-dropped"
+
+type fileDropPayload struct {
+	X     int      `json:"x"`
+	Y     int      `json:"y"`
+	Paths []string `json:"paths"`
+}
+
 func main() {
-	app := NewApp()
+	appInstance := NewApp()
 
 	width, height := 960, 640
-	s := app.LoadSettings()
+	s := appInstance.LoadSettings()
 	if s.WindowWidth >= minWindowWidth && s.WindowHeight >= minWindowHeight &&
 		s.WindowWidth <= maxWindowWidth && s.WindowHeight <= maxWindowHeight {
 		width = s.WindowWidth
 		height = s.WindowHeight
 	}
-	// Set project order before wails.Run so the first frontend ListProjects
-	// call sees the saved order even if startup() hasn't completed yet.
-	app.cacheMu.Lock()
-	app.projectOrder = s.ProjectOrder
-	app.cacheMu.Unlock()
+	// Set project order before app.Run so the first frontend ListProjects
+	// call sees the saved order even if startup hasn't completed yet.
+	appInstance.cacheMu.Lock()
+	appInstance.projectOrder = s.ProjectOrder
+	appInstance.cacheMu.Unlock()
 
-	err := wails.Run(&options.App{
-		Title:            "lpm",
-		Width:            width,
-		Height:           height,
-		MinWidth:         700,
-		MinHeight:        500,
-		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 0},
-		AssetServer: &assetserver.Options{
-			Assets: assets,
+	app := application.New(application.Options{
+		Name:        "lpm",
+		Description: "lpm — Local Project Manager",
+		Icon:        appIcon,
+		Services: []application.Service{
+			application.NewService(appInstance),
 		},
-		DragAndDrop: &options.DragAndDrop{
-			EnableFileDrop:     true,
-			DisableWebViewDrop: true,
+		Assets: application.AssetOptions{
+			Handler: application.BundledAssetFileServer(assets),
 		},
-		OnStartup:         app.startup,
-		OnShutdown:        app.shutdown,
-		HideWindowOnClose: true,
-		Bind: []interface{}{
-			app,
-		},
-		Mac: &mac.Options{
-			TitleBar: &mac.TitleBar{
-				TitlebarAppearsTransparent: true,
-				HideTitle:                 true,
-				FullSizeContent:           true,
-				UseToolbar:                true,
-				HideToolbarSeparator:      true,
-			},
-			WebviewIsTransparent: true,
-			WindowIsTranslucent:  true,
-			About: &mac.AboutInfo{
-				Title:   "lpm — Local Project Manager",
-				Message: "",
-				Icon:    appIcon,
-			},
+		Mac: application.MacOptions{
+			ApplicationShouldTerminateAfterLastWindowClosed: false,
 		},
 	})
-	if err != nil {
+
+	appInstance.wails = app
+
+	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title:          "lpm",
+		Width:          width,
+		Height:         height,
+		MinWidth:       700,
+		MinHeight:      500,
+		EnableFileDrop: true,
+		Mac: application.MacWindow{
+			Backdrop: application.MacBackdropTranslucent,
+			TitleBar: application.MacTitleBarHiddenInsetUnified,
+		},
+	})
+
+	appInstance.mainWindow = window
+
+	// Hide instead of quit so background work (sync, port forwards, sockets) survives.
+	window.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		window.Hide()
+		e.Cancel()
+	})
+
+	window.OnWindowEvent(events.Common.WindowFilesDropped, func(e *application.WindowEvent) {
+		ctx := e.Context()
+		payload := fileDropPayload{Paths: ctx.DroppedFiles()}
+		if details := ctx.DropTargetDetails(); details != nil {
+			payload.X = details.X
+			payload.Y = details.Y
+		}
+		app.Event.Emit(eventFilesDropped, payload)
+	})
+
+	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(_ *application.ApplicationEvent) {
+		appInstance.RestoreDetachedWindows()
+	})
+
+	if err := app.Run(); err != nil {
 		panic(err)
 	}
 }

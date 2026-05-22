@@ -996,7 +996,7 @@ const MessageRow = memo(function MessageRow({
       )}
       {message.attachments && message.attachments.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
-          {message.attachments.map((att) => (
+          {message.attachments.map((att: any) => (
             <AttachmentChip
               key={att.hash}
               projectName={projectName}

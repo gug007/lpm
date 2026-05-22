@@ -13,7 +13,6 @@ import (
 
 	"github.com/gug007/lpm/internal/config"
 	"github.com/rjeczalik/notify"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // pullTTL skips redundant rsync pulls when a successful pull happened
@@ -209,7 +208,7 @@ func (a *App) pushProjectSyncAsync(cfg *config.ProjectConfig) {
 		defer a.pushWG.Done()
 		if err := a.pushProjectSync(cfg); err != nil {
 			fmt.Fprintf(os.Stderr, "sync push for %s: %v\n", cfg.Name, err)
-			runtime.EventsEmit(a.ctx, "sync-error", err.Error())
+			a.wails.Event.Emit("sync-error", err.Error())
 		}
 	}()
 }

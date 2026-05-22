@@ -9,6 +9,7 @@ import {
   type ProjectInfo,
 } from "../types";
 import {
+  AttachProject,
   BrowseFolder,
   CheckPortConflicts,
   CreateProject,
@@ -16,7 +17,10 @@ import {
   CreateSSHProject,
   CreateTemplate,
   DeleteTemplate,
+  DetachProject,
   DuplicateProject,
+  FocusDetachedWindow,
+  ListDetachedProjects,
   ListProjects,
   ListTemplates,
   ReadConfig,
@@ -89,6 +93,7 @@ interface AppState {
   addingCloneProject: boolean;
   portConflict: PortConflictPrompt | null;
   resolvingPortConflict: boolean;
+  detached: Set<string>;
   actionsUndoStack: Record<string, ActionsLayout[]>;
   actionsRedoStack: Record<string, ActionsLayout[]>;
 
@@ -137,6 +142,10 @@ interface AppState {
   removeProject: (name: string) => Promise<void>;
   renameProject: (name: string, label: string) => Promise<void>;
   reorderProjects: (order: string[]) => Promise<void>;
+  detachProject: (name: string) => Promise<void>;
+  attachProject: (name: string) => Promise<void>;
+  focusDetachedProject: (name: string) => Promise<boolean>;
+  refreshDetached: () => Promise<void>;
   reorderActions: (
     projectName: string,
     layout: ActionsLayout,
@@ -415,6 +424,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   addingCloneProject: false,
   portConflict: null,
   resolvingPortConflict: false,
+  detached: new Set<string>(),
   actionsUndoStack: {},
   actionsRedoStack: {},
 
@@ -730,6 +740,63 @@ export const useAppStore = create<AppState>((set, get) => ({
       await ReorderProjects(order);
     } catch (err) {
       toast.error(`Failed to reorder: ${err}`);
+    }
+  },
+
+  refreshDetached: async () => {
+    try {
+      const raw = (await ListDetachedProjects()) as string[] | null;
+      const next = new Set<string>(raw ?? []);
+      set((s) => {
+        if (s.detached.size === next.size && [...s.detached].every((n) => next.has(n))) {
+          return s;
+        }
+        return { detached: next };
+      });
+    } catch (err) {
+      console.error("Failed to load detached projects:", err);
+    }
+  },
+
+  detachProject: async (name) => {
+    try {
+      await DetachProject(name);
+      set((s) => {
+        const detached = s.detached.has(name)
+          ? s.detached
+          : new Set<string>([...s.detached, name]);
+        // Clear inline selection so lastSelectedProject persistence
+        // doesn't carry the now-detached project, and so EmptyState
+        // shows in the main pane without needing a derived guard.
+        const selected = s.selected === name ? null : s.selected;
+        if (detached === s.detached && selected === s.selected) return s;
+        return { detached, selected };
+      });
+    } catch (err) {
+      toast.error(`Failed to detach ${name}: ${err}`);
+    }
+  },
+
+  attachProject: async (name) => {
+    try {
+      await AttachProject(name);
+      set((s) => {
+        if (!s.detached.has(name)) return s;
+        const next = new Set<string>(s.detached);
+        next.delete(name);
+        return { detached: next };
+      });
+    } catch (err) {
+      toast.error(`Failed to attach ${name}: ${err}`);
+    }
+  },
+
+  focusDetachedProject: async (name) => {
+    try {
+      return (await FocusDetachedWindow(name)) as boolean;
+    } catch (err) {
+      console.error("Failed to focus detached window:", err);
+      return false;
     }
   },
 

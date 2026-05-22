@@ -33,6 +33,18 @@ type Settings struct {
 	TTSVoice            string   `json:"ttsVoice,omitempty"`
 	TTSSpeed            float64  `json:"ttsSpeed,omitempty"`
 	PreferredEditor     string   `json:"preferredEditor,omitempty"`
+	// DetachedWindows holds per-project window state for projects that are
+	// (or were last) opened in their own window. Bounds persist even after
+	// re-attach so re-detaching restores the previous geometry.
+	DetachedWindows     map[string]DetachedWindowState `json:"detachedWindows,omitempty"`
+}
+
+type DetachedWindowState struct {
+	Detached bool `json:"detached"`
+	X        int  `json:"x,omitempty"`
+	Y        int  `json:"y,omitempty"`
+	Width    int  `json:"width,omitempty"`
+	Height   int  `json:"height,omitempty"`
 }
 
 func defaultSettings() Settings {
@@ -51,6 +63,27 @@ func (a *App) LoadSettings() Settings {
 	a.settingsMu.Lock()
 	defer a.settingsMu.Unlock()
 	return a.loadSettingsLocked()
+}
+
+// withSettings runs mutate under settingsMu, persisting only when
+// mutate reports a change. Centralizes the load→mutate→save pattern so
+// callers don't reimplement (and accidentally vary) the lock + no-op
+// short-circuit semantics.
+func (a *App) withSettings(mutate func(*Settings) bool) error {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	s := a.loadSettingsLocked()
+	if !mutate(&s) {
+		return nil
+	}
+	return a.saveSettingsLocked(s)
+}
+
+// validWindowBounds reports whether width/height fall within the
+// app-wide min/max range used to guard against junk persisted state.
+func validWindowBounds(width, height int) bool {
+	return width >= minWindowWidth && height >= minWindowHeight &&
+		width <= maxWindowWidth && height <= maxWindowHeight
 }
 
 func (a *App) SaveSettings(s Settings) error {
