@@ -2,11 +2,15 @@ import YAML from "yaml";
 import {
   type ConfigLayer,
   editFirstLayer,
+  editGlobalDoc,
   editProjectDoc,
+  editRepoDoc,
   globalLayer,
   projectLayer,
   repoLayer,
 } from "./yamlQueue";
+
+export type ActionConfigLayer = "project" | "repo" | "global";
 
 export const ACTION_SECTIONS = ["actions", "terminals"] as const;
 export type ActionSection = (typeof ACTION_SECTIONS)[number];
@@ -25,15 +29,23 @@ function actionLayers(projectName: string): readonly ConfigLayer[] {
   return [projectLayer(projectName), repoLayer(projectName), globalLayer];
 }
 
-export function appendAction(projectName: string, key: string, payload: Record<string, unknown>) {
-  return editProjectDoc(projectName, (doc) => {
+export function appendActionToLayer(
+  projectName: string,
+  key: string,
+  payload: Record<string, unknown>,
+  layer: ActionConfigLayer,
+) {
+  const mutate = (doc: ReturnType<typeof YAML.parseDocument>) => {
     let actions = doc.get("actions", true);
     if (!YAML.isMap(actions)) {
       actions = doc.createNode({});
       doc.set("actions", actions);
     }
     if (YAML.isMap(actions)) actions.set(key, payload);
-  });
+  };
+  if (layer === "repo") return editRepoDoc(projectName, mutate);
+  if (layer === "global") return editGlobalDoc(mutate);
+  return editProjectDoc(projectName, mutate);
 }
 
 // Acts on the topmost layer that defines the key; the lower layer remains

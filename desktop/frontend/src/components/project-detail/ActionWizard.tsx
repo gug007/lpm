@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import YAML from "yaml";
 import { toast } from "sonner";
-import { appendAction, replaceAction, replaceActionPayload, type ActionPatch } from "../../actionConfig";
+import {
+  appendActionToLayer,
+  replaceAction,
+  replaceActionPayload,
+  type ActionConfigLayer,
+  type ActionPatch,
+} from "../../actionConfig";
 import { MonacoEditor } from "../MonacoEditor";
 import { slugify } from "../../slugify";
 import { uniqueKey } from "../../uniqueKey";
@@ -10,6 +16,7 @@ import {
   CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
+  FolderIcon,
   HelpCircleIcon,
   PlayIcon,
   PlusIcon,
@@ -139,10 +146,21 @@ interface FormDraft {
   name: string;
   cmd: string;
   cwd: string;
+  configLayer: ActionConfigLayer;
   children: ChildDraft[];
   runMode: RunMode;
   reuse: boolean;
   confirm: boolean;
+}
+
+const CONFIG_LAYER_OPTIONS: Array<{ value: ActionConfigLayer; label: string; hint: string }> = [
+  { value: "project", label: "User", hint: "Just for you on this project" },
+  { value: "repo", label: "Repo", hint: "Shared with your team via git" },
+  { value: "global", label: "Global", hint: "Available across all your projects" },
+];
+
+function configLayerLabel(layer: ActionConfigLayer): string {
+  return CONFIG_LAYER_OPTIONS.find((opt) => opt.value === layer)?.label ?? "User";
 }
 
 function buildChildMap(children: ChildDraft[]): Record<string, unknown> {
@@ -243,6 +261,7 @@ function actionToDraft(action: ActionInfo): FormDraft {
     name: action.label,
     cmd: action.cmd,
     cwd: action.cwd ?? "",
+    configLayer: "project",
     children: children.length ? children : [newChild()],
     runMode: toRunMode(action.type),
     reuse: action.reuse ?? false,
@@ -256,6 +275,7 @@ function defaultDraft(): FormDraft {
     name: "",
     cmd: "",
     cwd: "",
+    configLayer: "project",
     children: [newChild()],
     runMode: "once",
     reuse: false,
@@ -293,7 +313,7 @@ export function ActionWizard({
     setTimeout(() => nameRef.current?.focus(), 50);
   }, [open, editing]);
 
-  const { shape, name, cmd, cwd, children, runMode, reuse, confirm } = draft;
+  const { shape, name, cmd, cwd, configLayer, children, runMode, reuse, confirm } = draft;
   const nameFilled = Boolean(name.trim());
   const cmdFilled = Boolean(cmd.trim());
   const hasMenuOption = children.some((child) => child.cmd.trim());
@@ -330,7 +350,7 @@ export function ActionWizard({
         await replaceAction(projectName, submission.key, submission.patch);
         toast.success("Action updated");
       } else {
-        await appendAction(projectName, submission.key, submission.payload);
+        await appendActionToLayer(projectName, submission.key, submission.payload, configLayer);
         toast.success("Action created");
       }
       onSaved();
@@ -365,7 +385,7 @@ export function ActionWizard({
       } else {
         const key = uniqueKey(slugify(String(payload.label ?? "")) || NEW_ACTION_KEY, existingActionKeys);
         const withPosition = { display: "header", position: nextPosition, ...payload };
-        await appendAction(projectName, key, withPosition);
+        await appendActionToLayer(projectName, key, withPosition, configLayer);
         toast.success("Action created");
       }
       onSaved();
@@ -415,6 +435,19 @@ export function ActionWizard({
           <div className="min-w-0 flex-1">
             <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">{title}</h2>
             <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[var(--text-secondary)]">{hint}</p>
+            <div className="mt-2.5">
+              {isEditing ? (
+                <div className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
+                  <FolderIcon />
+                  Saves to its existing config
+                </div>
+              ) : (
+                <ConfigLayerMenu
+                  value={configLayer}
+                  onChange={(next) => updateField("configLayer", next)}
+                />
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <ModeMenu
@@ -623,6 +656,67 @@ function ModeMenu({ mode, onChange }: { mode: WizardMode; onChange: (next: Wizar
         <div className="absolute right-0 top-full z-50 mt-1.5 min-w-[180px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-2xl">
           {MODE_OPTIONS.map((opt) => {
             const active = opt.value === mode;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => choose(opt.value)}
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
+              >
+                <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-[var(--text-primary)]">
+                  {active && <CheckIcon />}
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className={`text-[12px] font-medium ${active ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}>
+                    {opt.label}
+                  </span>
+                  <span className="text-[11px] text-[var(--text-muted)]">{opt.hint}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ConfigLayerMenu({
+  value,
+  onChange,
+}: {
+  value: ActionConfigLayer;
+  onChange: (next: ActionConfigLayer) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
+
+  const choose = (next: ActionConfigLayer) => {
+    setOpen(false);
+    if (next !== value) onChange(next);
+  };
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 -mx-1.5 text-[11px] transition-colors ${
+          open
+            ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
+            : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
+        }`}
+      >
+        <FolderIcon />
+        <span>
+          Saves to <span className="text-[var(--text-secondary)]">{configLayerLabel(value)}</span> config
+        </span>
+        <ChevronDownIcon />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-50 mt-1.5 min-w-[260px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-2xl">
+          {CONFIG_LAYER_OPTIONS.map((opt) => {
+            const active = opt.value === value;
             return (
               <button
                 key={opt.value}

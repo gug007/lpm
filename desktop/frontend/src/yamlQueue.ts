@@ -70,6 +70,14 @@ export function editProjectDoc(projectName: string, mutate: (doc: Doc) => void) 
   return editLayer(projectLayer(projectName), mutate);
 }
 
+export function editRepoDoc(projectName: string, mutate: (doc: Doc) => void) {
+  return editLayer(repoLayer(projectName), mutate);
+}
+
+export function editGlobalDoc(mutate: (doc: Doc) => void) {
+  return editLayer(globalLayer, mutate);
+}
+
 async function walkLayers(
   layers: readonly ConfigLayer[],
   attempt: (doc: Doc) => boolean,
