@@ -138,6 +138,7 @@ interface FormDraft {
   shape: Shape;
   name: string;
   cmd: string;
+  cwd: string;
   children: ChildDraft[];
   runMode: RunMode;
   reuse: boolean;
@@ -166,15 +167,18 @@ function buildChildMap(children: ChildDraft[]): Record<string, unknown> {
 }
 
 // Returns set/remove for the wizard-managed fields. On edit, applying this
-// patch leaves user-authored fields like cwd/env/inputs untouched.
-function buildActionPatch({ shape, name, cmd, children, runMode, reuse, confirm }: FormDraft): ActionPatch {
+// patch leaves user-authored fields like env/inputs untouched.
+function buildActionPatch({ shape, name, cmd, cwd, children, runMode, reuse, confirm }: FormDraft): ActionPatch {
   const set: Record<string, unknown> = { label: name.trim() };
   const remove: string[] = [];
 
   if (shape === "dropdown") {
-    remove.push("cmd", "type", "reuse", "confirm");
+    remove.push("cmd", "cwd", "type", "reuse", "confirm");
   } else {
     set.cmd = cmd.trim();
+    const cwdTrim = cwd.trim();
+    if (cwdTrim) set.cwd = cwdTrim;
+    else remove.push("cwd");
     if (runMode !== "once") set.type = runMode;
     else remove.push("type");
     if (runMode === "terminal" && reuse) set.reuse = true;
@@ -238,6 +242,7 @@ function actionToDraft(action: ActionInfo): FormDraft {
     shape: inferShape(action),
     name: action.label,
     cmd: action.cmd,
+    cwd: action.cwd ?? "",
     children: children.length ? children : [newChild()],
     runMode: toRunMode(action.type),
     reuse: action.reuse ?? false,
@@ -250,6 +255,7 @@ function defaultDraft(): FormDraft {
     shape: "button",
     name: "",
     cmd: "",
+    cwd: "",
     children: [newChild()],
     runMode: "once",
     reuse: false,
@@ -287,7 +293,7 @@ export function ActionWizard({
     setTimeout(() => nameRef.current?.focus(), 50);
   }, [open, editing]);
 
-  const { shape, name, cmd, children, runMode, reuse, confirm } = draft;
+  const { shape, name, cmd, cwd, children, runMode, reuse, confirm } = draft;
   const nameFilled = Boolean(name.trim());
   const cmdFilled = Boolean(cmd.trim());
   const hasMenuOption = children.some((child) => child.cmd.trim());
@@ -404,7 +410,7 @@ export function ActionWizard({
       backdropClassName="bg-black/50 backdrop-blur-sm"
       contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >
-      <div className="flex h-[min(720px,88vh)] w-[min(960px,calc(100vw-32px))] flex-col" onKeyDown={onKeyDown}>
+      <div className="flex max-h-[92vh] min-h-[480px] w-[min(960px,calc(100vw-32px))] flex-col" onKeyDown={onKeyDown}>
         <header className="flex items-start justify-between gap-4 px-8 pb-6 pt-7">
           <div className="min-w-0 flex-1">
             <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">{title}</h2>
@@ -494,6 +500,19 @@ export function ActionWizard({
                   onChange={updateCmd}
                   onEnter={() => void submit()}
                   placeholder={shape === "split" ? "npm run deploy:staging" : "npm run dev"}
+                />
+              </Reveal>
+            )}
+
+            {showCommand && (
+              <Reveal>
+                <CommandField
+                  label="Working directory"
+                  hint="Defaults to the project directory"
+                  value={cwd}
+                  onChange={(value) => updateField("cwd", value)}
+                  onEnter={() => void submit()}
+                  placeholder="./backend"
                 />
               </Reveal>
             )}
@@ -957,6 +976,7 @@ function ShapePreviewButton({ shape, label }: { shape: Shape; label: string }) {
 function CommandField({
   inputRef,
   label,
+  hint,
   value,
   onChange,
   onEnter,
@@ -964,6 +984,7 @@ function CommandField({
 }: {
   inputRef?: Ref<HTMLInputElement>;
   label: string;
+  hint?: string;
   value: string;
   onChange: (value: string) => void;
   onEnter?: () => void;
@@ -971,7 +992,10 @@ function CommandField({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-[13px] font-medium text-[var(--text-primary)]">{label}</span>
+      <span className="mb-2 flex items-center justify-between gap-3 text-[13px] font-medium text-[var(--text-primary)]">
+        <span>{label}</span>
+        {hint && <span className="text-[12px] font-normal text-[var(--text-muted)]">{hint}</span>}
+      </span>
       <input
         ref={inputRef}
         value={value}
