@@ -37,8 +37,8 @@ func (a *App) CheckClaudeHooks() ClaudeHooksStatus {
 	}
 }
 
-// ResetClaudeHooks removes existing lpm hooks from ~/.claude/settings.json
-// and reinstalls them.
+// ResetClaudeHooks wipes all hooks from ~/.claude/settings.json
+// and reinstalls lpm hooks.
 func (a *App) ResetClaudeHooks() error {
 	settingsPath := filepath.Join(os.Getenv("HOME"), ".claude", "settings.json")
 
@@ -52,29 +52,7 @@ func (a *App) ResetClaudeHooks() error {
 		return fmt.Errorf("invalid JSON in Claude settings: %w", err)
 	}
 
-	if hooks, _ := settings["hooks"].(map[string]any); hooks != nil {
-		for event, entries := range hooks {
-			arr, ok := entries.([]any)
-			if !ok {
-				continue
-			}
-			var kept []any
-			for _, entry := range arr {
-				raw, _ := json.Marshal(entry)
-				if !strings.Contains(string(raw), lpmHookMarker) {
-					kept = append(kept, entry)
-				}
-			}
-			if len(kept) > 0 {
-				hooks[event] = kept
-			} else {
-				delete(hooks, event)
-			}
-		}
-		if len(hooks) == 0 {
-			delete(settings, "hooks")
-		}
-	}
+	delete(settings, "hooks")
 
 	out, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {

@@ -448,9 +448,14 @@ export function Settings({
           {activeTab === "ai" && (
             <SettingsSection title="AI & Integrations">
               <SettingsRow label="Claude Code Hooks" description={HOOKS_DESCRIPTION[hooksStatus]}>
-                <button onClick={handleCheckHooks} disabled={hooksStatus === "checking"} className={BTN_SECONDARY}>
-                  {hooksStatus === "checking" ? <RefreshIcon spinning /> : "Check"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button onClick={handleCheckHooks} disabled={hooksStatus === "checking" || resettingHooks} className={BTN_SECONDARY}>
+                    {hooksStatus === "checking" ? <RefreshIcon spinning /> : "Check"}
+                  </button>
+                  <button onClick={handleResetHooks} disabled={resettingHooks || hooksStatus === "checking"} className={BTN_SECONDARY}>
+                    {resettingHooks ? <RefreshIcon spinning /> : "Reset"}
+                  </button>
+                </div>
               </SettingsRow>
               <SettingsRow label="Commit Instructions" description="Custom instructions for AI commit messages">
                 <button onClick={() => onNavigate("commit-instructions")} className={BTN_SECONDARY}>Edit</button>
