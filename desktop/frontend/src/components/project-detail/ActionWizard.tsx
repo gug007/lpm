@@ -555,20 +555,7 @@ export function ActionWizard({
         <header className="px-8 pb-5 pt-7">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-3">
-                <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">{title}</h2>
-                <button
-                  type="button"
-                  onClick={() => setAiModalOpen(true)}
-                  className="group relative inline-flex shrink-0 items-center gap-1.5 rounded-md p-[1px] [background:linear-gradient(135deg,#6366f1,#a855f7,#ec4899)] shadow-sm transition-all hover:shadow-md hover:shadow-purple-500/20 active:scale-[0.98]"
-                  title={isEditing ? "Edit this action with AI" : "Generate an action with AI"}
-                >
-                  <span className="inline-flex items-center gap-1.5 rounded-[5px] bg-[var(--bg-primary)] px-2 py-1 text-[11px] font-medium text-[var(--text-primary)] transition-colors group-hover:bg-transparent group-hover:text-white">
-                    <SparkleIcon />
-                    {isEditing ? "Edit with AI" : "Generate with AI"}
-                  </span>
-                </button>
-              </div>
+              <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">{title}</h2>
               {hint && <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[var(--text-secondary)]">{hint}</p>}
             </div>
             <button
@@ -733,13 +720,26 @@ export function ActionWizard({
         )}
 
         <footer className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-8 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          >
-            Cancel
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => setAiModalOpen(true)}
+              className="group relative inline-flex shrink-0 items-center rounded-xl p-[1px] [background:linear-gradient(135deg,#6366f1,#a855f7,#ec4899)] shadow-sm transition-all hover:shadow-md hover:shadow-purple-500/20 active:scale-[0.98]"
+              title={isEditing ? "Edit this action with AI" : "Generate an action with AI"}
+            >
+              <span className="inline-flex items-center gap-1.5 rounded-[11px] bg-[var(--bg-primary)] px-3 py-1.5 text-[13px] font-medium text-[var(--text-primary)] transition-colors group-hover:bg-transparent group-hover:text-white">
+                <SparkleIcon />
+                {isEditing ? "Edit with AI" : "Generate with AI"}
+              </span>
+            </button>
+          </div>
           <div className="flex items-center gap-3">
             {mode === "form" && missingHint && (
               <span className="hidden text-[12px] text-[var(--text-muted)] sm:inline">{missingHint}</span>
