@@ -1083,11 +1083,11 @@ function RunModePicker({
 }) {
   return (
     <div>
-      <div className="mb-2.5 flex items-center justify-between gap-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
         <span className="text-[13px] font-medium text-[var(--text-primary)]">How should it run?</span>
         <span className="text-[12px] text-[var(--text-muted)]">{runModeHint(runMode, reuse)}</span>
       </div>
-      <div className="grid grid-cols-3 overflow-hidden rounded-lg border border-[var(--border)]">
+      <div className="grid grid-cols-3 gap-1 rounded-lg bg-[var(--bg-secondary)] p-1">
         <ModeButton active={runMode === "once"} icon={<ZapIcon />} title="Show in modal" onClick={() => onRunMode("once")} />
         <ModeButton active={runMode === "terminal"} icon={<TerminalIcon />} title="Run in new terminal" onClick={() => onRunMode("terminal")} />
         <ModeButton active={runMode === "background"} icon={<SparkleIcon />} title="Run in background" onClick={() => onRunMode("background")} />
@@ -1111,13 +1111,13 @@ function ConfirmPicker({
 }) {
   return (
     <div>
-      <div className="mb-2.5 flex items-center justify-between gap-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
         <span className="text-[13px] font-medium text-[var(--text-primary)]">Confirm before running?</span>
         <span className="text-[12px] text-[var(--text-muted)]">
           {confirm ? "Shows a confirmation dialog before running." : "Runs as soon as you click."}
         </span>
       </div>
-      <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-[var(--border)]">
+      <div className="grid grid-cols-2 gap-1 rounded-lg bg-[var(--bg-secondary)] p-1">
         <ModeButton active={!confirm} icon={<PlayIcon />} title="Run immediately" onClick={() => onConfirm(false)} />
         <ModeButton active={confirm} icon={<HelpCircleIcon />} title="Ask before running" onClick={() => onConfirm(true)} />
       </div>
@@ -1140,13 +1140,13 @@ function ModeButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center justify-center gap-1.5 border-r border-[var(--border)] px-2.5 py-1.5 text-[11px] font-medium transition last:border-r-0 ${
+      className={`flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors ${
         active
-          ? "bg-[var(--text-primary)] text-[var(--bg-primary)]"
-          : "bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+          ? "bg-[var(--bg-primary)] text-[var(--text-primary)] shadow-sm"
+          : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
       }`}
     >
-      {icon}
+      <span className={active ? "" : "opacity-80"}>{icon}</span>
       {title}
     </button>
   );

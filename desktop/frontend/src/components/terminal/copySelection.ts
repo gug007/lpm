@@ -2,10 +2,11 @@ import type { Terminal } from "@xterm/xterm";
 import type { SerializeAddon } from "@xterm/addon-serialize";
 
 // Cleans terminal selections before they hit the clipboard:
-//   1. detects and strips agent gutter prefixes (Claude Code's "      ▎ " etc.)
-//   2. dedents any common leading whitespace that remains
-//   3. trims trailing whitespace and collapses excess blank lines
-//   4. writes both `text/plain` and `text/html` so rich-text paste targets
+//   1. merges soft-wrapped rows back into one logical line
+//   2. detects and strips agent gutter prefixes (Claude Code's "      ▎ " etc.)
+//   3. dedents any common leading whitespace that remains
+//   4. trims trailing whitespace and collapses excess blank lines
+//   5. writes both `text/plain` and `text/html` so rich-text paste targets
 //      keep ANSI colors via @xterm/addon-serialize
 
 // TUIs and agents print a left-margin gutter to mark a region of output.
@@ -164,6 +165,41 @@ function cleanHtml(html: string, rules: CleanRules): string {
   }
 }
 
+// xterm.getSelection() joins every buffer row with `\n`, including rows that
+// the terminal soft-wrapped from a longer logical line. Walk the buffer so
+// rows with `isWrapped` attach to the previous row without a newline.
+//
+// Caveat: this only catches the terminal's own soft-wrap. Programs that hard-
+// wrap their output (writing literal `\n` plus continuation indent — e.g.
+// Claude Code's markdown renderer) emit real newlines that look identical to
+// user-typed ones once they reach the buffer, so they can't be merged back.
+function getSelectionRespectingWraps(term: Terminal): string {
+  const pos = term.getSelectionPosition();
+  if (!pos) return term.getSelection();
+
+  const buffer = term.buffer.active;
+  const parts: string[] = [];
+
+  for (let y = pos.start.y; y <= pos.end.y; y++) {
+    const line = buffer.getLine(y);
+    if (!line) continue;
+
+    const startX = y === pos.start.y ? pos.start.x : 0;
+    const endX = y === pos.end.y ? pos.end.x : undefined;
+    const text = line.translateToString(false, startX, endX);
+
+    // The first selected row is always a fresh line, even if it happens to
+    // be a wrap continuation — the user picked it as their starting point.
+    if (y > pos.start.y && line.isWrapped) {
+      parts[parts.length - 1] += text;
+    } else {
+      parts.push(text);
+    }
+  }
+
+  return parts.join("\n");
+}
+
 async function writeClipboard(plain: string, html: string | null): Promise<void> {
   if (html && typeof ClipboardItem !== "undefined") {
     try {
@@ -185,7 +221,7 @@ export function copyTerminalSelection(
   term: Terminal,
   serialize: SerializeAddon | null,
 ): void {
-  const selection = term.getSelection();
+  const selection = getSelectionRespectingWraps(term);
   if (!selection) return;
 
   const rules = detectRules(selection);
