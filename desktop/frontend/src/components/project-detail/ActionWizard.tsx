@@ -181,23 +181,34 @@ function configLayerLabel(layer: ActionConfigLayer): string {
 }
 
 function buildChildMap(children: ChildDraft[]): Record<string, unknown> {
-  const childMap: Record<string, unknown> = {};
   const used: string[] = [];
-  children
+  const keyed = children
     .filter((child) => child.cmd.trim())
-    .forEach((child, index) => {
+    .map((child, index) => {
       const key = uniqueKey(slugify(child.label) || `option-${index + 1}`, used);
       used.push(key);
-      const childPayload: Record<string, unknown> = {
-        label: child.label.trim() || key,
-        cmd: child.cmd.trim(),
-        position: index + 1,
-      };
-      if (child.runMode !== "once") childPayload.type = child.runMode;
-      if (child.runMode === "terminal" && child.reuse) childPayload.reuse = true;
-      if (child.confirm) childPayload.confirm = true;
-      childMap[key] = childPayload;
+      return { child, key };
     });
+
+  // Only emit `position:` when the current order departs from the backend's
+  // alphabetical default — otherwise we'd pollute clean YAML with redundant
+  // metadata every time the wizard saves.
+  const currentKeys = keyed.map((k) => k.key);
+  const sortedKeys = [...currentKeys].sort();
+  const needsPositions = currentKeys.some((k, i) => k !== sortedKeys[i]);
+
+  const childMap: Record<string, unknown> = {};
+  keyed.forEach(({ child, key }, index) => {
+    const childPayload: Record<string, unknown> = {
+      label: child.label.trim() || key,
+      cmd: child.cmd.trim(),
+    };
+    if (needsPositions) childPayload.position = index + 1;
+    if (child.runMode !== "once") childPayload.type = child.runMode;
+    if (child.runMode === "terminal" && child.reuse) childPayload.reuse = true;
+    if (child.confirm) childPayload.confirm = true;
+    childMap[key] = childPayload;
+  });
   return childMap;
 }
 
