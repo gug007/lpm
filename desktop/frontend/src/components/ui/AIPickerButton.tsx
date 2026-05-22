@@ -16,6 +16,7 @@ interface AIPickerButtonProps {
   selectedCLI: AICLI;
   selectedModel: string;
   onSelect: (cli: AICLI, model: string) => void;
+  menuPlacement?: "up" | "down";
 }
 
 export function AIPickerButton({
@@ -29,6 +30,7 @@ export function AIPickerButton({
   selectedCLI,
   selectedModel,
   onSelect,
+  menuPlacement = "up",
 }: AIPickerButtonProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const ref = useOutsideClick<HTMLDivElement>(() => setMenuOpen(false), menuOpen);
@@ -57,6 +59,7 @@ export function AIPickerButton({
           aiCLIs={aiCLIs}
           selectedCLI={selectedCLI}
           selectedModel={selectedModel}
+          placement={menuPlacement}
           onSelect={(cli, model) => {
             setMenuOpen(false);
             onSelect(cli, model);

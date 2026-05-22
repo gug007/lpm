@@ -693,6 +693,7 @@ export function ActionWizard({
                 selectedCLI={selectedCLI}
                 selectedModel={selectedModel}
                 onSelect={selectAI}
+                menuPlacement="down"
               />
             </div>
           </div>

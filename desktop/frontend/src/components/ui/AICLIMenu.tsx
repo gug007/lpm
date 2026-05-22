@@ -6,6 +6,7 @@ interface AICLIMenuProps {
   selectedCLI: AICLI;
   selectedModel: string;
   onSelect: (cli: AICLI, model: string) => void;
+  placement?: "up" | "down";
 }
 
 export function AICLIMenu({
@@ -13,9 +14,11 @@ export function AICLIMenu({
   selectedCLI,
   selectedModel,
   onSelect,
+  placement = "up",
 }: AICLIMenuProps) {
+  const positionClass = placement === "down" ? "top-full mt-1" : "bottom-full mb-1";
   return (
-    <div className="absolute right-0 bottom-full z-10 mb-1 w-44 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
+    <div className={`absolute right-0 ${positionClass} z-10 w-44 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg`}>
       {AI_CLI_OPTIONS.filter((o) => aiCLIs[o.value]).map((o) => {
         const cliActive = selectedCLI === o.value;
         const models = o.models ?? [];
