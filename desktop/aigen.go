@@ -286,6 +286,72 @@ func (a *App) ResolveMergeConflictsWithAI(cwd, cli, model string) (string, error
 	})
 }
 
+const actionYAMLProgressEvent = "action-yaml-progress"
+
+const actionYAMLCreatePrompt = `You generate the YAML body for a single LPM "action" — a button shown in a project dashboard that runs a shell command when clicked.
+
+YAML schema (omit any field that doesn't apply, no extras):
+- label: string                  # display name for the button (required)
+- cmd: string                    # shell command to run (required unless this is a pure dropdown menu)
+- type: terminal | background    # where it runs; omit for the default (shows the result in a modal)
+- reuse: true                    # only with type:terminal — reuse the same pane on subsequent runs
+- confirm: true                  # ask before running
+- cwd: string                    # working directory, relative to project root (omit to use the project root)
+- actions: map                   # nested child actions, makes this a split-button (with cmd) or dropdown menu (no cmd)
+
+Each child under "actions" takes the same fields (label, cmd, type, reuse, confirm, cwd).
+
+Output ONLY the YAML body — fields at indent 0, no surrounding object, no code fences, no comments, no explanation.
+
+The user's request:
+`
+
+const actionYAMLEditPrompt = `You are editing the YAML body of an existing LPM "action" — a button shown in a project dashboard that runs a shell command when clicked.
+
+Same schema (omit any field that doesn't apply, no extras):
+- label: string
+- cmd: string
+- type: terminal | background
+- reuse: true
+- confirm: true
+- cwd: string
+- actions: map (nested children with the same fields)
+
+Apply the user's instruction to the current YAML and return the FULL updated YAML body — not a diff. Preserve fields the user didn't ask to change. Output ONLY the YAML body — no code fences, no explanation.
+
+The user's instruction:
+`
+
+// GenerateActionYAML uses an AI CLI to produce or modify the YAML body for a
+// header action. currentYAML may be empty for a fresh action; when non-empty
+// the AI is asked to modify it in place.
+func (a *App) GenerateActionYAML(projectName, cli, model, userPrompt, currentYAML string) (string, error) {
+	userPrompt = strings.TrimSpace(userPrompt)
+	if userPrompt == "" {
+		return "", fmt.Errorf("describe what the action should do")
+	}
+
+	cfg, err := config.LoadProject(projectName)
+	if err != nil {
+		return "", err
+	}
+
+	var prompt string
+	if strings.TrimSpace(currentYAML) == "" {
+		prompt = actionYAMLCreatePrompt + userPrompt + "\n"
+	} else {
+		prompt = actionYAMLEditPrompt + userPrompt + "\n\nCurrent YAML:\n" + currentYAML + "\n"
+	}
+
+	selected, err := aigen.Detect(aigen.CLI(cli))
+	if err != nil {
+		return "", err
+	}
+	return aigen.GenerateText(a.ctx, selected, model, cfg.Root, prompt, func(msg string) {
+		a.wails.Event.Emit(actionYAMLProgressEvent, msg)
+	})
+}
+
 // GenerateProjectConfig runs the CLI in the project root and streams progress
 // lines to the frontend via the aiProgressEvent event.
 func (a *App) GenerateProjectConfig(projectName, cli, extraPrompt string) (string, error) {

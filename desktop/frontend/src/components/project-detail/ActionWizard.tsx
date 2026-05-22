@@ -12,7 +12,10 @@ import {
 import { MonacoEditor } from "../MonacoEditor";
 import { slugify } from "../../slugify";
 import { uniqueKey } from "../../uniqueKey";
-import type { ActionInfo } from "../../types";
+import { AI_CLI_OPTIONS, aiDefaultModel, resolveAIPick, type ActionInfo, type AICLI } from "../../types";
+import { getSettings, saveSettings } from "../../store/settings";
+import { CheckAICLIs, GenerateActionYAML } from "../../../wailsjs/go/main/App";
+import { AIPickerButton } from "../ui/AIPickerButton";
 import {
   CheckIcon,
   ChevronDownIcon,
@@ -44,6 +47,15 @@ const CONFIRM_KEYWORDS = /\b(deploy|migrate|reset|drop|delete|destroy|remove|kil
 const NEW_ACTION_KEY = "new-action";
 const PLACEHOLDER_LABEL = "New action";
 const MODE_STORAGE_KEY = "lpm.actionWizard.mode";
+
+// AI CLIs sometimes wrap YAML in ```yaml ... ``` fences despite the prompt
+// asking them not to. Strip the wrapper so the result parses cleanly.
+function stripCodeFences(text: string): string {
+  const trimmed = text.trim();
+  const fence = /^```(?:yaml|yml)?\s*\n?([\s\S]*?)\n?```$/i;
+  const m = trimmed.match(fence);
+  return (m ? m[1] : trimmed).trim();
+}
 
 function readStoredMode(): "form" | "editor" {
   try {
@@ -275,6 +287,48 @@ function toRunMode(type: string | undefined): RunMode {
   return type === "terminal" || type === "background" ? type : "once";
 }
 
+// Coerces AI-generated YAML into the ActionInfo shape so we can re-use
+// actionToDraft. Throws if the document isn't a mapping; unknown fields are
+// silently dropped — the form only surfaces what it understands.
+function yamlToActionInfo(yaml: string): ActionInfo {
+  const parsed = YAML.parse(yaml);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("YAML must be a mapping of action fields");
+  }
+  const obj = parsed as Record<string, unknown>;
+  return {
+    name: "",
+    label: typeof obj.label === "string" ? obj.label : "",
+    cmd: typeof obj.cmd === "string" ? obj.cmd : "",
+    cwd: typeof obj.cwd === "string" ? obj.cwd : undefined,
+    confirm: Boolean(obj.confirm),
+    display: typeof obj.display === "string" ? obj.display : "header",
+    type: typeof obj.type === "string" ? obj.type : undefined,
+    reuse: Boolean(obj.reuse),
+    children: yamlChildMapToList(obj.actions),
+  };
+}
+
+function yamlChildMapToList(actions: unknown): ActionInfo[] | undefined {
+  if (!actions || typeof actions !== "object" || Array.isArray(actions)) return undefined;
+  const out: ActionInfo[] = [];
+  for (const [name, value] of Object.entries(actions as Record<string, unknown>)) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const v = value as Record<string, unknown>;
+    out.push({
+      name,
+      label: typeof v.label === "string" ? v.label : name,
+      cmd: typeof v.cmd === "string" ? v.cmd : "",
+      cwd: typeof v.cwd === "string" ? v.cwd : undefined,
+      confirm: Boolean(v.confirm),
+      display: "",
+      type: typeof v.type === "string" ? v.type : undefined,
+      reuse: Boolean(v.reuse),
+    });
+  }
+  return out.length ? out : undefined;
+}
+
 function actionToDraft(action: ActionInfo): FormDraft {
   const children: ChildDraft[] = (action.children ?? []).map((c) => ({
     id: crypto.randomUUID(),
@@ -329,8 +383,18 @@ export function ActionWizard({
   const [editorError, setEditorError] = useState<string | null>(null);
   const [editorSeed, setEditorSeed] = useState(0);
   const [editSource, setEditSource] = useState<ActionConfigLayer | null>(null);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiCLIs, setAiCLIs] = useState<Record<string, boolean>>({});
+  const [selectedCLI, setSelectedCLI] = useState<AICLI>(
+    () => (getSettings().aiCli as AICLI) || "claude",
+  );
+  const [selectedModel, setSelectedModel] = useState<string>(
+    () => getSettings().aiModel ?? aiDefaultModel("claude"),
+  );
   const nameRef = useRef<HTMLInputElement>(null);
   const commandRef = useRef<HTMLInputElement>(null);
+  const aiPromptRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -340,6 +404,8 @@ export function ActionWizard({
     setSaving(false);
     setEditorError(null);
     setEditSource(null);
+    setAiPrompt("");
+    setAiGenerating(false);
     const initialMode = readStoredMode();
     if (initialMode === "editor") {
       const submission = buildSubmission(nextDraft, { editing, existingActionKeys, nextPosition });
@@ -353,6 +419,32 @@ export function ActionWizard({
   }, [open, editing, existingActionKeys, nextPosition]);
 
   useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    CheckAICLIs()
+      .then((a) => {
+        if (cancelled) return;
+        const avail: Record<string, boolean> = {
+          claude: a.claude,
+          codex: a.codex,
+          gemini: a.gemini,
+          opencode: a.opencode,
+        };
+        setAiCLIs(avail);
+        const s = getSettings();
+        const pick = resolveAIPick(s.aiCli, s.aiModel, avail);
+        if (pick) {
+          setSelectedCLI(pick.cli);
+          setSelectedModel(pick.model);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  useEffect(() => {
     if (!open || !editing) return;
     let cancelled = false;
     findActionSource(projectName, editing.name).then((layer) => {
@@ -364,6 +456,7 @@ export function ActionWizard({
   }, [open, editing, projectName]);
 
   const { shape, name, cmd, cwd, configLayer, children, runMode, reuse, confirm } = draft;
+  const anyAiAvailable = AI_CLI_OPTIONS.some((o) => aiCLIs[o.value]);
   const nameFilled = Boolean(name.trim());
   const cmdFilled = Boolean(cmd.trim());
   const hasMenuOption = children.some((child) => child.cmd.trim());
@@ -463,6 +556,47 @@ export function ActionWizard({
     writeStoredMode("form");
   };
 
+  const generateWithAI = async () => {
+    const prompt = aiPrompt.trim();
+    if (!prompt || aiGenerating) return;
+    setAiGenerating(true);
+    try {
+      const submission = buildSubmission(draft, { editing, existingActionKeys, nextPosition });
+      const isFreshCreate = !editing && !draft.name.trim() && !draft.cmd.trim();
+      const currentYAML = isFreshCreate
+        ? ""
+        : YAML.stringify(submission.payload, { lineWidth: 0 });
+      const raw = await GenerateActionYAML(projectName, selectedCLI, selectedModel, prompt, currentYAML);
+      const cleaned = stripCodeFences(typeof raw === "string" ? raw : "");
+      if (!cleaned.trim()) {
+        toast.error("AI returned an empty response");
+        return;
+      }
+      setEditorContent(cleaned);
+      try {
+        const info = yamlToActionInfo(cleaned);
+        setDraft((prev) => ({
+          ...actionToDraft(info),
+          configLayer: prev.configLayer,
+        }));
+        toast.success(editing ? "AI updated the action" : "AI generated an action");
+      } catch (err) {
+        toast.warning("AI output kept in editor (couldn't fit the form)");
+      }
+      setAiPrompt("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "AI generation failed");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const selectAI = (cli: AICLI, model: string) => {
+    setSelectedCLI(cli);
+    setSelectedModel(model);
+    saveSettings({ aiCli: cli, aiModel: model });
+  };
+
   const handleNameEnter = () => {
     if (showCommand) commandRef.current?.focus();
     else if (formIsValid) void submit();
@@ -520,6 +654,49 @@ export function ActionWizard({
             />
           </div>
         </header>
+
+        {anyAiAvailable && (
+          <div
+            className={`relative border-t border-[var(--border)] px-8 py-3 transition-colors ${
+              aiGenerating ? "bg-[var(--bg-secondary)]" : ""
+            }`}
+          >
+            <div className="flex items-start gap-2">
+              <textarea
+                ref={aiPromptRef}
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    void generateWithAI();
+                  }
+                }}
+                placeholder={
+                  isEditing
+                    ? "Tell AI how to change this action…  ⌘↵ to run"
+                    : "Describe the action you want, and AI will fill it in…  ⌘↵ to run"
+                }
+                rows={1}
+                disabled={aiGenerating}
+                style={{ maxHeight: "120px" }}
+                className="flex-1 resize-none bg-transparent text-[13px] leading-5 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-60"
+              />
+              <AIPickerButton
+                onGenerate={generateWithAI}
+                generating={aiGenerating}
+                disabled={aiGenerating || !aiPrompt.trim()}
+                title={`Generate with ${selectedCLI}`}
+                label={isEditing ? "Edit with AI" : "Generate with AI"}
+                generatingLabel={isEditing ? "Editing…" : "Generating…"}
+                aiCLIs={aiCLIs}
+                selectedCLI={selectedCLI}
+                selectedModel={selectedModel}
+                onSelect={selectAI}
+              />
+            </div>
+          </div>
+        )}
 
         {mode === "editor" ? (
           <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] px-8 py-6">
