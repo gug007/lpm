@@ -12,10 +12,8 @@ import {
 import { MonacoEditor } from "../MonacoEditor";
 import { slugify } from "../../slugify";
 import { uniqueKey } from "../../uniqueKey";
-import { AI_CLI_OPTIONS, aiDefaultModel, resolveAIPick, type ActionInfo, type AICLI } from "../../types";
-import { getSettings, saveSettings } from "../../store/settings";
-import { CheckAICLIs, GenerateActionYAML } from "../../../wailsjs/go/main/App";
-import { AIPickerButton } from "../ui/AIPickerButton";
+import type { ActionInfo } from "../../types";
+import { AIActionModal } from "./AIActionModal";
 import {
   CheckIcon,
   ChevronDownIcon,
@@ -47,15 +45,6 @@ const CONFIRM_KEYWORDS = /\b(deploy|migrate|reset|drop|delete|destroy|remove|kil
 const NEW_ACTION_KEY = "new-action";
 const PLACEHOLDER_LABEL = "New action";
 const MODE_STORAGE_KEY = "lpm.actionWizard.mode";
-
-// AI CLIs sometimes wrap YAML in ```yaml ... ``` fences despite the prompt
-// asking them not to. Strip the wrapper so the result parses cleanly.
-function stripCodeFences(text: string): string {
-  const trimmed = text.trim();
-  const fence = /^```(?:yaml|yml)?\s*\n?([\s\S]*?)\n?```$/i;
-  const m = trimmed.match(fence);
-  return (m ? m[1] : trimmed).trim();
-}
 
 function readStoredMode(): "form" | "editor" {
   try {
@@ -383,18 +372,9 @@ export function ActionWizard({
   const [editorError, setEditorError] = useState<string | null>(null);
   const [editorSeed, setEditorSeed] = useState(0);
   const [editSource, setEditSource] = useState<ActionConfigLayer | null>(null);
-  const [aiPrompt, setAiPrompt] = useState("");
-  const [aiGenerating, setAiGenerating] = useState(false);
-  const [aiCLIs, setAiCLIs] = useState<Record<string, boolean>>({});
-  const [selectedCLI, setSelectedCLI] = useState<AICLI>(
-    () => (getSettings().aiCli as AICLI) || "claude",
-  );
-  const [selectedModel, setSelectedModel] = useState<string>(
-    () => getSettings().aiModel ?? aiDefaultModel("claude"),
-  );
+  const [aiModalOpen, setAiModalOpen] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const commandRef = useRef<HTMLInputElement>(null);
-  const aiPromptRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -404,8 +384,7 @@ export function ActionWizard({
     setSaving(false);
     setEditorError(null);
     setEditSource(null);
-    setAiPrompt("");
-    setAiGenerating(false);
+    setAiModalOpen(false);
     const initialMode = readStoredMode();
     if (initialMode === "editor") {
       const submission = buildSubmission(nextDraft, { editing, existingActionKeys, nextPosition });
@@ -419,32 +398,6 @@ export function ActionWizard({
   }, [open, editing, existingActionKeys, nextPosition]);
 
   useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    CheckAICLIs()
-      .then((a) => {
-        if (cancelled) return;
-        const avail: Record<string, boolean> = {
-          claude: a.claude,
-          codex: a.codex,
-          gemini: a.gemini,
-          opencode: a.opencode,
-        };
-        setAiCLIs(avail);
-        const s = getSettings();
-        const pick = resolveAIPick(s.aiCli, s.aiModel, avail);
-        if (pick) {
-          setSelectedCLI(pick.cli);
-          setSelectedModel(pick.model);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [open]);
-
-  useEffect(() => {
     if (!open || !editing) return;
     let cancelled = false;
     findActionSource(projectName, editing.name).then((layer) => {
@@ -456,7 +409,6 @@ export function ActionWizard({
   }, [open, editing, projectName]);
 
   const { shape, name, cmd, cwd, configLayer, children, runMode, reuse, confirm } = draft;
-  const anyAiAvailable = AI_CLI_OPTIONS.some((o) => aiCLIs[o.value]);
   const nameFilled = Boolean(name.trim());
   const cmdFilled = Boolean(cmd.trim());
   const hasMenuOption = children.some((child) => child.cmd.trim());
@@ -556,45 +508,27 @@ export function ActionWizard({
     writeStoredMode("form");
   };
 
-  const generateWithAI = async () => {
-    const prompt = aiPrompt.trim();
-    if (!prompt || aiGenerating) return;
-    setAiGenerating(true);
-    try {
-      const submission = buildSubmission(draft, { editing, existingActionKeys, nextPosition });
-      const isFreshCreate = !editing && !draft.name.trim() && !draft.cmd.trim();
-      const currentYAML = isFreshCreate
-        ? ""
-        : YAML.stringify(submission.payload, { lineWidth: 0 });
-      const raw = await GenerateActionYAML(projectName, selectedCLI, selectedModel, prompt, currentYAML);
-      const cleaned = stripCodeFences(typeof raw === "string" ? raw : "");
-      if (!cleaned.trim()) {
-        toast.error("AI returned an empty response");
-        return;
-      }
-      setEditorContent(cleaned);
-      try {
-        const info = yamlToActionInfo(cleaned);
-        setDraft((prev) => ({
-          ...actionToDraft(info),
-          configLayer: prev.configLayer,
-        }));
-        toast.success(editing ? "AI updated the action" : "AI generated an action");
-      } catch (err) {
-        toast.warning("AI output kept in editor (couldn't fit the form)");
-      }
-      setAiPrompt("");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "AI generation failed");
-    } finally {
-      setAiGenerating(false);
-    }
+  const buildCurrentYAML = (): string => {
+    const isFreshCreate = !editing && !draft.name.trim() && !draft.cmd.trim();
+    if (isFreshCreate) return "";
+    const submission = buildSubmission(draft, { editing, existingActionKeys, nextPosition });
+    return YAML.stringify(submission.payload, { lineWidth: 0 });
   };
 
-  const selectAI = (cli: AICLI, model: string) => {
-    setSelectedCLI(cli);
-    setSelectedModel(model);
-    saveSettings({ aiCli: cli, aiModel: model });
+  const applyAiResult = (yaml: string) => {
+    setEditorContent(yaml);
+    try {
+      const info = yamlToActionInfo(yaml);
+      setDraft((prev) => ({
+        ...actionToDraft(info),
+        configLayer: prev.configLayer,
+      }));
+      toast.success(editing ? "AI updated the action" : "AI generated an action");
+    } catch {
+      setMode("editor");
+      writeStoredMode("editor");
+      toast.warning("AI output kept in editor (couldn't fit the form)");
+    }
   };
 
   const handleNameEnter = () => {
@@ -610,6 +544,7 @@ export function ActionWizard({
   };
 
   return (
+    <>
     <Modal
       open={open}
       onClose={onClose}
@@ -620,7 +555,20 @@ export function ActionWizard({
         <header className="px-8 pb-5 pt-7">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">{title}</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">{title}</h2>
+                <button
+                  type="button"
+                  onClick={() => setAiModalOpen(true)}
+                  className="group relative inline-flex shrink-0 items-center gap-1.5 rounded-md p-[1px] [background:linear-gradient(135deg,#6366f1,#a855f7,#ec4899)] shadow-sm transition-all hover:shadow-md hover:shadow-purple-500/20 active:scale-[0.98]"
+                  title={isEditing ? "Edit this action with AI" : "Generate an action with AI"}
+                >
+                  <span className="inline-flex items-center gap-1.5 rounded-[5px] bg-[var(--bg-primary)] px-2 py-1 text-[11px] font-medium text-[var(--text-primary)] transition-colors group-hover:bg-transparent group-hover:text-white">
+                    <SparkleIcon />
+                    {isEditing ? "Edit with AI" : "Generate with AI"}
+                  </span>
+                </button>
+              </div>
               {hint && <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[var(--text-secondary)]">{hint}</p>}
             </div>
             <button
@@ -654,50 +602,6 @@ export function ActionWizard({
             />
           </div>
         </header>
-
-        {anyAiAvailable && (
-          <div
-            className={`relative border-t border-[var(--border)] px-8 py-3 transition-colors ${
-              aiGenerating ? "bg-[var(--bg-secondary)]" : ""
-            }`}
-          >
-            <div className="flex items-start gap-2">
-              <textarea
-                ref={aiPromptRef}
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                    e.preventDefault();
-                    void generateWithAI();
-                  }
-                }}
-                placeholder={
-                  isEditing
-                    ? "Tell AI how to change this action…  ⌘↵ to run"
-                    : "Describe the action you want, and AI will fill it in…  ⌘↵ to run"
-                }
-                rows={1}
-                disabled={aiGenerating}
-                style={{ maxHeight: "120px" }}
-                className="flex-1 resize-none bg-transparent text-[13px] leading-5 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-60"
-              />
-              <AIPickerButton
-                onGenerate={generateWithAI}
-                generating={aiGenerating}
-                disabled={aiGenerating || !aiPrompt.trim()}
-                title={`Generate with ${selectedCLI}`}
-                label={isEditing ? "Edit with AI" : "Generate with AI"}
-                generatingLabel={isEditing ? "Editing…" : "Generating…"}
-                aiCLIs={aiCLIs}
-                selectedCLI={selectedCLI}
-                selectedModel={selectedModel}
-                onSelect={selectAI}
-                menuPlacement="down"
-              />
-            </div>
-          </div>
-        )}
 
         {mode === "editor" ? (
           <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] px-8 py-6">
@@ -852,6 +756,15 @@ export function ActionWizard({
         </footer>
       </div>
     </Modal>
+    <AIActionModal
+      open={aiModalOpen}
+      projectName={projectName}
+      isEditing={isEditing}
+      currentYAML={buildCurrentYAML()}
+      onClose={() => setAiModalOpen(false)}
+      onGenerated={applyAiResult}
+    />
+    </>
   );
 }
 

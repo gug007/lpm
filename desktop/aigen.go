@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,14 @@ import (
 	"github.com/gug007/lpm/internal/aigen"
 	"github.com/gug007/lpm/internal/config"
 )
+
+// Canonical lpm-config skill — the same prompt published at
+// lpm-config/SKILL.md so external AI agents and the in-app wizard share one
+// source of truth. Keep aiskill/SKILL.md in sync with lpm-config/SKILL.md.
+//
+//go:generate cp ../lpm-config/SKILL.md ./aiskill/SKILL.md
+//go:embed aiskill/SKILL.md
+var lpmSkill string
 
 const aiProgressEvent = "ai-generate-output"
 
@@ -288,39 +297,75 @@ func (a *App) ResolveMergeConflictsWithAI(cwd, cli, model string) (string, error
 
 const actionYAMLProgressEvent = "action-yaml-progress"
 
-const actionYAMLCreatePrompt = `You generate the YAML body for a single LPM "action" — a button shown in a project dashboard that runs a shell command when clicked.
+// projectContextBlock summarizes the project so the AI knows what it's
+// authoring an action for — name, local root or SSH target, and the path
+// of the config file the wizard will write to.
+func projectContextBlock(cfg *config.ProjectConfig) string {
+	var b strings.Builder
+	b.WriteString("# Project context\n\n")
+	b.WriteString("- Name: ")
+	b.WriteString(cfg.Name)
+	b.WriteString("\n")
+	if cfg.IsRemote() && cfg.SSH != nil {
+		b.WriteString("- Kind: SSH (remote)\n")
+		b.WriteString("- SSH target: ")
+		b.WriteString(cfg.SSH.User)
+		b.WriteString("@")
+		b.WriteString(cfg.SSH.Host)
+		if cfg.SSH.Port != 0 && cfg.SSH.Port != 22 {
+			b.WriteString(fmt.Sprintf(":%d", cfg.SSH.Port))
+		}
+		b.WriteString("\n")
+		if cfg.SSH.Dir != "" {
+			b.WriteString("- Remote working directory: ")
+			b.WriteString(cfg.SSH.Dir)
+			b.WriteString("\n")
+		}
+	} else {
+		b.WriteString("- Kind: local\n")
+		if cfg.Root != "" {
+			b.WriteString("- Project root (absolute path): ")
+			b.WriteString(cfg.Root)
+			b.WriteString("\n")
+		}
+	}
+	b.WriteString("- User-level config file: ")
+	b.WriteString(config.ProjectPath(cfg.Name))
+	b.WriteString("\n")
+	return b.String()
+}
 
-YAML schema (omit any field that doesn't apply, no extras):
-- label: string                  # display name for the button (required)
-- cmd: string                    # shell command to run (required unless this is a pure dropdown menu)
-- type: terminal | background    # where it runs; omit for the default (shows the result in a modal)
-- reuse: true                    # only with type:terminal — reuse the same pane on subsequent runs
-- confirm: true                  # ask before running
-- cwd: string                    # working directory, relative to project root (omit to use the project root)
-- actions: map                   # nested child actions, makes this a split-button (with cmd) or dropdown menu (no cmd)
+// buildActionYAMLPrompt wraps the canonical lpm-config skill with a
+// narrower task: produce or modify a single action's YAML body, not a whole
+// config file. The skill itself carries the full schema, smart-guidance, and
+// examples, so we don't restate them here.
+func buildActionYAMLPrompt(cfg *config.ProjectConfig, userPrompt, currentYAML string) string {
+	var task strings.Builder
+	task.WriteString("# Task\n\n")
+	task.WriteString("Produce the YAML body for a SINGLE lpm action (the value of one `actions:` entry), not a whole config file.\n\n")
+	task.WriteString("Output rules:\n")
+	task.WriteString("- Output ONLY the action's YAML fields at indent 0 — no surrounding `name:` key, no `actions:` wrapper, no code fences, no comments, no prose.\n")
+	task.WriteString("- Omit fields you don't need; do not invent fields outside the skill's schema.\n")
+	task.WriteString("- Children go under `actions:` with the same field set (no `display:` on children).\n")
+	task.WriteString("- The wizard already handles `display:` and `position:` — omit them.\n")
+	task.WriteString("- `cwd:` is relative to the project root (or `ssh.dir` for SSH projects). Use relative paths; only use absolute paths when there's a clear reason.\n\n")
 
-Each child under "actions" takes the same fields (label, cmd, type, reuse, confirm, cwd).
+	if strings.TrimSpace(currentYAML) == "" {
+		task.WriteString("Generate a new action from the user's request below.\n\n")
+		task.WriteString("User's request:\n")
+		task.WriteString(userPrompt)
+		task.WriteString("\n")
+	} else {
+		task.WriteString("Modify the current action to satisfy the user's instruction. Return the FULL updated YAML body — not a diff. Preserve fields the user didn't ask to change.\n\n")
+		task.WriteString("User's instruction:\n")
+		task.WriteString(userPrompt)
+		task.WriteString("\n\nCurrent action YAML:\n")
+		task.WriteString(currentYAML)
+		task.WriteString("\n")
+	}
 
-Output ONLY the YAML body — fields at indent 0, no surrounding object, no code fences, no comments, no explanation.
-
-The user's request:
-`
-
-const actionYAMLEditPrompt = `You are editing the YAML body of an existing LPM "action" — a button shown in a project dashboard that runs a shell command when clicked.
-
-Same schema (omit any field that doesn't apply, no extras):
-- label: string
-- cmd: string
-- type: terminal | background
-- reuse: true
-- confirm: true
-- cwd: string
-- actions: map (nested children with the same fields)
-
-Apply the user's instruction to the current YAML and return the FULL updated YAML body — not a diff. Preserve fields the user didn't ask to change. Output ONLY the YAML body — no code fences, no explanation.
-
-The user's instruction:
-`
+	return projectContextBlock(cfg) + "\n# Reference: lpm-config skill\n\n" + lpmSkill + "\n\n" + task.String()
+}
 
 // GenerateActionYAML uses an AI CLI to produce or modify the YAML body for a
 // header action. currentYAML may be empty for a fresh action; when non-empty
@@ -336,12 +381,7 @@ func (a *App) GenerateActionYAML(projectName, cli, model, userPrompt, currentYAM
 		return "", err
 	}
 
-	var prompt string
-	if strings.TrimSpace(currentYAML) == "" {
-		prompt = actionYAMLCreatePrompt + userPrompt + "\n"
-	} else {
-		prompt = actionYAMLEditPrompt + userPrompt + "\n\nCurrent YAML:\n" + currentYAML + "\n"
-	}
+	prompt := buildActionYAMLPrompt(cfg, userPrompt, currentYAML)
 
 	selected, err := aigen.Detect(aigen.CLI(cli))
 	if err != nil {
