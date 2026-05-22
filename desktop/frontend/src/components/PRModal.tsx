@@ -5,7 +5,6 @@ import { XIcon, ChevronDownIcon, BranchIcon, CloudBranchIcon, CheckIcon } from "
 import { branchKey, branchMatches, RemoteBadge } from "./branchUtils";
 import { AIPickerButton } from "./ui/AIPickerButton";
 import {
-  CheckAICLIs,
   CheckGHCLI,
   CreatePullRequest,
   GeneratePRTitle,
@@ -17,7 +16,7 @@ import {
 import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useBranchSearch } from "../hooks/useBranchSearch";
-import { AI_CLI_OPTIONS, aiDefaultModel, aiPickLabel, resolveAIPick, type AICLI } from "../types";
+import { useAIPicker } from "../hooks/useAIPicker";
 import { EventsEmit, BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { getSettings, saveSettings } from "../store/settings";
 import { Tooltip } from "./ui/Tooltip";
@@ -52,13 +51,7 @@ export function PRModal({
   const [generatingTitle, setGeneratingTitle] = useState(false);
   const [generatingDesc, setGeneratingDesc] = useState(false);
   const [ghAvailable, setGhAvailable] = useState(true);
-  const [aiCLIs, setAiCLIs] = useState<Record<string, boolean>>({});
-  const [selectedCLI, setSelectedCLI] = useState<AICLI>(
-    () => (getSettings().aiCli as AICLI) || "claude",
-  );
-  const [selectedModel, setSelectedModel] = useState<string>(
-    () => getSettings().aiModel ?? aiDefaultModel("claude"),
-  );
+  const ai = useAIPicker(open);
   const [baseMenuOpen, setBaseMenuOpen] = useState(false);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [baseQuery, setBaseQuery] = useState("");
@@ -97,31 +90,15 @@ export function PRModal({
 
     (async () => {
       try {
-        const [defaultBranch, ghOk, cliAvail, branchList] = await Promise.all([
+        const [defaultBranch, ghOk, branchList] = await Promise.all([
           GitDefaultBranch(projectPath),
           CheckGHCLI(),
-          CheckAICLIs().catch(() => null),
           ListBranches(projectPath).catch(() => [] as Branch[]),
         ]);
         if (cancelled) return;
         setBase(defaultBranch);
         setGhAvailable(ghOk);
         setBranches(branchList.filter((b: any) => b.name !== currentBranch));
-        if (cliAvail) {
-          const avail: Record<string, boolean> = {
-            claude: cliAvail.claude,
-            codex: cliAvail.codex,
-            gemini: cliAvail.gemini,
-            opencode: cliAvail.opencode,
-          };
-          setAiCLIs(avail);
-          const s = getSettings();
-          const pick = resolveAIPick(s.aiCli, s.aiModel, avail);
-          if (pick) {
-            setSelectedCLI(pick.cli);
-            setSelectedModel(pick.model);
-          }
-        }
 
         const log = await GitLogBranch(projectPath, defaultBranch);
         if (cancelled) return;
@@ -141,7 +118,6 @@ export function PRModal({
     };
   }, [open, projectPath, currentBranch]);
 
-  const anyAiAvailable = AI_CLI_OPTIONS.some((o) => aiCLIs[o.value]);
   const autoGenTriggered = useRef(false);
 
   const generating = generatingTitle || generatingDesc;
@@ -153,11 +129,11 @@ export function PRModal({
     }
     if (autoGenTriggered.current || !autoGenerate) return;
     if (loading || commits.length === 0 || !base) return;
-    if (!anyAiAvailable) return;
+    if (!ai.anyAvailable) return;
     autoGenTriggered.current = true;
     generateTitle();
     generateDesc();
-  }, [open, loading, commits, base, anyAiAvailable, autoGenerate]);
+  }, [open, loading, commits, base, ai.anyAvailable, autoGenerate]);
 
   useEffect(() => {
     const el = titleRef.current;
@@ -199,7 +175,7 @@ export function PRModal({
     if (generatingTitle || !base) return;
     setGeneratingTitle(true);
     try {
-      const result = await GeneratePRTitle(projectPath, selectedCLI, selectedModel, base);
+      const result = await GeneratePRTitle(projectPath, ai.selectedCLI, ai.selectedModel, ai.selectedEffort, base);
       if (result) setTitle(result);
     } catch (err) {
       toast.error(`Title generation failed: ${err}`);
@@ -212,7 +188,7 @@ export function PRModal({
     if (generatingDesc || !base) return;
     setGeneratingDesc(true);
     try {
-      const result = await GeneratePRDescription(projectPath, selectedCLI, selectedModel, base);
+      const result = await GeneratePRDescription(projectPath, ai.selectedCLI, ai.selectedModel, ai.selectedEffort, base);
       if (result) setDescription(result);
     } catch (err) {
       toast.error(`Description generation failed: ${err}`);
@@ -225,14 +201,6 @@ export function PRModal({
     const next = !autoGenerate;
     setAutoGenerate(next);
     saveSettings({ autoGeneratePRDescription: next });
-  };
-
-  const selectedCLILabel = aiPickLabel(selectedCLI, selectedModel);
-
-  const selectAI = (cli: AICLI, model: string) => {
-    setSelectedCLI(cli);
-    setSelectedModel(model);
-    saveSettings({ aiCli: cli, aiModel: model });
   };
 
   const canCreate =
@@ -419,10 +387,10 @@ export function PRModal({
                   style={DESC_MAX_HEIGHT}
                   aria-label="Pull request description"
                   className={`w-full resize-none bg-transparent px-3.5 pt-2.5 text-sm leading-[1.6] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-60 ${
-                    anyAiAvailable ? "pb-1.5" : "pb-3"
+                    ai.anyAvailable ? "pb-1.5" : "pb-3"
                   }`}
                 />
-                {anyAiAvailable && (
+                {ai.anyAvailable && (
                   <div className="flex items-center justify-end gap-1.5 px-2 pb-2">
                     <AIPickerButton
                       onGenerate={generateTitle}
@@ -431,14 +399,16 @@ export function PRModal({
                       title={
                         commits.length === 0
                           ? `No commits ahead of ${base || "base"}`
-                          : `Generate title with ${selectedCLILabel}`
+                          : `Generate title with ${ai.cliLabel}`
                       }
                       label="Generate Title"
                       generatingLabel="Generating title..."
-                      aiCLIs={aiCLIs}
-                      selectedCLI={selectedCLI}
-                      selectedModel={selectedModel}
-                      onSelect={selectAI}
+                      aiCLIs={ai.aiCLIs}
+                      selectedCLI={ai.selectedCLI}
+                      selectedModel={ai.selectedModel}
+                      selectedEffort={ai.selectedEffort}
+                      onSelect={ai.selectAI}
+                      onSelectEffort={ai.selectEffort}
                     />
                     <AIPickerButton
                       onGenerate={generateDesc}
@@ -447,14 +417,16 @@ export function PRModal({
                       title={
                         commits.length === 0
                           ? `No commits ahead of ${base || "base"}`
-                          : `Generate description with ${selectedCLILabel}`
+                          : `Generate description with ${ai.cliLabel}`
                       }
                       label="Generate Description"
                       generatingLabel="Generating description..."
-                      aiCLIs={aiCLIs}
-                      selectedCLI={selectedCLI}
-                      selectedModel={selectedModel}
-                      onSelect={selectAI}
+                      aiCLIs={ai.aiCLIs}
+                      selectedCLI={ai.selectedCLI}
+                      selectedModel={ai.selectedModel}
+                      selectedEffort={ai.selectedEffort}
+                      onSelect={ai.selectAI}
+                      onSelectEffort={ai.selectEffort}
                     />
                   </div>
                 )}
@@ -511,7 +483,7 @@ export function PRModal({
               &#8984;&#9166;
             </kbd>
           )}
-          {anyAiAvailable && !prURL && (
+          {ai.anyAvailable && !prURL && (
             <Tooltip
               content="Auto-generate PR description on open"
               side="top"

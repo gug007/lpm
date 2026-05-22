@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
 import {
-  CheckAICLIs,
   GitAbortMerge,
   GitCommitCount,
   GitDefaultBranch,
@@ -15,12 +14,11 @@ import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { main } from "../../wailsjs/go/models";
 import { useBranchSearch } from "../hooks/useBranchSearch";
 import { useOutsideClick } from "../hooks/useOutsideClick";
+import { useAIPicker } from "../hooks/useAIPicker";
 import { branchKey, branchMatches, RemoteBadge } from "./branchUtils";
 import { BranchIcon, ChevronDownIcon, CloudBranchIcon, XIcon } from "./icons";
 import { relativeTime } from "../relativeTime";
 import { AIPickerButton } from "./ui/AIPickerButton";
-import { AI_CLI_OPTIONS, aiDefaultModel, aiPickLabel, resolveAIPick, type AICLI } from "../types";
-import { getSettings, saveSettings } from "../store/settings";
 
 const MERGE_CONFLICT_PROGRESS_EVENT = "merge-conflict-progress";
 const FETCH_DEBOUNCE_MS = 30_000;
@@ -69,13 +67,7 @@ export function MergeBranchDialog({
   const searchRef = useRef<HTMLInputElement>(null);
   const initRef = useRef(false);
 
-  const [aiCLIs, setAiCLIs] = useState<Record<string, boolean>>({});
-  const [selectedCLI, setSelectedCLI] = useState<AICLI>(
-    () => (getSettings().aiCli as AICLI) || "claude",
-  );
-  const [selectedModel, setSelectedModel] = useState<string>(
-    () => getSettings().aiModel ?? aiDefaultModel("claude"),
-  );
+  const ai = useAIPicker(open);
 
   const excludeCurrent = useMemo(
     () => (b: main.Branch) => b.name !== currentBranch || !!b.remote,
@@ -139,24 +131,6 @@ export function MergeBranchDialog({
         if (match) setSource(match);
       })
       .catch(() => {});
-    CheckAICLIs()
-      .then((a) => {
-        if (cancelled) return;
-        const avail: Record<string, boolean> = {
-          claude: a.claude,
-          codex: a.codex,
-          gemini: a.gemini,
-          opencode: a.opencode,
-        };
-        setAiCLIs(avail);
-        const s = getSettings();
-        const pick = resolveAIPick(s.aiCli, s.aiModel, avail);
-        if (pick) {
-          setSelectedCLI(pick.cli);
-          setSelectedModel(pick.model);
-        }
-      })
-      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -201,15 +175,6 @@ export function MergeBranchDialog({
     return [...base].sort((a, b) => rank(a) - rank(b));
   }, [branches, query, searchResults, excludeCurrent]);
 
-  const anyAiAvailable = AI_CLI_OPTIONS.some((o) => aiCLIs[o.value]);
-  const selectedCLILabel = aiPickLabel(selectedCLI, selectedModel);
-
-  const selectAI = (cli: AICLI, model: string) => {
-    setSelectedCLI(cli);
-    setSelectedModel(model);
-    saveSettings({ aiCli: cli, aiModel: model });
-  };
-
   const merge = async () => {
     if (busy || !source) return;
     setBusy(true);
@@ -236,7 +201,7 @@ export function MergeBranchDialog({
     setAiBusy(true);
     setProgressLine("");
     try {
-      await ResolveMergeConflictsWithAI(projectPath, selectedCLI, selectedModel);
+      await ResolveMergeConflictsWithAI(projectPath, ai.selectedCLI, ai.selectedModel, ai.selectedEffort);
       const remaining = await GitMergeConflicts(projectPath).catch(() => [] as string[]);
       onMerged();
       if (remaining.length === 0) {
@@ -440,18 +405,20 @@ export function MergeBranchDialog({
               Abort merge
             </button>
             <div className="flex items-center gap-2">
-              {anyAiAvailable ? (
+              {ai.anyAvailable ? (
                 <AIPickerButton
                   onGenerate={resolveWithAI}
                   generating={aiBusy}
                   disabled={aiBusy || busy}
-                  title={`Resolve with ${selectedCLILabel}`}
+                  title={`Resolve with ${ai.cliLabel}`}
                   label="Resolve with AI"
                   generatingLabel="Resolving…"
-                  aiCLIs={aiCLIs}
-                  selectedCLI={selectedCLI}
-                  selectedModel={selectedModel}
-                  onSelect={selectAI}
+                  aiCLIs={ai.aiCLIs}
+                  selectedCLI={ai.selectedCLI}
+                  selectedModel={ai.selectedModel}
+                  selectedEffort={ai.selectedEffort}
+                  onSelect={ai.selectAI}
+                  onSelectEffort={ai.selectEffort}
                 />
               ) : (
                 <span className="text-[11px] text-[var(--text-muted)]">

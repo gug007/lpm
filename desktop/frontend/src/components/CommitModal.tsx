@@ -6,7 +6,6 @@ import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { XIcon, ChevronDownIcon, LayersIcon } from "./icons";
 import { AIPickerButton } from "./ui/AIPickerButton";
 import {
-  CheckAICLIs,
   GenerateCommitMessage,
   GitChangedFiles,
   GitCommit,
@@ -16,7 +15,7 @@ import {
 } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
-import { AI_CLI_OPTIONS, aiDefaultModel, aiPickLabel, resolveAIPick, type AICLI } from "../types";
+import { useAIPicker } from "../hooks/useAIPicker";
 import { EventsEmit } from "../../wailsjs/runtime/runtime";
 import { getSettings, saveSettings } from "../store/settings";
 import { ChangedFilesTree } from "./ChangedFilesTree";
@@ -51,13 +50,7 @@ export function CommitModal({
     paths: string[];
   } | null>(null);
   const [generating, setGenerating] = useState(false);
-  const [aiCLIs, setAiCLIs] = useState<Record<string, boolean>>({});
-  const [selectedCLI, setSelectedCLI] = useState<AICLI>(
-    () => (getSettings().aiCli as AICLI) || "claude",
-  );
-  const [selectedModel, setSelectedModel] = useState<string>(
-    () => getSettings().aiModel ?? aiDefaultModel("claude"),
-  );
+  const ai = useAIPicker(open);
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
   const msgRef = useRef<HTMLTextAreaElement>(null);
   const commitMenuRef = useOutsideClick<HTMLDivElement>(
@@ -98,30 +91,11 @@ export function CommitModal({
         setLoading(false);
         setTimeout(() => msgRef.current?.focus(), 50);
       });
-    CheckAICLIs()
-      .then((a) => {
-        if (cancelled) return;
-        const avail: Record<string, boolean> = {
-          claude: a.claude,
-          codex: a.codex,
-          gemini: a.gemini,
-          opencode: a.opencode,
-        };
-        setAiCLIs(avail);
-        const s = getSettings();
-        const pick = resolveAIPick(s.aiCli, s.aiModel, avail);
-        if (pick) {
-          setSelectedCLI(pick.cli);
-          setSelectedModel(pick.model);
-        }
-      })
-      .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, [open, projectPath]);
 
-  const anyAiAvailable = AI_CLI_OPTIONS.some((o) => aiCLIs[o.value]);
   const autoGenTriggered = useRef(false);
 
   useEffect(() => {
@@ -131,10 +105,10 @@ export function CommitModal({
     }
     if (autoGenTriggered.current || !autoGenerate) return;
     if (loading || files.length === 0) return;
-    if (!anyAiAvailable) return;
+    if (!ai.anyAvailable) return;
     autoGenTriggered.current = true;
     generateMessage();
-  }, [open, loading, files, anyAiAvailable, autoGenerate]);
+  }, [open, loading, files, ai.anyAvailable, autoGenerate]);
 
   useEffect(() => {
     const el = msgRef.current;
@@ -230,8 +204,9 @@ export function CommitModal({
     try {
       const msg = await GenerateCommitMessage(
         projectPath,
-        selectedCLI,
-        selectedModel,
+        ai.selectedCLI,
+        ai.selectedModel,
+        ai.selectedEffort,
         Array.from(selected),
       );
       if (msg) setMessage(msg);
@@ -246,14 +221,6 @@ export function CommitModal({
     const next = !autoGenerate;
     setAutoGenerate(next);
     saveSettings({ autoGenerateCommitMessage: next });
-  };
-
-  const selectedCLILabel = aiPickLabel(selectedCLI, selectedModel);
-
-  const selectAI = (cli: AICLI, model: string) => {
-    setSelectedCLI(cli);
-    setSelectedModel(model);
-    saveSettings({ aiCli: cli, aiModel: model });
   };
 
   const selectedFiles = useMemo(() => Array.from(selected), [selected]);
@@ -327,21 +294,23 @@ export function CommitModal({
               rows={3}
               style={MSG_MAX_HEIGHT}
               className={`w-full resize-none bg-transparent px-3.5 pt-3 text-sm leading-[1.5] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-60 ${
-                anyAiAvailable ? "pb-1.5" : "pb-3"
+                ai.anyAvailable ? "pb-1.5" : "pb-3"
               }`}
             />
-            {anyAiAvailable && (
+            {ai.anyAvailable && (
               <div className="flex items-center justify-end px-2 pb-2">
                 <AIPickerButton
                   onGenerate={generateMessage}
                   generating={generating}
                   disabled={generating || !!busy || selected.size === 0}
-                  title={`Generate with ${selectedCLILabel}`}
+                  title={`Generate with ${ai.cliLabel}`}
                   label="Generate with AI"
-                  aiCLIs={aiCLIs}
-                  selectedCLI={selectedCLI}
-                  selectedModel={selectedModel}
-                  onSelect={selectAI}
+                  aiCLIs={ai.aiCLIs}
+                  selectedCLI={ai.selectedCLI}
+                  selectedModel={ai.selectedModel}
+                  selectedEffort={ai.selectedEffort}
+                  onSelect={ai.selectAI}
+                  onSelectEffort={ai.selectEffort}
                 />
               </div>
             )}
@@ -408,7 +377,7 @@ export function CommitModal({
               &#8984;&#9166;
             </kbd>
           )}
-          {anyAiAvailable && (
+          {ai.anyAvailable && (
             <Tooltip content="Auto-generate commit message on open" side="top" align="start">
               <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]">
                 <input

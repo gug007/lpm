@@ -88,11 +88,40 @@ export interface AIModelOption {
   label: string;
 }
 
+export interface AIEffortOption {
+  value: string;
+  label: string;
+}
+
 export interface AICLIOption {
   value: AICLI;
   label: string;
   models?: AIModelOption[];
+  efforts?: AIEffortOption[];
 }
+
+// Claude Code's --effort flag accepts low/medium/high/xhigh/max
+// (verified via `claude --help`). "" means omit the flag and use the
+// CLI default.
+const CLAUDE_EFFORTS: AIEffortOption[] = [
+  { value: "", label: "Default" },
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "xhigh", label: "Extra High" },
+  { value: "max", label: "Max" },
+];
+
+// Codex's `-c model_reasoning_effort=...` config accepts
+// minimal/low/medium/high/xhigh — no "max" (that's Claude-only).
+const CODEX_EFFORTS: AIEffortOption[] = [
+  { value: "", label: "Default" },
+  { value: "minimal", label: "Minimal" },
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "xhigh", label: "Extra High" },
+];
 
 export const AI_CLI_OPTIONS: AICLIOption[] = [
   {
@@ -104,6 +133,7 @@ export const AI_CLI_OPTIONS: AICLIOption[] = [
       { value: "opus", label: "Opus" },
       { value: "haiku", label: "Haiku" },
     ],
+    efforts: CLAUDE_EFFORTS,
   },
   {
     value: "codex",
@@ -114,6 +144,7 @@ export const AI_CLI_OPTIONS: AICLIOption[] = [
       { value: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
       { value: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
     ],
+    efforts: CODEX_EFFORTS,
   },
   { value: "gemini", label: "Gemini" },
   { value: "opencode", label: "OpenCode" },

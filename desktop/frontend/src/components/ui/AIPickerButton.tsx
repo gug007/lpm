@@ -15,7 +15,9 @@ interface AIPickerButtonProps {
   aiCLIs: Record<string, boolean>;
   selectedCLI: AICLI;
   selectedModel: string;
+  selectedEffort?: string;
   onSelect: (cli: AICLI, model: string) => void;
+  onSelectEffort?: (cli: AICLI, effort: string) => void;
   menuPlacement?: "up" | "down";
 }
 
@@ -29,7 +31,9 @@ export function AIPickerButton({
   aiCLIs,
   selectedCLI,
   selectedModel,
+  selectedEffort,
   onSelect,
+  onSelectEffort,
   menuPlacement = "up",
 }: AIPickerButtonProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -59,11 +63,16 @@ export function AIPickerButton({
           aiCLIs={aiCLIs}
           selectedCLI={selectedCLI}
           selectedModel={selectedModel}
+          selectedEffort={selectedEffort}
           placement={menuPlacement}
           onSelect={(cli, model) => {
             setMenuOpen(false);
             onSelect(cli, model);
           }}
+          onSelectEffort={onSelectEffort ? (cli, effort) => {
+            setMenuOpen(false);
+            onSelectEffort(cli, effort);
+          } : undefined}
         />
       )}
     </div>

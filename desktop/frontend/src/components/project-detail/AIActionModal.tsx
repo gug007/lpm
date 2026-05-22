@@ -3,15 +3,9 @@ import { toast } from "sonner";
 import { Modal } from "../ui/Modal";
 import { AIPickerButton } from "../ui/AIPickerButton";
 import { XIcon, SparkleIcon } from "../icons";
-import { CheckAICLIs, GenerateActionYAML } from "../../../wailsjs/go/main/App";
+import { GenerateActionYAML } from "../../../wailsjs/go/main/App";
 import { EventsOn } from "../../../wailsjs/runtime/runtime";
-import {
-  AI_CLI_OPTIONS,
-  aiDefaultModel,
-  resolveAIPick,
-  type AICLI,
-} from "../../types";
-import { getSettings, saveSettings } from "../../store/settings";
+import { useAIPicker } from "../../hooks/useAIPicker";
 
 const ACTION_YAML_PROGRESS_EVENT = "action-yaml-progress";
 
@@ -35,13 +29,7 @@ export function AIActionModal({
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState("");
-  const [aiCLIs, setAiCLIs] = useState<Record<string, boolean>>({});
-  const [selectedCLI, setSelectedCLI] = useState<AICLI>(
-    () => (getSettings().aiCli as AICLI) || "claude",
-  );
-  const [selectedModel, setSelectedModel] = useState<string>(
-    () => getSettings().aiModel ?? aiDefaultModel("claude"),
-  );
+  const ai = useAIPicker(open);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -54,32 +42,6 @@ export function AIActionModal({
 
   useEffect(() => {
     if (!open) return;
-    let cancelled = false;
-    CheckAICLIs()
-      .then((a) => {
-        if (cancelled) return;
-        const avail: Record<string, boolean> = {
-          claude: a.claude,
-          codex: a.codex,
-          gemini: a.gemini,
-          opencode: a.opencode,
-        };
-        setAiCLIs(avail);
-        const s = getSettings();
-        const pick = resolveAIPick(s.aiCli, s.aiModel, avail);
-        if (pick) {
-          setSelectedCLI(pick.cli);
-          setSelectedModel(pick.model);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
     const unsubscribe = EventsOn(ACTION_YAML_PROGRESS_EVENT, (msg: string) => {
       setProgress((prev) => prev + msg);
     });
@@ -87,14 +49,6 @@ export function AIActionModal({
       if (typeof unsubscribe === "function") unsubscribe();
     };
   }, [open]);
-
-  const anyAiAvailable = AI_CLI_OPTIONS.some((o) => aiCLIs[o.value]);
-
-  const selectAI = (cli: AICLI, model: string) => {
-    setSelectedCLI(cli);
-    setSelectedModel(model);
-    saveSettings({ aiCli: cli, aiModel: model });
-  };
 
   const submit = async () => {
     const value = prompt.trim();
@@ -104,8 +58,9 @@ export function AIActionModal({
     try {
       const raw = await GenerateActionYAML(
         projectName,
-        selectedCLI,
-        selectedModel,
+        ai.selectedCLI,
+        ai.selectedModel,
+        ai.selectedEffort,
         value,
         currentYAML,
       );
@@ -212,18 +167,20 @@ export function AIActionModal({
             >
               Cancel
             </button>
-            {anyAiAvailable ? (
+            {ai.anyAvailable ? (
               <AIPickerButton
                 onGenerate={submit}
                 generating={generating}
                 disabled={generating || !prompt.trim()}
-                title={`Generate with ${selectedCLI}`}
+                title={`Generate with ${ai.cliLabel}`}
                 label={isEditing ? "Apply with AI" : "Generate"}
                 generatingLabel={isEditing ? "Applying…" : "Generating…"}
-                aiCLIs={aiCLIs}
-                selectedCLI={selectedCLI}
-                selectedModel={selectedModel}
-                onSelect={selectAI}
+                aiCLIs={ai.aiCLIs}
+                selectedCLI={ai.selectedCLI}
+                selectedModel={ai.selectedModel}
+                selectedEffort={ai.selectedEffort}
+                onSelect={ai.selectAI}
+                onSelectEffort={ai.selectEffort}
                 menuPlacement="up"
               />
             ) : (

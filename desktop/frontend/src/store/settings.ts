@@ -37,6 +37,7 @@ export interface Settings {
   autoGeneratePRDescription?: boolean;
   aiCli?: string;
   aiModel?: string;
+  aiEffort?: string;
   configEditorMode?: "form" | "yaml";
   showProjectName?: boolean;
   lastSelectedProject?: string;
@@ -80,6 +81,7 @@ function normalize(s: main.Settings): Settings {
     autoGeneratePRDescription: s.autoGeneratePRDescription,
     aiCli: s.aiCli || undefined,
     aiModel: s.aiModel || undefined,
+    aiEffort: s.aiEffort || undefined,
     configEditorMode:
       s.configEditorMode === "form" || s.configEditorMode === "yaml"
         ? s.configEditorMode

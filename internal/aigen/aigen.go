@@ -152,19 +152,30 @@ func Generate(ctx context.Context, opts Options) (string, error) {
 // GenerateText runs the CLI with the given prompt and streams progress via the
 // callback. Returns the raw text output (no YAML extraction).
 func GenerateText(ctx context.Context, cli CLI, model, cwd, prompt string, progress ProgressFunc) (string, error) {
-	return runCLI(ctx, cli, model, cwd, prompt, progress, false)
+	return runCLI(ctx, cli, model, "", cwd, prompt, progress, false)
+}
+
+// GenerateTextWithEffort is GenerateText with an explicit reasoning effort
+// (claude/codex --effort flag). Pass "" to use the CLI default.
+func GenerateTextWithEffort(ctx context.Context, cli CLI, model, effort, cwd, prompt string, progress ProgressFunc) (string, error) {
+	return runCLI(ctx, cli, model, effort, cwd, prompt, progress, false)
 }
 
 // RunWithWrites is like GenerateText but allows the CLI to edit files in cwd.
 // Use for tasks that need filesystem changes (e.g. resolving merge conflicts).
 func RunWithWrites(ctx context.Context, cli CLI, model, cwd, prompt string, progress ProgressFunc) (string, error) {
-	return runCLI(ctx, cli, model, cwd, prompt, progress, true)
+	return runCLI(ctx, cli, model, "", cwd, prompt, progress, true)
 }
 
-func runCLI(ctx context.Context, cli CLI, model, cwd, prompt string, progress ProgressFunc, writes bool) (string, error) {
+// RunWithWritesAndEffort is RunWithWrites with an explicit reasoning effort.
+func RunWithWritesAndEffort(ctx context.Context, cli CLI, model, effort, cwd, prompt string, progress ProgressFunc) (string, error) {
+	return runCLI(ctx, cli, model, effort, cwd, prompt, progress, true)
+}
+
+func runCLI(ctx context.Context, cli CLI, model, effort, cwd, prompt string, progress ProgressFunc, writes bool) (string, error) {
 	switch cli {
 	case CLIClaude:
-		return runClaudeStream(ctx, cwd, prompt, model, progress, writes)
+		return runClaudeStream(ctx, cwd, prompt, model, effort, progress, writes)
 	case CLICodex:
 		sandbox := "read-only"
 		if writes {
@@ -173,6 +184,9 @@ func runCLI(ctx context.Context, cli CLI, model, cwd, prompt string, progress Pr
 		args := []string{"exec", "--sandbox", sandbox, "--skip-git-repo-check"}
 		if model != "" {
 			args = append(args, "--model", model)
+		}
+		if effort != "" {
+			args = append(args, "-c", "model_reasoning_effort="+effort)
 		}
 		args = append(args, prompt)
 		cmd := exec.CommandContext(ctx, "codex", args...)
@@ -199,7 +213,7 @@ func runCLI(ctx context.Context, cli CLI, model, cwd, prompt string, progress Pr
 
 // runClaudeStream runs Claude with stream-json, emits progress, and returns the raw result text.
 // When writes is false, Claude is barred from filesystem mutations.
-func runClaudeStream(ctx context.Context, cwd, prompt, model string, progress ProgressFunc, writes bool) (string, error) {
+func runClaudeStream(ctx context.Context, cwd, prompt, model, effort string, progress ProgressFunc, writes bool) (string, error) {
 	name := CLIClaude.displayName()
 	args := []string{
 		"-p",
@@ -212,6 +226,9 @@ func runClaudeStream(ctx context.Context, cwd, prompt, model string, progress Pr
 	}
 	if model != "" {
 		args = append(args, "--model", model)
+	}
+	if effort != "" {
+		args = append(args, "--effort", effort)
 	}
 	args = append(args, prompt)
 	cmd := exec.CommandContext(ctx, "claude", args...)
@@ -328,7 +345,7 @@ func truncForError(s string) string {
 }
 
 func generateClaude(ctx context.Context, opts Options, prompt string) (string, error) {
-	result, err := runClaudeStream(ctx, opts.ProjectDir, prompt, "", opts.Progress, false)
+	result, err := runClaudeStream(ctx, opts.ProjectDir, prompt, "", "", opts.Progress, false)
 	if err != nil {
 		return "", err
 	}

@@ -24,6 +24,7 @@ type Settings struct {
 	AutoGenPRDesc       bool     `json:"autoGeneratePRDescription,omitempty"`
 	AiCli               string   `json:"aiCli,omitempty"`
 	AiModel             string   `json:"aiModel,omitempty"`
+	AiEffort            string   `json:"aiEffort,omitempty"`
 	ConfigEditorMode    string   `json:"configEditorMode,omitempty"`
 	ShowProjectName     *bool    `json:"showProjectName,omitempty"`
 	LastSelectedProject string   `json:"lastSelectedProject,omitempty"`

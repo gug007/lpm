@@ -6,13 +6,9 @@ import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
 import { XIcon } from "./icons";
 import { AIPickerButton } from "./ui/AIPickerButton";
-import {
-  CheckAICLIs,
-  GenerateBranchName,
-} from "../../wailsjs/go/main/App";
+import { GenerateBranchName } from "../../wailsjs/go/main/App";
 import { EventsEmit } from "../../wailsjs/runtime/runtime";
-import { AI_CLI_OPTIONS, aiDefaultModel, aiPickLabel, resolveAIPick, type AICLI } from "../types";
-import { getSettings, saveSettings } from "../store/settings";
+import { useAIPicker } from "../hooks/useAIPicker";
 import { newBranchNameSchema } from "../forms/schemas";
 import { slugify } from "../slugify";
 
@@ -37,13 +33,7 @@ export function CreateBranchModal({
   onCreate,
 }: CreateBranchModalProps) {
   const [generating, setGenerating] = useState(false);
-  const [aiCLIs, setAiCLIs] = useState<Record<string, boolean>>({});
-  const [selectedCLI, setSelectedCLI] = useState<AICLI>(
-    () => (getSettings().aiCli as AICLI) || "claude",
-  );
-  const [selectedModel, setSelectedModel] = useState<string>(
-    () => getSettings().aiModel ?? aiDefaultModel("claude"),
-  );
+  const ai = useAIPicker(open);
   const openRef = useRef(open);
 
   const {
@@ -62,35 +52,11 @@ export function CreateBranchModal({
   useEffect(() => {
     openRef.current = open;
     if (!open) return;
-    let cancelled = false;
     reset({ name: "" });
     setGenerating(false);
     const focusTimer = setTimeout(() => setFocus("name"), 50);
-    CheckAICLIs()
-      .then((a) => {
-        if (cancelled) return;
-        const avail: Record<string, boolean> = {
-          claude: a.claude,
-          codex: a.codex,
-          gemini: a.gemini,
-          opencode: a.opencode,
-        };
-        setAiCLIs(avail);
-        const s = getSettings();
-        const pick = resolveAIPick(s.aiCli, s.aiModel, avail);
-        if (pick) {
-          setSelectedCLI(pick.cli);
-          setSelectedModel(pick.model);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-      clearTimeout(focusTimer);
-    };
+    return () => clearTimeout(focusTimer);
   }, [open, reset, setFocus]);
-
-  const anyAiAvailable = AI_CLI_OPTIONS.some((o) => aiCLIs[o.value]);
 
   const canCreate = !busy && !generating && isValid;
 
@@ -98,7 +64,7 @@ export function CreateBranchModal({
     if (generating || !projectPath) return;
     setGenerating(true);
     try {
-      const result = await GenerateBranchName(projectPath, selectedCLI, selectedModel);
+      const result = await GenerateBranchName(projectPath, ai.selectedCLI, ai.selectedModel, ai.selectedEffort);
       if (!openRef.current) return;
       if (result) {
         setValue("name", normalize(result), {
@@ -118,14 +84,6 @@ export function CreateBranchModal({
     if (!cleaned) return;
     await onCreate(cleaned);
   });
-
-  const selectedCLILabel = aiPickLabel(selectedCLI, selectedModel);
-
-  const selectAI = (cli: AICLI, model: string) => {
-    setSelectedCLI(cli);
-    setSelectedModel(model);
-    saveSettings({ aiCli: cli, aiModel: model });
-  };
 
   return (
     <Modal
@@ -172,22 +130,24 @@ export function CreateBranchModal({
                 autoCapitalize="off"
                 spellCheck={false}
                 className={`w-full bg-transparent px-3 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-60 ${
-                  anyAiAvailable ? "pt-2 pb-1" : "py-2"
+                  ai.anyAvailable ? "pt-2 pb-1" : "py-2"
                 }`}
                 {...register("name")}
               />
-              {anyAiAvailable && (
+              {ai.anyAvailable && (
                 <div className="flex items-center justify-end px-2 pb-1.5">
                   <AIPickerButton
                     onGenerate={generate}
                     generating={generating}
                     disabled={generating || busy || !projectPath}
-                    title={`Generate with ${selectedCLILabel}`}
+                    title={`Generate with ${ai.cliLabel}`}
                     label="Generate with AI"
-                    aiCLIs={aiCLIs}
-                    selectedCLI={selectedCLI}
-                    selectedModel={selectedModel}
-                    onSelect={selectAI}
+                    aiCLIs={ai.aiCLIs}
+                    selectedCLI={ai.selectedCLI}
+                    selectedModel={ai.selectedModel}
+                    selectedEffort={ai.selectedEffort}
+                    onSelect={ai.selectAI}
+                    onSelectEffort={ai.selectEffort}
                   />
                 </div>
               )}
@@ -196,7 +156,7 @@ export function CreateBranchModal({
         </div>
 
         <div className="mt-5 flex items-center justify-between">
-          {anyAiAvailable ? (
+          {ai.anyAvailable ? (
             <button
               type="button"
               onClick={() => {
