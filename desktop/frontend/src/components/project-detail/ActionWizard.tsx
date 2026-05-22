@@ -43,6 +43,23 @@ const CONFIRM_KEYWORDS = /\b(deploy|migrate|reset|drop|delete|destroy|remove|kil
 
 const NEW_ACTION_KEY = "new-action";
 const PLACEHOLDER_LABEL = "New action";
+const MODE_STORAGE_KEY = "lpm.actionWizard.mode";
+
+function readStoredMode(): "form" | "editor" {
+  try {
+    return localStorage.getItem(MODE_STORAGE_KEY) === "editor" ? "editor" : "form";
+  } catch {
+    return "form";
+  }
+}
+
+function writeStoredMode(value: "form" | "editor") {
+  try {
+    localStorage.setItem(MODE_STORAGE_KEY, value);
+  } catch {
+    // ignore quota / disabled storage
+  }
+}
 
 const SHAPE_OPTIONS: Array<{
   shape: Shape;
@@ -445,11 +462,23 @@ export function ActionWizard({
       contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >
       <div className="flex h-[min(820px,92vh)] w-[min(960px,calc(100vw-32px))] flex-col" onKeyDown={onKeyDown}>
-        <header className="flex items-start justify-between gap-4 px-8 pb-6 pt-7">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">{title}</h2>
-            <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[var(--text-secondary)]">{hint}</p>
-            <div className="mt-2.5">
+        <header className="px-8 pb-5 pt-7">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">{title}</h2>
+              <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[var(--text-secondary)]">{hint}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="-mr-2 -mt-2 rounded-xl p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              <XIcon />
+            </button>
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <div className="min-w-0">
               {isEditing ? (
                 <div className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
                   <FolderIcon />
@@ -464,20 +493,10 @@ export function ActionWizard({
                 />
               )}
             </div>
-          </div>
-          <div className="flex items-center gap-2">
             <ModeMenu
               mode={mode}
               onChange={(next) => (next === "editor" ? switchToEditor() : switchToForm())}
             />
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close"
-              className="-mr-2 -mt-2 rounded-xl p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              <XIcon />
-            </button>
           </div>
         </header>
 
@@ -655,21 +674,22 @@ function ModeMenu({ mode, onChange }: { mode: WizardMode; onChange: (next: Wizar
   };
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative shrink-0">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-colors ${
+        className={`flex items-center gap-1.5 rounded-md border border-[var(--border)] px-2 py-1 text-[11px] font-medium transition-colors ${
           open
             ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
-            : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         }`}
       >
-        {current.label}
+        <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">View</span>
+        <span>{current.label}</span>
         <ChevronDownIcon />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1.5 min-w-[180px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-2xl">
+        <div className="absolute right-0 top-full z-50 mt-1.5 min-w-[200px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-2xl">
           {MODE_OPTIONS.map((opt) => {
             const active = opt.value === mode;
             return (
