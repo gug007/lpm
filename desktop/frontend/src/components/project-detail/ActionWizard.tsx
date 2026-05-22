@@ -7,6 +7,7 @@ import { slugify } from "../../slugify";
 import { uniqueKey } from "../../uniqueKey";
 import type { ActionInfo } from "../../types";
 import {
+  CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   HelpCircleIcon,
@@ -19,7 +20,6 @@ import {
   ZapIcon,
 } from "../icons";
 import { Modal } from "../ui/Modal";
-import { SegmentedControl } from "../ui/SegmentedControl";
 import { TrafficLights } from "../ui/TrafficLights";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 
@@ -416,14 +416,10 @@ export function ActionWizard({
             <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">{title}</h2>
             <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[var(--text-secondary)]">{hint}</p>
           </div>
-          <div className="flex items-center gap-3">
-            <SegmentedControl
-              value={mode}
+          <div className="flex items-center gap-2">
+            <ModeMenu
+              mode={mode}
               onChange={(next) => (next === "editor" ? switchToEditor() : switchToForm())}
-              options={[
-                { value: "form", label: "Form" },
-                { value: "editor", label: "Editor" },
-              ]}
             />
             <button
               type="button"
@@ -589,6 +585,66 @@ export function ActionWizard({
         </footer>
       </div>
     </Modal>
+  );
+}
+
+type WizardMode = "form" | "editor";
+
+const MODE_OPTIONS: Array<{ value: WizardMode; label: string; hint: string }> = [
+  { value: "form", label: "Form", hint: "Guided fields" },
+  { value: "editor", label: "Editor", hint: "Raw YAML" },
+];
+
+function ModeMenu({ mode, onChange }: { mode: WizardMode; onChange: (next: WizardMode) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
+  const current = MODE_OPTIONS.find((opt) => opt.value === mode) ?? MODE_OPTIONS[0];
+
+  const choose = (next: WizardMode) => {
+    setOpen(false);
+    if (next !== mode) onChange(next);
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-colors ${
+          open
+            ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
+            : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        }`}
+      >
+        {current.label}
+        <ChevronDownIcon />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-1.5 min-w-[180px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-2xl">
+          {MODE_OPTIONS.map((opt) => {
+            const active = opt.value === mode;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => choose(opt.value)}
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
+              >
+                <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-[var(--text-primary)]">
+                  {active && <CheckIcon />}
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className={`text-[12px] font-medium ${active ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}>
+                    {opt.label}
+                  </span>
+                  <span className="text-[11px] text-[var(--text-muted)]">{opt.hint}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
