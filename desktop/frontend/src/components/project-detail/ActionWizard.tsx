@@ -3,6 +3,7 @@ import YAML from "yaml";
 import { toast } from "sonner";
 import {
   appendActionToLayer,
+  findActionSource,
   replaceAction,
   replaceActionPayload,
   type ActionConfigLayer,
@@ -300,6 +301,7 @@ export function ActionWizard({
   const [editorContent, setEditorContent] = useState("");
   const [editorError, setEditorError] = useState<string | null>(null);
   const [editorSeed, setEditorSeed] = useState(0);
+  const [editSource, setEditSource] = useState<ActionConfigLayer | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const commandRef = useRef<HTMLInputElement>(null);
 
@@ -310,8 +312,20 @@ export function ActionWizard({
     setSaving(false);
     setMode("form");
     setEditorError(null);
+    setEditSource(null);
     setTimeout(() => nameRef.current?.focus(), 50);
   }, [open, editing]);
+
+  useEffect(() => {
+    if (!open || !editing) return;
+    let cancelled = false;
+    findActionSource(projectName, editing.name).then((layer) => {
+      if (!cancelled) setEditSource(layer);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, editing, projectName]);
 
   const { shape, name, cmd, cwd, configLayer, children, runMode, reuse, confirm } = draft;
   const nameFilled = Boolean(name.trim());
@@ -439,7 +453,9 @@ export function ActionWizard({
               {isEditing ? (
                 <div className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
                   <FolderIcon />
-                  Saves to its existing config
+                  {editSource
+                    ? <>Saves to <span className="text-[var(--text-secondary)]">{configLayerLabel(editSource)}</span> config</>
+                    : "Locating config…"}
                 </div>
               ) : (
                 <ConfigLayerMenu

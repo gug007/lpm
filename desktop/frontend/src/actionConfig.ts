@@ -48,6 +48,29 @@ export function appendActionToLayer(
   return editProjectDoc(projectName, mutate);
 }
 
+// Returns the topmost layer (in project → repo → global order) that defines
+// the action key, matching where editFirstLayer will write an edit.
+export async function findActionSource(
+  projectName: string,
+  key: string,
+): Promise<ActionConfigLayer | null> {
+  const candidates: Array<[ActionConfigLayer, ConfigLayer]> = [
+    ["project", projectLayer(projectName)],
+    ["repo", repoLayer(projectName)],
+    ["global", globalLayer],
+  ];
+  for (const [name, layer] of candidates) {
+    try {
+      const content = await layer.read();
+      const doc = YAML.parseDocument(content || "{}");
+      if (findActionSection(doc, key)) return name;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
 // Acts on the topmost layer that defines the key; the lower layer remains
 // as the new fallback once the topmost copy is removed.
 export async function deleteAction(projectName: string, key: string) {
