@@ -191,3 +191,12 @@ export function splitAtPane(
     b: newPane,
   });
 }
+
+/**
+ * Single source of truth for "is this tab pinned?". All close paths
+ * (× icon, Cmd+W hotkey, closeTerminal guard) consult this helper so
+ * they cannot drift apart.
+ */
+export function isTabPinned(pane: PaneLeaf, idx: number): boolean {
+  return pane.tabs[idx]?.pinned === true;
+}
