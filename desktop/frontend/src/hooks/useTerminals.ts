@@ -705,6 +705,7 @@ async function reifyTreeWithFreshPtys(
           startCmd: persistedTabs[i].startCmd,
           resumeCmd: persistedTabs[i].resumeCmd,
           actionName: persistedTabs[i].actionName,
+          pinned: persistedTabs[i].pinned,
         }),
       );
       const pane = makePaneLeaf(nextPaneId(), tabs, clampIdx(node.activeTabIdx, tabs.length));
@@ -745,6 +746,7 @@ function treeToPersisted(node: PaneNode): PersistedPaneNode {
         ...(t.startCmd ? { startCmd: t.startCmd } : {}),
         ...(t.resumeCmd ? { resumeCmd: t.resumeCmd } : {}),
         ...(t.actionName ? { actionName: t.actionName } : {}),
+        ...(t.pinned ? { pinned: true } : {}),
       })),
     };
   }
