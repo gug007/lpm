@@ -32,6 +32,7 @@ import {
   splitAtPane,
   panePath,
   paneAtPath,
+  isTabPinned,
 } from "../paneTree";
 
 export interface TerminalStartOpts {
@@ -66,6 +67,7 @@ export interface UseTerminalsResult {
   focusTerminal: (paneId: string, tabIdx: number) => void;
   focusService: (paneId: string, serviceName: string) => void;
   renameTerminal: (paneId: string, tabIdx: number, label: string) => void;
+  toggleTabPinned: (paneId: string, tabIdx: number) => void;
   reorderTerminals: (paneId: string, order: string[]) => void;
   moveTerminal: (fromPaneId: string, termId: string, toPaneId: string, toIdx?: number) => void;
   splitPane: (paneId: string, direction: SplitDirection) => Promise<void>;
@@ -394,6 +396,7 @@ export function useTerminals(
       if (!current) return;
       const pane = findPane(current, paneId);
       if (!pane || !pane.tabs[tabIdx]) return;
+      if (isTabPinned(pane, tabIdx)) return;
       const closingTab = pane.tabs[tabIdx];
       StopTerminal(closingTab.id).catch(() => {});
       recordClosingTabs([closingTab]);
@@ -461,6 +464,23 @@ export function useTerminals(
       const next = mapPane(current, paneId, (p) => ({
         ...p,
         tabs: p.tabs.map((t, i) => (i === tabIdx ? { ...t, label } : t)),
+      }));
+      applyTree(next);
+    },
+    [applyTree],
+  );
+
+  const toggleTabPinned = useCallback(
+    (paneId: string, tabIdx: number) => {
+      const current = treeRef.current;
+      if (!current) return;
+      const pane = findPane(current, paneId);
+      if (!pane || !pane.tabs[tabIdx]) return;
+      const next = mapPane(current, paneId, (p) => ({
+        ...p,
+        tabs: p.tabs.map((t, i) =>
+          i === tabIdx ? { ...t, pinned: !t.pinned } : t,
+        ),
       }));
       applyTree(next);
     },
@@ -650,6 +670,7 @@ export function useTerminals(
     focusTerminal,
     focusService,
     renameTerminal,
+    toggleTabPinned,
     reorderTerminals,
     moveTerminal,
     splitPane,
