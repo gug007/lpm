@@ -1,8 +1,9 @@
-import { memo, useEffect, useMemo } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import type { ITheme } from "@xterm/xterm";
 import { InteractivePane, type InteractivePaneHandle } from "./InteractivePane";
 import { Pane, type PaneHandle } from "./Pane";
 import { HeaderTab } from "./terminal/HeaderTab";
+import { TabContextMenu } from "./terminal/TabContextMenu";
 import { IconBtn } from "./terminal/IconBtn";
 import {
   PlusIcon,
@@ -51,6 +52,7 @@ export interface PaneViewProps {
   onAddTerminal: (paneId: string) => void;
   onCloseTerminal: (paneId: string, tabIdx: number) => void;
   onRenameTerminal: (paneId: string, tabIdx: number, label: string) => void;
+  onTogglePinTab: (paneId: string, tabIdx: number) => void;
   onSplit: (paneId: string, direction: SplitDirection) => void;
   onClosePane: (paneId: string) => void;
   onClearPane: (paneId: string) => void;
@@ -90,6 +92,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onAddTerminal,
     onCloseTerminal,
     onRenameTerminal,
+    onTogglePinTab,
     onSplit,
     onClosePane,
     onClearPane,
@@ -100,6 +103,13 @@ function PaneViewImpl(props: PaneViewProps) {
     onFindInPane,
     onCloseSearch,
   } = props;
+
+  const [tabMenu, setTabMenu] = useState<{
+    paneId: string;
+    tabIdx: number;
+    x: number;
+    y: number;
+  } | null>(null);
 
   const hasMultipleServices = services.length > 1;
   const isAllActive =
@@ -186,6 +196,7 @@ function PaneViewImpl(props: PaneViewProps) {
                   <HeaderTab
                     label={t.label}
                     active={isActive}
+                    pinned={t.pinned}
                     shimmer={runningPaneIDs?.has(t.id) ?? false}
                     done={!isActive && isDone}
                     waiting={isWaiting}
@@ -197,6 +208,10 @@ function PaneViewImpl(props: PaneViewProps) {
                     }}
                     onClose={() => onCloseTerminal(pane.id, i)}
                     onRename={(name) => onRenameTerminal(pane.id, i, name)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setTabMenu({ paneId: pane.id, tabIdx: i, x: e.clientX, y: e.clientY });
+                    }}
                   />
                 </SortableTab>
               );
@@ -332,6 +347,20 @@ function PaneViewImpl(props: PaneViewProps) {
           );
         })}
       </div>
+      {tabMenu && (() => {
+        const targetPane = pane.id === tabMenu.paneId ? pane : null;
+        const tab = targetPane?.tabs[tabMenu.tabIdx];
+        if (!tab) return null;
+        return (
+          <TabContextMenu
+            x={tabMenu.x}
+            y={tabMenu.y}
+            pinned={tab.pinned === true}
+            onTogglePin={() => onTogglePinTab(tabMenu.paneId, tabMenu.tabIdx)}
+            onClose={() => setTabMenu(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
