@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DemoSection } from "@/components/home/demo";
 import { ComparisonHero } from "@/components/vs/comparison-hero";
 import { Cta } from "@/components/vs/cta";
 import { Faq, type FaqItem } from "@/components/vs/faq";
@@ -161,6 +162,8 @@ export default function LpmVsCmuxPage() {
         title="Project manager vs. terminal — both built for coding agents."
         description="cmux is a native macOS terminal built for agents. lpm is a project manager with a built-in terminal. They overlap in the panes-for-agents area, but solve different halves of the workflow. Honest side-by-side, no shade."
       />
+
+      <DemoSection />
 
       <FeatureMatrix
         title="cmux and lpm, feature by feature"
