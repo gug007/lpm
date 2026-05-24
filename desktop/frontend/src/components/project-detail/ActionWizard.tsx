@@ -30,6 +30,7 @@ import {
 } from "../icons";
 import { Modal } from "../ui/Modal";
 import { TrafficLights } from "../ui/TrafficLights";
+import { EmojiPickerButton } from "../EmojiPickerButton";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 
 type Shape = "button" | "split" | "dropdown";
@@ -610,18 +611,26 @@ export function ActionWizard({
         <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] lg:flex-row">
           <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-8 py-7">
             <FieldSection label="Button name">
-              <input
-                ref={nameRef}
-                value={name}
-                onChange={(e) => updateName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter") return;
-                  e.preventDefault();
-                  handleNameEnter();
-                }}
-                placeholder="Run tests"
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-3.5 text-[15px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--text-primary)] focus:bg-[var(--bg-primary)]"
-              />
+              <div className="relative">
+                <input
+                  ref={nameRef}
+                  value={name}
+                  onChange={(e) => updateName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    handleNameEnter();
+                  }}
+                  placeholder="Run tests"
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] py-3.5 pl-4 pr-12 text-[15px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--text-primary)] focus:bg-[var(--bg-primary)]"
+                />
+                <EmojiPickerButton
+                  inputRef={nameRef}
+                  value={name}
+                  onChange={updateName}
+                  size="md"
+                />
+              </div>
             </FieldSection>
 
             {showShape && (
