@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { Check, X } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
+import { vsPath } from "@/lib/links";
 
 type Capability = {
   label: string;
@@ -143,6 +145,15 @@ export default function Comparison() {
             </tbody>
           </table>
         </div>
+
+        <p className="hidden sm:block mt-4 text-xs text-gray-400 dark:text-gray-500 text-right">
+          <Link
+            href={vsPath("cmux")}
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            Or compare lpm to cmux directly →
+          </Link>
+        </p>
 
         <div className="sm:hidden space-y-4">
           {ALTERNATIVES.map((a) => {

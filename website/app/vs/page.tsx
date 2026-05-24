@@ -73,6 +73,12 @@ const ENTRIES: Entry[] = [
     tagline:
       "Production Node daemon. lpm is built for the dev loop — the two are complementary.",
   },
+  {
+    slug: "cmux",
+    name: "cmux",
+    tagline:
+      "Native macOS terminal for AI coding agents from Manaflow (YC). lpm adds project-level start/stop/duplicate and auto-detected dev stacks on top.",
+  },
 ];
 
 export default function ComparisonsHubPage() {

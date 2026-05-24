@@ -20,6 +20,7 @@ export const VS_SLUGS = [
   "docker-compose",
   "tmux",
   "pm2",
+  "cmux",
 ] as const;
 export type VsSlug = (typeof VS_SLUGS)[number];
 export const vsPath = (slug: VsSlug): string => `${VS_BASE_PATH}/${slug}`;

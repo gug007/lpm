@@ -19,6 +19,7 @@ const COMPARE_LABELS: Record<(typeof VS_SLUGS)[number], string> = {
   "docker-compose": "Docker Compose",
   tmux: "tmux",
   pm2: "PM2",
+  cmux: "cmux",
 };
 
 export function Footer() {
