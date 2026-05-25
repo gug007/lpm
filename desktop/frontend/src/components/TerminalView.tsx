@@ -4,7 +4,7 @@ import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus } from
 import type { ITheme } from "@xterm/xterm";
 import { disposePaneSession, type PaneHandle } from "./Pane";
 import { disposeInteractivePaneSession, type InteractivePaneHandle } from "./InteractivePane";
-import { collectTerminals } from "../paneTree";
+import { collectTerminals, isTabPinned } from "../paneTree";
 import { PaneLayout } from "./PaneLayout";
 import { TerminalTabDnd } from "./TerminalTabDnd";
 import type { ServiceTabInfo, StatusKind } from "./PaneView";
@@ -65,6 +65,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     focusTerminal,
     focusService,
     renameTerminal,
+    toggleTabPinned,
     reorderTerminals,
     moveTerminal,
     splitPane,
@@ -335,6 +336,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       if (matched.key === "w") {
         const pane = getFocusedPane();
         if (!pane || pane.tabs.length === 0 || pane.activeServiceName) return;
+        if (isTabPinned(pane, pane.activeTabIdx)) return;
         closeTerminal(pane.id, pane.activeTabIdx);
         return;
       }
@@ -402,6 +404,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onAddTerminal={addTerminalToPane}
             onCloseTerminal={closeTerminal}
             onRenameTerminal={renameTerminal}
+            onTogglePinTab={toggleTabPinned}
             onSplit={splitPane}
             onClosePane={closePane}
             onClearPane={handleClearPane}
