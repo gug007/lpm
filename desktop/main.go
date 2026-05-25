@@ -21,6 +21,23 @@ type fileDropPayload struct {
 	Paths []string `json:"paths"`
 }
 
+// registerFileDropEvent wires WindowFilesDropped on the given window to the
+// frontend's "files-dropped" event. Detached project windows need this just
+// as much as the main window — without it, drops on a detached window only
+// trigger the JS drag-overlay hooks (which fire globally via _wails) and the
+// drop itself is silently lost.
+func (a *App) registerFileDropEvent(window *application.WebviewWindow) {
+	window.OnWindowEvent(events.Common.WindowFilesDropped, func(e *application.WindowEvent) {
+		ctx := e.Context()
+		payload := fileDropPayload{Paths: ctx.DroppedFiles()}
+		if details := ctx.DropTargetDetails(); details != nil {
+			payload.X = details.X
+			payload.Y = details.Y
+		}
+		a.wails.Event.Emit(eventFilesDropped, payload)
+	})
+}
+
 func main() {
 	appInstance := NewApp()
 
@@ -75,15 +92,7 @@ func main() {
 		e.Cancel()
 	})
 
-	window.OnWindowEvent(events.Common.WindowFilesDropped, func(e *application.WindowEvent) {
-		ctx := e.Context()
-		payload := fileDropPayload{Paths: ctx.DroppedFiles()}
-		if details := ctx.DropTargetDetails(); details != nil {
-			payload.X = details.X
-			payload.Y = details.Y
-		}
-		app.Event.Emit(eventFilesDropped, payload)
-	})
+	appInstance.registerFileDropEvent(window)
 
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(_ *application.ApplicationEvent) {
 		appInstance.RestoreDetachedWindows()

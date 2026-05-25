@@ -200,6 +200,8 @@ func (a *App) attachWindowHooks(entry *detachedEntry, projectName string) {
 		return
 	}
 
+	a.registerFileDropEvent(entry.win)
+
 	// Closing the window re-attaches the project to the main window
 	// (matches user expectation — services keep running independently).
 	// During app shutdown or project removal, leave the persisted flag
