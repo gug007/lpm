@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo, useRef, useCallback, useImperativeHandle } from "react";
+import { toast } from "sonner";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus } from "../../wailsjs/go/main/App";
 import type { ITheme } from "@xterm/xterm";
 import { disposePaneSession, type PaneHandle } from "./Pane";
 import { disposeInteractivePaneSession, type InteractivePaneHandle } from "./InteractivePane";
-import { collectTerminals } from "../paneTree";
+import { collectTerminals, isTabPinned } from "../paneTree";
 import { PaneLayout } from "./PaneLayout";
 import { TerminalTabDnd } from "./TerminalTabDnd";
 import type { ServiceTabInfo, StatusKind } from "./PaneView";
@@ -65,6 +66,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     focusTerminal,
     focusService,
     renameTerminal,
+    toggleTabPinned,
     reorderTerminals,
     moveTerminal,
     splitPane,
@@ -335,6 +337,12 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       if (matched.key === "w") {
         const pane = getFocusedPane();
         if (!pane || pane.tabs.length === 0 || pane.activeServiceName) return;
+        if (isTabPinned(pane, pane.activeTabIdx)) {
+          toast.error("Can't close a pinned tab. Right-click the tab to unpin first.", {
+            id: "pinned-tab-close-blocked",
+          });
+          return;
+        }
         closeTerminal(pane.id, pane.activeTabIdx);
         return;
       }
@@ -402,6 +410,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onAddTerminal={addTerminalToPane}
             onCloseTerminal={closeTerminal}
             onRenameTerminal={renameTerminal}
+            onTogglePinTab={toggleTabPinned}
             onSplit={splitPane}
             onClosePane={closePane}
             onClearPane={handleClearPane}

@@ -11,6 +11,7 @@ export interface TerminalInstance {
   startCmd?: string;
   resumeCmd?: string;
   actionName?: string;
+  pinned?: boolean;
 }
 
 export interface PaneLeaf {
@@ -42,9 +43,16 @@ export function makePaneLeaf(id: string, tabs: TerminalInstance[], activeTabIdx 
 export function makeTerminal(
   id: string,
   label: string,
-  opts?: { startCmd?: string; resumeCmd?: string; actionName?: string },
+  opts?: { startCmd?: string; resumeCmd?: string; actionName?: string; pinned?: boolean },
 ): TerminalInstance {
-  return { id, label, ...(opts?.startCmd ? { startCmd: opts.startCmd } : {}), ...(opts?.resumeCmd ? { resumeCmd: opts.resumeCmd } : {}), ...(opts?.actionName ? { actionName: opts.actionName } : {}) };
+  return {
+    id,
+    label,
+    ...(opts?.startCmd ? { startCmd: opts.startCmd } : {}),
+    ...(opts?.resumeCmd ? { resumeCmd: opts.resumeCmd } : {}),
+    ...(opts?.actionName ? { actionName: opts.actionName } : {}),
+    ...(opts?.pinned ? { pinned: true } : {}),
+  };
 }
 
 export function walkPanes(node: PaneNode, fn: (pane: PaneLeaf) => void): void {
@@ -182,4 +190,13 @@ export function splitAtPane(
     a: existing,
     b: newPane,
   });
+}
+
+/**
+ * Single source of truth for "is this tab pinned?". All close paths
+ * (× icon, Cmd+W hotkey, closeTerminal guard) consult this helper so
+ * they cannot drift apart.
+ */
+export function isTabPinned(pane: PaneLeaf, idx: number): boolean {
+  return pane.tabs[idx]?.pinned === true;
 }

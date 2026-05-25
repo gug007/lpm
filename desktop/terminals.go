@@ -16,6 +16,7 @@ type PersistedTab struct {
 	StartCmd   string `json:"startCmd,omitempty"`
 	ResumeCmd  string `json:"resumeCmd,omitempty"`
 	ActionName string `json:"actionName,omitempty"`
+	Pinned     bool   `json:"pinned,omitempty"`
 }
 
 // PaneNode is one node of a persisted pane layout tree. Leaves have
