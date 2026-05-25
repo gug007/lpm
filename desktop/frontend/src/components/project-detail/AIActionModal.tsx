@@ -6,6 +6,7 @@ import { XIcon, SparkleIcon } from "../icons";
 import { GenerateActionYAML } from "../../../wailsjs/go/main/App";
 import { EventsOn } from "../../../wailsjs/runtime/runtime";
 import { useAIPicker } from "../../hooks/useAIPicker";
+import { aiEffectiveFast } from "../../types";
 
 const ACTION_YAML_PROGRESS_EVENT = "action-yaml-progress";
 
@@ -61,6 +62,7 @@ export function AIActionModal({
         ai.selectedCLI,
         ai.selectedModel,
         ai.selectedEffort,
+        aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
         value,
         currentYAML,
       );
@@ -179,8 +181,10 @@ export function AIActionModal({
                 selectedCLI={ai.selectedCLI}
                 selectedModel={ai.selectedModel}
                 selectedEffort={ai.selectedEffort}
+                selectedFast={ai.selectedFast}
                 onSelect={ai.selectAI}
                 onSelectEffort={ai.selectEffort}
+                onSelectFast={ai.selectFast}
                 menuPlacement="up"
               />
             ) : (

@@ -165,6 +165,22 @@ export function aiDefaultModel(cli: AICLI): string {
   return AI_CLI_OPTIONS.find((o) => o.value === cli)?.models?.[0]?.value ?? "";
 }
 
+// Codex Fast Mode (`service_tier=fast`) is currently honored only by the
+// flagship 5.x models. Listing the eligible models centrally so the picker
+// and the call-site guard agree.
+const CODEX_FAST_MODELS: ReadonlySet<string> = new Set(["gpt-5.5", "gpt-5.4"]);
+
+export function aiSupportsFast(cli: AICLI, model: string): boolean {
+  return cli === "codex" && CODEX_FAST_MODELS.has(model);
+}
+
+// effectiveFast collapses the saved toggle to false whenever the current
+// CLI/model wouldn't accept it, so call sites can pass the result straight
+// into the Wails binding without re-checking eligibility.
+export function aiEffectiveFast(cli: AICLI, model: string, fast: boolean): boolean {
+  return fast && aiSupportsFast(cli, model);
+}
+
 export function resolveAIPick(
   savedCli: string | undefined,
   savedModel: string | undefined,

@@ -42,8 +42,9 @@ const maxDiffSize = 30_000
 
 // GenerateCommitMessage uses an AI CLI to generate a commit message from the
 // diff of the given files. effort maps to the CLI's reasoning effort flag
-// (e.g. claude --effort high); "" uses the CLI default.
-func (a *App) GenerateCommitMessage(cwd, cli, model, effort string, files []string) (string, error) {
+// (e.g. claude --effort high); "" uses the CLI default. fast enables Codex's
+// service_tier=fast (higher cost, faster output); ignored for other CLIs.
+func (a *App) GenerateCommitMessage(cwd, cli, model, effort string, fast bool, files []string) (string, error) {
 	diff, err := a.GitDiff(cwd, files)
 	if err != nil {
 		return "", fmt.Errorf("no diff to summarize")
@@ -65,7 +66,7 @@ func (a *App) GenerateCommitMessage(cwd, cli, model, effort string, files []stri
 	if err != nil {
 		return "", err
 	}
-	return aigen.GenerateTextWithEffort(a.ctx, selected, model, effort, cwd, prompt+diff, func(msg string) {
+	return aigen.Run(a.ctx, selected, cwd, prompt+diff, aigen.RunOptions{Model: model, Effort: effort, Fast: fast}, func(msg string) {
 		a.wails.Event.Emit(commitMsgProgressEvent, msg)
 	})
 }
@@ -163,7 +164,7 @@ func buildPRPrompt(base, userInstructions, diff, commitLog string) string {
 }
 
 // GeneratePRTitle uses an AI CLI to generate a PR title from the branch diff.
-func (a *App) GeneratePRTitle(cwd, cli, model, effort, base string) (string, error) {
+func (a *App) GeneratePRTitle(cwd, cli, model, effort string, fast bool, base string) (string, error) {
 	diff, commitLog, err := a.prDiffAndLog(cwd, base)
 	if err != nil {
 		return "", err
@@ -175,13 +176,13 @@ func (a *App) GeneratePRTitle(cwd, cli, model, effort, base string) (string, err
 	if err != nil {
 		return "", err
 	}
-	return aigen.GenerateTextWithEffort(a.ctx, selected, model, effort, cwd, prompt, func(msg string) {
+	return aigen.Run(a.ctx, selected, cwd, prompt, aigen.RunOptions{Model: model, Effort: effort, Fast: fast}, func(msg string) {
 		a.wails.Event.Emit(prTitleProgressEvent, msg)
 	})
 }
 
 // GeneratePRDescription uses an AI CLI to generate a PR description from the branch diff.
-func (a *App) GeneratePRDescription(cwd, cli, model, effort, base string) (string, error) {
+func (a *App) GeneratePRDescription(cwd, cli, model, effort string, fast bool, base string) (string, error) {
 	diff, commitLog, err := a.prDiffAndLog(cwd, base)
 	if err != nil {
 		return "", err
@@ -193,7 +194,7 @@ func (a *App) GeneratePRDescription(cwd, cli, model, effort, base string) (strin
 	if err != nil {
 		return "", err
 	}
-	return aigen.GenerateTextWithEffort(a.ctx, selected, model, effort, cwd, prompt, func(msg string) {
+	return aigen.Run(a.ctx, selected, cwd, prompt, aigen.RunOptions{Model: model, Effort: effort, Fast: fast}, func(msg string) {
 		a.wails.Event.Emit(prDescriptionProgressEvent, msg)
 	})
 }
@@ -226,7 +227,7 @@ Output ONLY the branch name. No code fences. No explanation.
 
 // GenerateBranchName summarizes the current uncommitted changes when present,
 // otherwise falls back to the current branch diff against the default branch.
-func (a *App) GenerateBranchName(cwd, cli, model, effort string) (string, error) {
+func (a *App) GenerateBranchName(cwd, cli, model, effort string, fast bool) (string, error) {
 	var commitLog string
 	diff, _ := runGit(cwd, "diff", "HEAD")
 	diff = strings.TrimSpace(diff)
@@ -253,7 +254,7 @@ func (a *App) GenerateBranchName(cwd, cli, model, effort string) (string, error)
 	if err != nil {
 		return "", err
 	}
-	return aigen.GenerateTextWithEffort(a.ctx, selected, model, effort, cwd, prompt, func(msg string) {
+	return aigen.Run(a.ctx, selected, cwd, prompt, aigen.RunOptions{Model: model, Effort: effort, Fast: fast}, func(msg string) {
 		a.wails.Event.Emit(branchNameProgressEvent, msg)
 	})
 }
@@ -283,7 +284,7 @@ Output ONLY a brief summary of what you changed when done.
 // ResolveMergeConflictsWithAI runs the chosen AI CLI with file-write
 // permissions and a prompt that asks it to resolve every unresolved merge
 // conflict in cwd. Streams progress to the frontend.
-func (a *App) ResolveMergeConflictsWithAI(cwd, cli, model, effort string) (string, error) {
+func (a *App) ResolveMergeConflictsWithAI(cwd, cli, model, effort string, fast bool) (string, error) {
 	if conflicts := a.GitMergeConflicts(cwd); len(conflicts) == 0 {
 		return "", fmt.Errorf("no merge conflicts to resolve")
 	}
@@ -291,7 +292,7 @@ func (a *App) ResolveMergeConflictsWithAI(cwd, cli, model, effort string) (strin
 	if err != nil {
 		return "", err
 	}
-	return aigen.RunWithWritesAndEffort(a.ctx, selected, model, effort, cwd, mergeConflictPrompt, func(msg string) {
+	return aigen.Run(a.ctx, selected, cwd, mergeConflictPrompt, aigen.RunOptions{Model: model, Effort: effort, Fast: fast, Writes: true}, func(msg string) {
 		a.wails.Event.Emit(mergeConflictProgressEvent, msg)
 	})
 }
@@ -372,7 +373,7 @@ func buildActionYAMLPrompt(cfg *config.ProjectConfig, userPrompt, currentYAML st
 // header action. currentYAML may be empty for a fresh action; when non-empty
 // the AI is asked to modify it in place. effort maps to the CLI's reasoning
 // effort flag (e.g. `claude --effort high`); empty means use the CLI default.
-func (a *App) GenerateActionYAML(projectName, cli, model, effort, userPrompt, currentYAML string) (string, error) {
+func (a *App) GenerateActionYAML(projectName, cli, model, effort string, fast bool, userPrompt, currentYAML string) (string, error) {
 	userPrompt = strings.TrimSpace(userPrompt)
 	if userPrompt == "" {
 		return "", fmt.Errorf("describe what the action should do")
@@ -389,7 +390,7 @@ func (a *App) GenerateActionYAML(projectName, cli, model, effort, userPrompt, cu
 	if err != nil {
 		return "", err
 	}
-	return aigen.GenerateTextWithEffort(a.ctx, selected, model, effort, cfg.Root, prompt, func(msg string) {
+	return aigen.Run(a.ctx, selected, cfg.Root, prompt, aigen.RunOptions{Model: model, Effort: effort, Fast: fast}, func(msg string) {
 		a.wails.Event.Emit(actionYAMLProgressEvent, msg)
 	})
 }

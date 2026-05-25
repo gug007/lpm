@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { AI_CLI_OPTIONS, aiDefaultModel, type AICLI, type AIEffortOption } from "../../types";
+import {
+  AI_CLI_OPTIONS,
+  aiDefaultModel,
+  aiSupportsFast,
+  type AICLI,
+  type AIEffortOption,
+} from "../../types";
 import { CheckIcon } from "../icons";
 
 interface AICLIMenuProps {
@@ -7,8 +13,10 @@ interface AICLIMenuProps {
   selectedCLI: AICLI;
   selectedModel: string;
   selectedEffort?: string;
+  selectedFast?: boolean;
   onSelect: (cli: AICLI, model: string) => void;
   onSelectEffort?: (cli: AICLI, effort: string) => void;
+  onSelectFast?: (cli: AICLI, fast: boolean) => void;
   placement?: "up" | "down";
 }
 
@@ -17,8 +25,10 @@ export function AICLIMenu({
   selectedCLI,
   selectedModel,
   selectedEffort = "",
+  selectedFast = false,
   onSelect,
   onSelectEffort,
+  onSelectFast,
   placement = "up",
 }: AICLIMenuProps) {
   const [editingActive, setEditingActive] = useState(false);
@@ -27,11 +37,13 @@ export function AICLIMenu({
   const activeOption = availableCLIs.find((o) => o.value === selectedCLI);
   const efforts = (onSelectEffort && activeOption?.efforts) || [];
   const effortAvailable = Boolean(onSelectEffort && efforts.length > 0);
-  const showEffortPanel = effortAvailable && editingActive;
+  const fastAvailable = Boolean(onSelectFast) && aiSupportsFast(selectedCLI, selectedModel);
+  const showEffortPanel = (effortAvailable || fastAvailable) && editingActive;
+  const editableActive = effortAvailable || fastAvailable;
 
   const handleModelClick = (cli: AICLI, model: string, isActive: boolean) => {
     if (isActive) {
-      if (effortAvailable) setEditingActive((v) => !v);
+      if (editableActive) setEditingActive((v) => !v);
       return;
     }
     onSelect(cli, model);
@@ -46,10 +58,13 @@ export function AICLIMenu({
         <EffortPanel
           efforts={efforts}
           selectedEffort={selectedEffort}
-          onSelect={(value) => onSelectEffort!(selectedCLI, value)}
+          onSelectEffort={(value) => onSelectEffort!(selectedCLI, value)}
+          fastAvailable={fastAvailable}
+          selectedFast={selectedFast}
+          onToggleFast={fastAvailable ? () => onSelectFast!(selectedCLI, !selectedFast) : undefined}
         />
       )}
-      <div className={`flex flex-col py-1.5 ${effortAvailable ? "w-60" : "w-44"}`}>
+      <div className={`flex flex-col py-1.5 ${effortAvailable || fastAvailable ? "w-60" : "w-44"}`}>
         {availableCLIs.map((o) => {
           const cliActive = selectedCLI === o.value;
           const models = o.models ?? [];
@@ -69,15 +84,19 @@ export function AICLIMenu({
               <SectionHeader label={o.label} />
               {models.map((m) => {
                 const isActive = cliActive && selectedModel === m.value;
-                const showEffortBadge = isActive && Boolean(o.efforts && o.efforts.length > 0);
+                const modelFastAvailable = Boolean(onSelectFast) && aiSupportsFast(o.value, m.value);
+                const modelEditable = effortAvailable || modelFastAvailable;
+                const badge = isActive
+                  ? rowBadge(o.efforts, activeEffortLabel, modelFastAvailable, selectedFast)
+                  : undefined;
                 return (
                   <MenuRow
                     key={m.value || "default"}
                     label={m.label}
                     indent
                     active={isActive}
-                    badge={showEffortBadge ? activeEffortLabel ?? "Default" : undefined}
-                    edit={isActive && effortAvailable ? (editingActive ? "Editing" : "Edit") : undefined}
+                    badge={badge}
+                    edit={isActive && modelEditable ? (editingActive ? "Editing" : "Edit") : undefined}
                     onClick={() => handleModelClick(o.value, m.value, isActive)}
                   />
                 );
@@ -93,26 +112,63 @@ export function AICLIMenu({
 function EffortPanel({
   efforts,
   selectedEffort,
-  onSelect,
+  onSelectEffort,
+  fastAvailable,
+  selectedFast,
+  onToggleFast,
 }: {
   efforts: AIEffortOption[];
   selectedEffort: string;
-  onSelect: (value: string) => void;
+  onSelectEffort: (value: string) => void;
+  fastAvailable: boolean;
+  selectedFast: boolean;
+  onToggleFast?: () => void;
 }) {
   return (
     <div className="flex w-40 flex-col border-r border-[var(--border)] bg-[var(--bg-secondary)]/40 py-1.5">
-      <SectionHeader label="Effort" />
-      {efforts.map((e) => (
-        <MenuRow
-          key={e.value || "default"}
-          label={e.label}
-          indent
-          active={selectedEffort === e.value}
-          onClick={() => onSelect(e.value)}
-        />
-      ))}
+      {efforts.length > 0 && (
+        <>
+          <SectionHeader label="Effort" />
+          {efforts.map((e) => (
+            <MenuRow
+              key={e.value || "default"}
+              label={e.label}
+              indent
+              active={selectedEffort === e.value}
+              onClick={() => onSelectEffort(e.value)}
+            />
+          ))}
+        </>
+      )}
+      {fastAvailable && onToggleFast && (
+        <>
+          <SectionHeader label="Speed" />
+          <MenuRow
+            label="Fast"
+            indent
+            active={selectedFast}
+            onClick={onToggleFast}
+          />
+        </>
+      )}
     </div>
   );
+}
+
+// rowBadge formats the trailing badge shown next to the active model: the
+// effort label, optionally suffixed with "· Fast" when Codex fast-mode is on.
+function rowBadge(
+  efforts: AIEffortOption[] | undefined,
+  effortLabel: string | undefined,
+  fastAvailable: boolean,
+  fastOn: boolean,
+): string | undefined {
+  const hasEffort = Boolean(efforts && efforts.length > 0);
+  if (!hasEffort && !fastAvailable) return undefined;
+  const parts: string[] = [];
+  if (hasEffort) parts.push(effortLabel ?? "Default");
+  if (fastAvailable && fastOn) parts.push("Fast");
+  return parts.join(" · ");
 }
 
 function SectionHeader({ label }: { label: string }) {

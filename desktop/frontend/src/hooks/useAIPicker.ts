@@ -17,12 +17,14 @@ export interface AIPicker {
   selectedCLI: AICLI;
   selectedModel: string;
   selectedEffort: string;
+  selectedFast: boolean;
   cliLabel: string;
   selectAI: (cli: AICLI, model: string) => void;
   selectEffort: (cli: AICLI, effort: string) => void;
+  selectFast: (cli: AICLI, fast: boolean) => void;
 }
 
-// Centralizes the "which AI CLI / model / effort is selected?" state used
+// Centralizes the "which AI CLI / model / effort / fast?" state used
 // by every Generate-with-AI modal. Pass `active` true once the consumer is
 // visible so the CLI availability check only fires while it matters.
 export function useAIPicker(active: boolean): AIPicker {
@@ -35,6 +37,9 @@ export function useAIPicker(active: boolean): AIPicker {
   );
   const [selectedEffort, setSelectedEffort] = useState<string>(
     () => getSettings().aiEffort ?? "",
+  );
+  const [selectedFast, setSelectedFast] = useState<boolean>(
+    () => getSettings().aiFast ?? false,
   );
 
   useEffect(() => {
@@ -75,14 +80,22 @@ export function useAIPicker(active: boolean): AIPicker {
     saveSettings({ aiCli: cli, aiEffort: effort });
   }, []);
 
+  const selectFast = useCallback((cli: AICLI, fast: boolean) => {
+    setSelectedCLI(cli);
+    setSelectedFast(fast);
+    saveSettings({ aiCli: cli, aiFast: fast });
+  }, []);
+
   return {
     aiCLIs,
     anyAvailable: AI_CLI_OPTIONS.some((o) => aiCLIs[o.value]),
     selectedCLI,
     selectedModel,
     selectedEffort,
+    selectedFast,
     cliLabel: aiPickLabel(selectedCLI, selectedModel),
     selectAI,
     selectEffort,
+    selectFast,
   };
 }

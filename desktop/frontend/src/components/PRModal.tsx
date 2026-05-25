@@ -17,6 +17,7 @@ import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useBranchSearch } from "../hooks/useBranchSearch";
 import { useAIPicker } from "../hooks/useAIPicker";
+import { aiEffectiveFast } from "../types";
 import { EventsEmit, BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { getSettings, saveSettings } from "../store/settings";
 import { Tooltip } from "./ui/Tooltip";
@@ -175,7 +176,14 @@ export function PRModal({
     if (generatingTitle || !base) return;
     setGeneratingTitle(true);
     try {
-      const result = await GeneratePRTitle(projectPath, ai.selectedCLI, ai.selectedModel, ai.selectedEffort, base);
+      const result = await GeneratePRTitle(
+        projectPath,
+        ai.selectedCLI,
+        ai.selectedModel,
+        ai.selectedEffort,
+        aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
+        base,
+      );
       if (result) setTitle(result);
     } catch (err) {
       toast.error(`Title generation failed: ${err}`);
@@ -188,7 +196,14 @@ export function PRModal({
     if (generatingDesc || !base) return;
     setGeneratingDesc(true);
     try {
-      const result = await GeneratePRDescription(projectPath, ai.selectedCLI, ai.selectedModel, ai.selectedEffort, base);
+      const result = await GeneratePRDescription(
+        projectPath,
+        ai.selectedCLI,
+        ai.selectedModel,
+        ai.selectedEffort,
+        aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
+        base,
+      );
       if (result) setDescription(result);
     } catch (err) {
       toast.error(`Description generation failed: ${err}`);
@@ -407,8 +422,10 @@ export function PRModal({
                       selectedCLI={ai.selectedCLI}
                       selectedModel={ai.selectedModel}
                       selectedEffort={ai.selectedEffort}
+                      selectedFast={ai.selectedFast}
                       onSelect={ai.selectAI}
                       onSelectEffort={ai.selectEffort}
+                      onSelectFast={ai.selectFast}
                     />
                     <AIPickerButton
                       onGenerate={generateDesc}
@@ -425,8 +442,10 @@ export function PRModal({
                       selectedCLI={ai.selectedCLI}
                       selectedModel={ai.selectedModel}
                       selectedEffort={ai.selectedEffort}
+                      selectedFast={ai.selectedFast}
                       onSelect={ai.selectAI}
                       onSelectEffort={ai.selectEffort}
+                      onSelectFast={ai.selectFast}
                     />
                   </div>
                 )}

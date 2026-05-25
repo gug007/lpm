@@ -16,6 +16,7 @@ import {
 import { main } from "../../wailsjs/go/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useAIPicker } from "../hooks/useAIPicker";
+import { aiEffectiveFast } from "../types";
 import { EventsEmit } from "../../wailsjs/runtime/runtime";
 import { getSettings, saveSettings } from "../store/settings";
 import { ChangedFilesTree } from "./ChangedFilesTree";
@@ -207,6 +208,7 @@ export function CommitModal({
         ai.selectedCLI,
         ai.selectedModel,
         ai.selectedEffort,
+        aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
         Array.from(selected),
       );
       if (msg) setMessage(msg);
@@ -309,8 +311,10 @@ export function CommitModal({
                   selectedCLI={ai.selectedCLI}
                   selectedModel={ai.selectedModel}
                   selectedEffort={ai.selectedEffort}
+                  selectedFast={ai.selectedFast}
                   onSelect={ai.selectAI}
                   onSelectEffort={ai.selectEffort}
+                  onSelectFast={ai.selectFast}
                 />
               </div>
             )}

@@ -15,6 +15,7 @@ import { main } from "../../wailsjs/go/models";
 import { useBranchSearch } from "../hooks/useBranchSearch";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useAIPicker } from "../hooks/useAIPicker";
+import { aiEffectiveFast } from "../types";
 import { branchKey, branchMatches, RemoteBadge } from "./branchUtils";
 import { BranchIcon, ChevronDownIcon, CloudBranchIcon, XIcon } from "./icons";
 import { relativeTime } from "../relativeTime";
@@ -201,7 +202,13 @@ export function MergeBranchDialog({
     setAiBusy(true);
     setProgressLine("");
     try {
-      await ResolveMergeConflictsWithAI(projectPath, ai.selectedCLI, ai.selectedModel, ai.selectedEffort);
+      await ResolveMergeConflictsWithAI(
+        projectPath,
+        ai.selectedCLI,
+        ai.selectedModel,
+        ai.selectedEffort,
+        aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
+      );
       const remaining = await GitMergeConflicts(projectPath).catch(() => [] as string[]);
       onMerged();
       if (remaining.length === 0) {
@@ -417,8 +424,10 @@ export function MergeBranchDialog({
                   selectedCLI={ai.selectedCLI}
                   selectedModel={ai.selectedModel}
                   selectedEffort={ai.selectedEffort}
+                  selectedFast={ai.selectedFast}
                   onSelect={ai.selectAI}
                   onSelectEffort={ai.selectEffort}
+                  onSelectFast={ai.selectFast}
                 />
               ) : (
                 <span className="text-[11px] text-[var(--text-muted)]">

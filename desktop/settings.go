@@ -25,6 +25,7 @@ type Settings struct {
 	AiCli               string   `json:"aiCli,omitempty"`
 	AiModel             string   `json:"aiModel,omitempty"`
 	AiEffort            string   `json:"aiEffort,omitempty"`
+	AiFast              bool     `json:"aiFast,omitempty"`
 	ConfigEditorMode    string   `json:"configEditorMode,omitempty"`
 	ShowProjectName     *bool    `json:"showProjectName,omitempty"`
 	LastSelectedProject string   `json:"lastSelectedProject,omitempty"`

@@ -9,6 +9,7 @@ import { AIPickerButton } from "./ui/AIPickerButton";
 import { GenerateBranchName } from "../../wailsjs/go/main/App";
 import { EventsEmit } from "../../wailsjs/runtime/runtime";
 import { useAIPicker } from "../hooks/useAIPicker";
+import { aiEffectiveFast } from "../types";
 import { newBranchNameSchema } from "../forms/schemas";
 import { slugify } from "../slugify";
 
@@ -64,7 +65,13 @@ export function CreateBranchModal({
     if (generating || !projectPath) return;
     setGenerating(true);
     try {
-      const result = await GenerateBranchName(projectPath, ai.selectedCLI, ai.selectedModel, ai.selectedEffort);
+      const result = await GenerateBranchName(
+        projectPath,
+        ai.selectedCLI,
+        ai.selectedModel,
+        ai.selectedEffort,
+        aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
+      );
       if (!openRef.current) return;
       if (result) {
         setValue("name", normalize(result), {
@@ -146,8 +153,10 @@ export function CreateBranchModal({
                     selectedCLI={ai.selectedCLI}
                     selectedModel={ai.selectedModel}
                     selectedEffort={ai.selectedEffort}
+                    selectedFast={ai.selectedFast}
                     onSelect={ai.selectAI}
                     onSelectEffort={ai.selectEffort}
+                    onSelectFast={ai.selectFast}
                   />
                 </div>
               )}

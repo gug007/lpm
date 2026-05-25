@@ -38,6 +38,7 @@ export interface Settings {
   aiCli?: string;
   aiModel?: string;
   aiEffort?: string;
+  aiFast?: boolean;
   configEditorMode?: "form" | "yaml";
   showProjectName?: boolean;
   lastSelectedProject?: string;
@@ -82,6 +83,7 @@ function normalize(s: main.Settings): Settings {
     aiCli: s.aiCli || undefined,
     aiModel: s.aiModel || undefined,
     aiEffort: s.aiEffort || undefined,
+    aiFast: s.aiFast,
     configEditorMode:
       s.configEditorMode === "form" || s.configEditorMode === "yaml"
         ? s.configEditorMode
