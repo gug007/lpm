@@ -6,6 +6,7 @@ Complete field reference for lpm project config files (`~/.lpm/projects/<name>.y
 
 ```yaml
 name: <string>           # optional — defaults to the config filename
+extends: [<ref>, ...]    # optional — templates / configs to layer underneath this one (see Config Layering)
 root: <path>             # required for local projects (supports ~). Omit when ssh: is set.
 label: <string>          # optional — display name in the UI
 parent_name: <string>    # optional — name of parent project (creates a duplicate)
@@ -29,6 +30,7 @@ A project must have **either** `root` (local) **or** `ssh:` (remote), not both.
 | `label` | string | no | — | Display name shown in the UI (defaults to `name`). |
 | `parent_name` | string | no | — | Name of a parent project. Creates a **duplicate** that inherits all services, actions, terminals, and profiles from the parent. See [Duplicate Projects](#duplicate-projects). |
 | `ssh` | object | no | — | SSH connection settings — turns the project into a remote one. Services, actions, and terminals run on the host over a shared SSH ControlMaster connection. See [SSH Projects](#ssh-projects). |
+| `extends` | `[]string` | no | — | Templates / configs to layer underneath this project. Refs are bare names (resolved from `~/.lpm/templates/<name>.yml`), absolute paths, `~`-prefixed, or relative paths from this file. Earlier items in the list win on collision among the refs; this file overrides all of them. Cycles are rejected at load. See [Config Layering & Precedence](#config-layering--precedence). |
 
 ---
 
@@ -244,6 +246,8 @@ Sub-actions inherit `cwd` and `env` from the parent; child values win on conflic
 | `type` | string | no | — | Action type. `terminal` runs in a terminal pane; `background` runs hidden and shows a toast on completion. Omit for the default inline runner (modal with streaming output). |
 | `reuse` | bool | no | false | When `type: terminal`, reuse the same terminal pane across runs instead of opening a new one. |
 | `mode` | string | no | — | SSH-only execution mode. `remote` (default on SSH projects) runs the command on the host. `sync` rsyncs `ssh.dir` into a local mirror, runs the action locally, then rsyncs changes back. `sync` is rejected on local projects. See [SSH Action Modes](#ssh-action-modes). |
+| `port` | int | no | — | Port the action wants free. lpm probes it before launching; if held, the user gets a confirmation dialog listing the holder (or a CLI error). 0–65535. Different from `services.<key>.port` (which is "this is the port I will listen on"). |
+| `position` | number | no | — | Sort key in the UI. Lower renders first. Floats allowed for easy insertion between existing entries. Default is alphabetical order. |
 | `inputs` | map[string]InputField | no | — | Named inputs prompted before running. Values substitute `{{key}}` in `cmd`. |
 | `actions` | map[string]Action | no | — | Nested sub-actions. Makes this an action group. See [Action Groups](#action-groups-nested-actions). Children inherit `cwd`, `env`, and `mode` from the parent. |
 
@@ -317,6 +321,8 @@ terminals:
 | `display` | string | no | `header` | UI placement: `header` (main button row, default) or `footer` (terminal footer strip). `menu` is still accepted (legacy) but no longer suggested. `button` is a deprecated alias for `header`. |
 | `confirm` | bool | no | false | Prompt before opening. |
 | `reuse` | bool | no | false | Reuse the existing pane on next launch. |
+| `port` | int | no | — | Port the terminal wants free. lpm probes it before launching; if held, the user gets a confirmation dialog listing the holder. 0–65535. |
+| `position` | number | no | — | Sort key in the UI. Lower renders first. Floats allowed for easy insertion between existing entries. Default is alphabetical order. |
 | `inputs` | map[string]InputField | no | — | Named inputs prompted before opening. Values substitute `{{key}}` in `cmd`. |
 | `actions` | map[string]Action | no | — | Nested sub-actions. Makes this a split-button or dropdown — see Action Groups. |
 
@@ -482,6 +488,144 @@ terminals:
 
 ---
 
+## `.lpm.yml` (Repo Config)
+
+Location: `<project root>/.lpm.yml` — checked into the repo so teammates share it.
+
+**Supports:** `extends`, `services`, `actions`, `terminals`, `profiles`.
+
+**Does NOT support:** `name`, `root`, `parent_name`, `ssh` — identity stays in each teammate's personal project file at `~/.lpm/projects/<name>.yml`.
+
+Layered **under** personal project files and **over** `~/.lpm/global.yml`. See [Config Layering & Precedence](#config-layering--precedence).
+
+### Example
+
+```yaml
+extends:
+  - web-stack            # ~/.lpm/templates/web-stack.yml
+
+services:
+  dev:
+    cmd: ./cleanup.sh && wails3 dev
+    cwd: ./desktop
+
+  website:
+    cmd: npm run dev
+    cwd: ./website
+    port: 3000
+
+profiles:
+  dev: [dev]
+
+actions:
+  release:
+    label: 🚀 Release
+    type: background
+    cmd: ./scripts/release.sh {{bump}}
+    confirm: true
+    position: 1
+    display: footer
+    inputs:
+      bump:
+        type: radio
+        label: What kind of release?
+        options:
+          - label: Patch — bug fixes (0.0.X)
+            value: patch
+          - label: Minor — new features (0.X.0)
+            value: minor
+          - label: Major — breaking changes (X.0.0)
+            value: major
+        default: patch
+        required: true
+```
+
+---
+
+## Templates (`~/.lpm/templates/`)
+
+Location: `~/.lpm/templates/<name>.yml` — reusable building blocks referenced by `extends:` from project, global, `.lpm.yml`, or other templates.
+
+**Schema:** identical to `.lpm.yml` — `extends`, `services`, `actions`, `terminals`, `profiles`. No identity fields.
+
+### Reference forms in `extends:`
+
+| Form | Example | Resolved as |
+|------|---------|-------------|
+| Bare name | `common-actions` | `~/.lpm/templates/common-actions.yml` |
+| Absolute path | `/etc/lpm/team.yml` | used as-is |
+| `~`-prefixed | `~/work/shared/lpm.yml` | `$HOME/work/shared/lpm.yml` |
+| Relative path | `./shared-deploy.yml` | resolved from the file containing the `extends` |
+
+Cycles are detected and rejected at load time. A missing template is a load-time error.
+
+### Example
+
+`~/.lpm/templates/web-stack.yml`:
+
+```yaml
+services:
+  redis: redis-server --port 6379
+
+actions:
+  logs:
+    cmd: tail -f log/development.log
+    type: terminal
+    reuse: true
+    label: Logs
+```
+
+Referenced from a project:
+
+```yaml
+# ~/.lpm/projects/myapp.yml
+name: myapp
+root: ~/work/myapp
+extends:
+  - web-stack
+```
+
+---
+
+## Config Layering & Precedence
+
+lpm merges four file types in this order, each layer overriding the one below it.
+
+| Layer | File | Notes |
+|-------|------|-------|
+| 4 (wins) | `~/.lpm/projects/<name>.yml` | Your personal project — top of stack. |
+| 3 | `<root>/.lpm.yml` | Shared with teammates via the repo. |
+| 2 | `~/.lpm/global.yml` | Your personal global. |
+| 1 | `~/.lpm/templates/<ref>.yml` | Referenced via `extends:` from any layer above. |
+
+Short form: **`templates < global < .lpm.yml < project`** (where `<` means "loses to").
+
+Within an `extends: [a, b, c]` list, **earlier wins**: `a` overrides `b` overrides `c`.
+
+### Sparse Overrides
+
+A higher layer can hold a thin entry that overrides only the fields it sets:
+
+```yaml
+# ~/.lpm/global.yml
+actions:
+  deploy:
+    cmd: ./deploy.sh staging
+    cwd: ~/work/myapp
+    confirm: true
+```
+
+```yaml
+# ~/.lpm/projects/myapp.yml
+actions:
+  deploy:
+    position: 1    # only override ordering — cmd/cwd/confirm inherit from global
+```
+
+**Caveat — bool fields cannot be sparse-overridden from true → false.** `confirm` and `reuse` treat `false` as "inherit" in the sparse path, so writing `confirm: false` in the higher layer does NOT clear a global `confirm: true`. To force `true` → `false`, redefine the action fully in the higher layer rather than relying on sparse override.
+
+---
+
 ## Path Resolution
 
 - `~` expands to the user's home directory.
@@ -526,6 +670,10 @@ lpm validates config on load:
 8. Profile entries reference defined services.
 9. Nested sub-actions are validated recursively (cmd required if no children, cwd must exist on local projects, mode validated the same way).
 10. `parent_name` must reference an existing, loadable project.
+11. `extends` entries must resolve to readable YAML files. Cycles are rejected at load time.
+12. `port` on actions/terminals is in range 0–65535 (or omitted).
+13. `position` is a number (integer or float).
+14. `.lpm.yml` and templates must NOT contain `name`, `root`, `parent_name`, or `ssh` — identity stays in personal project files.
 
 ---
 

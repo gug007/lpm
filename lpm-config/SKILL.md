@@ -1,6 +1,6 @@
 ---
 name: lpm-config
-description: Create, modify, and delete lpm (Local Project Manager) project configs at ~/.lpm/projects/*.yml. Use whenever the user mentions lpm, asks to set up lpm, create/edit/delete an lpm config, add or remove services, actions, or terminals from lpm, or says "lpm setup", "create lpm config", "add service to lpm", "configure lpm". Also trigger when the user wants to add a button or menu action to run commands, manage dev project processes, start/stop multiple services together, group related commands, set up one-shot commands with confirmation prompts, or configure interactive terminal shells through YAML config files. Also triggers when the user wants a background/silent action, a split-button with a default plus alternatives, a dropdown menu of related commands, an action pinned to the terminal footer, an SSH/remote project, or a sync-mode action that mirrors a remote directory locally. Also triggers when the user asks to edit lpm config for the current directory (cwd) without naming a project. If the user has lpm installed (~/.lpm/ exists), this skill applies to any request about managing project workflows.
+description: Create, modify, and delete lpm (Local Project Manager) project configs at ~/.lpm/projects/*.yml. Use whenever the user mentions lpm, asks to set up lpm, create/edit/delete an lpm config, add or remove services, actions, or terminals from lpm, or says "lpm setup", "create lpm config", "add service to lpm", "configure lpm". Also trigger when the user wants to add a button or menu action to run commands, manage dev project processes, start/stop multiple services together, group related commands, set up one-shot commands with confirmation prompts, or configure interactive terminal shells through YAML config files. Also triggers when the user wants a background/silent action, a split-button with a default plus alternatives, a dropdown menu of related commands, an action pinned to the terminal footer, an SSH/remote project, or a sync-mode action that mirrors a remote directory locally. Also triggers when the user asks to edit lpm config for the current directory (cwd) without naming a project. Also triggers when the user wants to share an lpm config with their team via `.lpm.yml` checked into the repo, create or reference a reusable template under `~/.lpm/templates/`, layer one config on top of another via `extends`, reorder buttons with `position`, pre-flight a port-conflict check with `port` on an action or terminal, or sparse-override a single field of a global action. If the user has lpm installed (~/.lpm/ exists), this skill applies to any request about managing project workflows.
 ---
 
 ## Instructions
@@ -62,6 +62,12 @@ sudo apt install tmux
 | "pin this to the terminal footer", "tiny button next to the branch switcher" | **Modify** — set `display: footer` on the action/terminal |
 | "set up a remote project over ssh", "lpm for this server", "manage services on a remote host" | **Create** — SSH project (use `ssh:` block, omit `root`) |
 | "run this action locally against the remote files", "rsync the remote dir and run it locally", "let my local Claude Code touch the remote repo" | **Modify** — set `mode: sync` on the action (SSH projects only) |
+| "share these actions with the team", "check lpm config into the repo" | **Modify** — write to `<root>/.lpm.yml`, not the personal project file |
+| "reuse this config across projects", "make this a template" | **Create** — write `~/.lpm/templates/<name>.yml` and reference via `extends` in the consumers |
+| "extend another lpm config", "layer on top of template X" | **Modify** — add `extends: [<ref>, ...]` to the current config |
+| "reorder buttons", "make this action come first" | **Modify** — set `position:` (lower renders first) |
+| "make sure port X is free before running this action", "warn if a port is busy" | **Modify** — set `port:` on the action/terminal |
+| "I only want to change the position of a global action" | **Modify** — write a sparse entry like `myAction: {position: 3}` in the project file; `cmd`/`cwd`/`env` inherit from global |
 
 ### How to Use
 
@@ -105,6 +111,23 @@ Work out which `~/.lpm/projects/<name>.yml` to edit *before* asking the user any
 **Overrides (these win over cwd detection):**
 - The user names a project explicitly ("add a service to `myapp`") → use that name.
 - The user says "globally" / "to all my projects" / "для всех проектов" → write to `~/.lpm/global.yml` instead.
+- The user says "share with team" / "for everyone on the repo" / "in the repo" / "check it in" → write to `<root>/.lpm.yml` (where `<root>` is the matched project's `root`, or the current cwd if no project matched). Create the file if it doesn't exist. Do not gate on "is this a git repo" — `.lpm.yml` is plain YAML and lpm reads it regardless of VCS.
+- The user says "as a template" / "for reuse across projects" / "save as a template" → write to `~/.lpm/templates/<name>.yml`. Pick `<name>` from the user's wording (e.g. "common-actions") or ask once if there is no obvious name.
+
+**Config layering.** lpm merges four file types in this order, each layer overriding the one below:
+
+| Layer | File | Notes |
+|-------|------|-------|
+| 4 (wins) | `~/.lpm/projects/<name>.yml` | Your personal project — top of stack. |
+| 3 | `<root>/.lpm.yml` | Shared with teammates via the repo. |
+| 2 | `~/.lpm/global.yml` | Your personal global. |
+| 1 | `~/.lpm/templates/<ref>.yml` | Referenced via `extends:` from any layer above. |
+
+Short form: **`templates < global < .lpm.yml < project`** (where `<` means "loses to"). Within `extends: [a, b, c]`, earlier wins: `a` overrides `b` overrides `c`.
+
+**Sparse override:** a higher layer can hold a thin entry that overrides only the fields it sets — e.g. `myAction: {position: 3}` in the project file keeps `cmd`/`cwd`/`env`/`label` from the lower layer's same-named action. **Caveat:** bool fields (`confirm`, `reuse`) treat `false` as "inherit", so you cannot sparse-override a global's `true` to `false`. Redefine the action fully in the higher layer to do that.
+
+**Ambiguity rule.** When the user's intent is ambiguous between layers (e.g. "add a logs button" with both a project file and a `.lpm.yml` present), default to the personal project file and add a single sentence: *"Adding to your personal project file. Say 'share with the team' to put it in `.lpm.yml` instead."*
 
 **Confirmations** are kept only for deleting a config file or overwriting an existing one during a Create flow. Never confirm the target on a single-match cwd.
 
@@ -226,6 +249,53 @@ Ask: "Should the button run a default command with alternatives behind a chevron
 
 → Goes in the global config at `~/.lpm/global.yml`. It supports `actions` and `terminals` only (no `services`, `profiles`, `name`, or `root`), but both of those carry the full field set — `display`, `confirm`, `type` (including `type: background`), `reuse`, `inputs`, and nested `actions`. Project-level entries with the same key take precedence.
 
+**"Reorder the buttons" / "Put this one first"**
+
+→ Set `position:` (number). Lower renders first; entries without `position` fall back to alphabetical order. Use floats so you can insert between existing positions without renumbering (e.g. `1, 2, 2.5, 3`). Works on actions and terminals, project and global.
+
+**"Make sure port X is free before this runs"**
+
+→ Set `port:` on the action (or terminal). lpm probes the port before launching; if something else holds it, the user gets a confirmation dialog listing the holder process. From the CLI it is a hard error. Range 0–65535. Different from `services.<key>.port`, which announces what port the service listens on (and feeds the service-side dedup check).
+
+**"Share these actions/terminals with the team"**
+
+→ Write them to `<root>/.lpm.yml` instead of `~/.lpm/projects/<name>.yml`. The file is checked into the repo. Schema is a subset of project config: supports `services`, `actions`, `terminals`, `profiles`, `extends`. **No** identity fields (no `name`, `root`, `parent_name`, `ssh`) — those stay in each teammate's personal project file. Anyone running `lpm` from this repo picks up these entries automatically.
+
+**"Make a reusable building block" / "I want to reuse this across projects"**
+
+→ Drop a YAML file under `~/.lpm/templates/<name>.yml`. Same shape as `.lpm.yml` (services/actions/terminals/profiles/extends, no identity). Then any config can pull it in via `extends:`:
+
+```yaml
+extends:
+  - common-actions          # → ~/.lpm/templates/common-actions.yml
+  - ./shared-deploy.yml     # relative to this file
+  - ~/.lpm/templates/team-tools.yml   # absolute / ~-prefixed
+```
+
+Bare names resolve from `~/.lpm/templates/`. Absolute and `~`-prefixed paths are used as-is. Relative paths resolve from the file containing the `extends`. Cycles are detected and rejected at load time.
+
+**"Tweak just one field of a global action" (sparse override)**
+
+→ The project file can hold a thin entry that overrides only the fields it sets:
+
+```yaml
+# ~/.lpm/global.yml
+actions:
+  deploy:
+    cmd: ./deploy.sh staging
+    cwd: ~/work/myapp
+    confirm: true
+```
+
+```yaml
+# ~/.lpm/projects/myapp.yml
+actions:
+  deploy:
+    position: 1    # only change ordering — cmd/cwd/confirm inherit from global
+```
+
+Caveat: bool fields (`confirm`, `reuse`) treat `false` as "inherit" — you cannot sparse-override a global's `true` to `false` from a project. Redefine the action fully in the project to do that. Same caveat applies between `.lpm.yml` and templates.
+
 ### Output
 
 Config files are written to `~/.lpm/projects/<name>.yml`. Global config at `~/.lpm/global.yml` supports only `actions` and `terminals`. Project-level entries take precedence when names collide.
@@ -234,6 +304,7 @@ Config files are written to `~/.lpm/projects/<name>.yml`. Global config at `~/.l
 
 ```yaml
 name: <string>           # optional — defaults to the config filename
+extends: [<ref>, ...]    # optional — templates / configs to layer underneath this one (see Config layering)
 root: <path>             # required for local projects (supports ~). Omit when ssh: is set.
 label: <string>          # optional — display name in UI
 parent_name: <string>    # optional — duplicate from parent project
@@ -260,6 +331,7 @@ actions:                 # optional — one-shot commands
     cmd: <string>        # required (unless nested actions)
     label: <string>      # optional — display name in UI
     cwd: <path>          # optional (remote path on SSH projects)
+    port: <int>          # optional (0-65535) — pre-flight port-conflict probe
     env: {}              # optional
     confirm: <bool>      # optional (default: false)
     display: <string>    # optional (header | footer, default: header). "menu" still accepted (legacy).
@@ -268,6 +340,7 @@ actions:                 # optional — one-shot commands
     mode: <string>       # optional, SSH projects only — "remote" (default) or "sync"
     inputs: {}           # optional — user-prompted parameters
     actions: {}          # optional — nested sub-actions (action group)
+    position: <number>   # optional — sort key (lower first; default alphabetical; floats OK)
 
 terminals:               # optional — interactive shells (sugar for actions with type: terminal)
   <key>: <cmd>           # shorthand
@@ -275,15 +348,28 @@ terminals:               # optional — interactive shells (sugar for actions wi
     cmd: <string>        # required (unless nested actions)
     label: <string>      # optional
     cwd: <path>          # optional (remote path on SSH projects)
+    port: <int>          # optional (0-65535) — pre-flight port-conflict probe
     env: {}              # optional
     display: <string>    # optional (header | footer, default: header). "menu" still accepted (legacy).
     confirm: <bool>      # optional
     reuse: <bool>        # optional — reuse the existing pane on next launch
     inputs: {}           # optional — prompted parameters
     actions: {}          # optional — nested sub-actions (split-button or dropdown)
+    position: <number>   # optional — sort key (lower first; default alphabetical; floats OK)
 
 profiles:                # optional — named service subsets
   <key>: [<service>, ...]
+
+# .lpm.yml (per-repo, checked into the repo root) — subset of project config
+extends: [<ref>, ...]   # optional
+services: {}            # optional
+actions: {}             # optional
+terminals: {}           # optional
+profiles: {}            # optional
+# NOTE: name, root, parent_name, ssh are NOT allowed here.
+
+# ~/.lpm/templates/<name>.yml — same shape as .lpm.yml.
+# Referenced from any layer via `extends:`.
 ```
 
 **Key rules:**
@@ -299,6 +385,10 @@ profiles:                # optional — named service subsets
 - Use `parent_name` to duplicate a project config for a different root directory.
 - Keys: short, lowercase, hyphen-separated (`db-migrate`, `run-tests`).
 - `~` expands to home. Relative `cwd` resolves from `root` (local projects) or from `ssh.dir` on the remote host (SSH projects). Local `cwd` paths must exist; remote `cwd` paths are not validated locally.
+- `position` is a float; lower renders first; default is alphabetical. Use floats so you can insert between existing entries (e.g. `1`, `2`, `2.5`, `3`) without renumbering.
+- `port` on an action/terminal triggers a pre-flight conflict probe — the user is shown the holding process before the action runs (or as an error in the CLI).
+- `extends: [a, b]` layers templates underneath the current file; `a` wins over `b`; current file wins over all.
+- Sparse override pattern: a project YAML can hold `myAction: {position: 3}` to override only that field; the rest inherits from global / `.lpm.yml` / templates. Bool fields (`confirm`, `reuse`) cannot sparse-override `true` → `false`.
 
 **Validation — verify before writing any config:**
 - Either `root` or `ssh:` is set (but not both); `name` is optional and defaults to the config filename.
@@ -313,6 +403,10 @@ profiles:                # optional — named service subsets
 - Profile entries reference defined services.
 - Nested sub-actions are validated recursively.
 - `parent_name` references an existing project.
+- `extends` entries must resolve to readable YAML files. Cycles are rejected at load time.
+- `port` on actions/terminals is in range 0–65535 (or omitted).
+- `position` is a number (integer or float).
+- `.lpm.yml` and templates must not contain identity fields (`name`, `root`, `parent_name`, `ssh`). Identity stays in personal project files.
 
 ## Examples
 
@@ -574,6 +668,97 @@ Agent: [adds split-button group]
              confirm: true
            preview:
              cmd: ./deploy.sh preview
+```
+
+**Example 13: Action with a port-conflict check**
+
+```yaml
+actions:
+  preview:
+    cmd: npm run preview -- --port 4173
+    label: Preview
+    port: 4173        # warn if 4173 is already taken before running
+    display: header
+```
+
+**Example 14: Sort buttons with `position` (floats for easy insertion)**
+
+```yaml
+actions:
+  start:
+    cmd: npm run dev
+    position: 1
+  test:
+    cmd: npm test
+    position: 2
+  test-only:                  # inserted between test and lint without renumbering
+    cmd: npm test -- --only=critical
+    position: 2.5
+  lint:
+    cmd: npm run lint
+    position: 3
+```
+
+**Example 15: Shared `.lpm.yml` checked into the repo**
+
+`<root>/.lpm.yml`:
+
+```yaml
+services:
+  api:
+    cmd: go run ./cmd/server
+    port: 8080
+
+actions:
+  test: go test ./...
+  lint:
+    cmd: golangci-lint run ./...
+    position: 2
+
+profiles:
+  default: [api]
+```
+
+Each teammate still has their own personal project file pointing at the repo:
+
+```yaml
+# ~/.lpm/projects/myapp.yml
+name: myapp
+root: ~/work/myapp
+```
+
+The personal file can sparse-override anything from `.lpm.yml` (and from global, and from templates referenced via `extends`).
+
+**Example 16: Template + `extends` + sparse override**
+
+`~/.lpm/templates/web-stack.yml`:
+
+```yaml
+services:
+  redis: redis-server --port 6379
+
+actions:
+  logs:
+    cmd: tail -f log/development.log
+    type: terminal
+    reuse: true
+    label: Logs
+
+terminals:
+  rails: rails console
+```
+
+`~/.lpm/projects/myapp.yml`:
+
+```yaml
+name: myapp
+root: ~/work/myapp
+extends:
+  - web-stack          # bare name → ~/.lpm/templates/web-stack.yml
+
+actions:
+  logs:
+    position: 1        # sparse override — only change ordering, inherit cmd/type/reuse/label
 ```
 
 ## Limitations
