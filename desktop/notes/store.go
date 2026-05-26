@@ -525,9 +525,9 @@ func (s *Store) RenameChat(ctx context.Context, id, title string) error {
 	return nil
 }
 
-// Returns blob hashes no remaining attachment row references — callers
-// pass those to the blob store to free disk space. Returns sql.ErrNoRows
-// if the chat does not exist.
+// DeleteChat returns blob hashes no remaining attachment row references —
+// callers pass those to the blob store to free disk space. Returns
+// sql.ErrNoRows if the chat does not exist.
 func (s *Store) DeleteChat(ctx context.Context, id string) ([]string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -535,7 +535,7 @@ func (s *Store) DeleteChat(ctx context.Context, id string) ([]string, error) {
 	}
 	defer tx.Rollback()
 
-	// Snapshot candidate hashes before the cascade wipes attachment rows.
+	// Snapshot hashes before the cascade wipes attachment rows.
 	rows, err := tx.QueryContext(ctx,
 		`SELECT DISTINCT hash FROM attachments
 		 WHERE message_id IN (SELECT id FROM messages WHERE chat_id = ?)`, id)
@@ -579,8 +579,7 @@ func (s *Store) DeleteChat(ctx context.Context, id string) ([]string, error) {
 	return orphans, nil
 }
 
-// SearchHit is one result from Store.Search. Snippet is plain text: a window
-// around the first match with ellipses on truncation, safe to render without
+// SearchHit's Snippet is plain text (not markdown), safe to render without
 // further escaping.
 type SearchHit struct {
 	MessageID string `json:"id"`
@@ -590,10 +589,8 @@ type SearchHit struct {
 	Snippet   string `json:"snippet"`
 }
 
-// Matches every whitespace-separated token (ASCII-case-insensitive LIKE),
-// newest first. LIKE is intentional over FTS5: the sqlcipher driver in use
-// only bundles FTS5 under a build tag we don't set, and at per-project-notes
-// scale a full scan over messages.text is imperceptible.
+// LIKE rather than FTS5: the sqlcipher driver only bundles FTS5 behind a
+// build tag we don't set, and at per-project scale a full scan is imperceptible.
 func (s *Store) Search(ctx context.Context, query string, limit int) ([]SearchHit, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
@@ -632,7 +629,7 @@ func (s *Store) Search(ctx context.Context, query string, limit int) ([]SearchHi
 	return hits, rows.Err()
 }
 
-// Backslash escapes itself because ESCAPE '\' is in the SQL.
+// Backslash escapes itself because the SQL uses ESCAPE '\'.
 func escapeLike(s string) string {
 	return likeEscaper.Replace(s)
 }

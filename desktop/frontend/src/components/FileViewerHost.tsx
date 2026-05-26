@@ -1,8 +1,6 @@
 import { FileViewerModal } from "./FileViewerModal";
 import { useFileViewerStore } from "../store/fileViewer";
 
-// Mounted once at the App level. Listens to the fileViewer store and renders
-// the modal whenever a path link in any terminal triggers it.
 export function FileViewerHost() {
   const current = useFileViewerStore((s) => s.current);
   const close = useFileViewerStore((s) => s.close);

@@ -12,11 +12,6 @@ interface EmojiPickerPanelProps {
   onSelect: (emoji: string) => void;
 }
 
-/**
- * The picker UI: search box, suggested row, and the full emoji list. Plain
- * presentational component — positioning and outside-click are the caller's
- * responsibility.
- */
 export function EmojiPickerPanel({ onSelect }: EmojiPickerPanelProps) {
   const [search, setSearch] = useState("");
 

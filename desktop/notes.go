@@ -23,16 +23,15 @@ import (
 )
 
 // maxDroppedAttachmentBytes mirrors the MAX_ATTACHMENT_BYTES limit in the
-// frontend — drops from the OS bypass the browser's File-picker path so we
-// re-enforce the same cap here before loading the file into memory.
+// frontend — drops from the OS bypass the browser's File-picker path.
 const maxDroppedAttachmentBytes = 100 * 1024 * 1024
 
 // stashConcurrency bounds parallel blob writes so a multi-file send doesn't
-// spike memory by encrypting every attachment at once (100MB * N = bad).
+// spike memory by encrypting every attachment at once.
 const stashConcurrency = 4
 
-// notesState owns per-project Store/BlobStore handles plus a cached vault
-// key. One Keychain prompt, reused across every project this session.
+// notesState caches the vault key so one Keychain prompt is reused across
+// every project this session.
 type notesState struct {
 	mu     sync.Mutex
 	key    []byte
@@ -116,8 +115,7 @@ func (n *notesState) forget(project string) {
 	}
 }
 
-// invalidateKey discards the cached vault key and every open store, so the
-// next access re-fetches from Keychain. Called after key import.
+// invalidateKey: next access re-fetches from Keychain. Called after key import.
 func (n *notesState) invalidateKey() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -137,18 +135,17 @@ func (n *notesState) closeAll() {
 	}
 }
 
-// NotesAttachmentInput is the frontend-shaped payload for a new attachment.
-// Data is base64 (std, padded) — Wails' []byte handling is a type-only lie
-// (the generated TS says Array<number> but Go's json.Marshal actually emits
-// a base64 string), so we use an explicit string to avoid the mismatch.
+// NotesAttachmentInput: Data is base64 (std, padded). Wails' []byte handling
+// is a type-only lie (generated TS says Array<number> but Go json.Marshal
+// emits a base64 string), so we use an explicit string to avoid the mismatch.
 type NotesAttachmentInput struct {
 	Name     string `json:"name"`
 	MimeType string `json:"mimeType"`
 	Data     string `json:"data"`
 }
 
-// NotesAddMessage: on failure no message row is written, but successfully-
-// written blobs may remain as orphans until the next delete GCs them.
+// NotesAddMessage: on failure, successfully-written blobs may remain as
+// orphans until the next delete GCs them.
 func (a *App) NotesAddMessage(project, chatID, text string, attachments []NotesAttachmentInput) (*notes.Message, error) {
 	b, err := a.notes.open(a.ctx, project)
 	if err != nil {
@@ -250,9 +247,7 @@ func (a *App) NotesDeleteChat(project, chatID string) error {
 	return nil
 }
 
-// gcOrphanBlobs deletes every blob whose last reference was just dropped.
-// Failures don't block the rest — the blob store tolerates missing files
-// on the next GC sweep.
+// gcOrphanBlobs: failures are tolerated; the next GC sweep cleans up.
 func (b *notesBundle) gcOrphanBlobs(hashes []string) {
 	for _, h := range hashes {
 		if err := b.blobs.Delete(h); err != nil {
@@ -261,8 +256,6 @@ func (b *notesBundle) gcOrphanBlobs(hashes []string) {
 	}
 }
 
-// sweepUnreferencedBlobs deletes any blob not in the attachment table.
-// Errors are logged — parent operation has already succeeded.
 func (b *notesBundle) sweepUnreferencedBlobs(ctx context.Context) {
 	refs, err := b.store.AllAttachmentHashes(ctx)
 	if err != nil {
@@ -295,9 +288,8 @@ func (a *App) NotesDeleteMessage(project, id string) error {
 	return nil
 }
 
-// NotesReadFileAsInput reads a file from disk and returns a ready-to-attach
-// payload. Wails delivers OS file paths rather than File blobs for native
-// drag-and-drop.
+// NotesReadFileAsInput: Wails delivers OS file paths rather than File blobs
+// for native drag-and-drop, so we read it ourselves.
 func (a *App) NotesReadFileAsInput(path string) (*NotesAttachmentInput, error) {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -328,8 +320,7 @@ func (a *App) NotesReadFileAsInput(path string) (*NotesAttachmentInput, error) {
 	}, nil
 }
 
-// NotesReadAttachment returns base64. See NotesAttachmentInput for the
-// bridge-format rationale.
+// NotesReadAttachment returns base64; see NotesAttachmentInput for rationale.
 func (a *App) NotesReadAttachment(project, hash string) (string, error) {
 	b, err := a.notes.open(a.ctx, project)
 	if err != nil {
@@ -342,9 +333,8 @@ func (a *App) NotesReadAttachment(project, hash string) (string, error) {
 	return base64.StdEncoding.EncodeToString(data), nil
 }
 
-// NotesSaveAttachment prompts for a folder and writes the attachment there
-// with its original name. Returns "" when the dialog is cancelled.
-// Uses OpenDirectoryDialog — native SaveFileDialog is flaky on newer macOS.
+// NotesSaveAttachment uses OpenDirectoryDialog because native SaveFileDialog
+// is flaky on newer macOS. Returns "" when the dialog is cancelled.
 func (a *App) NotesSaveAttachment(project, hash, name string) (result string, err error) {
 	defer recoverAs("save attachment", &err)
 
@@ -372,8 +362,6 @@ func (a *App) NotesSaveAttachment(project, hash, name string) (result string, er
 	return path, nil
 }
 
-// VaultExportKey writes a passphrase-wrapped copy of the vault key. The
-// exported file decrypts every lpm feature that uses the vault.
 func (a *App) VaultExportKey(passphrase string) (result string, err error) {
 	defer recoverAs("vault export", &err)
 
@@ -403,9 +391,8 @@ func (a *App) VaultExportKey(passphrase string) (result string, err error) {
 	return path, nil
 }
 
-// VaultImportKey writes the unwrapped key into the Keychain and invalidates
-// cached notes handles so subsequent access uses the fresh key. Errors if
-// the Keychain already holds a different key (caller must delete it first).
+// VaultImportKey errors if the Keychain already holds a different key
+// (caller must delete it first).
 func (a *App) VaultImportKey(passphrase string) (err error) {
 	defer recoverAs("vault import", &err)
 
@@ -431,8 +418,7 @@ func (a *App) VaultImportKey(passphrase string) (err error) {
 	return nil
 }
 
-// removeNotes closes the cached handle and deletes the project's notes dir.
-// The vault key is shared and intentionally survives removal.
+// removeNotes intentionally leaves the shared vault key intact.
 func (a *App) removeNotes(project string) {
 	a.notes.forget(project)
 

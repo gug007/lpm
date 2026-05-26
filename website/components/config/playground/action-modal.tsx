@@ -16,9 +16,6 @@ export function ActionModal({
   action: Action;
   initialPhase?: ModalPhase;
   onClose: () => void;
-  // When provided, overrides the default idle → running transition so the
-  // caller can run the action outside the modal (e.g. background actions
-  // that render as a toast instead of a streaming modal).
   onRun?: () => void;
 }) {
   const [phase, setPhase] = useState<ModalPhase>(initialPhase);

@@ -5,7 +5,6 @@ import { SectionHeader } from "@/components/section-header";
 type QA = {
   question: string;
   answer: ReactNode;
-  // Plain-text override for JSON-LD when `answer` contains JSX that can't be serialized.
   answerText?: string;
 };
 

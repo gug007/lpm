@@ -6,7 +6,6 @@ import { REPO_URL } from "@/lib/links";
 type QA = {
   question: string;
   answer: ReactNode;
-  // Plain-text override for JSON-LD when `answer` contains JSX that can't be serialized.
   answerText?: string;
 };
 

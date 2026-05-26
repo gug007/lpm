@@ -60,9 +60,6 @@ export function normalizeTerminal(key: string, def: TerminalDef): TerminalItem {
   };
 }
 
-// sortByPosition matches the desktop server (sortActionNames in projects.go):
-// items with `position` come first sorted ascending, the rest fall back to
-// alphabetical order on `key`. Stable so equal positions keep alpha order.
 export function sortByPosition<T extends { key: string; position?: number }>(
   items: T[],
 ): T[] {
