@@ -14,10 +14,9 @@ import (
 	"github.com/gug007/lpm/internal/config"
 )
 
-// UploadAndQuoteForTerminal uploads localPaths to remote panes and returns
-// paths formatted for paste. Single images stay unquoted so path-detecting
-// receivers can stat them; everything else is shell-quoted. Safe to call
-// for non-remote panes — they get local-path formatting.
+// UploadAndQuoteForTerminal uploads to remote panes; non-remote panes get
+// local-path formatting. Single images stay unquoted so path-detecting
+// receivers can stat them; everything else is shell-quoted.
 func (a *App) UploadAndQuoteForTerminal(terminalID string, localPaths []string) (string, error) {
 	if len(localPaths) == 0 {
 		return "", nil
@@ -46,8 +45,6 @@ func (a *App) UploadClipboardImageForTerminal(terminalID, b64Data, mimeType stri
 	return a.UploadAndQuoteForTerminal(terminalID, []string{localPath})
 }
 
-// uploadFiles scps to a fresh per-batch dir on the SSH host, reusing the
-// existing ControlMaster socket. Returns absolute remote paths in order.
 func (a *App) uploadFiles(s *config.SSHSettings, localPaths []string) ([]string, error) {
 	batch, err := newBatchID()
 	if err != nil {
@@ -104,8 +101,6 @@ func newBatchID() (string, error) {
 var imageExtRe = regexp.MustCompile(`(?i)\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif)$`)
 
 // formatPastePaths mirrors formatPastedPaths in InteractivePane.tsx.
-// Single image paths stay unquoted so path-detecting receivers can stat
-// them; everything else is shell-quoted and space-joined.
 func formatPastePaths(paths []string) string {
 	if len(paths) == 1 && imageExtRe.MatchString(paths[0]) {
 		return paths[0]
