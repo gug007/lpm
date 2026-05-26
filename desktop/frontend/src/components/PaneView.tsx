@@ -3,6 +3,7 @@ import type { ITheme } from "@xterm/xterm";
 import { InteractivePane, type InteractivePaneHandle } from "./InteractivePane";
 import { Pane, type PaneHandle } from "./Pane";
 import { HeaderTab } from "./terminal/HeaderTab";
+import { RenameModal } from "./RenameModal";
 import { TabContextMenu } from "./terminal/TabContextMenu";
 import { IconBtn } from "./terminal/IconBtn";
 import {
@@ -110,6 +111,7 @@ function PaneViewImpl(props: PaneViewProps) {
     x: number;
     y: number;
   } | null>(null);
+  const [renamingTabIdx, setRenamingTabIdx] = useState<number | null>(null);
 
   const hasMultipleServices = services.length > 1;
   const isAllActive =
@@ -207,7 +209,6 @@ function PaneViewImpl(props: PaneViewProps) {
                       onFocusTab(pane.id, i);
                     }}
                     onClose={() => onCloseTerminal(pane.id, i)}
-                    onRename={(name) => onRenameTerminal(pane.id, i, name)}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       setTabMenu({ paneId: pane.id, tabIdx: i, x: e.clientX, y: e.clientY });
@@ -356,11 +357,26 @@ function PaneViewImpl(props: PaneViewProps) {
             x={tabMenu.x}
             y={tabMenu.y}
             pinned={tab.pinned === true}
+            onRename={() => setRenamingTabIdx(tabMenu.tabIdx)}
             onTogglePin={() => onTogglePinTab(tabMenu.paneId, tabMenu.tabIdx)}
             onClose={() => setTabMenu(null)}
           />
         );
       })()}
+      <RenameModal
+        open={renamingTabIdx !== null}
+        title="Rename tab"
+        initialValue={
+          renamingTabIdx !== null
+            ? pane.tabs[renamingTabIdx]?.label ?? ""
+            : ""
+        }
+        onClose={() => setRenamingTabIdx(null)}
+        onSubmit={(value) => {
+          if (renamingTabIdx !== null)
+            onRenameTerminal(pane.id, renamingTabIdx, value);
+        }}
+      />
     </div>
   );
 }

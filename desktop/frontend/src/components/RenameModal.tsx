@@ -1,21 +1,23 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Modal } from "./ui/Modal";
 import { EmojiPickerButton } from "./EmojiPickerButton";
 import { modalInputDefaults } from "../forms/styles";
 
-interface RenameProjectModalProps {
+interface RenameModalProps {
   open: boolean;
+  title: string;
   initialValue: string;
   onClose: () => void;
   onSubmit: (value: string) => void;
 }
 
-export function RenameProjectModal({
+export function RenameModal({
   open,
+  title,
   initialValue,
   onClose,
   onSubmit,
-}: RenameProjectModalProps) {
+}: RenameModalProps) {
   const [value, setValue] = useState(initialValue);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -31,9 +33,9 @@ export function RenameProjectModal({
   }, [open, initialValue]);
 
   const trimmed = value.trim();
-  const canSubmit = trimmed !== initialValue.trim();
+  const canSubmit = trimmed.length > 0 && trimmed !== initialValue.trim();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
     onSubmit(trimmed);
@@ -49,7 +51,7 @@ export function RenameProjectModal({
     >
       <form onSubmit={handleSubmit} noValidate>
         <h3 className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-          Rename project
+          {title}
         </h3>
         <div className="relative mt-2">
           <input

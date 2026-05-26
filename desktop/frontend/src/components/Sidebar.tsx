@@ -10,7 +10,7 @@ import { SortableItem, SortableList } from "./ui/SortableList";
 import { useSidebarResize } from "../hooks/useSidebarResize";
 import { ProjectContextMenu } from "./ProjectContextMenu";
 import { ProjectNameDisplay } from "./ProjectNameDisplay";
-import { RenameProjectModal } from "./RenameProjectModal";
+import { RenameModal } from "./RenameModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { SpinnerIcon } from "./project-detail/icons";
 
@@ -302,8 +302,9 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           setConfirmRemoveDuplicate(null);
         }}
       />
-      <RenameProjectModal
+      <RenameModal
         open={renamingName !== null}
+        title="Rename project"
         initialValue={
           renamingName
             ? projectByName.get(renamingName)?.label ?? renamingName

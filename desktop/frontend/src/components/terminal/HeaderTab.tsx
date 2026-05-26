@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type MouseEvent } from "react";
+import { type MouseEvent } from "react";
 import { Pin } from "lucide-react";
 import { XIcon } from "../icons";
 import { Tooltip } from "../ui/Tooltip";
@@ -8,7 +8,6 @@ export function HeaderTab({
   active,
   onClick,
   onClose,
-  onRename,
   onContextMenu,
   pinned,
   shimmer,
@@ -20,7 +19,6 @@ export function HeaderTab({
   active: boolean;
   onClick: () => void;
   onClose?: () => void;
-  onRename?: (name: string) => void;
   onContextMenu?: (e: MouseEvent<HTMLButtonElement>) => void;
   pinned?: boolean;
   shimmer?: boolean;
@@ -28,49 +26,9 @@ export function HeaderTab({
   waiting?: boolean;
   error?: boolean;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(label);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!editing) return;
-    setDraft(label);
-    setTimeout(() => inputRef.current?.select(), 0);
-  }, [editing]);
-
-  const commit = () => {
-    setEditing(false);
-    const trimmed = draft.trim();
-    if (trimmed && trimmed !== label) onRename?.(trimmed);
-  };
-
-  if (editing) {
-    return (
-      <input
-        ref={inputRef}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          // dnd-kit's KeyboardSensor treats Enter/Space as drag-start keys
-          // on the wrapping SortableTab. Without stopPropagation, pressing
-          // Enter to commit the rename bubbles up to the drag sensor and
-          // starts a keyboard drag that never ends (the input unmounts
-          // before dnd-kit sees a matching end key), leaving a ghost drag
-          // overlay stuck on screen.
-          e.stopPropagation();
-          if (e.key === "Enter") commit();
-          if (e.key === "Escape") setEditing(false);
-        }}
-        className="w-24 rounded-md bg-[var(--terminal-header-active)] px-2 py-1 font-mono text-[11px] font-medium text-[var(--terminal-tab-active)] outline-none"
-      />
-    );
-  }
-
   return (
     <button
       onClick={onClick}
-      onDoubleClick={onRename ? () => setEditing(true) : undefined}
       onContextMenu={onContextMenu}
       className={`flex items-center gap-1 rounded-md px-2.5 py-1 font-mono text-[11px] font-medium transition-colors ${
         active
