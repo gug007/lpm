@@ -627,8 +627,8 @@ func (a *App) CheckGHCLI() bool {
 	return err == nil
 }
 
-// CreatePullRequest pushes the current branch and creates a PR via gh.
-// Returns the PR URL on success.
+// CreatePullRequest pushes the current branch and creates a PR via gh,
+// returning the PR URL on success.
 func (a *App) CreatePullRequest(cwd, title, body, base string) (string, error) {
 	if strings.TrimSpace(title) == "" {
 		return "", fmt.Errorf("title required")
@@ -675,8 +675,8 @@ func (a *App) CreateBranch(cwd, name string) error {
 	return a.CheckoutBranch(cwd, name, "")
 }
 
-// DeleteBranch removes a local branch. Uses -D (force) so unmerged branches
-// can be dropped — the UI confirms before calling.
+// DeleteBranch uses -D (force) so unmerged branches can be dropped —
+// the UI confirms before calling.
 func (a *App) DeleteBranch(cwd, name string) error {
 	name = strings.TrimSpace(name)
 	if name == "" {

@@ -111,9 +111,8 @@ func (s *Store) Close() error {
 
 func (s *Store) migrate(ctx context.Context) error {
 	stmts := []string{
-		// seq is the monotonic row key; id is the public handle used by the
-		// API and attachment FK. Ordering and pagination use seq so messages
-		// added in the same millisecond still have a stable total order.
+		// Ordering uses seq (not ts) so messages added in the same millisecond
+		// still have a stable total order.
 		`CREATE TABLE IF NOT EXISTS messages (
 			seq INTEGER PRIMARY KEY AUTOINCREMENT,
 			id TEXT UNIQUE NOT NULL,
@@ -152,7 +151,6 @@ func (s *Store) migrate(ctx context.Context) error {
 	return s.backfillDefaultChat(ctx)
 }
 
-// Idempotent — safe to run on every open.
 func (s *Store) ensureChatIDColumn(ctx context.Context) error {
 	rows, err := s.db.QueryContext(ctx, `PRAGMA table_info(messages)`)
 	if err != nil {
@@ -185,7 +183,6 @@ func (s *Store) ensureChatIDColumn(ctx context.Context) error {
 	return nil
 }
 
-// Moves any pre-chats messages into a newly created "General" chat.
 func (s *Store) backfillDefaultChat(ctx context.Context) error {
 	var unassigned int
 	if err := s.db.QueryRowContext(ctx,
@@ -215,8 +212,7 @@ func (s *Store) backfillDefaultChat(ctx context.Context) error {
 	return tx.Commit()
 }
 
-// AddMessage records metadata only — caller must have written attachment
-// blobs first.
+// AddMessage records metadata only — callers must write attachment blobs first.
 func (s *Store) AddMessage(ctx context.Context, chatID, text string, attachments []Attachment) (*Message, error) {
 	if chatID == "" {
 		return nil, errors.New("notes: chat id is empty")
@@ -236,7 +232,7 @@ func (s *Store) AddMessage(ctx context.Context, chatID, text string, attachments
 	defer tx.Rollback()
 
 	// UPDATE serves as existence check: RowsAffected == 0 ⇒ no such chat.
-	// Cheaper than a separate COUNT(*) round-trip and avoids TOCTOU.
+	// Avoids a separate COUNT(*) round-trip and the TOCTOU window it opens.
 	res, err := tx.ExecContext(ctx,
 		`UPDATE chats SET updated_ts = ? WHERE id = ?`, msg.Timestamp, chatID)
 	if err != nil {
@@ -265,8 +261,8 @@ func (s *Store) AddMessage(ctx context.Context, chatID, text string, attachments
 	return msg, nil
 }
 
-// Newest-first within a chat. Pass beforeID="" for the latest page.
-// Slice shorter than limit ⇒ start of stream reached.
+// ListMessages returns the newest messages in chatID first. Pass beforeID=""
+// for the latest page; a result shorter than limit means start of stream.
 func (s *Store) ListMessages(ctx context.Context, chatID string, limit int, beforeID string) ([]Message, error) {
 	if chatID == "" {
 		return nil, errors.New("notes: chat id is empty")
@@ -363,7 +359,7 @@ func (s *Store) loadAttachments(ctx context.Context, ids []string, byID map[stri
 	return rows.Err()
 }
 
-// Returns sql.ErrNoRows if the message does not exist.
+// EditMessage returns sql.ErrNoRows if the message does not exist.
 func (s *Store) EditMessage(ctx context.Context, id, text string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -391,9 +387,9 @@ func (s *Store) EditMessage(ctx context.Context, id, text string) error {
 	return tx.Commit()
 }
 
-// Returns hashes of attachments no other message references — the caller
-// should pass those to the blob store to free disk space.
-// Returns sql.ErrNoRows if the message does not exist.
+// DeleteMessage returns hashes of attachments no longer referenced — callers
+// pass those to the blob store to free disk space. Returns sql.ErrNoRows if
+// the message does not exist.
 func (s *Store) DeleteMessage(ctx context.Context, id string) ([]string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -440,7 +436,6 @@ func (s *Store) DeleteMessage(ctx context.Context, id string) ([]string, error) 
 	return orphans, nil
 }
 
-// Ordered by most-recently-updated first.
 func (s *Store) ListChats(ctx context.Context) ([]Chat, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, title, created_ts, updated_ts FROM chats ORDER BY updated_ts DESC, id`)
@@ -462,9 +457,8 @@ func (s *Store) ListChats(ctx context.Context) ([]Chat, error) {
 	return chats, nil
 }
 
-// Callers pass this to BlobStore.GC to sweep blob files with no remaining
-// DB reference (e.g. left over from a failed Put or a delete whose blob
-// removal returned an error).
+// AllAttachmentHashes feeds BlobStore.GC: blobs not in this set (e.g. from a
+// failed Put, or a delete whose blob removal errored) get swept.
 func (s *Store) AllAttachmentHashes(ctx context.Context) (map[string]struct{}, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT hash FROM attachments`)
 	if err != nil {
@@ -485,8 +479,6 @@ func (s *Store) AllAttachmentHashes(ctx context.Context) (map[string]struct{}, e
 	return out, nil
 }
 
-// Cheap precondition check — e.g. before stashing attachments for a message
-// that would otherwise land on a deleted chat.
 func (s *Store) ChatExists(ctx context.Context, id string) (bool, error) {
 	var n int
 	if err := s.db.QueryRowContext(ctx,
@@ -496,8 +488,6 @@ func (s *Store) ChatExists(ctx context.Context, id string) (bool, error) {
 	return n > 0, nil
 }
 
-// Empty/whitespace titles are rejected so callers that want a default
-// must be explicit.
 func (s *Store) CreateChat(ctx context.Context, title string) (*Chat, error) {
 	title = strings.TrimSpace(title)
 	if title == "" {
@@ -517,7 +507,7 @@ func (s *Store) CreateChat(ctx context.Context, title string) (*Chat, error) {
 	return c, nil
 }
 
-// Returns sql.ErrNoRows if the chat does not exist. Empty titles are rejected.
+// RenameChat returns sql.ErrNoRows if the chat does not exist.
 func (s *Store) RenameChat(ctx context.Context, id, title string) error {
 	title = strings.TrimSpace(title)
 	if title == "" {

@@ -127,7 +127,6 @@ export function ConfigPlayground({
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // clipboard access can fail silently (e.g. insecure context)
     }
   };
 

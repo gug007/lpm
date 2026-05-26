@@ -48,8 +48,7 @@ func quitApp() {
 	}()
 }
 
-// forceTerminate triggers Cocoa termination so the dock icon is cleaned
-// up before the updated app instance launches.
+// forceTerminate cleans up the dock icon before the updated app instance launches.
 func forceTerminate() {
 	C.forceTerminateApp()
 }

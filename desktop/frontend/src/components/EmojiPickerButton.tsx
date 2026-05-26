@@ -37,11 +37,6 @@ interface EmojiPickerButtonProps {
   size?: Size;
 }
 
-/**
- * Toggle button + portaled emoji picker, positioned below the input it
- * targets. The parent owns the input and the value; this component only
- * inserts text at the current cursor and refocuses the input.
- */
 export function EmojiPickerButton({
   inputRef,
   value,
@@ -110,12 +105,6 @@ export function EmojiPickerButton({
   );
 }
 
-/**
- * Fixed-position style sitting PANEL_GAP_PX below the anchor. Width matches
- * the anchor up to PANEL_MAX_WIDTH_PX; the panel is right-aligned to the
- * anchor so it stays near the toggle on wide inputs, then clamped into the
- * viewport.
- */
 function computePanelStyle(
   anchorRect: DOMRect,
   viewportWidth: number,
@@ -160,7 +149,6 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-/** Closes when a mousedown lands outside every provided element. */
 function useDismissOnOutsideClick(
   open: boolean,
   onDismiss: () => void,
