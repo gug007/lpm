@@ -15,8 +15,8 @@ import (
 	"github.com/gug007/lpm/internal/config"
 )
 
-// SocketServer exposes a Unix socket API for external tools to interact
-// with the running desktop app (status badges, notifications, etc.).
+// SocketServer exposes a Unix socket API for external tools (status badges,
+// notifications, etc.).
 type SocketServer struct {
 	listener   net.Listener
 	app        *App
@@ -39,8 +39,6 @@ func NewSocketServer(app *App) *SocketServer {
 	}
 }
 
-// Start removes any stale socket file, binds a Unix listener with 0600
-// permissions, and launches the accept loop.
 func (s *SocketServer) Start() error {
 	os.Remove(s.socketPath)
 
@@ -125,7 +123,7 @@ func (s *SocketServer) processCommand(line string) string {
 	}
 }
 
-// cmdSetStatus handles: set_status <project> <key> <value> [--icon=X] [--color=X] [--priority=N] [--pid=N]
+// set_status <project> <key> <value> [--icon=X] [--color=X] [--priority=N] [--pid=N]
 func (s *SocketServer) cmdSetStatus(args []string) string {
 	positional, options := parseOptions(args)
 	if len(positional) < 3 {
@@ -168,7 +166,7 @@ func (s *SocketServer) cmdSetStatus(args []string) string {
 	return "OK"
 }
 
-// cmdClearStatus handles: clear_status <project> <key>
+// clear_status <project> <key>
 func (s *SocketServer) cmdClearStatus(args []string) string {
 	positional, _ := parseOptions(args)
 	if len(positional) < 2 {
@@ -184,7 +182,7 @@ func (s *SocketServer) cmdClearStatus(args []string) string {
 	return "OK"
 }
 
-// cmdListStatus handles: list_status <project>
+// list_status <project>
 func (s *SocketServer) cmdListStatus(args []string) string {
 	positional, _ := parseOptions(args)
 	if len(positional) < 1 {
@@ -227,7 +225,7 @@ func shellSplit(s string) []string {
 	return parts
 }
 
-// parseOptions separates positional args from --key=value or --key value.
+// parseOptions handles --key=value and --key value forms.
 func parseOptions(args []string) (positional []string, options map[string]string) {
 	options = make(map[string]string)
 

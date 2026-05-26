@@ -30,7 +30,6 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
       : align === "end" ? tr.right - tt.width
       : tr.left + tr.width / 2 - tt.width / 2;
 
-    // Clamp to viewport
     if (left < 4) left = 4;
     if (left + tt.width > window.innerWidth - 4) left = window.innerWidth - 4 - tt.width;
 

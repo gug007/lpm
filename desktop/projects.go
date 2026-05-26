@@ -16,8 +16,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// runState records how a project's session was started. Non-empty services
-// overrides profile-based resolution.
+// runState: non-empty services overrides profile-based resolution.
 type runState struct {
 	profile  string
 	services []string
@@ -121,9 +120,8 @@ type ActionInfo struct {
 	Children []ActionInfo      `json:"children,omitempty"`
 }
 
-// sortActionNames orders by Position ascending; nil-Position entries are
-// appended afterwards alphabetically. Stable so identical positions fall
-// back to alphabetical.
+// sortActionNames: nil-Position entries are appended alphabetically after
+// positioned ones; identical positions fall back to alphabetical.
 func sortActionNames(names []string, posOf func(string) *float64) {
 	sort.SliceStable(names, func(i, j int) bool {
 		pi, pj := posOf(names[i]), posOf(names[j])
@@ -286,9 +284,8 @@ func (a *App) ListProjects() ([]ProjectInfo, error) {
 	for _, name := range names {
 		cfg, err := config.LoadProjectCached(name, cache)
 		if err != nil {
-			// Frontend treats slice fields as non-nullable; nil would marshal
-			// to `null` and crash consumers that read `.length` before the
-			// configError short-circuit kicks in.
+			// Empty slices (not nil) — frontend reads .length before the
+			// configError short-circuit and `null` would crash it.
 			projects = append(projects, ProjectInfo{
 				Name:          name,
 				ConfigError:   err.Error(),
@@ -345,9 +342,8 @@ func (a *App) applyProjectOrder(projects []ProjectInfo) []ProjectInfo {
 	return groupDuplicatesAfterParents(ordered)
 }
 
-// groupDuplicatesAfterParents enforces "duplicate lives next to its source"
-// so existing state self-heals and a dragged duplicate snaps back to its
-// parent on the next read. Orphan duplicates keep their slot.
+// groupDuplicatesAfterParents snaps duplicates back to their source on the
+// next read; orphan duplicates keep their slot.
 func groupDuplicatesAfterParents(ordered []ProjectInfo) []ProjectInfo {
 	nameSet := make(map[string]bool, len(ordered))
 	for _, p := range ordered {

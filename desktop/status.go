@@ -28,7 +28,7 @@ type StatusEntry struct {
 
 type StatusStore struct {
 	mu      sync.RWMutex
-	entries map[string]map[string]StatusEntry // projectName → key → entry
+	entries map[string]map[string]StatusEntry
 }
 
 func NewStatusStore() *StatusStore {

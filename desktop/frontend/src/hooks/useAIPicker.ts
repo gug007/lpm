@@ -24,9 +24,8 @@ export interface AIPicker {
   selectFast: (cli: AICLI, fast: boolean) => void;
 }
 
-// Centralizes the "which AI CLI / model / effort / fast?" state used
-// by every Generate-with-AI modal. Pass `active` true once the consumer is
-// visible so the CLI availability check only fires while it matters.
+// Pass `active` true once the consumer is visible so the CLI availability
+// check only fires while it matters.
 export function useAIPicker(active: boolean): AIPicker {
   const [aiCLIs, setAiCLIs] = useState<Record<string, boolean>>({});
   const [selectedCLI, setSelectedCLI] = useState<AICLI>(
