@@ -44,8 +44,8 @@ func appDirs() []string {
 	return []string{"/Applications", filepath.Join(home, "Applications")}
 }
 
-// expandAppCandidates maps /Applications/X.app → [/Applications/X.app, ~/Applications/X.app]
-// so user-installed apps are checked alongside system-wide ones.
+// expandAppCandidates also checks ~/Applications so user-installed apps
+// are found alongside system-wide ones.
 func expandAppCandidates(path string) []string {
 	if strings.HasPrefix(path, "/Applications/") {
 		home, _ := os.UserHomeDir()
@@ -65,7 +65,7 @@ func detectByPaths(paths ...string) string {
 	return ""
 }
 
-// detectByPrefix is a fallback for apps with variant bundle names (e.g. "Cursor Nightly.app").
+// detectByPrefix covers apps with variant bundle names (e.g. "Cursor Nightly.app").
 func detectByPrefix(prefix string) string {
 	needle := strings.ToLower(prefix)
 	for _, dir := range appDirs() {
@@ -91,7 +91,7 @@ func launchAppleScript(script string) error {
 	return exec.Command("osascript", "-e", script).Run()
 }
 
-// appleScriptEscape escapes a string for embedding inside an AppleScript double-quoted literal.
+// appleScriptEscape escapes a string for an AppleScript double-quoted literal.
 func appleScriptEscape(s string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(s, `\`, `\\`), `"`, `\"`)
 }
@@ -114,8 +114,8 @@ end tell`, appleScriptEscape(projectPath))
 	return launchAppleScript(script)
 }
 
-// formatPathSpec produces "path", "path:line", or "path:line:col".
-// Most editors with a CLI accept this form (VS Code/Cursor/Windsurf via -g).
+// formatPathSpec produces "path", "path:line", or "path:line:col" —
+// the form accepted by VS Code/Cursor/Windsurf via -g.
 func formatPathSpec(path string, line, col int) string {
 	if line <= 0 {
 		return path
@@ -126,9 +126,8 @@ func formatPathSpec(path string, line, col int) string {
 	return fmt.Sprintf("%s:%d:%d", path, line, col)
 }
 
-// vscodeFamilyOpenFile returns an openFile func for VS Code-derived editors
-// shipping a CLI at <App>/Contents/Resources/app/bin/<binName> that accepts
-// `-g path:line:col`.
+// vscodeFamilyOpenFile targets editors with a CLI at
+// <App>/Contents/Resources/app/bin/<binName> that accepts `-g path:line:col`.
 func vscodeFamilyOpenFile(binName string) func(string, string, int, int) error {
 	return func(appPath, filePath string, line, col int) error {
 		bin := filepath.Join(appPath, "Contents", "Resources", "app", "bin", binName)
@@ -141,9 +140,8 @@ func sublimeOpenFile(appPath, filePath string, line, col int) error {
 	return exec.Command(bin, formatPathSpec(filePath, line, col)).Run()
 }
 
-// jetbrainsFamilyOpenFile returns an openFile func for IntelliJ-platform IDEs
-// shipping a CLI at <App>/Contents/MacOS/<binName> that accepts
-// `--line N [--column M] <path>`.
+// jetbrainsFamilyOpenFile targets IntelliJ-platform IDEs with a CLI at
+// <App>/Contents/MacOS/<binName> accepting `--line N [--column M] <path>`.
 func jetbrainsFamilyOpenFile(binName string) func(string, string, int, int) error {
 	return func(appPath, filePath string, line, col int) error {
 		bin := filepath.Join(appPath, "Contents", "MacOS", binName)
@@ -173,7 +171,7 @@ func launchGhostty(_ string, projectPath string) error {
 		"-e", shell, "-lc", fmt.Sprintf("cd %q && exec %s", projectPath, shell)).Run()
 }
 
-// Registry order is the display order.
+// Registry order is also the display order.
 var targets = []targetDef{
 	{
 		id: "cursor", label: "Cursor", iconPng: "cursor.png",
@@ -287,7 +285,7 @@ var targetsByID = func() map[string]*targetDef {
 	return m
 }()
 
-// Detection runs once per session — new app installs require an app restart.
+// Detection runs once per session; new app installs require an app restart.
 var (
 	listCacheMu sync.Mutex
 	listCache   []OpenInTarget
@@ -332,10 +330,8 @@ func (a *App) OpenIn(targetID, projectPath string) error {
 	return t.launch(appPath, projectPath)
 }
 
-// expandTilde resolves a leading `~/` (or bare `~`) to the user's home
-// directory. Paths like `~user/foo` (other users) are not supported and
-// pass through unchanged. Returns the input unchanged if the home lookup
-// fails — the downstream stat/read will surface a clearer error.
+// expandTilde does not handle `~user/foo`; on home-lookup failure returns
+// input unchanged so the downstream stat/read surfaces a clearer error.
 var (
 	homeDirOnce sync.Once
 	homeDir     string
@@ -370,9 +366,8 @@ func (a *App) FileExists(absPath string) bool {
 	return !info.IsDir()
 }
 
-// Cap to keep the renderer responsive — anything larger should be opened
-// externally instead.
-const readFileMaxBytes = 5 * 1024 * 1024 // 5 MiB
+// Keeps the renderer responsive; larger files should open externally.
+const readFileMaxBytes = 5 * 1024 * 1024
 
 func (a *App) ReadFile(absPath string) (string, error) {
 	if absPath == "" {
@@ -388,8 +383,7 @@ func (a *App) ReadFile(absPath string) (string, error) {
 	return string(data), nil
 }
 
-// WriteFile preserves the existing file mode when overwriting; new files
-// are created with 0644. Refuses payloads larger than readFileMaxBytes.
+// WriteFile preserves existing mode on overwrite; new files use 0644.
 func (a *App) WriteFile(absPath, content string) error {
 	if absPath == "" {
 		return fmt.Errorf("empty file path")
@@ -408,8 +402,7 @@ func (a *App) WriteFile(absPath, content string) error {
 	return os.WriteFile(resolved, []byte(content), mode)
 }
 
-// pickFileEditor returns the first installed target that supports openFile,
-// in registry order.
+// pickFileEditor returns the first installed target with openFile support.
 func pickFileEditor() *targetDef {
 	for i := range targets {
 		t := &targets[i]
@@ -434,9 +427,9 @@ func resolveExistingFile(absPath string) (string, error) {
 	return resolved, nil
 }
 
-// OpenFileInEditor opens absPath, jumping to line:col when both positive.
-// Empty editorID auto-picks the first installed editor that supports
-// file-level open; falls back to `open path`.
+// OpenFileInEditor jumps to line:col when both positive. Empty editorID
+// auto-picks the first installed editor with file-level open support,
+// falling back to `open path`.
 func (a *App) OpenFileInEditor(editorID, absPath string, line, col int) error {
 	absPath, err := resolveExistingFile(absPath)
 	if err != nil {
@@ -464,7 +457,6 @@ func (a *App) OpenFileInEditor(editorID, absPath string, line, col int) error {
 	return exec.Command("open", absPath).Run()
 }
 
-// OpenPathInDefaultApp opens absPath via macOS Launch Services.
 func (a *App) OpenPathInDefaultApp(absPath string) error {
 	absPath, err := resolveExistingFile(absPath)
 	if err != nil {

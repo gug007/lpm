@@ -907,8 +907,6 @@ function FieldSection({ label, children }: { label: string; children: ReactNode 
   );
 }
 
-// Animates children in on mount. Used to fade-and-slide newly revealed
-// form sections as the user fills the wizard.
 function Reveal({ children }: { children: ReactNode }) {
   return <div className="field-reveal">{children}</div>;
 }
