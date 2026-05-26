@@ -40,10 +40,9 @@ func (a *App) CheckAICLIs() AICLIAvailability {
 
 const maxDiffSize = 30_000
 
-// GenerateCommitMessage uses an AI CLI to generate a commit message from the
-// diff of the given files. effort maps to the CLI's reasoning effort flag
-// (e.g. claude --effort high); "" uses the CLI default. fast enables Codex's
-// service_tier=fast (higher cost, faster output); ignored for other CLIs.
+// GenerateCommitMessage generates a commit message from the diff of the given files.
+// effort maps to the CLI's reasoning effort flag; "" uses the CLI default.
+// fast enables Codex's service_tier=fast; ignored for other CLIs.
 func (a *App) GenerateCommitMessage(cwd, cli, model, effort string, fast bool, files []string) (string, error) {
 	diff, err := a.GitDiff(cwd, files)
 	if err != nil {
@@ -132,7 +131,6 @@ Output ONLY the description text. No code fences. No explanation.
 
 `
 
-// prDiffAndLog returns the truncated diff and commit log for the branch.
 func (a *App) prDiffAndLog(cwd, base string) (diff, commitLog string, err error) {
 	diff, err = a.GitDiffBranch(cwd, base)
 	if err != nil || strings.TrimSpace(diff) == "" {
@@ -163,7 +161,6 @@ func buildPRPrompt(base, userInstructions, diff, commitLog string) string {
 	return prompt
 }
 
-// GeneratePRTitle uses an AI CLI to generate a PR title from the branch diff.
 func (a *App) GeneratePRTitle(cwd, cli, model, effort string, fast bool, base string) (string, error) {
 	diff, commitLog, err := a.prDiffAndLog(cwd, base)
 	if err != nil {
@@ -181,7 +178,6 @@ func (a *App) GeneratePRTitle(cwd, cli, model, effort string, fast bool, base st
 	})
 }
 
-// GeneratePRDescription uses an AI CLI to generate a PR description from the branch diff.
 func (a *App) GeneratePRDescription(cwd, cli, model, effort string, fast bool, base string) (string, error) {
 	diff, commitLog, err := a.prDiffAndLog(cwd, base)
 	if err != nil {
@@ -225,8 +221,8 @@ Output ONLY the branch name. No code fences. No explanation.
 
 `
 
-// GenerateBranchName summarizes the current uncommitted changes when present,
-// otherwise falls back to the current branch diff against the default branch.
+// GenerateBranchName summarizes uncommitted changes when present, otherwise
+// falls back to the current branch diff against the default branch.
 func (a *App) GenerateBranchName(cwd, cli, model, effort string, fast bool) (string, error) {
 	var commitLog string
 	diff, _ := runGit(cwd, "diff", "HEAD")
@@ -282,8 +278,7 @@ Output ONLY a brief summary of what you changed when done.
 `
 
 // ResolveMergeConflictsWithAI runs the chosen AI CLI with file-write
-// permissions and a prompt that asks it to resolve every unresolved merge
-// conflict in cwd. Streams progress to the frontend.
+// permissions to resolve every unresolved merge conflict in cwd.
 func (a *App) ResolveMergeConflictsWithAI(cwd, cli, model, effort string, fast bool) (string, error) {
 	if conflicts := a.GitMergeConflicts(cwd); len(conflicts) == 0 {
 		return "", fmt.Errorf("no merge conflicts to resolve")
@@ -299,9 +294,6 @@ func (a *App) ResolveMergeConflictsWithAI(cwd, cli, model, effort string, fast b
 
 const actionYAMLProgressEvent = "action-yaml-progress"
 
-// projectContextBlock summarizes the project so the AI knows what it's
-// authoring an action for — name, local root or SSH target, and the path
-// of the config file the wizard will write to.
 func projectContextBlock(cfg *config.ProjectConfig) string {
 	var b strings.Builder
 	b.WriteString("# Project context\n\n")
@@ -337,10 +329,8 @@ func projectContextBlock(cfg *config.ProjectConfig) string {
 	return b.String()
 }
 
-// buildActionYAMLPrompt wraps the canonical lpm-config skill with a
-// narrower task: produce or modify a single action's YAML body, not a whole
-// config file. The skill itself carries the full schema, smart-guidance, and
-// examples, so we don't restate them here.
+// buildActionYAMLPrompt wraps the lpm-config skill with a narrower task:
+// produce or modify a single action's YAML body, not a whole config file.
 func buildActionYAMLPrompt(cfg *config.ProjectConfig, userPrompt, currentYAML string) string {
 	var task strings.Builder
 	task.WriteString("# Task\n\n")
@@ -369,10 +359,9 @@ func buildActionYAMLPrompt(cfg *config.ProjectConfig, userPrompt, currentYAML st
 	return projectContextBlock(cfg) + "\n# Reference: lpm-config skill\n\n" + lpmSkill + "\n\n" + task.String()
 }
 
-// GenerateActionYAML uses an AI CLI to produce or modify the YAML body for a
-// header action. currentYAML may be empty for a fresh action; when non-empty
-// the AI is asked to modify it in place. effort maps to the CLI's reasoning
-// effort flag (e.g. `claude --effort high`); empty means use the CLI default.
+// GenerateActionYAML produces or modifies the YAML body for a header action.
+// currentYAML may be empty for a fresh action; when non-empty the AI is asked
+// to modify it in place.
 func (a *App) GenerateActionYAML(projectName, cli, model, effort string, fast bool, userPrompt, currentYAML string) (string, error) {
 	userPrompt = strings.TrimSpace(userPrompt)
 	if userPrompt == "" {
@@ -395,8 +384,6 @@ func (a *App) GenerateActionYAML(projectName, cli, model, effort string, fast bo
 	})
 }
 
-// GenerateProjectConfig runs the CLI in the project root and streams progress
-// lines to the frontend via the aiProgressEvent event.
 func (a *App) GenerateProjectConfig(projectName, cli, extraPrompt string) (string, error) {
 	cfg, err := config.LoadProject(projectName)
 	if err != nil {

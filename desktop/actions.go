@@ -80,7 +80,6 @@ func (a *App) resolveActionCommand(projectName, actionName string, inputValues m
 }
 
 // RunAction starts an action and streams output via events. Returns immediately.
-// inputValues supplies user-provided values for {{key}} placeholders defined in the action's inputs.
 func (a *App) RunAction(projectName string, actionName string, inputValues map[string]string) error {
 	plan, err := a.resolveActionCommand(projectName, actionName, inputValues)
 	if err != nil {
@@ -126,10 +125,9 @@ func (a *App) RunAction(projectName string, actionName string, inputValues map[s
 	return nil
 }
 
-// RunActionBackground runs an action synchronously from the caller's point of
-// view: the RPC blocks until the command exits. On failure, the returned
-// error includes a trimmed tail of the combined output. mode: sync push
-// is fired in the background so the RPC isn't held open by it.
+// RunActionBackground blocks until the command exits. On failure, the returned
+// error includes a trimmed tail of the combined output. mode: sync push runs
+// in the background so the RPC isn't held open by it.
 func (a *App) RunActionBackground(projectName string, actionName string, inputValues map[string]string) error {
 	plan, err := a.resolveActionCommand(projectName, actionName, inputValues)
 	if err != nil {

@@ -45,12 +45,8 @@ type Chat struct {
 	UpdatedAt int64  `json:"updatedAt"`
 }
 
-// DefaultChatTitle is used by the migration when backfilling legacy messages
-// and by callers that want to create a project's first chat with a sensible
-// default label.
 const DefaultChatTitle = "General"
 
-// Store — pair Open with Close.
 type Store struct {
 	db      *sql.DB
 	project string
@@ -68,8 +64,7 @@ func Open(ctx context.Context, project string, key []byte) (*Store, error) {
 	return openStoreAt(ctx, project, config.NotesDir(project), key)
 }
 
-// openStoreAt is the concrete opener shared by production and tests. Tests
-// pass a tmp dir and a fake key so they never touch the user's real tree.
+// Tests pass a tmp dir and a fake key so they never touch the user's real tree.
 func openStoreAt(ctx context.Context, project, dir string, key []byte) (*Store, error) {
 	if len(key) != vault.KeyLen {
 		return nil, fmt.Errorf("notes: key length = %d, want %d", len(key), vault.KeyLen)
@@ -99,8 +94,7 @@ func openStoreAt(ctx context.Context, project, dir string, key []byte) (*Store, 
 	return s, nil
 }
 
-// buildDSN returns a SQLCipher DSN pinning the key and a conservative cipher
-// page size. Uses the file:// URI form so pragma params ride the query string.
+// file:// URI form so pragma params ride the query string.
 func buildDSN(dbPath string, key []byte) string {
 	keyLiteral := "x'" + hex.EncodeToString(key) + "'"
 	q := url.Values{}
@@ -163,8 +157,7 @@ func (s *Store) migrate(ctx context.Context) error {
 	return s.backfillDefaultChat(ctx)
 }
 
-// ensureChatIDColumn adds messages.chat_id on first boot of a DB that predates
-// the chats feature. Idempotent — safe to run on every open.
+// Idempotent — safe to run on every open.
 func (s *Store) ensureChatIDColumn(ctx context.Context) error {
 	rows, err := s.db.QueryContext(ctx, `PRAGMA table_info(messages)`)
 	if err != nil {
@@ -197,8 +190,7 @@ func (s *Store) ensureChatIDColumn(ctx context.Context) error {
 	return nil
 }
 
-// backfillDefaultChat moves any pre-chats messages into a newly created
-// "General" chat. Runs only when unassigned messages exist.
+// Moves any pre-chats messages into a newly created "General" chat.
 func (s *Store) backfillDefaultChat(ctx context.Context) error {
 	var unassigned int
 	if err := s.db.QueryRowContext(ctx,
@@ -229,8 +221,7 @@ func (s *Store) backfillDefaultChat(ctx context.Context) error {
 }
 
 // AddMessage records metadata only — caller must have written attachment
-// blobs first. Also bumps the owning chat's updated_ts so chat lists can
-// order by recency.
+// blobs first.
 func (s *Store) AddMessage(ctx context.Context, chatID, text string, attachments []Attachment) (*Message, error) {
 	if chatID == "" {
 		return nil, errors.New("notes: chat id is empty")
@@ -279,8 +270,8 @@ func (s *Store) AddMessage(ctx context.Context, chatID, text string, attachments
 	return msg, nil
 }
 
-// ListMessages returns newest-first within a chat. Pass beforeID="" for the
-// latest page. Slice shorter than limit ⇒ start of stream reached.
+// Newest-first within a chat. Pass beforeID="" for the latest page.
+// Slice shorter than limit ⇒ start of stream reached.
 func (s *Store) ListMessages(ctx context.Context, chatID string, limit int, beforeID string) ([]Message, error) {
 	if chatID == "" {
 		return nil, errors.New("notes: chat id is empty")
@@ -377,9 +368,7 @@ func (s *Store) loadAttachments(ctx context.Context, ids []string, byID map[stri
 	return rows.Err()
 }
 
-// EditMessage returns sql.ErrNoRows if the message does not exist. Bumps
-// the owning chat's updated_ts so the chat list reflects the edit as
-// recent activity.
+// Returns sql.ErrNoRows if the message does not exist.
 func (s *Store) EditMessage(ctx context.Context, id, text string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

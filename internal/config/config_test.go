@@ -26,7 +26,6 @@ services:
 		t.Fatalf("unmarshal failed: %v", err)
 	}
 
-	// Test shorthand
 	dev, ok := cfg.Services["dev"]
 	if !ok {
 		t.Fatal("missing service 'dev'")
@@ -35,7 +34,6 @@ services:
 		t.Errorf("dev.Cmd = %q, want %q", dev.Cmd, "npm run dev")
 	}
 
-	// Test full form
 	api, ok := cfg.Services["api"]
 	if !ok {
 		t.Fatal("missing service 'api'")

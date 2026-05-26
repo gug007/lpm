@@ -10,13 +10,11 @@ import (
 
 const lpmHookMarker = "# lpm-hook"
 
-// ClaudeHooksStatus reports whether Claude Code hooks are installed.
 type ClaudeHooksStatus struct {
 	SettingsExists bool `json:"settingsExists"`
 	HooksInstalled bool `json:"hooksInstalled"`
 }
 
-// CheckClaudeHooks reads ~/.claude/settings.json and checks for lpm hooks.
 func (a *App) CheckClaudeHooks() ClaudeHooksStatus {
 	settingsPath := filepath.Join(os.Getenv("HOME"), ".claude", "settings.json")
 
@@ -37,8 +35,6 @@ func (a *App) CheckClaudeHooks() ClaudeHooksStatus {
 	}
 }
 
-// ResetClaudeHooks wipes all hooks from ~/.claude/settings.json
-// and reinstalls lpm hooks.
 func (a *App) ResetClaudeHooks() error {
 	settingsPath := filepath.Join(os.Getenv("HOME"), ".claude", "settings.json")
 
@@ -66,13 +62,10 @@ func (a *App) ResetClaudeHooks() error {
 	return nil
 }
 
-// installAgentHooks auto-configures hooks for supported AI agents.
 func (a *App) installAgentHooks() {
 	a.installClaudeCodeHooks()
 	a.installCodexHooks()
 }
-
-// --- Claude Code hooks (via ~/.claude/settings.json) ---
 
 func (a *App) installClaudeCodeHooks() {
 	settingsPath := filepath.Join(os.Getenv("HOME"), ".claude", "settings.json")
@@ -125,8 +118,6 @@ func (a *App) installClaudeCodeHooks() {
 	}
 	_ = os.WriteFile(settingsPath, out, 0644)
 }
-
-// --- Codex hooks (via ~/.codex/config.toml + ~/.codex/hooks.json) ---
 
 func (a *App) installCodexHooks() {
 	codexDir := filepath.Join(os.Getenv("HOME"), ".codex")
@@ -209,8 +200,6 @@ func (a *App) enableCodexHooksFeature(configPath string) {
 
 	_ = os.WriteFile(configPath, []byte(content), 0644)
 }
-
-// --- Shared helpers ---
 
 func sendCmd(cmd string) string {
 	return `{ [ -n "$LPM_SOCKET_PATH" ] && [ -S "$LPM_SOCKET_PATH" ] && echo "` + cmd + `" | nc -w1 -U "$LPM_SOCKET_PATH" & } >/dev/null 2>&1; ` + lpmHookMarker

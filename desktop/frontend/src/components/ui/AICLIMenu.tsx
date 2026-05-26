@@ -155,8 +155,6 @@ function EffortPanel({
   );
 }
 
-// rowBadge formats the trailing badge shown next to the active model: the
-// effort label, optionally suffixed with "· Fast" when Codex fast-mode is on.
 function rowBadge(
   efforts: AIEffortOption[] | undefined,
   effortLabel: string | undefined,
