@@ -249,6 +249,53 @@ Ask: "Should the button run a default command with alternatives behind a chevron
 
 → Goes in the global config at `~/.lpm/global.yml`. It supports `actions` and `terminals` only (no `services`, `profiles`, `name`, or `root`), but both of those carry the full field set — `display`, `confirm`, `type` (including `type: background`), `reuse`, `inputs`, and nested `actions`. Project-level entries with the same key take precedence.
 
+**"Reorder the buttons" / "Put this one first"**
+
+→ Set `position:` (number). Lower renders first; entries without `position` fall back to alphabetical order. Use floats so you can insert between existing positions without renumbering (e.g. `1, 2, 2.5, 3`). Works on actions and terminals, project and global.
+
+**"Make sure port X is free before this runs"**
+
+→ Set `port:` on the action (or terminal). lpm probes the port before launching; if something else holds it, the user gets a confirmation dialog listing the holder process. From the CLI it is a hard error. Range 0–65535. Different from `services.<key>.port`, which announces what port the service listens on (and feeds the service-side dedup check).
+
+**"Share these actions/terminals with the team"**
+
+→ Write them to `<root>/.lpm.yml` instead of `~/.lpm/projects/<name>.yml`. The file is checked into the repo. Schema is a subset of project config: supports `services`, `actions`, `terminals`, `profiles`, `extends`. **No** identity fields (no `name`, `root`, `parent_name`, `ssh`) — those stay in each teammate's personal project file. Anyone running `lpm` from this repo picks up these entries automatically.
+
+**"Make a reusable building block" / "I want to reuse this across projects"**
+
+→ Drop a YAML file under `~/.lpm/templates/<name>.yml`. Same shape as `.lpm.yml` (services/actions/terminals/profiles/extends, no identity). Then any config can pull it in via `extends:`:
+
+```yaml
+extends:
+  - common-actions          # → ~/.lpm/templates/common-actions.yml
+  - ./shared-deploy.yml     # relative to this file
+  - ~/.lpm/templates/team-tools.yml   # absolute / ~-prefixed
+```
+
+Bare names resolve from `~/.lpm/templates/`. Absolute and `~`-prefixed paths are used as-is. Relative paths resolve from the file containing the `extends`. Cycles are detected and rejected at load time.
+
+**"Tweak just one field of a global action" (sparse override)**
+
+→ The project file can hold a thin entry that overrides only the fields it sets:
+
+```yaml
+# ~/.lpm/global.yml
+actions:
+  deploy:
+    cmd: ./deploy.sh staging
+    cwd: ~/work/myapp
+    confirm: true
+```
+
+```yaml
+# ~/.lpm/projects/myapp.yml
+actions:
+  deploy:
+    position: 1    # only change ordering — cmd/cwd/confirm inherit from global
+```
+
+Caveat: bool fields (`confirm`, `reuse`) treat `false` as "inherit" — you cannot sparse-override a global's `true` to `false` from a project. Redefine the action fully in the project to do that. Same caveat applies between `.lpm.yml` and templates.
+
 ### Output
 
 Config files are written to `~/.lpm/projects/<name>.yml`. Global config at `~/.lpm/global.yml` supports only `actions` and `terminals`. Project-level entries take precedence when names collide.
