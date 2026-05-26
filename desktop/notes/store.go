@@ -636,14 +636,12 @@ func escapeLike(s string) string {
 
 var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
-// Plain text (not markdown) so the caller can drop the output into a text
-// node without further escaping.
 func buildSnippet(text, term string) string {
 	const before, after = 80, 160
 	idx := strings.Index(strings.ToLower(text), strings.ToLower(term))
 	if idx < 0 {
-		// The row matched LIKE but ToLower shifted byte offsets (rare
-		// Unicode case-folding). Fall back to the head of the text.
+		// LIKE matched but ToLower shifted byte offsets (rare Unicode
+		// case-folding). Fall back to the head of the text.
 		return headSnippet(text, before+after)
 	}
 	start, end := idx-before, idx+len(term)+after
@@ -689,7 +687,6 @@ func alignRuneEnd(text string, i int) int {
 	return i
 }
 
-// One round-trip regardless of candidate count.
 func orphansAmong(ctx context.Context, tx *sql.Tx, candidates []string) ([]string, error) {
 	if len(candidates) == 0 {
 		return nil, nil

@@ -76,9 +76,8 @@ void setTrafficLightPosition(CGFloat x, CGFloat y) {
 */
 import "C"
 
-// SetTrafficLightPosition sets the macOS window control buttons (close,
-// minimize, zoom) to the given x/y offset measured from the top-left
-// corner of the window.
+// SetTrafficLightPosition positions the close/minimize/zoom buttons
+// using top-left origin (x/y offset from the window's top-left corner).
 func SetTrafficLightPosition(x, y float64) {
 	C.setTrafficLightPosition(C.CGFloat(x), C.CGFloat(y))
 }

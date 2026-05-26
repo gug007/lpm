@@ -429,7 +429,7 @@ func (a *App) removeNotes(project string) {
 }
 
 // stashAttachments: on error, blobs written so far stay on disk as orphans
-// (unreachable until the next delete GCs them).
+// until the next delete GCs them.
 func (a *App) stashAttachments(b *notesBundle, inputs []NotesAttachmentInput) ([]notes.Attachment, error) {
 	if len(inputs) == 0 {
 		return nil, nil

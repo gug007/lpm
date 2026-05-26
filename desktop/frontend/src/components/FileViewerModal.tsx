@@ -261,7 +261,6 @@ export function FileViewerModal({
     };
   }, [open, editing]);
 
-  // Reset edit state whenever the viewer is pointed at a different path.
   useEffect(() => {
     setEditing(false);
     setEditValue("");
@@ -628,7 +627,6 @@ function UnifiedDiff({
 }) {
   const targetRef = useRef<HTMLDivElement>(null);
   useScrollToTarget(targetRef, rows);
-  // Flatten paired rows: hunk → del → add → context, mirroring the diff order.
   const flat: { kind: CellKind | "hunk"; content: string; lineNo: number; tokens?: Token[] }[] = [];
   for (const row of rows) {
     if (row.hunkHeader) {
