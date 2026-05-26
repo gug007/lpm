@@ -95,7 +95,6 @@ func StopServicePane(paneID string) error {
 	return nil
 }
 
-// StartServicePane runs the service's command in the given (already-existing) pane.
 func StartServicePane(paneID string, cfg *config.ProjectConfig, svc config.Service) error {
 	return sendKeys(paneID, buildCommand(cfg, svc))
 }
@@ -162,8 +161,6 @@ func StartProjectServices(cfg *config.ProjectConfig, serviceNames []string) erro
 	return nil
 }
 
-// SplitSessionPane splits the project's tmux window, runs the service command
-// in the new pane, and rebalances the layout. Returns the new pane ID.
 func SplitSessionPane(cfg *config.ProjectConfig, svc config.Service) (string, error) {
 	spawnDir := paneSpawnDir(cfg, svc)
 	split := exec.Command("tmux", "split-window", "-t", cfg.Name, "-P", "-F", "#{pane_id}")
@@ -187,8 +184,7 @@ func paneSpawnDir(cfg *config.ProjectConfig, svc config.Service) string {
 	return config.ResolveCwd(cfg.Root, svc.Cwd)
 }
 
-// KillPane removes the given pane from its tmux window. Killing the last pane
-// in a session destroys the session.
+// KillPane: killing the last pane in a session destroys the session.
 func KillPane(paneID string) error {
 	return exec.Command("tmux", "kill-pane", "-t", paneID).Run()
 }

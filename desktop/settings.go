@@ -35,9 +35,8 @@ type Settings struct {
 	TTSVoice            string   `json:"ttsVoice,omitempty"`
 	TTSSpeed            float64  `json:"ttsSpeed,omitempty"`
 	PreferredEditor     string   `json:"preferredEditor,omitempty"`
-	// DetachedWindows holds per-project window state for projects that are
-	// (or were last) opened in their own window. Bounds persist even after
-	// re-attach so re-detaching restores the previous geometry.
+	// DetachedWindows: bounds persist after re-attach so re-detaching
+	// restores the previous geometry.
 	DetachedWindows     map[string]DetachedWindowState `json:"detachedWindows,omitempty"`
 }
 

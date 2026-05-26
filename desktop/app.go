@@ -31,23 +31,23 @@ type App struct {
 	shutdownOnce sync.Once
 
 	cacheMu      sync.RWMutex
-	sessionCache map[string]string   // projectName -> session name
-	paneCache    map[string][]string // session name -> pane IDs
-	projectOrder []string            // cached from settings to avoid disk reads on poll
+	sessionCache map[string]string
+	paneCache    map[string][]string
+	projectOrder []string
 
 	streamMu sync.Mutex
-	streams  map[string]context.CancelFunc // projectName -> cancel streaming
+	streams  map[string]context.CancelFunc
 
 	ptyMu       sync.Mutex
-	ptySessions map[string]*ptySession // terminalID -> session
+	ptySessions map[string]*ptySession
 
-	runningState map[string]runState // projectName -> how it was started
+	runningState map[string]runState
 
-	pendingDownloadURL string // set by CheckForUpdate, used by InstallUpdate
+	pendingDownloadURL string
 
-	settingsMu sync.Mutex // protects read-modify-write cycles on settings.json
+	settingsMu sync.Mutex
 
-	lastWinW, lastWinH int // cached to skip redundant saves
+	lastWinW, lastWinH int
 
 	statusStore  *StatusStore
 	socketServer *SocketServer
@@ -61,29 +61,27 @@ type App struct {
 	notes *notesState
 
 	syncMu sync.Mutex
-	syncs  map[string]*projectSync // projectName -> sync state
+	syncs  map[string]*projectSync
 
-	pushWG sync.WaitGroup // tracks in-flight async sync pushes
+	pushWG sync.WaitGroup
 
 	pfMu        sync.Mutex
-	pfs         map[string][]*portForward // projectName -> active forwards
+	pfs         map[string][]*portForward
 	suggestedMu sync.Mutex
-	suggested   map[string]map[int]bool // projectName -> ports we've emitted a suggestion for
-	dismissed   map[string]map[int]bool // projectName -> ports the user told us to stop suggesting
+	suggested   map[string]map[int]bool
+	dismissed   map[string]map[int]bool
 
 	pollerMu sync.Mutex
-	pollers  map[string]context.CancelFunc // projectName -> cancel for the running ss poller
+	pollers  map[string]context.CancelFunc
 
-	// Buffered to cap how many `ssh -N -L` processes we spawn
-	// concurrently when a burst of declared ports is detected at once
-	// (e.g. multi-service profile starting).
+	// autoForwardSem caps concurrent `ssh -N -L` spawns when a burst of
+	// declared ports arrives at once.
 	autoForwardSem chan struct{}
 
 	detachedMu      sync.Mutex
-	detachedWindows map[string]*detachedEntry // projectName -> entry
-	// Set during ServiceShutdown so the detached window close hook leaves
-	// the persisted Detached flag alone — letting the next launch restore
-	// windows that were open at quit-time.
+	detachedWindows map[string]*detachedEntry
+	// shuttingDown lets the WindowClosing hook leave the persisted Detached
+	// flag alone so the next launch restores quit-time windows.
 	shuttingDown bool
 }
 
@@ -144,7 +142,7 @@ func (a *App) TmuxInstalled() bool {
 	return tmux.EnsureInstalled() == nil
 }
 
-// InstallTmux streams Homebrew install progress via "tmux-install-output" events.
+// InstallTmux streams Homebrew progress via "tmux-install-output" events.
 func (a *App) InstallTmux() error {
 	brewPath, err := exec.LookPath("brew")
 	if err != nil {
@@ -176,9 +174,8 @@ func (a *App) InstallTmux() error {
 	return nil
 }
 
-// resolveUserPath runs the user's interactive login shell once to capture the
-// full PATH. Needed because macOS .apps launched from Finder inherit a minimal
-// PATH that excludes tools set up in ~/.zshrc (nvm, pnpm, etc.).
+// resolveUserPath captures the user's full PATH because macOS .apps launched
+// from Finder inherit a minimal PATH that excludes tools set up in ~/.zshrc.
 func resolveUserPath() {
 	shell := os.Getenv("SHELL")
 	if shell == "" {
@@ -188,8 +185,8 @@ func resolveUserPath() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Uses -l -i because zsh -l -c (login, non-interactive) skips ~/.zshrc.
-	// Uses printenv (not $PATH) so fish shell returns colon-separated PATH.
+	// -l -i because zsh -l -c (non-interactive) skips ~/.zshrc.
+	// printenv (not $PATH) so fish returns colon-separated PATH.
 	const marker = "__LPM_PATH__"
 	cmd := exec.CommandContext(ctx, shell, "-l", "-i", "-c",
 		"printf '"+marker+"'; printenv PATH; printf '"+marker+"'")
@@ -263,12 +260,11 @@ func (a *App) ServiceShutdown() error {
 		a.stopAllPortPollers()
 		a.stopAllPortForwards()
 
-		// Detach mirror watchers before waiting on pushes so no new pushes
-		// get queued while we're draining.
+		// Stop watchers first so no new pushes queue while we drain.
 		a.stopAllSyncWatchers()
 
-		// Wait for in-flight sync pushes to finish so we don't truncate
-		// rsync mid-transfer. Bounded so a wedged remote can't block exit.
+		// Bounded wait so a wedged remote can't block exit; ensures we
+		// don't truncate rsync mid-transfer.
 		a.waitPushes(30 * time.Second)
 
 		a.notes.closeAll()
