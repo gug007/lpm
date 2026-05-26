@@ -30,8 +30,8 @@ type MissingRoot struct {
 	Root    string `json:"root"`
 }
 
-// topLevelFiles: archived alongside projects/ and zdotdir/. settings.json
-// is handled separately so per-machine fields can be stripped on export.
+// topLevelFiles excludes settings.json: per-machine fields are stripped
+// on export, so it gets sanitised separately.
 var topLevelFiles = []string{
 	"global.yml",
 	"terminals.json",
@@ -40,8 +40,7 @@ var topLevelFiles = []string{
 	"pr-description-instructions.txt",
 }
 
-// perMachineSettingsKeys lists settings.json fields that shouldn't travel
-// between machines.
+// perMachineSettingsKeys: settings.json fields that shouldn't travel between machines.
 var perMachineSettingsKeys = []string{
 	"windowWidth",
 	"windowHeight",
@@ -49,8 +48,7 @@ var perMachineSettingsKeys = []string{
 	"lastSelectedProject",
 }
 
-// recoverAs converts a panic from op into an error so Wails method panics
-// surface as toast-friendly messages instead of crashing.
+// recoverAs surfaces Wails method panics as toast-friendly errors.
 func recoverAs(op string, dst *error) {
 	if r := recover(); r != nil {
 		*dst = fmt.Errorf("%s panicked: %v", op, r)
@@ -59,10 +57,9 @@ func recoverAs(op string, dst *error) {
 }
 
 // ExportConfig writes a tar.gz of the portable portion of ~/.lpm. Notes
-// are not included — users transport them via Export/Import vault key and
-// by copying ~/.lpm/notes/ manually.
-//
-// Uses OpenDirectoryDialog — SaveFileDialog is flaky on newer macOS.
+// are excluded — users transport them via Export/Import vault key plus a
+// manual copy of ~/.lpm/notes/. Uses OpenDirectoryDialog because
+// SaveFileDialog is flaky on newer macOS.
 func (a *App) ExportConfig() (result string, err error) {
 	defer recoverAs("export", &err)
 
@@ -150,7 +147,7 @@ func writeArchive(tw *tar.Writer) error {
 }
 
 // ImportConfig snapshots the current config, then merges the archive in.
-// When overwrite is false, existing projects are kept and listed in Skipped.
+// When overwrite is false, existing projects are kept and reported as Skipped.
 func (a *App) ImportConfig(overwrite bool) (report *ImportReport, err error) {
 	defer recoverAs("import", &err)
 
@@ -204,7 +201,6 @@ func (a *App) ImportConfig(overwrite bool) (report *ImportReport, err error) {
 
 	report.MissingRoots, report.MissingTools = detectImportIssues()
 
-	// Clear cached order so the next ListProjects picks up the imported one.
 	a.cacheMu.Lock()
 	a.projectOrder = nil
 	a.cacheMu.Unlock()
@@ -213,9 +209,8 @@ func (a *App) ImportConfig(overwrite bool) (report *ImportReport, err error) {
 	return report, nil
 }
 
-// MigratePortablePaths rewrites absolute $HOME-prefixed paths in project
-// YAMLs and global.yml to ~/ form. Gated by a marker file so it runs at
-// most once per install.
+// MigratePortablePaths rewrites absolute $HOME-prefixed paths to ~/ form.
+// Gated by a marker file so it runs at most once per install.
 func MigratePortablePaths() error {
 	markerPath := filepath.Join(config.LpmDir(), ".portable-paths-v1")
 	if _, err := os.Stat(markerPath); err == nil {
@@ -249,8 +244,7 @@ func MigratePortablePaths() error {
 	return os.WriteFile(markerPath, nil, 0644)
 }
 
-// rewriteHomeToTilde rewrites `root:` and `cwd:` YAML values to `~/...`
-// form. Only those two keys are touched.
+// rewriteHomeToTilde only touches `root:` and `cwd:` values.
 func rewriteHomeToTilde(path, home string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -423,7 +417,7 @@ func extractTarGz(src, dst string) error {
 	}
 }
 
-// snapshotLpm copies ~/.lpm to dst, skipping runtime-only entries (sockets).
+// snapshotLpm skips runtime-only entries (sockets).
 func snapshotLpm(src, dst string) error {
 	info, err := os.Stat(src)
 	if err != nil {
@@ -592,9 +586,8 @@ func mergeSettingsFile(src, dst string) error {
 	return os.WriteFile(dst, out, 0644)
 }
 
-// detectImportIssues returns project roots that don't exist on disk and
-// shell tools referenced by commands but not in PATH. Uses LoadProjectRaw
-// so missing dependencies don't fail the scan.
+// detectImportIssues uses LoadProjectRaw so missing dependencies don't
+// fail the scan.
 func detectImportIssues() ([]MissingRoot, []string) {
 	missingRoots := []MissingRoot{}
 	missingTools := []string{}

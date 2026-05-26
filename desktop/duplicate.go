@@ -11,9 +11,8 @@ import (
 	"github.com/gug007/lpm/internal/config"
 )
 
-// errCloneUnsupported is returned by fastClone when the filesystem can't
-// honor a copy-on-write clone (non-APFS volume, cross-device, non-darwin
-// platform). Callers fall back to copyTree.
+// errCloneUnsupported signals fastClone failure on non-APFS volumes,
+// cross-device clones, or non-darwin builds. Callers fall back to copyTree.
 var errCloneUnsupported = errors.New("clone not supported on this filesystem")
 
 const (
@@ -22,18 +21,10 @@ const (
 	duplicateIDAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 )
 
-// DuplicateProject creates a new project as a sibling folder of `name`, sharing
-// the original project's LPM config. Folder contents are copied literally,
-// including .git and node_modules.
-//
-// When `name` is itself a duplicate, parent_name still points at the original
-// (never chained), but the folder content comes from whichever project was
-// passed in — preserving any in-progress work in the duplicate the user
-// right-clicked.
-//
-// When excludeUncommitted is true and the source has a git repo, the new copy
-// is reset to HEAD: staged, unstaged, and untracked files are discarded.
-// Ignored files (e.g. node_modules) are preserved.
+// DuplicateProject copies the folder literally (including .git and node_modules).
+// parent_name always points at the original — duplicate chains collapse to the
+// root parent so the lpm config stays shared. excludeUncommitted resets the new
+// copy to HEAD, discarding tracked/untracked changes; ignored files survive.
 func (a *App) DuplicateProject(name string, excludeUncommitted bool) (string, error) {
 	srcCfg, err := config.LoadProject(name)
 	if err != nil {
@@ -61,8 +52,7 @@ func (a *App) DuplicateProject(name string, excludeUncommitted bool) (string, er
 		return "", fmt.Errorf("copy failed: %w", err)
 	}
 
-	// Remove stale git worktree references copied from the source. These
-	// point at the original project's worktrees (e.g. agent worktrees) and
+	// Stale worktree refs point at the source project's worktrees and
 	// would confuse editors into showing unrelated repositories.
 	_ = os.RemoveAll(filepath.Join(newRoot, ".git", "worktrees"))
 
@@ -87,9 +77,8 @@ func (a *App) DuplicateProject(name string, excludeUncommitted bool) (string, er
 	return newName, nil
 }
 
-// stripUncommittedChanges resets dst's working tree to HEAD: staged and
-// unstaged mods are discarded, untracked files are removed, ignored files
-// stay put. Missing .git is a no-op.
+// stripUncommittedChanges is a no-op when .git is missing. Ignored files are
+// preserved by discardUncommittedChanges (`git clean -fd` honors .gitignore).
 func stripUncommittedChanges(dst string) error {
 	if !pathExists(filepath.Join(dst, ".git")) {
 		return nil
@@ -97,9 +86,8 @@ func stripUncommittedChanges(dst string) error {
 	return discardUncommittedChanges(dst)
 }
 
-// nextAvailableDuplicate returns a collision-free (name, root) pair as
-// <original>-copy-<random-6-char-id>. The folder is always a sibling of
-// srcRoot so the copy sits next to the project the user right-clicked.
+// nextAvailableDuplicate returns <original>-copy-<random-6-char-id> as a
+// sibling of srcRoot so the copy sits next to the source.
 func nextAvailableDuplicate(originalName, srcRoot string) (string, string, error) {
 	parentDir := filepath.Dir(srcRoot)
 	taken := make(map[string]struct{})
@@ -147,10 +135,9 @@ func pathExists(path string) bool {
 	return err == nil
 }
 
-// copyDir recursively copies src to dst (dst must not exist). On APFS uses
-// clonefile(2) for a copy-on-write clone — near-instant regardless of size.
-// Falls back to a plain recursive copy that preserves regular files,
-// directories, symlinks, and file modes.
+// copyDir requires dst not to exist. Prefers APFS clonefile(2) (near-instant
+// regardless of size); falls back to a recursive copy preserving symlinks
+// and file modes.
 func copyDir(src, dst string) error {
 	info, err := os.Lstat(src)
 	if err != nil {

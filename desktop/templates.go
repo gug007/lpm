@@ -55,7 +55,7 @@ func (a *App) ListTemplates() ([]TemplateInfo, error) {
 }
 
 // ReadTemplate returns "" for a not-yet-existing template so the editor
-// can open it as a blank canvas after CreateTemplate.
+// opens it as a blank canvas after CreateTemplate.
 func (a *App) ReadTemplate(name string) (string, error) {
 	path, err := templatePathFor(name)
 	if err != nil {
@@ -93,7 +93,6 @@ func (a *App) SaveTemplate(name, content string) error {
 	return nil
 }
 
-// CreateTemplate errors on collision rather than overwriting.
 func (a *App) CreateTemplate(name string) error {
 	path, err := templatePathFor(name)
 	if err != nil {
@@ -124,9 +123,8 @@ func (a *App) DeleteTemplate(name string) error {
 	return nil
 }
 
-// RenameTemplate does not rewrite `extends:` refs in other configs —
-// they're keyed by name and would silently break. Callers should warn
-// before renaming a template that's in use.
+// RenameTemplate does not rewrite `extends:` refs in other configs — they're
+// keyed by name and would silently break. Callers must warn the user first.
 func (a *App) RenameTemplate(oldName, newName string) error {
 	if oldName == newName {
 		return nil

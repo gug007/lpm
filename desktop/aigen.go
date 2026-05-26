@@ -11,9 +11,8 @@ import (
 	"github.com/gug007/lpm/internal/config"
 )
 
-// Canonical lpm-config skill — the same prompt published at
-// lpm-config/SKILL.md so external AI agents and the in-app wizard share one
-// source of truth. Keep aiskill/SKILL.md in sync with lpm-config/SKILL.md.
+// Keep aiskill/SKILL.md in sync with lpm-config/SKILL.md (the canonical
+// source shared with external AI agents).
 //
 //go:generate cp ../lpm-config/SKILL.md ./aiskill/SKILL.md
 //go:embed aiskill/SKILL.md
@@ -40,9 +39,8 @@ func (a *App) CheckAICLIs() AICLIAvailability {
 
 const maxDiffSize = 30_000
 
-// GenerateCommitMessage generates a commit message from the diff of the given files.
-// effort maps to the CLI's reasoning effort flag; "" uses the CLI default.
-// fast enables Codex's service_tier=fast; ignored for other CLIs.
+// GenerateCommitMessage: effort "" uses the CLI default; fast enables
+// Codex's service_tier=fast and is ignored for other CLIs.
 func (a *App) GenerateCommitMessage(cwd, cli, model, effort string, fast bool, files []string) (string, error) {
 	diff, err := a.GitDiff(cwd, files)
 	if err != nil {
@@ -204,8 +202,7 @@ func (a *App) SavePRDescriptionInstructions(content string) error {
 
 const branchNameProgressEvent = "branch-name-progress"
 
-// A branch name only needs the shape of the change, not every hunk — keep
-// the prompt cheap.
+// Branch names only need the shape of the change, not every hunk.
 const maxBranchNameDiffSize = 6_000
 
 const branchNamePrompt = `Given the following git diff and commit log, generate a short git branch name.
@@ -221,8 +218,8 @@ Output ONLY the branch name. No code fences. No explanation.
 
 `
 
-// GenerateBranchName summarizes uncommitted changes when present, otherwise
-// falls back to the current branch diff against the default branch.
+// GenerateBranchName falls back to the current branch diff against the
+// default branch when no uncommitted changes are present.
 func (a *App) GenerateBranchName(cwd, cli, model, effort string, fast bool) (string, error) {
 	var commitLog string
 	diff, _ := runGit(cwd, "diff", "HEAD")
@@ -277,8 +274,7 @@ Rules:
 Output ONLY a brief summary of what you changed when done.
 `
 
-// ResolveMergeConflictsWithAI runs the chosen AI CLI with file-write
-// permissions to resolve every unresolved merge conflict in cwd.
+// ResolveMergeConflictsWithAI runs the CLI with file-write permissions.
 func (a *App) ResolveMergeConflictsWithAI(cwd, cli, model, effort string, fast bool) (string, error) {
 	if conflicts := a.GitMergeConflicts(cwd); len(conflicts) == 0 {
 		return "", fmt.Errorf("no merge conflicts to resolve")
@@ -329,8 +325,8 @@ func projectContextBlock(cfg *config.ProjectConfig) string {
 	return b.String()
 }
 
-// buildActionYAMLPrompt wraps the lpm-config skill with a narrower task:
-// produce or modify a single action's YAML body, not a whole config file.
+// buildActionYAMLPrompt narrows the lpm-config skill to a single action's
+// YAML body, not a whole config file.
 func buildActionYAMLPrompt(cfg *config.ProjectConfig, userPrompt, currentYAML string) string {
 	var task strings.Builder
 	task.WriteString("# Task\n\n")
