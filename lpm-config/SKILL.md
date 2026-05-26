@@ -304,6 +304,7 @@ Config files are written to `~/.lpm/projects/<name>.yml`. Global config at `~/.l
 
 ```yaml
 name: <string>           # optional — defaults to the config filename
+extends: [<ref>, ...]    # optional — templates / configs to layer underneath this one (see Config layering)
 root: <path>             # required for local projects (supports ~). Omit when ssh: is set.
 label: <string>          # optional — display name in UI
 parent_name: <string>    # optional — duplicate from parent project
@@ -330,6 +331,7 @@ actions:                 # optional — one-shot commands
     cmd: <string>        # required (unless nested actions)
     label: <string>      # optional — display name in UI
     cwd: <path>          # optional (remote path on SSH projects)
+    port: <int>          # optional (0-65535) — pre-flight port-conflict probe
     env: {}              # optional
     confirm: <bool>      # optional (default: false)
     display: <string>    # optional (header | footer, default: header). "menu" still accepted (legacy).
@@ -338,6 +340,7 @@ actions:                 # optional — one-shot commands
     mode: <string>       # optional, SSH projects only — "remote" (default) or "sync"
     inputs: {}           # optional — user-prompted parameters
     actions: {}          # optional — nested sub-actions (action group)
+    position: <number>   # optional — sort key (lower first; default alphabetical; floats OK)
 
 terminals:               # optional — interactive shells (sugar for actions with type: terminal)
   <key>: <cmd>           # shorthand
@@ -345,15 +348,28 @@ terminals:               # optional — interactive shells (sugar for actions wi
     cmd: <string>        # required (unless nested actions)
     label: <string>      # optional
     cwd: <path>          # optional (remote path on SSH projects)
+    port: <int>          # optional (0-65535) — pre-flight port-conflict probe
     env: {}              # optional
     display: <string>    # optional (header | footer, default: header). "menu" still accepted (legacy).
     confirm: <bool>      # optional
     reuse: <bool>        # optional — reuse the existing pane on next launch
     inputs: {}           # optional — prompted parameters
     actions: {}          # optional — nested sub-actions (split-button or dropdown)
+    position: <number>   # optional — sort key (lower first; default alphabetical; floats OK)
 
 profiles:                # optional — named service subsets
   <key>: [<service>, ...]
+
+# .lpm.yml (per-repo, checked into the repo root) — subset of project config
+extends: [<ref>, ...]   # optional
+services: {}            # optional
+actions: {}             # optional
+terminals: {}           # optional
+profiles: {}            # optional
+# NOTE: name, root, parent_name, ssh are NOT allowed here.
+
+# ~/.lpm/templates/<name>.yml — same shape as .lpm.yml.
+# Referenced from any layer via `extends:`.
 ```
 
 **Key rules:**
@@ -369,6 +385,10 @@ profiles:                # optional — named service subsets
 - Use `parent_name` to duplicate a project config for a different root directory.
 - Keys: short, lowercase, hyphen-separated (`db-migrate`, `run-tests`).
 - `~` expands to home. Relative `cwd` resolves from `root` (local projects) or from `ssh.dir` on the remote host (SSH projects). Local `cwd` paths must exist; remote `cwd` paths are not validated locally.
+- `position` is a float; lower renders first; default is alphabetical. Use floats so you can insert between existing entries (e.g. `1`, `2`, `2.5`, `3`) without renumbering.
+- `port` on an action/terminal triggers a pre-flight conflict probe — the user is shown the holding process before the action runs (or as an error in the CLI).
+- `extends: [a, b]` layers templates underneath the current file; `a` wins over `b`; current file wins over all.
+- Sparse override pattern: a project YAML can hold `myAction: {position: 3}` to override only that field; the rest inherits from global / `.lpm.yml` / templates. Bool fields (`confirm`, `reuse`) cannot sparse-override `true` → `false`.
 
 **Validation — verify before writing any config:**
 - Either `root` or `ssh:` is set (but not both); `name` is optional and defaults to the config filename.
@@ -383,6 +403,10 @@ profiles:                # optional — named service subsets
 - Profile entries reference defined services.
 - Nested sub-actions are validated recursively.
 - `parent_name` references an existing project.
+- `extends` entries must resolve to readable YAML files. Cycles are rejected at load time.
+- `port` on actions/terminals is in range 0–65535 (or omitted).
+- `position` is a number (integer or float).
+- `.lpm.yml` and templates must not contain identity fields (`name`, `root`, `parent_name`, `ssh`). Identity stays in personal project files.
 
 ## Examples
 
