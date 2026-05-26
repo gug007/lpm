@@ -89,8 +89,8 @@ func (a *App) runPortPoller(ctx context.Context, project string, cfg *config.Pro
 		sshPort = 22
 	}
 
-	// First poll fires immediately so users don't wait a full interval
-	// for the toast on a server that bound seconds before they hit Start.
+	// Fire immediately so a server that bound just before Start gets
+	// a toast without waiting a full interval.
 	tick := time.NewTimer(0)
 	defer tick.Stop()
 
@@ -169,8 +169,7 @@ func declaredServicePorts(cfg *config.ProjectConfig) map[int]bool {
 	return out
 }
 
-// shouldSuggestPort filters ambient noise: SSH port, and anything below
-// 1024 unless the project's config explicitly mentions it.
+// shouldSuggestPort skips the SSH port and (undeclared) sub-1024 ports.
 func shouldSuggestPort(port, sshPort int, declared map[int]bool) bool {
 	if port <= 0 || port > 65535 {
 		return false
@@ -184,9 +183,8 @@ func shouldSuggestPort(port, sshPort int, declared map[int]bool) bool {
 	return port >= 1024
 }
 
-// parseListeningPorts extracts unique ports from `ss -tlnH` or `netstat -tln`.
-// Both tools place the local address in field 4 — we look there exclusively
-// so a peer column like `0.0.0.0:*` doesn't leak through.
+// parseListeningPorts reads only field 4 (local address) so the peer
+// column (e.g. `0.0.0.0:*`) can't leak through.
 func parseListeningPorts(s string) []int {
 	seen := make(map[int]bool)
 	var out []int
@@ -215,9 +213,8 @@ func parseListeningPorts(s string) []int {
 	return out
 }
 
-// splitListenAddr normalises ss/netstat local-address tokens
-// (`0.0.0.0:80`, `*:22`, `[::]:443`, netstat's `:::3000`) into a host/port
-// pair via net.SplitHostPort.
+// splitListenAddr normalises ss/netstat tokens (`0.0.0.0:80`, `*:22`,
+// `[::]:443`, `:::3000`) for net.SplitHostPort.
 func splitListenAddr(token string) (host, port string, ok bool) {
 	switch {
 	case strings.HasPrefix(token, "*:"):
@@ -234,9 +231,8 @@ func splitListenAddr(token string) (host, port string, ok bool) {
 	return host, port, true
 }
 
-// isLocalListenAddr accepts wildcard/loopback forms. Specific external IPs
-// are skipped — usually system services bound to a single interface, not
-// the dev server we want to forward.
+// isLocalListenAddr rejects specific external IPs — those are usually
+// system services bound to a single interface, not user dev servers.
 func isLocalListenAddr(host string) bool {
 	switch host {
 	case "0.0.0.0", "127.0.0.1", "::", "::1":
