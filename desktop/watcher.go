@@ -12,8 +12,8 @@ import (
 
 const gitChangedEvent = "git-changed"
 
-// Long enough to batch `git add .` or save-all; short enough that the
-// commit button toggle feels instant.
+// watcherDebounce batches save-all bursts while keeping the commit-button
+// toggle feeling instant.
 const watcherDebounce = 400 * time.Millisecond
 
 const watcherEventBuffer = 256
@@ -43,8 +43,8 @@ var watcherIgnoredDirs = map[string]struct{}{
 	".vscode":       {},
 }
 
-// Only these files directly under .git/ are treated as meaningful state
-// transitions; everything else (objects, logs, lock files) is ignored.
+// gitWatchedFiles is the allow-list under .git/; everything else (objects,
+// logs, lock files) is ignored.
 var gitWatchedFiles = map[string]struct{}{
 	"HEAD":             {},
 	"index":            {},
@@ -116,8 +116,8 @@ func ignoreWatcherEvent(root, full string) bool {
 	segments := strings.Split(rel, string(filepath.Separator))
 
 	if segments[0] == ".git" {
-		// Branch tips live under refs/heads/ so commits landing on a local
-		// branch still trigger a refresh.
+		// refs/heads/* must pass so commits landing on a local branch
+		// still trigger a refresh.
 		if len(segments) == 2 {
 			_, ok := gitWatchedFiles[segments[1]]
 			return !ok
@@ -136,11 +136,10 @@ func ignoreWatcherEvent(root, full string) bool {
 	return false
 }
 
-// StartWatchingProject (re)points the file watcher at path. Same path is a
-// no-op; empty path stops watching.
+// StartWatchingProject is a no-op for the same path; empty path stops watching.
 func (a *App) StartWatchingProject(path string) {
-	// Must be absolute so filepath.Rel in ignoreWatcherEvent resolves
-	// against the absolute paths FSEvents delivers.
+	// FSEvents delivers absolute paths, so ignoreWatcherEvent's filepath.Rel
+	// needs an absolute root too.
 	if path != "" {
 		if abs, err := filepath.Abs(path); err == nil {
 			path = abs
@@ -172,9 +171,8 @@ func (a *App) StopWatchingProject() {
 	}
 }
 
-// stopWatcherIfRoot detaches the watcher iff it's currently on path. Used
-// before deleting a project folder so FSEvents isn't pumping into a tree
-// we're tearing down.
+// stopWatcherIfRoot detaches the watcher before deletion so FSEvents isn't
+// pumping into a tree we're tearing down.
 func (a *App) stopWatcherIfRoot(path string) {
 	if path == "" {
 		return

@@ -334,8 +334,7 @@ func (a *App) alreadyForwardingRemote(project string, remotePort int) bool {
 	return false
 }
 
-// markPortSuggested seeds the suggested map without emitting an event.
-// Called when an explicit user action implies the port was discovered.
+// markPortSuggested seeds the map without emitting an event.
 func (a *App) markPortSuggested(project string, port int) {
 	a.suggestedMu.Lock()
 	defer a.suggestedMu.Unlock()
@@ -345,9 +344,8 @@ func (a *App) markPortSuggested(project string, port int) {
 	a.suggested[project][port] = true
 }
 
-// preDismissPort silently dismisses a port — used by the poller's baseline
-// pass to suppress ambient listeners so only ports opened after polling
-// started get suggested.
+// preDismissPort suppresses ambient listeners during the poller's baseline
+// pass so only ports opened after polling started get suggested.
 func (a *App) preDismissPort(project string, port int) {
 	a.suggestedMu.Lock()
 	defer a.suggestedMu.Unlock()
@@ -357,9 +355,8 @@ func (a *App) preDismissPort(project string, port int) {
 	a.dismissed[project][port] = true
 }
 
-// pruneSuggestionsForPort drops suggested ports that no longer listen on
-// the remote. Without this the suggested set grows monotonically. Dismissed
-// state is kept on purpose — the user's "no" outlasts a service restart.
+// pruneSuggestionsForPort keeps dismissed state on purpose — the user's
+// "no" outlasts a service restart.
 func (a *App) pruneSuggestionsForPort(project string, listening map[int]bool) bool {
 	a.suggestedMu.Lock()
 	defer a.suggestedMu.Unlock()
@@ -396,8 +393,7 @@ func (a *App) ClearPortSuggestions(project string) {
 	a.wails.Event.Emit(eventPortsChanged, project)
 }
 
-// GetSuggestedPorts returns remote ports not forwarded and not dismissed.
-// The popover queries this on open to render suggestions when the toast
+// GetSuggestedPorts lets the popover render suggestions when the toast
 // was lost (e.g. emitted before the listener mounted).
 func (a *App) GetSuggestedPorts(project string) []int {
 	a.suggestedMu.Lock()
