@@ -20,29 +20,22 @@ const BOX_DRAWING_RE = /[\u2500-\u257f]+/g;
 export function preprocessForTTS(raw: string): string {
   let text = raw;
 
-  // 1. Strip ANSI escape sequences
   text = text.replace(CSI_RE, "");
   text = text.replace(OSC_RE, "");
   text = text.replace(OTHER_ESC_RE, "");
 
-  // 2. Remove control characters (except \n and \t)
   text = text.replace(CONTROL_CHARS_RE, "");
 
-  // 3. Convert tabs to spaces
   text = text.replace(/\t/g, " ");
 
-  // 4. Remove terminal artifacts
   text = text.replace(SPINNER_RE, "");
   text = text.replace(PROGRESS_BAR_RE, "");
   text = text.replace(BOX_DRAWING_RE, "");
 
-  // 5. Collapse multiple consecutive newlines into a single newline
   text = text.replace(/\n{2,}/g, "\n");
 
-  // 6. Collapse multiple spaces into single space
   text = text.replace(/ {2,}/g, " ");
 
-  // 7. Trim leading/trailing whitespace
   text = text.trim();
 
   return text;

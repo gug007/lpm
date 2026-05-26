@@ -39,7 +39,6 @@ export function PRInstructionsEditor({ onBack }: { onBack: () => void }) {
       </p>
 
       <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4">
-        {/* Title instructions */}
         <div className="flex flex-col gap-1.5">
           <span className="text-[11px] font-medium text-[var(--text-muted)]">Title</span>
           <textarea
@@ -52,7 +51,6 @@ export function PRInstructionsEditor({ onBack }: { onBack: () => void }) {
           />
         </div>
 
-        {/* Description instructions */}
         <div className="flex min-h-0 flex-1 flex-col gap-1.5">
           <span className="text-[11px] font-medium text-[var(--text-muted)]">Description</span>
           <textarea

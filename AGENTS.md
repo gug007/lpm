@@ -4,5 +4,8 @@
 
 lpm (Local Project Manager) starts, stops, duplicates, and switches between local dev projects, with a built-in terminal for running AI coding agents alongside services. The repo ships a macOS desktop app (Wails + React/TypeScript), and a Next.js marketing site under `website/`. CLI and app share the same config (`~/.lpm/projects/*.yml`) and runtime state.
 
-use clean code and best practices
-avoid adding unnecessary comments, add commnet only when it's not obvious what the code does
+## Conventions
+ - Use clean code and best practices
+ - Comment only when intent isn't obvious from the code
+ - macOS-only: don't add Windows/Linux code paths
+ 
