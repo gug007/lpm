@@ -19,6 +19,7 @@ import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverl
 import { Toaster } from "sonner";
 import { SidebarIcon } from "./components/icons";
 import { useWindowResizeSaver } from "./hooks/useWindowResizeSaver";
+import { useIsFullscreen } from "./hooks/useIsFullscreen";
 import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
 import { useProjectsSync } from "./hooks/useProjectsSync";
 import { useAppEvents } from "./hooks/useAppEvents";
@@ -76,6 +77,7 @@ export default function App() {
   useProjectsSync();
   useAppEvents();
   useWindowResizeSaver();
+  const isFullscreen = useIsFullscreen();
 
   useEffect(() => {
     TmuxInstalled().then(setTmuxReady);
@@ -182,18 +184,20 @@ export default function App() {
         />
         <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">
           <div className="wails-drag flex h-2 shrink-0 items-center">
-            {sidebarCollapsed && (
+            <div
+              className={`absolute top-[16px] z-10 ${isFullscreen ? "left-3" : "left-[85px]"} ${sidebarCollapsed ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+            >
               <button
                 onClick={() => setSidebarCollapsed(false)}
                 style={
                   { "--wails-draggable": "no-drag" } as React.CSSProperties
                 }
-                className="absolute left-[85px] top-[16px] z-10 flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                 title="Expand sidebar (⌘B)"
               >
                 <SidebarIcon />
               </button>
-            )}
+            </div>
           </div>
           {view === "settings" && <Settings onNavigate={setView} />}
           {view === "global-config" && (
