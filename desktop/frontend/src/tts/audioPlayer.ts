@@ -135,7 +135,6 @@ export function createTTSPlayer(): TTSPlayer {
     }
   }
 
-  // Seek to an absolute position and resume playback from there.
   function seekToPosition(targetPos: number) {
     const target = findChunkAt(Math.max(0, Math.min(targetPos, totalDuration)));
     if (!target) return;

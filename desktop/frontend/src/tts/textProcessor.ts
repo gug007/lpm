@@ -1,4 +1,3 @@
-// ANSI escape sequence patterns
 const CSI_RE = /\x1b\[[0-9;]*[A-Za-z]/g;
 const OSC_RE = /\x1b\].*?(?:\x07|\x1b\\)/g;
 const OTHER_ESC_RE = /\x1b[^[\]].?/g;
