@@ -111,6 +111,23 @@ Work out which `~/.lpm/projects/<name>.yml` to edit *before* asking the user any
 **Overrides (these win over cwd detection):**
 - The user names a project explicitly ("add a service to `myapp`") → use that name.
 - The user says "globally" / "to all my projects" / "для всех проектов" → write to `~/.lpm/global.yml` instead.
+- The user says "share with team" / "for everyone on the repo" / "in the repo" / "check it in" → write to `<root>/.lpm.yml` (where `<root>` is the matched project's `root`, or the current cwd if no project matched). Create the file if it doesn't exist. Do not gate on "is this a git repo" — `.lpm.yml` is plain YAML and lpm reads it regardless of VCS.
+- The user says "as a template" / "for reuse across projects" / "save as a template" → write to `~/.lpm/templates/<name>.yml`. Pick `<name>` from the user's wording (e.g. "common-actions") or ask once if there is no obvious name.
+
+**Config layering.** lpm merges four file types in this order, each layer overriding the one below:
+
+| Layer | File | Notes |
+|-------|------|-------|
+| 4 (wins) | `~/.lpm/projects/<name>.yml` | Your personal project — top of stack. |
+| 3 | `<root>/.lpm.yml` | Shared with teammates via the repo. |
+| 2 | `~/.lpm/global.yml` | Your personal global. |
+| 1 | `~/.lpm/templates/<ref>.yml` | Referenced via `extends:` from any layer above. |
+
+Within `extends: [a, b, c]`, earlier wins: `a` overrides `b` overrides `c`.
+
+**Sparse override:** a higher layer can hold a thin entry that overrides only the fields it sets — e.g. `myAction: {position: 3}` in the project file keeps `cmd`/`cwd`/`env`/`label` from the lower layer's same-named action. **Caveat:** bool fields (`confirm`, `reuse`) treat `false` as "inherit", so you cannot sparse-override a global's `true` to `false`. Redefine the action fully in the higher layer to do that.
+
+**Ambiguity rule.** When the user's intent is ambiguous between layers (e.g. "add a logs button" with both a project file and a `.lpm.yml` present), default to the personal project file and add a single sentence: *"Adding to your personal project file. Say 'share with the team' to put it in `.lpm.yml` instead."*
 
 **Confirmations** are kept only for deleting a config file or overwriting an existing one during a Create flow. Never confirm the target on a single-match cwd.
 
