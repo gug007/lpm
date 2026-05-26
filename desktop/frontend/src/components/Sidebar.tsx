@@ -142,15 +142,20 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
       className={`relative flex shrink-0 flex-col bg-[var(--bg-sidebar)] transition-[width] duration-200 ${collapsed ? "" : "border-r border-[var(--border)]"}`}
       style={{ width: collapsed ? 0 : width, overflow: collapsed ? "hidden" : undefined }}
     >
-      <div className="wails-drag flex h-11 shrink-0 items-center pl-[85px] pt-[7px]">
-        <button
-          onClick={() => onCollapsedChange(true)}
-          style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}
-          className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          title="Collapse sidebar (⌘B)"
-        >
-          <SidebarIcon />
-        </button>
+      <div
+        className="wails-drag flex h-11 shrink-0 items-center justify-end pr-3 pt-[7px]"
+        style={{ minWidth: width }}
+      >
+        <div className={collapsed ? "opacity-0 pointer-events-none" : "opacity-100"}>
+          <button
+            onClick={() => onCollapsedChange(true)}
+            style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}
+            className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            title="Collapse sidebar (⌘B)"
+          >
+            <SidebarIcon />
+          </button>
+        </div>
       </div>
       <div className="flex items-center justify-between px-4 pb-2" style={{ minWidth: width }}>
         <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
