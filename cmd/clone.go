@@ -122,7 +122,6 @@ func repoNameFromURL(url string) string {
 	if i := strings.LastIndexAny(s, "/:"); i >= 0 {
 		s = s[i+1:]
 	}
-	// Sanitize: keep alnum, dash, underscore, dot.
 	re := regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 	s = re.ReplaceAllString(s, "-")
 	s = strings.Trim(s, "-.")

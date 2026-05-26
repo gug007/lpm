@@ -1305,8 +1305,8 @@ func ExpandHome(path string) string {
 
 // collapseHome is the inverse of ExpandHome: if path lives under $HOME, it
 // replaces the prefix with ~/ so the stored value stays portable between
-// machines (e.g. /Users/gug007/Projects/foo → ~/Projects/foo). Paths outside
-// $HOME, and paths that were already ~/-prefixed, are returned unchanged.
+// machines. Paths outside $HOME, and paths already ~/-prefixed, are returned
+// unchanged.
 func collapseHome(path string) string {
 	if path == "" {
 		return path

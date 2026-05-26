@@ -70,7 +70,6 @@ var initCmd = &cobra.Command{
 func detectServices(dir string) map[string]config.Service {
 	services := make(map[string]config.Service)
 
-	// Rails
 	if fileExists(filepath.Join(dir, "Gemfile")) && dirExists(filepath.Join(dir, "app")) {
 		services["rails"] = config.Service{Cmd: "rails s"}
 		if fileExists(filepath.Join(dir, "config/sidekiq.yml")) {
@@ -78,7 +77,6 @@ func detectServices(dir string) map[string]config.Service {
 		}
 	}
 
-	// Node/frontend
 	if fileExists(filepath.Join(dir, "package.json")) {
 		pkg, err := os.ReadFile(filepath.Join(dir, "package.json"))
 		if err == nil {
@@ -98,19 +96,16 @@ func detectServices(dir string) map[string]config.Service {
 		}
 	}
 
-	// Go
 	if fileExists(filepath.Join(dir, "go.mod")) && !dirExists(filepath.Join(dir, "app")) {
 		services["server"] = config.Service{Cmd: "go run ."}
 	}
 
-	// Python
 	if fileExists(filepath.Join(dir, "manage.py")) {
 		services["django"] = config.Service{Cmd: "python manage.py runserver"}
 	} else if fileExists(filepath.Join(dir, "app.py")) {
 		services["flask"] = config.Service{Cmd: "flask run"}
 	}
 
-	// Docker compose
 	if fileExists(filepath.Join(dir, "docker-compose.yml")) || fileExists(filepath.Join(dir, "compose.yml")) {
 		services["docker"] = config.Service{Cmd: "docker compose up"}
 	}
