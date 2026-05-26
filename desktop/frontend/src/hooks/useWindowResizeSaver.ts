@@ -4,11 +4,6 @@ import { WindowGetSize } from "../../wailsjs/runtime/runtime";
 
 const DEBOUNCE_MS = 500;
 
-/**
- * Persists the native window size via `SaveWindowSize` whenever the user
- * resizes the window. Debounced so we only save ~500ms after the last
- * resize event.
- */
 export function useWindowResizeSaver() {
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;

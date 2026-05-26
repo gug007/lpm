@@ -22,8 +22,6 @@ const (
 	eventPortForwardFailed = "port-forward-failed"
 )
 
-// portForward is one active `ssh -N -L` tunnel. The cancel func kills the
-// underlying ssh process, kept beside the *exec.Cmd.
 type portForward struct {
 	LocalPort  int `json:"localPort"`
 	RemotePort int `json:"remotePort"`
@@ -48,9 +46,8 @@ func (a *App) ListPortForwards(project string) []PortForward {
 	return out
 }
 
-// AddPortForward opens a new `ssh -N -L localPort:127.0.0.1:remotePort`
-// tunnel. localPort=0 picks a free port. Idempotent on remote port: if a
-// forward already exists, returns it without spawning a second ssh.
+// AddPortForward is idempotent on remote port and picks a free local port
+// when localPort=0.
 func (a *App) AddPortForward(project string, remotePort int, localPort int) (PortForward, error) {
 	if remotePort <= 0 || remotePort > 65535 {
 		return PortForward{}, fmt.Errorf("invalid remote port: %d", remotePort)
@@ -77,10 +74,8 @@ func (a *App) AddPortForward(project string, remotePort int, localPort int) (Por
 	a.pfMu.Unlock()
 
 	if localPort == 0 {
-		// Prefer mirroring the remote port locally — users naturally
-		// type `localhost:3000` to hit a remote :3000, and almost
-		// always something else has the port if it isn't free. Fall
-		// back to a free port only on conflict.
+		// Mirror the remote port locally when possible so users can
+		// type `localhost:3000` to hit a remote :3000.
 		if portcheck.CanBind(remotePort) {
 			localPort = remotePort
 		} else {
@@ -98,8 +93,8 @@ func (a *App) AddPortForward(project string, remotePort int, localPort int) (Por
 		"-L", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%d", localPort, remotePort),
 	}
 	for _, a := range config.SSHArgs(cfg.SSH) {
-		// `-t` (force tty) is meaningless with `-N` — drop it so ssh
-		// doesn't warn about "Pseudo-terminal will not be allocated".
+		// `-t` is meaningless with `-N` and triggers a "Pseudo-terminal
+		// will not be allocated" warning.
 		if a == "-t" {
 			continue
 		}
@@ -115,8 +110,8 @@ func (a *App) AddPortForward(project string, remotePort int, localPort int) (Por
 		return PortForward{}, fmt.Errorf("start ssh: %w", err)
 	}
 
-	// Single Wait goroutine — calling Wait twice would panic, and both the
-	// readiness check and the lifecycle cleanup goroutine consume exitCh.
+	// Single Wait goroutine: calling Wait twice panics, and both the
+	// readiness check and the lifecycle cleanup consume exitCh.
 	exitCh := make(chan struct{})
 	go func() {
 		_ = cmd.Wait()
@@ -154,8 +149,7 @@ func (a *App) AddPortForward(project string, remotePort int, localPort int) (Por
 	return PortForward{LocalPort: localPort, RemotePort: remotePort}, nil
 }
 
-// RemovePortForward kills the ssh process for the named local port. No
-// error if no such forward exists.
+// RemovePortForward is a no-op for unknown local ports.
 func (a *App) RemovePortForward(project string, localPort int) error {
 	a.pfMu.Lock()
 	pfs := a.pfs[project]
@@ -192,9 +186,8 @@ func (a *App) removePortForward(project string, target *portForward) {
 	a.pfs[project] = rest
 }
 
-// stopProjectPortForwards kills every forward owned by project and
-// resets its suggestion state, so stopped/removed projects don't leak ssh
-// or leave a stale "N new" badge.
+// stopProjectPortForwards resets suggestion state too so a stale "N new"
+// badge doesn't linger after Stop/Remove.
 func (a *App) stopProjectPortForwards(project string) {
 	a.pfMu.Lock()
 	pfs := a.pfs[project]
@@ -231,9 +224,8 @@ func pickFreeLocalPort() (int, error) {
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
-// waitForLocalListen polls until something accepts on 127.0.0.1:port.
-// Returns early when exitCh closes — that means ssh exited before the
-// listener came up; the caller's stderr buffer holds the real reason.
+// waitForLocalListen returns early when exitCh closes — ssh exited before
+// the listener came up; the caller's stderr buffer holds the real reason.
 func waitForLocalListen(port int, timeout time.Duration, exitCh <-chan struct{}) error {
 	addr := "127.0.0.1:" + strconv.Itoa(port)
 	deadline := time.After(timeout)
@@ -254,16 +246,15 @@ func waitForLocalListen(port int, timeout time.Duration, exitCh <-chan struct{})
 	}
 }
 
-// localhostURLPattern captures ports from URLs common dev servers print on
-// startup. 0.0.0.0 covers servers bound to all interfaces.
+// localhostURLPattern: 0.0.0.0 covers servers bound to all interfaces.
 var localhostURLPattern = regexp.MustCompile(`https?://(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d{2,5})\b`)
 
-// ansiCSIPattern strips CSI escapes so chalk-formatted lines like
-// `http://\x1b[36mlocalhost\x1b[39m:3000` still match.
+// ansiCSIPattern strips chalk-style escapes that would otherwise split
+// `http://localhost:3000` across colour codes.
 var ansiCSIPattern = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]`)
 
-// sniffPortsFromOutput records new localhost URLs as suggestions. The "://"
-// prefilter skips the regex on the vast majority of flushes.
+// sniffPortsFromOutput: the "://" prefilter skips the regex on the vast
+// majority of flushes.
 func (a *App) sniffPortsFromOutput(project string, declared map[int]bool, text string) {
 	if declared == nil || !strings.Contains(text, "://") {
 		return
@@ -280,9 +271,8 @@ func (a *App) sniffPortsFromOutput(project string, declared map[int]bool, text s
 }
 
 // observePort is the single entry point for URL-sniff and remote-poll
-// discoveries. Applies dedup-and-dismiss then auto-forwards declared ports
-// or surfaces a click-to-forward suggestion for the rest. Callers pass
-// declared so a detection burst doesn't re-read YAML per port.
+// discoveries. Callers pass declared so a detection burst doesn't re-read
+// YAML per port.
 func (a *App) observePort(project string, port int, declared map[int]bool) {
 	if a.alreadyForwardingRemote(project, port) {
 		return
@@ -314,9 +304,8 @@ func (a *App) observePort(project string, port int, declared map[int]bool) {
 	a.wails.Event.Emit(eventPortsChanged, project)
 }
 
-// autoForward opens a tunnel and emits a toast so the user sees what was
-// wired up. Reserved for declared service ports; everything else surfaces
-// a suggestion for explicit confirmation.
+// autoForward is reserved for declared service ports; undeclared ports
+// surface a suggestion for explicit confirmation.
 func (a *App) autoForward(project string, remotePort int) {
 	pf, err := a.AddPortForward(project, remotePort, 0)
 	if err != nil {
