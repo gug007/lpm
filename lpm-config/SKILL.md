@@ -62,6 +62,12 @@ sudo apt install tmux
 | "pin this to the terminal footer", "tiny button next to the branch switcher" | **Modify** — set `display: footer` on the action/terminal |
 | "set up a remote project over ssh", "lpm for this server", "manage services on a remote host" | **Create** — SSH project (use `ssh:` block, omit `root`) |
 | "run this action locally against the remote files", "rsync the remote dir and run it locally", "let my local Claude Code touch the remote repo" | **Modify** — set `mode: sync` on the action (SSH projects only) |
+| "share these actions with the team", "check lpm config into the repo" | **Modify** — write to `<root>/.lpm.yml`, not the personal project file |
+| "reuse this config across projects", "make this a template" | **Create** — write `~/.lpm/templates/<name>.yml` and reference via `extends` in the consumers |
+| "extend another lpm config", "layer on top of template X" | **Modify** — add `extends: [<ref>, ...]` to the current config |
+| "reorder buttons", "make this action come first" | **Modify** — set `position:` (lower renders first) |
+| "make sure port X is free before running this action", "warn if a port is busy" | **Modify** — set `port:` on the action/terminal |
+| "I only want to change the position of a global action" | **Modify** — write a sparse entry like `myAction: {position: 3}` in the project file; `cmd`/`cwd`/`env` inherit from global |
 
 ### How to Use
 
