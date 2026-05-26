@@ -19,14 +19,12 @@ const (
 	portPollTimeout  = 6 * time.Second
 )
 
-// listingCommand lists listening TCP sockets on the remote. ss preferred,
-// netstat as fallback. Both emit local address as the 4th whitespace field
-// (parseListeningPorts depends on that layout).
+// listingCommand: ss or netstat output. Both place local address in field 4,
+// which parseListeningPorts depends on.
 const listingCommand = `(command -v ss >/dev/null 2>&1 && ss -tlnH) || ` +
 	`(command -v netstat >/dev/null 2>&1 && netstat -tln 2>/dev/null | tail -n +3)`
 
-// startPortPoller spawns one polling goroutine. Idempotent — silent when
-// the project is local or fails to load.
+// startPortPoller is idempotent; silent for local or unloadable projects.
 func (a *App) startPortPoller(project string) {
 	cfg, err := config.LoadProject(project)
 	if err != nil || !cfg.IsRemote() {
@@ -55,9 +53,8 @@ func (a *App) stopPortPoller(project string) {
 	}
 }
 
-// resumePortPollers restarts pollers for remote projects whose services
-// survived an app restart, so the user doesn't have to Stop+Start to get
-// suggestion toasts again.
+// resumePortPollers restarts pollers for projects whose services survived
+// an app restart, so the user doesn't have to Stop+Start to get suggestions.
 func (a *App) resumePortPollers() {
 	names, err := config.ListProjects()
 	if err != nil {
@@ -107,9 +104,8 @@ func (a *App) runPortPoller(ctx context.Context, project string, cfg *config.Pro
 		}
 
 		ports, err := a.fetchListeningPorts(ctx, cfg)
-		// Drop results on cancellation mid-fetch — otherwise a Stop click
-		// could race an in-flight poll and repopulate the suggestion set
-		// right after cleanup.
+		// Drop results on cancellation — a Stop click racing an in-flight
+		// poll would otherwise repopulate the suggestion set after cleanup.
 		if ctx.Err() != nil {
 			return
 		}
@@ -126,10 +122,9 @@ func (a *App) runPortPoller(ctx context.Context, project string, cfg *config.Pro
 				if !shouldSuggestPort(p, sshPort, declared) {
 					continue
 				}
-				// First poll establishes a baseline: anything already
-				// listening is ambient, not user-started. Declared
-				// service ports skip the baseline so they still get
-				// suggested when resuming a running project.
+				// Baseline pass: pre-existing listens are ambient, not
+				// user-started. Declared service ports skip the baseline
+				// so they still surface when resuming a running project.
 				if firstPoll && !declared[p] {
 					a.preDismissPort(project, p)
 					continue
@@ -137,9 +132,8 @@ func (a *App) runPortPoller(ctx context.Context, project string, cfg *config.Pro
 				a.observePort(project, p, declared)
 			}
 			pruned := a.pruneSuggestionsForPort(project, listening)
-			// Emit on first poll regardless — subscribers need the
-			// settled "baseline established" state. Subsequent polls
-			// only emit on real change.
+			// Subscribers need the "baseline established" state on the
+			// first poll, so emit unconditionally then.
 			if firstPoll || pruned {
 				a.wails.Event.Emit(eventPortsChanged, project)
 			}
@@ -163,8 +157,8 @@ func (a *App) fetchListeningPorts(ctx context.Context, cfg *config.ProjectConfig
 	return parseListeningPorts(string(out)), nil
 }
 
-// declaredServicePorts is the "always interesting" allow-list so a service
-// listening on a low port (e.g. 80) still gets suggested.
+// declaredServicePorts forces low-port services (e.g. 80) past the
+// shouldSuggestPort ambient-noise filter.
 func declaredServicePorts(cfg *config.ProjectConfig) map[int]bool {
 	out := make(map[int]bool, len(cfg.Services))
 	for _, svc := range cfg.Services {

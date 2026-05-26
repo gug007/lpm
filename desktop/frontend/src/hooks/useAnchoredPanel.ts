@@ -18,9 +18,6 @@ interface UseAnchoredPanelResult<T, P> {
   style: CSSProperties | null;
 }
 
-// Anchors a portaled panel to a trigger element. Computes a fixed-position
-// style that aligns the panel's right edge to the trigger's right edge
-// (clamped to the viewport), and closes when the user clicks outside both.
 export function useAnchoredPanel<
   T extends HTMLElement = HTMLElement,
   P extends HTMLElement = HTMLElement,

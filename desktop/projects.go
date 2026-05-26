@@ -371,8 +371,7 @@ func groupDuplicatesAfterParents(ordered []ProjectInfo) []ProjectInfo {
 	return result
 }
 
-// SetProjectLabel writes a display-only label. Empty clears it, falling
-// back to the identifier name.
+// SetProjectLabel: empty clears the label so the identifier name is used.
 func (a *App) SetProjectLabel(name, label string) error {
 	cfg, err := config.LoadProject(name)
 	if err != nil {
@@ -432,8 +431,7 @@ func (a *App) StartProject(name, profile string) error {
 	return nil
 }
 
-// StartProjectWithServices starts a session with an explicit service list,
-// bypassing profile resolution.
+// StartProjectWithServices bypasses profile resolution.
 func (a *App) StartProjectWithServices(name string, services []string) error {
 	cfg, err := config.LoadProject(name)
 	if err != nil {
@@ -460,9 +458,8 @@ func (a *App) StartProjectWithServices(name string, services []string) error {
 	return nil
 }
 
-// ToggleProjectService adds or removes a single service without disturbing
-// others. Starts a fresh session if not running; stops the project when the
-// last service is removed.
+// ToggleProjectService starts a fresh session if not running; stops the
+// project when the last service is removed.
 func (a *App) ToggleProjectService(name, serviceName string) error {
 	cfg, err := config.LoadProject(name)
 	if err != nil {
@@ -509,9 +506,8 @@ func (a *App) ToggleProjectService(name, serviceName string) error {
 	return nil
 }
 
-// resolveRunningServices returns the ordered list of running services,
-// falling back to the profile's resolved list when the session was started
-// via StartProject rather than StartProjectWithServices.
+// resolveRunningServices falls back to the profile's resolved list when
+// the session was started via StartProject.
 func resolveRunningServices(cfg *config.ProjectConfig, state runState) []string {
 	if len(state.services) > 0 {
 		return state.services
@@ -519,8 +515,7 @@ func resolveRunningServices(cfg *config.ProjectConfig, state runState) []string 
 	return cfg.ServicesForProfile(state.profile)
 }
 
-// matchProfile returns the profile whose services set equals running, or "".
-// Used to recover the active profile after individual service toggles.
+// matchProfile recovers the active profile after individual service toggles.
 func matchProfile(cfg *config.ProjectConfig, running []string) string {
 	if len(running) == 0 {
 		return ""
@@ -685,8 +680,7 @@ func (a *App) GetServiceLogs(projectName string, paneIndex int, lines int) (stri
 	return tmux.CapturePaneByID(paneID, lines)
 }
 
-// StopService sends Ctrl-C to the pane, killing the command but leaving
-// the pane and log history intact.
+// StopService leaves the pane and log history intact.
 func (a *App) StopService(projectName string, paneIndex int) error {
 	paneID, err := a.resolvePaneID(projectName, paneIndex)
 	if err != nil {
@@ -716,8 +710,7 @@ func (a *App) StartService(projectName string, paneIndex int) error {
 }
 
 func (a *App) ReadConfig(name string) (string, error) {
-	// Duplicates share the original's config; show the parent file so edits
-	// operate on the canonical settings rather than the pointer stub.
+	// Edits on a duplicate route to the parent file (the canonical settings).
 	target := name
 	if parent := config.PeekParent(name); parent != "" {
 		target = parent
@@ -729,17 +722,16 @@ func (a *App) ReadConfig(name string) (string, error) {
 	return string(data), nil
 }
 
-// SaveConfig returns the name the frontend should stay on. Edits on a
-// duplicate route to the parent file; edits on an original can rename via
-// `name:` (unless duplicates exist — cascade rename not yet supported).
+// SaveConfig returns the name the frontend should stay on. Rename via `name:`
+// is rejected while duplicates exist (cascade rename not yet supported).
 func (a *App) SaveConfig(name string, content string) (string, error) {
 	var parsed config.ProjectConfig
 	if err := yaml.Unmarshal([]byte(content), &parsed); err != nil {
 		return "", fmt.Errorf("invalid YAML: %w", err)
 	}
-	// Layer repo and global config before validating so sparse override
-	// entries inherit cmd/cwd from a shared source. Original `content` is
-	// what gets written; `parsed` is mutated only for validation.
+	// Layer repo and global before validating so sparse overrides inherit
+	// cmd/cwd; `parsed` is mutated only for validation, original `content`
+	// is what gets written.
 	if err := parsed.ApplyDefaults(); err != nil {
 		return "", err
 	}
@@ -819,8 +811,7 @@ func (a *App) CreateProject(name string, root string) error {
 	return nil
 }
 
-// SSHConfig mirrors config.SSHSettings field-for-field so the frontend can
-// build it directly; we copy into SSHSettings on save.
+// SSHConfig mirrors config.SSHSettings so the frontend can build it directly.
 type SSHConfig struct {
 	Host string `json:"host"`
 	User string `json:"user"`
@@ -894,9 +885,8 @@ func (a *App) SaveGlobalConfig(content string) error {
 	return nil
 }
 
-// repoPathForProject resolves <root>/.lpm.yml. Errors for SSH or rootless
-// projects since the file lives elsewhere; the frontend uses this to gate
-// the "Edit Repo" affordance.
+// repoPathForProject errors for SSH or rootless projects; the frontend
+// uses this to gate the "Edit Repo" affordance.
 func repoPathForProject(name string) (string, error) {
 	cfg, err := config.LoadProjectRaw(name)
 	if err != nil {
@@ -911,8 +901,8 @@ func repoPathForProject(name string) (string, error) {
 	return config.RepoPath(cfg.Root), nil
 }
 
-// ReadRepoConfig returns <root>/.lpm.yml contents. Empty when the file
-// doesn't exist yet — the editor opens with a blank canvas.
+// ReadRepoConfig returns "" when <root>/.lpm.yml is missing so the editor
+// opens as a blank canvas.
 func (a *App) ReadRepoConfig(name string) (string, error) {
 	path, err := repoPathForProject(name)
 	if err != nil {
@@ -928,8 +918,7 @@ func (a *App) ReadRepoConfig(name string) (string, error) {
 	return string(data), nil
 }
 
-// SaveRepoConfig writes <root>/.lpm.yml. Validates against RepoConfig
-// (subset of project schema, no name/root/ssh).
+// SaveRepoConfig validates against RepoConfig (no name/root/ssh fields).
 func (a *App) SaveRepoConfig(name string, content string) error {
 	path, err := repoPathForProject(name)
 	if err != nil {
@@ -951,8 +940,7 @@ func (a *App) BrowseFolder() (string, error) {
 }
 
 func (a *App) RemoveProject(name string) error {
-	// Removing an original that has duplicates would break config resolution
-	// for all of them; force the user to remove duplicates first.
+	// Removing an original would break config resolution for every duplicate.
 	if dups, err := config.DuplicatesOf(name); err == nil && len(dups) > 0 {
 		return fmt.Errorf("cannot remove %q while duplicates exist: %v", name, dups)
 	}
@@ -964,18 +952,16 @@ func (a *App) RemoveProject(name string) error {
 	a.invalidateSessionCache(name)
 	a.clearRunningState(name)
 	a.removeProjectSync(name)
-	// Quiesce the tree before deletion: live shells writing into it
-	// (bundle, rails, spring) race RemoveAll's walk and surface as
-	// ENOTEMPTY on the final rmdir.
+	// Live shells writing into the tree (bundle, rails, spring) race
+	// RemoveAll's walk and surface as ENOTEMPTY on the final rmdir.
 	a.stopProjectTerminals(name)
 	a.stopPortPoller(name)
 	a.stopProjectPortForwards(name)
 	if loadErr == nil {
 		a.stopWatcherIfRoot(cfg.Root)
 	}
-	// Duplicates own the copied folder (LPM created it), so remove the tree
-	// before dropping the pointer. If folder removal fails, bail out so the
-	// user can retry the whole operation instead of orphaning a directory.
+	// LPM owns the duplicate's folder, so removing the pointer without the
+	// tree would orphan it. Bail on failure so the user can retry cleanly.
 	if loadErr == nil && cfg.IsDuplicate() && cfg.Root != "" {
 		if err := removeAllWithRetry(cfg.Root); err != nil {
 			return fmt.Errorf("failed to remove duplicate folder %q: %w", cfg.Root, err)
@@ -1032,9 +1018,8 @@ func (a *App) removeSettingsReferences(name string) {
 	a.cacheMu.Unlock()
 }
 
-// removeAllWithRetry wraps os.RemoveAll with linear backoff on ENOTEMPTY.
-// Spotlight/mdworker can drop metadata mid-walk and race the final rmdir;
-// these retries cover that without slowing the common case.
+// removeAllWithRetry covers Spotlight/mdworker writing into the tree
+// mid-walk and racing the final rmdir.
 func removeAllWithRetry(path string) error {
 	const (
 		maxAttempts = 5

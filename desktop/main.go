@@ -21,9 +21,8 @@ type fileDropPayload struct {
 	Paths []string `json:"paths"`
 }
 
-// registerFileDropEvent wires WindowFilesDropped to the frontend's
-// "files-dropped" event. Detached windows need this too — without it, drops
-// only trigger JS drag-overlay hooks and the drop itself is lost.
+// registerFileDropEvent must run on every window (incl. detached) — without
+// it, drops only fire JS drag-overlay hooks and the drop itself is lost.
 func (a *App) registerFileDropEvent(window *application.WebviewWindow) {
 	window.OnWindowEvent(events.Common.WindowFilesDropped, func(e *application.WindowEvent) {
 		ctx := e.Context()
@@ -46,8 +45,8 @@ func main() {
 		width = s.WindowWidth
 		height = s.WindowHeight
 	}
-	// Set project order before app.Run so the first frontend ListProjects
-	// call sees the saved order even if startup hasn't completed yet.
+	// Seed the order before app.Run so the first ListProjects sees it
+	// even if startup hasn't completed yet.
 	appInstance.cacheMu.Lock()
 	appInstance.projectOrder = s.ProjectOrder
 	appInstance.cacheMu.Unlock()
