@@ -660,8 +660,6 @@ export function Settings({
   );
 }
 
-/* ── Sub-components ──────────────────────────────────────────────── */
-
 function SettingsSection({
   title,
   description,

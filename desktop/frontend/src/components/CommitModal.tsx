@@ -373,7 +373,6 @@ export function CommitModal({
         </div>
       </div>
 
-      {/* Footer */}
       <div className="flex items-center justify-between border-t border-[var(--border)] px-5 py-3">
         <span className="flex items-center gap-3 text-[11px] text-[var(--text-muted)]">
           {canCommit && (

@@ -54,8 +54,6 @@ interface FileDiff {
   rows: DiffRow[];
 }
 
-/* ── Diff parser ───────────────────────────────────────────────── */
-
 const stripPath = (p?: string) =>
   !p || p === "/dev/null" ? undefined : p;
 
@@ -130,8 +128,6 @@ function parseSideBySide(raw: string): FileDiff[] {
     .filter((f): f is FileDiff => f !== null);
 }
 
-/* ── Syntax highlighting ───────────────────────────────────────── */
- 
 async function highlightDiffs(diffs: FileDiff[]): Promise<FileDiff[]> {
   return Promise.all(
     diffs.map(async (file) => {
@@ -173,8 +169,6 @@ async function highlightDiffs(diffs: FileDiff[]): Promise<FileDiff[]> {
     }),
   );
 }
-
-/* ── Rendering helpers ─────────────────────────────────────────── */
 
 const rowBg = (type: DiffLine["type"]) => {
   switch (type) {
@@ -275,8 +269,6 @@ function renderContent(line: DiffLine): ReactNode {
   }
   return line.content || " ";
 }
-
-/* ── Component ─────────────────────────────────────────────────── */
 
 interface Props {
   open: boolean;

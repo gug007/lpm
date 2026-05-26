@@ -487,7 +487,6 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto px-6 py-5">
-      {/* Project basics */}
       <div className="grid grid-cols-2 gap-6">
         <Field label="Project name">
           <Input value={form.name} onChange={(v) => update({ name: v })} placeholder="my-project" />
@@ -497,7 +496,6 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
         </Field>
       </div>
 
-      {/* Services */}
       {form.services.length > 0 && (
         <Section title="Services" count={form.services.length} icon={<span style={{ color: "#facc15" }}><ZapIcon /></span>}>
           {form.services.map((svc, i) => {
@@ -536,7 +534,6 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
         </Section>
       )}
 
-      {/* Actions */}
       {form.actions.length > 0 && (
         <Section title="Actions" count={form.actions.length} icon={<span style={{ color: "#10b981" }}><PlayIcon /></span>}>
           {form.actions.map((act, i) => {
@@ -595,7 +592,6 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
         </Section>
       )}
 
-      {/* Terminals */}
       {form.terminals.length > 0 && (
         <Section title="Terminals" count={form.terminals.length} icon={<span style={{ color: "#22d3ee" }}><TerminalIcon /></span>}>
           {form.terminals.map((term, i) => {
@@ -640,7 +636,6 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
         </Section>
       )}
 
-      {/* Profiles */}
       {form.profiles.length > 0 && (
         <Section title="Profiles" count={form.profiles.length} icon={<span style={{ color: "#a78bfa" }}><LayersIcon /></span>}>
           {form.profiles.map((prof, i) => {
@@ -691,7 +686,6 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
         </Section>
       )}
 
-      {/* Add New */}
       <div className="mt-6 pb-4">
         <button
           onClick={() => setPickerOpen(true)}

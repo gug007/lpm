@@ -306,7 +306,6 @@ export function PRModal({
           </div>
         ) : (
           <>
-            {/* Base branch */}
             <div className="flex items-center gap-2 text-xs">
               <span className="inline-flex items-center gap-1 text-[var(--text-muted)]">
                 <BranchIcon size={10} /> {currentBranch}
@@ -365,7 +364,6 @@ export function PRModal({
               </div>
             </div>
 
-            {/* Title + Description composer */}
             <div
               className={`relative rounded-xl transition-all ${
                 generating
@@ -452,7 +450,6 @@ export function PRModal({
               </div>
             </div>
 
-            {/* Commits */}
             <div className="flex flex-col gap-1.5">
               <span className="text-xs font-medium text-[var(--text-muted)]">
                 Commits
@@ -494,7 +491,6 @@ export function PRModal({
         )}
       </div>
 
-      {/* Footer */}
       <div className="flex items-center justify-between border-t border-[var(--border)] px-5 py-3">
         <span className="flex items-center gap-3 text-[11px] text-[var(--text-muted)]">
           {canCreate && !prURL && (
