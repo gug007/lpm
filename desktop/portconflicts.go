@@ -7,8 +7,8 @@ import (
 	"github.com/gug007/lpm/internal/portcheck"
 )
 
-// PortConflictInfo: PID is 0 when the holder isn't identifiable;
-// LpmProject is empty for external processes.
+// PortConflictInfo: PID=0 when the holder isn't identifiable; LpmProject
+// is empty for external processes.
 type PortConflictInfo struct {
 	Service     string `json:"service"`
 	Port        int    `json:"port"`
