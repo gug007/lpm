@@ -14,16 +14,15 @@ import (
 	"github.com/gug007/lpm/desktop/vault"
 )
 
-// MaxBlobSize caps a single attachment at 100MiB. Notes are a personal chat,
-// not a file server; past this size the UX (memory use, encrypt-then-write
-// latency) gets bad and the user should be using dedicated storage.
+// MaxBlobSize caps a single attachment at 100MiB — past this point the
+// in-memory encrypt-then-write pipeline becomes the wrong tool.
 const MaxBlobSize = 100 * 1024 * 1024
 
 var ErrBlobTooLarge = errors.New("notes: attachment exceeds max size")
 var ErrBlobNotFound = errors.New("notes: blob not found")
 
 // BlobStore writes content-addressed, AES-GCM-encrypted files under dir.
-// Filename is hex sha256 of the plaintext, so duplicate uploads collapse.
+// Filename is hex sha256 of the plaintext, so duplicate uploads dedup.
 type BlobStore struct {
 	dir  string
 	aead cipher.AEAD
@@ -64,8 +63,8 @@ func (b *BlobStore) Put(data []byte) (hash string, size int64, err error) {
 	}
 	sealed := b.aead.Seal(nil, nonce, data, []byte(hash))
 
-	// Write to a temp file then rename so a crash mid-write can't leave a
-	// half-blob at the canonical name.
+	// Temp-then-rename so a crash mid-write can't leave a half-blob at
+	// the canonical name.
 	tmp, err := os.CreateTemp(b.dir, ".blob-*.tmp")
 	if err != nil {
 		return "", 0, fmt.Errorf("notes: temp file: %w", err)
@@ -94,7 +93,7 @@ func (b *BlobStore) Put(data []byte) (hash string, size int64, err error) {
 	return hash, size, nil
 }
 
-// Returns ErrBlobNotFound when the file does not exist.
+// Read returns ErrBlobNotFound when the file does not exist.
 func (b *BlobStore) Read(hash string) ([]byte, error) {
 	if !validHash(hash) {
 		return nil, fmt.Errorf("notes: invalid hash %q", hash)
@@ -132,7 +131,7 @@ func (b *BlobStore) Exists(hash string) bool {
 	return err == nil
 }
 
-// Missing file is success, so callers can use this for GC.
+// Delete treats a missing file as success so callers can use it for GC.
 func (b *BlobStore) Delete(hash string) error {
 	if !validHash(hash) {
 		return fmt.Errorf("notes: invalid hash %q", hash)
@@ -144,7 +143,7 @@ func (b *BlobStore) Delete(hash string) error {
 	return nil
 }
 
-// Removes blob files whose hash is not in `referenced`. Missing dir is
+// GC removes blob files whose hash is not in referenced. Missing dir is
 // not an error.
 func (b *BlobStore) GC(referenced map[string]struct{}) (int, error) {
 	entries, err := os.ReadDir(b.dir)

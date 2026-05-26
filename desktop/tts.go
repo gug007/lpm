@@ -23,17 +23,17 @@ type ttsSession struct {
 	cmd    *exec.Cmd
 	cancel context.CancelFunc
 	mu     sync.Mutex
-	state  string // playing, paused, stopped
+	state  string
 }
 
 type ttsChunk struct {
-	Type  string `json:"type"`            // "audio", "done", "error"
-	Audio string `json:"audio,omitempty"` // base64-encoded WAV data
+	Type  string `json:"type"`
+	Audio string `json:"audio,omitempty"` // base64-encoded WAV
 	Error string `json:"error,omitempty"`
 }
 
 // ttsScript streams Kokoro output as JSON lines:
-//   {"type":"audio","audio":"<base64>"} or {"type":"done"} or {"type":"error",...}
+//   {"type":"audio","audio":"<base64>"} | {"type":"done"} | {"type":"error",...}
 const ttsScript = `
 import sys, json, base64, io
 try:
@@ -72,9 +72,7 @@ func (a *App) StartTTS(text string) error {
 	return a.startTTS(text, voice, speed)
 }
 
-// startTTS spawns a Kokoro subprocess, streaming audio back via Wails
-// events. Only one session is active at a time; a new call stops the
-// previous session first.
+// startTTS allows only one active session; a new call stops the previous one first.
 func (a *App) startTTS(text string, voice string, speed float64) error {
 	if strings.TrimSpace(text) == "" {
 		return fmt.Errorf("text is empty")
@@ -97,7 +95,7 @@ func (a *App) startTTS(text string, voice string, speed float64) error {
 		cancel()
 		return fmt.Errorf("create stdout pipe: %w", err)
 	}
-	cmd.Stderr = nil // errors come as JSON on stdout
+	cmd.Stderr = nil // errors arrive as JSON on stdout
 
 	if err := cmd.Start(); err != nil {
 		cancel()
@@ -118,7 +116,7 @@ func (a *App) startTTS(text string, voice string, speed float64) error {
 
 	go func() {
 		scanner := bufio.NewScanner(stdout)
-		// Audio chunks can exceed bufio's 64KB default; allow up to 10MB.
+		// Audio chunks can exceed bufio's 64KB default.
 		scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
 
 		for scanner.Scan() {
@@ -176,7 +174,7 @@ func (a *App) stopTTSLocked() {
 	sess.state = ttsStateStopped
 	sess.mu.Unlock()
 
-	// Resume if paused so the process can be killed cleanly.
+	// Wake a paused process so the kill signal isn't queued behind SIGSTOP.
 	if sess.cmd.Process != nil {
 		_ = sess.cmd.Process.Signal(syscall.SIGCONT)
 	}
@@ -185,7 +183,6 @@ func (a *App) stopTTSLocked() {
 	a.wails.Event.Emit("tts-state", ttsStateStopped)
 }
 
-// PauseTTS sends SIGSTOP to the Python subprocess.
 func (a *App) PauseTTS() error {
 	a.ttsMu.Lock()
 	sess := a.ttsSession
@@ -212,7 +209,6 @@ func (a *App) PauseTTS() error {
 	return nil
 }
 
-// ResumeTTS sends SIGCONT to the Python subprocess.
 func (a *App) ResumeTTS() error {
 	a.ttsMu.Lock()
 	sess := a.ttsSession

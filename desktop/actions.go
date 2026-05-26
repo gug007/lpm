@@ -26,8 +26,7 @@ type actionPlan struct {
 	cmdStr string
 	cwd    string
 	port   int
-	// onExit, when non-nil, runs after the command terminates. Used by
-	// mode: sync to push the rsync mirror back to the remote.
+	// onExit, when non-nil, runs after the command terminates.
 	onExit func()
 }
 
@@ -79,7 +78,7 @@ func (a *App) resolveActionCommand(projectName, actionName string, inputValues m
 	}, nil
 }
 
-// RunAction starts an action and streams output via events. Returns immediately.
+// RunAction returns once the process has started; output streams via events.
 func (a *App) RunAction(projectName string, actionName string, inputValues map[string]string) error {
 	plan, err := a.resolveActionCommand(projectName, actionName, inputValues)
 	if err != nil {
@@ -125,9 +124,8 @@ func (a *App) RunAction(projectName string, actionName string, inputValues map[s
 	return nil
 }
 
-// RunActionBackground blocks until the command exits. On failure, the returned
-// error includes a trimmed tail of the combined output. mode: sync push runs
-// in the background so the RPC isn't held open by it.
+// RunActionBackground blocks until the command exits. On failure, the
+// returned error includes a trimmed tail of combined output.
 func (a *App) RunActionBackground(projectName string, actionName string, inputValues map[string]string) error {
 	plan, err := a.resolveActionCommand(projectName, actionName, inputValues)
 	if err != nil {

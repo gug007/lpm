@@ -266,8 +266,6 @@ func runClaudeStream(ctx context.Context, cwd, prompt string, opts RunOptions, p
 	return strings.TrimSpace(result), nil
 }
 
-// streamOutput streams stdout line-by-line, emitting progress, and returns the
-// full collected output. Shared by streamAndExtract and Run paths.
 func streamOutput(ctx context.Context, cwd string, cmd *exec.Cmd, progress ProgressFunc, filter func(string) string) (string, error) {
 	name := cmd.Args[0]
 	cmd.Dir = cwd
@@ -447,8 +445,6 @@ func generateOpencode(ctx context.Context, opts Options, prompt string) (string,
 	return streamAndExtract(ctx, opts, cmd, nil)
 }
 
-// codexProgressLine drops session metadata and markers, keeping tool
-// invocations and other signal lines.
 func codexProgressLine(line string) string {
 	trimmed := strings.TrimSpace(line)
 	if trimmed == "" {

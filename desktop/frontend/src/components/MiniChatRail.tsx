@@ -10,9 +10,6 @@ interface MiniChatRailProps {
   onExpand: () => void;
 }
 
-// Collapsed-but-not-hidden sidebar: a narrow column of initial chips so the
-// user can still see and switch between chats without giving up message
-// real estate. Mirrors the Slack/VSCode pattern.
 export function MiniChatRail({
   chats,
   activeId,

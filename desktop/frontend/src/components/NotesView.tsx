@@ -121,8 +121,6 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     setSearchText("");
   }, []);
 
-  // Focus the input whenever the bar opens — the toolbar button should feel
-  // like "drop me into the field" rather than "reveal a target to click".
   useEffect(() => {
     if (searchOpen) searchInputRef.current?.focus();
   }, [searchOpen]);
@@ -226,8 +224,6 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     pinToBottomRef.current = true;
   }, [activeChatID]);
 
-  // Scroll on every message list change while pinned. Catches initial load,
-  // new message appends, and chat switches.
   useEffect(() => {
     const el = listRef.current;
     if (el && pinToBottomRef.current) el.scrollTop = el.scrollHeight;

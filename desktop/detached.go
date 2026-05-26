@@ -19,9 +19,8 @@ const (
 	detachedDefaultH         = 700
 )
 
-// detachedEntry holds the live window plus an in-memory copy of the
-// last-persisted bounds, so resize/move events can short-circuit before
-// taking settingsMu or hitting disk.
+// detachedEntry caches last-persisted bounds so resize/move events can
+// short-circuit before taking settingsMu or hitting disk.
 type detachedEntry struct {
 	win      *application.WebviewWindow
 	closed   bool
@@ -29,9 +28,8 @@ type detachedEntry struct {
 	bounds   DetachedWindowState
 }
 
-// DetachProject opens (or focuses, if already open) a dedicated window
-// for projectName. Position/size are restored from settings and the
-// detached state persists so the window auto-reopens on next launch.
+// DetachProject opens (or focuses) a dedicated window. The detached state
+// persists so the window auto-reopens on next launch.
 func (a *App) DetachProject(projectName string) error {
 	if strings.TrimSpace(projectName) == "" {
 		return fmt.Errorf("project name is required")
@@ -59,8 +57,6 @@ func (a *App) DetachProject(projectName string) error {
 	return nil
 }
 
-// AttachProject closes the detached window for projectName, returning
-// the project to the main window's sidebar.
 func (a *App) AttachProject(projectName string) error {
 	a.detachedMu.Lock()
 	entry, ok := a.detachedWindows[projectName]
@@ -76,8 +72,7 @@ func (a *App) AttachProject(projectName string) error {
 	return nil
 }
 
-// FocusDetachedWindow returns true if a window was focused, false if the
-// project is not currently detached.
+// FocusDetachedWindow returns false if the project is not currently detached.
 func (a *App) FocusDetachedWindow(projectName string) bool {
 	a.detachedMu.Lock()
 	entry, ok := a.detachedWindows[projectName]
@@ -100,9 +95,8 @@ func (a *App) ListDetachedProjects() []string {
 	return out
 }
 
-// RestoreDetachedWindows reopens windows for every project that was
-// detached when the app last quit. Pre-populates the registry under a
-// single lock so any early ListDetachedProjects observes the final set.
+// RestoreDetachedWindows pre-populates the registry under a single lock so
+// any early ListDetachedProjects observes the final set.
 func (a *App) RestoreDetachedWindows() {
 	s := a.LoadSettings()
 
@@ -136,9 +130,8 @@ func (a *App) RestoreDetachedWindows() {
 	}
 }
 
-// closeDetachedWindowFor marks closed=true first so the WindowClosing hook
-// is a no-op — settings cleanup is then handled by removeSettingsReferences
-// which RemoveProject calls right after, coalescing both writes.
+// closeDetachedWindowFor sets closed=true first so WindowClosing is a no-op;
+// settings cleanup is then coalesced into RemoveProject's removeSettingsReferences.
 func (a *App) closeDetachedWindowFor(projectName string) {
 	a.detachedMu.Lock()
 	entry, ok := a.detachedWindows[projectName]
@@ -151,9 +144,8 @@ func (a *App) closeDetachedWindowFor(projectName string) {
 	}
 }
 
-// openDetachedWindowLocked creates the OS window and registers it in the
-// in-memory map. Caller must hold detachedMu. Window event hooks are
-// attached separately so Wails isn't called with a.detachedMu held.
+// openDetachedWindowLocked must be called with detachedMu held. Window event
+// hooks are attached separately so Wails isn't called with detachedMu held.
 func (a *App) openDetachedWindowLocked(projectName string, state DetachedWindowState) *detachedEntry {
 	opts := application.WebviewWindowOptions{
 		Name:           detachedWindowNamePrefix + projectName,
@@ -194,11 +186,9 @@ func (a *App) attachWindowHooks(entry *detachedEntry, projectName string) {
 
 	a.registerFileDropEvent(entry.win)
 
-	// Closing the window re-attaches the project to the main window
-	// (matches user expectation — services keep running independently).
 	// During app shutdown or project removal, leave the persisted flag
-	// untouched: shutdown wants to restore on next launch; removal will
-	// wipe the entire entry separately.
+	// untouched: shutdown wants to restore on next launch; removal wipes
+	// the entire entry separately.
 	entry.win.RegisterHook(events.Common.WindowClosing, func(*application.WindowEvent) {
 		a.detachedMu.Lock()
 		shuttingDown := a.shuttingDown
@@ -215,9 +205,8 @@ func (a *App) attachWindowHooks(entry *detachedEntry, projectName string) {
 		a.wails.Event.Emit(detachedEventChanged)
 	})
 
-	// Bounds saving: WindowDidMove/Resize fire ~60Hz on macOS. The
-	// in-memory bounds cache short-circuits before taking settingsMu so
-	// no-op events don't touch disk; only genuine changes do.
+	// WindowDidMove/Resize fire ~60Hz on macOS; the in-memory cache
+	// short-circuits no-op events before they hit disk.
 	saveBounds := func(*application.WindowEvent) {
 		entry.boundsMu.Lock()
 		closed := entry.closed
@@ -246,9 +235,8 @@ func (a *App) attachWindowHooks(entry *detachedEntry, projectName string) {
 	entry.win.OnWindowEvent(events.Common.WindowDidResize, saveBounds)
 }
 
-// detachedStateLocked returns persisted state plus whether an entry existed.
-// Caller must hold detachedMu so a state lookup can be chained with the
-// open-and-register step atomically.
+// detachedStateLocked must be called with detachedMu held so a state
+// lookup can be chained with open-and-register atomically.
 func (a *App) detachedStateLocked(projectName string) (DetachedWindowState, bool) {
 	s := a.LoadSettings()
 	state, ok := s.DetachedWindows[projectName]
