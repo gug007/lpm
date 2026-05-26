@@ -670,6 +670,97 @@ Agent: [adds split-button group]
              cmd: ./deploy.sh preview
 ```
 
+**Example 13: Action with a port-conflict check**
+
+```yaml
+actions:
+  preview:
+    cmd: npm run preview -- --port 4173
+    label: Preview
+    port: 4173        # warn if 4173 is already taken before running
+    display: header
+```
+
+**Example 14: Sort buttons with `position` (floats for easy insertion)**
+
+```yaml
+actions:
+  start:
+    cmd: npm run dev
+    position: 1
+  test:
+    cmd: npm test
+    position: 2
+  test-only:                  # inserted between test and lint without renumbering
+    cmd: npm test -- --only=critical
+    position: 2.5
+  lint:
+    cmd: npm run lint
+    position: 3
+```
+
+**Example 15: Shared `.lpm.yml` checked into the repo**
+
+`<root>/.lpm.yml`:
+
+```yaml
+services:
+  api:
+    cmd: go run ./cmd/server
+    port: 8080
+
+actions:
+  test: go test ./...
+  lint:
+    cmd: golangci-lint run ./...
+    position: 2
+
+profiles:
+  default: [api]
+```
+
+Each teammate still has their own personal project file pointing at the repo:
+
+```yaml
+# ~/.lpm/projects/myapp.yml
+name: myapp
+root: ~/work/myapp
+```
+
+The personal file can sparse-override anything from `.lpm.yml` (and from global, and from templates referenced via `extends`).
+
+**Example 16: Template + `extends` + sparse override**
+
+`~/.lpm/templates/web-stack.yml`:
+
+```yaml
+services:
+  redis: redis-server --port 6379
+
+actions:
+  logs:
+    cmd: tail -f log/development.log
+    type: terminal
+    reuse: true
+    label: Logs
+
+terminals:
+  rails: rails console
+```
+
+`~/.lpm/projects/myapp.yml`:
+
+```yaml
+name: myapp
+root: ~/work/myapp
+extends:
+  - web-stack          # bare name → ~/.lpm/templates/web-stack.yml
+
+actions:
+  logs:
+    position: 1        # sparse override — only change ordering, inherit cmd/type/reuse/label
+```
+
 ## Limitations
 
 - Project names must be lowercase with no slashes; cannot be `.` or `..`
