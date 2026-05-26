@@ -6,16 +6,12 @@ import type { ProjectActionsModals } from "../../hooks/useProjectActions";
 interface ModalsProps {
   projectName: string;
   actionModals: ProjectActionsModals;
-  // Remove-project confirm
   confirmRemoveOpen: boolean;
   removeBusy: boolean;
   onCancelRemove: () => void;
   onConfirmRemove: () => Promise<void> | void;
 }
 
-// One place for every modal/dialog the project view can show. Bundling
-// them keeps ProjectDetail's render path focused on layout and lets the
-// individual dialog imports stay co-located with their state owners.
 export function Modals({
   projectName,
   actionModals,

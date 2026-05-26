@@ -11,8 +11,6 @@ interface HeaderProps {
   controls: ReactNode;
 }
 
-// Wails-drag title row. When the action row would overflow, the actions
-// drop onto a second row underneath; useOverflowWrap drives the toggle.
 export function Header({
   projectName,
   showProjectName,

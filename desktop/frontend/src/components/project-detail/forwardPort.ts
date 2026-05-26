@@ -2,12 +2,8 @@ import { toast } from "sonner";
 import { AddPortForward } from "../../../wailsjs/go/main/App";
 import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime";
 
-// forwardPortAndOpen requests a tunnel for the given remote port,
-// reports the outcome via toast, and opens the resulting localhost URL
-// in the browser on success. localPort=0 leaves the choice to the
-// backend (mirrors the remote port when free, picks a free one
-// otherwise). Used by both the suggestion popover and the toast
-// action so they stay in sync.
+// localPort=0 leaves the choice to the backend (mirrors the remote port
+// when free, picks a free one otherwise).
 export async function forwardPortAndOpen(
   projectName: string,
   remotePort: number,

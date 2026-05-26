@@ -15,8 +15,7 @@ import (
 )
 
 // CreateProjectFromClone clones a git repo into <destParent>/<name>, then
-// registers the result as an lpm project. Mirrors CreateProject /
-// CreateSSHProject in projects.go.
+// registers the result as an lpm project.
 func (a *App) CreateProjectFromClone(name, url, branch, destParent string) error {
 	destPath, err := cloneValidate(name, url, branch, destParent)
 	if err != nil {
@@ -57,10 +56,8 @@ var shellMeta = regexp.MustCompile("[`$;&|<>()\\\\\"']")
 // branchBadRune catches refname violations check-ref-format guards.
 var branchBadRune = regexp.MustCompile(`[\s~^:?*\[\\]`)
 
-// cloneValidate inspects the four user-supplied fields and returns the
-// destination directory the clone should land in. All errors are safe to
-// render in the modal — they describe the field at fault without leaking
-// internals.
+// cloneValidate returns the destination directory the clone should land in.
+// Errors describe the field at fault without leaking internals.
 func cloneValidate(name, url, branch, destParent string) (string, error) {
 	if err := config.ValidateName(name); err != nil {
 		return "", fmt.Errorf("project name: %w", err)
@@ -161,11 +158,8 @@ func checkWritable(dir string) error {
 }
 
 // cloneRepo runs `git clone` into destPath. destPath must NOT exist yet — git
-// creates it. When branch is non-empty, --single-branch lands the user on the
-// exact branch they asked for without fetching every other ref. Cancellation
-// via ctx kills the git process. On failure the returned error embeds the
-// first ~2KB of stderr with ANSI / control characters stripped so it can be
-// shown directly in the modal.
+// creates it. On failure the returned error embeds the first ~2KB of stderr
+// with ANSI / control characters stripped so it can be shown in the modal.
 func cloneRepo(ctx context.Context, url, branch, destPath string) error {
 	args := []string{"clone", "--progress"}
 	if branch = strings.TrimSpace(branch); branch != "" {
@@ -191,8 +185,6 @@ func cloneRepo(ctx context.Context, url, branch, destPath string) error {
 	return nil
 }
 
-// cleanGitOutput strips ANSI escapes and control bytes from git's progress
-// output, then returns the trimmed first cloneStderrCap bytes.
 func cleanGitOutput(s string) string {
 	const cloneStderrCap = 2048
 	var b strings.Builder
@@ -232,8 +224,8 @@ func cleanGitOutput(s string) string {
 }
 
 // cloneCleanup best-effort removes destDir if it looks like a partial git
-// clone. Only removes when .git is present, or when destDir is empty — this
-// way we never nuke pre-existing user data even if validation was bypassed.
+// clone. Only removes when .git is present or destDir is empty — so we
+// never nuke pre-existing user data if validation was bypassed.
 func cloneCleanup(destDir string) {
 	if destDir == "" {
 		return
@@ -254,8 +246,6 @@ func cloneCleanup(destDir string) {
 	_ = os.RemoveAll(destDir)
 }
 
-// mapCloneError translates common git failure messages into short,
-// user-friendly text for the modal. Falls back to the original error.
 func mapCloneError(err error) error {
 	if err == nil {
 		return nil
@@ -288,8 +278,6 @@ func mapCloneError(err error) error {
 	}
 }
 
-// buildClonedProjectConfig produces the ProjectConfig saved after a
-// successful clone. Mirrors CreateProject's defaults.
 func buildClonedProjectConfig(name, root string) *config.ProjectConfig {
 	return &config.ProjectConfig{
 		Name:     name,

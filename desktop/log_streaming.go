@@ -7,14 +7,12 @@ import (
 	"github.com/gug007/lpm/internal/tmux"
 )
 
-// LogUpdate is emitted to the frontend via Wails events when pane content changes.
 type LogUpdate struct {
 	Project string `json:"project"`
 	Pane    int    `json:"pane"`
 	Content string `json:"content"`
 }
 
-// StartLogStreaming begins pushing log updates for the given project via events.
 func (a *App) StartLogStreaming(projectName string) {
 	a.streamMu.Lock()
 	defer a.streamMu.Unlock()
@@ -29,7 +27,6 @@ func (a *App) StartLogStreaming(projectName string) {
 	go a.streamLogs(ctx, projectName)
 }
 
-// StopLogStreaming cancels the streaming goroutine for the given project.
 func (a *App) StopLogStreaming(projectName string) {
 	a.streamMu.Lock()
 	defer a.streamMu.Unlock()
@@ -44,7 +41,6 @@ func (a *App) streamLogs(ctx context.Context, projectName string) {
 	session := a.cachedSessionName(projectName)
 	prevContent := make(map[int]string)
 
-	// Emit initial state immediately.
 	a.emitLogs(session, projectName, prevContent)
 
 	ticker := time.NewTicker(500 * time.Millisecond)

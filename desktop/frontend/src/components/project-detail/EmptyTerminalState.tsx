@@ -6,9 +6,6 @@ interface EmptyTerminalStateProps {
   onEditConfig: () => void;
 }
 
-// Shown when a stopped project has no persisted terminal tabs. Offers
-// the two natural starting points: spawn a fresh terminal or open the
-// config editor.
 export function EmptyTerminalState({ projectName, onNewTerminal, onEditConfig }: EmptyTerminalStateProps) {
   return (
     <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden">

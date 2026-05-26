@@ -462,7 +462,6 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
     update({ [section]: (form[section] as unknown[]).filter((_, j) => j !== i) });
 
   const handleAddNew = (type: NewItemType) => {
-    // Use a stable numeric ID based on total item count
     const nextId = form.services.length + form.actions.length + form.terminals.length + form.profiles.length;
     setExpanded((prev) => new Set(prev).add(nextId));
 

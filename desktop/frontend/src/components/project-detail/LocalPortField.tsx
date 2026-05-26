@@ -11,11 +11,8 @@ interface LocalPortFieldProps {
   onCancel: () => void;
 }
 
-// LocalPortField is the shared "click label / pencil to edit / Enter to
-// commit / Escape to cancel" UI used by both the active-forward and
-// detected-suggestion rows. Display click semantics differ per caller
-// (open URL vs. forward at the current port), so the parent supplies
-// onDisplayClick instead of branching here.
+// Display click semantics differ per caller (open URL vs. forward at the
+// current port), so the parent supplies onDisplayClick instead of branching here.
 export function LocalPortField({
   editing,
   value,

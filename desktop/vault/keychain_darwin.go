@@ -16,19 +16,18 @@ const (
 	keychainLabel   = "lpm vault key"
 )
 
-// errSecMissingEntitlement. go-keychain doesn't export a constant for it.
+// errSecMissingEntitlement: go-keychain doesn't export a constant for it.
 const errMissingEntitlement = keychain.Error(-34018)
 
-// ErrKeychainDenied surfaces when the vault item exists but this build can't
-// access it. Usually caused by a bundle-ID or signing-identity change — the
-// ACL on the existing item doesn't list the new app.
+// Usually triggered by a bundle-ID or signing-identity change — the ACL on
+// the existing item doesn't list the new app.
 var ErrKeychainDenied = errors.New("vault: keychain item exists but access was denied (open Keychain Access, delete 'lpm vault key', then retry)")
 
-// All Keychain ops use SynchronizableAny on read/delete so legacy local-only
-// items still match. New items are written as Synchronizable so they ride
-// the user's iCloud Keychain to their other Macs / iOS devices.
+// Reads/deletes use SynchronizableAny so legacy local-only items still match.
+// New items are written as Synchronizable so they ride the user's iCloud
+// Keychain to their other Macs / iOS devices.
 
-// Key returns the shared lpm encryption key, creating it on first use.
+// Returns the shared lpm encryption key, creating it on first use.
 func Key() ([]byte, error) {
 	key, err := fetchKey()
 	if err == nil {
@@ -50,9 +49,8 @@ func isAccessDenied(err error) bool {
 		errors.Is(err, keychain.ErrorUserCanceled)
 }
 
-// DeleteKey returns nil on missing key so factory-reset / migration paths
-// can call it unconditionally. Deletes both local and synced items in one
-// pass via SynchronizableAny.
+// Returns nil on missing key so factory-reset / migration paths can call it
+// unconditionally. SynchronizableAny deletes both local and synced items.
 func DeleteKey() error {
 	q := baseQuery()
 	q.SetSynchronizable(keychain.SynchronizableAny)

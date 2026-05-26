@@ -22,19 +22,18 @@ const (
 	duplicateIDAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 )
 
-// DuplicateProject creates a new project as a sibling folder of `name`, with
-// its LPM config shared from the original project. Folder contents are copied
-// literally, including .git and node_modules. Returns the new project name.
+// DuplicateProject creates a new project as a sibling folder of `name`, sharing
+// the original project's LPM config. Folder contents are copied literally,
+// including .git and node_modules.
 //
-// When `name` is itself a duplicate, the new duplicate still points at the
-// same original (parent_name is never chained), but the folder content comes
-// from whichever project was passed in — preserving any in-progress work in
-// the duplicate the user right-clicked.
+// When `name` is itself a duplicate, parent_name still points at the original
+// (never chained), but the folder content comes from whichever project was
+// passed in — preserving any in-progress work in the duplicate the user
+// right-clicked.
 //
-// When excludeUncommitted is true and the source has a git repository, the
-// new copy is reset to HEAD: all uncommitted changes (staged, unstaged, and
-// untracked files) are discarded. Ignored files (e.g. node_modules) are
-// preserved.
+// When excludeUncommitted is true and the source has a git repo, the new copy
+// is reset to HEAD: staged, unstaged, and untracked files are discarded.
+// Ignored files (e.g. node_modules) are preserved.
 func (a *App) DuplicateProject(name string, excludeUncommitted bool) (string, error) {
 	srcCfg, err := config.LoadProject(name)
 	if err != nil {
@@ -88,10 +87,9 @@ func (a *App) DuplicateProject(name string, excludeUncommitted bool) (string, er
 	return newName, nil
 }
 
-// stripUncommittedChanges resets the working tree of dst to HEAD: staged and
-// unstaged modifications are discarded, untracked files are removed, and
-// ignored files (like node_modules) stay put. A missing .git directory is
-// treated as a no-op.
+// stripUncommittedChanges resets dst's working tree to HEAD: staged and
+// unstaged mods are discarded, untracked files are removed, ignored files
+// stay put. Missing .git is a no-op.
 func stripUncommittedChanges(dst string) error {
 	if !pathExists(filepath.Join(dst, ".git")) {
 		return nil
@@ -99,12 +97,9 @@ func stripUncommittedChanges(dst string) error {
 	return discardUncommittedChanges(dst)
 }
 
-// nextAvailableDuplicate returns a collision-free (name, root) pair for a new
-// duplicate of `originalName`. Names are <original>-copy-<id>, where <id> is a
-// random 6-char alphanumeric string, retried until neither the LPM project
-// file nor the target folder exists. The folder is always a sibling of
-// `srcRoot` so the new copy sits next to whichever project the user
-// right-clicked.
+// nextAvailableDuplicate returns a collision-free (name, root) pair as
+// <original>-copy-<random-6-char-id>. The folder is always a sibling of
+// srcRoot so the copy sits next to the project the user right-clicked.
 func nextAvailableDuplicate(originalName, srcRoot string) (string, string, error) {
 	parentDir := filepath.Dir(srcRoot)
 	taken := make(map[string]struct{})
@@ -152,11 +147,10 @@ func pathExists(path string) bool {
 	return err == nil
 }
 
-// copyDir recursively copies src to dst. The destination must not exist.
-// On APFS (macOS) this uses clonefile(2) for a metadata-only copy-on-write
-// clone of the whole tree — near-instant regardless of size. On other
-// filesystems or platforms it falls back to a plain recursive copy that
-// preserves regular files, directories, symlinks, and file modes.
+// copyDir recursively copies src to dst (dst must not exist). On APFS uses
+// clonefile(2) for a copy-on-write clone — near-instant regardless of size.
+// Falls back to a plain recursive copy that preserves regular files,
+// directories, symlinks, and file modes.
 func copyDir(src, dst string) error {
 	info, err := os.Lstat(src)
 	if err != nil {

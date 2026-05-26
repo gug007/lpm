@@ -24,17 +24,14 @@ const (
 	aadPrefix        = "lpm-vault"
 )
 
-// ErrWrongPassphrase is returned by ImportKey when the AEAD auth tag fails.
-// Most likely a wrong passphrase; could also be file corruption.
+// Wrong passphrase or file corruption — both trip the AEAD auth tag.
 var ErrWrongPassphrase = errors.New("vault: wrong passphrase or corrupted export")
 
-// ErrKeyConflict is returned when the local Keychain already holds a
-// different vault key. Callers must resolve manually (DeleteKey first) so
-// existing encrypted data isn't silently orphaned.
+// Callers must resolve manually (DeleteKey first) so existing encrypted data
+// isn't silently orphaned.
 var ErrKeyConflict = errors.New("vault: local keychain holds a different vault key; delete it before importing")
 
-// ExportedKey is the self-describing JSON shape. Binary fields are base64
-// (std, padded); the rest is scalars for easy inspection.
+// Binary fields are base64 (std, padded); the rest is scalars.
 type ExportedKey struct {
 	Version int    `json:"v"`
 	Kind    string `json:"kind"`
@@ -64,9 +61,8 @@ func ExportKey(passphrase string) ([]byte, error) {
 	return wrapKey(passphrase, key)
 }
 
-// ImportKey unwraps a blob and stores the resulting key in the local
-// Keychain. If the local Keychain already has a matching key, import is a
-// no-op. If it holds a different key, returns ErrKeyConflict.
+// No-op when the local Keychain already has a matching key. Returns
+// ErrKeyConflict when it holds a different key.
 func ImportKey(passphrase string, data []byte) error {
 	if passphrase == "" {
 		return ErrEmptyPassphrase
@@ -86,8 +82,8 @@ func ImportKey(passphrase string, data []byte) error {
 	return writeKey(key)
 }
 
-// wrapKey is the pure transform behind ExportKey: no Keychain access, so
-// unit tests can exercise it without platform gating.
+// Pure transform behind ExportKey: no Keychain access, so unit tests can
+// exercise it without platform gating.
 func wrapKey(passphrase string, key []byte) ([]byte, error) {
 	if len(key) != KeyLen {
 		return nil, fmt.Errorf("vault: key length = %d, want %d", len(key), KeyLen)

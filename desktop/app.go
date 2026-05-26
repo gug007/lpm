@@ -122,7 +122,7 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 	initDockMenu(a)
 	installAppMenuExtras()
 
-	go a.ListProjects() // populate dock menu before frontend loads
+	go a.ListProjects()
 	go a.autoCheckForUpdate()
 	go a.pruneOrphanSyncDirs()
 	go a.resumePortPollers()
@@ -140,14 +140,11 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 	return nil
 }
 
-// TmuxInstalled reports whether tmux is available on the system.
 func (a *App) TmuxInstalled() bool {
 	return tmux.EnsureInstalled() == nil
 }
 
-// InstallTmux installs tmux via Homebrew, streaming progress lines to the
-// frontend via "tmux-install-output" events. The frontend should call
-// TmuxInstalled first and only invoke this when tmux is missing.
+// InstallTmux streams Homebrew install progress via "tmux-install-output" events.
 func (a *App) InstallTmux() error {
 	brewPath, err := exec.LookPath("brew")
 	if err != nil {
@@ -161,7 +158,7 @@ func (a *App) InstallTmux() error {
 	if err != nil {
 		return fmt.Errorf("failed to start installation: %w", err)
 	}
-	cmd.Stderr = cmd.Stdout // merge stderr into stdout
+	cmd.Stderr = cmd.Stdout
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start installation: %w", err)

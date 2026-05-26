@@ -22,15 +22,14 @@ const MaxBlobSize = 100 * 1024 * 1024
 var ErrBlobTooLarge = errors.New("notes: attachment exceeds max size")
 var ErrBlobNotFound = errors.New("notes: blob not found")
 
-// BlobStore writes content-addressed, AES-GCM-encrypted files under dir using
-// a shared key. The filename is the hex sha256 of the plaintext, so the same
-// plaintext uploaded twice collapses to one file.
+// BlobStore writes content-addressed, AES-GCM-encrypted files under dir.
+// Filename is hex sha256 of the plaintext, so duplicate uploads collapse.
 type BlobStore struct {
 	dir  string
 	aead cipher.AEAD
 }
 
-// NewBlobStore: dir is created lazily on first Put.
+// dir is created lazily on first Put.
 func NewBlobStore(dir string, key []byte) (*BlobStore, error) {
 	if len(key) != vault.KeyLen {
 		return nil, fmt.Errorf("notes: blob key length = %d, want %d", len(key), vault.KeyLen)
@@ -42,7 +41,6 @@ func NewBlobStore(dir string, key []byte) (*BlobStore, error) {
 	return &BlobStore{dir: dir, aead: aead}, nil
 }
 
-// Put dedups by sha256 of plaintext — same content writes once.
 func (b *BlobStore) Put(data []byte) (hash string, size int64, err error) {
 	if int64(len(data)) > MaxBlobSize {
 		return "", 0, ErrBlobTooLarge
@@ -53,7 +51,7 @@ func (b *BlobStore) Put(data []byte) (hash string, size int64, err error) {
 
 	path := b.path(hash)
 	if _, err := os.Stat(path); err == nil {
-		return hash, size, nil // already present
+		return hash, size, nil
 	}
 
 	if err := os.MkdirAll(b.dir, 0700); err != nil {
@@ -96,7 +94,7 @@ func (b *BlobStore) Put(data []byte) (hash string, size int64, err error) {
 	return hash, size, nil
 }
 
-// Read returns ErrBlobNotFound when the file does not exist.
+// Returns ErrBlobNotFound when the file does not exist.
 func (b *BlobStore) Read(hash string) ([]byte, error) {
 	if !validHash(hash) {
 		return nil, fmt.Errorf("notes: invalid hash %q", hash)
@@ -134,7 +132,7 @@ func (b *BlobStore) Exists(hash string) bool {
 	return err == nil
 }
 
-// Delete treats a missing file as success so callers can use it for GC.
+// Missing file is success, so callers can use this for GC.
 func (b *BlobStore) Delete(hash string) error {
 	if !validHash(hash) {
 		return fmt.Errorf("notes: invalid hash %q", hash)
@@ -146,7 +144,7 @@ func (b *BlobStore) Delete(hash string) error {
 	return nil
 }
 
-// GC removes blob files whose hash is not in `referenced`. Missing dir is
+// Removes blob files whose hash is not in `referenced`. Missing dir is
 // not an error.
 func (b *BlobStore) GC(referenced map[string]struct{}) (int, error) {
 	entries, err := os.ReadDir(b.dir)
@@ -184,8 +182,7 @@ func (b *BlobStore) path(hash string) string {
 	return filepath.Join(b.dir, hash+blobExt)
 }
 
-// validHash accepts only 64-character lowercase hex — the exact shape of a
-// sha256 digest. Guards against path traversal via crafted hash strings.
+// Guards against path traversal via crafted hash strings.
 func validHash(h string) bool {
 	if len(h) != 64 {
 		return false

@@ -30,9 +30,8 @@ type detachedEntry struct {
 }
 
 // DetachProject opens (or focuses, if already open) a dedicated window
-// for projectName showing its detail view. Window position/size are
-// restored from settings when available. The detached state is
-// persisted so the window auto-reopens on next launch.
+// for projectName. Position/size are restored from settings and the
+// detached state persists so the window auto-reopens on next launch.
 func (a *App) DetachProject(projectName string) error {
 	if strings.TrimSpace(projectName) == "" {
 		return fmt.Errorf("project name is required")
@@ -61,7 +60,7 @@ func (a *App) DetachProject(projectName string) error {
 }
 
 // AttachProject closes the detached window for projectName, returning
-// the project to the main window's sidebar. Service state is unaffected.
+// the project to the main window's sidebar.
 func (a *App) AttachProject(projectName string) error {
 	a.detachedMu.Lock()
 	entry, ok := a.detachedWindows[projectName]
@@ -77,9 +76,8 @@ func (a *App) AttachProject(projectName string) error {
 	return nil
 }
 
-// FocusDetachedWindow brings the detached window for projectName to the
-// front. Returns true if a window was focused, false if the project is
-// not currently detached.
+// FocusDetachedWindow returns true if a window was focused, false if the
+// project is not currently detached.
 func (a *App) FocusDetachedWindow(projectName string) bool {
 	a.detachedMu.Lock()
 	entry, ok := a.detachedWindows[projectName]
@@ -92,8 +90,6 @@ func (a *App) FocusDetachedWindow(projectName string) bool {
 	return true
 }
 
-// ListDetachedProjects returns the names of projects currently open in
-// their own window. Used by the frontend to mark sidebar rows.
 func (a *App) ListDetachedProjects() []string {
 	a.detachedMu.Lock()
 	defer a.detachedMu.Unlock()
@@ -105,9 +101,8 @@ func (a *App) ListDetachedProjects() []string {
 }
 
 // RestoreDetachedWindows reopens windows for every project that was
-// detached when the app last quit. Called from main.go after the main
-// window is created. Pre-populates the registry under a single lock so
-// any early ListDetachedProjects call observes the final set.
+// detached when the app last quit. Pre-populates the registry under a
+// single lock so any early ListDetachedProjects observes the final set.
 func (a *App) RestoreDetachedWindows() {
 	s := a.LoadSettings()
 
@@ -141,11 +136,9 @@ func (a *App) RestoreDetachedWindows() {
 	}
 }
 
-// closeDetachedWindowFor closes the detached window for projectName if
-// one is open. Settings cleanup is left to removeSettingsReferences,
-// which RemoveProject calls right after — coalescing both writes.
-// Marking closed=true first makes the WindowClosing hook a no-op so it
-// doesn't race a settings write against removeSettingsReferences.
+// closeDetachedWindowFor marks closed=true first so the WindowClosing hook
+// is a no-op — settings cleanup is then handled by removeSettingsReferences
+// which RemoveProject calls right after, coalescing both writes.
 func (a *App) closeDetachedWindowFor(projectName string) {
 	a.detachedMu.Lock()
 	entry, ok := a.detachedWindows[projectName]
@@ -158,10 +151,9 @@ func (a *App) closeDetachedWindowFor(projectName string) {
 	}
 }
 
-// openDetachedWindowLocked creates the OS window and registers it in
-// the in-memory map. Caller must hold detachedMu. Window event hooks
-// are attached separately via attachWindowHooks (outside the lock) so
-// the Wails machinery isn't called with a.detachedMu held.
+// openDetachedWindowLocked creates the OS window and registers it in the
+// in-memory map. Caller must hold detachedMu. Window event hooks are
+// attached separately so Wails isn't called with a.detachedMu held.
 func (a *App) openDetachedWindowLocked(projectName string, state DetachedWindowState) *detachedEntry {
 	opts := application.WebviewWindowOptions{
 		Name:           detachedWindowNamePrefix + projectName,
@@ -254,9 +246,9 @@ func (a *App) attachWindowHooks(entry *detachedEntry, projectName string) {
 	entry.win.OnWindowEvent(events.Common.WindowDidResize, saveBounds)
 }
 
-// detachedStateLocked returns the persisted state for projectName plus
-// whether an entry existed. Caller must hold detachedMu (so callers can
-// chain a state lookup with the open-and-register step atomically).
+// detachedStateLocked returns persisted state plus whether an entry existed.
+// Caller must hold detachedMu so a state lookup can be chained with the
+// open-and-register step atomically.
 func (a *App) detachedStateLocked(projectName string) (DetachedWindowState, bool) {
 	s := a.LoadSettings()
 	state, ok := s.DetachedWindows[projectName]

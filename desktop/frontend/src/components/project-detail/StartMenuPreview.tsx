@@ -25,10 +25,6 @@ interface StartMenuPreviewProps {
   onPickProfile?: (profile: ProfileInfo) => void;
 }
 
-// StartMenuPreview renders the actual Start split-button with its dropdown
-// menu open underneath, showing both Profiles and Services sections. Used
-// by ServiceForm and ProfileForm as a WYSIWYG sidebar — clicking a non-draft
-// row swaps the modal to that entry.
 export function StartMenuPreview({
   services,
   profiles,

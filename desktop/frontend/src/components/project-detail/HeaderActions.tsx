@@ -17,8 +17,7 @@ interface HeaderActionsProps {
   onAddAction: () => void;
 }
 
-// The drag-sortable list of header-display actions. The wrapper is also
-// the droppable zone for cross-group drops from the footer.
+// The wrapper is the droppable zone for cross-group drops from the footer.
 export function HeaderActions({
   actions,
   ids,

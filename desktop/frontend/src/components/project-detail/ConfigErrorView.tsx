@@ -12,9 +12,6 @@ interface ConfigErrorViewProps {
   onRefresh: (newName?: string) => void;
 }
 
-// Replaces the project view when the YAML fails to load — surfaces the
-// parse error, lets the user open the config editor inline, and offers
-// a retry that re-runs ListProjects.
 export function ConfigErrorView({
   projectName,
   error,

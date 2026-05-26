@@ -35,8 +35,6 @@ func newTestStore(t *testing.T) (*Store, []byte) {
 	return s, key
 }
 
-// newTestChat seeds a fresh chat in s so message-focused tests don't need to
-// interleave chat setup with the behavior they're actually checking.
 func newTestChat(t *testing.T, s *Store) string {
 	t.Helper()
 	c, err := s.CreateChat(context.Background(), "test")
@@ -69,7 +67,6 @@ func TestStore_AddAndList(t *testing.T) {
 	if len(msgs) != 2 {
 		t.Fatalf("len = %d, want 2", len(msgs))
 	}
-	// newest first
 	if msgs[0].ID != b.ID || msgs[1].ID != a.ID {
 		t.Fatalf("order wrong: got %q, %q", msgs[0].ID, msgs[1].ID)
 	}
@@ -167,7 +164,6 @@ func TestStore_DeleteReturnsOrphans(t *testing.T) {
 	ctx := context.Background()
 	chat := newTestChat(t, s)
 
-	// Two messages share hash "shared"; only "solo" is exclusive to m1.
 	m1, err := s.AddMessage(ctx, chat, "first", []Attachment{
 		{Hash: "shared", Name: "x", Size: 1},
 		{Hash: "solo", Name: "y", Size: 2},
@@ -250,12 +246,10 @@ func TestStore_ChatCRUDAndOrdering(t *testing.T) {
 	if len(chats) != 2 {
 		t.Fatalf("len = %d, want 2", len(chats))
 	}
-	// beta created after alpha — newer first
 	if chats[0].ID != b.ID || chats[1].ID != a.ID {
 		t.Fatalf("order = [%s,%s], want [%s,%s]", chats[0].ID, chats[1].ID, b.ID, a.ID)
 	}
 
-	// Adding a message to alpha should bump alpha to the top.
 	time.Sleep(2 * time.Millisecond)
 	if _, err := s.AddMessage(ctx, a.ID, "hi", nil); err != nil {
 		t.Fatalf("add: %v", err)
@@ -284,8 +278,6 @@ func TestStore_DeleteChatReturnsOrphans(t *testing.T) {
 	a := newTestChat(t, s)
 	b := newTestChat(t, s)
 
-	// "shared" is referenced by both chats; "solo" only by a. Deleting a
-	// should orphan "solo" but keep "shared" alive.
 	if _, err := s.AddMessage(ctx, a, "m1", []Attachment{
 		{Hash: "shared", Name: "x", Size: 1},
 		{Hash: "solo", Name: "y", Size: 2},
@@ -330,9 +322,6 @@ func TestStore_AddMessageRejectsUnknownChat(t *testing.T) {
 
 // Mirrors the chat-delete flow in main.NotesDeleteChat: targeted orphan
 // removal followed by a full sweep that catches blobs with no DB reference.
-// Verifies blob files actually leave disk for hashes the deleted chat owned
-// exclusively, that shared blobs survive, and that pre-existing strays
-// (simulating a failed AddMessage write) are swept.
 func TestStore_DeleteChatRemovesAllUnreferencedBlobs(t *testing.T) {
 	s, key := newTestStore(t)
 	ctx := context.Background()
@@ -355,8 +344,8 @@ func TestStore_DeleteChatRemovesAllUnreferencedBlobs(t *testing.T) {
 	sharedHash, _ := put("shared")
 	soloAHash, _ := put("solo-a")
 	soloBHash, _ := put("solo-b")
-	// Stray blob with no DB reference — simulates a Put that succeeded but
-	// whose AddMessage failed before the attachment row was inserted.
+	// Simulates a Put that succeeded but whose AddMessage failed before the
+	// attachment row was inserted — should still be swept by the GC sweep.
 	strayHash, _ := put("stray")
 
 	a := newTestChat(t, s)
@@ -405,17 +394,14 @@ func TestStore_DeleteChatRemovesAllUnreferencedBlobs(t *testing.T) {
 	}
 }
 
-// Simulates an on-disk DB created before chats existed. After reopening with
-// the current schema, every pre-existing message should have been backfilled
-// into a single "General" chat.
+// Simulates an on-disk DB created before chats existed.
 func TestStore_BackfillsLegacyMessagesIntoDefaultChat(t *testing.T) {
 	key := newTestKey(t)
 	dir := t.TempDir()
 	ctx := context.Background()
 
-	// Open with the real schema, then hand-roll the legacy state: drop chat_id
-	// from existing rows and delete the chats table so the next open sees a
-	// pre-chats DB.
+	// Open with the real schema, then hand-roll the legacy state so the next
+	// open sees a pre-chats DB.
 	s, err := openStoreAt(ctx, "legacy", dir, key)
 	if err != nil {
 		t.Fatalf("first open: %v", err)
@@ -438,7 +424,6 @@ func TestStore_BackfillsLegacyMessagesIntoDefaultChat(t *testing.T) {
 	}
 	s.Close()
 
-	// Reopen — migrate() should create a default chat and backfill.
 	s2, err := openStoreAt(ctx, "legacy", dir, key)
 	if err != nil {
 		t.Fatalf("reopen: %v", err)
@@ -474,8 +459,8 @@ func TestStore_Search(t *testing.T) {
 		}
 		return m
 	}
-	// Space the inserts so ts DESC ordering is deterministic (AddMessage uses
-	// millisecond precision and a tight loop can tie).
+	// Space inserts so ts DESC ordering is deterministic (AddMessage uses
+	// millisecond precision; a tight loop can tie).
 	_ = mustAdd("docker compose up fails on arm64")
 	time.Sleep(2 * time.Millisecond)
 	_ = mustAdd("remember: GCS bucket is gs://foo-bar")
@@ -532,7 +517,6 @@ func TestStore_Search(t *testing.T) {
 	})
 
 	t.Run("LIKE wildcards are escaped", func(t *testing.T) {
-		// "%" must not match everything — without escaping it would.
 		hits, err := s.Search(ctx, "%", 10)
 		if err != nil {
 			t.Fatalf("search: %v", err)

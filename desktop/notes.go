@@ -31,9 +31,8 @@ const maxDroppedAttachmentBytes = 100 * 1024 * 1024
 // spike memory by encrypting every attachment at once (100MB * N = bad).
 const stashConcurrency = 4
 
-// notesState owns the per-project Store/BlobStore handles plus a cached
-// copy of the shared vault key. One Keychain prompt, reused across every
-// project opened during the session.
+// notesState owns per-project Store/BlobStore handles plus a cached vault
+// key. One Keychain prompt, reused across every project this session.
 type notesState struct {
 	mu     sync.Mutex
 	key    []byte
@@ -57,7 +56,6 @@ func (n *notesState) open(ctx context.Context, project string) (*notesBundle, er
 	// Retry loop covers the race where invalidateKey fires while we're
 	// opening: we'd otherwise publish a store built with a stale key.
 	for attempt := 0; attempt < 3; attempt++ {
-		// Fast path: hit the cache and release the lock before any slow work.
 		n.mu.Lock()
 		if b, ok := n.stores[project]; ok {
 			n.mu.Unlock()
@@ -109,8 +107,6 @@ func (n *notesState) open(ctx context.Context, project string) (*notesBundle, er
 	return nil, errors.New("notes: vault key invalidated repeatedly during open")
 }
 
-// forget drops the cached bundle so the next access reopens against current
-// on-disk state. Required after project removal.
 func (n *notesState) forget(project string) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -120,8 +116,8 @@ func (n *notesState) forget(project string) {
 	}
 }
 
-// invalidateKey discards the cached vault key and every open store. Used
-// after a successful key import so the next access re-fetches from Keychain.
+// invalidateKey discards the cached vault key and every open store, so the
+// next access re-fetches from Keychain. Called after key import.
 func (n *notesState) invalidateKey() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -254,9 +250,9 @@ func (a *App) NotesDeleteChat(project, chatID string) error {
 	return nil
 }
 
-// gcOrphanBlobs best-effort-deletes every blob referenced by a now-empty
-// attachment set. A single failure shouldn't block the rest — the blob store
-// tolerates missing files on the next GC sweep.
+// gcOrphanBlobs deletes every blob whose last reference was just dropped.
+// Failures don't block the rest — the blob store tolerates missing files
+// on the next GC sweep.
 func (b *notesBundle) gcOrphanBlobs(hashes []string) {
 	for _, h := range hashes {
 		if err := b.blobs.Delete(h); err != nil {
@@ -265,9 +261,8 @@ func (b *notesBundle) gcOrphanBlobs(hashes []string) {
 	}
 }
 
-// sweepUnreferencedBlobs walks the blob dir and deletes anything not in the
-// attachment table. Errors are logged, not returned — the parent operation
-// (chat delete) has already succeeded by the time this runs.
+// sweepUnreferencedBlobs deletes any blob not in the attachment table.
+// Errors are logged — parent operation has already succeeded.
 func (b *notesBundle) sweepUnreferencedBlobs(ctx context.Context) {
 	refs, err := b.store.AllAttachmentHashes(ctx)
 	if err != nil {
@@ -301,8 +296,8 @@ func (a *App) NotesDeleteMessage(project, id string) error {
 }
 
 // NotesReadFileAsInput reads a file from disk and returns a ready-to-attach
-// payload. Used by the frontend when files arrive via native drag-and-drop
-// (Wails delivers OS file paths rather than File blobs).
+// payload. Wails delivers OS file paths rather than File blobs for native
+// drag-and-drop.
 func (a *App) NotesReadFileAsInput(path string) (*NotesAttachmentInput, error) {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -349,8 +344,7 @@ func (a *App) NotesReadAttachment(project, hash string) (string, error) {
 
 // NotesSaveAttachment prompts for a folder and writes the attachment there
 // with its original name. Returns "" when the dialog is cancelled.
-// Uses OpenDirectoryDialog for the same reason as ExportConfig — native
-// SaveFileDialog has proven flaky on newer macOS.
+// Uses OpenDirectoryDialog — native SaveFileDialog is flaky on newer macOS.
 func (a *App) NotesSaveAttachment(project, hash, name string) (result string, err error) {
 	defer recoverAs("save attachment", &err)
 
@@ -378,9 +372,8 @@ func (a *App) NotesSaveAttachment(project, hash, name string) (result string, er
 	return path, nil
 }
 
-// VaultExportKey prompts for a folder and writes a passphrase-wrapped copy
-// of the vault key. The exported file decrypts every lpm feature that uses
-// the vault (notes today, future env vars, ...).
+// VaultExportKey writes a passphrase-wrapped copy of the vault key. The
+// exported file decrypts every lpm feature that uses the vault.
 func (a *App) VaultExportKey(passphrase string) (result string, err error) {
 	defer recoverAs("vault export", &err)
 

@@ -146,7 +146,6 @@ function wizardCopy(editing: boolean): { title: string; hint?: string; primary: 
   };
 }
 
-// Returns the first missing-field message, or null when the form is valid.
 function getMissingHint(draft: FormDraft, hasMenuOption: boolean): string | null {
   const nameFilled = Boolean(draft.name.trim());
   const cmdFilled = Boolean(draft.cmd.trim());

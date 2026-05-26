@@ -396,9 +396,8 @@ func (s *Store) EditMessage(ctx context.Context, id, text string) error {
 	return tx.Commit()
 }
 
-// DeleteMessage removes a message (its attachment rows cascade) and returns
-// the hashes of any attachments that no other message still references. The
-// caller should pass those hashes to the blob store to free disk space.
+// Returns hashes of attachments no other message references — the caller
+// should pass those to the blob store to free disk space.
 // Returns sql.ErrNoRows if the message does not exist.
 func (s *Store) DeleteMessage(ctx context.Context, id string) ([]string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -446,7 +445,7 @@ func (s *Store) DeleteMessage(ctx context.Context, id string) ([]string, error) 
 	return orphans, nil
 }
 
-// ListChats returns chats ordered by most-recently-updated first.
+// Ordered by most-recently-updated first.
 func (s *Store) ListChats(ctx context.Context) ([]Chat, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, title, created_ts, updated_ts FROM chats ORDER BY updated_ts DESC, id`)
@@ -468,10 +467,9 @@ func (s *Store) ListChats(ctx context.Context) ([]Chat, error) {
 	return chats, nil
 }
 
-// AllAttachmentHashes returns the set of every hash currently referenced by
-// any attachment row. Callers pass this to BlobStore.GC to sweep blob files
-// that have no remaining DB reference (e.g. left over from a failed Put or
-// a previous delete whose blob removal returned an error).
+// Callers pass this to BlobStore.GC to sweep blob files with no remaining
+// DB reference (e.g. left over from a failed Put or a delete whose blob
+// removal returned an error).
 func (s *Store) AllAttachmentHashes(ctx context.Context) (map[string]struct{}, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT hash FROM attachments`)
 	if err != nil {
@@ -492,9 +490,8 @@ func (s *Store) AllAttachmentHashes(ctx context.Context) (map[string]struct{}, e
 	return out, nil
 }
 
-// ChatExists reports whether a chat with the given id is in the store.
-// Callers use it as a cheap precondition check — e.g. before stashing
-// attachments for a message that would otherwise land on a deleted chat.
+// Cheap precondition check — e.g. before stashing attachments for a message
+// that would otherwise land on a deleted chat.
 func (s *Store) ChatExists(ctx context.Context, id string) (bool, error) {
 	var n int
 	if err := s.db.QueryRowContext(ctx,
@@ -504,8 +501,8 @@ func (s *Store) ChatExists(ctx context.Context, id string) (bool, error) {
 	return n > 0, nil
 }
 
-// CreateChat creates a chat with the given title. Empty/whitespace titles
-// are rejected so callers that want a default must be explicit.
+// Empty/whitespace titles are rejected so callers that want a default
+// must be explicit.
 func (s *Store) CreateChat(ctx context.Context, title string) (*Chat, error) {
 	title = strings.TrimSpace(title)
 	if title == "" {
@@ -525,8 +522,7 @@ func (s *Store) CreateChat(ctx context.Context, title string) (*Chat, error) {
 	return c, nil
 }
 
-// RenameChat returns sql.ErrNoRows if the chat does not exist. Empty titles
-// are rejected.
+// Returns sql.ErrNoRows if the chat does not exist. Empty titles are rejected.
 func (s *Store) RenameChat(ctx context.Context, id, title string) error {
 	title = strings.TrimSpace(title)
 	if title == "" {
@@ -544,10 +540,9 @@ func (s *Store) RenameChat(ctx context.Context, id, title string) error {
 	return nil
 }
 
-// DeleteChat removes a chat and every message (and attachment row) it owns,
-// returning blob hashes that no remaining attachment row references. Callers
-// should pass those to the blob store to free disk space. Returns
-// sql.ErrNoRows if the chat does not exist.
+// Returns blob hashes no remaining attachment row references — callers
+// pass those to the blob store to free disk space. Returns sql.ErrNoRows
+// if the chat does not exist.
 func (s *Store) DeleteChat(ctx context.Context, id string) ([]string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -576,7 +571,6 @@ func (s *Store) DeleteChat(ctx context.Context, id string) ([]string, error) {
 		return nil, err
 	}
 
-	// Messages cascade to attachments via the existing FK.
 	if _, err := tx.ExecContext(ctx,
 		`DELETE FROM messages WHERE chat_id = ?`, id); err != nil {
 		return nil, fmt.Errorf("notes: delete chat messages: %w", err)
@@ -600,10 +594,9 @@ func (s *Store) DeleteChat(ctx context.Context, id string) ([]string, error) {
 	return orphans, nil
 }
 
-// SearchHit is one result from Store.Search — the message's owning chat is
-// included so the UI can render hits grouped without a second round-trip.
-// Snippet is plain text: a window around the first match with ellipses on
-// truncation, safe to render without further escaping.
+// SearchHit is one result from Store.Search. Snippet is plain text: a window
+// around the first match with ellipses on truncation, safe to render without
+// further escaping.
 type SearchHit struct {
 	MessageID string `json:"id"`
 	ChatID    string `json:"chatId"`
@@ -612,13 +605,10 @@ type SearchHit struct {
 	Snippet   string `json:"snippet"`
 }
 
-// Search returns messages matching every whitespace-separated token in query
-// (ASCII-case-insensitive LIKE), newest first. Empty/whitespace-only queries
-// short-circuit to nil so callers don't have to special-case them.
-//
-// LIKE is intentional over FTS5: the sqlcipher driver in use only bundles
-// FTS5 under a build tag we don't set, and at per-project-notes scale a full
-// scan over messages.text is imperceptible.
+// Matches every whitespace-separated token (ASCII-case-insensitive LIKE),
+// newest first. LIKE is intentional over FTS5: the sqlcipher driver in use
+// only bundles FTS5 under a build tag we don't set, and at per-project-notes
+// scale a full scan over messages.text is imperceptible.
 func (s *Store) Search(ctx context.Context, query string, limit int) ([]SearchHit, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
@@ -657,18 +647,15 @@ func (s *Store) Search(ctx context.Context, query string, limit int) ([]SearchHi
 	return hits, rows.Err()
 }
 
-// escapeLike neutralises LIKE wildcards so a query like "50%" doesn't match
-// every message. Backslash escapes itself because ESCAPE '\' is in the SQL.
+// Backslash escapes itself because ESCAPE '\' is in the SQL.
 func escapeLike(s string) string {
 	return likeEscaper.Replace(s)
 }
 
 var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
-// buildSnippet returns a short window of text around the first match of term,
-// aligned to rune boundaries and marked with ellipses where truncated. We
-// render search results as plain text (not markdown) so the caller can rely
-// on this output being safe to drop into a text node.
+// Plain text (not markdown) so the caller can drop the output into a text
+// node without further escaping.
 func buildSnippet(text, term string) string {
 	const before, after = 80, 160
 	idx := strings.Index(strings.ToLower(text), strings.ToLower(term))
@@ -704,8 +691,7 @@ func headSnippet(text string, n int) string {
 	return text[:end] + "…"
 }
 
-// alignRuneStart walks left until the byte is a leading (non-continuation)
-// UTF-8 byte, so slicing text[i:] doesn't produce an invalid rune prefix.
+// Walks left past UTF-8 continuation bytes so text[i:] starts on a rune.
 func alignRuneStart(text string, i int) int {
 	for i > 0 && (text[i]&0xC0) == 0x80 {
 		i--
@@ -713,8 +699,7 @@ func alignRuneStart(text string, i int) int {
 	return i
 }
 
-// alignRuneEnd walks right past any continuation bytes so text[:i] ends on a
-// complete rune.
+// Walks right past UTF-8 continuation bytes so text[:i] ends on a rune.
 func alignRuneEnd(text string, i int) int {
 	for i < len(text) && (text[i]&0xC0) == 0x80 {
 		i++
@@ -722,8 +707,7 @@ func alignRuneEnd(text string, i int) int {
 	return i
 }
 
-// orphansAmong returns the subset of candidates no longer referenced by any
-// attachment row. One round-trip regardless of candidate count.
+// One round-trip regardless of candidate count.
 func orphansAmong(ctx context.Context, tx *sql.Tx, candidates []string) ([]string, error) {
 	if len(candidates) == 0 {
 		return nil, nil
