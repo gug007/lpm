@@ -14,8 +14,6 @@ import (
 	"github.com/gug007/lpm/internal/config"
 )
 
-// CreateProjectFromClone clones a git repo into <destParent>/<name>, then
-// registers the result as an lpm project.
 func (a *App) CreateProjectFromClone(name, url, branch, destParent string) error {
 	destPath, err := cloneValidate(name, url, branch, destParent)
 	if err != nil {
@@ -37,7 +35,7 @@ func (a *App) CreateProjectFromClone(name, url, branch, destParent string) error
 	return nil
 }
 
-// urlPattern matches the four scheme forms plus scp-style git@host:path.
+// urlPattern: four schemes plus scp-style git@host:path.
 var urlPattern = regexp.MustCompile(
 	`^(?:` +
 		`https://[^\s]+` +
@@ -48,16 +46,12 @@ var urlPattern = regexp.MustCompile(
 		`)$`,
 )
 
-// shellMeta rejects characters that could escape an argv slot if the URL
-// were ever interpolated into a shell. We use `--` with git clone, but
-// defense in depth.
+// shellMeta is belt-and-suspenders for the `--` we already pass to git clone.
 var shellMeta = regexp.MustCompile("[`$;&|<>()\\\\\"']")
 
 // branchBadRune catches refname violations check-ref-format guards.
 var branchBadRune = regexp.MustCompile(`[\s~^:?*\[\\]`)
 
-// cloneValidate returns the destination directory the clone should land in.
-// Errors describe the field at fault without leaking internals.
 func cloneValidate(name, url, branch, destParent string) (string, error) {
 	if err := config.ValidateName(name); err != nil {
 		return "", fmt.Errorf("project name: %w", err)
@@ -144,8 +138,7 @@ func validateBranchName(b string) error {
 	return nil
 }
 
-// checkWritable creates and removes a temp file in dir to surface ACL/RO
-// mounts that os.Stat alone would not catch.
+// checkWritable surfaces ACL/RO mounts that os.Stat alone would not catch.
 func checkWritable(dir string) error {
 	f, err := os.CreateTemp(dir, ".lpm-clone-write-*")
 	if err != nil {
@@ -157,9 +150,9 @@ func checkWritable(dir string) error {
 	return nil
 }
 
-// cloneRepo runs `git clone` into destPath. destPath must NOT exist yet — git
-// creates it. On failure the returned error embeds the first ~2KB of stderr
-// with ANSI / control characters stripped so it can be shown in the modal.
+// cloneRepo: destPath must NOT exist yet. On failure the returned error
+// embeds stderr (capped, with ANSI/control characters stripped) so it can
+// be shown in the modal.
 func cloneRepo(ctx context.Context, url, branch, destPath string) error {
 	args := []string{"clone", "--progress"}
 	if branch = strings.TrimSpace(branch); branch != "" {
@@ -204,8 +197,8 @@ func cleanGitOutput(s string) string {
 			i = j
 			continue
 		}
-		// \r becomes \n so progress lines git rewrites with carriage returns
-		// land as separate lines instead of a single garbled string.
+		// Convert \r to \n so git's progress lines (rewritten with carriage
+		// returns) land as separate lines instead of one garbled string.
 		if c < 0x20 && c != '\n' && c != '\t' {
 			if c == '\r' {
 				b.WriteByte('\n')
@@ -223,9 +216,8 @@ func cleanGitOutput(s string) string {
 	return out
 }
 
-// cloneCleanup best-effort removes destDir if it looks like a partial git
-// clone. Only removes when .git is present or destDir is empty — so we
-// never nuke pre-existing user data if validation was bypassed.
+// cloneCleanup only removes when .git is present or destDir is empty —
+// never nukes pre-existing user data if validation was bypassed.
 func cloneCleanup(destDir string) {
 	if destDir == "" {
 		return

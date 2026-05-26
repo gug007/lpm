@@ -355,9 +355,8 @@ func buildActionYAMLPrompt(cfg *config.ProjectConfig, userPrompt, currentYAML st
 	return projectContextBlock(cfg) + "\n# Reference: lpm-config skill\n\n" + lpmSkill + "\n\n" + task.String()
 }
 
-// GenerateActionYAML produces or modifies the YAML body for a header action.
-// currentYAML may be empty for a fresh action; when non-empty the AI is asked
-// to modify it in place.
+// GenerateActionYAML: empty currentYAML produces a fresh action; non-empty
+// asks the AI to modify it in place.
 func (a *App) GenerateActionYAML(projectName, cli, model, effort string, fast bool, userPrompt, currentYAML string) (string, error) {
 	userPrompt = strings.TrimSpace(userPrompt)
 	if userPrompt == "" {
