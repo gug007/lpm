@@ -123,7 +123,7 @@ Work out which `~/.lpm/projects/<name>.yml` to edit *before* asking the user any
 | 2 | `~/.lpm/global.yml` | Your personal global. |
 | 1 | `~/.lpm/templates/<ref>.yml` | Referenced via `extends:` from any layer above. |
 
-Within `extends: [a, b, c]`, earlier wins: `a` overrides `b` overrides `c`.
+Short form: **`templates < global < .lpm.yml < project`** (where `<` means "loses to"). Within `extends: [a, b, c]`, earlier wins: `a` overrides `b` overrides `c`.
 
 **Sparse override:** a higher layer can hold a thin entry that overrides only the fields it sets — e.g. `myAction: {position: 3}` in the project file keeps `cmd`/`cwd`/`env`/`label` from the lower layer's same-named action. **Caveat:** bool fields (`confirm`, `reuse`) treat `false` as "inherit", so you cannot sparse-override a global's `true` to `false`. Redefine the action fully in the higher layer to do that.
 
