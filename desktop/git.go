@@ -95,8 +95,6 @@ func (a *App) GitStatus(cwd string) GitStatus {
 	return s
 }
 
-// parseAheadBehind reads the " [ahead N, behind M]" suffix that follows the
-// upstream ref in the porcelain --branch header.
 func parseAheadBehind(tail string) (ahead, behind int) {
 	lb := strings.IndexByte(tail, '[')
 	rb := strings.IndexByte(tail, ']')
@@ -129,9 +127,8 @@ func (a *App) SyncBranch(cwd string) error {
 	return err
 }
 
-// pullArgs maps a strategy name to the argv for `git pull`. Unknown strategies
-// fall back to --ff-only so a typo in settings.json never turns pull into a
-// merge-on-pull landmine.
+// pullArgs falls back to --ff-only for unknown strategies so a typo in
+// settings.json never turns pull into a merge-on-pull landmine.
 func pullArgs(strategy string) []string {
 	switch strategy {
 	case "rebase":
@@ -146,19 +143,15 @@ func pullArgs(strategy string) []string {
 type Branch struct {
 	Name          string `json:"name"`
 	CommitterDate int64  `json:"committerDate"`
-	// Remote is the remote name (e.g. "origin") when this entry represents a
-	// remote-only branch with no matching local head. Empty for local branches.
+	// Remote is set only for remote-only branches with no matching local head.
 	Remote string `json:"remote,omitempty"`
 }
 
 const (
-	// Default cap for ListBranches (the dropdown's recent-branches view).
 	branchListLocalLimit  = 100
 	branchListRemoteLimit = 200
 	branchListLimit       = 100
-	// Cap for SearchBranches results — higher than the recent-list cap so that
-	// older matches surface when the user is hunting for a specific branch.
-	branchSearchLimit = 200
+	branchSearchLimit     = 200
 )
 
 func (a *App) ListBranches(cwd string) ([]Branch, error) {
@@ -172,9 +165,6 @@ func (a *App) ListBranches(cwd string) ([]Branch, error) {
 	return branches, nil
 }
 
-// SearchBranches returns branches whose short name contains query
-// (case-insensitive), without the per-step cap ListBranches applies so older
-// matches surface.
 func (a *App) SearchBranches(cwd, query string) ([]Branch, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
@@ -198,7 +188,7 @@ func (a *App) SearchBranches(cwd, query string) ([]Branch, error) {
 }
 
 // loadAllBranches returns local heads followed by remote-only branches,
-// sorted by committer date descending. Pass 0 to read every ref.
+// sorted by committer date descending. Pass 0 for the limits to read every ref.
 func loadAllBranches(cwd string, localLimit, remoteLimit int) ([]Branch, error) {
 	locals, err := listLocalBranches(cwd, localLimit)
 	if err != nil {
@@ -215,8 +205,8 @@ func loadAllBranches(cwd string, localLimit, remoteLimit int) ([]Branch, error) 
 	return branches, nil
 }
 
-// forEachRefBranches returns `short-name\x00committer-date` lines from
-// `git for-each-ref`. count=0 reads every ref.
+// forEachRefBranches returns `short-name\x00committer-date` lines.
+// count=0 reads every ref.
 func forEachRefBranches(cwd, pattern string, count int) (string, error) {
 	args := []string{"for-each-ref", "--sort=-committerdate", pattern,
 		"--format=%(refname:short)%00%(committerdate:unix)"}
@@ -242,9 +232,9 @@ func listLocalBranches(cwd string, count int) ([]Branch, error) {
 	return branches, nil
 }
 
-// listRemoteOnlyBranches returns one entry per short name under refs/remotes
-// that has no matching local head. When several remotes carry the same name,
-// "origin" wins; otherwise the most recently updated remote wins.
+// listRemoteOnlyBranches returns one entry per short name. When several
+// remotes carry the same name, "origin" wins; otherwise the most recently
+// updated remote wins.
 func listRemoteOnlyBranches(cwd string, count int, localNames map[string]bool) []Branch {
 	out, err := forEachRefBranches(cwd, "refs/remotes", count)
 	if err != nil || out == "" {
@@ -290,10 +280,9 @@ func parseBranchRefLine(line string) (name string, date int64, ok bool) {
 	return name, date, true
 }
 
-// CheckoutBranch checks out an existing local branch, or — when remote is
-// non-empty and no local head exists — creates a tracking branch from
-// <remote>/<branch>. The remote hint disambiguates when multiple remotes
-// carry the same short name (DWIM would fail).
+// CheckoutBranch creates a tracking branch from <remote>/<branch> when
+// remote is non-empty and no local head exists, disambiguating when
+// multiple remotes carry the same short name (DWIM would fail).
 func (a *App) CheckoutBranch(cwd, branch, remote string) error {
 	if branch == "" {
 		return fmt.Errorf("branch name required")
@@ -313,8 +302,8 @@ type ChangedFile struct {
 }
 
 func (a *App) GitChangedFiles(cwd string) []ChangedFile {
-	// Don't use runGit here — it calls TrimSpace which strips the leading
-	// space from porcelain status entries like " M file.txt", corrupting paths.
+	// runGit's TrimSpace would strip the leading space from porcelain entries
+	// like " M file.txt", corrupting paths.
 	cmd := exec.Command("git", "status", "--porcelain=v1", "-z")
 	cmd.Dir = cwd
 	raw, err := cmd.Output()
@@ -324,10 +313,9 @@ func (a *App) GitChangedFiles(cwd string) []ChangedFile {
 	return parseChangedFiles(string(raw))
 }
 
-// parseChangedFiles parses `git status --porcelain=v1 -z` output. Each record
-// is "XY <path>\x00"; for renames/copies the format is "XY <new>\x00<old>\x00"
-// — the from-path chunk has no XY prefix and must be skipped so it isn't
-// mistaken for a separate entry.
+// parseChangedFiles parses `git status --porcelain=v1 -z` output. For
+// renames/copies the format is "XY <new>\x00<old>\x00" — the from-path
+// chunk has no XY prefix and must be skipped.
 func parseChangedFiles(out string) []ChangedFile {
 	entries := strings.Split(out, "\x00")
 	files := make([]ChangedFile, 0, len(entries))
@@ -377,8 +365,7 @@ func (a *App) GitCommit(cwd, message string, files []string) error {
 	if len(files) == 0 {
 		return fmt.Errorf("no files selected")
 	}
-	// Reset staging area so we only commit what's selected. Ignore error
-	// on initial commit (no HEAD yet).
+	// Reset so we only commit selected files. Error ignored: initial commit has no HEAD.
 	runGit(cwd, "reset", "HEAD")
 	addArgs := append([]string{"add", "--"}, files...)
 	if _, err := runGit(cwd, addArgs...); err != nil {
@@ -388,7 +375,6 @@ func (a *App) GitCommit(cwd, message string, files []string) error {
 	return err
 }
 
-// GitPush pushes the current branch, setting upstream on first push.
 func (a *App) GitPush(cwd string) error {
 	_, err := runGit(cwd, "push", "-u", "origin", "HEAD")
 	return err
@@ -399,8 +385,7 @@ func (a *App) GitFetchAll(cwd string) error {
 	return err
 }
 
-// GitMerge merges the named branch into HEAD. The branch must be a
-// fully qualified ref the caller resolved (e.g. "origin/feature-x").
+// GitMerge requires a fully qualified ref the caller resolved (e.g. "origin/feature-x").
 func (a *App) GitMerge(cwd, branch string) error {
 	branch = strings.TrimSpace(branch)
 	if branch == "" {
@@ -410,8 +395,8 @@ func (a *App) GitMerge(cwd, branch string) error {
 	return err
 }
 
-// GitCommitCount returns commits reachable from `to` but not from `from`.
-// Returns 0 on any git error so callers don't have to handle it for a hint UI.
+// GitCommitCount returns commits reachable from `to` but not from `from`,
+// or 0 on any git error so callers don't have to handle it for a hint UI.
 func (a *App) GitCommitCount(cwd, from, to string) int {
 	from = strings.TrimSpace(from)
 	to = strings.TrimSpace(to)
@@ -429,7 +414,6 @@ func (a *App) GitCommitCount(cwd, from, to string) int {
 	return n
 }
 
-// GitMergeConflicts returns paths of files with unresolved conflict markers.
 func (a *App) GitMergeConflicts(cwd string) []string {
 	out, err := runGit(cwd, "diff", "--name-only", "--diff-filter=U")
 	if err != nil || out == "" {
@@ -451,7 +435,7 @@ func (a *App) GitAbortMerge(cwd string) error {
 
 // GitDiscardFiles drops uncommitted changes for the given paths. Tracked
 // files are restored to HEAD; untracked files are removed via `git clean`
-// (honors .gitignore so ignored paths are preserved).
+// which honors .gitignore so ignored paths are preserved.
 func (a *App) GitDiscardFiles(cwd string, files []string) error {
 	if len(files) == 0 {
 		return nil
@@ -487,8 +471,7 @@ func (a *App) GitDiscardFiles(cwd string, files []string) error {
 	return nil
 }
 
-// GitDiscardAll resets the working tree to HEAD, discarding every
-// uncommitted change. Ignored files are preserved.
+// GitDiscardAll discards every uncommitted change; ignored files are preserved.
 func (a *App) GitDiscardAll(cwd string) error {
 	return discardUncommittedChanges(cwd)
 }
@@ -503,8 +486,7 @@ func discardUncommittedChanges(cwd string) error {
 	return nil
 }
 
-// GitDiff returns the combined diff for the given files. Untracked files are
-// shown as an "add" diff.
+// GitDiff returns the combined diff; untracked files are shown as an "add" diff.
 func (a *App) GitDiff(cwd string, files []string) (string, error) {
 	if len(files) == 0 {
 		return "", fmt.Errorf("no files")
@@ -528,8 +510,8 @@ func (a *App) GitDiff(cwd string, files []string) (string, error) {
 	}
 	for _, f := range files {
 		if !trackedSet[f] {
-			// git diff --no-index exits 1 when differences exist (always true
-			// for new files), so we capture stdout directly instead of runGit.
+			// git diff --no-index exits 1 when differences exist, so runGit's
+			// error handling can't be used here.
 			cmd := exec.Command("git", "diff", "--no-index", "--", "/dev/null", f)
 			cmd.Dir = cwd
 			if out, _ := cmd.Output(); len(out) > 0 {
@@ -601,9 +583,8 @@ func (a *App) GitDiffBranch(cwd, base string) (string, error) {
 	return runGit(cwd, "diff", base+"...HEAD")
 }
 
-// resolveBranchRef converts a branch short name into a git-usable revision,
-// preferring local head, then origin, then any other remote. Returns input
-// unchanged on miss so callers see git's native error.
+// resolveBranchRef prefers local head, then origin, then any other remote.
+// Returns input unchanged on miss so callers see git's native error.
 func resolveBranchRef(cwd, name string) string {
 	if name == "" {
 		return name

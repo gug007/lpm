@@ -58,8 +58,6 @@ func Available() map[CLI]bool {
 	return out
 }
 
-// Detect returns the first available CLI. If preferred is non-empty, only
-// that CLI is checked.
 func Detect(preferred CLI) (CLI, error) {
 	candidates := allCLIs
 	if preferred != "" {
@@ -149,8 +147,6 @@ func Generate(ctx context.Context, opts Options) (string, error) {
 	}
 }
 
-// RunOptions configures a single CLI invocation. All fields are optional;
-// the zero value runs the CLI with its own defaults in read-only mode.
 type RunOptions struct {
 	Model  string // CLI-specific model name; "" uses the CLI default.
 	Effort string // reasoning effort (low/medium/high/xhigh; claude also accepts max). "" uses default.
@@ -158,8 +154,6 @@ type RunOptions struct {
 	Writes bool   // allow filesystem mutations in cwd. False means read-only sandbox.
 }
 
-// Run executes the chosen CLI with prompt in cwd, streaming progress lines via
-// the callback and returning the collected stdout.
 func Run(ctx context.Context, cli CLI, cwd, prompt string, opts RunOptions, progress ProgressFunc) (string, error) {
 	switch cli {
 	case CLIClaude:
@@ -214,8 +208,6 @@ func runOpencode(ctx context.Context, cwd, prompt string, opts RunOptions, progr
 	return streamOutput(ctx, cwd, cmd, progress, nil)
 }
 
-// runClaudeStream runs Claude with stream-json, emits progress, and returns the raw result text.
-// When opts.Writes is false, Claude is barred from filesystem mutations.
 func runClaudeStream(ctx context.Context, cwd, prompt string, opts RunOptions, progress ProgressFunc) (string, error) {
 	name := CLIClaude.displayName()
 	args := []string{

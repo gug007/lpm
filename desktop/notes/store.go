@@ -22,7 +22,7 @@ import (
 type Message struct {
 	ID          string       `json:"id"`
 	ChatID      string       `json:"chatId"`
-	Timestamp   int64        `json:"ts"`       // unix millis
+	Timestamp   int64        `json:"ts"` // unix millis
 	Text        string       `json:"text"`
 	EditedAt    *int64       `json:"editedAt,omitempty"`
 	Attachments []Attachment `json:"attachments,omitempty"`
@@ -36,8 +36,6 @@ type Attachment struct {
 	MimeType string `json:"mimeType"`
 }
 
-// Chat is a named conversation within a project. Messages belong to exactly
-// one chat; chats are per-project (not shared across projects).
 type Chat struct {
 	ID        string `json:"id"`
 	Title     string `json:"title"`
@@ -53,10 +51,8 @@ type Store struct {
 	dir     string
 }
 
-// Open: callers fetch vault.Key() once and reuse it across every project
-// they open, so we don't round-trip the Keychain per project. The ctx bounds
-// schema migration — pass a real one (not Background) so shutdown cancels
-// a slow legacy backfill cleanly.
+// Open expects a key already fetched from vault.Key() so a single Keychain
+// round-trip serves every project opened in the session.
 func Open(ctx context.Context, project string, key []byte) (*Store, error) {
 	if project == "" {
 		return nil, errors.New("notes: project name is empty")
@@ -64,7 +60,6 @@ func Open(ctx context.Context, project string, key []byte) (*Store, error) {
 	return openStoreAt(ctx, project, config.NotesDir(project), key)
 }
 
-// Tests pass a tmp dir and a fake key so they never touch the user's real tree.
 func openStoreAt(ctx context.Context, project, dir string, key []byte) (*Store, error) {
 	if len(key) != vault.KeyLen {
 		return nil, fmt.Errorf("notes: key length = %d, want %d", len(key), vault.KeyLen)
@@ -94,7 +89,7 @@ func openStoreAt(ctx context.Context, project, dir string, key []byte) (*Store, 
 	return s, nil
 }
 
-// file:// URI form so pragma params ride the query string.
+// file:// URI form lets pragma params ride the query string.
 func buildDSN(dbPath string, key []byte) string {
 	keyLiteral := "x'" + hex.EncodeToString(key) + "'"
 	q := url.Values{}
