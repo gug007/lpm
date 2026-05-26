@@ -16,17 +16,14 @@ import (
 	"github.com/gug007/lpm/internal/portcheck"
 )
 
-// Event names emitted to the frontend so all writers/readers share the
-// same string and renames stay localised.
 const (
 	eventPortsChanged      = "ports-changed"
 	eventPortAutoForwarded = "port-auto-forwarded"
 	eventPortForwardFailed = "port-forward-failed"
 )
 
-// portForward is one active `ssh -N -L` tunnel. The cancel func kills
-// the underlying ssh process — kept beside the *exec.Cmd so callers
-// don't have to know whether ssh exited on its own or was reaped here.
+// portForward is one active `ssh -N -L` tunnel. The cancel func kills the
+// underlying ssh process, kept beside the *exec.Cmd.
 type portForward struct {
 	LocalPort  int `json:"localPort"`
 	RemotePort int `json:"remotePort"`
@@ -34,14 +31,11 @@ type portForward struct {
 	cancel     context.CancelFunc
 }
 
-// PortForward is the JSON shape returned to the frontend Ports panel.
 type PortForward struct {
 	LocalPort  int `json:"localPort"`
 	RemotePort int `json:"remotePort"`
 }
 
-// ListPortForwards returns the active forwards for a project, sorted by
-// remote port for stable UI rendering.
 func (a *App) ListPortForwards(project string) []PortForward {
 	a.pfMu.Lock()
 	defer a.pfMu.Unlock()

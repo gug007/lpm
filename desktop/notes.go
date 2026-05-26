@@ -403,10 +403,9 @@ func (a *App) VaultExportKey(passphrase string) (result string, err error) {
 	return path, nil
 }
 
-// VaultImportKey prompts for a file and writes the unwrapped key into the
-// local Keychain. On success any cached notes handles are invalidated so
-// subsequent access uses the fresh key. Returns an error if the Keychain
-// already holds a different key (caller must delete it first).
+// VaultImportKey writes the unwrapped key into the Keychain and invalidates
+// cached notes handles so subsequent access uses the fresh key. Errors if
+// the Keychain already holds a different key (caller must delete it first).
 func (a *App) VaultImportKey(passphrase string) (err error) {
 	defer recoverAs("vault import", &err)
 
@@ -432,10 +431,8 @@ func (a *App) VaultImportKey(passphrase string) (err error) {
 	return nil
 }
 
-// removeNotes closes any cached handle and deletes the project's notes
-// directory. The vault key is shared and intentionally survives removal.
-// Failures are logged but never returned — the parent RemoveProject flow
-// has already succeeded by the time this runs and should not be blocked.
+// removeNotes closes the cached handle and deletes the project's notes dir.
+// The vault key is shared and intentionally survives removal.
 func (a *App) removeNotes(project string) {
 	a.notes.forget(project)
 

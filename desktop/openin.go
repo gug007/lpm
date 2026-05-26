@@ -114,8 +114,8 @@ end tell`, appleScriptEscape(projectPath))
 	return launchAppleScript(script)
 }
 
-// formatPathSpec produces "path", "path:line", or "path:line:col" depending on inputs.
-// Most editors with a CLI accept this form (VS Code/Cursor/Windsurf via -g, Sublime/Zed bare).
+// formatPathSpec produces "path", "path:line", or "path:line:col".
+// Most editors with a CLI accept this form (VS Code/Cursor/Windsurf via -g).
 func formatPathSpec(path string, line, col int) string {
 	if line <= 0 {
 		return path
@@ -126,8 +126,9 @@ func formatPathSpec(path string, line, col int) string {
 	return fmt.Sprintf("%s:%d:%d", path, line, col)
 }
 
-// vscodeFamilyOpenFile returns an openFile func for VS Code-derived editors that ship
-// a CLI binary at <App>/Contents/Resources/app/bin/<binName> and accept `-g path:line:col`.
+// vscodeFamilyOpenFile returns an openFile func for VS Code-derived editors
+// shipping a CLI at <App>/Contents/Resources/app/bin/<binName> that accepts
+// `-g path:line:col`.
 func vscodeFamilyOpenFile(binName string) func(string, string, int, int) error {
 	return func(appPath, filePath string, line, col int) error {
 		bin := filepath.Join(appPath, "Contents", "Resources", "app", "bin", binName)
@@ -141,8 +142,8 @@ func sublimeOpenFile(appPath, filePath string, line, col int) error {
 }
 
 // jetbrainsFamilyOpenFile returns an openFile func for IntelliJ-platform IDEs
-// (WebStorm, IntelliJ IDEA, PyCharm, …) that ship a CLI launcher at
-// <App>/Contents/MacOS/<binName> and accept `--line N [--column M] <path>`.
+// shipping a CLI at <App>/Contents/MacOS/<binName> that accepts
+// `--line N [--column M] <path>`.
 func jetbrainsFamilyOpenFile(binName string) func(string, string, int, int) error {
 	return func(appPath, filePath string, line, col int) error {
 		bin := filepath.Join(appPath, "Contents", "MacOS", binName)
@@ -358,9 +359,6 @@ func expandTilde(p string) string {
 	return filepath.Join(homeDir, p[2:])
 }
 
-// FileExists reports whether absPath points to a regular file (not a directory).
-// Used by the terminal link provider to filter out false-positive path matches
-// before underlining them.
 func (a *App) FileExists(absPath string) bool {
 	if absPath == "" {
 		return false
@@ -372,13 +370,10 @@ func (a *App) FileExists(absPath string) bool {
 	return !info.IsDir()
 }
 
-// Cap to keep the renderer responsive — anything larger than this and the
-// "open externally" path is the right answer anyway.
+// Cap to keep the renderer responsive — anything larger should be opened
+// externally instead.
 const readFileMaxBytes = 5 * 1024 * 1024 // 5 MiB
 
-// ReadFile returns the contents of absPath. Errors out if the file is too
-// large or doesn't exist; in those cases the modal can render a placeholder
-// and prompt the user to open it externally.
 func (a *App) ReadFile(absPath string) (string, error) {
 	if absPath == "" {
 		return "", fmt.Errorf("empty file path")
@@ -393,10 +388,8 @@ func (a *App) ReadFile(absPath string) (string, error) {
 	return string(data), nil
 }
 
-// WriteFile replaces absPath's contents with content. Refuses to write if the
-// payload exceeds readFileMaxBytes, if the path is empty, or if it points to a
-// directory. Preserves the existing file mode when overwriting; new files are
-// created with 0644.
+// WriteFile preserves the existing file mode when overwriting; new files
+// are created with 0644. Refuses payloads larger than readFileMaxBytes.
 func (a *App) WriteFile(absPath, content string) error {
 	if absPath == "" {
 		return fmt.Errorf("empty file path")
@@ -416,7 +409,7 @@ func (a *App) WriteFile(absPath, content string) error {
 }
 
 // pickFileEditor returns the first installed target that supports openFile,
-// in registry order. Used as the auto-detect fallback when no preference is set.
+// in registry order.
 func pickFileEditor() *targetDef {
 	for i := range targets {
 		t := &targets[i]
@@ -430,9 +423,6 @@ func pickFileEditor() *targetDef {
 	return nil
 }
 
-// resolveExistingFile validates absPath, expands a leading ~, and stats
-// the result so callers get a clear "file not found" error before
-// attempting to launch an editor or external app.
 func resolveExistingFile(absPath string) (string, error) {
 	if absPath == "" {
 		return "", fmt.Errorf("empty file path")
@@ -444,10 +434,9 @@ func resolveExistingFile(absPath string) (string, error) {
 	return resolved, nil
 }
 
-// OpenFileInEditor opens absPath in the user's preferred editor, jumping to
-// line:col when both are positive. Empty editorID auto-picks the first
-// installed editor that supports file-level open. Falls back to `open path`
-// when nothing better is available.
+// OpenFileInEditor opens absPath, jumping to line:col when both positive.
+// Empty editorID auto-picks the first installed editor that supports
+// file-level open; falls back to `open path`.
 func (a *App) OpenFileInEditor(editorID, absPath string, line, col int) error {
 	absPath, err := resolveExistingFile(absPath)
 	if err != nil {
@@ -475,9 +464,7 @@ func (a *App) OpenFileInEditor(editorID, absPath string, line, col int) error {
 	return exec.Command("open", absPath).Run()
 }
 
-// OpenPathInDefaultApp opens absPath in the OS default application via
-// macOS Launch Services. Used by the terminal file-click handler when the
-// user has opted out of the in-app preview.
+// OpenPathInDefaultApp opens absPath via macOS Launch Services.
 func (a *App) OpenPathInDefaultApp(absPath string) error {
 	absPath, err := resolveExistingFile(absPath)
 	if err != nil {
