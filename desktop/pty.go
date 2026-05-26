@@ -18,8 +18,8 @@ import (
 )
 
 // Wails v2 WKWebView IPC drops certain high bytes (notably 0xD1) in JS→Go
-// string transit on some macOS configs. Frontend hex-encodes input containing
-// non-ASCII bytes with this marker prefix; ASCII passes through unchanged.
+// string transit on some macOS configs. Frontend hex-encodes non-ASCII input
+// with this marker prefix; ASCII passes through unchanged.
 const writeTerminalHexMarker = "\x00HEX:"
 
 var ptyCounter atomic.Uint64
@@ -33,19 +33,14 @@ type ptySession struct {
 	id          string
 	projectName string
 	declared    map[int]bool // service ports declared in cfg; nil for local projects
-	// remote is cfg.IsRemote() at start time (post-sync-mirror): true when
-	// the shell runs on the SSH host. File drops/pastes consult this to
-	// decide whether to upload.
-	remote bool
-	ssh    *config.SSHSettings // nil if !remote
-	pty    *os.File
-	cmd    *exec.Cmd
-
-	// onClose runs in a goroutine after the process exits. Used by mode:
-	// sync terminals to push the rsync mirror back.
+	// remote: true when the shell runs on the SSH host (post-sync-mirror).
+	// File drops/pastes consult this to decide whether to upload.
+	remote  bool
+	ssh     *config.SSHSettings // nil if !remote
+	pty     *os.File
+	cmd     *exec.Cmd
 	onClose func()
 
-	// mu protects unacked/paused only.
 	mu      sync.Mutex
 	cond    *sync.Cond
 	unacked int
@@ -81,8 +76,8 @@ func (a *App) StartTerminal(projectName string) (string, error) {
 	return a.startTerminalInternal(cfg, projectName, "", nil, nil)
 }
 
-// StartTerminalWithCwdEnv launches a terminal with explicit cwd and env.
-// cwd is project-relative; SSH projects resolve it against ssh.dir.
+// StartTerminalWithCwdEnv: cwd is project-relative; SSH projects resolve
+// it against ssh.dir.
 func (a *App) StartTerminalWithCwdEnv(projectName string, cwd string, env map[string]string) (string, error) {
 	cfg, err := config.LoadProject(projectName)
 	if err != nil {
@@ -91,19 +86,17 @@ func (a *App) StartTerminalWithCwdEnv(projectName string, cwd string, env map[st
 	return a.startTerminalInternal(cfg, projectName, cwd, env, nil)
 }
 
-// TerminalLaunch is the result of StartTerminalForConfig: PTY id, the
-// command to type now, and (if recognised) the resume form for next launch.
+// TerminalLaunch carries the start cmd and, if the program is recognised,
+// the resume form for next launch.
 type TerminalLaunch struct {
 	ID        string `json:"id"`
 	StartCmd  string `json:"startCmd"`
 	ResumeCmd string `json:"resumeCmd,omitempty"`
 }
 
-// StartTerminalForConfig launches a named terminal config and runs cmd
-// through the resume registry. When the leading program is recognised
-// (e.g. claude), StartCmd is rewritten with a fresh session id and
-// ResumeCmd carries the matching --resume form; otherwise ResumeCmd is
-// empty and the frontend should not persist either field.
+// StartTerminalForConfig runs cmd through the resume registry. For an
+// unrecognised program, ResumeCmd is empty and the caller should not persist
+// either field.
 func (a *App) StartTerminalForConfig(projectName string, terminalName string) (TerminalLaunch, error) {
 	cfg, err := config.LoadProject(projectName)
 	if err != nil {
@@ -118,8 +111,6 @@ func (a *App) StartTerminalForConfig(projectName string, terminalName string) (T
 		return TerminalLaunch{}, err
 	}
 
-	// mode: sync runs the terminal locally against an rsync mirror of
-	// ssh.dir; on exit we push edits back to the remote.
 	spawnCfg := cfg
 	var onClose func()
 	if cfg.IsRemote() && act.Mode == config.ActionModeSync {
@@ -140,9 +131,8 @@ func (a *App) StartTerminalForConfig(projectName string, terminalName string) (T
 	return TerminalLaunch{ID: id, StartCmd: startCmd, ResumeCmd: resumeCmd}, nil
 }
 
-// StartTerminalForRestore skips the port check and resume-id rewrite
-// (frontend re-injects the persisted resumeCmd), and falls back to a plain
-// shell if the action was renamed or removed since persist.
+// StartTerminalForRestore skips the port check and resume-id rewrite, and
+// falls back to a plain shell if the action was renamed or removed since persist.
 func (a *App) StartTerminalForRestore(projectName string, terminalName string) (string, error) {
 	cfg, err := config.LoadProject(projectName)
 	if err != nil {
@@ -167,9 +157,9 @@ func (a *App) StartTerminalForRestore(projectName string, terminalName string) (
 	return a.startTerminalInternal(spawnCfg, projectName, act.Cwd, act.Env, onClose)
 }
 
-// buildTerminalCmd produces the *exec.Cmd to spawn under a PTY. For SSH
-// projects, extraEnv is baked into the remote script. Local projects ignore
-// extraEnv here — startTerminalInternal applies it to the local process env.
+// buildTerminalCmd: for SSH projects, extraEnv is baked into the remote
+// script. Local projects ignore extraEnv here — startTerminalInternal
+// applies it to the process env.
 func buildTerminalCmd(cfg *config.ProjectConfig, rawCwd string, extraEnv map[string]string) (*exec.Cmd, error) {
 	if cfg.IsRemote() {
 		// SSH doesn't forward TERM_PROGRAM, so cmd.Env settings don't reach
@@ -241,8 +231,6 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 	a.ptySessions[id] = sess
 	a.ptyMu.Unlock()
 
-	// PTY bytes → UTF-8 strings → Wails events. Reader → channel →
-	// coalescer pattern with flow control.
 	go func() {
 		type readResult struct {
 			data []byte
@@ -271,7 +259,7 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 			}
 		}()
 
-		// One-shot timer so idle terminals have zero overhead.
+		// One-shot timer keeps idle terminals at zero overhead.
 		pending := make([]byte, 0, 65536)
 		flushTimer := time.NewTimer(0)
 		if !flushTimer.Stop() {
@@ -283,7 +271,7 @@ func (a *App) startTerminalInternal(cfg *config.ProjectConfig, projectName strin
 			if len(pending) == 0 {
 				return
 			}
-			// Replace invalid UTF-8 so JSON serialization is safe.
+			// Wails' JSON serialisation rejects invalid UTF-8.
 			text := strings.ToValidUTF8(string(pending), "\uFFFD")
 			a.wails.Event.Emit("pty-output-"+id, text)
 			a.sniffPortsFromOutput(sess.projectName, sess.declared, text)
@@ -365,8 +353,7 @@ func (a *App) WriteTerminal(id string, data string) error {
 	return err
 }
 
-// AckTerminalData acknowledges processed characters so the PTY reader
-// resumes if paused.
+// AckTerminalData resumes the reader if its high-watermark pause is in effect.
 func (a *App) AckTerminalData(id string, charCount int) error {
 	a.ptyMu.Lock()
 	sess, ok := a.ptySessions[id]
@@ -388,8 +375,7 @@ func (a *App) AckTerminalData(id string, charCount int) error {
 	return nil
 }
 
-// IsTerminalRemote reports whether the shell is running on the SSH host.
-// False for unknown ids, local panes, and sync-mode panes.
+// IsTerminalRemote is false for unknown ids, local panes, and sync-mode panes.
 func (a *App) IsTerminalRemote(id string) bool {
 	a.ptyMu.Lock()
 	defer a.ptyMu.Unlock()
@@ -419,9 +405,8 @@ func (a *App) ResizeTerminal(id string, cols int, rows int) error {
 	})
 }
 
-// close tears down a session: wake paused reader, block new I/O via
-// closeMu, then close the PTY and kill the shell. Safe once the session
-// has been removed from App.ptySessions.
+// close must be called after the session has been removed from
+// App.ptySessions so the ordering wake → closeMu lock → pty close holds.
 func (s *ptySession) close() {
 	s.mu.Lock()
 	s.paused = false
@@ -453,8 +438,8 @@ func (a *App) StopTerminal(id string) error {
 	return nil
 }
 
-// stopProjectTerminals closes every PTY for projectName so shells release
-// file handles before the project's folder is deleted.
+// stopProjectTerminals releases file handles before the project's folder
+// is deleted.
 func (a *App) stopProjectTerminals(projectName string) {
 	a.ptyMu.Lock()
 	matched := make([]*ptySession, 0)
@@ -471,8 +456,7 @@ func (a *App) stopProjectTerminals(projectName string) {
 	}
 }
 
-// ReadClipboardFiles returns file paths from the macOS clipboard, or nil
-// when the clipboard has no file references.
+// ReadClipboardFiles returns nil when the clipboard has no file references.
 func (a *App) ReadClipboardFiles() ([]string, error) {
 	script := `use framework "AppKit"
 set pb to current application's NSPasteboard's generalPasteboard()
@@ -498,9 +482,8 @@ return paths as text`
 	return strings.Split(text, "\n"), nil
 }
 
-// SaveClipboardImage writes base64-encoded image data to a temp file and
-// returns the path. Used to turn clipboard image paste into a file path
-// insertable into the terminal.
+// SaveClipboardImage writes base64-encoded data to a temp file so a
+// clipboard image paste can be inserted into the terminal as a file path.
 func (a *App) SaveClipboardImage(b64Data string, mimeType string) (string, error) {
 	data, err := base64.StdEncoding.DecodeString(b64Data)
 	if err != nil {

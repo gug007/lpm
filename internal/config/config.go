@@ -984,8 +984,6 @@ func PeekParent(name string) string {
 	return partial.ParentName
 }
 
-// DuplicatesOf returns the names of all projects whose parent_name points at
-// the given project.
 func DuplicatesOf(name string) ([]string, error) {
 	names, err := ListProjects()
 	if err != nil {
@@ -1081,10 +1079,8 @@ func mergeActionFallback(dst, src ActionMap) ActionMap {
 	return dst
 }
 
-// mergeServiceFallback merges src (defaults) into dst (overrides) the same
-// way mergeActionFallback merges actions: when both define the same key,
-// fields set on the dst entry win and zero-valued fields inherit from src.
-// Used to layer per-repo defaults under per-user project services.
+// mergeServiceFallback merges src (defaults) into dst (overrides) like
+// mergeActionFallback: dst fields win, zero values inherit from src.
 func mergeServiceFallback(dst, src ServiceMap) ServiceMap {
 	if len(src) == 0 {
 		return dst

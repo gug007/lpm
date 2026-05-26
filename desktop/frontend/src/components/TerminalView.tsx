@@ -366,7 +366,6 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     visible,
   );
 
-  // Derive the active terminal ID from the focused pane for TTS hotkeys
   const focusedPane = getFocusedPane();
   const activeTerminalId = useMemo(() => {
     if (!focusedPane || focusedPane.activeServiceName || focusedPane.tabs.length === 0) return null;

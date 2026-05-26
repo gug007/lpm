@@ -185,7 +185,7 @@ func TestMergeServiceFallback_FieldLevelOverride(t *testing.T) {
 		"api": Service{Cmd: "go run .", Port: 8080, Env: map[string]string{"DB": "pg"}},
 	}
 	project := ServiceMap{
-		"api": Service{Port: 9090}, // user wants a different port; cmd/env inherit
+		"api": Service{Port: 9090},
 	}
 	merged := mergeServiceFallback(project, repo)
 	got := merged["api"]
@@ -206,7 +206,7 @@ func TestMergeProfilesFallback_KeyLevel(t *testing.T) {
 		"backend": {"api", "db"},
 	}
 	project := map[string][]string{
-		"backend": {"api"}, // project's slice fully replaces repo's
+		"backend": {"api"},
 	}
 	merged := mergeProfilesFallback(project, repo)
 	if got := merged["backend"]; len(got) != 1 || got[0] != "api" {
@@ -343,7 +343,6 @@ func TestTemplatePath_BareNameResolvesToTemplatesDir(t *testing.T) {
 	if got != want {
 		t.Errorf("TemplatePath(rails) = %q, want %q", got, want)
 	}
-	// Existing extension stays as-is.
 	if got := TemplatePath("rails.yaml", "/anywhere"); got != filepath.Join(home, ".lpm", "templates", "rails.yaml") {
 		t.Errorf("TemplatePath(rails.yaml) = %q", got)
 	}

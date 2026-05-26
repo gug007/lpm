@@ -31,7 +31,7 @@ var ErrWrongPassphrase = errors.New("vault: wrong passphrase or corrupted export
 // isn't silently orphaned.
 var ErrKeyConflict = errors.New("vault: local keychain holds a different vault key; delete it before importing")
 
-// Binary fields are base64 (std, padded); the rest is scalars.
+// Binary fields are std-padded base64.
 type ExportedKey struct {
 	Version int    `json:"v"`
 	Kind    string `json:"kind"`
@@ -61,8 +61,8 @@ func ExportKey(passphrase string) ([]byte, error) {
 	return wrapKey(passphrase, key)
 }
 
-// No-op when the local Keychain already has a matching key. Returns
-// ErrKeyConflict when it holds a different key.
+// ImportKey is a no-op when the local Keychain already has a matching key
+// and returns ErrKeyConflict when it holds a different one.
 func ImportKey(passphrase string, data []byte) error {
 	if passphrase == "" {
 		return ErrEmptyPassphrase
@@ -82,8 +82,7 @@ func ImportKey(passphrase string, data []byte) error {
 	return writeKey(key)
 }
 
-// Pure transform behind ExportKey: no Keychain access, so unit tests can
-// exercise it without platform gating.
+// wrapKey is split out so tests can exercise it without Keychain access.
 func wrapKey(passphrase string, key []byte) ([]byte, error) {
 	if len(key) != KeyLen {
 		return nil, fmt.Errorf("vault: key length = %d, want %d", len(key), KeyLen)
