@@ -6,6 +6,7 @@ Complete field reference for lpm project config files (`~/.lpm/projects/<name>.y
 
 ```yaml
 name: <string>           # optional — defaults to the config filename
+extends: [<ref>, ...]    # optional — templates / configs to layer underneath this one (see Config Layering)
 root: <path>             # required for local projects (supports ~). Omit when ssh: is set.
 label: <string>          # optional — display name in the UI
 parent_name: <string>    # optional — name of parent project (creates a duplicate)
@@ -29,6 +30,7 @@ A project must have **either** `root` (local) **or** `ssh:` (remote), not both.
 | `label` | string | no | — | Display name shown in the UI (defaults to `name`). |
 | `parent_name` | string | no | — | Name of a parent project. Creates a **duplicate** that inherits all services, actions, terminals, and profiles from the parent. See [Duplicate Projects](#duplicate-projects). |
 | `ssh` | object | no | — | SSH connection settings — turns the project into a remote one. Services, actions, and terminals run on the host over a shared SSH ControlMaster connection. See [SSH Projects](#ssh-projects). |
+| `extends` | `[]string` | no | — | Templates / configs to layer underneath this project. Refs are bare names (resolved from `~/.lpm/templates/<name>.yml`), absolute paths, `~`-prefixed, or relative paths from this file. Earlier items in the list win on collision among the refs; this file overrides all of them. Cycles are rejected at load. See [Config Layering & Precedence](#config-layering--precedence). |
 
 ---
 
@@ -244,6 +246,8 @@ Sub-actions inherit `cwd` and `env` from the parent; child values win on conflic
 | `type` | string | no | — | Action type. `terminal` runs in a terminal pane; `background` runs hidden and shows a toast on completion. Omit for the default inline runner (modal with streaming output). |
 | `reuse` | bool | no | false | When `type: terminal`, reuse the same terminal pane across runs instead of opening a new one. |
 | `mode` | string | no | — | SSH-only execution mode. `remote` (default on SSH projects) runs the command on the host. `sync` rsyncs `ssh.dir` into a local mirror, runs the action locally, then rsyncs changes back. `sync` is rejected on local projects. See [SSH Action Modes](#ssh-action-modes). |
+| `port` | int | no | — | Port the action wants free. lpm probes it before launching; if held, the user gets a confirmation dialog listing the holder (or a CLI error). 0–65535. Different from `services.<key>.port` (which is "this is the port I will listen on"). |
+| `position` | number | no | — | Sort key in the UI. Lower renders first. Floats allowed for easy insertion between existing entries. Default is alphabetical order. |
 | `inputs` | map[string]InputField | no | — | Named inputs prompted before running. Values substitute `{{key}}` in `cmd`. |
 | `actions` | map[string]Action | no | — | Nested sub-actions. Makes this an action group. See [Action Groups](#action-groups-nested-actions). Children inherit `cwd`, `env`, and `mode` from the parent. |
 
@@ -317,6 +321,8 @@ terminals:
 | `display` | string | no | `header` | UI placement: `header` (main button row, default) or `footer` (terminal footer strip). `menu` is still accepted (legacy) but no longer suggested. `button` is a deprecated alias for `header`. |
 | `confirm` | bool | no | false | Prompt before opening. |
 | `reuse` | bool | no | false | Reuse the existing pane on next launch. |
+| `port` | int | no | — | Port the terminal wants free. lpm probes it before launching; if held, the user gets a confirmation dialog listing the holder. 0–65535. |
+| `position` | number | no | — | Sort key in the UI. Lower renders first. Floats allowed for easy insertion between existing entries. Default is alphabetical order. |
 | `inputs` | map[string]InputField | no | — | Named inputs prompted before opening. Values substitute `{{key}}` in `cmd`. |
 | `actions` | map[string]Action | no | — | Nested sub-actions. Makes this a split-button or dropdown — see Action Groups. |
 
