@@ -26,8 +26,6 @@ func templatePathFor(name string) (string, error) {
 	return filepath.Join(config.TemplatesDir(), name+".yml"), nil
 }
 
-// A missing templates dir yields an empty list — EnsureDirs creates it on
-// startup, so callers don't have to mkdir defensively here.
 func (a *App) ListTemplates() ([]TemplateInfo, error) {
 	dir := config.TemplatesDir()
 	entries, err := os.ReadDir(dir)
@@ -56,8 +54,8 @@ func (a *App) ListTemplates() ([]TemplateInfo, error) {
 	return out, nil
 }
 
-// Returns "" for a not-yet-existing template so the editor can open it as
-// a blank canvas after CreateTemplate.
+// ReadTemplate returns "" for a not-yet-existing template so the editor
+// can open it as a blank canvas after CreateTemplate.
 func (a *App) ReadTemplate(name string) (string, error) {
 	path, err := templatePathFor(name)
 	if err != nil {
@@ -95,8 +93,7 @@ func (a *App) SaveTemplate(name, content string) error {
 	return nil
 }
 
-// Errors on collision rather than silently overwriting, so the UI can
-// surface "name already taken" cleanly.
+// CreateTemplate errors on collision rather than overwriting.
 func (a *App) CreateTemplate(name string) error {
 	path, err := templatePathFor(name)
 	if err != nil {
@@ -127,9 +124,9 @@ func (a *App) DeleteTemplate(name string) error {
 	return nil
 }
 
-// Does not rewrite `extends:` refs in other configs — they're keyed by
-// name and would silently break. Callers should warn before invoking
-// rename on a template that's in use.
+// RenameTemplate does not rewrite `extends:` refs in other configs —
+// they're keyed by name and would silently break. Callers should warn
+// before renaming a template that's in use.
 func (a *App) RenameTemplate(oldName, newName string) error {
 	if oldName == newName {
 		return nil

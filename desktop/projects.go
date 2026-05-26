@@ -16,9 +16,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// runState records how a project's tmux session was started. If services is
-// non-empty, it overrides profile-based resolution (i.e. the session was
-// started for a specific service subset rather than a named profile).
+// runState records how a project's session was started. Non-empty services
+// overrides profile-based resolution.
 type runState struct {
 	profile  string
 	services []string
@@ -122,9 +121,9 @@ type ActionInfo struct {
 	Children []ActionInfo      `json:"children,omitempty"`
 }
 
-// sortActionNames orders names by Position ascending; entries without a
-// Position are appended afterwards in alphabetical order. The ordering is
-// stable so identical positions fall back to alphabetical.
+// sortActionNames orders by Position ascending; nil-Position entries are
+// appended afterwards alphabetically. Stable so identical positions fall
+// back to alphabetical.
 func sortActionNames(names []string, posOf func(string) *float64) {
 	sort.SliceStable(names, func(i, j int) bool {
 		pi, pj := posOf(names[i]), posOf(names[j])
@@ -346,9 +345,9 @@ func (a *App) applyProjectOrder(projects []ProjectInfo) []ProjectInfo {
 	return groupDuplicatesAfterParents(ordered)
 }
 
-// groupDuplicatesAfterParents enforces the "duplicate lives next to its
-// source" rule so existing state self-heals and a dragged duplicate snaps
-// back to its parent on the next read. Orphan duplicates keep their slot.
+// groupDuplicatesAfterParents enforces "duplicate lives next to its source"
+// so existing state self-heals and a dragged duplicate snaps back to its
+// parent on the next read. Orphan duplicates keep their slot.
 func groupDuplicatesAfterParents(ordered []ProjectInfo) []ProjectInfo {
 	nameSet := make(map[string]bool, len(ordered))
 	for _, p := range ordered {
@@ -376,9 +375,8 @@ func groupDuplicatesAfterParents(ordered []ProjectInfo) []ProjectInfo {
 	return result
 }
 
-// SetProjectLabel writes a display-only label to the project's config.
-// The label is optional — an empty string (after trimming) clears it,
-// causing the UI to fall back to the project's identifier name.
+// SetProjectLabel writes a display-only label. Empty clears it, falling
+// back to the identifier name.
 func (a *App) SetProjectLabel(name, label string) error {
 	cfg, err := config.LoadProject(name)
 	if err != nil {
@@ -438,8 +436,8 @@ func (a *App) StartProject(name, profile string) error {
 	return nil
 }
 
-// StartProjectWithServices starts the tmux session with an explicit service
-// list, bypassing profile resolution.
+// StartProjectWithServices starts a session with an explicit service list,
+// bypassing profile resolution.
 func (a *App) StartProjectWithServices(name string, services []string) error {
 	cfg, err := config.LoadProject(name)
 	if err != nil {
@@ -466,10 +464,9 @@ func (a *App) StartProjectWithServices(name string, services []string) error {
 	return nil
 }
 
-// ToggleProjectService adds or removes a single service from the running
-// session without disturbing the others. Starts a fresh session when the
-// project isn't running, and stops the project when the last service is
-// removed.
+// ToggleProjectService adds or removes a single service without disturbing
+// others. Starts a fresh session if not running; stops the project when the
+// last service is removed.
 func (a *App) ToggleProjectService(name, serviceName string) error {
 	cfg, err := config.LoadProject(name)
 	if err != nil {
@@ -516,9 +513,9 @@ func (a *App) ToggleProjectService(name, serviceName string) error {
 	return nil
 }
 
-// resolveRunningServices returns the ordered list of services actually running
-// in the session, falling back to the profile's resolved list when the
-// session was started via StartProject rather than StartProjectWithServices.
+// resolveRunningServices returns the ordered list of running services,
+// falling back to the profile's resolved list when the session was started
+// via StartProject rather than StartProjectWithServices.
 func resolveRunningServices(cfg *config.ProjectConfig, state runState) []string {
 	if len(state.services) > 0 {
 		return state.services
@@ -526,10 +523,8 @@ func resolveRunningServices(cfg *config.ProjectConfig, state runState) []string 
 	return cfg.ServicesForProfile(state.profile)
 }
 
-// matchProfile returns the profile whose services (as a set) exactly equal the
-// given service names, or an empty string when none matches. Used to recover
-// the active profile after the user has toggled individual services whose
-// resulting set happens to equal a known profile.
+// matchProfile returns the profile whose services set equals running, or "".
+// Used to recover the active profile after individual service toggles.
 func matchProfile(cfg *config.ProjectConfig, running []string) string {
 	if len(running) == 0 {
 		return ""
@@ -677,8 +672,6 @@ func (a *App) invalidateSessionCache(projectName string) {
 	a.cacheMu.Unlock()
 }
 
-// resolvePaneID returns the tmux pane ID for the given service pane index, or
-// an error if the index is out of range.
 func (a *App) resolvePaneID(projectName string, paneIndex int) (string, error) {
 	session := a.cachedSessionName(projectName)
 	panes := a.cachedPaneIDs(session)
@@ -696,8 +689,8 @@ func (a *App) GetServiceLogs(projectName string, paneIndex int, lines int) (stri
 	return tmux.CapturePaneByID(paneID, lines)
 }
 
-// StopService sends Ctrl-C to the given service's pane, killing its command
-// but leaving the pane (and its log history) intact.
+// StopService sends Ctrl-C to the pane, killing the command but leaving
+// the pane and log history intact.
 func (a *App) StopService(projectName string, paneIndex int) error {
 	paneID, err := a.resolvePaneID(projectName, paneIndex)
 	if err != nil {
@@ -706,7 +699,6 @@ func (a *App) StopService(projectName string, paneIndex int) error {
 	return tmux.StopServicePane(paneID)
 }
 
-// StartService re-runs the service's command in its existing pane.
 func (a *App) StartService(projectName string, paneIndex int) error {
 	cfg, err := config.LoadProject(projectName)
 	if err != nil {
@@ -741,20 +733,17 @@ func (a *App) ReadConfig(name string) (string, error) {
 	return string(data), nil
 }
 
-// SaveConfig returns the project name the frontend should stay on. Edits on
-// a duplicate are routed to the parent file; edits on an original can rename
-// via the `name:` field (unless the original has duplicates, in which case
-// the cascade rename isn't supported yet).
+// SaveConfig returns the name the frontend should stay on. Edits on a
+// duplicate route to the parent file; edits on an original can rename via
+// `name:` (unless duplicates exist — cascade rename not yet supported).
 func (a *App) SaveConfig(name string, content string) (string, error) {
 	var parsed config.ProjectConfig
 	if err := yaml.Unmarshal([]byte(content), &parsed); err != nil {
 		return "", fmt.Errorf("invalid YAML: %w", err)
 	}
-	// Layer in <root>/.lpm.yml and ~/.lpm/global.yml before validating so
-	// sparse override entries (e.g. `myAction: {position: 3}`) inherit cmd
-	// and cwd from a shared source and don't fail "missing cmd". The
-	// original `content` is what gets written; we only mutate `parsed` for
-	// validation.
+	// Layer repo and global config before validating so sparse override
+	// entries inherit cmd/cwd from a shared source. Original `content` is
+	// what gets written; `parsed` is mutated only for validation.
 	if err := parsed.ApplyDefaults(); err != nil {
 		return "", err
 	}
@@ -834,8 +823,7 @@ func (a *App) CreateProject(name string, root string) error {
 	return nil
 }
 
-// SSHConfig is the connection profile collected from the New SSH Project
-// dialog. Mirrors config.SSHSettings field-for-field so the frontend can
+// SSHConfig mirrors config.SSHSettings field-for-field so the frontend can
 // build it directly; we copy into SSHSettings on save.
 type SSHConfig struct {
 	Host string `json:"host"`
@@ -910,9 +898,9 @@ func (a *App) SaveGlobalConfig(content string) error {
 	return nil
 }
 
-// repoPathForProject resolves the project's <root>/.lpm.yml path. Returns an
-// error for SSH or rootless projects since the file lives on the remote (or
-// nowhere); the frontend uses this to gate the "Edit Repo" affordance.
+// repoPathForProject resolves <root>/.lpm.yml. Errors for SSH or rootless
+// projects since the file lives elsewhere; the frontend uses this to gate
+// the "Edit Repo" affordance.
 func repoPathForProject(name string) (string, error) {
 	cfg, err := config.LoadProjectRaw(name)
 	if err != nil {
@@ -927,9 +915,8 @@ func repoPathForProject(name string) (string, error) {
 	return config.RepoPath(cfg.Root), nil
 }
 
-// ReadRepoConfig returns the contents of <root>/.lpm.yml for the project.
-// Empty string when the file doesn't exist yet — the editor opens with a
-// blank canvas so the user can create one.
+// ReadRepoConfig returns <root>/.lpm.yml contents. Empty when the file
+// doesn't exist yet — the editor opens with a blank canvas.
 func (a *App) ReadRepoConfig(name string) (string, error) {
 	path, err := repoPathForProject(name)
 	if err != nil {
@@ -945,8 +932,8 @@ func (a *App) ReadRepoConfig(name string) (string, error) {
 	return string(data), nil
 }
 
-// SaveRepoConfig writes <root>/.lpm.yml. Validates that the YAML matches the
-// RepoConfig schema (subset of project schema, no name/root/ssh).
+// SaveRepoConfig writes <root>/.lpm.yml. Validates against RepoConfig
+// (subset of project schema, no name/root/ssh).
 func (a *App) SaveRepoConfig(name string, content string) error {
 	path, err := repoPathForProject(name)
 	if err != nil {
@@ -1050,8 +1037,7 @@ func (a *App) removeSettingsReferences(name string) {
 }
 
 // removeAllWithRetry wraps os.RemoveAll with linear backoff on ENOTEMPTY.
-// Even after killing PTYs and detaching the watcher, Spotlight/mdworker
-// can drop metadata into the tree mid-walk and race the final rmdir;
+// Spotlight/mdworker can drop metadata mid-walk and race the final rmdir;
 // these retries cover that without slowing the common case.
 func removeAllWithRetry(path string) error {
 	const (

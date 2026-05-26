@@ -9,10 +9,9 @@ import (
 	"strings"
 )
 
-// SSHConfigHost is one named host parsed from ~/.ssh/config — a candidate
-// the New SSH Project dialog can pre-fill from. Name is the alias the user
-// wrote after `Host`; HostName is the actual address from the optional
-// `HostName` directive (falls back to Name when absent).
+// SSHConfigHost is one named host parsed from ~/.ssh/config. Name is the
+// `Host` alias; HostName is the optional `HostName` directive (falls back
+// to Name when absent).
 type SSHConfigHost struct {
 	Name         string `json:"name"`
 	HostName     string `json:"hostName"`
@@ -21,9 +20,8 @@ type SSHConfigHost struct {
 	IdentityFile string `json:"identityFile"`
 }
 
-// ListSSHHosts returns non-wildcard hosts from ~/.ssh/config (and any
-// `Include`d files) for the dialog's host picker. A missing config file is
-// not an error — the picker just shows nothing.
+// ListSSHHosts returns non-wildcard hosts from ~/.ssh/config and any
+// `Include`d files. Missing config is not an error.
 func (a *App) ListSSHHosts() ([]SSHConfigHost, error) {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
@@ -152,9 +150,6 @@ type sshConfigBlock struct {
 	identityFile string
 }
 
-// parseSSHConfigLine returns the keyword and value for a config line,
-// stripping comments and the optional `=` separator. Returns ok=false for
-// blanks and comment-only lines.
 func parseSSHConfigLine(line string) (key, val string, ok bool) {
 	line = strings.TrimSpace(line)
 	if line == "" || strings.HasPrefix(line, "#") {
@@ -170,8 +165,7 @@ func parseSSHConfigLine(line string) (key, val string, ok bool) {
 	return key, strings.TrimSpace(rest), true
 }
 
-// splitSSHFields tokenises a value, honouring double-quoted spans so paths
-// or hostnames containing spaces survive intact.
+// splitSSHFields tokenises a value, honouring double-quoted spans.
 func splitSSHFields(s string) []string {
 	var out []string
 	var cur strings.Builder
@@ -224,8 +218,8 @@ func expandSSHIncludePath(pat, home string) string {
 	return filepath.Join(home, ".ssh", pat)
 }
 
-// dedupeSSHHosts keeps the first occurrence of each name (matches ssh's
-// first-match-wins precedence for repeated Host blocks).
+// dedupeSSHHosts keeps the first occurrence of each name, matching ssh's
+// first-match-wins precedence for repeated Host blocks.
 func dedupeSSHHosts(in []SSHConfigHost) []SSHConfigHost {
 	seen := make(map[string]struct{}, len(in))
 	out := make([]SSHConfigHost, 0, len(in))

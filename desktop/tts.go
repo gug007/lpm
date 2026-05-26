@@ -11,7 +11,7 @@ import (
 	"syscall"
 )
 
-// ttsState constants emitted via the "tts-state" event.
+// Emitted via the "tts-state" event.
 const (
 	ttsStatePlaying = "playing"
 	ttsStatePaused  = "paused"
@@ -32,9 +32,8 @@ type ttsChunk struct {
 	Error string `json:"error,omitempty"`
 }
 
-// ttsScript is the Python one-liner that streams Kokoro output as JSON lines.
-// Each chunk is a JSON object: {"type":"audio","audio":"<base64>"} or
-// {"type":"progress","percent":50} or {"type":"done"}.
+// ttsScript streams Kokoro output as JSON lines:
+//   {"type":"audio","audio":"<base64>"} or {"type":"done"} or {"type":"error",...}
 const ttsScript = `
 import sys, json, base64, io
 try:
@@ -62,9 +61,7 @@ except Exception as e:
     sys.exit(1)
 `
 
-// StartTTS begins text-to-speech synthesis, reading voice and speed from
-// the user's saved settings. It delegates to startTTS which spawns the
-// Kokoro subprocess.
+// StartTTS reads voice and speed from saved settings.
 func (a *App) StartTTS(text string) error {
 	a.settingsMu.Lock()
 	s := a.loadSettingsLocked()
@@ -75,10 +72,9 @@ func (a *App) StartTTS(text string) error {
 	return a.startTTS(text, voice, speed)
 }
 
-// startTTS begins text-to-speech synthesis. It spawns a Python subprocess
-// running Kokoro, streaming audio chunks and progress back to the frontend
-// via Wails events. Only one TTS session is active at a time; calling
-// startTTS while one is running stops the previous session first.
+// startTTS spawns a Kokoro subprocess, streaming audio back via Wails
+// events. Only one session is active at a time; a new call stops the
+// previous session first.
 func (a *App) startTTS(text string, voice string, speed float64) error {
 	if strings.TrimSpace(text) == "" {
 		return fmt.Errorf("text is empty")
@@ -101,7 +97,7 @@ func (a *App) startTTS(text string, voice string, speed float64) error {
 		cancel()
 		return fmt.Errorf("create stdout pipe: %w", err)
 	}
-	cmd.Stderr = nil // ignore stderr; errors come as JSON on stdout
+	cmd.Stderr = nil // errors come as JSON on stdout
 
 	if err := cmd.Start(); err != nil {
 		cancel()
@@ -135,7 +131,6 @@ func (a *App) startTTS(text string, voice string, speed float64) error {
 			case "audio":
 				a.wails.Event.Emit("tts-audio", chunk.Audio)
 			case "done":
-				// synthesis complete; playback may still be ongoing
 			case "error":
 				a.wails.Event.Emit("tts-state", ttsStateError)
 				a.wails.Event.Emit("tts-error", chunk.Error)
@@ -163,12 +158,10 @@ func (a *App) startTTS(text string, voice string, speed float64) error {
 	return nil
 }
 
-// StopTTS terminates the current TTS session.
 func (a *App) StopTTS() {
 	a.stopTTSLocked()
 }
 
-// stopTTSLocked stops the active TTS session if one exists.
 func (a *App) stopTTSLocked() {
 	a.ttsMu.Lock()
 	sess := a.ttsSession
@@ -183,7 +176,7 @@ func (a *App) stopTTSLocked() {
 	sess.state = ttsStateStopped
 	sess.mu.Unlock()
 
-	// Resume if paused so the process can be killed cleanly
+	// Resume if paused so the process can be killed cleanly.
 	if sess.cmd.Process != nil {
 		_ = sess.cmd.Process.Signal(syscall.SIGCONT)
 	}
@@ -192,8 +185,7 @@ func (a *App) stopTTSLocked() {
 	a.wails.Event.Emit("tts-state", ttsStateStopped)
 }
 
-// PauseTTS pauses the current TTS session by sending SIGSTOP to the
-// Python subprocess.
+// PauseTTS sends SIGSTOP to the Python subprocess.
 func (a *App) PauseTTS() error {
 	a.ttsMu.Lock()
 	sess := a.ttsSession
@@ -220,8 +212,7 @@ func (a *App) PauseTTS() error {
 	return nil
 }
 
-// ResumeTTS resumes a paused TTS session by sending SIGCONT to the
-// Python subprocess.
+// ResumeTTS sends SIGCONT to the Python subprocess.
 func (a *App) ResumeTTS() error {
 	a.ttsMu.Lock()
 	sess := a.ttsSession
@@ -253,7 +244,6 @@ func (a *App) CheckKokoroInstalled() bool {
 	return cmd.Run() == nil
 }
 
-// InstallKokoro installs the kokoro and soundfile Python packages.
 func (a *App) InstallKokoro() error {
 	cmd := exec.Command("pip3", "install", "kokoro", "soundfile")
 	out, err := cmd.CombinedOutput()

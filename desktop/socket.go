@@ -15,7 +15,7 @@ import (
 	"github.com/gug007/lpm/internal/config"
 )
 
-// SocketServer exposes a Unix domain socket API for external tools to interact
+// SocketServer exposes a Unix socket API for external tools to interact
 // with the running desktop app (status badges, notifications, etc.).
 type SocketServer struct {
 	listener   net.Listener
@@ -25,12 +25,10 @@ type SocketServer struct {
 	cancel     context.CancelFunc
 }
 
-// SocketPath returns the default socket path at ~/.lpm/lpm.sock.
 func SocketPath() string {
 	return filepath.Join(config.LpmDir(), "lpm.sock")
 }
 
-// NewSocketServer creates a new SocketServer bound to the given App.
 func NewSocketServer(app *App) *SocketServer {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &SocketServer{
@@ -41,10 +39,10 @@ func NewSocketServer(app *App) *SocketServer {
 	}
 }
 
-// Start removes any stale socket file, binds a Unix listener, sets permissions
-// to 0600, and launches the accept loop in a goroutine.
+// Start removes any stale socket file, binds a Unix listener with 0600
+// permissions, and launches the accept loop.
 func (s *SocketServer) Start() error {
-	os.Remove(s.socketPath) // clean up stale socket if present
+	os.Remove(s.socketPath)
 
 	ln, err := net.Listen("unix", s.socketPath)
 	if err != nil {
@@ -62,7 +60,6 @@ func (s *SocketServer) Start() error {
 	return nil
 }
 
-// Stop cancels the context, closes the listener, and removes the socket file.
 func (s *SocketServer) Stop() {
 	s.cancel()
 	if s.listener != nil {
@@ -71,8 +68,6 @@ func (s *SocketServer) Stop() {
 	os.Remove(s.socketPath)
 }
 
-// acceptLoop accepts new connections until the context is cancelled or the
-// listener is closed.
 func (s *SocketServer) acceptLoop() {
 	for {
 		conn, err := s.listener.Accept()
@@ -88,8 +83,6 @@ func (s *SocketServer) acceptLoop() {
 	}
 }
 
-// handleClient reads newline-delimited commands from a connection, processes
-// each one, and writes back the response followed by a newline.
 func (s *SocketServer) handleClient(conn net.Conn) {
 	defer conn.Close()
 	conn.SetReadDeadline(time.Now().Add(30 * time.Second))
@@ -105,8 +98,6 @@ func (s *SocketServer) handleClient(conn net.Conn) {
 	}
 }
 
-// processCommand parses and executes a single command line, returning the
-// response string.
 func (s *SocketServer) processCommand(line string) string {
 	parts := shellSplit(line)
 	if len(parts) == 0 {
@@ -210,7 +201,6 @@ func (s *SocketServer) cmdListStatus(args []string) string {
 	return string(data)
 }
 
-// shellSplit splits a string into tokens, respecting single and double quotes.
 func shellSplit(s string) []string {
 	var parts []string
 	var current strings.Builder
@@ -237,8 +227,7 @@ func shellSplit(s string) []string {
 	return parts
 }
 
-// parseOptions separates positional arguments from --key=value or --key value
-// option pairs.
+// parseOptions separates positional args from --key=value or --key value.
 func parseOptions(args []string) (positional []string, options map[string]string) {
 	options = make(map[string]string)
 
@@ -247,14 +236,11 @@ func parseOptions(args []string) (positional []string, options map[string]string
 		if strings.HasPrefix(arg, "--") {
 			key := strings.TrimPrefix(arg, "--")
 			if idx := strings.Index(key, "="); idx >= 0 {
-				// --key=value format
 				options[key[:idx]] = key[idx+1:]
 			} else if i+1 < len(args) && !strings.HasPrefix(args[i+1], "--") {
-				// --key value format
 				options[key] = args[i+1]
 				i++
 			} else {
-				// --flag with no value
 				options[key] = ""
 			}
 		} else {

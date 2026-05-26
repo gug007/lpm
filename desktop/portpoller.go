@@ -19,18 +19,14 @@ const (
 	portPollTimeout  = 6 * time.Second
 )
 
-// listingCommand is the remote command that produces a list of listening
-// TCP sockets. ss is preferred (cheap, ubiquitous via iproute2);
-// netstat is the fallback for older or stripped-down hosts. Both emit
-// the local address as the 4th whitespace-separated field, which is
-// what parseListeningPorts looks for.
+// listingCommand lists listening TCP sockets on the remote. ss preferred,
+// netstat as fallback. Both emit local address as the 4th whitespace field
+// (parseListeningPorts depends on that layout).
 const listingCommand = `(command -v ss >/dev/null 2>&1 && ss -tlnH) || ` +
 	`(command -v netstat >/dev/null 2>&1 && netstat -tln 2>/dev/null | tail -n +3)`
 
-// startPortPoller spawns one background goroutine that polls listening
-// ports on the remote and emits port-suggested for new ones. Idempotent
-// — a second call with the project already polling is a no-op. Silent
-// when the project is local or fails to load.
+// startPortPoller spawns one polling goroutine. Idempotent — silent when
+// the project is local or fails to load.
 func (a *App) startPortPoller(project string) {
 	cfg, err := config.LoadProject(project)
 	if err != nil || !cfg.IsRemote() {
@@ -59,10 +55,9 @@ func (a *App) stopPortPoller(project string) {
 	}
 }
 
-// resumePortPollers restarts pollers for remote projects whose
-// services survived an app restart (the session is still alive on the
-// remote / in tmux). Without this, the user would have to Stop+Start to
-// get suggestion toasts again.
+// resumePortPollers restarts pollers for remote projects whose services
+// survived an app restart, so the user doesn't have to Stop+Start to get
+// suggestion toasts again.
 func (a *App) resumePortPollers() {
 	names, err := config.ListProjects()
 	if err != nil {
@@ -112,9 +107,9 @@ func (a *App) runPortPoller(ctx context.Context, project string, cfg *config.Pro
 		}
 
 		ports, err := a.fetchListeningPorts(ctx, cfg)
-		// Drop results when the context was cancelled mid-fetch:
-		// otherwise a Stop click can race a successful in-flight poll
-		// and repopulate the suggestion set right after the cleanup.
+		// Drop results on cancellation mid-fetch — otherwise a Stop click
+		// could race an in-flight poll and repopulate the suggestion set
+		// right after cleanup.
 		if ctx.Err() != nil {
 			return
 		}
@@ -131,15 +126,10 @@ func (a *App) runPortPoller(ctx context.Context, project string, cfg *config.Pro
 				if !shouldSuggestPort(p, sshPort, declared) {
 					continue
 				}
-				// First poll establishes a baseline: anything
-				// already listening at this point is ambient
-				// (DBs, system services, alt-ssh, etc.), not
-				// something the user just started — mark it
-				// dismissed so subsequent polls don't surface
-				// it. Declared service ports skip the baseline
-				// so they still get suggested when the user
-				// resumes a project whose services were already
-				// running.
+				// First poll establishes a baseline: anything already
+				// listening is ambient, not user-started. Declared
+				// service ports skip the baseline so they still get
+				// suggested when resuming a running project.
 				if firstPoll && !declared[p] {
 					a.preDismissPort(project, p)
 					continue
@@ -147,10 +137,9 @@ func (a *App) runPortPoller(ctx context.Context, project string, cfg *config.Pro
 				a.observePort(project, p, declared)
 			}
 			pruned := a.pruneSuggestionsForPort(project, listening)
-			// Emit on the first poll regardless: it transitions the
-			// project from "not yet polled" to "baseline established"
-			// and the popover/badge subscriber needs to render the
-			// settled state. Subsequent polls only emit on real change.
+			// Emit on first poll regardless — subscribers need the
+			// settled "baseline established" state. Subsequent polls
+			// only emit on real change.
 			if firstPoll || pruned {
 				a.wails.Event.Emit(eventPortsChanged, project)
 			}
@@ -161,8 +150,6 @@ func (a *App) runPortPoller(ctx context.Context, project string, cfg *config.Pro
 	}
 }
 
-// fetchListeningPorts runs the remote listing command and parses the
-// port numbers out of its output.
 func (a *App) fetchListeningPorts(ctx context.Context, cfg *config.ProjectConfig) ([]int, error) {
 	pollCtx, cancel := context.WithTimeout(ctx, portPollTimeout)
 	defer cancel()
@@ -176,10 +163,8 @@ func (a *App) fetchListeningPorts(ctx context.Context, cfg *config.ProjectConfig
 	return parseListeningPorts(string(out)), nil
 }
 
-// declaredServicePorts collects the explicit port: N values from
-// cfg.Services. Used as a "always interesting" allow-list so a service
-// that legitimately listens on a low port (e.g. 80) still gets
-// suggested even when shouldSuggestPort would otherwise skip it.
+// declaredServicePorts is the "always interesting" allow-list so a service
+// listening on a low port (e.g. 80) still gets suggested.
 func declaredServicePorts(cfg *config.ProjectConfig) map[int]bool {
 	out := make(map[int]bool, len(cfg.Services))
 	for _, svc := range cfg.Services {
@@ -190,9 +175,8 @@ func declaredServicePorts(cfg *config.ProjectConfig) map[int]bool {
 	return out
 }
 
-// shouldSuggestPort filters out the ambient noise from a remote host:
-// system services, the SSH port itself, and anything below 1024 unless
-// the project's config explicitly mentions it.
+// shouldSuggestPort filters ambient noise: SSH port, and anything below
+// 1024 unless the project's config explicitly mentions it.
 func shouldSuggestPort(port, sshPort int, declared map[int]bool) bool {
 	if port <= 0 || port > 65535 {
 		return false
@@ -206,10 +190,9 @@ func shouldSuggestPort(port, sshPort int, declared map[int]bool) bool {
 	return port >= 1024
 }
 
-// parseListeningPorts extracts unique port numbers from `ss -tlnH` or
-// `netstat -tln` output. Both tools place the local address in the 4th
-// whitespace-separated field — we look there exclusively so a peer
-// column like `0.0.0.0:*` doesn't leak through.
+// parseListeningPorts extracts unique ports from `ss -tlnH` or `netstat -tln`.
+// Both tools place the local address in field 4 — we look there exclusively
+// so a peer column like `0.0.0.0:*` doesn't leak through.
 func parseListeningPorts(s string) []int {
 	seen := make(map[int]bool)
 	var out []int
@@ -239,9 +222,8 @@ func parseListeningPorts(s string) []int {
 }
 
 // splitListenAddr normalises ss/netstat local-address tokens
-// (`0.0.0.0:80`, `*:22`, `[::]:443`, netstat's bracket-less `:::3000`)
-// into a host/port pair via net.SplitHostPort. Returns ok=false when
-// the token has no recognisable port suffix.
+// (`0.0.0.0:80`, `*:22`, `[::]:443`, netstat's `:::3000`) into a host/port
+// pair via net.SplitHostPort.
 func splitListenAddr(token string) (host, port string, ok bool) {
 	switch {
 	case strings.HasPrefix(token, "*:"):
@@ -258,10 +240,9 @@ func splitListenAddr(token string) (host, port string, ok bool) {
 	return host, port, true
 }
 
-// isLocalListenAddr accepts the wildcard / loopback forms that ss and
-// netstat emit. Specific external IPs are skipped — those are usually
-// system services bound to a single interface, not the dev server we
-// want to forward.
+// isLocalListenAddr accepts wildcard/loopback forms. Specific external IPs
+// are skipped — usually system services bound to a single interface, not
+// the dev server we want to forward.
 func isLocalListenAddr(host string) bool {
 	switch host {
 	case "0.0.0.0", "127.0.0.1", "::", "::1":

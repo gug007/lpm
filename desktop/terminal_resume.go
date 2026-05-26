@@ -6,30 +6,18 @@ import (
 	"github.com/google/uuid"
 )
 
-// resumeRecipe describes how to transform a user's terminal command into
-// a pair of commands: one that starts a new resumable session tagged
-// with a given id, and one that resumes that same session later.
-//
-// Recipes are matched by the leading program token of the user's cmd
-// (env-var assignments are skipped, so `FOO=1 claude` still matches
-// "claude"). Cmds whose leading program is not in the registry are left
-// untouched and have no resume form — restore is a no-op for them.
+// resumeRecipe transforms a user's terminal command into a start/resume
+// pair tagged with a session id. Recipes are matched by the leading program
+// token (env-var assignments are skipped, so `FOO=1 claude` matches "claude").
 type resumeRecipe struct {
 	program string
 	start   func(userCmd, id string) string
 	resume  func(userCmd, id string) string
 }
 
-// resumeRegistry is the full list of programs lpm knows how to restore.
-// Add an entry here to teach lpm a new resumable CLI. Each recipe needs:
-//
-//   - program: the exact leading token in the user's cmd that triggers it
-//   - start:   rewrites the cmd so a fresh run creates session `id`
-//   - resume:  rewrites the cmd so a subsequent run reattaches to `id`
-//
-// The session id is a UUID minted once per terminal instance and then
-// persisted by the frontend, so both rewrites must round-trip the same
-// id unchanged.
+// resumeRegistry lists programs lpm knows how to restore. The session id is
+// a UUID minted once per terminal and persisted by the frontend, so both
+// rewrites must round-trip the same id unchanged.
 var resumeRegistry = []resumeRecipe{
 	{
 		program: "claude",
@@ -43,7 +31,7 @@ var resumeRegistry = []resumeRecipe{
 }
 
 // programToken returns the index and value of the first non-env-assignment
-// token in a whitespace-split cmd. It returns -1 and "" if none is found.
+// token, or -1 and "" if none.
 func programToken(fields []string) (int, string) {
 	for i, f := range fields {
 		if strings.Contains(f, "=") {
@@ -55,14 +43,10 @@ func programToken(fields []string) (int, string) {
 }
 
 // injectArgs inserts flag and value immediately after the program token,
-// preserving env-var prefixes and trailing args. e.g.
+// preserving env-var prefixes and trailing args.
 //
-//	injectArgs("FOO=1 claude --verbose", "--session-id", "uuid")
-//	→ "FOO=1 claude --session-id uuid --verbose"
-//
-// Note: uses strings.Fields and does not understand shell quoting.
-// Quoted arguments with embedded whitespace will be split. Recipes should
-// only target programs whose typical invocations are whitespace-safe.
+// Uses strings.Fields and does not understand shell quoting — recipes
+// should only target programs whose typical invocations are whitespace-safe.
 func injectArgs(userCmd, flag, value string) string {
 	fields := strings.Fields(userCmd)
 	idx, _ := programToken(fields)
@@ -76,12 +60,9 @@ func injectArgs(userCmd, flag, value string) string {
 	return strings.Join(out, " ")
 }
 
-// resolveRestoreCmds maps a user-authored cmd through the resume registry.
-// If the leading program is recognized, it returns a pair of rewritten
-// commands wired to a freshly generated session id. If the program is
-// unknown, resumeCmd is empty — the frontend then treats the terminal as
-// non-restorable and skips persistence, so restore:true on an unrecognized
-// program silently no-ops rather than falling back to a cold re-run.
+// resolveRestoreCmds maps a user cmd through the resume registry. Unknown
+// programs return empty resumeCmd; the frontend then skips persistence so
+// restore:true silently no-ops rather than falling back to a cold re-run.
 func resolveRestoreCmds(cmd string) (startCmd, resumeCmd string) {
 	_, prog := programToken(strings.Fields(cmd))
 	for _, r := range resumeRegistry {

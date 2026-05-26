@@ -15,16 +15,12 @@ import (
 	"github.com/rjeczalik/notify"
 )
 
-// pullTTL skips redundant rsync pulls when a successful pull happened
-// recently. Keeps rapid-action chains snappy without sacrificing the
-// "remote may have changed" guarantee for the typical interactive cadence.
+// pullTTL skips redundant rsync pulls when a recent pull succeeded.
 const pullTTL = 5 * time.Second
 
-// syncDebounce coalesces filesystem bursts (save-all, formatter pass,
-// codegen) into a single rsync push. Long enough to absorb a typical
-// editor/AI-tool save burst, short enough that "save → pushed" feels
-// near-immediate. The push goroutine itself serializes on state.mu, so
-// this only governs how often we *try*.
+// syncDebounce coalesces filesystem bursts into a single rsync push.
+// Long enough to absorb an editor save burst, short enough that
+// "save → pushed" feels near-immediate.
 const syncDebounce = 1500 * time.Millisecond
 
 const syncEventBuffer = 256
@@ -36,9 +32,8 @@ type projectSync struct {
 	watcher  *syncWatcher
 }
 
-// syncWatcher watches a project's local mirror and fires debounced
-// rsync pushes when files change. One per project, started on the
-// first successful pull and torn down by removeProjectSync / shutdown.
+// syncWatcher fires debounced rsync pushes when the local mirror changes.
+// One per project, started on the first successful pull.
 type syncWatcher struct {
 	events   chan notify.EventInfo
 	stop     chan struct{}
@@ -50,8 +45,7 @@ func projectSyncDir(name string) string {
 }
 
 // syncState returns the per-project record, allocating on first use.
-// Holds the global syncMu only briefly to find/create the entry; the
-// returned record has its own mu the caller should take for the rsync.
+// The returned record has its own mu the caller should take for the rsync.
 func (a *App) syncState(name string) *projectSync {
 	a.syncMu.Lock()
 	defer a.syncMu.Unlock()
@@ -63,10 +57,9 @@ func (a *App) syncState(name string) *projectSync {
 	return s
 }
 
-// ensureProjectSync rsyncs ssh.dir into the project's local mirror and
-// returns the local path. Pull uses --update so any local edits newer
-// than the remote survive the sync. Pulls within pullTTL of a recent
-// successful run are skipped.
+// ensureProjectSync rsyncs ssh.dir into the local mirror and returns the
+// local path. Uses --update so local edits newer than the remote survive.
+// Pulls within pullTTL of a recent success are skipped.
 func (a *App) ensureProjectSync(cfg *config.ProjectConfig) (string, error) {
 	if cfg.SSH == nil {
 		return "", fmt.Errorf("project %q is not an SSH project", cfg.Name)
@@ -106,10 +99,8 @@ func (a *App) ensureProjectSync(cfg *config.ProjectConfig) (string, error) {
 	return state.path, nil
 }
 
-// startSyncWatcher attaches a recursive FSEvents watch to the local
-// mirror. Returns nil if notify.Watch fails (logged to stderr); callers
-// continue without auto-push in that case — onClose still pushes at
-// terminal exit.
+// startSyncWatcher returns nil if notify.Watch fails. Callers continue
+// without auto-push — onClose still pushes at terminal exit.
 func (a *App) startSyncWatcher(cfg *config.ProjectConfig, state *projectSync) *syncWatcher {
 	w := &syncWatcher{
 		events: make(chan notify.EventInfo, syncEventBuffer),
@@ -130,10 +121,8 @@ func (w *syncWatcher) close() {
 	})
 }
 
-// runSyncWatcher debounces fs events and fires a push for each quiet
-// window. pushProjectSyncAsync queues onto state.mu, so a push that
-// arrives during a pull or another push waits its turn rather than
-// racing rsync.
+// runSyncWatcher debounces fs events into push fires. pushProjectSyncAsync
+// queues on state.mu, so concurrent pushes serialize instead of racing.
 func (a *App) runSyncWatcher(cfg *config.ProjectConfig, root string, w *syncWatcher) {
 	var timer *time.Timer
 	fire := func() { a.pushProjectSyncAsync(cfg) }
@@ -157,11 +146,9 @@ func (a *App) runSyncWatcher(cfg *config.ProjectConfig, root string, w *syncWatc
 	}
 }
 
-// ignoreSyncEvent drops events that should never trigger a push:
-// paths outside root, the root itself, and anything inside heavy
-// build/dep directories that we don't want to ship over the wire.
-// Unlike ignoreWatcherEvent, .git changes ARE pushed — local commits
-// in the mirror should propagate.
+// ignoreSyncEvent drops events that should never trigger a push: paths
+// outside root, the root itself, and heavy build/dep dirs. Unlike
+// ignoreWatcherEvent, .git changes ARE pushed — local commits propagate.
 func ignoreSyncEvent(root, full string) bool {
 	rel, err := filepath.Rel(root, full)
 	if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
@@ -175,8 +162,8 @@ func ignoreSyncEvent(root, full string) bool {
 	return false
 }
 
-// pushProjectSync mirrors local edits back to the remote. Uses --update
-// so a remote file newer than the local copy is never overwritten.
+// pushProjectSync mirrors local edits back. Uses --update so a remote
+// file newer than the local copy is never overwritten.
 func (a *App) pushProjectSync(cfg *config.ProjectConfig) error {
 	if cfg.SSH == nil {
 		return nil
@@ -199,9 +186,8 @@ func (a *App) pushProjectSync(cfg *config.ProjectConfig) error {
 	return nil
 }
 
-// pushProjectSyncAsync fires a push in the background and reports any
-// failure via the sync-error event. Tracked via App.pushWG so shutdown
-// can wait for in-flight pushes (with a timeout) before lpm exits.
+// pushProjectSyncAsync fires a push in the background. Tracked via pushWG
+// so shutdown can wait for in-flight pushes before lpm exits.
 func (a *App) pushProjectSyncAsync(cfg *config.ProjectConfig) {
 	a.pushWG.Add(1)
 	go func() {
@@ -226,8 +212,6 @@ func (a *App) removeProjectSync(name string) {
 	}
 }
 
-// stopAllSyncWatchers detaches every active mirror watcher. Called at
-// shutdown so FSEvents goroutines don't outlive the app.
 func (a *App) stopAllSyncWatchers() {
 	a.syncMu.Lock()
 	watchers := make([]*syncWatcher, 0, len(a.syncs))
@@ -243,8 +227,7 @@ func (a *App) stopAllSyncWatchers() {
 	}
 }
 
-// pruneOrphanSyncDirs removes ~/.lpm/sync/<name> directories whose
-// project no longer exists. Run once at startup; failures only logged.
+// pruneOrphanSyncDirs removes ~/.lpm/sync/<name> for nonexistent projects.
 func (a *App) pruneOrphanSyncDirs() {
 	base := filepath.Join(config.LpmDir(), "sync")
 	entries, err := os.ReadDir(base)
@@ -263,9 +246,8 @@ func (a *App) pruneOrphanSyncDirs() {
 }
 
 func rsyncArgs(s *config.SSHSettings, src, dst string) []string {
-	// --force lets rsync remove a non-empty directory when it needs to be
-	// replaced by a non-directory (e.g. a symlinked node_modules in a
-	// Claude agent worktree replacing a previously-synced real directory).
+	// --force lets rsync replace a non-empty directory with a non-directory
+	// (e.g. symlinked node_modules replacing a synced real directory).
 	// Without it, rsync aborts with "unlinkat: Directory not empty".
 	return []string{"-az", "--update", "--force", "-e", rsyncShell(s), src, dst}
 }

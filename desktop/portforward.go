@@ -49,10 +49,8 @@ func (a *App) ListPortForwards(project string) []PortForward {
 }
 
 // AddPortForward opens a new `ssh -N -L localPort:127.0.0.1:remotePort`
-// tunnel for project. localPort=0 picks a free port. Returns the active
-// forward — same fields as ListPortForwards entries — once the local
-// listener is reachable. Idempotent on remote port: if one already
-// exists, returns it without spawning a second ssh.
+// tunnel. localPort=0 picks a free port. Idempotent on remote port: if a
+// forward already exists, returns it without spawning a second ssh.
 func (a *App) AddPortForward(project string, remotePort int, localPort int) (PortForward, error) {
 	if remotePort <= 0 || remotePort > 65535 {
 		return PortForward{}, fmt.Errorf("invalid remote port: %d", remotePort)
@@ -117,9 +115,8 @@ func (a *App) AddPortForward(project string, remotePort int, localPort int) (Por
 		return PortForward{}, fmt.Errorf("start ssh: %w", err)
 	}
 
-	// Single Wait goroutine: closes exitCh once ssh has actually
-	// reaped. Both the readiness check and the lifecycle cleanup
-	// goroutine consume this channel — calling Wait twice would panic.
+	// Single Wait goroutine — calling Wait twice would panic, and both the
+	// readiness check and the lifecycle cleanup goroutine consume exitCh.
 	exitCh := make(chan struct{})
 	go func() {
 		_ = cmd.Wait()
@@ -158,7 +155,7 @@ func (a *App) AddPortForward(project string, remotePort int, localPort int) (Por
 }
 
 // RemovePortForward kills the ssh process for the named local port. No
-// error if no such forward exists (matches frontend optimistic removal).
+// error if no such forward exists.
 func (a *App) RemovePortForward(project string, localPort int) error {
 	a.pfMu.Lock()
 	pfs := a.pfs[project]
@@ -181,8 +178,6 @@ func (a *App) RemovePortForward(project string, localPort int) error {
 	return nil
 }
 
-// removePortForward removes a specific forward from the project list.
-// Used by the wait goroutine when ssh exits on its own.
 func (a *App) removePortForward(project string, target *portForward) {
 	a.pfMu.Lock()
 	defer a.pfMu.Unlock()
@@ -198,9 +193,8 @@ func (a *App) removePortForward(project string, target *portForward) {
 }
 
 // stopProjectPortForwards kills every forward owned by project and
-// resets its suggestion state. Called from RemoveProject and StopProject
-// so a stopped/removed project doesn't leak ssh processes or leave a
-// stale "N new" badge in the header.
+// resets its suggestion state, so stopped/removed projects don't leak ssh
+// or leave a stale "N new" badge.
 func (a *App) stopProjectPortForwards(project string) {
 	a.pfMu.Lock()
 	pfs := a.pfs[project]
@@ -216,8 +210,6 @@ func (a *App) stopProjectPortForwards(project string) {
 	a.wails.Event.Emit(eventPortsChanged, project)
 }
 
-// stopAllPortForwards kills every forward across every project. Called
-// from app shutdown.
 func (a *App) stopAllPortForwards() {
 	a.pfMu.Lock()
 	all := a.pfs
@@ -240,9 +232,8 @@ func pickFreeLocalPort() (int, error) {
 }
 
 // waitForLocalListen polls until something accepts on 127.0.0.1:port.
-// Returns early when exitCh closes — that signals ssh exited before
-// the local listener came up (auth failure, port-in-use, etc.) and
-// the caller's stderr buffer holds the real reason.
+// Returns early when exitCh closes — that means ssh exited before the
+// listener came up; the caller's stderr buffer holds the real reason.
 func waitForLocalListen(port int, timeout time.Duration, exitCh <-chan struct{}) error {
 	addr := "127.0.0.1:" + strconv.Itoa(port)
 	deadline := time.After(timeout)
@@ -263,22 +254,16 @@ func waitForLocalListen(port int, timeout time.Duration, exitCh <-chan struct{})
 	}
 }
 
-// localhostURLPattern matches the URL forms common dev servers print on
-// startup: vite, next, rails, django, etc. Captures the port so we can
-// suggest forwarding it. 0.0.0.0 covers servers bound to all interfaces.
+// localhostURLPattern captures ports from URLs common dev servers print on
+// startup. 0.0.0.0 covers servers bound to all interfaces.
 var localhostURLPattern = regexp.MustCompile(`https?://(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d{2,5})\b`)
 
-// ansiCSIPattern matches the CSI escape sequences (color, cursor, etc.)
-// common dev servers wrap their startup output in. Stripping them
-// before regex matching lets `http://\x1b[36mlocalhost\x1b[39m:3000`
-// from chalk-formatted lines still match.
+// ansiCSIPattern strips CSI escapes so chalk-formatted lines like
+// `http://\x1b[36mlocalhost\x1b[39m:3000` still match.
 var ansiCSIPattern = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]`)
 
-// sniffPortsFromOutput scans terminal output for localhost URLs and
-// records each new one as a suggestion. Only fires for remote SSH
-// projects — local projects don't need forwarding. The "://" prefilter
-// skips the regex passes on the vast majority of flushes (a busy
-// compiler can flush every few ms).
+// sniffPortsFromOutput records new localhost URLs as suggestions. The "://"
+// prefilter skips the regex on the vast majority of flushes.
 func (a *App) sniffPortsFromOutput(project string, declared map[int]bool, text string) {
 	if declared == nil || !strings.Contains(text, "://") {
 		return
@@ -294,12 +279,10 @@ func (a *App) sniffPortsFromOutput(project string, declared map[int]bool, text s
 	}
 }
 
-// observePort is the single entry point for both URL-sniff and remote-
-// poll discoveries. It applies the dedup-and-dismiss filter and then
-// either auto-forwards (when the port is in the project's declared
-// `services:` set) or surfaces a click-to-forward suggestion.
-// Callers pass declared instead of having observePort load the project
-// config, so a burst of detections doesn't re-read YAML per port.
+// observePort is the single entry point for URL-sniff and remote-poll
+// discoveries. Applies dedup-and-dismiss then auto-forwards declared ports
+// or surfaces a click-to-forward suggestion for the rest. Callers pass
+// declared so a detection burst doesn't re-read YAML per port.
 func (a *App) observePort(project string, port int, declared map[int]bool) {
 	if a.alreadyForwardingRemote(project, port) {
 		return
@@ -331,10 +314,9 @@ func (a *App) observePort(project string, port int, declared map[int]bool) {
 	a.wails.Event.Emit(eventPortsChanged, project)
 }
 
-// autoForward opens a tunnel without user interaction and pushes a
-// toast event so the user still sees what was wired up. Declared
-// service ports take this path; everything else surfaces a suggestion
-// for explicit confirmation.
+// autoForward opens a tunnel and emits a toast so the user sees what was
+// wired up. Reserved for declared service ports; everything else surfaces
+// a suggestion for explicit confirmation.
 func (a *App) autoForward(project string, remotePort int) {
 	pf, err := a.AddPortForward(project, remotePort, 0)
 	if err != nil {
@@ -364,8 +346,7 @@ func (a *App) alreadyForwardingRemote(project string, remotePort int) bool {
 }
 
 // markPortSuggested seeds the suggested map without emitting an event.
-// Called when an explicit user action (e.g. AddPortForward) implies
-// the port has already been "discovered."
+// Called when an explicit user action implies the port was discovered.
 func (a *App) markPortSuggested(project string, port int) {
 	a.suggestedMu.Lock()
 	defer a.suggestedMu.Unlock()
@@ -375,10 +356,9 @@ func (a *App) markPortSuggested(project string, port int) {
 	a.suggested[project][port] = true
 }
 
-// preDismissPort silently records a port as dismissed without
-// surfacing it to the user. Used by the poller's baseline pass to
-// suppress ambient pre-existing listeners (databases, alt-ssh, system
-// daemons) so only ports opened *after* polling started get suggested.
+// preDismissPort silently dismisses a port — used by the poller's baseline
+// pass to suppress ambient listeners so only ports opened after polling
+// started get suggested.
 func (a *App) preDismissPort(project string, port int) {
 	a.suggestedMu.Lock()
 	defer a.suggestedMu.Unlock()
@@ -388,11 +368,9 @@ func (a *App) preDismissPort(project string, port int) {
 	a.dismissed[project][port] = true
 }
 
-// pruneSuggestionsForPort drops suggested ports that are no longer
-// listening on the remote and returns true when anything changed.
-// Without this the suggested set grows monotonically over a long
-// session as services come and go. Dismissed state is intentionally
-// kept — the user's "no" should outlast a service restart.
+// pruneSuggestionsForPort drops suggested ports that no longer listen on
+// the remote. Without this the suggested set grows monotonically. Dismissed
+// state is kept on purpose — the user's "no" outlasts a service restart.
 func (a *App) pruneSuggestionsForPort(project string, listening map[int]bool) bool {
 	a.suggestedMu.Lock()
 	defer a.suggestedMu.Unlock()
@@ -406,10 +384,6 @@ func (a *App) pruneSuggestionsForPort(project string, listening map[int]bool) bo
 	return pruned
 }
 
-// DismissPortSuggestion is called by the frontend when the user closes
-// the suggestion toast without forwarding. The port is added to the
-// dismissed set so subsequent observations stay quiet, and removed from
-// the suggested view so the popover stops listing it.
 func (a *App) DismissPortSuggestion(project string, port int) {
 	a.suggestedMu.Lock()
 	if a.dismissed[project] == nil {
@@ -420,10 +394,6 @@ func (a *App) DismissPortSuggestion(project string, port int) {
 	a.wails.Event.Emit(eventPortsChanged, project)
 }
 
-// ClearPortSuggestions dismisses every currently-suggested port for a
-// project — used by the popover's "Clear" button when the noise from
-// pre-existing services already piled up before the baseline filter
-// was in place.
 func (a *App) ClearPortSuggestions(project string) {
 	a.suggestedMu.Lock()
 	suggested := a.suggested[project]
@@ -437,10 +407,9 @@ func (a *App) ClearPortSuggestions(project string) {
 	a.wails.Event.Emit(eventPortsChanged, project)
 }
 
-// GetSuggestedPorts returns the ports we've detected on the remote that
-// are not currently forwarded and haven't been dismissed. The popover
-// queries this on open so it can render pending suggestions even when
-// the toast was lost (e.g. emitted before the listener mounted).
+// GetSuggestedPorts returns remote ports not forwarded and not dismissed.
+// The popover queries this on open to render suggestions when the toast
+// was lost (e.g. emitted before the listener mounted).
 func (a *App) GetSuggestedPorts(project string) []int {
 	a.suggestedMu.Lock()
 	suggested := a.suggested[project]

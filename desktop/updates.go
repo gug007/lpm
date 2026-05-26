@@ -131,7 +131,7 @@ func appBundlePath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Walk up from e.g. /Applications/lpm.app/Contents/MacOS/lpm
+	// Walk up from e.g. /Applications/lpm.app/Contents/MacOS/lpm.
 	for dir := filepath.Dir(exe); dir != "/" && dir != "."; dir = filepath.Dir(dir) {
 		if strings.HasSuffix(dir, ".app") {
 			return dir, nil
@@ -222,7 +222,7 @@ func (a *App) InstallUpdate() error {
 	srcApp := filepath.Join(mountPoint, newAppName)
 	dstApp := filepath.Join(appDir, newAppName)
 
-	// Copy new app to a staging path, then atomically swap
+	// Copy to a staging path, then atomically swap.
 	stagingApp := dstApp + ".new"
 	os.RemoveAll(stagingApp)
 
@@ -240,14 +240,14 @@ func (a *App) InstallUpdate() error {
 		return fmt.Errorf("failed to finalize update: %w", err)
 	}
 
-	// Cleanup explicitly before exit (defers won't run after os.Exit)
+	// Cleanup before exit (defers won't run after os.Exit).
 	exec.Command("hdiutil", "detach", mountPoint, "-quiet").Run()
 	os.Remove(dmgPath)
 	os.Remove(mountPoint)
 
-	// Spawn a detached process that waits for this process to exit,
-	// then launches the updated app. This avoids two simultaneous
-	// instances fighting over the same Wails port / dock icon.
+	// Spawn a detached process that waits for this one to exit then
+	// launches the updated app, avoiding two instances fighting over the
+	// same Wails port / dock icon.
 	script := fmt.Sprintf(
 		`while kill -0 %d 2>/dev/null; do sleep 0.2; done; sleep 0.5; open %q`,
 		os.Getpid(), dstApp,
@@ -258,10 +258,10 @@ func (a *App) InstallUpdate() error {
 		return fmt.Errorf("failed to schedule relaunch: %w", err)
 	}
 	_ = a.ServiceShutdown()
-	// Terminate through Cocoa so the dock icon is properly released.
+	// Terminate through Cocoa so the dock icon is released.
 	forceTerminate()
-	// Fallback if the main run-loop can't process the terminate in time.
+	// Fallback if the run-loop can't process terminate in time.
 	time.Sleep(3 * time.Second)
 	os.Exit(0)
-	return nil // unreachable; satisfies compiler
+	return nil
 }

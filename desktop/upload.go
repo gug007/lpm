@@ -14,13 +14,10 @@ import (
 	"github.com/gug007/lpm/internal/config"
 )
 
-// UploadAndQuoteForTerminal uploads localPaths to the remote host of the
-// terminal's project (when the terminal was started in remote mode) and
-// returns a single string of paths formatted for paste — single images
-// unquoted (so path-detecting receivers like Claude Code can stat them),
-// everything else shell-quoted and space-joined. For non-remote panes
-// the same formatting is applied to the local paths, so the frontend
-// can call this unconditionally.
+// UploadAndQuoteForTerminal uploads localPaths to remote panes and returns
+// paths formatted for paste. Single images stay unquoted so path-detecting
+// receivers can stat them; everything else is shell-quoted. Safe to call
+// for non-remote panes — they get local-path formatting.
 func (a *App) UploadAndQuoteForTerminal(terminalID string, localPaths []string) (string, error) {
 	if len(localPaths) == 0 {
 		return "", nil
@@ -41,9 +38,6 @@ func (a *App) UploadAndQuoteForTerminal(terminalID string, localPaths []string) 
 	return formatPastePaths(remotePaths), nil
 }
 
-// UploadClipboardImageForTerminal saves the base64-encoded clipboard
-// image to a local temp file and routes through the same upload path,
-// so remote panes get a remote path and local panes get the local temp.
 func (a *App) UploadClipboardImageForTerminal(terminalID, b64Data, mimeType string) (string, error) {
 	localPath, err := a.SaveClipboardImage(b64Data, mimeType)
 	if err != nil {
@@ -52,9 +46,8 @@ func (a *App) UploadClipboardImageForTerminal(terminalID, b64Data, mimeType stri
 	return a.UploadAndQuoteForTerminal(terminalID, []string{localPath})
 }
 
-// uploadFiles scp's localPaths to a fresh per-batch directory on the
-// SSH host, reusing the existing ControlMaster socket. Returns the
-// absolute remote paths in the same order as localPaths.
+// uploadFiles scps to a fresh per-batch dir on the SSH host, reusing the
+// existing ControlMaster socket. Returns absolute remote paths in order.
 func (a *App) uploadFiles(s *config.SSHSettings, localPaths []string) ([]string, error) {
 	batch, err := newBatchID()
 	if err != nil {
@@ -62,8 +55,7 @@ func (a *App) uploadFiles(s *config.SSHSettings, localPaths []string) ([]string,
 	}
 	_ = config.EnsureSSHControlDir()
 
-	// One ssh round-trip: create the dir and echo its absolute path.
-	// Resolving via $HOME on the remote avoids the ~-expansion-vs-quoting
+	// Resolve via $HOME on the remote to avoid the ~-expansion-vs-quoting
 	// trap when we paste paths with special characters in basenames.
 	remoteCmd := fmt.Sprintf(`mkdir -p "$HOME/.lpm/uploads/%s" && printf '%%s' "$HOME/.lpm/uploads/%s"`, batch, batch)
 	mkdirArgs := append([]string{}, config.SSHArgs(s)...)
@@ -81,9 +73,6 @@ func (a *App) uploadFiles(s *config.SSHSettings, localPaths []string) ([]string,
 		return nil, fmt.Errorf("ssh mkdir returned empty path")
 	}
 
-	// scp all files in one call. Putting -- before the source paths is
-	// belt-and-suspenders; local paths from drag/drop or the temp dir
-	// always start with /, so they can't be mistaken for flags anyway.
 	scpArgs := append([]string{}, config.SCPArgs(s)...)
 	scpArgs = append(scpArgs, "-r", "-p", "--")
 	scpArgs = append(scpArgs, localPaths...)
@@ -114,10 +103,9 @@ func newBatchID() (string, error) {
 // imageExtRe mirrors IMAGE_EXT_RE in InteractivePane.tsx — keep in sync.
 var imageExtRe = regexp.MustCompile(`(?i)\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif)$`)
 
-// formatPastePaths mirrors formatPastedPaths in InteractivePane.tsx:
-// a single image path is pasted unquoted so path-detecting receivers
-// (e.g. Claude Code) can stat it; everything else is shell-quoted and
-// space-joined for shell users.
+// formatPastePaths mirrors formatPastedPaths in InteractivePane.tsx.
+// Single image paths stay unquoted so path-detecting receivers can stat
+// them; everything else is shell-quoted and space-joined.
 func formatPastePaths(paths []string) string {
 	if len(paths) == 1 && imageExtRe.MatchString(paths[0]) {
 		return paths[0]
@@ -129,8 +117,7 @@ func formatPastePaths(paths []string) string {
 	return strings.Join(parts, " ")
 }
 
-// safePathChars mirrors the predicate in shellQuote (terminal-io.ts:15):
-// any path containing characters outside this set gets single-quoted.
+// safePathChars mirrors the predicate in shellQuote (terminal-io.ts).
 var safePathChars = regexp.MustCompile(`^[A-Za-z0-9_./:~-]+$`)
 
 func shellQuoteSingle(s string) string {

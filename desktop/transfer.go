@@ -30,9 +30,8 @@ type MissingRoot struct {
 	Root    string `json:"root"`
 }
 
-// topLevelFiles are single-file entries included in the archive alongside
-// projects/ and zdotdir/. settings.json is handled separately so per-machine
-// fields can be stripped on export and preserved on import.
+// topLevelFiles: archived alongside projects/ and zdotdir/. settings.json
+// is handled separately so per-machine fields can be stripped on export.
 var topLevelFiles = []string{
 	"global.yml",
 	"terminals.json",
@@ -41,8 +40,8 @@ var topLevelFiles = []string{
 	"pr-description-instructions.txt",
 }
 
-// perMachineSettingsKeys lists settings.json fields that should not travel
-// between MacBooks — window dimensions and ephemeral session state.
+// perMachineSettingsKeys lists settings.json fields that shouldn't travel
+// between machines.
 var perMachineSettingsKeys = []string{
 	"windowWidth",
 	"windowHeight",
@@ -50,8 +49,8 @@ var perMachineSettingsKeys = []string{
 	"lastSelectedProject",
 }
 
-// recoverAs converts a panic from op into an error, so Wails method panics
-// surface as toast-friendly messages instead of crashing the app.
+// recoverAs converts a panic from op into an error so Wails method panics
+// surface as toast-friendly messages instead of crashing.
 func recoverAs(op string, dst *error) {
 	if r := recover(); r != nil {
 		*dst = fmt.Errorf("%s panicked: %v", op, r)
@@ -59,14 +58,11 @@ func recoverAs(op string, dst *error) {
 	}
 }
 
-// ExportConfig writes a tar.gz archive of the portable portion of ~/.lpm
-// into a user-chosen directory. Returns "" when the dialog is cancelled.
-// Notes are intentionally not included — the user transports them via
-// Export/Import vault key (for the key) and by copying ~/.lpm/notes/
-// manually (for the data) if they want cross-Mac notes.
+// ExportConfig writes a tar.gz of the portable portion of ~/.lpm. Notes
+// are not included — users transport them via Export/Import vault key and
+// by copying ~/.lpm/notes/ manually.
 //
-// Uses OpenDirectoryDialog over SaveFileDialog — the latter has proven
-// flaky with compound extensions on newer macOS versions.
+// Uses OpenDirectoryDialog — SaveFileDialog is flaky on newer macOS.
 func (a *App) ExportConfig() (result string, err error) {
 	defer recoverAs("export", &err)
 
@@ -153,9 +149,8 @@ func writeArchive(tw *tar.Writer) error {
 	return nil
 }
 
-// ImportConfig prompts for an archive file, snapshots the current config to a
-// sibling backup dir, then merges the archive in. When overwrite is false,
-// existing projects are kept and listed in Skipped.
+// ImportConfig snapshots the current config, then merges the archive in.
+// When overwrite is false, existing projects are kept and listed in Skipped.
 func (a *App) ImportConfig(overwrite bool) (report *ImportReport, err error) {
 	defer recoverAs("import", &err)
 
@@ -209,8 +204,7 @@ func (a *App) ImportConfig(overwrite bool) (report *ImportReport, err error) {
 
 	report.MissingRoots, report.MissingTools = detectImportIssues()
 
-	// Clear cached project order so the frontend's next ListProjects picks up
-	// the imported ordering instead of serving the old value.
+	// Clear cached order so the next ListProjects picks up the imported one.
 	a.cacheMu.Lock()
 	a.projectOrder = nil
 	a.cacheMu.Unlock()
@@ -219,9 +213,9 @@ func (a *App) ImportConfig(overwrite bool) (report *ImportReport, err error) {
 	return report, nil
 }
 
-// MigratePortablePaths rewrites absolute $HOME-prefixed paths in project YAMLs
-// and global.yml to ~/ form, so pre-existing configs become portable across
-// machines. Gated by a marker file so it runs at most once per install.
+// MigratePortablePaths rewrites absolute $HOME-prefixed paths in project
+// YAMLs and global.yml to ~/ form. Gated by a marker file so it runs at
+// most once per install.
 func MigratePortablePaths() error {
 	markerPath := filepath.Join(config.LpmDir(), ".portable-paths-v1")
 	if _, err := os.Stat(markerPath); err == nil {
@@ -255,9 +249,8 @@ func MigratePortablePaths() error {
 	return os.WriteFile(markerPath, nil, 0644)
 }
 
-// rewriteHomeToTilde rewrites `root:` and `cwd:` YAML values that start with
-// `home/` (or equal home) to `~/...` form. Only those two keys are touched so
-// unrelated occurrences of the path are left alone.
+// rewriteHomeToTilde rewrites `root:` and `cwd:` YAML values to `~/...`
+// form. Only those two keys are touched.
 func rewriteHomeToTilde(path, home string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -321,8 +314,6 @@ func rewriteHomeToTilde(path, home string) error {
 	}
 	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), mode)
 }
-
-/* ── Archive helpers ─────────────────────────────────────────────── */
 
 func addTree(tw *tar.Writer, absRoot, relRoot string) error {
 	return filepath.Walk(absRoot, func(path string, info os.FileInfo, err error) error {
@@ -432,10 +423,7 @@ func extractTarGz(src, dst string) error {
 	}
 }
 
-/* ── Snapshot and apply ──────────────────────────────────────────── */
-
-// snapshotLpm copies the current ~/.lpm tree to dst, skipping runtime-only
-// entries (unix sockets).
+// snapshotLpm copies ~/.lpm to dst, skipping runtime-only entries (sockets).
 func snapshotLpm(src, dst string) error {
 	info, err := os.Stat(src)
 	if err != nil {
@@ -604,11 +592,9 @@ func mergeSettingsFile(src, dst string) error {
 	return os.WriteFile(dst, out, 0644)
 }
 
-// detectImportIssues walks every project YAML (via LoadProjectRaw so missing
-// dependencies don't fail the scan) and the global config once, returning
-// project roots that don't exist on disk and shell tools referenced by
-// commands but not found in PATH. Single pass replaces two independent
-// scans that used to re-read each YAML twice.
+// detectImportIssues returns project roots that don't exist on disk and
+// shell tools referenced by commands but not in PATH. Uses LoadProjectRaw
+// so missing dependencies don't fail the scan.
 func detectImportIssues() ([]MissingRoot, []string) {
 	missingRoots := []MissingRoot{}
 	missingTools := []string{}

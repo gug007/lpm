@@ -67,10 +67,8 @@ func (a *App) LoadSettings() Settings {
 	return a.loadSettingsLocked()
 }
 
-// withSettings runs mutate under settingsMu, persisting only when
-// mutate reports a change. Centralizes the load→mutate→save pattern so
-// callers don't reimplement (and accidentally vary) the lock + no-op
-// short-circuit semantics.
+// withSettings runs mutate under settingsMu, persisting only when mutate
+// reports a change.
 func (a *App) withSettings(mutate func(*Settings) bool) error {
 	a.settingsMu.Lock()
 	defer a.settingsMu.Unlock()
@@ -81,8 +79,6 @@ func (a *App) withSettings(mutate func(*Settings) bool) error {
 	return a.saveSettingsLocked(s)
 }
 
-// validWindowBounds reports whether width/height fall within the
-// app-wide min/max range used to guard against junk persisted state.
 func validWindowBounds(width, height int) bool {
 	return width >= minWindowWidth && height >= minWindowHeight &&
 		width <= maxWindowWidth && height <= maxWindowHeight
@@ -94,7 +90,7 @@ func (a *App) SaveSettings(s Settings) error {
 	return a.saveSettingsLocked(s)
 }
 
-// loadSettingsLocked reads settings from disk. Caller must hold settingsMu.
+// loadSettingsLocked: caller must hold settingsMu.
 func (a *App) loadSettingsLocked() Settings {
 	data, err := os.ReadFile(settingsPath())
 	if err != nil {
@@ -107,7 +103,7 @@ func (a *App) loadSettingsLocked() Settings {
 	return s
 }
 
-// saveSettingsLocked writes settings to disk. Caller must hold settingsMu.
+// saveSettingsLocked: caller must hold settingsMu.
 func (a *App) saveSettingsLocked(s Settings) error {
 	if err := config.EnsureDirs(); err != nil {
 		return err

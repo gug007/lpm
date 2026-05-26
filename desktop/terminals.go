@@ -8,9 +8,8 @@ import (
 	"github.com/gug007/lpm/internal/config"
 )
 
-// PersistedTab is one terminal saved inside a pane. StartCmd/ResumeCmd are
-// re-injected on restore; the PTY id is not persisted (it doesn't survive
-// a restart).
+// PersistedTab: StartCmd/ResumeCmd are re-injected on restore; the PTY
+// id is not persisted (doesn't survive a restart).
 type PersistedTab struct {
 	Label      string `json:"label"`
 	StartCmd   string `json:"startCmd,omitempty"`
@@ -20,8 +19,8 @@ type PersistedTab struct {
 }
 
 // PaneNode is one node of a persisted pane layout tree. Leaves have
-// Kind="leaf" and carry Tabs/ActiveTabIdx; splits have Kind="split" with
-// Direction ("row"|"col"), Ratio, and two children.
+// Kind="leaf" with Tabs/ActiveTabIdx; splits have Kind="split" with
+// Direction, Ratio, and two children.
 type PaneNode struct {
 	Kind              string         `json:"kind"`
 	Tabs              []PersistedTab `json:"tabs,omitempty"`
@@ -33,9 +32,8 @@ type PaneNode struct {
 	B                 *PaneNode      `json:"b,omitempty"`
 }
 
-// TerminalEntry is the legacy pre-pane-tree flat list entry. Still loaded
-// by the frontend for one-time migration into the new pane tree on first
-// save — but never written back.
+// TerminalEntry is the legacy pre-pane-tree entry. Loaded for one-time
+// migration on first save, never written back.
 type TerminalEntry struct {
 	Label     string `json:"label"`
 	StartCmd  string `json:"startCmd,omitempty"`

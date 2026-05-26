@@ -154,7 +154,6 @@ func (s *StatusStore) StartPIDSweep(ctx context.Context, onClear func(project, k
 }
 
 func (s *StatusStore) sweepDeadPIDs(onClear func(project, key string)) {
-	// Collect candidates under a read lock.
 	type candidate struct {
 		project string
 		key     string
@@ -172,7 +171,6 @@ func (s *StatusStore) sweepDeadPIDs(onClear func(project, key string)) {
 	}
 	s.mu.RUnlock()
 
-	// Check each PID outside the lock, then clear as needed.
 	for _, c := range candidates {
 		err := syscall.Kill(c.pid, 0)
 		if err == syscall.ESRCH {
