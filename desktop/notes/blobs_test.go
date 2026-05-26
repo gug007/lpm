@@ -89,8 +89,8 @@ func TestBlobs_DifferentPlaintextProducesDifferentCiphertext(t *testing.T) {
 }
 
 func TestBlobs_NoncesAreUnique(t *testing.T) {
-	// Same plaintext, two stores (different keys) must still use independent,
-	// random nonces — guards against a future bug deriving nonces from hash.
+	// Guards against a future bug that derives nonces from the hash:
+	// same plaintext across two stores must still emit independent nonces.
 	dir1 := filepath.Join(t.TempDir(), "a")
 	dir2 := filepath.Join(t.TempDir(), "b")
 	b1, err := NewBlobStore(dir1, newTestKey(t))

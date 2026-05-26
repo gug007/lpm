@@ -1,10 +1,6 @@
 // Package vault holds the shared 32-byte AES-256 key used by every lpm
-// feature that needs at-rest encryption. The key lives in the macOS Keychain
-// under service="lpm", account="vault" and is created on first use.
-//
-// One key instead of per-feature/per-project: all keys would live in the
-// same login Keychain anyway, so per-feature isolation is theoretical.
-// One entry means one Touch ID / password prompt per session.
+// feature that needs at-rest encryption. One entry (not per-feature) in
+// the login Keychain means one Touch ID / password prompt per session.
 package vault
 
 import (
@@ -18,7 +14,7 @@ const KeyLen = 32
 
 var ErrEmptyPassphrase = errors.New("vault: passphrase required")
 
-// Callers generate fresh nonces per message.
+// NewAEAD returns AES-256-GCM. Callers must use a fresh nonce per message.
 func NewAEAD(key []byte) (cipher.AEAD, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {

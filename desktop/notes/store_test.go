@@ -230,9 +230,7 @@ func TestStore_ChatCRUDAndOrdering(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create a: %v", err)
 	}
-	// Force a millisecond gap so updated_ts orderings are unambiguous —
-	// CreateChat/AddMessage both stamp with time.Now().UnixMilli() and two
-	// calls in the same ms will tie-break on id (random UUID).
+	// Force a millisecond gap so updated_ts orderings don't tie-break on id.
 	time.Sleep(2 * time.Millisecond)
 	b, err := s.CreateChat(ctx, "beta")
 	if err != nil {
@@ -320,8 +318,6 @@ func TestStore_AddMessageRejectsUnknownChat(t *testing.T) {
 	}
 }
 
-// Mirrors the chat-delete flow in main.NotesDeleteChat: targeted orphan
-// removal followed by a full sweep that catches blobs with no DB reference.
 func TestStore_DeleteChatRemovesAllUnreferencedBlobs(t *testing.T) {
 	s, key := newTestStore(t)
 	ctx := context.Background()
@@ -344,8 +340,7 @@ func TestStore_DeleteChatRemovesAllUnreferencedBlobs(t *testing.T) {
 	sharedHash, _ := put("shared")
 	soloAHash, _ := put("solo-a")
 	soloBHash, _ := put("solo-b")
-	// Simulates a Put that succeeded but whose AddMessage failed before the
-	// attachment row was inserted — should still be swept by the GC sweep.
+	// Stray: Put succeeded but AddMessage failed — must be swept.
 	strayHash, _ := put("stray")
 
 	a := newTestChat(t, s)
@@ -394,14 +389,12 @@ func TestStore_DeleteChatRemovesAllUnreferencedBlobs(t *testing.T) {
 	}
 }
 
-// Simulates an on-disk DB created before chats existed.
 func TestStore_BackfillsLegacyMessagesIntoDefaultChat(t *testing.T) {
 	key := newTestKey(t)
 	dir := t.TempDir()
 	ctx := context.Background()
 
-	// Open with the real schema, then hand-roll the legacy state so the next
-	// open sees a pre-chats DB.
+	// Hand-roll a legacy state so the next open sees a pre-chats DB.
 	s, err := openStoreAt(ctx, "legacy", dir, key)
 	if err != nil {
 		t.Fatalf("first open: %v", err)
@@ -459,8 +452,7 @@ func TestStore_Search(t *testing.T) {
 		}
 		return m
 	}
-	// Space inserts so ts DESC ordering is deterministic (AddMessage uses
-	// millisecond precision; a tight loop can tie).
+	// Space inserts so the millisecond timestamps don't tie.
 	_ = mustAdd("docker compose up fails on arm64")
 	time.Sleep(2 * time.Millisecond)
 	_ = mustAdd("remember: GCS bucket is gs://foo-bar")

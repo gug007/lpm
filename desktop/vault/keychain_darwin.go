@@ -27,7 +27,7 @@ var ErrKeychainDenied = errors.New("vault: keychain item exists but access was d
 // New items are written as Synchronizable so they ride the user's iCloud
 // Keychain to their other Macs / iOS devices.
 
-// Returns the shared lpm encryption key, creating it on first use.
+// Key returns the shared lpm encryption key, creating it on first use.
 func Key() ([]byte, error) {
 	key, err := fetchKey()
 	if err == nil {
@@ -49,8 +49,9 @@ func isAccessDenied(err error) bool {
 		errors.Is(err, keychain.ErrorUserCanceled)
 }
 
-// Returns nil on missing key so factory-reset / migration paths can call it
-// unconditionally. SynchronizableAny deletes both local and synced items.
+// DeleteKey returns nil when no key exists so factory-reset / migration paths
+// can call it unconditionally. SynchronizableAny deletes both local and synced
+// items.
 func DeleteKey() error {
 	q := baseQuery()
 	q.SetSynchronizable(keychain.SynchronizableAny)
@@ -112,8 +113,8 @@ func writeKey(key []byte) error {
 	item.SetAccessible(keychain.AccessibleWhenUnlocked)
 	item.SetSynchronizable(keychain.SynchronizableYes)
 	err := keychain.AddItem(item)
-	// Unsigned / dev builds lack the keychain-access-groups entitlement
-	// required for iCloud Keychain sync, so fall back to a local-only item.
+	// Dev / unsigned builds lack the keychain-access-groups entitlement
+	// required for iCloud sync; fall back to a local-only item.
 	if errors.Is(err, errMissingEntitlement) {
 		item.SetAccessible(keychain.AccessibleWhenUnlockedThisDeviceOnly)
 		item.SetSynchronizable(keychain.SynchronizableNo)
@@ -122,10 +123,9 @@ func writeKey(key []byte) error {
 	if err == nil {
 		return nil
 	}
-	// A duplicate here means fetchKey missed an existing item — typically
-	// one from a prior install under a different bundle ID or signing
-	// identity that this build can't read. Surface it instead of silently
-	// succeeding with a fresh in-memory key that won't match the keychain.
+	// Duplicate here means fetchKey missed an existing item (different
+	// bundle ID / signing identity). Surface it — silently using a fresh
+	// in-memory key would orphan the existing data.
 	if errors.Is(err, keychain.ErrorDuplicateItem) {
 		return ErrKeychainDenied
 	}

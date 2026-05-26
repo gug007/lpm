@@ -12,7 +12,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ResolveCwd resolves cwd relative to root. Returns root when cwd is empty.
 func ResolveCwd(root, cwd string) string {
 	if cwd == "" {
 		return root
@@ -288,16 +287,12 @@ func SSHControlPath() string {
 	return filepath.Join(SSHControlDir(), "cm-%C")
 }
 
-// EnsureSSHControlDir creates the parent directory for SSH control
-// sockets with 0700 perms. Best-effort — ssh surfaces a clear error if
-// the directory is missing or unwritable.
 func EnsureSSHControlDir() error {
 	return os.MkdirAll(SSHControlDir(), 0o700)
 }
 
-// JoinRemoteDir composes a remote working directory from the project's
-// ssh.dir and a per-command cwd. Tilde-prefixed paths are preserved
-// verbatim so the remote shell can expand them.
+// JoinRemoteDir preserves tilde-prefixed paths verbatim so the remote shell
+// can expand them.
 func JoinRemoteDir(dir, cwd string) string {
 	cwd = strings.TrimRight(strings.TrimSpace(cwd), "/")
 	dir = strings.TrimRight(strings.TrimSpace(dir), "/")
@@ -344,8 +339,8 @@ func WrapAsLoginShell(script string) string {
 	return "bash -ilc " + ShellQuote(script)
 }
 
-// BuildRemoteScript composes a `cd <dir> && export FOO=bar && cmd`
-// script for execution on the remote host. Empty when nothing would run.
+// BuildRemoteScript composes `cd <dir> && export FOO=bar && cmd`. Empty when
+// nothing would run.
 func BuildRemoteScript(dir string, env map[string]string, cmd string) string {
 	body := BuildLocalScript(env, cmd)
 	if dir == "" {
@@ -358,8 +353,8 @@ func BuildRemoteScript(dir string, env map[string]string, cmd string) string {
 	return cd + " && " + body
 }
 
-// BuildLocalScript renders `export FOO=bar && cmd`. Env keys are sorted
-// for deterministic output.
+// BuildLocalScript renders `export FOO=bar && cmd` with sorted env keys for
+// deterministic output.
 func BuildLocalScript(env map[string]string, cmd string) string {
 	var parts []string
 	if len(env) > 0 {
@@ -388,9 +383,6 @@ func LocalMirrorCfg(cfg *ProjectConfig, localRoot string) *ProjectConfig {
 	return &clone
 }
 
-// TrimTail returns at most n trailing characters of b, prefixed with
-// "..." when truncated. Used to fit subprocess error tails into toasts
-// without flooding the UI.
 func TrimTail(b []byte, n int) string {
 	s := strings.TrimSpace(string(b))
 	if len(s) <= n {
@@ -401,8 +393,6 @@ func TrimTail(b []byte, n int) string {
 
 // RemoteLocalSpawnDir returns a real local directory for spawning a child
 // process whose actual work happens on the remote (tmux pane, ssh pty).
-// $HOME is preferred; cfg.Root is a fallback for ancient SSH projects
-// that still have it set. Empty string only if neither is available.
 func RemoteLocalSpawnDir(cfg *ProjectConfig) string {
 	if home, err := os.UserHomeDir(); err == nil && home != "" {
 		return home
@@ -466,8 +456,8 @@ func (p *ProjectConfig) ApplyDefaults() error {
 	return nil
 }
 
-// ResolvedActions returns project actions merged with the terminals section;
-// actions win on name collision.
+// ResolvedActions merges project actions and terminals; actions win on name
+// collision.
 func (p *ProjectConfig) ResolvedActions() ActionMap {
 	out := make(ActionMap, len(p.Actions)+len(p.Terminals))
 	for k, v := range p.Actions {
@@ -558,8 +548,6 @@ func TemplatePath(ref, baseDir string) string {
 	return filepath.Join(TemplatesDir(), name)
 }
 
-// NotesDir returns the on-disk directory that holds the encrypted notes DB
-// and attachment blobs for the given project.
 func NotesDir(project string) string {
 	return filepath.Join(LpmDir(), "notes", project)
 }
@@ -758,8 +746,7 @@ func ProjectExists(name string) bool {
 	return err == nil
 }
 
-// expandLocalCwds expands ~/ in service/action/terminal cwds in place.
-// Skipped for SSH projects since those cwds are remote paths.
+// expandLocalCwds is a no-op on SSH projects since their cwds are remote paths.
 func expandLocalCwds(cfg *ProjectConfig) {
 	if cfg.IsRemote() {
 		return
@@ -812,8 +799,6 @@ func LoadProjectRaw(name string) (*ProjectConfig, error) {
 	return &cfg, nil
 }
 
-// normalize applies the post-unmarshal defaults shared by every loader:
-// fill in name from the file id when omitted, and expand ~ in root.
 func (p *ProjectConfig) normalize(name string) {
 	if p.Name == "" {
 		p.Name = name
