@@ -128,6 +128,7 @@ export function StartProject(...args: any[]): Promise<any>;
 export function StartProjectWithServices(...args: any[]): Promise<any>;
 export function StartService(...args: any[]): Promise<any>;
 export function StartTTS(...args: any[]): Promise<any>;
+export function StartGlobalTerminal(...args: any[]): Promise<any>;
 export function StartTerminal(...args: any[]): Promise<any>;
 export function StartTerminalForConfig(...args: any[]): Promise<any>;
 export function StartTerminalForRestore(...args: any[]): Promise<any>;

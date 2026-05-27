@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { StartTerminal, StartTerminalForConfig, StartTerminalForRestore, StartTerminalWithCwdEnv, StopTerminal } from "../../wailsjs/go/main/App";
+import { StartGlobalTerminal, StartTerminal, StartTerminalForConfig, StartTerminalForRestore, StartTerminalWithCwdEnv, StopTerminal } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { sendTerminalInput } from "../terminal-io";
 import { isInteractivePaneSessionDead } from "../components/InteractivePane";
 import {
+  GLOBAL_TERMINALS_KEY,
   appendHistoryEntry,
   getProjectTerminals,
   removeHistoryEntry,
@@ -112,8 +113,19 @@ export function useTerminals(
   projectName: string,
   onTerminalCountChange?: (count: number) => void,
 ): UseTerminalsResult {
+  const isGlobal = projectName === GLOBAL_TERMINALS_KEY;
   const [tree, setTree] = useState<PaneNode | null>(null);
   const [focusedPaneId, setFocusedPaneId] = useState<string | null>(null);
+
+  const startPty = useCallback(
+    (actionName?: string): Promise<string> => {
+      if (isGlobal) return StartGlobalTerminal();
+      return actionName
+        ? StartTerminalForRestore(projectName, actionName)
+        : StartTerminal(projectName);
+    },
+    [isGlobal, projectName],
+  );
 
   const treeRef = useRef(tree);
   treeRef.current = tree;
@@ -222,7 +234,7 @@ export function useTerminals(
     const allStartedIds: string[] = [];
 
     (async () => {
-      const restored = await reifyTreeWithFreshPtys(persistedTree, projectName, allStartedIds);
+      const restored = await reifyTreeWithFreshPtys(persistedTree, startPty, allStartedIds);
       if (cancelled || !restored) {
         allStartedIds.forEach((id) => StopTerminal(id).catch(() => {}));
         return;
@@ -244,7 +256,7 @@ export function useTerminals(
       cancelled = true;
       allStartedIds.forEach((id) => StopTerminal(id).catch(() => {}));
     };
-  }, [projectName, scheduleCmdInject]);
+  }, [projectName, startPty, scheduleCmdInject]);
 
   // Central path for adding a terminal: either to an explicit pane, the
   // focused pane, or a fresh root pane if the tree is empty.
@@ -264,10 +276,10 @@ export function useTerminals(
 
   const createTerminal = useCallback(async () => {
     try {
-      const id = await StartTerminal(projectName);
+      const id = await startPty();
       addTerminal(makeTerminal(id, pickTerminalLabel(treeRef.current)));
     } catch {}
-  }, [projectName, addTerminal]);
+  }, [startPty, addTerminal]);
 
   const createTerminalWithCmd = useCallback(
     async (label: string, cmd: string, opts?: TerminalStartOpts) => {
@@ -299,7 +311,7 @@ export function useTerminals(
       // the session-id rewrite so launch.startCmd is authoritative, and a
       // non-empty resumeCmd is the signal that this terminal opted into
       // restore and both cmds should be persisted.
-      if (opts?.configName) {
+      if (opts?.configName && !isGlobal) {
         const launch = await StartTerminalForConfig(projectName, opts.configName);
         const term = makeTerminal(launch.id, label, {
           ...(launch.resumeCmd && { startCmd: launch.startCmd, resumeCmd: launch.resumeCmd }),
@@ -312,22 +324,20 @@ export function useTerminals(
 
       // Ad-hoc command terminals (e.g. action-as-terminal invocations) are
       // ephemeral — the command is typed once but not persisted.
-      const id = (opts?.cwd || opts?.env)
+      const id = (opts?.cwd || opts?.env) && !isGlobal
         ? await StartTerminalWithCwdEnv(projectName, opts.cwd ?? "", opts.env ?? {})
-        : await StartTerminal(projectName);
+        : await startPty();
       addTerminal(makeTerminal(id, label, { actionName: opts?.actionName }));
       scheduleCmdInject(id, cmd);
     },
-    [projectName, addTerminal, applyTree, scheduleCmdInject],
+    [isGlobal, projectName, startPty, addTerminal, applyTree, scheduleCmdInject],
   );
 
   const resumeFromHistory = useCallback(
     async (entry: PersistedHistoryEntry) => {
       let id: string;
       try {
-        id = entry.actionName
-          ? await StartTerminalForRestore(projectName, entry.actionName)
-          : await StartTerminal(projectName);
+        id = await startPty(entry.actionName);
       } catch {
         return;
       }
@@ -344,17 +354,17 @@ export function useTerminals(
       addTerminal(term);
       scheduleCmdInject(id, entry.resumeCmd);
     },
-    [projectName, addTerminal, scheduleCmdInject],
+    [projectName, startPty, addTerminal, scheduleCmdInject],
   );
 
   const addTerminalToPane = useCallback(
     async (paneId: string) => {
       try {
-        const id = await StartTerminal(projectName);
+        const id = await startPty();
         addTerminal(makeTerminal(id, pickTerminalLabel(treeRef.current)), paneId);
       } catch {}
     },
-    [projectName, addTerminal],
+    [startPty, addTerminal],
   );
 
   // Drop a pane from the tree, moving focus to its visual neighbor (or the
@@ -568,7 +578,7 @@ export function useTerminals(
       if (!treeRef.current || !findPane(treeRef.current, paneId)) return;
       let newId: string;
       try {
-        newId = await StartTerminal(projectName);
+        newId = await startPty();
       } catch {
         return;
       }
@@ -583,7 +593,7 @@ export function useTerminals(
       const newPane = makePaneLeaf(newPaneId, [makeTerminal(newId, pickTerminalLabel(current))], 0);
       applyTree(splitAtPane(current, paneId, direction, newPane), newPaneId);
     },
-    [projectName, applyTree],
+    [startPty, applyTree],
   );
 
   const closePane = useCallback(
@@ -704,7 +714,7 @@ function clampIdx(idx: number | undefined, length: number): number {
  */
 async function reifyTreeWithFreshPtys(
   node: PersistedPaneNode,
-  projectName: string,
+  startPty: (actionName?: string) => Promise<string>,
   startedIds: string[],
 ): Promise<PaneNode | null> {
   if (node.kind === "leaf") {
@@ -714,11 +724,7 @@ async function reifyTreeWithFreshPtys(
     if (persistedTabs.length === 0 && !node.activeServiceName) return null;
     try {
       const ids = await Promise.all(
-        persistedTabs.map((t) =>
-          t.actionName
-            ? StartTerminalForRestore(projectName, t.actionName)
-            : StartTerminal(projectName),
-        ),
+        persistedTabs.map((t) => startPty(t.actionName)),
       );
       ids.forEach((id) => startedIds.push(id));
       const tabs = ids.map((id, i) =>
@@ -738,8 +744,8 @@ async function reifyTreeWithFreshPtys(
   }
   if (!node.a || !node.b) return null;
   const [a, b] = await Promise.all([
-    reifyTreeWithFreshPtys(node.a, projectName, startedIds),
-    reifyTreeWithFreshPtys(node.b, projectName, startedIds),
+    reifyTreeWithFreshPtys(node.a, startPty, startedIds),
+    reifyTreeWithFreshPtys(node.b, startPty, startedIds),
   ]);
   if (!a || !b) return null;
   return {

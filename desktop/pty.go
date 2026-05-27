@@ -76,6 +76,14 @@ func (a *App) StartTerminal(projectName string) (string, error) {
 	return a.startTerminalInternal(cfg, projectName, "", nil, nil)
 }
 
+func (a *App) StartGlobalTerminal() (string, error) {
+	cfg, err := config.LoadGlobalAsProject()
+	if err != nil {
+		return "", err
+	}
+	return a.startTerminalInternal(cfg, config.GlobalProjectName, "", nil, nil)
+}
+
 // StartTerminalWithCwdEnv: cwd is project-relative; SSH projects resolve
 // it against ssh.dir.
 func (a *App) StartTerminalWithCwdEnv(projectName string, cwd string, env map[string]string) (string, error) {
