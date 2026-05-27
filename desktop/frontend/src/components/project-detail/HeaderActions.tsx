@@ -50,7 +50,18 @@ export function HeaderActions({
         </ActionsSortableItem>
       ))}
       {actions.length === 0 && <EmptyDropHint />}
-      <Tooltip content="Create action" side="bottom">
+      <Tooltip
+        content={
+          <span className="flex flex-col gap-0.5">
+            <span className="font-medium text-[var(--text-primary)]">Create action</span>
+            <span className="text-[var(--text-secondary)]">
+              One-click shortcuts for the commands you run all the time — tests, builds, deploys, migrations, log tails, or anything else.
+            </span>
+          </span>
+        }
+        side="bottom"
+        wide
+      >
         <button
           type="button"
           onClick={onAddAction}
