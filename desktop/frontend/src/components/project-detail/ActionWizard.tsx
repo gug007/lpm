@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+  type Ref,
+} from "react";
 import YAML from "yaml";
 import { toast } from "sonner";
 import {
@@ -41,7 +48,8 @@ const SHAPE_PREVIEW_BUTTON_CLASS =
 
 const TERMINAL_KEYWORDS = /\b(tail|watch|log|logs|shell|console|server)\b/;
 const BACKGROUND_KEYWORDS = /\b(fetch|pull|build|install|compile|generate)\b/;
-const CONFIRM_KEYWORDS = /\b(deploy|migrate|reset|drop|delete|destroy|remove|kill|prune)\b/i;
+const CONFIRM_KEYWORDS =
+  /\b(deploy|migrate|reset|drop|delete|destroy|remove|kill|prune)\b/i;
 
 const NEW_ACTION_KEY = "new-action";
 const PLACEHOLDER_LABEL = "New action";
@@ -49,7 +57,9 @@ const MODE_STORAGE_KEY = "lpm.actionWizard.mode";
 
 function readStoredMode(): "form" | "editor" {
   try {
-    return localStorage.getItem(MODE_STORAGE_KEY) === "editor" ? "editor" : "form";
+    return localStorage.getItem(MODE_STORAGE_KEY) === "editor"
+      ? "editor"
+      : "form";
   } catch {
     return "form";
   }
@@ -69,9 +79,124 @@ const SHAPE_OPTIONS: Array<{
   description: string;
   badge?: string;
 }> = [
-  { shape: "button", title: "Button", description: "One click runs one command.", badge: "Recommended" },
-  { shape: "split", title: "Split button", description: "A main command plus a small menu." },
-  { shape: "dropdown", title: "Dropdown menu", description: "Just a menu of related commands." },
+  {
+    shape: "button",
+    title: "Button",
+    description: "One click runs one command.",
+    badge: "Recommended",
+  },
+  {
+    shape: "split",
+    title: "Split button",
+    description: "A main command plus a small menu.",
+  },
+  {
+    shape: "dropdown",
+    title: "Dropdown menu",
+    description: "Just a menu of related commands.",
+  },
+];
+
+interface ActionTemplate {
+  id: string;
+  emoji: string;
+  name: string;
+  cmd: string;
+  runMode: RunMode;
+  reuse?: boolean;
+  confirm?: boolean;
+}
+
+const ACTION_TEMPLATES: ActionTemplate[] = [
+  {
+    id: "dev",
+    emoji: "🚀",
+    name: "Start dev server",
+    cmd: "npm run dev",
+    runMode: "terminal",
+    reuse: true,
+  },
+  {
+    id: "tests",
+    emoji: "🧪",
+    name: "Run tests",
+    cmd: "npm test",
+    runMode: "once",
+  },
+  {
+    id: "build",
+    emoji: "📦",
+    name: "Build",
+    cmd: "npm run build",
+    runMode: "once",
+  },
+  {
+    id: "install",
+    emoji: "⬇️",
+    name: "Install deps",
+    cmd: "npm install",
+    runMode: "background",
+  },
+  {
+    id: "clean-install",
+    emoji: "🧹",
+    name: "Clean install",
+    cmd: "rm -rf node_modules && npm install",
+    runMode: "once",
+    confirm: true,
+  },
+  {
+    id: "lint",
+    emoji: "✨",
+    name: "Lint & fix",
+    cmd: "npm run lint -- --fix",
+    runMode: "once",
+  },
+  {
+    id: "typecheck",
+    emoji: "📊",
+    name: "Type check",
+    cmd: "npx tsc --noEmit",
+    runMode: "once",
+  },
+  {
+    id: "logs",
+    emoji: "📜",
+    name: "Tail logs",
+    cmd: "tail -f log.txt",
+    runMode: "terminal",
+  },
+  {
+    id: "docker-up",
+    emoji: "🐳",
+    name: "Docker up",
+    cmd: "docker compose up -d",
+    runMode: "once",
+  },
+  {
+    id: "migrate",
+    emoji: "🗃️",
+    name: "Run migrations",
+    cmd: "npm run migrate",
+    runMode: "once",
+    confirm: true,
+  },
+  {
+    id: "deploy",
+    emoji: "🚢",
+    name: "Deploy",
+    cmd: "npm run deploy",
+    runMode: "once",
+    confirm: true,
+  },
+  {
+    id: "ai-agent",
+    emoji: "🤖",
+    name: "AI coding session",
+    cmd: "claude",
+    runMode: "terminal",
+    reuse: true,
+  },
 ];
 
 interface ChildDraft {
@@ -98,7 +223,14 @@ interface ActionWizardProps {
 }
 
 function newChild(): ChildDraft {
-  return { id: crypto.randomUUID(), label: "", cmd: "", runMode: "once", reuse: false, confirm: false };
+  return {
+    id: crypto.randomUUID(),
+    label: "",
+    cmd: "",
+    runMode: "once",
+    reuse: false,
+    confirm: false,
+  };
 }
 
 function inferRunMode(text: string): RunMode {
@@ -114,7 +246,11 @@ function shouldConfirm(text: string): boolean {
 
 // Auto-suggests run mode and confirm flag from the action's text. Run mode is
 // only inferred while still on its default ("once"); confirm is sticky once on.
-function applyAutoSettings(prev: FormDraft, nextName: string, nextCmd: string): Partial<FormDraft> {
+function applyAutoSettings(
+  prev: FormDraft,
+  nextName: string,
+  nextCmd: string,
+): Partial<FormDraft> {
   const text = `${nextName} ${nextCmd}`;
   const patch: Partial<FormDraft> = {};
   if (prev.runMode === "once") patch.runMode = inferRunMode(text);
@@ -128,11 +264,16 @@ function runModeHint(mode: RunMode, reuse: boolean) {
       ? "Runs in a terminal. Running this action again reuses the same pane."
       : "Opens a new terminal every time this action runs.";
   }
-  if (mode === "background") return "Runs in the background and shows a success notification when done.";
+  if (mode === "background")
+    return "Runs in the background and shows a success notification when done.";
   return "Runs once and displays the result in a modal.";
 }
 
-function wizardCopy(editing: boolean): { title: string; hint?: string; primary: string } {
+function wizardCopy(editing: boolean): {
+  title: string;
+  hint?: string;
+  primary: string;
+} {
   if (editing) {
     return {
       title: "Edit action",
@@ -141,12 +282,28 @@ function wizardCopy(editing: boolean): { title: string; hint?: string; primary: 
   }
   return {
     title: "Add a header action",
-    hint: "Pick a name, choose how it shows, and set the command to run.",
+    hint: "Start from a template, or fill in the fields to make your own.",
     primary: "Create action",
   };
 }
 
-function getMissingHint(draft: FormDraft, hasMenuOption: boolean): string | null {
+function applyTemplate(template: ActionTemplate, base: FormDraft): FormDraft {
+  return {
+    ...base,
+    shape: "button",
+    name: `${template.emoji} ${template.name}`,
+    cmd: template.cmd,
+    runMode: template.runMode,
+    reuse: template.reuse ?? false,
+    confirm: template.confirm ?? false,
+    children: [newChild()],
+  };
+}
+
+function getMissingHint(
+  draft: FormDraft,
+  hasMenuOption: boolean,
+): string | null {
   const nameFilled = Boolean(draft.name.trim());
   const cmdFilled = Boolean(draft.cmd.trim());
   if (!nameFilled) return "Name is required";
@@ -171,14 +328,24 @@ interface FormDraft {
   confirm: boolean;
 }
 
-const CONFIG_LAYER_OPTIONS: Array<{ value: ActionConfigLayer; label: string; hint: string }> = [
+const CONFIG_LAYER_OPTIONS: Array<{
+  value: ActionConfigLayer;
+  label: string;
+  hint: string;
+}> = [
   { value: "project", label: "User", hint: "Just for you on this project" },
   { value: "repo", label: "Repo", hint: "Shared with your team via git" },
-  { value: "global", label: "Global", hint: "Available across all your projects" },
+  {
+    value: "global",
+    label: "Global",
+    hint: "Available across all your projects",
+  },
 ];
 
 function configLayerLabel(layer: ActionConfigLayer): string {
-  return CONFIG_LAYER_OPTIONS.find((opt) => opt.value === layer)?.label ?? "User";
+  return (
+    CONFIG_LAYER_OPTIONS.find((opt) => opt.value === layer)?.label ?? "User"
+  );
 }
 
 function buildChildMap(children: ChildDraft[]): Record<string, unknown> {
@@ -186,7 +353,10 @@ function buildChildMap(children: ChildDraft[]): Record<string, unknown> {
   const keyed = children
     .filter((child) => child.cmd.trim())
     .map((child, index) => {
-      const key = uniqueKey(slugify(child.label) || `option-${index + 1}`, used);
+      const key = uniqueKey(
+        slugify(child.label) || `option-${index + 1}`,
+        used,
+      );
       used.push(key);
       return { child, key };
     });
@@ -215,7 +385,16 @@ function buildChildMap(children: ChildDraft[]): Record<string, unknown> {
 
 // Returns set/remove for the wizard-managed fields. On edit, applying this
 // patch leaves user-authored fields like env/inputs untouched.
-function buildActionPatch({ shape, name, cmd, cwd, children, runMode, reuse, confirm }: FormDraft): ActionPatch {
+function buildActionPatch({
+  shape,
+  name,
+  cmd,
+  cwd,
+  children,
+  runMode,
+  reuse,
+  confirm,
+}: FormDraft): ActionPatch {
   const set: Record<string, unknown> = { label: name.trim() };
   const remove: string[] = [];
 
@@ -240,26 +419,46 @@ function buildActionPatch({ shape, name, cmd, cwd, children, runMode, reuse, con
   return { set, remove };
 }
 
-function buildCreatePayload(draft: FormDraft, position: number): Record<string, unknown> {
+function buildCreatePayload(
+  draft: FormDraft,
+  position: number,
+): Record<string, unknown> {
   const { set } = buildActionPatch(draft);
   return { ...set, display: "header", position };
 }
 
 type Submission =
   | { kind: "create"; key: string; payload: Record<string, unknown> }
-  | { kind: "edit"; key: string; payload: Record<string, unknown>; patch: ActionPatch };
+  | {
+      kind: "edit";
+      key: string;
+      payload: Record<string, unknown>;
+      patch: ActionPatch;
+    };
 
 function buildSubmission(
   draft: FormDraft,
-  context: { editing: ActionInfo | null | undefined; existingActionKeys: string[]; nextPosition: number },
+  context: {
+    editing: ActionInfo | null | undefined;
+    existingActionKeys: string[];
+    nextPosition: number;
+  },
 ): Submission {
   if (context.editing) {
     const patch = buildActionPatch(draft);
-    return { kind: "edit", key: context.editing.name, payload: patch.set, patch };
+    return {
+      kind: "edit",
+      key: context.editing.name,
+      payload: patch.set,
+      patch,
+    };
   }
   return {
     kind: "create",
-    key: uniqueKey(slugify(draft.name) || NEW_ACTION_KEY, context.existingActionKeys),
+    key: uniqueKey(
+      slugify(draft.name) || NEW_ACTION_KEY,
+      context.existingActionKeys,
+    ),
     payload: buildCreatePayload(draft, context.nextPosition),
   };
 }
@@ -299,9 +498,12 @@ function yamlToActionInfo(yaml: string): ActionInfo {
 }
 
 function yamlChildMapToList(actions: unknown): ActionInfo[] | undefined {
-  if (!actions || typeof actions !== "object" || Array.isArray(actions)) return undefined;
+  if (!actions || typeof actions !== "object" || Array.isArray(actions))
+    return undefined;
   const out: ActionInfo[] = [];
-  for (const [name, value] of Object.entries(actions as Record<string, unknown>)) {
+  for (const [name, value] of Object.entries(
+    actions as Record<string, unknown>,
+  )) {
     if (!value || typeof value !== "object" || Array.isArray(value)) continue;
     const v = value as Record<string, unknown>;
     out.push({
@@ -387,7 +589,11 @@ export function ActionWizard({
     setAiModalOpen(false);
     const initialMode = readStoredMode();
     if (initialMode === "editor") {
-      const submission = buildSubmission(nextDraft, { editing, existingActionKeys, nextPosition });
+      const submission = buildSubmission(nextDraft, {
+        editing,
+        existingActionKeys,
+        nextPosition,
+      });
       setEditorContent(YAML.stringify(submission.payload, { lineWidth: 0 }));
       setEditorSeed((n) => n + 1);
       setMode("editor");
@@ -408,28 +614,49 @@ export function ActionWizard({
     };
   }, [open, editing, projectName]);
 
-  const { shape, name, cmd, cwd, configLayer, children, runMode, reuse, confirm } = draft;
+  const {
+    shape,
+    name,
+    cmd,
+    cwd,
+    configLayer,
+    children,
+    runMode,
+    reuse,
+    confirm,
+  } = draft;
   const nameFilled = Boolean(name.trim());
   const cmdFilled = Boolean(cmd.trim());
   const hasMenuOption = children.some((child) => child.cmd.trim());
   const showShape = nameFilled;
   const showCommand = nameFilled && shape !== "dropdown";
   const showRunMode = showCommand && cmdFilled;
-  const showMenuOptions = nameFilled && (shape === "dropdown" || (shape === "split" && cmdFilled));
+  const showMenuOptions =
+    nameFilled && (shape === "dropdown" || (shape === "split" && cmdFilled));
   const missingHint = getMissingHint(draft, hasMenuOption);
   const formIsValid = missingHint === null;
   const actionLabel = name.trim() || PLACEHOLDER_LABEL;
   const { title, hint, primary: primaryLabel } = wizardCopy(isEditing);
   const savingLabel = isEditing ? "Saving..." : "Creating...";
 
-  const updateField = <K extends keyof FormDraft>(key: K, value: FormDraft[K]) =>
-    setDraft((prev) => ({ ...prev, [key]: value }));
+  const updateField = <K extends keyof FormDraft>(
+    key: K,
+    value: FormDraft[K],
+  ) => setDraft((prev) => ({ ...prev, [key]: value }));
 
   const updateName = (value: string) =>
-    setDraft((prev) => ({ ...prev, name: value, ...applyAutoSettings(prev, value, prev.cmd) }));
+    setDraft((prev) => ({
+      ...prev,
+      name: value,
+      ...applyAutoSettings(prev, value, prev.cmd),
+    }));
 
   const updateCmd = (value: string) =>
-    setDraft((prev) => ({ ...prev, cmd: value, ...applyAutoSettings(prev, prev.name, value) }));
+    setDraft((prev) => ({
+      ...prev,
+      cmd: value,
+      ...applyAutoSettings(prev, prev.name, value),
+    }));
 
   const submit = async () => {
     if (saving) return;
@@ -440,18 +667,29 @@ export function ActionWizard({
     if (!formIsValid) return;
     setSaving(true);
     try {
-      const submission = buildSubmission(draft, { editing, existingActionKeys, nextPosition });
+      const submission = buildSubmission(draft, {
+        editing,
+        existingActionKeys,
+        nextPosition,
+      });
       if (submission.kind === "edit") {
         await replaceAction(projectName, submission.key, submission.patch);
         toast.success("Action updated");
       } else {
-        await appendActionToLayer(projectName, submission.key, submission.payload, configLayer);
+        await appendActionToLayer(
+          projectName,
+          submission.key,
+          submission.payload,
+          configLayer,
+        );
         toast.success("Action created");
       }
       onSaved();
       onClose();
     } catch (err) {
-      const fallback = isEditing ? "Could not update action" : "Could not create action";
+      const fallback = isEditing
+        ? "Could not update action"
+        : "Could not create action";
       toast.error(err instanceof Error ? err.message : fallback);
     } finally {
       setSaving(false);
@@ -478,15 +716,24 @@ export function ActionWizard({
         await replaceActionPayload(projectName, editing.name, payload);
         toast.success("Action updated");
       } else {
-        const key = uniqueKey(slugify(String(payload.label ?? "")) || NEW_ACTION_KEY, existingActionKeys);
-        const withPosition = { display: "header", position: nextPosition, ...payload };
+        const key = uniqueKey(
+          slugify(String(payload.label ?? "")) || NEW_ACTION_KEY,
+          existingActionKeys,
+        );
+        const withPosition = {
+          display: "header",
+          position: nextPosition,
+          ...payload,
+        };
         await appendActionToLayer(projectName, key, withPosition, configLayer);
         toast.success("Action created");
       }
       onSaved();
       onClose();
     } catch (err) {
-      const fallback = isEditing ? "Could not update action" : "Could not create action";
+      const fallback = isEditing
+        ? "Could not update action"
+        : "Could not create action";
       toast.error(err instanceof Error ? err.message : fallback);
     } finally {
       setSaving(false);
@@ -494,7 +741,11 @@ export function ActionWizard({
   };
 
   const switchToEditor = () => {
-    const submission = buildSubmission(draft, { editing, existingActionKeys, nextPosition });
+    const submission = buildSubmission(draft, {
+      editing,
+      existingActionKeys,
+      nextPosition,
+    });
     setEditorContent(YAML.stringify(submission.payload, { lineWidth: 0 }));
     setEditorError(null);
     setEditorSeed((n) => n + 1);
@@ -511,7 +762,11 @@ export function ActionWizard({
   const buildCurrentYAML = (): string => {
     const isFreshCreate = !editing && !draft.name.trim() && !draft.cmd.trim();
     if (isFreshCreate) return "";
-    const submission = buildSubmission(draft, { editing, existingActionKeys, nextPosition });
+    const submission = buildSubmission(draft, {
+      editing,
+      existingActionKeys,
+      nextPosition,
+    });
     return YAML.stringify(submission.payload, { lineWidth: 0 });
   };
 
@@ -523,12 +778,19 @@ export function ActionWizard({
         ...actionToDraft(info),
         configLayer: prev.configLayer,
       }));
-      toast.success(editing ? "AI updated the action" : "AI generated an action");
+      toast.success(
+        editing ? "AI updated the action" : "AI generated an action",
+      );
     } catch {
       setMode("editor");
       writeStoredMode("editor");
       toast.warning("AI output kept in editor (couldn't fit the form)");
     }
+  };
+
+  const pickTemplate = (template: ActionTemplate) => {
+    setDraft((prev) => applyTemplate(template, prev));
+    setTimeout(() => nameRef.current?.focus(), 50);
   };
 
   const handleNameEnter = () => {
@@ -545,248 +807,294 @@ export function ActionWizard({
 
   return (
     <>
-    <Modal
-      open={open}
-      onClose={onClose}
-      backdropClassName="bg-black/50 backdrop-blur-sm"
-      contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
-    >
-      <div className="flex h-[min(820px,92vh)] w-[min(960px,calc(100vw-32px))] flex-col" onKeyDown={onKeyDown}>
-        <header className="px-8 pb-5 pt-7">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">{title}</h2>
-              {hint && <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[var(--text-secondary)]">{hint}</p>}
+      <Modal
+        open={open}
+        onClose={onClose}
+        backdropClassName="bg-black/50 backdrop-blur-sm"
+        contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
+      >
+        <div
+          className="flex h-[min(820px,92vh)] w-[min(960px,calc(100vw-32px))] flex-col"
+          onKeyDown={onKeyDown}
+        >
+          <header className="px-8 pb-5 pt-7">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">
+                  {title}
+                </h2>
+                {hint && (
+                  <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[var(--text-secondary)]">
+                    {hint}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                className="-mr-2 -mt-2 rounded-xl p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              >
+                <XIcon />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close"
-              className="-mr-2 -mt-2 rounded-xl p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              <XIcon />
-            </button>
-          </div>
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              {isEditing ? (
-                <div className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
-                  <FolderIcon />
-                  {editSource
-                    ? <>Saves to <span className="text-[var(--text-secondary)]">{configLayerLabel(editSource)}</span> config</>
-                    : "Locating config…"}
-                </div>
-              ) : (
-                <ConfigLayerMenu
-                  value={configLayer}
-                  onChange={(next) => updateField("configLayer", next)}
-                />
-              )}
-            </div>
-            <ModeMenu
-              mode={mode}
-              onChange={(next) => (next === "editor" ? switchToEditor() : switchToForm())}
-            />
-          </div>
-        </header>
-
-        {mode === "editor" ? (
-          <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] px-8 py-6">
-            <div className="min-h-[420px] flex-1 overflow-hidden rounded-xl border border-[var(--border)]">
-              <MonacoEditor
-                key={`action-editor-${editing?.name ?? "new"}-${editorSeed}`}
-                value={editorContent}
-                onChange={setEditorContent}
-                language="yaml"
-                modelUri={`inmemory://action-${editing?.name ?? "new"}-${editorSeed}.yaml`}
-                onSave={() => void submit()}
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                {isEditing ? (
+                  <div className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
+                    <FolderIcon />
+                    {editSource ? (
+                      <>
+                        Saves to{" "}
+                        <span className="text-[var(--text-secondary)]">
+                          {configLayerLabel(editSource)}
+                        </span>{" "}
+                        config
+                      </>
+                    ) : (
+                      "Locating config…"
+                    )}
+                  </div>
+                ) : (
+                  <ConfigLayerMenu
+                    value={configLayer}
+                    onChange={(next) => updateField("configLayer", next)}
+                  />
+                )}
+              </div>
+              <ModeMenu
+                mode={mode}
+                onChange={(next) =>
+                  next === "editor" ? switchToEditor() : switchToForm()
+                }
               />
             </div>
-            {editorError && (
-              <p className="mt-3 text-[12px] text-[var(--text-error,#e15252)]">{editorError}</p>
-            )}
-          </div>
-        ) : (
-        <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] lg:flex-row">
-          <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-8 py-7">
-            <FieldSection label="Button name">
-              <div className="relative">
-                <input
-                  ref={nameRef}
-                  value={name}
-                  onChange={(e) => updateName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key !== "Enter") return;
-                    e.preventDefault();
-                    handleNameEnter();
-                  }}
-                  placeholder="Run tests"
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] py-3.5 pl-4 pr-12 text-[15px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--text-primary)] focus:bg-[var(--bg-primary)]"
-                />
-                <EmojiPickerButton
-                  inputRef={nameRef}
-                  value={name}
-                  onChange={updateName}
-                  size="md"
+          </header>
+
+          {mode === "editor" ? (
+            <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] px-8 py-6">
+              <div className="min-h-[420px] flex-1 overflow-hidden rounded-xl border border-[var(--border)]">
+                <MonacoEditor
+                  key={`action-editor-${editing?.name ?? "new"}-${editorSeed}`}
+                  value={editorContent}
+                  onChange={setEditorContent}
+                  language="yaml"
+                  modelUri={`inmemory://action-${editing?.name ?? "new"}-${editorSeed}.yaml`}
+                  onSave={() => void submit()}
                 />
               </div>
-            </FieldSection>
-
-            {showShape && (
-              <Reveal>
-                <FieldSection label="How should it appear?">
-                  <div className="space-y-1.5">
-                    {SHAPE_OPTIONS.map((option) => (
-                      <ShapeChoice
-                        key={option.shape}
-                        active={shape === option.shape}
-                        shape={option.shape}
-                        title={option.title}
-                        badge={option.badge}
-                        description={option.description}
-                        previewLabel={actionLabel}
-                        onClick={() => updateField("shape", option.shape)}
-                      />
-                    ))}
+              {editorError && (
+                <p className="mt-3 text-[12px] text-[var(--text-error,#e15252)]">
+                  {editorError}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] lg:flex-row">
+              <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-8 py-7">
+                {!isEditing && !nameFilled && !cmdFilled && (
+                  <TemplateGallery onPick={pickTemplate} />
+                )}
+                <FieldSection label="Button name">
+                  <div className="relative">
+                    <input
+                      ref={nameRef}
+                      value={name}
+                      onChange={(e) => updateName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter") return;
+                        e.preventDefault();
+                        handleNameEnter();
+                      }}
+                      placeholder="Run tests"
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] py-3.5 pl-4 pr-12 text-[15px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--text-primary)] focus:bg-[var(--bg-primary)]"
+                    />
+                    <EmojiPickerButton
+                      inputRef={nameRef}
+                      value={name}
+                      onChange={updateName}
+                      size="md"
+                    />
                   </div>
                 </FieldSection>
-              </Reveal>
-            )}
 
-            {showCommand && (
-              <Reveal>
-                <CommandField
-                  inputRef={commandRef}
-                  label={shape === "split" ? "Default command" : "Command"}
-                  value={cmd}
-                  onChange={updateCmd}
-                  onEnter={() => void submit()}
-                  placeholder={shape === "split" ? "npm run deploy:staging" : "npm run dev"}
-                />
-              </Reveal>
-            )}
+                {showShape && (
+                  <Reveal>
+                    <FieldSection label="How should it appear?">
+                      <div className="space-y-1.5">
+                        {SHAPE_OPTIONS.map((option) => (
+                          <ShapeChoice
+                            key={option.shape}
+                            active={shape === option.shape}
+                            shape={option.shape}
+                            title={option.title}
+                            badge={option.badge}
+                            description={option.description}
+                            previewLabel={actionLabel}
+                            onClick={() => updateField("shape", option.shape)}
+                          />
+                        ))}
+                      </div>
+                    </FieldSection>
+                  </Reveal>
+                )}
 
-            {showCommand && (
-              <Reveal>
-                <CommandField
-                  label="Working directory"
-                  hint="Defaults to the project directory"
-                  value={cwd}
-                  onChange={(value) => updateField("cwd", value)}
-                  onEnter={() => void submit()}
-                  placeholder="./backend"
-                />
-              </Reveal>
-            )}
+                {showCommand && (
+                  <Reveal>
+                    <CommandField
+                      inputRef={commandRef}
+                      label={shape === "split" ? "Default command" : "Command"}
+                      value={cmd}
+                      onChange={updateCmd}
+                      onEnter={() => void submit()}
+                      placeholder={
+                        shape === "split"
+                          ? "npm run deploy:staging"
+                          : "npm run dev"
+                      }
+                    />
+                  </Reveal>
+                )}
 
-            {showRunMode && (
-              <Reveal>
-                <div className="space-y-7">
-                  <RunModePicker
-                    runMode={runMode}
-                    reuse={reuse}
-                    onRunMode={(mode) => updateField("runMode", mode)}
-                    onReuse={(value) => updateField("reuse", value)}
-                  />
-                  <ConfirmPicker
-                    confirm={confirm}
-                    onConfirm={(value) => updateField("confirm", value)}
-                  />
-                </div>
-              </Reveal>
-            )}
+                {showCommand && (
+                  <Reveal>
+                    <CommandField
+                      label="Working directory"
+                      hint="Defaults to the project directory"
+                      value={cwd}
+                      onChange={(value) => updateField("cwd", value)}
+                      onEnter={() => void submit()}
+                      placeholder="./backend"
+                    />
+                  </Reveal>
+                )}
 
-            {showMenuOptions && (
-              <Reveal>
-                <MenuOptionsEditor
-                  options={children}
-                  onChange={(options) => updateField("children", options)}
-                />
-              </Reveal>
-            )}
+                {showRunMode && (
+                  <Reveal>
+                    <div className="space-y-7">
+                      <RunModePicker
+                        runMode={runMode}
+                        reuse={reuse}
+                        onRunMode={(mode) => updateField("runMode", mode)}
+                        onReuse={(value) => updateField("reuse", value)}
+                      />
+                      <ConfirmPicker
+                        confirm={confirm}
+                        onConfirm={(value) => updateField("confirm", value)}
+                      />
+                    </div>
+                  </Reveal>
+                )}
 
-            {formIsValid && (
-              <Reveal>
-                <YamlPreview
-                  expanded={showYaml}
-                  onToggle={() => setShowYaml((value) => !value)}
-                  submission={buildSubmission(draft, { editing, existingActionKeys, nextPosition })}
-                />
-              </Reveal>
-            )}
-          </div>
+                {showMenuOptions && (
+                  <Reveal>
+                    <MenuOptionsEditor
+                      options={children}
+                      onChange={(options) => updateField("children", options)}
+                    />
+                  </Reveal>
+                )}
 
-          <ActionPreviewPanel
-            name={name}
-            shape={shape}
-            options={children}
-            runMode={runMode}
-            confirm={confirm}
-            cmd={cmd}
-          />
+                {formIsValid && (
+                  <Reveal>
+                    <YamlPreview
+                      expanded={showYaml}
+                      onToggle={() => setShowYaml((value) => !value)}
+                      submission={buildSubmission(draft, {
+                        editing,
+                        existingActionKeys,
+                        nextPosition,
+                      })}
+                    />
+                  </Reveal>
+                )}
+              </div>
+
+              <ActionPreviewPanel
+                name={name}
+                shape={shape}
+                options={children}
+                runMode={runMode}
+                confirm={confirm}
+                cmd={cmd}
+              />
+            </div>
+          )}
+
+          <footer className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-8 py-4">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => setAiModalOpen(true)}
+                className="group relative inline-flex shrink-0 items-center rounded-xl p-[1px] [background:linear-gradient(135deg,#6366f1,#a855f7,#ec4899)] shadow-sm transition-all hover:shadow-md hover:shadow-purple-500/20 active:scale-[0.98]"
+                title={
+                  isEditing
+                    ? "Edit this action with AI"
+                    : "Generate an action with AI"
+                }
+              >
+                <span className="inline-flex items-center gap-1.5 rounded-[11px] bg-[var(--bg-primary)] px-3 py-1.5 text-[13px] font-medium text-[var(--text-primary)] transition-colors group-hover:bg-transparent group-hover:text-white">
+                  <SparkleIcon />
+                  {isEditing ? "Edit with AI" : "Generate with AI"}
+                </span>
+              </button>
+            </div>
+            <div className="flex items-center gap-3">
+              {mode === "form" && missingHint && (
+                <span className="hidden text-[12px] text-[var(--text-muted)] sm:inline">
+                  {missingHint}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => void submit()}
+                disabled={saving || (mode === "form" && !formIsValid)}
+                className="rounded-xl bg-[var(--text-primary)] px-5 py-2.5 text-[13px] font-semibold text-[var(--bg-primary)] shadow-sm transition hover:opacity-90 disabled:opacity-40 disabled:shadow-none"
+              >
+                {saving ? savingLabel : primaryLabel}
+              </button>
+            </div>
+          </footer>
         </div>
-        )}
-
-        <footer className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-8 py-4">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => setAiModalOpen(true)}
-              className="group relative inline-flex shrink-0 items-center rounded-xl p-[1px] [background:linear-gradient(135deg,#6366f1,#a855f7,#ec4899)] shadow-sm transition-all hover:shadow-md hover:shadow-purple-500/20 active:scale-[0.98]"
-              title={isEditing ? "Edit this action with AI" : "Generate an action with AI"}
-            >
-              <span className="inline-flex items-center gap-1.5 rounded-[11px] bg-[var(--bg-primary)] px-3 py-1.5 text-[13px] font-medium text-[var(--text-primary)] transition-colors group-hover:bg-transparent group-hover:text-white">
-                <SparkleIcon />
-                {isEditing ? "Edit with AI" : "Generate with AI"}
-              </span>
-            </button>
-          </div>
-          <div className="flex items-center gap-3">
-            {mode === "form" && missingHint && (
-              <span className="hidden text-[12px] text-[var(--text-muted)] sm:inline">{missingHint}</span>
-            )}
-            <button
-              type="button"
-              onClick={() => void submit()}
-              disabled={saving || (mode === "form" && !formIsValid)}
-              className="rounded-xl bg-[var(--text-primary)] px-5 py-2.5 text-[13px] font-semibold text-[var(--bg-primary)] shadow-sm transition hover:opacity-90 disabled:opacity-40 disabled:shadow-none"
-            >
-              {saving ? savingLabel : primaryLabel}
-            </button>
-          </div>
-        </footer>
-      </div>
-    </Modal>
-    <AIActionModal
-      open={aiModalOpen}
-      projectName={projectName}
-      isEditing={isEditing}
-      currentYAML={buildCurrentYAML()}
-      onClose={() => setAiModalOpen(false)}
-      onGenerated={applyAiResult}
-    />
+      </Modal>
+      <AIActionModal
+        open={aiModalOpen}
+        projectName={projectName}
+        isEditing={isEditing}
+        currentYAML={buildCurrentYAML()}
+        onClose={() => setAiModalOpen(false)}
+        onGenerated={applyAiResult}
+      />
     </>
   );
 }
 
 type WizardMode = "form" | "editor";
 
-const MODE_OPTIONS: Array<{ value: WizardMode; label: string; hint: string }> = [
-  { value: "form", label: "Form", hint: "Guided fields" },
-  { value: "editor", label: "Editor", hint: "Raw YAML" },
-];
+const MODE_OPTIONS: Array<{ value: WizardMode; label: string; hint: string }> =
+  [
+    { value: "form", label: "Form", hint: "Guided fields" },
+    { value: "editor", label: "Editor", hint: "Raw YAML" },
+  ];
 
-function ModeMenu({ mode, onChange }: { mode: WizardMode; onChange: (next: WizardMode) => void }) {
+function ModeMenu({
+  mode,
+  onChange,
+}: {
+  mode: WizardMode;
+  onChange: (next: WizardMode) => void;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
-  const current = MODE_OPTIONS.find((opt) => opt.value === mode) ?? MODE_OPTIONS[0];
+  const current =
+    MODE_OPTIONS.find((opt) => opt.value === mode) ?? MODE_OPTIONS[0];
 
   const choose = (next: WizardMode) => {
     setOpen(false);
@@ -804,7 +1112,9 @@ function ModeMenu({ mode, onChange }: { mode: WizardMode; onChange: (next: Wizar
             : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         }`}
       >
-        <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">View</span>
+        <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+          View
+        </span>
         <span>{current.label}</span>
         <ChevronDownIcon />
       </button>
@@ -823,10 +1133,14 @@ function ModeMenu({ mode, onChange }: { mode: WizardMode; onChange: (next: Wizar
                   {active && <CheckIcon />}
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className={`text-[12px] font-medium ${active ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}>
+                  <span
+                    className={`text-[12px] font-medium ${active ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}
+                  >
                     {opt.label}
                   </span>
-                  <span className="text-[11px] text-[var(--text-muted)]">{opt.hint}</span>
+                  <span className="text-[11px] text-[var(--text-muted)]">
+                    {opt.hint}
+                  </span>
                 </span>
               </button>
             );
@@ -865,7 +1179,11 @@ function ConfigLayerMenu({
       >
         <FolderIcon />
         <span>
-          Saves to <span className="text-[var(--text-secondary)]">{configLayerLabel(value)}</span> config
+          Saves to{" "}
+          <span className="text-[var(--text-secondary)]">
+            {configLayerLabel(value)}
+          </span>{" "}
+          config
         </span>
         <ChevronDownIcon />
       </button>
@@ -884,10 +1202,14 @@ function ConfigLayerMenu({
                   {active && <CheckIcon />}
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className={`text-[12px] font-medium ${active ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}>
+                  <span
+                    className={`text-[12px] font-medium ${active ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}
+                  >
                     {opt.label}
                   </span>
-                  <span className="text-[11px] text-[var(--text-muted)]">{opt.hint}</span>
+                  <span className="text-[11px] text-[var(--text-muted)]">
+                    {opt.hint}
+                  </span>
                 </span>
               </button>
             );
@@ -898,12 +1220,60 @@ function ConfigLayerMenu({
   );
 }
 
-function FieldSection({ label, children }: { label: string; children: ReactNode }) {
+function FieldSection({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
   return (
     <div className="space-y-2.5">
-      <div className="text-[13px] font-medium text-[var(--text-primary)]">{label}</div>
+      <div className="text-[13px] font-medium text-[var(--text-primary)]">
+        {label}
+      </div>
       {children}
     </div>
+  );
+}
+
+function TemplateGallery({
+  onPick,
+}: {
+  onPick: (template: ActionTemplate) => void;
+}) {
+  return (
+    <>
+      <FieldSection label="Start with a template">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {ACTION_TEMPLATES.map((template) => (
+            <button
+              key={template.id}
+              type="button"
+              onClick={() => onPick(template)}
+              className="flex min-w-0 flex-col gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2.5 text-left transition-colors hover:border-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
+            >
+              <span className="truncate text-[13px] font-medium text-[var(--text-primary)]">
+                {template.emoji} {template.name}
+              </span>
+              <span
+                className="truncate font-mono text-[11px] text-[var(--text-muted)]"
+                title={template.cmd}
+              >
+                $ {template.cmd}
+              </span>
+            </button>
+          ))}
+        </div>
+      </FieldSection>
+      <div className="flex items-center gap-3">
+        <span className="h-px flex-1 bg-[var(--border)]" />
+        <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
+          or build your own
+        </span>
+        <span className="h-px flex-1 bg-[var(--border)]" />
+      </div>
+    </>
   );
 }
 
@@ -932,7 +1302,10 @@ function YamlPreview({
       </button>
       {expanded && (
         <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3.5 py-3 font-mono text-[12px] leading-relaxed text-[var(--text-secondary)]">
-          {YAML.stringify({ actions: { [submission.key]: submission.payload } }, { lineWidth: 0 })}
+          {YAML.stringify(
+            { actions: { [submission.key]: submission.payload } },
+            { lineWidth: 0 },
+          )}
         </pre>
       )}
     </div>
@@ -960,8 +1333,13 @@ function ActionPreviewPanel({
   const hasName = displayLabel.length > 0;
   const [menuOpen, setMenuOpen] = useState(false);
   const [running, setRunning] = useState<DemoState>(null);
-  const menuRef = useOutsideClick<HTMLDivElement>(() => setMenuOpen(false), menuOpen);
-  const visibleOptions = options.filter((option) => option.label.trim() || option.cmd.trim());
+  const menuRef = useOutsideClick<HTMLDivElement>(
+    () => setMenuOpen(false),
+    menuOpen,
+  );
+  const visibleOptions = options.filter(
+    (option) => option.label.trim() || option.cmd.trim(),
+  );
   const canRun = shape !== "dropdown" && cmd.trim().length > 0;
 
   useEffect(() => {
@@ -1017,7 +1395,9 @@ function ActionPreviewPanel({
             </button>
           ) : shape === "split" ? (
             <div ref={menuRef} className="relative">
-              <span className={`inline-flex items-stretch rounded-lg border text-xs font-medium ${SHAPE_PREVIEW_BUTTON_CLASS}`}>
+              <span
+                className={`inline-flex items-stretch rounded-lg border text-xs font-medium ${SHAPE_PREVIEW_BUTTON_CLASS}`}
+              >
                 <button
                   type="button"
                   onClick={triggerRun}
@@ -1066,7 +1446,13 @@ function ActionPreviewPanel({
   );
 }
 
-function MockModalShell({ width, children }: { width: number; children: ReactNode }) {
+function MockModalShell({
+  width,
+  children,
+}: {
+  width: number;
+  children: ReactNode;
+}) {
   return (
     <>
       <div className="demo-dim absolute inset-0 bg-black/45" />
@@ -1130,8 +1516,12 @@ function RunModeDemo({
             {running === "confirm" && (
               <MockModalShell width={140}>
                 <div className="space-y-1 px-2 py-1.5">
-                  <div className="text-[8px] font-medium text-[var(--text-primary)]">Run {label}?</div>
-                  <div className="truncate font-mono text-[7px] text-[var(--text-muted)]">$ {cmd}</div>
+                  <div className="text-[8px] font-medium text-[var(--text-primary)]">
+                    Run {label}?
+                  </div>
+                  <div className="truncate font-mono text-[7px] text-[var(--text-muted)]">
+                    $ {cmd}
+                  </div>
                 </div>
                 <div className="flex justify-end gap-1 border-t border-[var(--border)] px-1.5 py-1">
                   <button
@@ -1155,7 +1545,9 @@ function RunModeDemo({
             {running === "once" && (
               <MockModalShell width={124}>
                 <div className="flex items-center justify-between border-b border-[var(--border)] px-1.5 py-1">
-                  <span className="truncate text-[7px] font-medium text-[var(--text-primary)]">{label}</span>
+                  <span className="truncate text-[7px] font-medium text-[var(--text-primary)]">
+                    {label}
+                  </span>
                   <button
                     type="button"
                     onClick={onCancel}
@@ -1165,7 +1557,9 @@ function RunModeDemo({
                   </button>
                 </div>
                 <div className="space-y-0.5 px-1.5 py-1 font-mono text-[6px] leading-tight">
-                  <div className="truncate text-[var(--text-primary)]">$ {cmd}</div>
+                  <div className="truncate text-[var(--text-primary)]">
+                    $ {cmd}
+                  </div>
                   <div className="text-[var(--text-muted)]">output…</div>
                 </div>
               </MockModalShell>
@@ -1181,7 +1575,9 @@ function RunModeDemo({
             {running === "background" && (
               <div className="demo-toast absolute right-1.5 top-1.5 flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--bg-primary)] px-1.5 py-1 shadow">
                 <span className="h-1 w-1 animate-pulse rounded-full bg-[var(--text-secondary)]" />
-                <span className="max-w-[90px] truncate text-[7px] text-[var(--text-secondary)]">{label} running…</span>
+                <span className="max-w-[90px] truncate text-[7px] text-[var(--text-secondary)]">
+                  {label} running…
+                </span>
               </div>
             )}
           </div>
@@ -1225,17 +1621,23 @@ function ShapeChoice({
             : "border-[var(--border)] group-hover:border-[var(--text-muted)]"
         }`}
       >
-        {active && <span className="h-1 w-1 rounded-full bg-[var(--bg-primary)]" />}
+        {active && (
+          <span className="h-1 w-1 rounded-full bg-[var(--bg-primary)]" />
+        )}
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
-          <span className="text-[13px] font-semibold text-[var(--text-primary)]">{title}</span>
+          <span className="text-[13px] font-semibold text-[var(--text-primary)]">
+            {title}
+          </span>
           {badge && (
             <span className="rounded-md bg-[var(--bg-secondary)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">
               {badge}
             </span>
           )}
-          <span className="truncate text-[12px] text-[var(--text-secondary)]">{description}</span>
+          <span className="truncate text-[12px] text-[var(--text-secondary)]">
+            {description}
+          </span>
         </span>
       </span>
       <span className="hidden shrink-0 sm:block">
@@ -1258,8 +1660,12 @@ function ShapePreviewButton({ shape, label }: { shape: Shape; label: string }) {
 
   if (shape === "split") {
     return (
-      <span className={`inline-flex items-stretch rounded-lg border text-xs font-medium ${SHAPE_PREVIEW_BUTTON_CLASS}`}>
-        <span className="whitespace-nowrap rounded-l-lg px-3.5 py-1.5">{label}</span>
+      <span
+        className={`inline-flex items-stretch rounded-lg border text-xs font-medium ${SHAPE_PREVIEW_BUTTON_CLASS}`}
+      >
+        <span className="whitespace-nowrap rounded-l-lg px-3.5 py-1.5">
+          {label}
+        </span>
         <span className="flex items-center rounded-r-lg border-l border-[var(--border)] px-1.5">
           <ChevronDownIcon />
         </span>
@@ -1298,7 +1704,11 @@ function CommandField({
     <label className="block">
       <span className="mb-2 flex items-center justify-between gap-3 text-[13px] font-medium text-[var(--text-primary)]">
         <span>{label}</span>
-        {hint && <span className="text-[12px] font-normal text-[var(--text-muted)]">{hint}</span>}
+        {hint && (
+          <span className="text-[12px] font-normal text-[var(--text-muted)]">
+            {hint}
+          </span>
+        )}
       </span>
       <input
         ref={inputRef}
@@ -1328,10 +1738,17 @@ function MenuOptionsEditor({
   onChange: (options: ChildDraft[]) => void;
 }) {
   const updateChild = (id: string, patch: Partial<ChildDraft>) =>
-    onChange(options.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+    onChange(
+      options.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    );
 
-  const updateField = (child: ChildDraft, field: "label" | "cmd", value: string) => {
-    const text = field === "label" ? `${value} ${child.cmd}` : `${child.label} ${value}`;
+  const updateField = (
+    child: ChildDraft,
+    field: "label" | "cmd",
+    value: string,
+  ) => {
+    const text =
+      field === "label" ? `${value} ${child.cmd}` : `${child.label} ${value}`;
     updateChild(child.id, {
       [field]: value,
       runMode: child.runMode === "once" ? inferRunMode(text) : child.runMode,
@@ -1341,7 +1758,9 @@ function MenuOptionsEditor({
 
   return (
     <div className="space-y-3">
-      <div className="text-[13px] font-medium text-[var(--text-primary)]">Menu options</div>
+      <div className="text-[13px] font-medium text-[var(--text-primary)]">
+        Menu options
+      </div>
       {options.map((child, index) => (
         <div key={child.id} className="space-y-4">
           <div className="grid grid-cols-[minmax(90px,0.8fr)_minmax(140px,1.4fr)_auto] gap-2">
@@ -1363,7 +1782,9 @@ function MenuOptionsEditor({
             />
             <button
               type="button"
-              onClick={() => onChange(options.filter((item) => item.id !== child.id))}
+              onClick={() =>
+                onChange(options.filter((item) => item.id !== child.id))
+              }
               disabled={options.length === 1}
               aria-label="Remove option"
               className="rounded-lg p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-30"
@@ -1412,17 +1833,40 @@ function RunModePicker({
   return (
     <div>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <span className="text-[13px] font-medium text-[var(--text-primary)]">How should it run?</span>
-        <span className="text-[12px] text-[var(--text-muted)]">{runModeHint(runMode, reuse)}</span>
+        <span className="text-[13px] font-medium text-[var(--text-primary)]">
+          How should it run?
+        </span>
+        <span className="text-[12px] text-[var(--text-muted)]">
+          {runModeHint(runMode, reuse)}
+        </span>
       </div>
       <div className="grid grid-cols-3 gap-1 rounded-lg bg-[var(--bg-secondary)] p-1">
-        <ModeButton active={runMode === "once"} icon={<ZapIcon />} title="Show in modal" onClick={() => onRunMode("once")} />
-        <ModeButton active={runMode === "terminal"} icon={<TerminalIcon />} title="Run in new terminal" onClick={() => onRunMode("terminal")} />
-        <ModeButton active={runMode === "background"} icon={<SparkleIcon />} title="Run in background" onClick={() => onRunMode("background")} />
+        <ModeButton
+          active={runMode === "once"}
+          icon={<ZapIcon />}
+          title="Show in modal"
+          onClick={() => onRunMode("once")}
+        />
+        <ModeButton
+          active={runMode === "terminal"}
+          icon={<TerminalIcon />}
+          title="Run in new terminal"
+          onClick={() => onRunMode("terminal")}
+        />
+        <ModeButton
+          active={runMode === "background"}
+          icon={<SparkleIcon />}
+          title="Run in background"
+          onClick={() => onRunMode("background")}
+        />
       </div>
       {runMode === "terminal" && (
         <label className="mt-3 flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
-          <input type="checkbox" checked={reuse} onChange={(e) => onReuse(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={reuse}
+            onChange={(e) => onReuse(e.target.checked)}
+          />
           Reuse the same pane when I run this action again
         </label>
       )}
@@ -1440,14 +1884,28 @@ function ConfirmPicker({
   return (
     <div>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <span className="text-[13px] font-medium text-[var(--text-primary)]">Confirm before running?</span>
+        <span className="text-[13px] font-medium text-[var(--text-primary)]">
+          Confirm before running?
+        </span>
         <span className="text-[12px] text-[var(--text-muted)]">
-          {confirm ? "Shows a confirmation dialog before running." : "Runs as soon as you click."}
+          {confirm
+            ? "Shows a confirmation dialog before running."
+            : "Runs as soon as you click."}
         </span>
       </div>
       <div className="grid grid-cols-2 gap-1 rounded-lg bg-[var(--bg-secondary)] p-1">
-        <ModeButton active={!confirm} icon={<PlayIcon />} title="Run immediately" onClick={() => onConfirm(false)} />
-        <ModeButton active={confirm} icon={<HelpCircleIcon />} title="Ask before running" onClick={() => onConfirm(true)} />
+        <ModeButton
+          active={!confirm}
+          icon={<PlayIcon />}
+          title="Run immediately"
+          onClick={() => onConfirm(false)}
+        />
+        <ModeButton
+          active={confirm}
+          icon={<HelpCircleIcon />}
+          title="Ask before running"
+          onClick={() => onConfirm(true)}
+        />
       </div>
     </div>
   );
@@ -1479,4 +1937,3 @@ function ModeButton({
     </button>
   );
 }
-
