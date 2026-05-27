@@ -5,6 +5,7 @@ import {
   CreateBranch,
   DeleteBranch,
   GitDiscardAll,
+  GitPush,
   PullBranch,
   RenameBranch,
   SyncBranch,
@@ -169,6 +170,21 @@ export function BranchSwitcher({ projectPath, gitState }: {
       await refresh();
     } catch (err) {
       toast.error(`Pull: ${err}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const push = async () => {
+    if (busy) return;
+    setCommitMenuOpen(false);
+    setBusy(true);
+    try {
+      await GitPush(projectPath);
+      await refresh();
+      toast.success("Pushed");
+    } catch (err) {
+      toast.error(`Push: ${err}`);
     } finally {
       setBusy(false);
     }
@@ -435,6 +451,14 @@ export function BranchSwitcher({ projectPath, gitState }: {
               onPull={pull}
             />
             <button
+              onClick={push}
+              disabled={busy}
+              className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+            >
+              <PushIcon />
+              Push
+            </button>
+            <button
               onClick={() => { setCommitMenuOpen(false); setCreatingPR(true); }}
               className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
             >
@@ -633,6 +657,16 @@ function PullIcon() {
       <path d="M12 4v11" />
       <polyline points="7 10 12 15 17 10" />
       <line x1="5" y1="20" x2="19" y2="20" />
+    </svg>
+  );
+}
+
+function PushIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="5" y1="4" x2="19" y2="4" />
+      <path d="M12 9v11" />
+      <polyline points="7 14 12 9 17 14" />
     </svg>
   );
 }
