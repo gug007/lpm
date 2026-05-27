@@ -112,6 +112,7 @@ export function Settings({
   const [kokoroStatus, setKokoroStatus] = useState<KokoroStatus>("idle");
   const activeTab = useAppStore((s) => s.settingsTab);
   const setActiveTab = useAppStore((s) => s.setSettingsTab);
+  const setFeedbackOpen = useAppStore((s) => s.setFeedbackOpen);
   const templates = useAppStore((s) => s.templates);
   const selectTemplate = useAppStore((s) => s.selectTemplate);
   const createTemplate = useAppStore((s) => s.createTemplate);
@@ -350,6 +351,11 @@ export function Settings({
                     {updateStatus === "checking" || updateStatus === "installing" ? <RefreshIcon spinning /> : "Check"}
                   </button>
                 )}
+              </SettingsRow>
+              <SettingsRow label="Send feedback" description="Report a bug or share ideas">
+                <button onClick={() => setFeedbackOpen(true)} className={BTN_SECONDARY}>
+                  Open
+                </button>
               </SettingsRow>
             </SettingsSection>
             </>

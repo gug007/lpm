@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
+import { GlobalTerminalsView } from "./components/GlobalTerminalsView";
 import { Settings } from "./components/Settings";
 import { GlobalConfigEditor } from "./components/GlobalConfigEditor";
 import { TemplateEditor } from "./components/TemplateEditor";
@@ -43,7 +44,6 @@ export default function App() {
 
   const setView = useAppStore((s) => s.setView);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
-  const setFeedbackOpen = useAppStore((s) => s.setFeedbackOpen);
   const setTmuxReady = useAppStore((s) => s.setTmuxReady);
   const selectProject = useAppStore((s) => s.selectProject);
   const clearSelection = useAppStore((s) => s.clearSelection);
@@ -71,8 +71,14 @@ export default function App() {
     selectProject(name);
   };
 
-  const isSettingsView = view !== "projects";
+  const isTerminalsView = view === "terminals";
+  const isSettingsView = view !== "projects" && view !== "terminals";
   const selectedProject = projects.find((p) => p.name === selected) || null;
+
+  const [globalTerminalsVisited, setGlobalTerminalsVisited] = useState(false);
+  useEffect(() => {
+    if (isTerminalsView) setGlobalTerminalsVisited(true);
+  }, [isTerminalsView]);
 
   useProjectsSync();
   useAppEvents();
@@ -168,8 +174,8 @@ export default function App() {
           onCollapsedChange={setSidebarCollapsed}
           onSelect={handleSelect}
           onToggle={toggleProjectRunning}
+          onTerminals={() => setView("terminals")}
           onSettings={() => setView("settings")}
-          onFeedback={() => setFeedbackOpen(true)}
           onAddProject={addProject}
           onDuplicateProject={duplicateProject}
           onRemoveProject={removeProject}
@@ -178,6 +184,7 @@ export default function App() {
           onDetachProject={detachProject}
           onAttachProject={attachProject}
           detached={detached}
+          showTerminals={isTerminalsView}
           showSettings={isSettingsView}
           duplicatingName={duplicatingName}
           removingName={removingName}
@@ -199,6 +206,18 @@ export default function App() {
               </button>
             </div>
           </div>
+          {globalTerminalsVisited && (
+            <div
+              className={
+                isTerminalsView ? "flex min-h-0 flex-1 flex-col" : "hidden"
+              }
+            >
+              <GlobalTerminalsView
+                visible={isTerminalsView}
+                sidebarCollapsed={sidebarCollapsed}
+              />
+            </div>
+          )}
           {view === "settings" && <Settings onNavigate={setView} />}
           {view === "global-config" && (
             <GlobalConfigEditor onBack={() => setView("settings")} />

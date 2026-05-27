@@ -552,6 +552,31 @@ func NotesDir(project string) string {
 	return filepath.Join(LpmDir(), "notes", project)
 }
 
+// Sentinel projectName for the global terminals pane tree. Mirrors
+// GLOBAL_TERMINALS_KEY on the frontend; both must stay in sync.
+const GlobalProjectName = "__global__"
+
+func LoadGlobalAsProject() (*ProjectConfig, error) {
+	g, err := LoadGlobal()
+	if err != nil {
+		return nil, err
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("home dir: %w", err)
+	}
+	cfg := &ProjectConfig{
+		Name:      GlobalProjectName,
+		Root:      home,
+		Actions:   g.Actions,
+		Terminals: g.Terminals,
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
 // A missing file yields an empty config; broken YAML or a bad extends ref
 // returns an error.
 func LoadGlobal() (*GlobalConfig, error) {
@@ -731,7 +756,7 @@ func EnsureDirs() error {
 }
 
 func ValidateName(name string) error {
-	if name == "" || strings.Contains(name, "/") || strings.Contains(name, "\\") || name == "." || name == ".." {
+	if name == "" || strings.Contains(name, "/") || strings.Contains(name, "\\") || name == "." || name == ".." || name == GlobalProjectName {
 		return fmt.Errorf("invalid project name: %q", name)
 	}
 	return nil
@@ -814,6 +839,16 @@ func LoadProjectCached(name string, cache map[string]*ProjectConfig) (*ProjectCo
 		if hit, ok := cache[name]; ok {
 			return hit, nil
 		}
+	}
+	if name == GlobalProjectName {
+		cfg, err := LoadGlobalAsProject()
+		if err != nil {
+			return nil, err
+		}
+		if cache != nil {
+			cache[name] = cfg
+		}
+		return cfg, nil
 	}
 	if err := ValidateName(name); err != nil {
 		return nil, err

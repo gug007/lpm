@@ -42,6 +42,7 @@ import { ACTION_SECTIONS, type ActionSection } from "../actionConfig";
 
 export type View =
   | "projects"
+  | "terminals"
   | "settings"
   | "global-config"
   | "commit-instructions"

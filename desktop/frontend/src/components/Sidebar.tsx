@@ -4,7 +4,7 @@ import { getSettings } from "../store/settings";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { InstallUpdate } from "../../wailsjs/go/main/App";
 import { type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
-import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon, HelpCircleIcon, MoreVerticalIcon, DetachIcon } from "./icons";
+import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon, MoreVerticalIcon, DetachIcon, TerminalIcon } from "./icons";
 import { ProgressBar } from "./ui/ProgressBar";
 import { SortableItem, SortableList } from "./ui/SortableList";
 import { useSidebarResize } from "../hooks/useSidebarResize";
@@ -12,6 +12,7 @@ import { ProjectContextMenu } from "./ProjectContextMenu";
 import { ProjectNameDisplay } from "./ProjectNameDisplay";
 import { RenameModal } from "./RenameModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { Tooltip } from "./ui/Tooltip";
 import { SpinnerIcon } from "./project-detail/icons";
 
 const MUTED_STYLE = { color: "var(--text-muted)" } as const;
@@ -24,8 +25,8 @@ interface SidebarProps {
   onCollapsedChange: (collapsed: boolean) => void;
   onSelect: (name: string) => void;
   onToggle: (name: string) => void;
+  onTerminals: () => void;
   onSettings: () => void;
-  onFeedback: () => void;
   onAddProject: () => void;
   onDuplicateProject: (name: string, excludeUncommitted?: boolean) => void;
   onRemoveProject: (name: string) => void;
@@ -34,6 +35,7 @@ interface SidebarProps {
   onDetachProject: (name: string) => void;
   onAttachProject: (name: string) => void;
   detached: Set<string>;
+  showTerminals: boolean;
   showSettings: boolean;
   duplicatingName: string | null;
   removingName: string | null;
@@ -64,7 +66,7 @@ function computeStatus(project: ProjectInfo): ProjectStatus {
   return { isRunning, isDone, isWaiting, isError, className };
 }
 
-export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onSettings, onFeedback, onAddProject, onDuplicateProject, onRemoveProject, onRenameProject, onReorder, onDetachProject, onAttachProject, detached, showSettings, duplicatingName, removingName }: SidebarProps) {
+export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onDuplicateProject, onRemoveProject, onRenameProject, onReorder, onDetachProject, onAttachProject, detached, showTerminals, showSettings, duplicatingName, removingName }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -335,13 +337,24 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
       )}
 
       <div className="flex flex-col p-2">
-        <button
-          onClick={onFeedback}
-          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        <Tooltip
+          content="Quick shells for scripts, system commands, and anything not tied to a project."
+          side="right"
+          wide
+          triggerClassName="flex w-full"
         >
-          <HelpCircleIcon />
-          Feedback
-        </button>
+          <button
+            onClick={onTerminals}
+            className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
+              showTerminals
+                ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            <TerminalIcon />
+            Terminals
+          </button>
+        </Tooltip>
         <button
           onClick={onSettings}
           className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${

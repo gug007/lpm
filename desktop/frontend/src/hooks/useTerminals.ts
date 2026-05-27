@@ -225,6 +225,7 @@ export function useTerminals(
       const restored = await reifyTreeWithFreshPtys(persistedTree, projectName, allStartedIds);
       if (cancelled || !restored) {
         allStartedIds.forEach((id) => StopTerminal(id).catch(() => {}));
+        if (!cancelled) onCountRef.current?.(0);
         return;
       }
       setTree(restored);

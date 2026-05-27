@@ -52,6 +52,10 @@ export interface ProjectTerminalState {
 
 export const TERMINAL_HISTORY_CAP = 20;
 
+// Reserved projectName for the global terminals pane tree. Mirrors
+// GlobalProjectName in internal/config — both must stay in sync.
+export const GLOBAL_TERMINALS_KEY = "__global__";
+
 export interface TerminalsConfig {
   projects: Record<string, ProjectTerminalState>;
 }
