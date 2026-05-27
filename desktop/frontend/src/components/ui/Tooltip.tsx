@@ -1,19 +1,26 @@
 import { useState, useRef, useCallback, useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+type Side = "top" | "bottom" | "right" | "left";
+
 interface TooltipProps {
   content: ReactNode;
   children: ReactNode;
-  side?: "top" | "bottom";
+  side?: Side;
   align?: "start" | "center" | "end";
   wide?: boolean;
+  // Default "inline-flex" hugs the child; pass "flex w-full" for full-width triggers.
+  triggerClassName?: string;
 }
 
-export function Tooltip({ content, children, side = "top", align = "center", wide = false }: TooltipProps) {
+const GAP = 8;
+const EDGE_MARGIN = 8;
+
+export function Tooltip({ content, children, side = "top", align = "center", wide = false, triggerClassName = "inline-flex" }: TooltipProps) {
   const triggerRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLSpanElement>(null);
   const [visible, setVisible] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number; arrowLeft: number }>({ top: 0, left: 0, arrowLeft: 0 });
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
 
   const updatePosition = useCallback(() => {
     const trigger = triggerRef.current;
@@ -22,21 +29,30 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
 
     const tr = trigger.getBoundingClientRect();
     const tt = tooltip.getBoundingClientRect();
-    const gap = 6;
 
-    let top = side === "top" ? tr.top - tt.height - gap : tr.bottom + gap;
-    let left =
-      align === "start" ? tr.left
-      : align === "end" ? tr.right - tt.width
-      : tr.left + tr.width / 2 - tt.width / 2;
+    let top: number;
+    let left: number;
 
-    if (left < 4) left = 4;
-    if (left + tt.width > window.innerWidth - 4) left = window.innerWidth - 4 - tt.width;
+    if (side === "right" || side === "left") {
+      left = side === "right" ? tr.right + GAP : tr.left - tt.width - GAP;
+      top =
+        align === "start" ? tr.top
+        : align === "end" ? tr.bottom - tt.height
+        : tr.top + tr.height / 2 - tt.height / 2;
+    } else {
+      top = side === "top" ? tr.top - tt.height - GAP : tr.bottom + GAP;
+      left =
+        align === "start" ? tr.left
+        : align === "end" ? tr.right - tt.width
+        : tr.left + tr.width / 2 - tt.width / 2;
+    }
 
-    const triggerCenter = tr.left + tr.width / 2;
-    const arrowLeft = Math.min(Math.max(triggerCenter - left, 8), tt.width - 8);
+    if (left < EDGE_MARGIN) left = EDGE_MARGIN;
+    if (left + tt.width > window.innerWidth - EDGE_MARGIN) left = window.innerWidth - EDGE_MARGIN - tt.width;
+    if (top < EDGE_MARGIN) top = EDGE_MARGIN;
+    if (top + tt.height > window.innerHeight - EDGE_MARGIN) top = window.innerHeight - EDGE_MARGIN - tt.height;
 
-    setPos({ top, left, arrowLeft });
+    setPos({ top, left });
   }, [side, align]);
 
   useEffect(() => {
@@ -47,7 +63,7 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
     <>
       <span
         ref={triggerRef}
-        className="inline-flex"
+        className={triggerClassName}
         onMouseEnter={() => setVisible(true)}
         onMouseLeave={() => setVisible(false)}
       >
@@ -58,22 +74,13 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
           ref={tooltipRef}
           role="tooltip"
           style={{ top: pos.top, left: pos.left }}
-          className={`pointer-events-none fixed z-[9999] rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 font-medium text-[var(--text-primary)] shadow-lg transition-opacity duration-100 ${
+          className={`pointer-events-none fixed z-[9999] rounded-lg bg-[var(--bg-secondary)] px-3 py-1.5 text-[var(--text-primary)] shadow-[0_8px_24px_rgba(0,0,0,0.22)] ${
             wide
-              ? "max-w-[260px] whitespace-normal text-[11px] leading-snug"
-              : "whitespace-nowrap font-mono text-[10px]"
+              ? "max-w-[260px] whitespace-normal text-[12px] leading-relaxed"
+              : "whitespace-nowrap text-[12px]"
           }`}
         >
           {content}
-          <span
-            aria-hidden
-            style={{ left: pos.arrowLeft }}
-            className={`absolute h-2 w-2 -translate-x-1/2 rotate-45 border-[var(--border)] bg-[var(--bg-primary)] ${
-              side === "top"
-                ? "bottom-0 translate-y-1/2 border-b border-r"
-                : "top-0 -translate-y-1/2 border-l border-t"
-            }`}
-          />
         </span>,
         document.body,
       )}

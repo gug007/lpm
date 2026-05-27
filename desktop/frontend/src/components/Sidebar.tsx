@@ -12,6 +12,7 @@ import { ProjectContextMenu } from "./ProjectContextMenu";
 import { ProjectNameDisplay } from "./ProjectNameDisplay";
 import { RenameModal } from "./RenameModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { Tooltip } from "./ui/Tooltip";
 import { SpinnerIcon } from "./project-detail/icons";
 
 const MUTED_STYLE = { color: "var(--text-muted)" } as const;
@@ -336,17 +337,24 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
       )}
 
       <div className="flex flex-col p-2">
-        <button
-          onClick={onTerminals}
-          className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-            showTerminals
-              ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-              : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          }`}
+        <Tooltip
+          content="Quick shells for scripts, system commands, and anything not tied to a project."
+          side="right"
+          wide
+          triggerClassName="flex w-full"
         >
-          <TerminalIcon />
-          Terminals
-        </button>
+          <button
+            onClick={onTerminals}
+            className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
+              showTerminals
+                ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            <TerminalIcon />
+            Terminals
+          </button>
+        </Tooltip>
         <button
           onClick={onSettings}
           className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
