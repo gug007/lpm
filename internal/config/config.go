@@ -565,12 +565,16 @@ func LoadGlobalAsProject() (*ProjectConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("home dir: %w", err)
 	}
-	return &ProjectConfig{
+	cfg := &ProjectConfig{
 		Name:      GlobalProjectName,
 		Root:      home,
 		Actions:   g.Actions,
 		Terminals: g.Terminals,
-	}, nil
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
 }
 
 // A missing file yields an empty config; broken YAML or a bad extends ref
@@ -752,7 +756,7 @@ func EnsureDirs() error {
 }
 
 func ValidateName(name string) error {
-	if name == "" || strings.Contains(name, "/") || strings.Contains(name, "\\") || name == "." || name == ".." {
+	if name == "" || strings.Contains(name, "/") || strings.Contains(name, "\\") || name == "." || name == ".." || name == GlobalProjectName {
 		return fmt.Errorf("invalid project name: %q", name)
 	}
 	return nil

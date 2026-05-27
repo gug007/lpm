@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { TerminalView, type TerminalViewHandle } from "./TerminalView";
 import { ActionView } from "./ActionView";
 import { Header } from "./project-detail/Header";
-import { useOverflowWrap } from "../hooks/useOverflowWrap";
+import { EMPTY_SERVICES, noop } from "./project-detail/constants";
 import { useTerminalFontSize } from "../hooks/useTerminalFontSize";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
@@ -19,8 +19,6 @@ import {
   getProjectTerminals,
 } from "../terminals";
 
-const NO_SERVICES: { name: string; cwd?: string }[] = [];
-
 interface GlobalTerminalsViewProps {
   visible?: boolean;
   sidebarCollapsed?: boolean;
@@ -36,15 +34,19 @@ export function GlobalTerminalsView({
   });
 
   const terminalRef = useRef<TerminalViewHandle>(null);
+  const headerRowRef = useRef<HTMLDivElement>(null);
+  const headerInnerRef = useRef<HTMLDivElement>(null);
   const { theme: terminalTheme, themeStyle } = useTerminalTheme();
   const { fontSize, zoomIn, zoomOut } = useTerminalFontSize();
 
   const [actions, setActions] = useState<ActionInfo[]>([]);
   useEffect(() => {
     if (!visible) return;
+    let cancelled = false;
     GetProject(GLOBAL_TERMINALS_KEY)
-      .then((info: ProjectInfo) => setActions(info?.actions ?? []))
-      .catch(() => setActions([]));
+      .then((info: ProjectInfo) => { if (!cancelled) setActions(info.actions); })
+      .catch(() => { if (!cancelled) setActions([]); });
+    return () => { cancelled = true; };
   }, [visible]);
 
   const handleNewTerminal = useCallback(() => {
@@ -55,10 +57,8 @@ export function GlobalTerminalsView({
   const { handleRunAction, runningAction, modals } = useProjectActions({
     projectName: GLOBAL_TERMINALS_KEY,
     terminalViewRef: terminalRef,
-    onSwitchToTerminal: () => {},
+    onSwitchToTerminal: noop,
   });
-
-  const { wrapped, rowRef, innerRef } = useOverflowWrap([actions.length]);
 
   const showEmptyState = terminalCount === 0;
   const actionsRow = actions.length > 0 && (
@@ -81,9 +81,9 @@ export function GlobalTerminalsView({
         projectName="Terminals"
         showProjectName={true}
         sidebarCollapsed={sidebarCollapsed}
-        rowRef={rowRef}
-        innerRef={innerRef}
-        actionsWrapped={wrapped}
+        rowRef={headerRowRef}
+        innerRef={headerInnerRef}
+        actionsWrapped={false}
         actions={actionsRow}
         controls={null}
       />
@@ -91,11 +91,8 @@ export function GlobalTerminalsView({
       {showEmptyState && (
         <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden">
           <div className="flex max-w-sm flex-col items-center gap-5 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--bg-hover)] text-[var(--text-muted)]">
-              <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="4 17 10 11 4 5" />
-                <line x1="12" y1="19" x2="20" y2="19" />
-              </svg>
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--bg-hover)] text-[var(--text-muted)] [&_svg]:h-[26px] [&_svg]:w-[26px]">
+              <TerminalIcon />
             </div>
             <div className="flex flex-col items-center gap-1.5">
               <h3 className="text-sm font-medium text-[var(--text-primary)]">No terminals yet</h3>
@@ -127,7 +124,7 @@ export function GlobalTerminalsView({
           ref={terminalRef}
           projectName={GLOBAL_TERMINALS_KEY}
           projectRoot=""
-          services={NO_SERVICES}
+          services={EMPTY_SERVICES}
           terminalTheme={terminalTheme}
           onTerminalCountChange={setTerminalCount}
           fontSize={fontSize}

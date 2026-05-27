@@ -238,6 +238,9 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   useEffect(() => {
     setOutputs(new Array(stableServices.length).fill(""));
 
+    // Without services there's nothing to stream — skip the backend tmux poll.
+    if (stableServices.length === 0) return;
+
     let eventCleanup: (() => void) | null = null;
     let pollInterval: ReturnType<typeof setInterval> | null = null;
     let streaming = false;
@@ -314,12 +317,13 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       mountedRef.current = true;
       return;
     }
+    if (stableServices.length === 0) return;
     if (visible) {
       StartLogStreaming(projectName).catch(() => {});
     } else {
       StopLogStreaming(projectName).catch(() => {});
     }
-  }, [visible, projectName]);
+  }, [visible, projectName, stableServices.length]);
 
   useKeyboardShortcut(
     [

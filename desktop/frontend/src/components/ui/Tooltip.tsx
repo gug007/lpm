@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, type ReactNode } from "react";
+import { useState, useRef, useCallback, useLayoutEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 type Side = "top" | "bottom" | "right" | "left";
@@ -20,7 +20,7 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
   const triggerRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLSpanElement>(null);
   const [visible, setVisible] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
   const updatePosition = useCallback(() => {
     const trigger = triggerRef.current;
@@ -55,8 +55,9 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
     setPos({ top, left });
   }, [side, align]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (visible) updatePosition();
+    else setPos(null);
   }, [visible, updatePosition]);
 
   return (
@@ -73,7 +74,7 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
         <span
           ref={tooltipRef}
           role="tooltip"
-          style={{ top: pos.top, left: pos.left }}
+          style={{ top: pos?.top ?? 0, left: pos?.left ?? 0, visibility: pos ? "visible" : "hidden" }}
           className={`pointer-events-none fixed z-[9999] rounded-lg bg-[var(--bg-secondary)] px-3 py-1.5 text-[var(--text-primary)] shadow-[0_8px_24px_rgba(0,0,0,0.22)] ${
             wide
               ? "max-w-[260px] whitespace-normal text-[12px] leading-relaxed"
