@@ -1,4 +1,4 @@
-# lpm — Local Project Manager
+# lpm — Switch between projects and terminals in seconds
 
 <p align="center">
   <i>One click to start, stop, or duplicate your dev projects.
