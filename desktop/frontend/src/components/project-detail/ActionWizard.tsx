@@ -105,6 +105,9 @@ interface ActionTemplate {
   runMode: RunMode;
   reuse?: boolean;
   confirm?: boolean;
+  // Overrides where the action saves when this template is picked. Defaults to
+  // whatever layer the wizard is currently on (usually "project").
+  configLayer?: ActionConfigLayer;
 }
 
 const ACTION_TEMPLATES: ActionTemplate[] = [
@@ -153,13 +156,6 @@ const ACTION_TEMPLATES: ActionTemplate[] = [
     runMode: "once",
   },
   {
-    id: "typecheck",
-    emoji: "📊",
-    name: "Type check",
-    cmd: "npx tsc --noEmit",
-    runMode: "once",
-  },
-  {
     id: "logs",
     emoji: "📜",
     name: "Tail logs",
@@ -196,6 +192,14 @@ const ACTION_TEMPLATES: ActionTemplate[] = [
     cmd: "claude",
     runMode: "terminal",
     reuse: true,
+  },
+  {
+    id: "claude-ultracode",
+    emoji: "✻",
+    name: "Claude Ultracode",
+    cmd: `claude --settings '{"ultracode":true}'`,
+    runMode: "terminal",
+    configLayer: "global",
   },
 ];
 
@@ -296,6 +300,7 @@ function applyTemplate(template: ActionTemplate, base: FormDraft): FormDraft {
     runMode: template.runMode,
     reuse: template.reuse ?? false,
     confirm: template.confirm ?? false,
+    configLayer: template.configLayer ?? base.configLayer,
     children: [newChild()],
   };
 }
