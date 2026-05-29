@@ -457,3 +457,33 @@ export function WriteFile(absPath, content) {
 export function WriteTerminal(id, data) {
   return invoke("write_terminal", { id, data });
 }
+
+// In-pane browser (Tauri multiwebview). The browser is a native child webview
+// positioned over the BrowserPane's placeholder; these drive it.
+export function OpenBrowser(id, url, x, y, width, height) {
+  return invoke("open_browser", { id, url, x, y, width, height });
+}
+export function SetBrowserBounds(id, x, y, width, height) {
+  return invoke("set_browser_bounds", { id, x, y, width, height });
+}
+export function NavigateBrowser(id, url) {
+  return invoke("navigate_browser", { id, url });
+}
+export function BrowserBack(id) {
+  return invoke("browser_back", { id });
+}
+export function BrowserForward(id) {
+  return invoke("browser_forward", { id });
+}
+export function BrowserReload(id) {
+  return invoke("browser_reload", { id });
+}
+export function HideBrowser(id) {
+  return invoke("hide_browser", { id });
+}
+export function CloseBrowser(id) {
+  return invoke("close_browser", { id });
+}
+export function SetBrowserTheme(id, dark) {
+  return invoke("set_browser_theme", { id, dark });
+}

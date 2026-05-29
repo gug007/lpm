@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useState } from "react";
 import type { ITheme } from "@xterm/xterm";
 import { InteractivePane, type InteractivePaneHandle } from "./InteractivePane";
+import { BrowserPane } from "./BrowserPane";
 import { Pane, type PaneHandle } from "./Pane";
 import { HeaderTab } from "./terminal/HeaderTab";
 import { RenameModal } from "./RenameModal";
@@ -15,7 +16,7 @@ import {
   ShrinkIcon,
 } from "./terminal/icons";
 import { TerminalSearchBar } from "./terminal/TerminalSearchBar";
-import { XIcon } from "./icons";
+import { XIcon, GlobeIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
 import { SortableTab, TabStrip } from "./TerminalTabDnd";
 import { ALL_SERVICES, type PaneLeaf, type SplitDirection } from "../paneTree";
@@ -51,6 +52,7 @@ export interface PaneViewProps {
   onFocusTab: (paneId: string, tabIdx: number) => void;
   onFocusService: (paneId: string, serviceName: string) => void;
   onAddTerminal: (paneId: string) => void;
+  onAddBrowser: (paneId: string) => void;
   onCloseTerminal: (paneId: string, tabIdx: number) => void;
   onRenameTerminal: (paneId: string, tabIdx: number, label: string) => void;
   onTogglePinTab: (paneId: string, tabIdx: number) => void;
@@ -91,6 +93,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onFocusTab,
     onFocusService,
     onAddTerminal,
+    onAddBrowser,
     onCloseTerminal,
     onRenameTerminal,
     onTogglePinTab,
@@ -225,6 +228,13 @@ function PaneViewImpl(props: PaneViewProps) {
           >
             <PlusIcon />
           </button>
+          <button
+            onClick={() => onAddBrowser(pane.id)}
+            title="Open browser"
+            className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[var(--terminal-header-text)] transition-colors hover:bg-[var(--terminal-header-hover)] hover:text-[var(--terminal-tab-active)] [&>svg]:h-3.5 [&>svg]:w-3.5"
+          >
+            <GlobeIcon />
+          </button>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           <Tooltip
@@ -336,14 +346,18 @@ function PaneViewImpl(props: PaneViewProps) {
                   : "hidden"
               }
             >
-              <InteractivePane
-                ref={(el) => onRegisterTerminalHandle(t.id, el)}
-                terminalId={t.id}
-                visible={visible && isActive}
-                fontSize={fontSize}
-                themeOverride={themeOverride}
-                cwd={interactiveCwd}
-              />
+              {t.kind === "browser" ? (
+                <BrowserPane id={t.id} active={visible && isActive} />
+              ) : (
+                <InteractivePane
+                  ref={(el) => onRegisterTerminalHandle(t.id, el)}
+                  terminalId={t.id}
+                  visible={visible && isActive}
+                  fontSize={fontSize}
+                  themeOverride={themeOverride}
+                  cwd={interactiveCwd}
+                />
+              )}
             </div>
           );
         })}

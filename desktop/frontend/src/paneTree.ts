@@ -12,6 +12,8 @@ export interface TerminalInstance {
   resumeCmd?: string;
   actionName?: string;
   pinned?: boolean;
+  // Absent == terminal; "browser" tabs render an in-pane web browser instead.
+  kind?: "terminal" | "browser";
 }
 
 export interface PaneLeaf {
@@ -53,6 +55,10 @@ export function makeTerminal(
     ...(opts?.actionName ? { actionName: opts.actionName } : {}),
     ...(opts?.pinned ? { pinned: true } : {}),
   };
+}
+
+export function makeBrowser(id: string, label = "Browser"): TerminalInstance {
+  return { id, label, kind: "browser" };
 }
 
 export function walkPanes(node: PaneNode, fn: (pane: PaneLeaf) => void): void {

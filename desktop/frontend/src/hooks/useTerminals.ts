@@ -20,6 +20,7 @@ import {
   type TerminalInstance,
   makePaneLeaf,
   makeTerminal,
+  makeBrowser,
   walkPanes,
   collectPanes,
   collectTerminals,
@@ -63,6 +64,7 @@ export interface UseTerminalsResult {
   createTerminalWithCmd: (label: string, cmd: string, opts?: TerminalStartOpts) => Promise<void>;
   resumeFromHistory: (entry: PersistedHistoryEntry) => Promise<void>;
   addTerminalToPane: (paneId: string) => Promise<void>;
+  addBrowserToPane: (paneId?: string) => void;
   closeTerminal: (paneId: string, tabIdx: number) => void;
   focusTerminal: (paneId: string, tabIdx: number) => void;
   focusService: (paneId: string, serviceName: string) => void;
@@ -79,8 +81,9 @@ export interface UseTerminalsResult {
   getPane: (paneId: string) => PaneLeaf | null;
 }
 
-function nextPaneId(): string {
-  return `pane-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+// Client-side id for panes + browser webview labels (terminal ids come from the backend).
+function nextId(prefix: string): string {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
 // Picks the smallest positive integer not already used so labels don't
@@ -253,7 +256,7 @@ export function useTerminals(
     (term: TerminalInstance, targetPaneId?: string) => {
       const current = treeRef.current;
       if (!current) {
-        const paneId = targetPaneId ?? nextPaneId();
+        const paneId = targetPaneId ?? nextId("pane");
         applyTree(makePaneLeaf(paneId, [term], 0), paneId);
         return;
       }
@@ -358,6 +361,14 @@ export function useTerminals(
     [projectName, addTerminal],
   );
 
+  // Browser tabs have no PTY — no StartTerminal, just a webview keyed by id.
+  const addBrowserToPane = useCallback(
+    (paneId?: string) => {
+      addTerminal(makeBrowser(nextId("browser")), paneId);
+    },
+    [addTerminal],
+  );
+
   // Drop a pane from the tree, moving focus to its visual neighbor (or the
   // first remaining pane when the closed pane was the root).
   const collapsePane = useCallback(
@@ -450,7 +461,7 @@ export function useTerminals(
   const ensureRootPane = useCallback(
     (initialServiceName?: string) => {
       if (treeRef.current) return;
-      const paneId = nextPaneId();
+      const paneId = nextId("pane");
       const pane = makePaneLeaf(paneId, [], 0);
       if (initialServiceName) pane.activeServiceName = initialServiceName;
       applyTree(pane, paneId);
@@ -580,7 +591,7 @@ export function useTerminals(
         StopTerminal(newId).catch(() => {});
         return;
       }
-      const newPaneId = nextPaneId();
+      const newPaneId = nextId("pane");
       const newPane = makePaneLeaf(newPaneId, [makeTerminal(newId, pickTerminalLabel(current))], 0);
       applyTree(splitAtPane(current, paneId, direction, newPane), newPaneId);
     },
@@ -667,6 +678,7 @@ export function useTerminals(
     createTerminalWithCmd,
     resumeFromHistory,
     addTerminalToPane,
+    addBrowserToPane,
     closeTerminal,
     focusTerminal,
     focusService,
@@ -730,7 +742,7 @@ async function reifyTreeWithFreshPtys(
           pinned: persistedTabs[i].pinned,
         }),
       );
-      const pane = makePaneLeaf(nextPaneId(), tabs, clampIdx(node.activeTabIdx, tabs.length));
+      const pane = makePaneLeaf(nextId("pane"), tabs, clampIdx(node.activeTabIdx, tabs.length));
       if (node.activeServiceName) pane.activeServiceName = node.activeServiceName;
       return pane;
     } catch {
@@ -763,13 +775,16 @@ function treeToPersisted(node: PaneNode): PersistedPaneNode {
       kind: "leaf",
       activeTabIdx: node.activeTabIdx,
       ...(node.activeServiceName ? { activeServiceName: node.activeServiceName } : {}),
-      tabs: node.tabs.map((t) => ({
-        label: t.label,
-        ...(t.startCmd ? { startCmd: t.startCmd } : {}),
-        ...(t.resumeCmd ? { resumeCmd: t.resumeCmd } : {}),
-        ...(t.actionName ? { actionName: t.actionName } : {}),
-        ...(t.pinned ? { pinned: true } : {}),
-      })),
+      // Browser tabs are ephemeral (native webviews don't survive restart) — don't persist them.
+      tabs: node.tabs
+        .filter((t) => t.kind !== "browser")
+        .map((t) => ({
+          label: t.label,
+          ...(t.startCmd ? { startCmd: t.startCmd } : {}),
+          ...(t.resumeCmd ? { resumeCmd: t.resumeCmd } : {}),
+          ...(t.actionName ? { actionName: t.actionName } : {}),
+          ...(t.pinned ? { pinned: true } : {}),
+        })),
     };
   }
   return {

@@ -23,6 +23,8 @@ export interface DetachedWindowState {
 
 export interface Settings {
   theme: Theme;
+  browserTheme?: "light" | "dark"; // unset = follow the app theme
+
   doubleClickToToggle: boolean;
   soundNotifications?: boolean;
   projectOrder?: string[];
@@ -68,6 +70,8 @@ type SettingsState = Settings & SettingsActions;
 function normalize(s: main.Settings): Settings {
   return {
     theme: (s.theme as Theme) || defaults.theme,
+    browserTheme:
+      s.browserTheme === "light" || s.browserTheme === "dark" ? s.browserTheme : undefined,
     doubleClickToToggle: s.doubleClickToToggle ?? defaults.doubleClickToToggle,
     soundNotifications: s.soundNotifications,
     projectOrder: s.projectOrder,

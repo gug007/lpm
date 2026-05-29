@@ -2357,6 +2357,8 @@ dependencies = [
  "libc",
  "mime_guess",
  "notify",
+ "objc2",
+ "objc2-foundation",
  "portable-pty",
  "regex",
  "reqwest",

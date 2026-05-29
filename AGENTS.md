@@ -6,5 +6,5 @@ lpm starts, stops, duplicates, and switches between local dev projects, with a b
 
 ## Conventions
  - Use clean code and best practices
- - Comment only when intent isn't obvious from the code
+ - Do not add comments by default. Only comment when the purpose or reasoning is unclear from the code itself
  - macOS-only: don't add Windows/Linux code paths

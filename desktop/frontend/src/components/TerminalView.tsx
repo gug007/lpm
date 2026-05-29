@@ -62,6 +62,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     createTerminalWithCmd,
     resumeFromHistory,
     addTerminalToPane,
+    addBrowserToPane,
     closeTerminal,
     focusTerminal,
     focusService,
@@ -411,6 +412,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onFocusTab={focusTerminal}
             onFocusService={focusService}
             onAddTerminal={addTerminalToPane}
+            onAddBrowser={addBrowserToPane}
             onCloseTerminal={closeTerminal}
             onRenameTerminal={renameTerminal}
             onTogglePinTab={toggleTabPinned}

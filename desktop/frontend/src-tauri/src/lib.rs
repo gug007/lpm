@@ -1,5 +1,6 @@
 mod actions;
 mod aigen;
+mod browser;
 mod clipboard;
 mod commands_real;
 mod config;
@@ -38,6 +39,7 @@ mod vault;
 // commands and the generated stubs.
 use actions::*;
 use aigen::*;
+use browser::*;
 use clipboard::*;
 use commands_real::*;
 use config_cmds::*;
@@ -84,6 +86,7 @@ pub fn run() {
         .manage(tts::TtsState::default())
         .manage(portforward::PortFwdState::default())
         .manage(sshsync::SyncState::default())
+        .manage(browser::BrowserState::default())
         .on_menu_event(menu::handle_event)
         .setup(|app| {
             let handle = app.handle().clone();

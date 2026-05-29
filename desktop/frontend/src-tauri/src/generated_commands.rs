@@ -9,7 +9,7 @@ use serde_json::Value;
 
 
 
-/// All 150 commands (real + stub) for tauri::generate_handler!.
+/// All 159 commands for tauri::generate_handler!.
 #[macro_export]
 macro_rules! all_command_handlers {
     () => {
@@ -18,6 +18,15 @@ macro_rules! all_command_handlers {
         add_port_forward,
         attach_project,
         browse_folder,
+        browser_back,
+        browser_forward,
+        browser_reload,
+        close_browser,
+        hide_browser,
+        navigate_browser,
+        open_browser,
+        set_browser_bounds,
+        set_browser_theme,
         check_action_port_conflict,
         check_aicl_is,
         check_claude_hooks,
