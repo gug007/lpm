@@ -1,7 +1,6 @@
 import { useLayoutEffect, useState, type ReactNode } from "react";
 import { useEventListener } from "../../hooks/useEventListener";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
-import { useOverlay } from "../../store/overlay";
 
 interface ContextMenuShellProps {
   x: number;
@@ -14,7 +13,6 @@ interface ContextMenuShellProps {
 const VIEWPORT_MARGIN = 8;
 
 export function ContextMenuShell({ x, y, minWidth = 160, onClose, children }: ContextMenuShellProps) {
-  useOverlay(); // park the in-pane browser webview while a menu floats over it
   const ref = useOutsideClick<HTMLDivElement>(onClose);
   useEventListener("keydown", (e) => {
     if (e.key === "Escape") onClose();

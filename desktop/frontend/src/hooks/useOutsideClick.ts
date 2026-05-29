@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useOverlay } from "../store/overlay";
 
 export function useOutsideClick<T extends HTMLElement = HTMLElement>(
   handler: (event: MouseEvent) => void,
@@ -7,6 +8,10 @@ export function useOutsideClick<T extends HTMLElement = HTMLElement>(
   const ref = useRef<T>(null);
   const handlerRef = useRef(handler);
   handlerRef.current = handler;
+
+  // An open dropdown/popover parks the in-pane browser webview so it can't
+  // cover it (the webview floats above the React DOM).
+  useOverlay(enabled);
 
   useEffect(() => {
     if (!enabled) return;
