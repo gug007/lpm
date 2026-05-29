@@ -1,4 +1,4 @@
-import { ReadCommitInstructions, SaveCommitInstructions } from "../../wailsjs/go/main/App";
+import { ReadCommitInstructions, SaveCommitInstructions } from "../../bridge/commands";
 import { InstructionsEditor } from "./InstructionsEditor";
 
 export function CommitInstructionsEditor({ onBack }: { onBack: () => void }) {

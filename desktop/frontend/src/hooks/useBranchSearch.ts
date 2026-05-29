@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { SearchBranches } from "../../wailsjs/go/main/App";
-import { main } from "../../wailsjs/go/models";
+import { SearchBranches } from "../../bridge/commands";
+import { main } from "../../bridge/models";
 
 const SEARCH_DEBOUNCE_MS = 120;
 

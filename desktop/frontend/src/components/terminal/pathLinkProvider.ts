@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { joinAbs } from "../../path";
 import { getSettings } from "../../store/settings";
 import { openFileViewer } from "../../store/fileViewer";
-import { OpenPathInDefaultApp } from "../../../wailsjs/go/main/App";
+import { OpenPathInDefaultApp } from "../../../bridge/commands";
 
 // Matches paths with at least one separator and a file extension, optionally
 // followed by `:line` or `:line:col`. The lookbehind enforces a token boundary

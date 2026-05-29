@@ -9,9 +9,9 @@ import {
   GitMerge,
   GitMergeConflicts,
   ResolveMergeConflictsWithAI,
-} from "../../wailsjs/go/main/App";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { main } from "../../wailsjs/go/models";
+} from "../../bridge/commands";
+import { EventsOn } from "../../bridge/runtime";
+import { main } from "../../bridge/models";
 import { useBranchSearch } from "../hooks/useBranchSearch";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useAIPicker } from "../hooks/useAIPicker";

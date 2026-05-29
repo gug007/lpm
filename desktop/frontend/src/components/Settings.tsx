@@ -15,7 +15,7 @@ import {
   getTerminalThemeColors,
 } from "../terminal-themes";
 import { ProgressBar } from "./ui/ProgressBar";
-import { BrowserOpenURL, EventsOn } from "../../wailsjs/runtime/runtime";
+import { BrowserOpenURL, EventsOn } from "../../bridge/runtime";
 import {
   GetVersion,
   CheckForUpdate,
@@ -29,8 +29,8 @@ import {
   UninstallKokoro,
   VaultExportKey,
   VaultImportKey,
-} from "../../wailsjs/go/main/App";
-import type { main } from "../../wailsjs/go/models";
+} from "../../bridge/commands";
+import type { main } from "../../bridge/models";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Modal } from "./ui/Modal";
 import { TrafficLights } from "./ui/TrafficLights";

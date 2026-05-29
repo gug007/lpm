@@ -1,4 +1,4 @@
-import { main } from "../../wailsjs/go/models";
+import { main } from "../../bridge/models";
 
 export function branchKey(b: main.Branch): string {
   return b.remote ? `${b.remote}/${b.name}` : b.name;

@@ -176,7 +176,7 @@ export function aiSupportsFast(cli: AICLI, model: string): boolean {
 
 // effectiveFast collapses the saved toggle to false whenever the current
 // CLI/model wouldn't accept it, so call sites can pass the result straight
-// into the Wails binding without re-checking eligibility.
+// into the backend binding without re-checking eligibility.
 export function aiEffectiveFast(cli: AICLI, model: string, fast: boolean): boolean {
   return fast && aiSupportsFast(cli, model);
 }

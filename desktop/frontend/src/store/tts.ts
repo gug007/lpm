@@ -1,12 +1,12 @@
 import { create } from "zustand";
 import { toast } from "sonner";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
+import { EventsOn } from "../../bridge/runtime";
 import {
   StartTTS,
   StopTTS,
   PauseTTS,
   ResumeTTS,
-} from "../../wailsjs/go/main/App";
+} from "../../bridge/commands";
 import { preprocessForTTS } from "../tts/textProcessor";
 import { createTTSPlayer, type TTSPlayer } from "../tts/audioPlayer";
 import { base64ToBytes } from "../download";

@@ -1,5 +1,5 @@
-import { LoadTerminals, SaveTerminals } from "../wailsjs/go/main/App";
-import { main } from "../wailsjs/go/models";
+import { LoadTerminals, SaveTerminals } from "../bridge/commands";
+import { main } from "../bridge/models";
 
 export interface PersistedTab {
   label: string;
@@ -10,7 +10,7 @@ export interface PersistedTab {
 }
 
 // Mirrors the Go binding (main.PaneNode) so it round-trips through the
-// wails layer without type contortions.
+// binding layer without type contortions.
 export interface PersistedPaneNode {
   kind: string;
   // leaf

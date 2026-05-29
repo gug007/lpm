@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
+import { EventsOn } from "../../bridge/runtime";
 import { useAppStore } from "../store/app";
 
 const POLL_INTERVAL_MS = 10_000;

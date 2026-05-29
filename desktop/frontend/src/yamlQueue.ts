@@ -6,7 +6,7 @@ import {
   SaveConfig,
   SaveGlobalConfig,
   SaveRepoConfig,
-} from "../wailsjs/go/main/App";
+} from "../bridge/commands";
 
 const queues = new Map<string, Promise<unknown>>();
 const GLOBAL_QUEUE_KEY = "__global__";

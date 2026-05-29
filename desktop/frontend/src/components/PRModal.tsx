@@ -12,13 +12,13 @@ import {
   GitDefaultBranch,
   GitLogBranch,
   ListBranches,
-} from "../../wailsjs/go/main/App";
-import { main } from "../../wailsjs/go/models";
+} from "../../bridge/commands";
+import { main } from "../../bridge/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useBranchSearch } from "../hooks/useBranchSearch";
 import { useAIPicker } from "../hooks/useAIPicker";
 import { aiEffectiveFast } from "../types";
-import { EventsEmit, BrowserOpenURL } from "../../wailsjs/runtime/runtime";
+import { EventsEmit, BrowserOpenURL } from "../../bridge/runtime";
 import { getSettings, saveSettings } from "../store/settings";
 import { Tooltip } from "./ui/Tooltip";
 

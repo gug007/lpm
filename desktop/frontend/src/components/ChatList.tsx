@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { notes } from "../../wailsjs/go/models";
+import type { notes } from "../../bridge/models";
 import { PlusIcon, PencilIcon, TrashIcon, SidebarIcon, SearchIcon } from "./icons";
 import { RenameInput } from "./RenameInput";
 import { ConfirmDialog } from "./ui/ConfirmDialog";

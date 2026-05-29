@@ -7,7 +7,7 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import {
   EventsOn,
-} from "../../wailsjs/runtime/runtime";
+} from "../../bridge/runtime";
 import {
   ResizeTerminal,
   AckTerminalData,
@@ -16,7 +16,7 @@ import {
   IsTerminalRemote,
   UploadAndQuoteForTerminal,
   UploadClipboardImageForTerminal,
-} from "../../wailsjs/go/main/App";
+} from "../../bridge/commands";
 import { sendTerminalInput, shellQuote } from "../terminal-io";
 import { getTerminalTheme, openTerminalLink } from "./terminal-utils";
 import { handleCopyShortcut } from "./terminal/copySelection";
@@ -161,7 +161,7 @@ export function disposeInteractivePaneSession(terminalId: string) {
 }
 
 // Vite HMR: dispose cached xterm sessions and the theme observer. The shared
-// fileDrop registry handles its own Wails deregistration.
+// fileDrop registry handles its own deregistration.
 const viteHot = (
   import.meta as ImportMeta & { hot?: { dispose: (cb: () => void) => void } }
 ).hot;

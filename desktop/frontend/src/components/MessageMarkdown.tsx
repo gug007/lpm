@@ -1,7 +1,7 @@
 import { memo, useEffect, useState, type MouseEvent, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
+import { BrowserOpenURL } from "../../bridge/runtime";
 import { ensureLang, tokenizeLines, type Token } from "../highlight";
 
 interface MessageMarkdownProps {

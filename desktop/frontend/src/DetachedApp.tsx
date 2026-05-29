@@ -35,7 +35,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
   if (!project) {
     return (
       <div className="flex h-screen flex-col bg-[var(--bg-primary)]">
-        <div className="wails-drag absolute inset-x-0 top-0 h-10" />
+        <div className="app-drag absolute inset-x-0 top-0 h-10" />
       </div>
     );
   }
@@ -51,7 +51,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
         toastOptions={{ duration: 5000 }}
       />
       <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">
-        <div className="wails-drag h-2 shrink-0" />
+        <div className="app-drag h-2 shrink-0" />
         <div className="flex min-h-0 flex-1 flex-col">
           <ProjectDetail
             project={project}

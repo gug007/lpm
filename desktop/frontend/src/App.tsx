@@ -28,7 +28,7 @@ import { useProjectWatcher } from "./hooks/useProjectWatcher";
 import { getSettings, saveSettings } from "./store/settings";
 import { useAppStore } from "./store/app";
 
-import { InstallTmux, TmuxInstalled } from "../wailsjs/go/main/App";
+import { InstallTmux, TmuxInstalled } from "../bridge/commands";
 
 export default function App() {
   const projects = useAppStore((s) => s.projects);
@@ -142,7 +142,7 @@ export default function App() {
   if (tmuxReady === null) {
     return (
       <div className="flex h-screen bg-[var(--bg-primary)]">
-        <div className="wails-drag absolute inset-x-0 top-0 h-10" />
+        <div className="app-drag absolute inset-x-0 top-0 h-10" />
       </div>
     );
   }
@@ -190,14 +190,14 @@ export default function App() {
           removingName={removingName}
         />
         <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">
-          <div className="wails-drag flex h-2 shrink-0 items-center">
+          <div className="app-drag flex h-2 shrink-0 items-center">
             <div
               className={`absolute top-[16px] z-10 ${isFullscreen ? "left-3" : "left-[85px]"} ${sidebarCollapsed ? "opacity-100" : "opacity-0 pointer-events-none"}`}
             >
               <button
                 onClick={() => setSidebarCollapsed(false)}
                 style={
-                  { "--wails-draggable": "no-drag" } as React.CSSProperties
+                  { "--app-draggable": "no-drag" } as React.CSSProperties
                 }
                 className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                 title="Expand sidebar (⌘B)"

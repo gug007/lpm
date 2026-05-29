@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import {
   StartWatchingProject,
   StopWatchingProject,
-} from "../../wailsjs/go/main/App";
+} from "../../bridge/commands";
 
 // Drives the backend's file watcher to the given root. The backend
 // watcher is a singleton, so when both windows want to watch different

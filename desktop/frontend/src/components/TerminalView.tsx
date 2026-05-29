@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, useImperativeHandle } from "react";
 import { toast } from "sonner";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus } from "../../wailsjs/go/main/App";
+import { EventsOn } from "../../bridge/runtime";
+import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus } from "../../bridge/commands";
 import type { ITheme } from "@xterm/xterm";
 import { disposePaneSession, type PaneHandle } from "./Pane";
 import { disposeInteractivePaneSession, type InteractivePaneHandle } from "./InteractivePane";

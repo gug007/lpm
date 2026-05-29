@@ -3,8 +3,8 @@ import { toast } from "sonner";
 import { Modal } from "../ui/Modal";
 import { AIPickerButton } from "../ui/AIPickerButton";
 import { XIcon, SparkleIcon } from "../icons";
-import { GenerateActionYAML } from "../../../wailsjs/go/main/App";
-import { EventsOn } from "../../../wailsjs/runtime/runtime";
+import { GenerateActionYAML } from "../../../bridge/commands";
+import { EventsOn } from "../../../bridge/runtime";
 import { useAIPicker } from "../../hooks/useAIPicker";
 import { aiEffectiveFast } from "../../types";
 

@@ -20,8 +20,8 @@ use tauri_plugin_dialog::DialogExt;
 
 const MAX_DROPPED_ATTACHMENT_BYTES: u64 = 100 * 1024 * 1024;
 
-/// Attachment payload from the frontend. `data` is base64 (standard, padded) —
-/// Wails' []byte handling emitted a string, so we keep an explicit string here.
+/// Attachment payload from the frontend. `data` is base64 (standard, padded);
+/// bytes cross the IPC boundary as a string rather than a JSON byte array.
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotesAttachmentInput {

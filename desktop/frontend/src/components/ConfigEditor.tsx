@@ -7,8 +7,8 @@ import {
   ReadGlobalConfig,
   SaveGlobalConfig,
   GenerateProjectConfig,
-} from "../../wailsjs/go/main/App";
-import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
+} from "../../bridge/commands";
+import { BrowserOpenURL } from "../../bridge/runtime";
 import { useYamlEditor } from "../hooks/useYamlEditor";
 import { VisualConfigEditor } from "./VisualConfigEditor";
 import { MonacoEditor } from "./MonacoEditor";

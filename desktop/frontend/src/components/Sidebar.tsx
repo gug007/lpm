@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { StatusDot } from "./StatusDot";
 import { getSettings } from "../store/settings";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { InstallUpdate } from "../../wailsjs/go/main/App";
+import { EventsOn } from "../../bridge/runtime";
+import { InstallUpdate } from "../../bridge/commands";
 import { type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
 import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon, MoreVerticalIcon, DetachIcon, TerminalIcon } from "./icons";
 import { ProgressBar } from "./ui/ProgressBar";
@@ -145,13 +145,13 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
       style={{ width: collapsed ? 0 : width, overflow: collapsed ? "hidden" : undefined }}
     >
       <div
-        className="wails-drag flex h-11 shrink-0 items-center justify-end pr-3 pt-[7px]"
+        className="app-drag flex h-11 shrink-0 items-center justify-end pr-3 pt-[7px]"
         style={{ minWidth: width }}
       >
         <div className={collapsed ? "opacity-0 pointer-events-none" : "opacity-100"}>
           <button
             onClick={() => onCollapsedChange(true)}
-            style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}
+            style={{ "--app-draggable": "no-drag" } as React.CSSProperties}
             className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
             title="Collapse sidebar (⌘B)"
           >

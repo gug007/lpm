@@ -3,9 +3,9 @@ import { toast } from "sonner";
 import {
   GetSuggestedPorts,
   ListPortForwards,
-} from "../../../wailsjs/go/main/App";
-import { BrowserOpenURL, EventsOn } from "../../../wailsjs/runtime/runtime";
-import type { main } from "../../../wailsjs/go/models";
+} from "../../../bridge/commands";
+import { BrowserOpenURL, EventsOn } from "../../../bridge/runtime";
+import type { main } from "../../../bridge/models";
 import { PortForwardIcon } from "../icons";
 import { PortsPopover } from "./PortsPopover";
 
@@ -68,7 +68,7 @@ export function PortsButton({ projectName }: PortsButtonProps) {
   const active = showPopover || forwardCount > 0;
 
   return (
-    <div className="relative" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}>
+    <div className="relative" style={{ "--app-draggable": "no-drag" } as React.CSSProperties}>
       <button
         onClick={() => setShowPopover((v) => !v)}
         aria-label="Forwarded ports"

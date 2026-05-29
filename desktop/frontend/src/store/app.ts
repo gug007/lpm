@@ -33,8 +33,8 @@ import {
   StartProject,
   StopProject,
   ToggleProjectService,
-} from "../../wailsjs/go/main/App";
-import type { main } from "../../wailsjs/go/models";
+} from "../../bridge/commands";
+import type { main } from "../../bridge/models";
 import { getSettings } from "./settings";
 import { forgetProjectTerminals } from "../terminals";
 import { activeChatStorageKey } from "../components/NotesView";

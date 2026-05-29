@@ -1,6 +1,6 @@
 import { toast } from "sonner";
-import { AddPortForward } from "../../../wailsjs/go/main/App";
-import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime";
+import { AddPortForward } from "../../../bridge/commands";
+import { BrowserOpenURL } from "../../../bridge/runtime";
 
 // localPort=0 leaves the choice to the backend (mirrors the remote port
 // when free, picks a free one otherwise).

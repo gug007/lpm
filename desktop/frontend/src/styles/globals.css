@@ -70,8 +70,8 @@ body {
   user-select: none;
 }
 
-.wails-drag {
-  --wails-draggable: drag;
+.app-drag {
+  --app-draggable: drag;
 }
 
 .sidebar-shimmer {

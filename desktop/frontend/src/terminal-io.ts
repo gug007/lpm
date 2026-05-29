@@ -1,6 +1,6 @@
-import { WriteTerminal } from "../wailsjs/go/main/App";
+import { WriteTerminal } from "../bridge/commands";
 
-// Wails v2 WKWebView IPC drops certain high bytes (notably 0xD1) in JS→Go
+// WKWebView IPC drops certain high bytes (notably 0xD1) in JS→Go
 // string transit on some macOS configs, corrupting Russian/Cyrillic input.
 // When data contains any non-ASCII byte, we hex-encode the UTF-8 and prefix
 // with a marker so the Go side can decode it. ASCII-only input (the hot path)

@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { LoadSettings, SaveSettings } from "../../wailsjs/go/main/App";
-import type { main } from "../../wailsjs/go/models";
+import { LoadSettings, SaveSettings } from "../../bridge/commands";
+import type { main } from "../../bridge/models";
 import type { Theme } from "../theme";
 
 export const GIT_PULL_STRATEGIES = ["ff-only", "merge", "rebase"] as const;
@@ -63,7 +63,7 @@ interface SettingsActions {
 
 type SettingsState = Settings & SettingsActions;
 
-// Empty strings from the Wails binding collapse to undefined so consumers
+// Empty strings from the backend binding collapse to undefined so consumers
 // can rely on `value ?? fallback` and on truthiness checks.
 function normalize(s: main.Settings): Settings {
   return {

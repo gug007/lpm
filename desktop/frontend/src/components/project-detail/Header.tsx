@@ -26,7 +26,7 @@ export function Header({
     <>
       <div
         ref={rowRef}
-        className={`wails-drag flex items-center gap-4 -mx-3 py-1 transition-[padding] duration-200 ${indent}`}
+        className={`app-drag flex items-center gap-4 -mx-3 py-1 transition-[padding] duration-200 ${indent}`}
       >
         {showProjectName && (
           <h1 className="shrink-0 text-xl font-semibold tracking-tight pr-2">{projectName}</h1>
@@ -37,7 +37,7 @@ export function Header({
         </div>
       </div>
       {actionsWrapped && (
-        <div className={`wails-drag -mx-3 mt-2 pb-1 transition-[padding] duration-200 ${indent}`}>
+        <div className={`app-drag -mx-3 mt-2 pb-1 transition-[padding] duration-200 ${indent}`}>
           {actions}
         </div>
       )}

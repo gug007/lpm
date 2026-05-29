@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { StartTerminal, StartTerminalForConfig, StartTerminalForRestore, StartTerminalWithCwdEnv, StopTerminal } from "../../wailsjs/go/main/App";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
+import { StartTerminal, StartTerminalForConfig, StartTerminalForRestore, StartTerminalWithCwdEnv, StopTerminal } from "../../bridge/commands";
+import { EventsOn } from "../../bridge/runtime";
 import { sendTerminalInput } from "../terminal-io";
 import { isInteractivePaneSessionDead } from "../components/InteractivePane";
 import {

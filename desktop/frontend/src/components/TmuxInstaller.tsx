@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
+import { EventsOn } from "../../bridge/runtime";
 
 interface Props {
   onInstalled: () => void;
@@ -29,7 +29,7 @@ export function TmuxInstaller({ onInstalled, installTmux }: Props) {
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[var(--bg-primary)]">
-      <div className="wails-drag absolute inset-x-0 top-0 h-10" />
+      <div className="app-drag absolute inset-x-0 top-0 h-10" />
       <div className="w-full max-w-lg px-6">
         <h2 className="mb-1 text-lg font-semibold text-[var(--text-primary)]">
           Installing tmux

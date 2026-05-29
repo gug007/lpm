@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { toast } from "sonner";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
+import { EventsOn } from "../../bridge/runtime";
 import { useAppStore } from "../store/app";
 import { playDoneSound, playErrorSound, playWaitingSound } from "../sounds";
 

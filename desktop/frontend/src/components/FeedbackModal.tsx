@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Modal } from "./ui/Modal";
-import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
-import { GetVersion, GetPlatform } from "../../wailsjs/go/main/App";
+import { BrowserOpenURL } from "../../bridge/runtime";
+import { GetVersion, GetPlatform } from "../../bridge/commands";
 import { XIcon, ChevronLeftIcon } from "./icons";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { useAppStore } from "../store/app";
@@ -116,7 +116,7 @@ function composeBody(kind: KindDef, values: Record<string, string>) {
     .join("\n\n");
 }
 
-// Wails v2 rejects URLs containing any of ! ' ( ) * ~ ; $ | ` < > { } [ ] space
+// Some webview URL openers reject URLs containing any of ! ' ( ) * ~ ; $ | ` < > { } [ ] space
 // etc. via a shell-metacharacter blacklist, and URLSearchParams leaves ! ' ( ) *
 // ~ unescaped. Encode strictly so the URL passes validation and the browser
 // actually opens.

@@ -4,7 +4,7 @@ import {
   CheckActionPortConflict,
   RunAction,
   RunActionBackground,
-} from "../../wailsjs/go/main/App";
+} from "../../bridge/commands";
 import type { TerminalViewHandle } from "../components/TerminalView";
 import type { ActionInfo } from "../types";
 import { useAppStore } from "../store/app";

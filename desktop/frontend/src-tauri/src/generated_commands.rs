@@ -1,10 +1,8 @@
 // The `all_command_handlers!` macro listing every Tauri command for
-// tauri::generate_handler!. Originally generated (alongside command stubs) from
-// the Wails v3 bindings by scripts/gen-tauri-bindings.mjs. The migration reached
-// full parity (0 stubs — every command is implemented in its own module), so the
-// codegen and its Wails input were removed; this file is now maintained BY HAND.
-// To add a command: implement the #[tauri::command] fn in its module, bring it
-// into scope in lib.rs, and add its snake_case name to the macro list below.
+// tauri::generate_handler!. Every command is implemented in its own module
+// (no stubs); this file is maintained BY HAND. To add a command: implement the
+// #[tauri::command] fn in its module, bring it into scope in lib.rs, and add its
+// snake_case name to the macro list below.
 #![allow(clippy::unused_async)]
 #[allow(unused_imports)]
 use serde_json::Value;

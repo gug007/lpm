@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { CheckAICLIs } from "../../wailsjs/go/main/App";
+import { CheckAICLIs } from "../../bridge/commands";
 import {
   AI_CLI_OPTIONS,
   aiDefaultModel,

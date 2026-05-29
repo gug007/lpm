@@ -1,6 +1,6 @@
-import { OnFileDrop, OnFileDropOff } from "../wailsjs/runtime/runtime";
+import { OnFileDrop, OnFileDropOff } from "../bridge/runtime";
 
-// Wails only accepts a single OnFileDrop registration per page, so this module
+// The drag-drop bridge accepts a single OnFileDrop registration per page, so this module
 // owns that registration and dispatches drops to per-feature handlers (notes,
 // terminals, ...) in registration order. A handler returns true to mark the
 // drop consumed; dispatching stops there.
@@ -35,7 +35,7 @@ export function registerFileDropHandler(
   };
 }
 
-// Vite HMR: drop the singleton Wails registration and clear handlers so the
+// Vite HMR: drop the singleton drag-drop registration and clear handlers so the
 // fresh module replaces them without duplicates.
 const viteHot = (
   import.meta as ImportMeta & { hot?: { dispose: (cb: () => void) => void } }
