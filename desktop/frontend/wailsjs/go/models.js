@@ -1,5 +1,10 @@
-// v2-shaped models shim — runtime side.
-// Re-exports v3 model classes under the `main` and `notes` namespaces so call
-// sites like `main.TerminalsConfig.createFrom(...)` keep working at runtime.
-export * as main from "../../bindings/github.com/gug007/lpm/desktop/models.js";
-export * as notes from "../../bindings/github.com/gug007/lpm/desktop/notes/models.js";
+// v2-shaped models shim — runtime side (Tauri migration).
+// The Wails model classes are gone; call sites only use them as
+// `main.<Type>.createFrom(data)` / `notes.<Type>.createFrom(data)` to shape a
+// plain object before it is JSON-serialized to the backend. A Proxy returns an
+// identity `createFrom` for every type, which is all those call sites need.
+const passthrough = { createFrom: (data) => data };
+const handler = { get: () => passthrough };
+
+export const main = new Proxy({}, handler);
+export const notes = new Proxy({}, handler);

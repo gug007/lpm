@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capabilities for the main and detached windows.",
+  "windows": ["main", "detached-*"],
+  "permissions": [
+    "core:default",
+    "core:webview:allow-create-webview-window",
+    "core:window:allow-start-dragging",
+    "core:window:allow-toggle-maximize",
+    "opener:default",
+    "dialog:default"
+  ]
+}
