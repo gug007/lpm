@@ -22,6 +22,7 @@ mod pty;
 mod services;
 mod socketsrv;
 mod sshconfig;
+mod sshsync;
 mod status;
 mod sys;
 mod templates;
@@ -82,6 +83,7 @@ pub fn run() {
         .manage(updates::UpdateState::default())
         .manage(tts::TtsState::default())
         .manage(portforward::PortFwdState::default())
+        .manage(sshsync::SyncState::default())
         .on_menu_event(menu::handle_event)
         .setup(|app| {
             let handle = app.handle().clone();
@@ -111,6 +113,15 @@ pub fn run() {
             // Install agent status hooks (Claude Code / Codex) so they report to
             // the socket. Backgrounded — touches files, never blocks startup.
             std::thread::spawn(hooks::install_agent_hooks);
+
+            // Backgrounded startup chores: drop sync caches for deleted projects
+            // and resume port pollers for remote projects whose tmux session is
+            // still alive. Both read configs/tmux, so off the main thread.
+            let h2 = handle.clone();
+            std::thread::spawn(move || {
+                sshsync::prune_orphan_sync_dirs(&config::project_names().into_iter().collect());
+                portforward::resume_port_pollers(&h2);
+            });
             Ok(())
         })
         .invoke_handler(crate::all_command_handlers!())
@@ -119,7 +130,8 @@ pub fn run() {
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
                 tts::stop_on_exit(app); // kill any suspended python TTS child
-                portforward::stop_all_forwards(app); // kill ssh -L tunnels
+                portforward::stop_all_forwards(app); // kill ssh -L tunnels + pollers
+                sshsync::stop_all_sync_watchers(app); // drop rsync mirror watchers
                 let _ = std::fs::remove_file(config::socket_path());
             }
         });

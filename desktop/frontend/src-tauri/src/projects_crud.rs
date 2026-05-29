@@ -307,9 +307,10 @@ pub fn remove_project(app: AppHandle, name: String) -> Result<(), String> {
     let root = info.as_ref().map(|i| i.root.clone()).unwrap_or_default();
 
     // Stop the running session before deleting files (session name == file name
-    // for created projects). Deferred: PTY/notes/ports teardown (subsystems
-    // not all ported; the frontend already forgets terminals after we return).
+    // for created projects), then tear down port forwards/poller + sync mirror.
     let _ = crate::tmux::kill_session(&name);
+    crate::portforward::stop_project_forwards(&app, &name); // tunnels + poller + suggestions
+    crate::sshsync::remove_project_sync(&app, &name); // watcher + local cache dir
 
     if is_duplicate && !root.trim().is_empty() {
         remove_dir_all_retry(Path::new(&root))?;

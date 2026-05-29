@@ -30,11 +30,14 @@ struct ActionPlan {
     cmd_str: String,
     cwd: String,
     port: i64,
+    /// Ran after the action's process exits (e.g. push a sync-mode mirror).
+    on_exit: Option<Box<dyn FnOnce() + Send>>,
 }
 
 /// resolveActionCommand: resolve the action, substitute {{key}} inputs, and build
 /// the local script or the remote ssh command line.
 fn resolve_action_command(
+    app: &AppHandle,
     project: &str,
     action: &str,
     input_values: &HashMap<String, String>,
@@ -54,18 +57,36 @@ fn resolve_action_command(
     let info = config::spawn_info(project)?;
     if info.is_remote {
         if a.mode == "sync" {
-            return Err("sync-mode actions require the SSH sync subsystem (not yet ported)".into());
+            // Pull the remote into the local cache, run the action there, push
+            // back on exit. The watcher keeps mirroring edits in the meantime.
+            let local = crate::sshsync::ensure_project_sync(app, project, &info.ssh)?;
+            let sub = a.cwd.trim_start_matches('/'); // action cwd is project-relative
+            let cwd = if sub.is_empty() {
+                local
+            } else {
+                std::path::Path::new(&local).join(sub).to_string_lossy().into_owned()
+            };
+            let app2 = app.clone();
+            let project2 = project.to_string();
+            return Ok(ActionPlan {
+                cmd_str: config::build_local_script(&a.env, &a.cmd),
+                cwd,
+                port: a.port,
+                on_exit: Some(Box::new(move || crate::sshsync::push_after_action(&app2, &project2))),
+            });
         }
         Ok(ActionPlan {
             cmd_str: config::ssh_command_line(&info.ssh, &a.cwd, &a.env, &a.cmd),
             cwd: info.root, // local cwd for the ssh client
             port: a.port,
+            on_exit: None,
         })
     } else {
         Ok(ActionPlan {
             cmd_str: config::build_local_script(&a.env, &a.cmd),
             cwd: config::resolve_cwd(&info.root, &a.cwd),
             port: a.port,
+            on_exit: None,
         })
     }
 }
@@ -98,8 +119,9 @@ pub fn run_action(
     action_name: String,
     input_values: HashMap<String, String>,
 ) -> Result<(), String> {
-    let plan = resolve_action_command(&project_name, &action_name, &input_values)?;
+    let mut plan = resolve_action_command(&app, &project_name, &action_name, &input_values)?;
     ports::format_action_port(&action_name, plan.port)?; // pre-check; no spawn on conflict
+    let on_exit = plan.on_exit.take();
 
     let mut cmd = Command::new("/bin/sh");
     cmd.arg("-c").arg(&plan.cmd_str).current_dir(&plan.cwd).stdout(Stdio::piped());
@@ -123,23 +145,31 @@ pub fn run_action(
         let success = status.map(|s| s.success()).unwrap_or(false);
         let error = if success { String::new() } else { exit_status_string(status) };
         let _ = app2.emit("action-done", ActionDone { success, error });
+        if let Some(f) = on_exit {
+            f(); // e.g. push the sync mirror back to the remote
+        }
     });
     Ok(())
 }
 
 #[tauri::command(async)]
 pub fn run_action_background(
+    app: AppHandle,
     project_name: String,
     action_name: String,
     input_values: HashMap<String, String>,
 ) -> Result<(), String> {
-    let plan = resolve_action_command(&project_name, &action_name, &input_values)?;
+    let mut plan = resolve_action_command(&app, &project_name, &action_name, &input_values)?;
     ports::format_action_port(&action_name, plan.port)?;
+    let on_exit = plan.on_exit.take();
 
     let mut cmd = Command::new("/bin/sh");
     cmd.arg("-c").arg(&plan.cmd_str).current_dir(&plan.cwd);
     merge_stderr_into_stdout(&mut cmd); // out.stdout carries combined output
     let out = cmd.output().map_err(|e| e.to_string())?;
+    if let Some(f) = on_exit {
+        f(); // push the sync mirror regardless of exit status (matches Go)
+    }
     if !out.status.success() {
         let run_err = exit_status_string(Some(out.status));
         let tail = config::trim_tail(&out.stdout, 500);

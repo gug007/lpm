@@ -2358,6 +2358,7 @@ dependencies = [
  "mime_guess",
  "notify",
  "portable-pty",
+ "regex",
  "reqwest",
  "rusqlite",
  "security-framework-sys",

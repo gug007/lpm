@@ -87,6 +87,7 @@ fn do_start_with_services(
     }
     tmux::start_project_services(&info.session, &info.root, &tuples_for(&info, &services), ssh_of(&info))?;
     state.set(name, RunState { profile: String::new(), services });
+    crate::portforward::start_port_poller(app, name); // remote-only, idempotent
     let _ = app.emit("projects-changed", ());
     Ok(())
 }
@@ -131,6 +132,7 @@ pub fn start_project(
     }
     tmux::start_project_services(&info.session, &info.root, &tuples_for(&info, &services), ssh_of(&info))?;
     state.set(&name, RunState { profile, services: vec![] });
+    crate::portforward::start_port_poller(&app, &name); // remote-only, idempotent
     let _ = app.emit("projects-changed", ());
     Ok(())
 }

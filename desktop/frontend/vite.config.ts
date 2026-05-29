@@ -8,7 +8,7 @@ export default defineConfig({
   clearScreen: false,
   server: {
     host: "127.0.0.1",
-    port: Number(process.env.WAILS_VITE_PORT) || 9245,
+    port: 9245,
     strictPort: true,
     // Don't let Rust build artifacts trigger HMR reload storms.
     watch: { ignored: ["**/src-tauri/**"] },

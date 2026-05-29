@@ -18,5 +18,5 @@
       "wailsjs/*": ["../wailsjs/*"]
     }
   },
-  "include": ["src", "wailsjs", "bindings"]
+  "include": ["src", "wailsjs"]
 }

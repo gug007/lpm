@@ -18,7 +18,6 @@
     "@hookform/resolvers": "^5.2.2",
     "@monaco-editor/react": "^4.7.0",
     "@tanstack/react-query": "^5.99.0",
-    "@wailsio/runtime": "^3.0.0-alpha.79",
     "@xterm/addon-fit": "^0.12.0-beta.220",
     "@xterm/addon-search": "^0.17.0-beta.220",
     "@xterm/addon-serialize": "^0.15.0-beta.220",

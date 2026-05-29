@@ -10,7 +10,7 @@
 use crate::config;
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use serde::Serialize;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{sync_channel, RecvTimeoutError};
@@ -39,6 +39,10 @@ pub struct PtySession {
     // (scp). Mirrors Go's sess.ssh; the id "project-N" isn't reversibly parseable
     // to a project, so we stash it at spawn rather than re-resolving.
     pub ssh: Option<config::SshSettings>,
+    // Owning project + its declared service ports — for the remote port sniffer
+    // (flush() scans output for localhost URLs to auto-forward / suggest).
+    pub project_name: String,
+    pub declared: HashSet<u16>,
     writer: Mutex<Box<dyn Write + Send>>,
     master: Mutex<Box<dyn MasterPty + Send>>,
     child: Mutex<Box<dyn Child + Send + Sync>>,
@@ -101,7 +105,14 @@ fn flush(pending: &mut Vec<u8>, app: &AppHandle, sess: &Arc<PtySession>) {
     // (incl. partial multibyte chars at a chunk boundary) become U+FFFD.
     let text = String::from_utf8_lossy(pending).into_owned();
     let runes = text.chars().count() as i64; // RuneCountInString — MUST be runes
-    let _ = app.emit(&format!("pty-output-{}", sess.id), text);
+    let _ = app.emit(&format!("pty-output-{}", sess.id), &text);
+    // Remote panes: sniff localhost URLs in output to auto-forward declared
+    // ports / surface undeclared ones (port poller's no-poll-needed path).
+    if sess.remote {
+        if let Some(ssh) = &sess.ssh {
+            crate::portforward::sniff_pane_output(app, &sess.project_name, ssh, &sess.declared, &text);
+        }
+    }
     pending.clear();
     add_unacked(sess, runes);
 }
@@ -252,6 +263,8 @@ fn start_internal(
         id: id.clone(),
         remote: is_remote,
         ssh: ssh.cloned(),
+        project_name: project_name.to_string(),
+        declared: if is_remote { config::declared_service_ports(project_name) } else { HashSet::new() },
         writer: Mutex::new(writer),
         master: Mutex::new(pair.master),
         child: Mutex::new(child),

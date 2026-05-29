@@ -828,6 +828,20 @@ fn resolve_action_map(file_name: &str) -> BTreeMap<String, ActionFull> {
     map
 }
 
+/// Declared service ports (port > 0) for a project — the set that the port
+/// poller / PTY sniffer auto-forwards (vs. merely suggesting). Empty on error.
+pub fn declared_service_ports(name: &str) -> std::collections::HashSet<u16> {
+    spawn_info(name)
+        .map(|i| {
+            i.services
+                .values()
+                .filter(|s| s.port > 0 && s.port <= 65535)
+                .map(|s| s.port as u16)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// config.mergeService: project fields win; empty ones fall back to the repo.
 fn merge_service(dst: &mut ServiceFull, src: &ServiceFull) {
     if dst.cmd.is_empty() {
