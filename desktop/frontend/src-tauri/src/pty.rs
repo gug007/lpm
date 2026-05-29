@@ -109,9 +109,7 @@ fn flush(pending: &mut Vec<u8>, app: &AppHandle, sess: &Arc<PtySession>) {
     // Remote panes: sniff localhost URLs in output to auto-forward declared
     // ports / surface undeclared ones (port poller's no-poll-needed path).
     if sess.remote {
-        if let Some(ssh) = &sess.ssh {
-            crate::portforward::sniff_pane_output(app, &sess.project_name, ssh, &sess.declared, &text);
-        }
+        crate::portforward::sniff_pane_output(app, &sess.project_name, &sess.declared, &text);
     }
     pending.clear();
     add_unacked(sess, runes);

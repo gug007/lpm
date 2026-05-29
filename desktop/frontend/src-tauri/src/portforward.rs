@@ -417,15 +417,6 @@ pub fn stop_all_forwards(app: &AppHandle) {
 
 // ---- port poller + PTY-output sniff + auto-forward -------------------------
 
-/// Service ports declared in a project's config (poller seeds + auto-forward set).
-fn declared_ports(info: &config::SpawnInfo) -> HashSet<u16> {
-    info.services
-        .values()
-        .filter(|s| s.port > 0 && s.port <= 65535)
-        .map(|s| s.port as u16)
-        .collect()
-}
-
 fn stop_poller(state: &PortFwdState, project: &str) {
     if let Some(stop) = state.pollers.lock().unwrap().remove(project) {
         stop.store(true, Ordering::Relaxed);
@@ -452,7 +443,7 @@ pub fn start_port_poller(app: &AppHandle, project: &str) {
     let app = app.clone();
     let project = project.to_string();
     let ssh = info.ssh.clone();
-    let declared = declared_ports(&info);
+    let declared = config::declared_service_ports_of(&info);
     std::thread::spawn(move || run_poller(app, project, ssh, declared, stop));
 }
 
@@ -482,23 +473,17 @@ fn run_poller(
             break;
         }
         let state = app.state::<PortFwdState>();
-        if first {
-            // Baseline: pre-existing listeners aren't suggested (they were up
-            // before we started watching) — except declared ports, which still
-            // auto-forward.
-            for &p in &ports {
-                if declared.contains(&p) {
-                    observe_port(&app, &state, &project, &ssh, &declared, p);
-                } else {
-                    pre_dismiss(&state.suggestions, &project, p);
-                }
-            }
-            first = false;
-        } else {
-            for &p in &ports {
-                observe_port(&app, &state, &project, &ssh, &declared, p);
+        // First pass: pre-existing listeners aren't suggested (they were up
+        // before we started watching) — except declared ports, which still
+        // auto-forward. Steady state: observe everything.
+        for &p in &ports {
+            if first && !declared.contains(&p) {
+                pre_dismiss(&state.suggestions, &project, p);
+            } else {
+                observe_port(&app, &state, &project, &declared, p);
             }
         }
+        first = false;
         prune_suggestions(&app, &state, &project, &ports);
         drop(state);
         // Interruptible sleep so Stop is responsive (checks the flag every 75ms).
@@ -611,12 +596,10 @@ fn observe_port(
     app: &AppHandle,
     state: &PortFwdState,
     project: &str,
-    ssh: &config::SshSettings,
     declared: &HashSet<u16>,
     port: u16,
 ) {
-    let _ = ssh; // ssh is reloaded inside forward_impl via config; kept for symmetry
-    // Already tunneled? nothing to do.
+    // Already tunneled? nothing to do. (forward_impl re-loads ssh from config.)
     {
         let f = state.forwards.lock().unwrap();
         if let Some(v) = f.get(project) {
@@ -662,13 +645,7 @@ fn auto_forward(app: &AppHandle, project: &str, remote_port: u16) {
 
 /// Sniff localhost URLs from a remote pane's output and observe their ports.
 /// Called from the PTY flush path (remote panes only).
-pub fn sniff_pane_output(
-    app: &AppHandle,
-    project: &str,
-    ssh: &config::SshSettings,
-    declared: &HashSet<u16>,
-    text: &str,
-) {
+pub fn sniff_pane_output(app: &AppHandle, project: &str, declared: &HashSet<u16>, text: &str) {
     if !text.contains("://") {
         return; // cheap pre-filter — skips the regex on ~all output
     }
@@ -678,7 +655,7 @@ pub fn sniff_pane_output(
     }
     let state = app.state::<PortFwdState>();
     for port in ports {
-        observe_port(app, &state, project, ssh, declared, port);
+        observe_port(app, &state, project, declared, port);
     }
 }
 

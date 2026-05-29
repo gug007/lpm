@@ -21,14 +21,14 @@ fn validate_yaml(content: &str) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn read_config(name: String) -> Result<String, String> {
     // A duplicate routes to its parent's config file.
     let target = config::peek_parent(&name).unwrap_or(name);
     std::fs::read_to_string(config::project_path(&target)).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn save_config(app: AppHandle, name: String, content: String) -> Result<String, String> {
     let parsed: config::NameOnly =
         serde_yaml::from_str(&content).map_err(|e| format!("invalid YAML: {e}"))?;
@@ -65,12 +65,12 @@ pub fn save_config(app: AppHandle, name: String, content: String) -> Result<Stri
     Ok(new_name)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn read_global_config() -> Result<String, String> {
     read_to_string(&config::global_path())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn save_global_config(app: AppHandle, content: String) -> Result<(), String> {
     validate_yaml(&content)?;
     config::ensure_dirs()?;
@@ -79,13 +79,13 @@ pub fn save_global_config(app: AppHandle, content: String) -> Result<(), String>
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn read_repo_config(name: String) -> Result<String, String> {
     let path = config::repo_path_for_project(&name)?;
     read_to_string(&path)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn save_repo_config(app: AppHandle, name: String, content: String) -> Result<(), String> {
     let path = config::repo_path_for_project(&name)?;
     validate_yaml(&content)?;

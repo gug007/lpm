@@ -12,21 +12,12 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::mpsc::{channel, RecvTimeoutError};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager};
 
 const PULL_TTL: Duration = Duration::from_secs(5); // skip re-pull within this window
 const SYNC_DEBOUNCE: Duration = Duration::from_millis(1500); // coalesce fs bursts
-
-// Dirs never mirrored (build output, deps, editor state). Mirrors watcher.go's
-// set. NOTE: `.git` is intentionally NOT here — local commits propagate.
-const IGNORED_DIRS: &[&str] = &[
-    "node_modules", "dist", "build", "out", "target", "vendor", ".next", ".nuxt",
-    ".svelte-kit", ".turbo", ".cache", ".parcel-cache", ".yarn", ".pnpm-store",
-    ".venv", "venv", "__pycache__", ".mypy_cache", ".pytest_cache", ".gradle",
-    ".idea", ".vscode",
-];
 
 struct ProjectSync {
     path: String,             // ~/.lpm/sync/<project>
@@ -80,11 +71,15 @@ fn rsync_args(ssh: &SshSettings, src: &str, dst: &str) -> Vec<String> {
 }
 
 fn rsync_available() -> bool {
-    Command::new("rsync")
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    // rsync's presence on PATH doesn't change during a session — probe once.
+    static AVAILABLE: OnceLock<bool> = OnceLock::new();
+    *AVAILABLE.get_or_init(|| {
+        Command::new("rsync")
+            .arg("--version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    })
 }
 
 /// Pull the remote dir into the local cache (skipping if pulled within the TTL),
@@ -245,7 +240,8 @@ fn ignore_path(root: &str, p: &Path) -> bool {
         if let std::path::Component::Normal(seg) = comp {
             has_segment = true;
             if let Some(s) = seg.to_str() {
-                if IGNORED_DIRS.contains(&s) {
+                // .git is intentionally NOT ignored here — local commits propagate.
+                if config::IGNORED_WATCH_DIRS.contains(&s) {
                     return true;
                 }
             }

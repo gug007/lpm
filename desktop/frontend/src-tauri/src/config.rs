@@ -828,18 +828,28 @@ fn resolve_action_map(file_name: &str) -> BTreeMap<String, ActionFull> {
     map
 }
 
-/// Declared service ports (port > 0) for a project — the set that the port
-/// poller / PTY sniffer auto-forwards (vs. merely suggesting). Empty on error.
+/// Working-tree dirs never worth watching/syncing (build output, deps, editor
+/// state). Shared by the git file-watcher (git.rs) and the sshsync rsync mirror.
+pub const IGNORED_WATCH_DIRS: &[&str] = &[
+    "node_modules", "dist", "build", "out", "target", "vendor", ".next", ".nuxt",
+    ".svelte-kit", ".turbo", ".cache", ".parcel-cache", ".yarn", ".pnpm-store",
+    ".venv", "venv", "__pycache__", ".mypy_cache", ".pytest_cache", ".gradle",
+    ".idea", ".vscode",
+];
+
+/// Declared service ports (port > 0) of an already-loaded project — the set the
+/// port poller / PTY sniffer auto-forwards (vs. merely suggesting).
+pub fn declared_service_ports_of(info: &SpawnInfo) -> std::collections::HashSet<u16> {
+    info.services
+        .values()
+        .filter(|s| s.port > 0 && s.port <= 65535)
+        .map(|s| s.port as u16)
+        .collect()
+}
+
+/// As above, by project name (re-loads config). Empty on error.
 pub fn declared_service_ports(name: &str) -> std::collections::HashSet<u16> {
-    spawn_info(name)
-        .map(|i| {
-            i.services
-                .values()
-                .filter(|s| s.port > 0 && s.port <= 65535)
-                .map(|s| s.port as u16)
-                .collect()
-        })
-        .unwrap_or_default()
+    spawn_info(name).map(|i| declared_service_ports_of(&i)).unwrap_or_default()
 }
 
 /// config.mergeService: project fields win; empty ones fall back to the repo.

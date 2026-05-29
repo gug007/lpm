@@ -668,14 +668,6 @@ const GIT_FILE_ALLOW: &[&str] = &[
     "HEAD", "index", "packed-refs", "ORIG_HEAD", "MERGE_HEAD", "CHERRY_PICK_HEAD",
     "REBASE_HEAD", "REVERT_HEAD", "BISECT_HEAD",
 ];
-// Working-tree dirs never worth watching.
-const IGNORED_DIRS: &[&str] = &[
-    "node_modules", "dist", "build", "out", "target", "vendor", ".next", ".nuxt",
-    ".svelte-kit", ".turbo", ".cache", ".parcel-cache", ".yarn", ".pnpm-store",
-    ".venv", "venv", "__pycache__", ".mypy_cache", ".pytest_cache", ".gradle",
-    ".idea", ".vscode",
-];
-
 fn should_ignore(root: &str, full: &str) -> bool {
     let rel = match full.strip_prefix(root) {
         Some(r) => r.trim_start_matches('/'),
@@ -694,7 +686,7 @@ fn should_ignore(root: &str, full: &str) -> bool {
         }
         return true;
     }
-    segs.iter().any(|s| IGNORED_DIRS.contains(s))
+    segs.iter().any(|s| crate::config::IGNORED_WATCH_DIRS.contains(s))
 }
 
 struct ActiveWatch {
