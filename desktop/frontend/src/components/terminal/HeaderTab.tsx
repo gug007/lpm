@@ -39,7 +39,7 @@ export function HeaderTab({
       }`}
     >
       {icon && (
-        <span className="flex shrink-0 items-center opacity-80 [&>svg]:h-3 [&>svg]:w-3">
+        <span className="flex shrink-0 items-center opacity-80 [&>svg]:h-3.5 [&>svg]:w-3.5">
           {icon}
         </span>
       )}

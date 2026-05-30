@@ -50,7 +50,7 @@ function BrowserTabIcon({ id }: { id: string }) {
       draggable={false}
       onError={() => setBrokenSrc(src)}
       onLoad={(e) => { if (e.currentTarget.naturalWidth === 0) setBrokenSrc(src); }}
-      className="h-3 w-3 rounded-sm"
+      className="h-3.5 w-3.5 rounded-sm"
     />
   );
 }
