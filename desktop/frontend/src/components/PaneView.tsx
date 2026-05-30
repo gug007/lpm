@@ -8,13 +8,13 @@ import { RenameModal } from "./RenameModal";
 import { TabContextMenu } from "./terminal/TabContextMenu";
 import { IconBtn } from "./terminal/IconBtn";
 import {
-  PlusIcon,
   SplitRightIcon,
   SplitDownIcon,
   ClearIcon,
   ExpandIcon,
   ShrinkIcon,
 } from "./terminal/icons";
+import { AddTabSplitButton } from "./terminal/AddTabSplitButton";
 import { TerminalSearchBar } from "./terminal/TerminalSearchBar";
 import { XIcon, GlobeIcon, TerminalIcon, ZapIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
@@ -256,20 +256,10 @@ function PaneViewImpl(props: PaneViewProps) {
               );
             })}
           </TabStrip>
-          <button
-            onClick={() => onAddTerminal(pane.id)}
-            title="Open new terminal (⌘T)"
-            className="flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[11px] font-medium text-[var(--terminal-header-text)] transition-colors hover:bg-[var(--terminal-header-hover)] hover:text-[var(--terminal-tab-active)]"
-          >
-            <PlusIcon />
-          </button>
-          <button
-            onClick={() => onAddBrowser(pane.id)}
-            title="Open browser"
-            className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[var(--terminal-header-text)] transition-colors hover:bg-[var(--terminal-header-hover)] hover:text-[var(--terminal-tab-active)] [&>svg]:h-3.5 [&>svg]:w-3.5"
-          >
-            <GlobeIcon />
-          </button>
+          <AddTabSplitButton
+            onAddTerminal={() => onAddTerminal(pane.id)}
+            onAddBrowser={() => onAddBrowser(pane.id)}
+          />
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           <Tooltip
