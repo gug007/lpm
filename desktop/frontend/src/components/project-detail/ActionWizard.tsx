@@ -19,6 +19,7 @@ import {
 import { MonacoEditor } from "../MonacoEditor";
 import { slugify } from "../../slugify";
 import { uniqueKey } from "../../uniqueKey";
+import { withEmoji } from "../../withEmoji";
 import type { ActionInfo } from "../../types";
 import { AIActionModal } from "./AIActionModal";
 import {
@@ -650,8 +651,7 @@ export function ActionWizard({
     nameFilled && (shape === "dropdown" || (shape === "split" && cmdFilled));
   const missingHint = getMissingHint(draft, hasMenuOption);
   const formIsValid = missingHint === null;
-  const actionLabel =
-    (emoji ? `${emoji} ` : "") + (name.trim() || PLACEHOLDER_LABEL);
+  const actionLabel = withEmoji(emoji, name.trim() || PLACEHOLDER_LABEL);
   const { title, hint, primary: primaryLabel } = wizardCopy(isEditing);
   const savingLabel = isEditing ? "Saving..." : "Creating...";
 
@@ -1351,7 +1351,7 @@ function ActionPreviewPanel({
 }) {
   const trimmedName = name.trim();
   const hasName = trimmedName.length > 0;
-  const displayLabel = (emoji ? `${emoji} ` : "") + trimmedName;
+  const displayLabel = withEmoji(emoji, trimmedName);
   const [menuOpen, setMenuOpen] = useState(false);
   const [running, setRunning] = useState<DemoState>(null);
   const menuRef = useOutsideClick<HTMLDivElement>(

@@ -87,14 +87,20 @@ jobs:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_KEY_PATH: ${{ runner.temp }}/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
         run: |
-          for dmg in \
-            src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg \
-            src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg; do
-            xcrun notarytool submit "$dmg" \
+          arm_dmg=(src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg)
+          amd_dmg=(src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg)
+          submit() {
+            xcrun notarytool submit "$1" \
               --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" \
               --wait --timeout 30m
-            xcrun stapler staple "$dmg"
-          done
+          }
+          # Submit both arches concurrently so the two Apple waits overlap.
+          submit "$arm_dmg" & arm_pid=$!
+          submit "$amd_dmg" & amd_pid=$!
+          wait "$arm_pid"
+          wait "$amd_pid"
+          xcrun stapler staple "$arm_dmg"
+          xcrun stapler staple "$amd_dmg"
 
       # The in-app updater (updates.rs) only matches assets ending in
       # macos-arm64.dmg / macos-amd64.dmg, so rename Tauri's per-arch output.
