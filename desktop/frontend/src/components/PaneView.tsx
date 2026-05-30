@@ -234,7 +234,17 @@ function PaneViewImpl(props: PaneViewProps) {
                 <SortableTab key={t.id} id={t.id} paneId={pane.id} index={i}>
                   <HeaderTab
                     label={t.label}
-                    icon={t.kind === "browser" ? <BrowserTabIcon id={t.id} /> : <TerminalIcon />}
+                    icon={
+                      t.kind === "browser" ? (
+                        <BrowserTabIcon id={t.id} />
+                      ) : t.emoji ? (
+                        <span className="flex h-3.5 w-3.5 items-center justify-center text-[12px] leading-none">
+                          {t.emoji}
+                        </span>
+                      ) : (
+                        <TerminalIcon />
+                      )
+                    }
                     active={isActive}
                     pinned={t.pinned}
                     shimmer={runningPaneIDs?.has(t.id) ?? false}
@@ -398,6 +408,7 @@ function PaneViewImpl(props: PaneViewProps) {
             pinned={tab.pinned === true}
             onRename={() => setRenamingTabIdx(tabMenu.tabIdx)}
             onTogglePin={() => onTogglePinTab(tabMenu.paneId, tabMenu.tabIdx)}
+            onCloseTab={() => onCloseTerminal(tabMenu.paneId, tabMenu.tabIdx)}
             onClose={() => setTabMenu(null)}
           />
         );

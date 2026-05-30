@@ -62,7 +62,6 @@ export function AddTabSplitButton({
           <ContextMenuItem
             label="Open browser"
             icon={<GlobeIcon />}
-            iconPosition="left"
             onClick={() => {
               onAddBrowser();
               setMenu(null);

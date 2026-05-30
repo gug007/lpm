@@ -34,7 +34,7 @@ export function HeaderTab({
     <button
       onClick={onClick}
       onContextMenu={onContextMenu}
-      className={`group flex items-center gap-1 rounded-md px-2.5 py-1 font-mono text-[11px] font-medium transition-colors ${
+      className={`group flex select-none items-center gap-1 rounded-md px-2.5 py-1 font-mono text-[11px] font-medium transition-colors ${
         active
           ? "bg-[var(--terminal-header-active)] text-[var(--terminal-tab-active)]"
           : "text-[var(--terminal-header-text)] hover:text-[var(--terminal-tab-active)]"

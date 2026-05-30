@@ -3,6 +3,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
   type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
@@ -95,6 +96,82 @@ export function EmojiPickerButton({
         <SmileIcon size={iconSize} />
       </button>
       {open && panelStyle &&
+        createPortal(
+          <div ref={panelRef} style={panelStyle} className={PANEL_CLASS}>
+            <EmojiPickerPanel onSelect={handleSelect} />
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
+interface EmojiSlotButtonProps {
+  // Anchors the panel below this input and matches its width.
+  inputRef: RefObject<HTMLInputElement | null>;
+  // The currently selected emoji, or "" when none is set yet.
+  value: string;
+  onSelect: (emoji: string) => void;
+  size?: Size;
+  // Shown when no emoji is set yet. Defaults to a smiley.
+  placeholder?: ReactNode;
+}
+
+/**
+ * A leading emoji slot: shows the chosen emoji (or a placeholder) and opens the
+ * picker to set a single dedicated emoji — unlike EmojiPickerButton, it replaces
+ * the value rather than inserting into the input's text.
+ */
+export function EmojiSlotButton({
+  inputRef,
+  value,
+  onSelect,
+  size = "md",
+  placeholder,
+}: EmojiSlotButtonProps) {
+  const [open, setOpen] = useState(false);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const panelStyle = useAnchorBelow(inputRef, open);
+  const { icon: iconSize } = SIZES[size];
+
+  useDismissOnOutsideClick(open, () => setOpen(false), [panelRef, toggleRef]);
+  useDismissOnEscape(open, () => {
+    setOpen(false);
+    inputRef.current?.focus();
+  });
+
+  const handleSelect = (emoji: string) => {
+    onSelect(emoji);
+    setOpen(false);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
+  return (
+    <>
+      <button
+        ref={toggleRef}
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => setOpen((v) => !v)}
+        aria-label={value ? "Change emoji" : "Pick emoji"}
+        aria-pressed={open}
+        className={`absolute left-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg transition-colors hover:bg-[var(--bg-hover)] ${
+          open
+            ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
+            : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+        }`}
+      >
+        {value ? (
+          <span className="text-[18px] leading-none">{value}</span>
+        ) : (
+          <span className="flex items-center justify-center [&>svg]:h-[18px] [&>svg]:w-[18px]">
+            {placeholder ?? <SmileIcon size={iconSize} />}
+          </span>
+        )}
+      </button>
+      {open &&
+        panelStyle &&
         createPortal(
           <div ref={panelRef} style={panelStyle} className={PANEL_CLASS}>
             <EmojiPickerPanel onSelect={handleSelect} />

@@ -251,6 +251,8 @@ struct ActionFull {
     #[serde(default)]
     label: String,
     #[serde(default)]
+    emoji: String,
+    #[serde(default)]
     cwd: String,
     #[serde(default)]
     port: i64,
@@ -677,6 +679,8 @@ pub struct ActionInputInfo {
 pub struct ActionInfo {
     pub name: String,
     pub label: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub emoji: String,
     pub cmd: String,
     pub cwd: String,
     #[serde(skip_serializing_if = "is_zero_i64")]
@@ -766,6 +770,9 @@ fn merge_action(d: &mut ActionFull, s: &ActionFull) {
     }
     if d.label.is_empty() {
         d.label = s.label.clone();
+    }
+    if d.emoji.is_empty() {
+        d.emoji = s.emoji.clone();
     }
     if d.cwd.is_empty() {
         d.cwd = s.cwd.clone();
@@ -988,6 +995,7 @@ fn action_to_info(name: &str, act: &ActionFull) -> ActionInfo {
     ActionInfo {
         name: name.to_string(),
         label,
+        emoji: act.emoji.clone(),
         cmd: act.cmd.clone(),
         cwd: act.cwd.clone(),
         port: act.port,

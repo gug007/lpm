@@ -42,6 +42,7 @@ export interface TerminalStartOpts {
   env?: Record<string, string>;
   actionName?: string;
   reuse?: boolean;
+  emoji?: string;
 }
 
 // Injection waits for pty output to go quiet for PROMPT_IDLE_MS before
@@ -308,6 +309,7 @@ export function useTerminals(
         const term = makeTerminal(launch.id, label, {
           ...(launch.resumeCmd && { startCmd: launch.startCmd, resumeCmd: launch.resumeCmd }),
           actionName: opts.actionName,
+          emoji: opts.emoji,
         });
         addTerminal(term);
         scheduleCmdInject(launch.id, launch.startCmd);
@@ -319,7 +321,12 @@ export function useTerminals(
       const id = (opts?.cwd || opts?.env)
         ? await StartTerminalWithCwdEnv(projectName, opts.cwd ?? "", opts.env ?? {})
         : await StartTerminal(projectName);
-      addTerminal(makeTerminal(id, label, { actionName: opts?.actionName }));
+      addTerminal(
+        makeTerminal(id, label, {
+          actionName: opts?.actionName,
+          emoji: opts?.emoji,
+        }),
+      );
       scheduleCmdInject(id, cmd);
     },
     [projectName, addTerminal, applyTree, scheduleCmdInject],
@@ -740,6 +747,7 @@ async function reifyTreeWithFreshPtys(
           resumeCmd: persistedTabs[i].resumeCmd,
           actionName: persistedTabs[i].actionName,
           pinned: persistedTabs[i].pinned,
+          emoji: persistedTabs[i].emoji,
         }),
       );
       const pane = makePaneLeaf(nextId("pane"), tabs, clampIdx(node.activeTabIdx, tabs.length));
@@ -784,6 +792,7 @@ function treeToPersisted(node: PaneNode): PersistedPaneNode {
           ...(t.resumeCmd ? { resumeCmd: t.resumeCmd } : {}),
           ...(t.actionName ? { actionName: t.actionName } : {}),
           ...(t.pinned ? { pinned: true } : {}),
+          ...(t.emoji ? { emoji: t.emoji } : {}),
         })),
     };
   }

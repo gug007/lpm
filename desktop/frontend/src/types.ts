@@ -44,6 +44,7 @@ export interface ActionInputInfo {
 export interface ActionInfo {
   name: string;
   label: string;
+  emoji?: string;
   cmd: string;
   cwd?: string;
   port?: number;

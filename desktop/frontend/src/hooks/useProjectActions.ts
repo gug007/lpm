@@ -74,6 +74,7 @@ export function useProjectActions({
             configName: action.name,
             actionName: action.name,
             reuse: action.reuse,
+            emoji: action.emoji,
           });
           return;
         }
@@ -86,6 +87,7 @@ export function useProjectActions({
           env: action.env,
           actionName: action.name,
           reuse: action.reuse,
+          emoji: action.emoji,
         });
       } catch (err) {
         toast.error(`${action.label}: ${err}`);

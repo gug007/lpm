@@ -7,6 +7,7 @@ export interface PersistedTab {
   resumeCmd?: string;
   actionName?: string;
   pinned?: boolean;
+  emoji?: string;
 }
 
 // Mirrors the Go binding (main.PaneNode) so it round-trips through the

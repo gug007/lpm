@@ -12,6 +12,9 @@ export interface TerminalInstance {
   resumeCmd?: string;
   actionName?: string;
   pinned?: boolean;
+  // Custom emoji shown as the tab icon (in place of the terminal icon).
+  // Inherited from the action that launched the terminal.
+  emoji?: string;
   // Absent == terminal; "browser" tabs render an in-pane web browser instead.
   kind?: "terminal" | "browser";
 }
@@ -45,7 +48,13 @@ export function makePaneLeaf(id: string, tabs: TerminalInstance[], activeTabIdx 
 export function makeTerminal(
   id: string,
   label: string,
-  opts?: { startCmd?: string; resumeCmd?: string; actionName?: string; pinned?: boolean },
+  opts?: {
+    startCmd?: string;
+    resumeCmd?: string;
+    actionName?: string;
+    pinned?: boolean;
+    emoji?: string;
+  },
 ): TerminalInstance {
   return {
     id,
@@ -54,6 +63,7 @@ export function makeTerminal(
     ...(opts?.resumeCmd ? { resumeCmd: opts.resumeCmd } : {}),
     ...(opts?.actionName ? { actionName: opts.actionName } : {}),
     ...(opts?.pinned ? { pinned: true } : {}),
+    ...(opts?.emoji ? { emoji: opts.emoji } : {}),
   };
 }
 
