@@ -69,7 +69,12 @@ export interface UseTerminalsResult {
   closeTerminal: (paneId: string, tabIdx: number) => void;
   focusTerminal: (paneId: string, tabIdx: number) => void;
   focusService: (paneId: string, serviceName: string) => void;
-  renameTerminal: (paneId: string, tabIdx: number, label: string) => void;
+  renameTerminal: (
+    paneId: string,
+    tabIdx: number,
+    label: string,
+    emoji?: string,
+  ) => void;
   toggleTabPinned: (paneId: string, tabIdx: number) => void;
   reorderTerminals: (paneId: string, order: string[]) => void;
   moveTerminal: (fromPaneId: string, termId: string, toPaneId: string, toIdx?: number) => void;
@@ -477,12 +482,21 @@ export function useTerminals(
   );
 
   const renameTerminal = useCallback(
-    (paneId: string, tabIdx: number, label: string) => {
+    (paneId: string, tabIdx: number, label: string, emoji?: string) => {
       const current = treeRef.current;
       if (!current) return;
       const next = mapPane(current, paneId, (p) => ({
         ...p,
-        tabs: p.tabs.map((t, i) => (i === tabIdx ? { ...t, label } : t)),
+        tabs: p.tabs.map((t, i) =>
+          i === tabIdx
+            ? {
+                ...t,
+                label,
+                // undefined emoji => caller isn't editing it; "" clears it.
+                ...(emoji !== undefined ? { emoji: emoji || undefined } : {}),
+              }
+            : t,
+        ),
       }));
       applyTree(next);
     },

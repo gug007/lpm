@@ -122,6 +122,7 @@
             "name": { "type": "string", "description": "Key used when the action is defined in array form." },
             "cmd": { "type": "string" },
             "label": { "type": "string" },
+            "emoji": { "type": "string", "description": "Optional emoji shown as the action's icon and on the terminal tab it launches." },
             "cwd": { "type": "string" },
             "port": {
               "type": "integer",
@@ -202,6 +203,7 @@
             "name": { "type": "string", "description": "Key used when the terminal is defined in array form." },
             "cmd": { "type": "string" },
             "label": { "type": "string" },
+            "emoji": { "type": "string", "description": "Optional emoji shown as the terminal tab's icon." },
             "cwd": { "type": "string" },
             "port": {
               "type": "integer",

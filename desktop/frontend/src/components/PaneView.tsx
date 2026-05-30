@@ -86,7 +86,12 @@ export interface PaneViewProps {
   onAddTerminal: (paneId: string) => void;
   onAddBrowser: (paneId: string) => void;
   onCloseTerminal: (paneId: string, tabIdx: number) => void;
-  onRenameTerminal: (paneId: string, tabIdx: number, label: string) => void;
+  onRenameTerminal: (
+    paneId: string,
+    tabIdx: number,
+    label: string,
+    emoji?: string,
+  ) => void;
   onTogglePinTab: (paneId: string, tabIdx: number) => void;
   onSplit: (paneId: string, direction: SplitDirection) => void;
   onClosePane: (paneId: string) => void;
@@ -416,15 +421,22 @@ function PaneViewImpl(props: PaneViewProps) {
       <RenameModal
         open={renamingTabIdx !== null}
         title="Rename tab"
+        withEmoji={
+          renamingTabIdx !== null &&
+          pane.tabs[renamingTabIdx]?.kind !== "browser"
+        }
         initialValue={
           renamingTabIdx !== null
             ? pane.tabs[renamingTabIdx]?.label ?? ""
             : ""
         }
+        initialEmoji={
+          renamingTabIdx !== null ? pane.tabs[renamingTabIdx]?.emoji ?? "" : ""
+        }
         onClose={() => setRenamingTabIdx(null)}
-        onSubmit={(value) => {
+        onSubmit={(value, emoji) => {
           if (renamingTabIdx !== null)
-            onRenameTerminal(pane.id, renamingTabIdx, value);
+            onRenameTerminal(pane.id, renamingTabIdx, value, emoji);
         }}
       />
     </div>

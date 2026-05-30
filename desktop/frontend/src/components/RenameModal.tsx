@@ -1,44 +1,55 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Modal } from "./ui/Modal";
-import { EmojiPickerButton } from "./EmojiPickerButton";
+import { EmojiPickerButton, EmojiSlotButton } from "./EmojiPickerButton";
+import { TerminalIcon } from "./icons";
 import { modalInputDefaults } from "../forms/styles";
 
 interface RenameModalProps {
   open: boolean;
   title: string;
   initialValue: string;
+  // When true, shows a leading emoji slot (like the action editor) instead of
+  // the trailing insert-into-text picker, and reports the emoji via onSubmit.
+  withEmoji?: boolean;
+  initialEmoji?: string;
   onClose: () => void;
-  onSubmit: (value: string) => void;
+  onSubmit: (value: string, emoji?: string) => void;
 }
 
 export function RenameModal({
   open,
   title,
   initialValue,
+  withEmoji = false,
+  initialEmoji = "",
   onClose,
   onSubmit,
 }: RenameModalProps) {
   const [value, setValue] = useState(initialValue);
+  const [emoji, setEmoji] = useState(initialEmoji);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
     setValue(initialValue);
+    setEmoji(initialEmoji);
     requestAnimationFrame(() => {
       const el = inputRef.current;
       if (!el) return;
       el.focus();
       el.select();
     });
-  }, [open, initialValue]);
+  }, [open, initialValue, initialEmoji]);
 
   const trimmed = value.trim();
-  const canSubmit = trimmed.length > 0 && trimmed !== initialValue.trim();
+  const canSubmit =
+    trimmed.length > 0 &&
+    (trimmed !== initialValue.trim() || emoji !== initialEmoji);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
-    onSubmit(trimmed);
+    onSubmit(trimmed, withEmoji ? emoji : undefined);
     onClose();
   };
 
@@ -54,14 +65,26 @@ export function RenameModal({
           {title}
         </h3>
         <div className="relative mt-2">
+          {withEmoji && (
+            <EmojiSlotButton
+              inputRef={inputRef}
+              value={emoji}
+              onSelect={setEmoji}
+              placeholder={<TerminalIcon />}
+            />
+          )}
           <input
             ref={inputRef}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             {...modalInputDefaults}
-            className="w-full rounded-lg border border-[var(--border)] bg-transparent py-2.5 pl-3 pr-10 text-base text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
+            className={`w-full rounded-lg border border-[var(--border)] bg-transparent py-2.5 text-base text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)] ${
+              withEmoji ? "pl-12 pr-3" : "pl-3 pr-10"
+            }`}
           />
-          <EmojiPickerButton inputRef={inputRef} value={value} onChange={setValue} />
+          {!withEmoji && (
+            <EmojiPickerButton inputRef={inputRef} value={value} onChange={setValue} />
+          )}
         </div>
 
         <div className="mt-5 flex items-center justify-end gap-1">
