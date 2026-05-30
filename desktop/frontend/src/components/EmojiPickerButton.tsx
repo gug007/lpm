@@ -44,22 +44,13 @@ export function EmojiPickerButton({
   onChange,
   size = "sm",
 }: EmojiPickerButtonProps) {
-  const [open, setOpen] = useState(false);
-  const toggleRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const panelStyle = useAnchorBelow(inputRef, open);
-  const { button: sizeButtonClass, icon: iconSize } = SIZES[size];
-
-  useDismissOnOutsideClick(open, () => setOpen(false), [
-    panelRef,
-    toggleRef,
+  // Keep the picker open while clicking back into the input so several emoji
+  // can be inserted in a row.
+  const { open, setOpen, toggleRef, panelRef, panelStyle } = useEmojiPanel(
     inputRef,
-  ]);
-
-  useDismissOnEscape(open, () => {
-    setOpen(false);
-    inputRef.current?.focus();
-  });
+    [inputRef],
+  );
+  const { button: sizeButtonClass, icon: iconSize } = SIZES[size];
 
   const handleSelect = (emoji: string) => {
     const { value: next, cursor } = insertAtSelection(
@@ -95,13 +86,12 @@ export function EmojiPickerButton({
       >
         <SmileIcon size={iconSize} />
       </button>
-      {open && panelStyle &&
-        createPortal(
-          <div ref={panelRef} style={panelStyle} className={PANEL_CLASS}>
-            <EmojiPickerPanel onSelect={handleSelect} />
-          </div>,
-          document.body,
-        )}
+      <EmojiPanelPortal
+        open={open}
+        panelStyle={panelStyle}
+        panelRef={panelRef}
+        onSelect={handleSelect}
+      />
     </>
   );
 }
@@ -129,17 +119,8 @@ export function EmojiSlotButton({
   size = "md",
   placeholder,
 }: EmojiSlotButtonProps) {
-  const [open, setOpen] = useState(false);
-  const toggleRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const panelStyle = useAnchorBelow(inputRef, open);
+  const { open, setOpen, toggleRef, panelRef, panelStyle } = useEmojiPanel(inputRef);
   const { icon: iconSize } = SIZES[size];
-
-  useDismissOnOutsideClick(open, () => setOpen(false), [panelRef, toggleRef]);
-  useDismissOnEscape(open, () => {
-    setOpen(false);
-    inputRef.current?.focus();
-  });
 
   const handleSelect = (emoji: string) => {
     onSelect(emoji);
@@ -170,15 +151,56 @@ export function EmojiSlotButton({
           </span>
         )}
       </button>
-      {open &&
-        panelStyle &&
-        createPortal(
-          <div ref={panelRef} style={panelStyle} className={PANEL_CLASS}>
-            <EmojiPickerPanel onSelect={handleSelect} />
-          </div>,
-          document.body,
-        )}
+      <EmojiPanelPortal
+        open={open}
+        panelStyle={panelStyle}
+        panelRef={panelRef}
+        onSelect={handleSelect}
+      />
     </>
+  );
+}
+
+// Shared open/anchor/dismiss machinery for the two emoji triggers above.
+function useEmojiPanel(
+  inputRef: RefObject<HTMLInputElement | null>,
+  extraDismissRefs: ReadonlyArray<RefObject<HTMLElement | null>> = [],
+) {
+  const [open, setOpen] = useState(false);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const panelStyle = useAnchorBelow(inputRef, open);
+
+  useDismissOnOutsideClick(open, () => setOpen(false), [
+    panelRef,
+    toggleRef,
+    ...extraDismissRefs,
+  ]);
+  useDismissOnEscape(open, () => {
+    setOpen(false);
+    inputRef.current?.focus();
+  });
+
+  return { open, setOpen, toggleRef, panelRef, panelStyle };
+}
+
+function EmojiPanelPortal({
+  open,
+  panelStyle,
+  panelRef,
+  onSelect,
+}: {
+  open: boolean;
+  panelStyle: CSSProperties | null;
+  panelRef: RefObject<HTMLDivElement | null>;
+  onSelect: (emoji: string) => void;
+}) {
+  if (!open || !panelStyle) return null;
+  return createPortal(
+    <div ref={panelRef} style={panelStyle} className={PANEL_CLASS}>
+      <EmojiPickerPanel onSelect={onSelect} />
+    </div>,
+    document.body,
   );
 }
 
