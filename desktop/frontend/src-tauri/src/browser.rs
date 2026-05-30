@@ -60,10 +60,15 @@ pub fn open_browser(
     }
     let win = app.get_window("main").ok_or("main window not found")?;
     let (app2, id2) = (app.clone(), id.clone());
+    let (app_pl, id_pl) = (app.clone(), id.clone());
     let builder = WebviewBuilder::new(&id, WebviewUrl::External(parse_url(&url)?))
         .user_agent(SAFARI_UA)
-        .on_navigation(move |u| {
-            let _ = app2.emit("browser-url-changed", UrlChanged { id: id2.clone(), url: u.to_string() });
+        // Main-frame loads only, so the address bar follows the page itself — not
+        // the iframes/widgets a site embeds (Google's account switcher, etc.).
+        .on_page_load(move |_wv, payload| {
+            let _ = app_pl.emit("browser-url-changed", UrlChanged { id: id_pl.clone(), url: payload.url().to_string() });
+        })
+        .on_navigation(move |_u| {
             // Re-assert appearance on a worker thread: apply_webview_appearance →
             // with_webview blocks the main thread, and this callback runs on main.
             if let Some(dark) = app2.state::<BrowserState>().theme.lock().unwrap().get(&id2).copied() {
