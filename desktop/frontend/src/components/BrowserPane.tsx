@@ -12,6 +12,7 @@ import {
 } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 import { useOverlayStore } from "../store/overlay";
+import { useBrowserUrls } from "../store/browserUrls";
 import { getSettings, saveSettings } from "../store/settings";
 import { isDarkTheme } from "../theme";
 import { ChevronLeftIcon, ChevronRightIcon, RefreshIcon, SunIcon, MoonIcon, GlobeIcon } from "./icons";
@@ -95,7 +96,13 @@ export function BrowserPane({ id, active }: BrowserPaneProps) {
     };
   }, [opened, shown, id]);
 
-  useEffect(() => () => { CloseBrowser(id); }, [id]);
+  useEffect(
+    () => () => {
+      CloseBrowser(id);
+      useBrowserUrls.getState().clear(id);
+    },
+    [id],
+  );
 
   useEffect(() => {
     if (openedRef.current) SetBrowserTheme(id, dark);
@@ -108,7 +115,10 @@ export function BrowserPane({ id, active }: BrowserPaneProps) {
   useEffect(
     () =>
       EventsOn("browser-url-changed", (p: { id: string; url: string }) => {
-        if (p?.id === id && p.url && p.url !== "about:blank") setAddress(p.url);
+        if (p?.id === id && p.url && p.url !== "about:blank") {
+          setAddress(p.url);
+          useBrowserUrls.getState().setUrl(id, p.url);
+        }
       }),
     [id],
   );

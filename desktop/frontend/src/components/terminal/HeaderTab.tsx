@@ -1,10 +1,11 @@
-import { type MouseEvent } from "react";
+import { type MouseEvent, type ReactNode } from "react";
 import { Pin } from "lucide-react";
 import { XIcon } from "../icons";
 import { Tooltip } from "../ui/Tooltip";
 
 export function HeaderTab({
   label,
+  icon,
   active,
   onClick,
   onClose,
@@ -16,6 +17,7 @@ export function HeaderTab({
   error,
 }: {
   label: string;
+  icon?: ReactNode;
   active: boolean;
   onClick: () => void;
   onClose?: () => void;
@@ -36,6 +38,11 @@ export function HeaderTab({
           : "text-[var(--terminal-header-text)] hover:text-[var(--terminal-tab-active)]"
       }`}
     >
+      {icon && (
+        <span className="flex shrink-0 items-center opacity-80 [&>svg]:h-3 [&>svg]:w-3">
+          {icon}
+        </span>
+      )}
       <span
         className={
           error

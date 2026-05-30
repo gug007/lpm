@@ -16,12 +16,44 @@ import {
   ShrinkIcon,
 } from "./terminal/icons";
 import { TerminalSearchBar } from "./terminal/TerminalSearchBar";
-import { XIcon, GlobeIcon } from "./icons";
+import { XIcon, GlobeIcon, TerminalIcon, ZapIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
 import { SortableTab, TabStrip } from "./TerminalTabDnd";
 import { ALL_SERVICES, type PaneLeaf, type SplitDirection } from "../paneTree";
+import { useBrowserUrls } from "../store/browserUrls";
 
 export type StatusKind = "Done" | "Waiting" | "Error";
+
+function faviconFor(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    return `${u.origin}/favicon.ico`;
+  } catch {
+    return null;
+  }
+}
+
+// The in-pane browser has no IPC to report its real favicon, so guess it from
+// the origin and fall back to a globe when that 404s or doesn't decode (some
+// servers answer /favicon.ico with an HTML page → naturalWidth 0).
+function BrowserTabIcon({ id }: { id: string }) {
+  const url = useBrowserUrls((s) => s.urls[id]);
+  const src = faviconFor(url);
+  const [brokenSrc, setBrokenSrc] = useState<string | null>(null);
+  if (!src || src === brokenSrc) return <GlobeIcon />;
+  return (
+    <img
+      src={src}
+      alt=""
+      draggable={false}
+      onError={() => setBrokenSrc(src)}
+      onLoad={(e) => { if (e.currentTarget.naturalWidth === 0) setBrokenSrc(src); }}
+      className="h-3 w-3 rounded-sm"
+    />
+  );
+}
 
 /** A running service that the primary pane renders as an additional tab. */
 export interface ServiceTabInfo {
@@ -170,6 +202,7 @@ function PaneViewImpl(props: PaneViewProps) {
           {hasMultipleServices && (
             <HeaderTab
               label="All"
+              icon={<ZapIcon />}
               active={isAllActive}
               onClick={() => onFocusService(pane.id, ALL_SERVICES)}
             />
@@ -180,6 +213,7 @@ function PaneViewImpl(props: PaneViewProps) {
               <HeaderTab
                 key={`svc:${svc.name}`}
                 label={svc.name}
+                icon={<ZapIcon />}
                 active={isActive}
                 onClick={() => onFocusService(pane.id, svc.name)}
               />
@@ -200,6 +234,7 @@ function PaneViewImpl(props: PaneViewProps) {
                 <SortableTab key={t.id} id={t.id} paneId={pane.id} index={i}>
                   <HeaderTab
                     label={t.label}
+                    icon={t.kind === "browser" ? <BrowserTabIcon id={t.id} /> : <TerminalIcon />}
                     active={isActive}
                     pinned={t.pinned}
                     shimmer={runningPaneIDs?.has(t.id) ?? false}
