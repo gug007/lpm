@@ -88,6 +88,17 @@ pub fn run() {
         .manage(sshsync::SyncState::default())
         .manage(browser::BrowserState::default())
         .on_menu_event(menu::handle_event)
+        .on_window_event(|window, event| {
+            // Closing the main window hides it instead of quitting, so terminals,
+            // port forwards, sync watchers and the status socket keep running
+            // (matches the Wails app). Detached project windows close normally.
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .setup(|app| {
             let handle = app.handle().clone();
             if let Err(e) = menu::build_and_set(&handle) {
@@ -130,12 +141,24 @@ pub fn run() {
         .invoke_handler(crate::all_command_handlers!())
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app, event| {
-            if let tauri::RunEvent::Exit = event {
+        .run(|app, event| match event {
+            tauri::RunEvent::Exit => {
                 tts::stop_on_exit(app); // kill any suspended python TTS child
                 portforward::stop_all_forwards(app); // kill ssh -L tunnels + pollers
                 sshsync::stop_all_sync_watchers(app); // drop rsync mirror watchers
                 let _ = std::fs::remove_file(config::socket_path());
             }
+            // Dock-icon click with no visible window restores the hidden main
+            // window — otherwise it would stay hidden after the close button.
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Reopen { has_visible_windows, .. } => {
+                if !has_visible_windows {
+                    if let Some(win) = app.get_webview_window("main") {
+                        let _ = win.show();
+                        let _ = win.set_focus();
+                    }
+                }
+            }
+            _ => {}
         });
 }

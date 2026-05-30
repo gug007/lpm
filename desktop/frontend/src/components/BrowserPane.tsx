@@ -14,7 +14,7 @@ import { EventsOn } from "../../bridge/runtime";
 import { useOverlayStore } from "../store/overlay";
 import { getSettings, saveSettings } from "../store/settings";
 import { isDarkTheme } from "../theme";
-import { ChevronLeftIcon, ChevronRightIcon, RefreshIcon, SunIcon, MoonIcon } from "./icons";
+import { ChevronLeftIcon, ChevronRightIcon, RefreshIcon, SunIcon, MoonIcon, GlobeIcon } from "./icons";
 
 interface BrowserPaneProps {
   id: string;
@@ -31,11 +31,21 @@ function toTarget(raw: string): string {
   return "https://www.google.com/search?q=" + encodeURIComponent(v);
 }
 
+function hostOf(addr: string): string {
+  try {
+    return new URL(addr).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
 export function BrowserPane({ id, active }: BrowserPaneProps) {
   const holeRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const openedRef = useRef(false);
   const lastRectRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const [address, setAddress] = useState("");
+  const [opened, setOpened] = useState(false);
   const overlayOpen = useOverlayStore((s) => s.count > 0);
   const [dark, setDark] = useState(() => {
     const remembered = getSettings().browserTheme;
@@ -49,6 +59,7 @@ export function BrowserPane({ id, active }: BrowserPaneProps) {
   const shown = active && !overlayOpen;
 
   useEffect(() => {
+    if (!opened) return; // lazy: no webview to place until the first navigation
     if (!shown) {
       HideBrowser(id);
       lastRectRef.current = null; // force a reposition on re-show (it's parked offscreen)
@@ -60,13 +71,6 @@ export function BrowserPane({ id, active }: BrowserPaneProps) {
       if (!el) return;
       const r = el.getBoundingClientRect();
       const rect = { x: r.left, y: r.top, w: r.width, h: r.height };
-      if (!openedRef.current) {
-        openedRef.current = true;
-        lastRectRef.current = rect;
-        OpenBrowser(id, "", rect.x, rect.y, rect.w, rect.h);
-        SetBrowserTheme(id, darkRef.current);
-        return;
-      }
       const last = lastRectRef.current;
       if (last && last.x === rect.x && last.y === rect.y && last.w === rect.w && last.h === rect.h) {
         return; // unchanged — skip the IPC (e.g. unrelated scrolling)
@@ -89,13 +93,17 @@ export function BrowserPane({ id, active }: BrowserPaneProps) {
       window.removeEventListener("resize", schedule);
       window.removeEventListener("scroll", schedule, true);
     };
-  }, [shown, id]);
+  }, [opened, shown, id]);
 
   useEffect(() => () => { CloseBrowser(id); }, [id]);
 
   useEffect(() => {
     if (openedRef.current) SetBrowserTheme(id, dark);
   }, [id, dark]);
+
+  useEffect(() => {
+    if (active && !opened) inputRef.current?.focus();
+  }, [active, opened]);
 
   useEffect(
     () =>
@@ -109,18 +117,30 @@ export function BrowserPane({ id, active }: BrowserPaneProps) {
     e.preventDefault();
     const target = toTarget(address);
     if (!target) return;
-    const el = holeRef.current;
-    if (!openedRef.current && el) {
-      const r = el.getBoundingClientRect();
-      openedRef.current = true;
-      OpenBrowser(id, target, r.left, r.top, r.width, r.height);
-    } else {
+    if (openedRef.current) {
       NavigateBrowser(id, target);
+      return;
     }
+    const r = holeRef.current?.getBoundingClientRect();
+    const rect = r ? { x: r.left, y: r.top, w: r.width, h: r.height } : { x: 0, y: 0, w: 1, h: 1 };
+    lastRectRef.current = rect;
+    openedRef.current = true;
+    OpenBrowser(id, target, rect.x, rect.y, rect.w, rect.h);
+    SetBrowserTheme(id, darkRef.current);
+    setOpened(true);
   };
 
   const navBtn =
     "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] [&>svg]:h-4 [&>svg]:w-4";
+
+  // The content area mirrors the chosen BROWSER theme (not the app theme), so a
+  // light browser shows a light surface here instead of the dark app background.
+  const surface = dark ? "bg-[#1c1c1e]" : "bg-white";
+  const badge = dark
+    ? "border-white/10 bg-white/[0.06] text-white/55"
+    : "border-black/10 bg-black/[0.04] text-black/45";
+  const emptyTitle = dark ? "text-white/85" : "text-black/80";
+  const emptySub = dark ? "text-white/45" : "text-black/45";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -136,6 +156,7 @@ export function BrowserPane({ id, active }: BrowserPaneProps) {
         </button>
         <form onSubmit={go} className="flex-1">
           <input
+            ref={inputRef}
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             spellCheck={false}
@@ -160,8 +181,33 @@ export function BrowserPane({ id, active }: BrowserPaneProps) {
           {dark ? <SunIcon /> : <MoonIcon />}
         </button>
       </div>
-      {/* The native browser webview is positioned over this placeholder. */}
-      <div ref={holeRef} className="min-h-0 flex-1 bg-[var(--bg-primary)]" />
+      {/* The native webview floats over this hole once a page is opened. Before
+          that — and while it's parked behind an overlay — the React layer shows. */}
+      <div ref={holeRef} className={`relative min-h-0 flex-1 ${surface}`}>
+        {!opened ? (
+          <div
+            onClick={() => inputRef.current?.focus()}
+            className="absolute inset-0 flex cursor-text select-none flex-col items-center justify-center gap-4 px-6 text-center"
+          >
+            <div className={`flex h-16 w-16 items-center justify-center rounded-2xl border ${badge} [&>svg]:h-7 [&>svg]:w-7`}>
+              <GlobeIcon />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className={`text-sm font-medium ${emptyTitle}`}>Search the web</span>
+              <span className={`text-xs ${emptySub}`}>Type a search or enter a web address to get started</span>
+            </div>
+          </div>
+        ) : (
+          !shown && (
+            <div className={`pointer-events-none absolute inset-0 flex select-none flex-col items-center justify-center gap-3 ${emptySub}`}>
+              <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border ${badge} [&>svg]:h-6 [&>svg]:w-6`}>
+                <GlobeIcon />
+              </div>
+              <span className={`text-xs font-medium tracking-wide ${emptyTitle}`}>{hostOf(address) || "New tab"}</span>
+            </div>
+          )
+        )}
+      </div>
     </div>
   );
 }
