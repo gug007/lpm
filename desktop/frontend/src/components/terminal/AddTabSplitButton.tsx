@@ -28,10 +28,13 @@ export function AddTabSplitButton({
   };
 
   const half =
-    "flex items-center py-1 text-[var(--terminal-header-text)] transition-colors duration-150 hover:bg-[var(--terminal-header-hover)] hover:text-[var(--terminal-tab-active)]";
+    "flex items-center py-1 text-[var(--terminal-header-text)] transition-colors duration-150 hover:bg-[var(--terminal-header-active)] hover:text-[var(--terminal-tab-active)]";
 
   return (
-    <div ref={ref} className="flex shrink-0 items-center">
+    <div
+      ref={ref}
+      className="ml-2 flex shrink-0 items-center rounded-md bg-[var(--terminal-header-hover)]"
+    >
       <button
         onClick={onAddTerminal}
         title="New terminal (⌘T)"
@@ -39,16 +42,16 @@ export function AddTabSplitButton({
       >
         <PlusIcon />
       </button>
-      <span className="h-3 w-px self-center bg-[var(--terminal-header-hover)]" />
+      <span className="h-3.5 w-px self-center bg-[var(--terminal-header-border)] opacity-40" />
       <button
         onMouseDown={(e) => e.stopPropagation()}
         onClick={toggleMenu}
         title="More options"
         aria-haspopup="menu"
         aria-expanded={!!menu}
-        className={`${half} rounded-r-md pl-0.5 pr-1 [&>svg]:h-3 [&>svg]:w-3 ${
+        className={`${half} rounded-r-md px-1.5 [&>svg]:h-3 [&>svg]:w-3 ${
           menu
-            ? "bg-[var(--terminal-header-hover)] text-[var(--terminal-tab-active)] opacity-100"
+            ? "bg-[var(--terminal-header-active)] text-[var(--terminal-tab-active)]"
             : "opacity-70 hover:opacity-100"
         }`}
       >
