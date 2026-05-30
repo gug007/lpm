@@ -3,3 +3,9 @@
 
 # Tauri-generated capability schemas
 /gen/schemas
+
+# `tauri icon` mobile / Windows-Store output — this app is macOS-only
+/icons/android
+/icons/ios
+/icons/Square*Logo.png
+/icons/StoreLogo.png

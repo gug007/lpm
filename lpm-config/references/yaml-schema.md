@@ -506,8 +506,8 @@ extends:
 
 services:
   dev:
-    cmd: ./cleanup.sh && wails3 dev
-    cwd: ./desktop
+    cmd: ./cleanup.sh && npm run tauri dev
+    cwd: ./desktop/frontend
 
   website:
     cmd: npm run dev

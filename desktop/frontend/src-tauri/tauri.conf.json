@@ -31,6 +31,13 @@
   "bundle": {
     "active": true,
     "targets": ["app", "dmg"],
-    "icon": ["icons/icon.png"]
+    "icon": ["icons/icon.icns", "icons/icon.png"],
+    "copyright": "© 2026 gug007",
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "hardenedRuntime": true,
+      "entitlements": "entitlements.plist",
+      "providerShortName": "N7S7ZCZ5P7"
+    }
   }
 }

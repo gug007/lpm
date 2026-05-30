@@ -7,11 +7,6 @@ lpm
 *.exe
 
 # Desktop app
-desktop/desktop
-desktop/.task/
-desktop/bin/
-desktop/build/bin/
-desktop/build/darwin/icons.icns
 desktop/frontend/dist/
 desktop/frontend/node_modules/
 desktop/frontend/src-tauri/target/
