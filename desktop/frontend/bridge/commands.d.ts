@@ -30,6 +30,7 @@ export function DuplicateProject(...args: any[]): Promise<any>;
 export function ExportConfig(...args: any[]): Promise<any>;
 export function FileExists(...args: any[]): Promise<any>;
 export function FocusDetachedWindow(...args: any[]): Promise<any>;
+export function FocusMainWindow(...args: any[]): Promise<any>;
 export function GenerateActionYAML(...args: any[]): Promise<any>;
 export function GenerateBranchName(...args: any[]): Promise<any>;
 export function GenerateCommitMessage(...args: any[]): Promise<any>;

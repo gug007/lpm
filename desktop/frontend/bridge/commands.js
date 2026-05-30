@@ -94,6 +94,9 @@ export function FileExists(absPath) {
 export function FocusDetachedWindow(projectName) {
   return invoke("focus_detached_window", { projectName });
 }
+export function FocusMainWindow(project, view, addProject) {
+  return invoke("focus_main_window", { project, view, addProject });
+}
 export function GenerateActionYAML(projectName, cli, model, effort, fast, userPrompt, currentYAML) {
   return invoke("generate_action_yaml", { projectName, cli, model, effort, fast, userPrompt, currentYaml: currentYAML });
 }

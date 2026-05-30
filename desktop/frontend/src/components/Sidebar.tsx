@@ -35,6 +35,7 @@ interface SidebarProps {
   onDetachProject: (name: string) => void;
   onAttachProject: (name: string) => void;
   detached: Set<string>;
+  detachedSelf?: string;
   showTerminals: boolean;
   showSettings: boolean;
   duplicatingName: string | null;
@@ -66,7 +67,7 @@ function computeStatus(project: ProjectInfo): ProjectStatus {
   return { isRunning, isDone, isWaiting, isError, className };
 }
 
-export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onDuplicateProject, onRemoveProject, onRenameProject, onReorder, onDetachProject, onAttachProject, detached, showTerminals, showSettings, duplicatingName, removingName }: SidebarProps) {
+export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onDuplicateProject, onRemoveProject, onRenameProject, onReorder, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showSettings, duplicatingName, removingName }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -177,7 +178,8 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           {rows.map(({ project, isChild }) => {
             const status = computeStatus(project);
             const isDetached = detached.has(project.name);
-            const isSelected = selected === project.name && !isDetached;
+            const isSelf = project.name === detachedSelf;
+            const isSelected = selected === project.name && (!isDetached || isSelf);
             const isContextTarget = contextMenu?.name === project.name;
             const isBusy = duplicatingName === project.name || removingName === project.name;
             const parent = project.parentName ? projectByName.get(project.parentName) : undefined;
@@ -221,7 +223,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                   >
                     {status.className ? <span className={status.className}>{name}</span> : name}
                   </span>
-                  {isDetached && (
+                  {isDetached && !isSelf && (
                     <span
                       className="shrink-0 text-[var(--text-muted)]"
                       title="Open in a separate window — click to focus"

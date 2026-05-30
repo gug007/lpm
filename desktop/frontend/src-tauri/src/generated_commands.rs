@@ -119,6 +119,7 @@ macro_rules! all_command_handlers {
         read_pr_title_instructions,
         read_repo_config,
         read_template,
+        focus_main_window,
         remove_port_forward,
         remove_project,
         rename_branch,

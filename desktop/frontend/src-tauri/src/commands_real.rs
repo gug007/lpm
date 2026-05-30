@@ -5,7 +5,7 @@ use crate::services::ServiceState;
 use crate::status::StatusStore;
 use serde_json::{json, Value};
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 /// Overwrite a ProjectInfo's `statusEntries` ([] by default) with the live
 /// per-pane status rows so badges render. Keyed by the project file name.
@@ -122,6 +122,29 @@ pub fn get_project(
         inject_status(p, &status);
     }
     Ok(proj)
+}
+
+#[tauri::command]
+pub fn focus_main_window(
+    app: AppHandle,
+    project: Option<String>,
+    view: Option<String>,
+    add_project: Option<bool>,
+) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
+    if let Some(p) = project {
+        let _ = app.emit("dock-project-selected", p);
+    }
+    if let Some(v) = view {
+        let _ = app.emit("navigate-main-view", v);
+    }
+    if add_project == Some(true) {
+        let _ = app.emit("open-new-project", ());
+    }
+    Ok(())
 }
 
 #[tauri::command]

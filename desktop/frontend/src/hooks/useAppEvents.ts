@@ -30,10 +30,17 @@ export function useAmbientAppEvents(): void {
 export function useAppEvents(): void {
   useAmbientAppEvents();
   useEffect(() => {
-    const { selectProject, setView, setFeedbackOpen } = useAppStore.getState();
+    const { selectProject, setView, setFeedbackOpen, addProject } =
+      useAppStore.getState();
 
     const cancelDock = EventsOn("dock-project-selected", (name: string) => {
       selectProject(name);
+    });
+    const cancelNavView = EventsOn("navigate-main-view", (view: string) => {
+      setView(view as Parameters<typeof setView>[0]);
+    });
+    const cancelNewProject = EventsOn("open-new-project", () => {
+      addProject();
     });
     const cancelSettings = EventsOn("menu-open-settings", () => {
       setView("settings");
@@ -53,6 +60,8 @@ export function useAppEvents(): void {
 
     return () => {
       if (typeof cancelDock === "function") cancelDock();
+      if (typeof cancelNavView === "function") cancelNavView();
+      if (typeof cancelNewProject === "function") cancelNewProject();
       if (typeof cancelSettings === "function") cancelSettings();
       if (typeof cancelCommitInstr === "function") cancelCommitInstr();
       if (typeof cancelPRInstr === "function") cancelPRInstr();
