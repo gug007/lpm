@@ -50,6 +50,13 @@ export function tabKey(content: LeafContent): string {
   return `a:${content.key}`;
 }
 
+export function defaultLabel(content: LeafContent): string {
+  if (content.kind === "service") return content.name;
+  if (content.kind === "shell") return "terminal";
+  if (content.kind === "browser") return "Browser";
+  return content.label;
+}
+
 export function findLeaf(node: PaneNode, id: string): PaneLeaf | null {
   if (node.kind === "leaf") return node.id === id ? node : null;
   return findLeaf(node.a, id) ?? findLeaf(node.b, id);

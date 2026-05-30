@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Play, Terminal as TerminalIcon } from "lucide-react";
-import { SUGGESTED_EMOJIS } from "./tab-controls";
+import { EmojiPickerField } from "./tab-controls";
 
 export type NewActionRunMode = "once" | "terminal";
 
@@ -28,7 +28,6 @@ export function DemoAddActionModal({
   const [cmd, setCmd] = useState("");
   const [runMode, setRunMode] = useState<NewActionRunMode>("once");
   const [confirm, setConfirm] = useState(false);
-  const [picking, setPicking] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -38,7 +37,6 @@ export function DemoAddActionModal({
     setCmd("");
     setRunMode("once");
     setConfirm(false);
-    setPicking(false);
     const id = requestAnimationFrame(() => nameRef.current?.focus());
     return () => cancelAnimationFrame(id);
   }, [open]);
@@ -82,15 +80,7 @@ export function DemoAddActionModal({
             <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
               Name
             </span>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setPicking((v) => !v)}
-                title="Pick an icon"
-                className="absolute left-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg border border-[#2e2e2e] bg-[#242424] text-[15px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a]"
-              >
-                {emoji || <TerminalIcon className="h-4 w-4" />}
-              </button>
+            <EmojiPickerField emoji={emoji} onChange={setEmoji} inputRef={nameRef}>
               <input
                 ref={nameRef}
                 value={name}
@@ -99,29 +89,7 @@ export function DemoAddActionModal({
                 spellCheck={false}
                 className="w-full rounded-lg border border-[#2e2e2e] bg-transparent py-2.5 pl-12 pr-3 text-sm text-[#e5e5e5] outline-none transition-colors placeholder:text-[#666] focus:border-cyan-500"
               />
-              {picking && (
-                <div className="absolute left-0 top-full z-10 mt-1.5 w-full rounded-xl border border-[#2e2e2e] bg-[#242424] p-2 shadow-xl">
-                  <div className="grid grid-cols-8 gap-0.5">
-                    {SUGGESTED_EMOJIS.map((em) => (
-                      <button
-                        key={em}
-                        type="button"
-                        onClick={() => {
-                          setEmoji(em);
-                          setPicking(false);
-                          nameRef.current?.focus();
-                        }}
-                        className={`flex aspect-square items-center justify-center rounded-md text-lg transition-colors hover:bg-[#2f2f2f] ${
-                          emoji === em ? "bg-[#2f2f2f]" : ""
-                        }`}
-                      >
-                        {em}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            </EmojiPickerField>
           </div>
 
           <label className="flex flex-col gap-1.5">

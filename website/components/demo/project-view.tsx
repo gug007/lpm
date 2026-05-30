@@ -38,6 +38,7 @@ import {
   closeServiceTab,
   closeTabInLeaf,
   collectServiceNames,
+  defaultLabel,
   findLeaf,
   makeLeaf,
   newBrowserContent,
@@ -455,12 +456,11 @@ export function DemoProjectView({
         const tab = leaf?.tabs[renaming.tabIdx];
         if (!tab || tab.kind === "service") return null;
         const isBrowser = tab.kind === "browser";
-        const defaultLabel = isBrowser ? "Browser" : tab.kind === "shell" ? "terminal" : tab.label;
         return (
           <TabRenameModal
             open
             withEmoji={!isBrowser}
-            initialValue={tab.label ?? defaultLabel}
+            initialValue={tab.label ?? defaultLabel(tab)}
             initialEmoji={tab.kind === "browser" ? "" : tab.emoji ?? ""}
             onClose={() => setRenaming(null)}
             onSubmit={(value, emoji) =>
@@ -531,7 +531,7 @@ function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
     return {
       info: {
         key,
-        label: tab.label ?? "terminal",
+        label: tab.label ?? defaultLabel(tab),
         type: "terminal",
         running: true,
         emoji: tab.emoji,
@@ -544,7 +544,7 @@ function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
     return {
       info: {
         key,
-        label: tab.label ?? "Browser",
+        label: tab.label ?? defaultLabel(tab),
         type: "browser",
         running: true,
         pinned: tab.pinned,

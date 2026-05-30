@@ -87,29 +87,30 @@ interface Palette {
   green: string;
 }
 
-function palette(dark: boolean): Palette {
-  return dark
-    ? {
-        bg: "#1c1c1e",
-        panel: "#26262b",
-        panel2: "#2f2f35",
-        border: "#3a3a41",
-        text: "#e7e7ea",
-        sub: "#9a9aa3",
-        accent: "#6aa3ff",
-        green: "#34d399",
-      }
-    : {
-        bg: "#ffffff",
-        panel: "#f6f7f9",
-        panel2: "#eef0f3",
-        border: "#e3e5ea",
-        text: "#1b1b1f",
-        sub: "#6b7280",
-        accent: "#2563eb",
-        green: "#059669",
-      };
-}
+const DARK: Palette = {
+  bg: "#1c1c1e",
+  panel: "#26262b",
+  panel2: "#2f2f35",
+  border: "#3a3a41",
+  text: "#e7e7ea",
+  sub: "#9a9aa3",
+  accent: "#6aa3ff",
+  green: "#34d399",
+};
+
+const LIGHT: Palette = {
+  bg: "#ffffff",
+  panel: "#f6f7f9",
+  panel2: "#eef0f3",
+  border: "#e3e5ea",
+  text: "#1b1b1f",
+  sub: "#6b7280",
+  accent: "#2563eb",
+  green: "#059669",
+};
+
+const NAV_BTN =
+  "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#919191] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[#919191]";
 
 export function BrowserView({
   project,
@@ -126,7 +127,7 @@ export function BrowserView({
   const [dark, setDark] = useState(true);
 
   const url = histIdx >= 0 ? history[histIdx] : null;
-  const c = palette(dark);
+  const c = dark ? DARK : LIGHT;
 
   useEffect(() => {
     if (!url) inputRef.current?.focus();
@@ -149,50 +150,42 @@ export function BrowserView({
     navigate(address);
   };
 
-  const back = () => {
-    if (histIdx <= 0) return;
-    const i = histIdx - 1;
+  const step = (delta: -1 | 1) => {
+    const i = histIdx + delta;
+    if (i < 0 || i >= history.length) return;
     setHistIdx(i);
     setAddress(history[i]);
     setNav((n) => n + 1);
   };
 
-  const forward = () => {
-    if (histIdx >= history.length - 1) return;
-    const i = histIdx + 1;
-    setHistIdx(i);
-    setAddress(history[i]);
-    setNav((n) => n + 1);
-  };
+  const back = () => step(-1);
+  const forward = () => step(1);
 
   const reload = () => setNav((n) => n + 1);
 
   const canBack = histIdx > 0;
   const canForward = histIdx >= 0 && histIdx < history.length - 1;
 
-  const localChips = useMemo(
+  const localPorts = useMemo(
     () =>
       project.services
         .filter((s) => s.port !== undefined)
-        .map((s) => ({ name: s.name, port: s.port as number })),
+        .map((s) => s.port as number),
     [project],
   );
 
-  const navBtn =
-    "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#919191] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[#919191]";
-
-  const parsed = url ? parse(url) : null;
+  const parsed = useMemo(() => (url ? parse(url) : null), [url]);
   const secure = parsed ? parsed.raw.startsWith("https://") : false;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[#1a1a1a]">
       {/* Browser chrome — stays dark like the rest of the demo */}
       <div className="flex items-center gap-1 border-b border-[#2e2e2e] bg-[#242424] px-2 py-1.5">
-        <button className={navBtn} onClick={back} disabled={!canBack} title="Back" aria-label="Back">
+        <button className={NAV_BTN} onClick={back} disabled={!canBack} title="Back" aria-label="Back">
           <ChevronLeft className="h-4 w-4" />
         </button>
         <button
-          className={navBtn}
+          className={NAV_BTN}
           onClick={forward}
           disabled={!canForward}
           title="Forward"
@@ -200,7 +193,7 @@ export function BrowserView({
         >
           <ChevronRight className="h-4 w-4" />
         </button>
-        <button className={navBtn} onClick={reload} title="Reload" aria-label="Reload">
+        <button className={NAV_BTN} onClick={reload} title="Reload" aria-label="Reload">
           <RotateCw className="h-3.5 w-3.5" />
         </button>
         <form onSubmit={go} className="relative flex-1">
@@ -227,7 +220,7 @@ export function BrowserView({
           />
         </form>
         <button
-          className={navBtn}
+          className={NAV_BTN}
           onClick={() => setDark((d) => !d)}
           title={dark ? "Switch page to light" : "Switch page to dark"}
           aria-label="Toggle page theme"
@@ -241,7 +234,7 @@ export function BrowserView({
         {!parsed ? (
           <EmptyState
             c={c}
-            chips={localChips}
+            ports={localPorts}
             onChip={(port) => navigate(`http://localhost:${port}`)}
             onFocus={() => inputRef.current?.focus()}
           />
@@ -293,12 +286,12 @@ function LoadingBar({ accent }: { accent: string }) {
 
 function EmptyState({
   c,
-  chips,
+  ports,
   onChip,
   onFocus,
 }: {
   c: Palette;
-  chips: { name: string; port: number }[];
+  ports: number[];
   onChip: (port: number) => void;
   onFocus: () => void;
 }) {
@@ -321,23 +314,23 @@ function EmptyState({
           Type a search or enter a web address to get started
         </span>
       </div>
-      {chips.length > 0 && (
+      {ports.length > 0 && (
         <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
           <span className="text-[11px]" style={{ color: c.sub }}>
             Preview your dev server:
           </span>
-          {chips.map((chip) => (
+          {ports.map((port) => (
             <button
-              key={chip.port}
+              key={port}
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onChip(chip.port);
+                onChip(port);
               }}
               className="rounded-full border px-2.5 py-1 font-mono text-[11px] transition-colors"
               style={{ borderColor: c.border, color: c.text, background: c.panel }}
             >
-              localhost:{chip.port}
+              localhost:{port}
             </button>
           ))}
         </div>

@@ -157,14 +157,12 @@ export function TabRenameModal({
 }) {
   const [value, setValue] = useState(initialValue);
   const [emoji, setEmoji] = useState(initialEmoji);
-  const [picking, setPicking] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
     setValue(initialValue);
     setEmoji(initialEmoji);
-    setPicking(false);
     const id = requestAnimationFrame(() => {
       inputRef.current?.focus();
       inputRef.current?.select();
@@ -200,64 +198,34 @@ export function TabRenameModal({
         <h3 className="text-[11px] font-medium uppercase tracking-wider text-[#919191]">
           Rename tab
         </h3>
-        <div className="relative mt-2">
-          {withEmoji && (
-            <button
-              type="button"
-              onClick={() => setPicking((v) => !v)}
-              title="Pick an icon"
-              className="absolute left-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg border border-[#2e2e2e] bg-[#242424] text-[15px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a]"
+        {(() => {
+          const field = (
+            <input
+              ref={inputRef}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              spellCheck={false}
+              autoCapitalize="off"
+              autoCorrect="off"
+              className={`w-full rounded-lg border border-[#2e2e2e] bg-transparent py-2.5 text-base text-[#e5e5e5] outline-none transition-colors placeholder:text-[#666] focus:border-cyan-500 ${
+                withEmoji ? "pl-12 pr-3" : "px-3"
+              }`}
+            />
+          );
+          return withEmoji ? (
+            <EmojiPickerField
+              emoji={emoji}
+              onChange={setEmoji}
+              inputRef={inputRef}
+              allowRemove
+              className="mt-2"
             >
-              {emoji || <TerminalIcon className="h-4 w-4" />}
-            </button>
-          )}
-          <input
-            ref={inputRef}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            spellCheck={false}
-            autoCapitalize="off"
-            autoCorrect="off"
-            className={`w-full rounded-lg border border-[#2e2e2e] bg-transparent py-2.5 text-base text-[#e5e5e5] outline-none transition-colors placeholder:text-[#666] focus:border-cyan-500 ${
-              withEmoji ? "pl-12 pr-3" : "px-3"
-            }`}
-          />
-          {withEmoji && picking && (
-            <div className="absolute left-0 top-full z-10 mt-1.5 w-full rounded-xl border border-[#2e2e2e] bg-[#242424] p-2 shadow-xl">
-              <div className="grid grid-cols-8 gap-0.5">
-                {SUGGESTED_EMOJIS.map((em) => (
-                  <button
-                    key={em}
-                    type="button"
-                    onClick={() => {
-                      setEmoji(em);
-                      setPicking(false);
-                      inputRef.current?.focus();
-                    }}
-                    className={`flex aspect-square items-center justify-center rounded-md text-lg transition-colors hover:bg-[#2f2f2f] ${
-                      emoji === em ? "bg-[#2f2f2f]" : ""
-                    }`}
-                  >
-                    {em}
-                  </button>
-                ))}
-              </div>
-              {emoji && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmoji("");
-                    setPicking(false);
-                    inputRef.current?.focus();
-                  }}
-                  className="mt-1.5 w-full rounded-md px-2 py-1 text-left text-[11px] text-[#919191] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
-                >
-                  Remove icon
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+              {field}
+            </EmojiPickerField>
+          ) : (
+            <div className="mt-2">{field}</div>
+          );
+        })()}
         <div className="mt-5 flex items-center justify-end gap-1">
           <button
             type="button"
@@ -307,6 +275,71 @@ function MenuLayer({
       />
       {children}
     </>
+  );
+}
+
+/** Text field with a leading emoji-picker trigger and a popover of suggested
+ *  icons. Render the `<input>` (or any field) as the child. */
+export function EmojiPickerField({
+  emoji,
+  onChange,
+  inputRef,
+  allowRemove,
+  className,
+  children,
+}: {
+  emoji: string;
+  onChange: (emoji: string) => void;
+  inputRef: { current: HTMLInputElement | null };
+  allowRemove?: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const [picking, setPicking] = useState(false);
+  const pick = (em: string) => {
+    onChange(em);
+    setPicking(false);
+    inputRef.current?.focus();
+  };
+  return (
+    <div className={`relative${className ? ` ${className}` : ""}`}>
+      <button
+        type="button"
+        onClick={() => setPicking((v) => !v)}
+        title="Pick an icon"
+        className="absolute left-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg border border-[#2e2e2e] bg-[#242424] text-[15px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a]"
+      >
+        {emoji || <TerminalIcon className="h-4 w-4" />}
+      </button>
+      {children}
+      {picking && (
+        <div className="absolute left-0 top-full z-10 mt-1.5 w-full rounded-xl border border-[#2e2e2e] bg-[#242424] p-2 shadow-xl">
+          <div className="grid grid-cols-8 gap-0.5">
+            {SUGGESTED_EMOJIS.map((em) => (
+              <button
+                key={em}
+                type="button"
+                onClick={() => pick(em)}
+                className={`flex aspect-square items-center justify-center rounded-md text-lg transition-colors hover:bg-[#2f2f2f] ${
+                  emoji === em ? "bg-[#2f2f2f]" : ""
+                }`}
+              >
+                {em}
+              </button>
+            ))}
+          </div>
+          {allowRemove && emoji && (
+            <button
+              type="button"
+              onClick={() => pick("")}
+              className="mt-1.5 w-full rounded-md px-2 py-1 text-left text-[11px] text-[#919191] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
+            >
+              Remove icon
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
