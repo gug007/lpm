@@ -2,8 +2,9 @@ export type SplitDirection = "row" | "col";
 
 export type LeafContent =
   | { kind: "service"; name: string }
-  | { kind: "shell"; id: string }
-  | { kind: "action"; key: string; label: string };
+  | { kind: "shell"; id: string; label?: string; emoji?: string; pinned?: boolean }
+  | { kind: "action"; key: string; label: string; emoji?: string; pinned?: boolean }
+  | { kind: "browser"; id: string; label?: string; pinned?: boolean };
 
 export interface PaneLeaf {
   kind: "leaf";
@@ -30,6 +31,10 @@ export function newShellContent(): LeafContent {
   return { kind: "shell", id: `sh-${Date.now().toString(36)}-${rand(4)}` };
 }
 
+export function newBrowserContent(): LeafContent {
+  return { kind: "browser", id: `br-${Date.now().toString(36)}-${rand(4)}` };
+}
+
 function newLeafId(): string {
   return `p-${Date.now().toString(36)}-${rand(4)}`;
 }
@@ -41,6 +46,7 @@ export function makeLeaf(content: LeafContent): PaneLeaf {
 export function tabKey(content: LeafContent): string {
   if (content.kind === "service") return `s:${content.name}`;
   if (content.kind === "shell") return `sh:${content.id}`;
+  if (content.kind === "browser") return `b:${content.id}`;
   return `a:${content.key}`;
 }
 
@@ -184,6 +190,21 @@ export function setActiveTab(
     if (idx < 0 || idx >= leaf.tabs.length) return leaf;
     if (leaf.activeTabIdx === idx) return leaf;
     return { ...leaf, activeTabIdx: idx };
+  });
+}
+
+export function updateTabInLeaf(
+  node: PaneNode,
+  leafId: string,
+  tabIdx: number,
+  fn: (tab: LeafContent) => LeafContent,
+): PaneNode {
+  return mapLeaf(node, leafId, (leaf) => {
+    if (tabIdx < 0 || tabIdx >= leaf.tabs.length) return leaf;
+    return {
+      ...leaf,
+      tabs: leaf.tabs.map((t, i) => (i === tabIdx ? fn(t) : t)),
+    };
   });
 }
 

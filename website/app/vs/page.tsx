@@ -142,7 +142,7 @@ export default function ComparisonsHubPage() {
             Keep the tool you love for the rest.
           </>
         }
-        description="Free, open source, native macOS app plus CLI. No lock-in — lpm starts and stops native processes the same way you would."
+        description="Free, open source, native macOS app. No lock-in — lpm starts and stops native processes the same way you would."
       />
     </>
   );

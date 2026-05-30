@@ -24,8 +24,9 @@ export type DemoService = {
 export type DemoAction = {
   name: string;
   label: string;
+  emoji?: string;
   cmd: string;
-  display: "header" | "menu";
+  display: "header" | "footer";
   type?: "terminal";
   agent?: "claude" | "codex";
   confirm?: boolean;
@@ -67,7 +68,8 @@ export type DemoProject = {
 
 const CLAUDE_ACTION: DemoAction = {
   name: "claude",
-  label: "✻ Claude Code",
+  label: "Claude Code",
+  emoji: "✻",
   cmd: "claude",
   display: "header",
   type: "terminal",
@@ -77,7 +79,8 @@ const CLAUDE_ACTION: DemoAction = {
 
 const CODEX_ACTION: DemoAction = {
   name: "codex",
-  label: "◆ Codex",
+  label: "Codex",
+  emoji: "◆",
   cmd: "codex",
   display: "header",
   type: "terminal",
@@ -175,6 +178,7 @@ const PROJECTS: DemoProject[] = [
       {
         name: "test",
         label: "Run Tests",
+        emoji: "🧪",
         cmd: "pnpm test",
         display: "header",
         durationMs: 1200,
@@ -193,6 +197,7 @@ const PROJECTS: DemoProject[] = [
       {
         name: "migrate",
         label: "Migrate",
+        emoji: "🗄️",
         cmd: "bin/rails db:migrate",
         display: "header",
         confirm: true,
@@ -208,8 +213,9 @@ const PROJECTS: DemoProject[] = [
       {
         name: "deploy",
         label: "Deploy",
+        emoji: "🚢",
         cmd: "./scripts/deploy.sh production",
-        display: "menu",
+        display: "footer",
         confirm: true,
         durationMs: 1400,
         output: [
@@ -296,6 +302,7 @@ const PROJECTS: DemoProject[] = [
       {
         name: "test",
         label: "go test",
+        emoji: "🧪",
         cmd: "go test ./...",
         display: "header",
         durationMs: 1100,
@@ -309,6 +316,7 @@ const PROJECTS: DemoProject[] = [
       {
         name: "build",
         label: "Build",
+        emoji: "🔨",
         cmd: "go build -o bin/server ./cmd/server",
         display: "header",
         durationMs: 700,
@@ -372,6 +380,7 @@ const PROJECTS: DemoProject[] = [
       {
         name: "build",
         label: "Build",
+        emoji: "🔨",
         cmd: "pnpm build",
         display: "header",
         durationMs: 1600,
@@ -387,8 +396,9 @@ const PROJECTS: DemoProject[] = [
       {
         name: "deploy",
         label: "Deploy",
+        emoji: "🚢",
         cmd: "vercel deploy --prod",
-        display: "header",
+        display: "footer",
         confirm: true,
         durationMs: 1800,
         output: [
@@ -460,6 +470,7 @@ const PROJECTS: DemoProject[] = [
       {
         name: "train",
         label: "Train",
+        emoji: "🏋️",
         cmd: "python -m pipeline.train --full",
         display: "header",
         confirm: true,
@@ -477,6 +488,7 @@ const PROJECTS: DemoProject[] = [
       {
         name: "eval",
         label: "Evaluate",
+        emoji: "📊",
         cmd: "python -m pipeline.eval --latest",
         display: "header",
         durationMs: 1800,

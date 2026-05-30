@@ -252,7 +252,7 @@ pub fn format_action_port(action: &str, port: i64) -> Result<(), String> {
     for c in &conflicts {
         msg.push_str(&format!("\n  • {} ({}) — used by {}", c.port, c.service, c.description));
         if !c.lpm_project.is_empty() {
-            msg.push_str(&format!(" (run: lpm kill {})", c.lpm_project));
+            msg.push_str(&format!(" (stop the '{}' project in lpm)", c.lpm_project));
         } else if c.pid > 0 {
             msg.push_str(&format!(" (run: kill {})", c.pid));
         }

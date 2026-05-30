@@ -89,7 +89,7 @@ const MATRIX_ROWS: MatrixRow[] = [
   },
   {
     label: "Works over SSH on any Unix box",
-    lpm: "CLI only",
+    lpm: false,
     competitor: true,
   },
   {
@@ -113,17 +113,17 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Does lpm use tmux under the hood?",
     answer:
-      "Yes — lpm runs services inside tmux sessions so they persist across terminal restarts and each one has its own scrollable window. The point is that lpm wraps the tmux mechanics: you never edit a .tmux.conf, never memorize keybindings, never attach to a window by name. You get the tmux benefits (sessions stay alive, per-service windows) without the config burden. If tmux isn't installed, the lpm installer tells you to brew install tmux.",
+      "Yes — lpm runs services inside tmux sessions so they persist across terminal restarts and each one has its own scrollable window. The point is that lpm wraps the tmux mechanics: you never edit a .tmux.conf, never memorize keybindings, never attach to a window by name. You get the tmux benefits (sessions stay alive, per-service windows) without the config burden. If tmux isn't installed, lpm prompts you to brew install tmux.",
   },
   {
     question: "What about my remote / SSH workflow?",
     answer:
-      "tmux is the right tool there and nothing here changes that. The lpm desktop app is macOS-only and local-first; the CLI is cross-platform but still aims at local dev stacks. If most of your work is inside an SSH session on a remote box, keep tmux — lpm is not trying to replace it.",
+      "tmux is the right tool there and nothing here changes that. The lpm desktop app is macOS-only and local-first. If most of your work is inside an SSH session on a remote box, keep tmux — lpm is not trying to replace it.",
   },
   {
     question: "Is this basically tmuxinator with a GUI?",
     answer:
-      "Overlapping goals, different shape. tmuxinator gives you named, YAML-defined tmux layouts per project. lpm gives you auto-detected projects with live pane output, a visual switcher, and first-class start / stop / duplicate — plus a CLI that shares the same config. If your tmuxinator file is mostly `rails s`, `npm dev`, `redis`, `sidekiq`, lpm will feel like a shortcut. If you lean on custom layouts, splits, and keybindings, tmuxinator will still suit you better.",
+      "Overlapping goals, different shape. tmuxinator gives you named, YAML-defined tmux layouts per project. lpm gives you auto-detected projects with live pane output, a visual switcher, and first-class start / stop / duplicate. If your tmuxinator file is mostly `rails s`, `npm dev`, `redis`, `sidekiq`, lpm will feel like a shortcut. If you lean on custom layouts, splits, and keybindings, tmuxinator will still suit you better.",
   },
   {
     question: "How do I move a tmuxinator project over to lpm?",
@@ -132,8 +132,8 @@ const FAQ_ITEMS: FaqItem[] = [
         For an auto-detected stack (Rails, Next.js, Go, Django, Flask, Docker
         Compose), point lpm at the directory and it figures out the services on
         its own — usually no config at all. For anything custom, define the
-        services in lpm&apos;s config and start the project from the app or
-        CLI. You can keep the tmuxinator file around as a fallback; lpm
+        services in lpm&apos;s config and start the project from the app.
+        You can keep the tmuxinator file around as a fallback; lpm
         won&apos;t touch it. Source and examples are on{" "}
         <a
           href={REPO_URL}
@@ -144,7 +144,7 @@ const FAQ_ITEMS: FaqItem[] = [
         .
       </>
     ),
-    answerText: `For an auto-detected stack (Rails, Next.js, Go, Django, Flask, Docker Compose), point lpm at the directory and it figures out the services on its own — usually no config at all. For anything custom, define the services in lpm's config and start the project from the app or CLI. You can keep the tmuxinator file around as a fallback; lpm won't touch it. Source and examples are on GitHub at ${REPO_URL}.`,
+    answerText: `For an auto-detected stack (Rails, Next.js, Go, Django, Flask, Docker Compose), point lpm at the directory and it figures out the services on its own — usually no config at all. For anything custom, define the services in lpm's config and start the project from the app. You can keep the tmuxinator file around as a fallback; lpm won't touch it. Source and examples are on GitHub at ${REPO_URL}.`,
   },
 ];
 
@@ -176,7 +176,7 @@ export default function VsTmuxPage() {
             "You do not want to maintain a .tmux.conf or a tmuxinator YAML for every project.",
             "You juggle multiple local projects and want a visual switcher that remembers them.",
             "You want to run Claude Code, Codex, or other AI agents in parallel with every service's output visible at once.",
-            "You like the idea of a native macOS desktop app with live per-service panes, plus a CLI that shares the same config.",
+            "You like the idea of a native macOS desktop app with live per-service panes and a config you can read, edit, and commit.",
           ],
         }}
         competitor={{
@@ -201,7 +201,7 @@ export default function VsTmuxPage() {
 
       <Cta
         title="Keep tmux. Let lpm start the boring stuff."
-        description="lpm is free, open source, and installs in one command on macOS. Point it at a project, hit Start, and get your whole stack running with per-service output — no tmux config required."
+        description="lpm is free, open source, and runs as a native macOS app. Point it at a project, hit Start, and get your whole stack running with per-service output — no tmux config required."
       />
     </>
   );

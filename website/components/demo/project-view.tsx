@@ -9,7 +9,8 @@ import {
 } from "react";
 import {
   ChevronDown,
-  Menu as MenuIcon,
+  Globe,
+  Plus,
   Terminal,
 } from "lucide-react";
 import type {
@@ -21,8 +22,11 @@ import type {
 } from "./projects";
 import { PaneHeader, StreamingOutput, type TabInfo } from "./terminal-pane";
 import { DemoActionModal } from "./action-modal";
+import { DemoAddActionModal, type NewActionInput } from "./add-action-modal";
 import { AgentTerminal } from "./agent-terminal";
+import { BrowserView } from "./browser-view";
 import { DemoBranchSwitcher } from "./branch-switcher";
+import { TabContextMenu, TabRenameModal } from "./tab-controls";
 import {
   type LeafContent,
   type PaneLeaf,
@@ -36,11 +40,13 @@ import {
   collectServiceNames,
   findLeaf,
   makeLeaf,
+  newBrowserContent,
   newShellContent,
   setActiveTab,
   setRatioAtPath,
   splitAtLeaf,
   tabKey,
+  updateTabInLeaf,
 } from "./pane-tree";
 
 const MAX_TERMINAL_HISTORY = 200;
@@ -63,6 +69,7 @@ type ProjectViewProps = {
   onGitCreateBranch: (name: string) => void;
   onGitRenameBranch: (oldName: string, newName: string) => void;
   onGitDeleteBranch: (name: string) => void;
+  onAddAction: (input: NewActionInput) => void;
   startButtonRef?: React.Ref<HTMLButtonElement>;
   startRingPulse?: boolean;
 };
@@ -102,16 +109,27 @@ export function DemoProjectView({
   onGitCreateBranch,
   onGitRenameBranch,
   onGitDeleteBranch,
+  onAddAction,
   startButtonRef,
   startRingPulse,
 }: ProjectViewProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
+  const [addingAction, setAddingAction] = useState(false);
   const [runningAction, setRunningAction] = useState<DemoAction | null>(null);
   const [tree, setTree] = useState<PaneNode | null>(null);
   const [actionTerminals, setActionTerminals] = useState<ActionTerminalMap>({});
   const [isResizing, setIsResizing] = useState(false);
   const [resizeDir, setResizeDir] = useState<SplitDirection>("row");
+  const [tabMenu, setTabMenu] = useState<{
+    leafId: string;
+    tabIdx: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [renaming, setRenaming] = useState<{
+    leafId: string;
+    tabIdx: number;
+  } | null>(null);
 
   useEffect(() => {
     if (!isResizing) return;
@@ -128,14 +146,27 @@ export function DemoProjectView({
 
   const anyRunning = runningServices.size > 0;
   const headerActions = project.actions.filter((a) => a.display === "header");
-  const menuActions = project.actions.filter((a) => a.display !== "header");
+  const footerActions = project.actions.filter((a) => a.display === "footer");
+
+  const openAction = (a: DemoAction) => {
+    if (a.type === "terminal") openActionTerminal(a);
+    else setRunningAction(a);
+  };
 
   const openNewPaneWithShell = () => {
     setTree((prev) => appendLeaf(prev, makeLeaf(newShellContent())));
   };
 
+  const openNewPaneWithBrowser = () => {
+    setTree((prev) => appendLeaf(prev, makeLeaf(newBrowserContent())));
+  };
+
   const addTerminalToLeaf = (leafId: string) => {
     setTree((prev) => (prev ? addTabToLeaf(prev, leafId, newShellContent()) : prev));
+  };
+
+  const addBrowserToLeaf = (leafId: string) => {
+    setTree((prev) => (prev ? addTabToLeaf(prev, leafId, newBrowserContent()) : prev));
   };
 
   const openActionTerminal = (action: DemoAction) => {
@@ -144,8 +175,51 @@ export function DemoProjectView({
     setTree((prev) =>
       appendLeaf(
         prev,
-        makeLeaf({ kind: "action", key, label: action.label }),
+        makeLeaf({
+          kind: "action",
+          key,
+          label: action.label,
+          ...(action.emoji ? { emoji: action.emoji } : {}),
+        }),
       ),
+    );
+  };
+
+  const handleTabContextMenu = (
+    leafId: string,
+    tabIdx: number,
+    x: number,
+    y: number,
+  ) => {
+    setTabMenu({ leafId, tabIdx, x, y });
+  };
+
+  const handleRenameTab = (
+    leafId: string,
+    tabIdx: number,
+    label: string,
+    emoji?: string,
+  ) => {
+    setTree((prev) =>
+      prev
+        ? updateTabInLeaf(prev, leafId, tabIdx, (t) =>
+            t.kind === "service"
+              ? t
+              : t.kind === "browser"
+                ? { ...t, label }
+                : { ...t, label, emoji: emoji || undefined },
+          )
+        : prev,
+    );
+  };
+
+  const handleTogglePin = (leafId: string, tabIdx: number) => {
+    setTree((prev) =>
+      prev
+        ? updateTabInLeaf(prev, leafId, tabIdx, (t) =>
+            t.kind === "service" ? t : { ...t, pinned: !t.pinned },
+          )
+        : prev,
     );
   };
 
@@ -274,29 +348,16 @@ export function DemoProjectView({
         project={project}
         anyRunning={anyRunning}
         headerActions={headerActions}
-        menuActions={menuActions}
-        menuOpen={menuOpen}
         startOpen={startOpen}
-        onToggleMenu={() => {
-          setStartOpen(false);
-          setMenuOpen((v) => !v);
-        }}
-        onToggleStart={() => {
-          setMenuOpen(false);
-          setStartOpen((v) => !v);
-        }}
+        onToggleStart={() => setStartOpen((v) => !v)}
         onCloseStart={() => setStartOpen(false)}
-        onCloseMenu={() => setMenuOpen(false)}
         onStartStop={handleStartStop}
         onStartProfile={handleStartProfile}
         onToggleService={handleToggleService}
-        onOpenAction={(a) => {
-          setMenuOpen(false);
-          if (a.type === "terminal") {
-            openActionTerminal(a);
-          } else {
-            setRunningAction(a);
-          }
+        onOpenAction={openAction}
+        onAddAction={() => {
+          setStartOpen(false);
+          setAddingAction(true);
         }}
         runningServices={runningServices}
         startButtonRef={startButtonRef}
@@ -315,6 +376,8 @@ export function DemoProjectView({
             onCloseTab={handleCloseTab}
             onSelectTab={handleSelectTab}
             onNewTab={addTerminalToLeaf}
+            onNewBrowser={addBrowserToLeaf}
+            onTabContextMenu={handleTabContextMenu}
             onRatioChange={handleRatioChange}
             onResizeStart={handleResizeStart}
             onResizeEnd={handleResizeEnd}
@@ -324,24 +387,30 @@ export function DemoProjectView({
         <EmptyState
           projectName={project.name}
           onOpenTerminal={openNewPaneWithShell}
+          onOpenBrowser={openNewPaneWithBrowser}
         />
       )}
 
-      {git && tree && (
-        <div className="flex shrink-0 items-center justify-end gap-0.5 bg-[#1a1a1a] px-2 py-1">
-          <DemoBranchSwitcher
-            git={git}
-            onCheckout={handleGitCheckout}
-            onCommit={handleGitCommit}
-            onPull={handleGitPull}
-            onCreatePR={handleGitCreatePR}
-            onDiscard={handleGitDiscard}
-            onSync={handleGitSync}
-            onCreateBranch={handleGitCreateBranch}
-            onRenameBranch={onGitRenameBranch}
-            onDeleteBranch={onGitDeleteBranch}
-            onCopyBranchName={handleGitCopyBranchName}
-          />
+      {tree && (git || footerActions.length > 0) && (
+        <div className="flex shrink-0 items-center justify-end gap-1 bg-[#1a1a1a] px-2 py-1">
+          {footerActions.map((a) => (
+            <FooterActionButton key={a.name} action={a} onRun={() => openAction(a)} />
+          ))}
+          {git && (
+            <DemoBranchSwitcher
+              git={git}
+              onCheckout={handleGitCheckout}
+              onCommit={handleGitCommit}
+              onPull={handleGitPull}
+              onCreatePR={handleGitCreatePR}
+              onDiscard={handleGitDiscard}
+              onSync={handleGitSync}
+              onCreateBranch={handleGitCreateBranch}
+              onRenameBranch={onGitRenameBranch}
+              onDeleteBranch={onGitDeleteBranch}
+              onCopyBranchName={handleGitCopyBranchName}
+            />
+          )}
         </div>
       )}
 
@@ -351,6 +420,55 @@ export function DemoProjectView({
           onClose={() => setRunningAction(null)}
         />
       )}
+
+      <DemoAddActionModal
+        open={addingAction}
+        onClose={() => setAddingAction(false)}
+        onCreate={(input) => {
+          onAddAction(input);
+          setAddingAction(false);
+        }}
+      />
+
+      {tabMenu && (() => {
+        const leaf = tree ? findLeaf(tree, tabMenu.leafId) : null;
+        const tab = leaf?.tabs[tabMenu.tabIdx];
+        if (!tab || tab.kind === "service") return null;
+        const pinned = tab.pinned === true;
+        return (
+          <TabContextMenu
+            x={tabMenu.x}
+            y={tabMenu.y}
+            pinned={pinned}
+            onRename={() =>
+              setRenaming({ leafId: tabMenu.leafId, tabIdx: tabMenu.tabIdx })
+            }
+            onTogglePin={() => handleTogglePin(tabMenu.leafId, tabMenu.tabIdx)}
+            onCloseTab={() => handleCloseTab(tabMenu.leafId, tabMenu.tabIdx)}
+            onDismiss={() => setTabMenu(null)}
+          />
+        );
+      })()}
+
+      {renaming && (() => {
+        const leaf = tree ? findLeaf(tree, renaming.leafId) : null;
+        const tab = leaf?.tabs[renaming.tabIdx];
+        if (!tab || tab.kind === "service") return null;
+        const isBrowser = tab.kind === "browser";
+        const defaultLabel = isBrowser ? "Browser" : tab.kind === "shell" ? "terminal" : tab.label;
+        return (
+          <TabRenameModal
+            open
+            withEmoji={!isBrowser}
+            initialValue={tab.label ?? defaultLabel}
+            initialEmoji={tab.kind === "browser" ? "" : tab.emoji ?? ""}
+            onClose={() => setRenaming(null)}
+            onSubmit={(value, emoji) =>
+              handleRenameTab(renaming.leafId, renaming.tabIdx, value, emoji)
+            }
+          />
+        );
+      })()}
     </div>
   );
 }
@@ -365,6 +483,8 @@ type PaneLayoutProps = {
   onCloseTab: (leafId: string, tabIdx: number) => void;
   onSelectTab: (leafId: string, tabIdx: number) => void;
   onNewTab: (leafId: string) => void;
+  onNewBrowser: (leafId: string) => void;
+  onTabContextMenu: (leafId: string, tabIdx: number, x: number, y: number) => void;
   onRatioChange: (path: number[], ratio: number) => void;
   onResizeStart: (dir: SplitDirection) => void;
   onResizeEnd: () => void;
@@ -409,16 +529,43 @@ function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
   }
   if (tab.kind === "shell") {
     return {
-      info: { key, label: "terminal", type: "terminal", running: true },
+      info: {
+        key,
+        label: tab.label ?? "terminal",
+        type: "terminal",
+        running: true,
+        emoji: tab.emoji,
+        pinned: tab.pinned,
+      },
       body: <InteractiveTerminal key={tab.id} projectRoot={ctx.project.root} />,
+    };
+  }
+  if (tab.kind === "browser") {
+    return {
+      info: {
+        key,
+        label: tab.label ?? "Browser",
+        type: "browser",
+        running: true,
+        pinned: tab.pinned,
+      },
+      body: (
+        <BrowserView
+          key={tab.id}
+          project={ctx.project}
+          runningServices={ctx.runningServices}
+        />
+      ),
     };
   }
   const action = ctx.actionTerminals[tab.key];
   const info: TabInfo = {
     key,
-    label: action?.label ?? tab.label,
+    label: tab.label,
     type: "terminal",
     running: true,
+    emoji: tab.emoji,
+    pinned: tab.pinned,
   };
   if (!action) return { info, body: null };
   return {
@@ -444,6 +591,8 @@ function Leaf({
   onCloseTab,
   onSelectTab,
   onNewTab,
+  onNewBrowser,
+  onTabContextMenu,
 }: PaneLayoutProps & { leaf: PaneLeaf }) {
   const ctx: LeafContext = { project, runningServices, actionTerminals };
   const resolved = leaf.tabs.map((tab) => resolveTab(tab, ctx));
@@ -455,6 +604,8 @@ function Leaf({
         onSelectTab={(i) => onSelectTab(leaf.id, i)}
         onCloseTab={(i) => onCloseTab(leaf.id, i)}
         onNewTab={() => onNewTab(leaf.id)}
+        onNewBrowser={() => onNewBrowser(leaf.id)}
+        onTabContextMenu={(i, x, y) => onTabContextMenu(leaf.id, i, x, y)}
         onSplitRight={() => onSplit(leaf.id, "row")}
         onSplitDown={() => onSplit(leaf.id, "col")}
       />
@@ -550,9 +701,11 @@ function SplitView(
 function EmptyState({
   projectName,
   onOpenTerminal,
+  onOpenBrowser,
 }: {
   projectName: string;
   onOpenTerminal: () => void;
+  onOpenBrowser: () => void;
 }) {
   return (
     <div className="relative flex flex-1 min-h-0 flex-col items-center justify-center px-8">
@@ -578,14 +731,24 @@ function EmptyState({
             to spin up services, or open a terminal to poke around.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onOpenTerminal}
-          className="flex items-center gap-2 rounded-lg border border-[#2e2e2e] bg-[#242424] px-4 py-2 text-xs font-medium text-[#e5e5e5] transition-colors hover:bg-[#2a2a2a] animate-cta-breath focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
-        >
-          <Terminal className="h-4 w-4" strokeWidth={1.75} />
-          <span>New terminal</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenTerminal}
+            className="flex items-center gap-2 rounded-lg border border-[#2e2e2e] bg-[#242424] px-4 py-2 text-xs font-medium text-[#e5e5e5] transition-colors hover:bg-[#2a2a2a] animate-cta-breath focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+          >
+            <Terminal className="h-4 w-4" strokeWidth={1.75} />
+            <span>New terminal</span>
+          </button>
+          <button
+            type="button"
+            onClick={onOpenBrowser}
+            className="flex items-center gap-2 rounded-lg border border-[#2e2e2e] bg-[#1d1d1d] px-4 py-2 text-xs font-medium text-[#b3b3b3] transition-colors hover:bg-[#242424] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+          >
+            <Globe className="h-4 w-4" strokeWidth={1.75} />
+            <span>Open browser</span>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -703,22 +866,65 @@ function DropdownSectionLabel({ children }: { children: ReactNode }) {
   );
 }
 
+function HeaderActionButton({
+  action,
+  onRun,
+}: {
+  action: DemoAction;
+  onRun: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onRun}
+      title={action.label}
+      className="inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-lg border border-[#2e2e2e] bg-[#242424] px-2.5 text-xs font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+    >
+      {action.emoji && (
+        <span className="text-[13px] leading-none">{action.emoji}</span>
+      )}
+      <span className={action.emoji ? "hidden lg:inline" : ""}>
+        {action.label}
+      </span>
+    </button>
+  );
+}
+
+function FooterActionButton({
+  action,
+  onRun,
+}: {
+  action: DemoAction;
+  onRun: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onRun}
+      title={action.label}
+      className="flex shrink-0 items-center gap-1 rounded-md border border-[#2e2e2e] bg-[#242424] px-2 py-1 text-[10px] font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+    >
+      {action.emoji && (
+        <span className="text-[11px] leading-none">{action.emoji}</span>
+      )}
+      <span>{action.label}</span>
+    </button>
+  );
+}
+
 type HeaderProps = {
   project: DemoProject;
   anyRunning: boolean;
   headerActions: DemoAction[];
-  menuActions: DemoAction[];
-  menuOpen: boolean;
   startOpen: boolean;
   runningServices: Set<string>;
-  onToggleMenu: () => void;
   onToggleStart: () => void;
   onCloseStart: () => void;
-  onCloseMenu: () => void;
   onStartStop: () => void;
   onStartProfile: (name: string) => void;
   onToggleService: (name: string) => void;
   onOpenAction: (a: DemoAction) => void;
+  onAddAction: () => void;
   startButtonRef?: React.Ref<HTMLButtonElement>;
   startRingPulse?: boolean;
 };
@@ -727,18 +933,15 @@ function Header({
   project,
   anyRunning,
   headerActions,
-  menuActions,
-  menuOpen,
   startOpen,
   runningServices,
-  onToggleMenu,
   onToggleStart,
   onCloseStart,
-  onCloseMenu,
   onStartStop,
   onStartProfile,
   onToggleService,
   onOpenAction,
+  onAddAction,
   startButtonRef,
   startRingPulse,
 }: HeaderProps) {
@@ -759,77 +962,26 @@ function Header({
           {project.stack}
         </span>
       </div>
-      <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-        {headerActions.map((a) => (
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:gap-2">
+        <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto">
+          {headerActions.map((a) => (
+            <HeaderActionButton
+              key={a.name}
+              action={a}
+              onRun={() => onOpenAction(a)}
+            />
+          ))}
           <button
-            key={a.name}
             type="button"
-            onClick={() => onOpenAction(a)}
-            className="hidden lg:inline-flex rounded-lg border border-[#2e2e2e] bg-[#242424] px-2.5 py-1.5 text-xs font-medium text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+            onClick={onAddAction}
+            title="Create action"
+            aria-label="Create action"
+            className="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-lg border border-dashed border-[#3a3a3a] px-2 text-xs font-medium text-[#919191] transition-colors hover:border-[#555] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
           >
-            {a.label}
+            <Plus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Action</span>
           </button>
-        ))}
-        {(menuActions.length > 0 || headerActions.length > 0) && (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={onToggleMenu}
-              aria-label="More actions"
-              aria-expanded={menuOpen}
-              aria-haspopup="menu"
-              className={`flex items-center justify-center rounded-lg border px-2 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 ${
-                menuOpen
-                  ? "border-transparent bg-[#333333] text-[#e5e5e5]"
-                  : "border-[#2e2e2e] bg-[#242424] text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
-              }`}
-            >
-              <MenuIcon className="w-3.5 h-3.5" />
-            </button>
-            {menuOpen && (
-              <div
-                role="menu"
-                className="absolute right-0 top-full z-40 mt-1 w-52 rounded-lg border border-[#2e2e2e] bg-[#242424] py-1 shadow-xl"
-                onMouseLeave={onCloseMenu}
-              >
-                {headerActions.length > 0 && (
-                  <div className="lg:hidden">
-                    <DropdownSectionLabel>Quick actions</DropdownSectionLabel>
-                    {headerActions.map((a) => (
-                      <button
-                        key={`hdr-${a.name}`}
-                        type="button"
-                        role="menuitem"
-                        onClick={() => onOpenAction(a)}
-                        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:bg-[#2a2a2a]"
-                      >
-                        <span className="truncate">{a.label}</span>
-                      </button>
-                    ))}
-                    {menuActions.length > 0 && (
-                      <div className="mx-3 my-1 border-t border-[#2e2e2e]" />
-                    )}
-                  </div>
-                )}
-                {menuActions.length > 0 && (
-                  <DropdownSectionLabel>Actions</DropdownSectionLabel>
-                )}
-                {menuActions.map((a) => (
-                  <button
-                    key={a.name}
-                    type="button"
-                    role="menuitem"
-                    onClick={() => onOpenAction(a)}
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-mono text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:bg-[#2a2a2a]"
-                  >
-                    <Terminal className="w-3 h-3 shrink-0 text-[#919191]" />
-                    <span className="truncate">{a.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        </div>
 
         <div className="relative flex shrink-0">
           <button

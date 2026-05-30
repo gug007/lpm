@@ -814,8 +814,8 @@ function TerminalThemePreview({ theme, fontSize }: { theme: TerminalThemeName; f
         <span className="ml-1 truncate text-[10px] leading-none">terminal</span>
       </div>
       <div className="px-2 py-1.5 leading-tight" style={{ fontSize: `${bodyFontSize}px` }}>
-        <div>$ lpm start</div>
-        <div style={{ opacity: 0.7 }}>✓ web running on :3000</div>
+        <div>$ npm run dev</div>
+        <div style={{ opacity: 0.7 }}>✓ ready on :3000</div>
         <div className="flex items-center">
           <span>$&nbsp;</span>
           <span

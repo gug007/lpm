@@ -3,7 +3,7 @@ import { ConfigPlayground } from "@/components/config/playground";
 const HOME_EXAMPLE = `name: myapp
 root: ~/Projects/myapp
 
-# Long-running services — started with lpm start
+# Long-running services — started from the app
 services:
   api:
     cmd: python manage.py runserver
@@ -19,7 +19,7 @@ profiles:
   default: [api, frontend]
   full: [api, frontend, worker]
 
-# One-shot commands — run from app or CLI
+# One-shot commands — run from the app
 actions:
   test: pytest
   migrate:

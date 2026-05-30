@@ -107,7 +107,7 @@ const MATRIX_ROWS: MatrixRow[] = [
     competitor: false,
   },
   {
-    label: "CLI + desktop app share the same config",
+    label: "Native macOS desktop app with shared config",
     lpm: true,
     competitor: "CLI only",
   },
@@ -122,7 +122,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Can I move to lpm without rewriting my Procfile?",
     answer:
-      "You'll convert it, but the shape is the same. lpm uses a small YAML config at ~/.lpm/projects/<name>.yml where each service is a name and a command — the same web/worker/css/jobs lines, just in YAML instead of Procfile syntax. For Rails, Next.js, Go, Django, Flask, and Docker Compose projects, framework auto-detection often means no config at all — lpm init figures out your services for you.",
+      "You'll convert it, but the shape is the same. lpm uses a small YAML config at ~/.lpm/projects/<name>.yml where each service is a name and a command — the same web/worker/css/jobs lines, just in YAML instead of Procfile syntax. For Rails, Next.js, Go, Django, Flask, and Docker Compose projects, framework auto-detection often means no config at all — lpm figures out your services for you.",
   },
   {
     question: "Does lpm replace foreman export?",
@@ -188,7 +188,7 @@ export default function LpmVsForemanPage() {
             "You juggle several local projects and want a visual switcher instead of terminal tabs and memory.",
             "You want each service — web, workers, CSS, jobs — in its own live pane rather than one interleaved stream.",
             "You run Claude Code, Codex, Cursor, or aider in parallel and need their output visible without tab wrestling.",
-            "You want a native macOS desktop app alongside a CLI that shares the same config.",
+            "You want a native macOS desktop app to manage your processes, not a terminal-only workflow.",
             "You'd rather duplicate a project than spin up a second worktree by hand when a second agent shows up.",
           ],
         }}

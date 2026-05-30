@@ -257,12 +257,6 @@
 - **Supporters**: p04, p15, p40, l23
 - **Notes**: Start with the AI provider interface (highest leverage, clearly scoped contract) before the full plugin API.
 
-#### TUI (`lpm tui`) + structured CLI output — 7 votes, effort: L
-- **What**: A Bubble Tea terminal UI that renders the project list, service statuses, and action buttons without the Wails desktop app — same YAML config, same runtime state, different renderer. Every desktop action also has a CLI equivalent (`lpm project start`, `lpm action run`, `lpm logs --follow`). Shell completions query dynamic project/service/profile names from `lpm completions <type>`. `lpm status --json` machine-readable dashboard. `--json` flag on all commands for CI scripting.
-- **Why**: The desktop app is unavailable on SSH/headless servers; a TUI renderer unlocks the full lpm workflow anywhere and makes lpm a composable CI tool.
-- **Supporters**: p45, p28, p40, l46
-- **Notes**: Effort is L for a full TUI; the structured CLI output (`--json`) and `lpm logs --follow` are S and should ship first.
-
 #### OpenTelemetry embedded collector per project — 7 votes, effort: L
 - **What**: Ship a bundled OTel Collector binary that lpm auto-starts alongside project services with a zero-config OTLP receiver. Auto-discovered service dependency graph from live traces with nodes colored by error rate. Span-to-terminal-log linking: clicking a span jumps the terminal pane to the matching log lines. Built-in trace waterfall UI (no external Jaeger required). Per-service throughput + error rate sparklines from span counts.
 - **Why**: Developers instrument their apps but never see traces locally because standing up a collector is too much friction; lpm owns the collector lifecycle the same way it owns tmux.

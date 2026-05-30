@@ -8,7 +8,7 @@ export const revalidate = 3600;
 export const metadata: Metadata = {
   title: "Download stats",
   description:
-    "Live download counts for lpm across all GitHub releases — desktop app and CLI.",
+    "Live download counts for lpm across all GitHub releases.",
   alternates: {
     canonical: STATS_PATH,
   },

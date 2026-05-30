@@ -102,7 +102,7 @@ const MATRIX_ROWS: MatrixRow[] = [
     competitor: false,
   },
   {
-    label: "Native macOS desktop app + CLI with shared config",
+    label: "Native macOS desktop app with shared config",
     lpm: true,
     competitor: "CLI only",
   },
@@ -187,7 +187,7 @@ export default function LpmVsDockerComposePage() {
             "You juggle multiple projects and want a visual switcher instead of remembering which compose file is running where.",
             "You run Claude Code, Codex, or Cursor in parallel on the same or adjacent codebases and want their output visible alongside your services.",
             "You already have a docker-compose.yml — lpm can drive it as one service while you move the rest native.",
-            "You want a native macOS desktop app plus a CLI that share the same config.",
+            "You want a native macOS desktop app to manage your services, not a terminal-only workflow.",
           ],
         }}
         competitor={{
