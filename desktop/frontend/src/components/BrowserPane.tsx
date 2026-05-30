@@ -199,12 +199,16 @@ export function BrowserPane({ id, active }: BrowserPaneProps) {
             onClick={() => inputRef.current?.focus()}
             className="absolute inset-0 flex cursor-text select-none flex-col items-center justify-center gap-4 px-6 text-center"
           >
-            <div className={`flex h-16 w-16 items-center justify-center rounded-2xl border ${badge} [&>svg]:h-7 [&>svg]:w-7`}>
+            <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border ${badge} [&>svg]:h-7 [&>svg]:w-7`}>
               <GlobeIcon />
             </div>
-            <div className="flex flex-col gap-1">
-              <span className={`text-sm font-medium ${emptyTitle}`}>Search the web</span>
-              <span className={`text-xs ${emptySub}`}>Type a search or enter a web address to get started</span>
+            <div className="flex flex-col gap-1.5">
+              <span className={`text-[15px] font-semibold tracking-tight ${emptyTitle}`}>
+                Search the web
+              </span>
+              <span className={`text-xs ${emptySub}`}>
+                Type a search or enter a web address to get started
+              </span>
             </div>
           </div>
         ) : (
