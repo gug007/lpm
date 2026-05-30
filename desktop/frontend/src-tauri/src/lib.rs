@@ -6,6 +6,7 @@ mod commands_real;
 mod config;
 mod config_cmds;
 mod detached;
+mod dockmenu;
 mod files;
 mod generated_commands;
 mod git;
@@ -104,6 +105,7 @@ pub fn run() {
             if let Err(e) = menu::build_and_set(&handle) {
                 eprintln!("warning: failed to set app menu: {e}");
             }
+            dockmenu::install(&handle);
             // Restore the saved main-window size (settings.windowWidth/Height).
             if let Some(win) = handle.get_webview_window("main") {
                 let s = config::load_settings();

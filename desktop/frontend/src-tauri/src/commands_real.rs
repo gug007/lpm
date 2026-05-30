@@ -98,6 +98,16 @@ pub fn list_projects(
     for p in &mut projects {
         inject_status(p, &status);
     }
+    let dock: Vec<(String, bool)> = projects
+        .iter()
+        .map(|p| {
+            (
+                p.get("name").and_then(|v| v.as_str()).unwrap_or_default().to_string(),
+                p.get("running").and_then(|v| v.as_bool()).unwrap_or(false),
+            )
+        })
+        .collect();
+    crate::dockmenu::refresh(&dock);
     Ok(projects)
 }
 

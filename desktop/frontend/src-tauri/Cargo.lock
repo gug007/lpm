@@ -2346,6 +2346,7 @@ dependencies = [
  "aes-gcm",
  "argon2",
  "base64 0.22.1",
+ "cc",
  "chrono",
  "core-foundation 0.9.4",
  "core-foundation-sys",
