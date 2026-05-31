@@ -47,16 +47,17 @@ pub struct MissingRoot {
 // ---- export ----------------------------------------------------------------
 
 #[tauri::command]
-pub fn export_config(app: AppHandle) -> Result<String, String> {
+pub async fn export_config(app: AppHandle) -> Result<String, String> {
     use tauri_plugin_dialog::DialogExt;
-    let dir = match app
-        .dialog()
-        .file()
-        .set_title("Choose export folder")
-        .blocking_pick_folder()
-    {
-        Some(fp) => fp.into_path().map_err(|e| e.to_string())?,
-        None => return Ok(String::new()),
+    let Some(dir) = crate::files::pick_path(app, |app| {
+        app.dialog()
+            .file()
+            .set_title("Choose export folder")
+            .blocking_pick_folder()
+    })
+    .await?
+    else {
+        return Ok(String::new());
     };
     let filename = format!(
         "lpm-config-{}-{}.tar.gz",
@@ -128,16 +129,18 @@ fn sanitized_settings() -> Result<Option<Vec<u8>>, String> {
 // ---- import ----------------------------------------------------------------
 
 #[tauri::command]
-pub fn import_config(app: AppHandle, overwrite: bool) -> Result<Option<ImportReport>, String> {
+pub async fn import_config(app: AppHandle, overwrite: bool) -> Result<Option<ImportReport>, String> {
     use tauri_plugin_dialog::DialogExt;
-    let archive = match app
-        .dialog()
-        .file()
-        .set_title("Import lpm config")
-        .blocking_pick_file()
-    {
-        Some(fp) => fp.into_path().map_err(|e| e.to_string())?,
-        None => return Ok(None),
+    // Clone: the original `app` is still needed for the projects-changed emit below.
+    let Some(archive) = crate::files::pick_path(app.clone(), |app| {
+        app.dialog()
+            .file()
+            .set_title("Import lpm config")
+            .blocking_pick_file()
+    })
+    .await?
+    else {
+        return Ok(None);
     };
 
     let tmp = tempfile::Builder::new()

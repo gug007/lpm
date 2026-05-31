@@ -89,7 +89,10 @@ pub fn save_terminals(c: Value) -> Result<(), String> {
     std::fs::write(path, data).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+// (async): config::list_projects shells out to `tmux list-sessions` (blocking),
+// and this runs on a hot path (mount + 10s poll + every projects/status event),
+// so it must stay off the main thread or the UI beachballs on each refresh.
+#[tauri::command(async)]
 pub fn list_projects(
     svc: State<'_, ServiceState>,
     status: State<'_, Arc<StatusStore>>,
@@ -111,7 +114,9 @@ pub fn list_projects(
     Ok(projects)
 }
 
-#[tauri::command]
+// (async): config::get_project can shell out to `tmux list-sessions` (blocking)
+// for a real project name, so keep it off the main thread like list_projects.
+#[tauri::command(async)]
 pub fn get_project(
     svc: State<'_, ServiceState>,
     status: State<'_, Arc<StatusStore>>,

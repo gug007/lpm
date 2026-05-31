@@ -124,21 +124,18 @@ pub fn play_sound_preview(name: String, event: String) {
     play_spec(&name, &event);
 }
 
-// async + spawn_blocking: the blocking picker must not run on the UI thread, or
-// the dialog renders but the app freezes (beachball).
 #[tauri::command]
 pub async fn pick_audio_file(app: AppHandle) -> Result<String, String> {
-    let picked = tauri::async_runtime::spawn_blocking(move || {
+    let picked = crate::files::pick_path(app, |app| {
         app.dialog()
             .file()
             .set_title("Choose a notification sound")
             .add_filter("Audio", &["wav", "aiff", "aif", "mp3", "m4a", "aac", "caf", "flac"])
             .blocking_pick_file()
     })
-    .await
-    .map_err(|e| e.to_string())?;
+    .await?;
     match picked {
-        Some(fp) => Ok(fp.into_path().map_err(|e| e.to_string())?.to_string_lossy().into_owned()),
+        Some(p) => Ok(p.to_string_lossy().into_owned()),
         None => Ok(String::new()),
     }
 }

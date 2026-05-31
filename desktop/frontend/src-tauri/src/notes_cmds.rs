@@ -250,8 +250,8 @@ pub fn notes_read_attachment(
     Ok(B64.encode(data))
 }
 
-#[tauri::command] // native folder dialog → must run on the main thread
-pub fn notes_save_attachment(
+#[tauri::command]
+pub async fn notes_save_attachment(
     app: AppHandle,
     state: State<'_, NotesState>,
     project: String,
@@ -259,14 +259,15 @@ pub fn notes_save_attachment(
     name: String,
 ) -> Result<String, String> {
     // Folder picker (native save dialog is flaky on newer macOS). "" = cancel.
-    let dir = match app
-        .dialog()
-        .file()
-        .set_title("Save attachment to folder")
-        .blocking_pick_folder()
-    {
-        Some(fp) => fp.into_path().map_err(|e| e.to_string())?,
-        None => return Ok(String::new()),
+    let Some(dir) = crate::files::pick_path(app, |app| {
+        app.dialog()
+            .file()
+            .set_title("Save attachment to folder")
+            .blocking_pick_folder()
+    })
+    .await?
+    else {
+        return Ok(String::new());
     };
     let data = state.open(&project)?.blobs.read(&hash)?;
     // file_name() strips any path components in `name` (traversal guard).
@@ -302,20 +303,21 @@ pub fn notes_read_file_as_input(path: String) -> Result<NotesAttachmentInput, St
     })
 }
 
-#[tauri::command] // native folder dialog → must run on the main thread
-pub fn vault_export_key(
+#[tauri::command]
+pub async fn vault_export_key(
     app: AppHandle,
     _state: State<'_, NotesState>,
     passphrase: String,
 ) -> Result<String, String> {
-    let dir = match app
-        .dialog()
-        .file()
-        .set_title("Choose folder for lpm vault key")
-        .blocking_pick_folder()
-    {
-        Some(fp) => fp.into_path().map_err(|e| e.to_string())?,
-        None => return Ok(String::new()),
+    let Some(dir) = crate::files::pick_path(app, |app| {
+        app.dialog()
+            .file()
+            .set_title("Choose folder for lpm vault key")
+            .blocking_pick_folder()
+    })
+    .await?
+    else {
+        return Ok(String::new());
     };
     let data = vault::export_key(&passphrase)?;
     let host = config::sanitize_host(&config::hostname_or_mac());
@@ -326,21 +328,22 @@ pub fn vault_export_key(
     Ok(path.to_string_lossy().into_owned())
 }
 
-#[tauri::command] // native file dialog → must run on the main thread
-pub fn vault_import_key(
+#[tauri::command]
+pub async fn vault_import_key(
     app: AppHandle,
     state: State<'_, NotesState>,
     passphrase: String,
 ) -> Result<(), String> {
-    let path = match app
-        .dialog()
-        .file()
-        .add_filter("JSON", &["json"])
-        .set_title("Import lpm vault key")
-        .blocking_pick_file()
-    {
-        Some(fp) => fp.into_path().map_err(|e| e.to_string())?,
-        None => return Ok(()),
+    let Some(path) = crate::files::pick_path(app, |app| {
+        app.dialog()
+            .file()
+            .add_filter("JSON", &["json"])
+            .set_title("Import lpm vault key")
+            .blocking_pick_file()
+    })
+    .await?
+    else {
+        return Ok(());
     };
     let data = std::fs::read(&path).map_err(|e| e.to_string())?;
     vault::import_key(&passphrase, &data)?;

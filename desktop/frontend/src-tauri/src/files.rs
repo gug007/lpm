@@ -1,11 +1,28 @@
 // File operations + native folder picker — port of desktop/openin.go file ops
 // and BrowseFolder. BrowseFolder uses tauri-plugin-dialog's blocking picker.
 use crate::config::expand_home;
+use std::path::PathBuf;
 use std::process::Command;
 use tauri::AppHandle;
-use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_dialog::{DialogExt, FilePath};
 
 const READ_FILE_MAX_BYTES: usize = 5 * 1024 * 1024;
+
+/// Run a native file/folder picker off the main thread and return the chosen
+/// path (None if cancelled). The plugin's `blocking_pick_*` calls must NOT run
+/// on the UI thread — their result is delivered via the main event loop, so
+/// blocking it deadlocks and the app beachballs. `build` constructs and shows
+/// the dialog; it runs on a blocking-pool thread.
+pub(crate) async fn pick_path<F>(app: AppHandle, build: F) -> Result<Option<PathBuf>, String>
+where
+    F: FnOnce(AppHandle) -> Option<FilePath> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(move || build(app))
+        .await
+        .map_err(|e| e.to_string())?
+        .map(|fp| fp.into_path().map_err(|e| e.to_string()))
+        .transpose()
+}
 
 /// Resolve `~` and require the path to be an existing file/dir.
 fn resolve_existing(abs: &str) -> Result<String, String> {
@@ -18,18 +35,16 @@ fn resolve_existing(abs: &str) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn browse_folder(app: AppHandle) -> Result<String, String> {
-    match app
-        .dialog()
-        .file()
-        .set_title("Select project folder")
-        .blocking_pick_folder()
-    {
-        Some(fp) => Ok(fp
-            .into_path()
-            .map_err(|e| e.to_string())?
-            .to_string_lossy()
-            .into_owned()),
+pub async fn browse_folder(app: AppHandle) -> Result<String, String> {
+    let picked = pick_path(app, |app| {
+        app.dialog()
+            .file()
+            .set_title("Select project folder")
+            .blocking_pick_folder()
+    })
+    .await?;
+    match picked {
+        Some(p) => Ok(p.to_string_lossy().into_owned()),
         None => Ok(String::new()), // cancel -> "" (matches Go)
     }
 }
