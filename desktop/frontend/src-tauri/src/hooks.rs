@@ -54,47 +54,48 @@ fn claude_hooks_status_at(path: &Path) -> ClaudeHooksStatus {
 }
 
 fn reset_claude_hooks_at(path: &Path) -> Result<(), String> {
+    // Validate the file (so the UI can surface a real error), then reinstall. The
+    // install path strips stale lpm hooks and re-adds fresh ones, leaving the user's
+    // own hooks intact — unlike a blunt remove of the whole `hooks` key.
     let data = std::fs::read(path).map_err(|e| format!("cannot read Claude settings: {e}"))?;
-    let mut settings: Value =
-        serde_json::from_slice(&data).map_err(|e| format!("invalid JSON in Claude settings: {e}"))?;
-    if let Some(obj) = settings.as_object_mut() {
-        obj.remove("hooks");
-    }
-    let out = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
-    std::fs::write(path, out).map_err(|e| e.to_string())?;
-    install_claude_hooks_at(path);
-    Ok(())
+    serde_json::from_slice::<Value>(&data).map_err(|e| format!("invalid JSON in Claude settings: {e}"))?;
+    install_claude_hooks_at(path)
 }
 
 /// Fired async at startup (app.go: `go a.installAgentHooks()`).
 pub fn install_agent_hooks() {
-    install_claude_hooks_at(&claude_settings_path());
+    let _ = install_claude_hooks_at(&claude_settings_path()); // best-effort at startup
     install_codex_hooks();
 }
 
-fn install_claude_hooks_at(path: &Path) {
+fn install_claude_hooks_at(path: &Path) -> Result<(), String> {
     let Ok(data) = std::fs::read(path) else {
-        return; // missing settings — do NOT create the file
+        return Ok(()); // missing settings — do NOT create the file
     };
     let Ok(mut settings) = serde_json::from_slice::<Value>(&data) else {
-        return;
+        return Ok(()); // leave invalid JSON untouched
     };
+    let original = settings.clone();
     let Some(obj) = settings.as_object_mut() else {
-        return;
+        return Ok(());
     };
     if !obj.get("hooks").map(Value::is_object).unwrap_or(false) {
         obj.insert("hooks".into(), json!({}));
     }
     let hooks = obj.get_mut("hooks").unwrap().as_object_mut().unwrap();
-    if has_marker(&Value::Object(hooks.clone())) {
-        return; // already installed
-    }
+    // Drop any prior lpm hooks first, so re-running stays idempotent and self-heals
+    // across versions (e.g. migrating the old shared-key hooks to the per-pane key
+    // below). The user's own hooks are left untouched.
+    strip_lpm_hooks(hooks);
 
-    let set_running = send_cmd("set_status '$LPM_PROJECT_NAME' claude_code Running --icon=bolt --color=#4C8DFF --pane=$LPM_PANE_ID");
-    let set_done = send_cmd("set_status '$LPM_PROJECT_NAME' claude_code Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID");
-    let set_error = send_cmd("set_status '$LPM_PROJECT_NAME' claude_code Error --icon=warning --color=#ef4444 --pane=$LPM_PANE_ID");
-    let set_waiting = send_cmd("set_status '$LPM_PROJECT_NAME' claude_code Waiting --icon=bell --color=#f59e0b --pane=$LPM_PANE_ID");
-    let clear = send_cmd("clear_status '$LPM_PROJECT_NAME' claude_code");
+    // The status key is per-pane ($LPM_PANE_ID) so concurrent agents in one project
+    // each get their own StatusStore entry. A shared key would collide (the store is
+    // keyed by project+key) and only one tab would ever show as running.
+    let set_running = send_cmd("set_status '$LPM_PROJECT_NAME' claude_code_$LPM_PANE_ID Running --icon=bolt --color=#4C8DFF --pane=$LPM_PANE_ID");
+    let set_done = send_cmd("set_status '$LPM_PROJECT_NAME' claude_code_$LPM_PANE_ID Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID");
+    let set_error = send_cmd("set_status '$LPM_PROJECT_NAME' claude_code_$LPM_PANE_ID Error --icon=warning --color=#ef4444 --pane=$LPM_PANE_ID");
+    let set_waiting = send_cmd("set_status '$LPM_PROJECT_NAME' claude_code_$LPM_PANE_ID Waiting --icon=bell --color=#f59e0b --pane=$LPM_PANE_ID");
+    let clear = send_cmd("clear_status '$LPM_PROJECT_NAME' claude_code_$LPM_PANE_ID");
 
     append_hook(hooks, "UserPromptSubmit", claude_hook(&set_running, ""));
     append_hook(hooks, "PreToolUse", claude_hook(&set_running, ""));
@@ -103,9 +104,13 @@ fn install_claude_hooks_at(path: &Path) {
     append_hook(hooks, "StopFailure", claude_hook(&set_error, ""));
     append_hook(hooks, "SessionEnd", claude_hook(&clear, ""));
 
-    if let Ok(out) = serde_json::to_string_pretty(&settings) {
-        let _ = std::fs::write(path, out);
+    // Only rewrite when something actually changed, to avoid churning the file on
+    // every launch. Write errors propagate so the Reset button can surface them.
+    if settings != original {
+        let out = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
+        std::fs::write(path, out).map_err(|e| format!("cannot write Claude settings: {e}"))?;
     }
+    Ok(())
 }
 
 fn install_codex_hooks() {
@@ -116,15 +121,12 @@ fn install_codex_hooks() {
     if !codex_dir.exists() {
         return;
     }
-    if let Ok(existing) = std::fs::read_to_string(&hooks_path) {
-        if existing.contains(MARKER) {
-            return; // already installed
-        }
-    }
     enable_codex_hooks_feature(&config_path);
 
-    let set_running = send_cmd("set_status '$LPM_PROJECT_NAME' codex Running --icon=sparkle --color=#10A37F --pane=$LPM_PANE_ID");
-    let set_done = send_cmd("set_status '$LPM_PROJECT_NAME' codex Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID");
+    // Per-pane key ($LPM_PANE_ID), same reason as the Claude hooks: a shared key
+    // collides in the StatusStore so only one pane would show as running.
+    let set_running = send_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Running --icon=sparkle --color=#10A37F --pane=$LPM_PANE_ID");
+    let set_done = send_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID");
 
     // Each event maps to an array holding one hook entry (Codex shape).
     let new_events: Vec<(&str, Value)> = vec![
@@ -134,15 +136,18 @@ fn install_codex_hooks() {
         ("Stop", codex_hook(&set_done)),
     ];
 
-    // Merge into an existing hooks.json (append) when its top-level `hooks` is an
-    // object; otherwise write a fresh structure.
-    let existing = std::fs::read(&hooks_path)
+    let original = std::fs::read(&hooks_path)
         .ok()
-        .and_then(|d| serde_json::from_slice::<Value>(&d).ok())
-        .filter(|e| e.get("hooks").map(Value::is_object).unwrap_or(false));
+        .and_then(|d| serde_json::from_slice::<Value>(&d).ok());
 
-    let hooks_data = if let Some(mut existing) = existing {
+    // Merge into an existing hooks.json (strip stale lpm hooks, then append) when its
+    // top-level `hooks` is an object; otherwise write a fresh structure.
+    let hooks_data = if let Some(mut existing) = original
+        .clone()
+        .filter(|e| e.get("hooks").map(Value::is_object).unwrap_or(false))
+    {
         let eh = existing.get_mut("hooks").unwrap().as_object_mut().unwrap();
+        strip_lpm_hooks(eh);
         for (event, entry_arr) in &new_events {
             let entry = entry_arr.as_array().and_then(|a| a.first()).cloned().unwrap_or(Value::Null);
             append_hook(eh, event, entry);
@@ -156,8 +161,11 @@ fn install_codex_hooks() {
         json!({ "hooks": Value::Object(m) })
     };
 
-    if let Ok(out) = serde_json::to_string_pretty(&hooks_data) {
-        let _ = std::fs::write(&hooks_path, out);
+    // Only rewrite when something actually changed (self-heal without churn).
+    if original.as_ref() != Some(&hooks_data) {
+        if let Ok(out) = serde_json::to_string_pretty(&hooks_data) {
+            let _ = std::fs::write(&hooks_path, out);
+        }
     }
 }
 
@@ -196,6 +204,22 @@ fn has_marker(hooks: &Value) -> bool {
     serde_json::to_string(hooks).map(|s| s.contains(MARKER)).unwrap_or(false)
 }
 
+/// Remove every lpm-installed hook entry (its command carries the MARKER) from each
+/// event array, dropping any event left empty. The user's own hooks stay. This makes
+/// (re)installs idempotent and self-updating across versions.
+fn strip_lpm_hooks(hooks: &mut Map<String, Value>) {
+    let events: Vec<String> = hooks.keys().cloned().collect();
+    for ev in events {
+        let Some(arr) = hooks.get_mut(&ev).and_then(Value::as_array_mut) else {
+            continue;
+        };
+        arr.retain(|entry| !has_marker(entry));
+        if arr.is_empty() {
+            hooks.remove(&ev);
+        }
+    }
+}
+
 /// Append `entry` to hooks[event], creating/overwriting a non-array with [entry].
 fn append_hook(hooks: &mut Map<String, Value>, event: &str, entry: Value) {
     match hooks.get_mut(event).and_then(Value::as_array_mut) {
@@ -220,7 +244,7 @@ mod tests {
     fn install_adds_six_hooks_and_preserves_siblings() {
         let dir = tempfile::tempdir().unwrap();
         let path = settings_at(dir.path(), r#"{"model":"opus","permissions":{"x":1}}"#);
-        install_claude_hooks_at(&path);
+        install_claude_hooks_at(&path).unwrap();
 
         let v: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
         // siblings untouched
@@ -236,12 +260,54 @@ mod tests {
     }
 
     #[test]
+    fn install_uses_per_pane_status_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = settings_at(dir.path(), "{}");
+        install_claude_hooks_at(&path).unwrap();
+        let v: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        for ev in ["UserPromptSubmit", "PreToolUse", "Notification", "Stop", "StopFailure", "SessionEnd"] {
+            for e in v["hooks"][ev].as_array().unwrap() {
+                let cmd = e["hooks"][0]["command"].as_str().unwrap();
+                assert!(cmd.contains("claude_code_$LPM_PANE_ID"), "{ev} not per-pane: {cmd}");
+            }
+        }
+    }
+
+    #[test]
+    fn reinstall_migrates_stale_shared_key_and_preserves_user_hooks() {
+        let dir = tempfile::tempdir().unwrap();
+        // Old install: a Stop hook on the shared `claude_code` key (carries MARKER),
+        // next to the user's own Stop hook which must survive the migration.
+        let body = r#"{
+          "hooks": {
+            "Stop": [
+              { "matcher": "", "hooks": [ { "type": "command", "command": "old claude_code Done # lpm-hook" } ] },
+              { "matcher": "", "hooks": [ { "type": "command", "command": "my-own-hook" } ] }
+            ]
+          }
+        }"#;
+        let path = settings_at(dir.path(), body);
+        install_claude_hooks_at(&path).unwrap();
+
+        let v: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        let stop = v["hooks"]["Stop"].as_array().unwrap();
+
+        // user hook preserved
+        assert!(stop.iter().any(|e| e["hooks"][0]["command"] == "my-own-hook"));
+        // exactly one lpm hook in Stop — old one replaced, not duplicated — and per-pane
+        let lpm: Vec<&Value> = stop.iter().filter(|e| has_marker(e)).collect();
+        assert_eq!(lpm.len(), 1, "stale lpm hook replaced, not duplicated");
+        let cmd = lpm[0]["hooks"][0]["command"].as_str().unwrap();
+        assert!(cmd.contains("claude_code_$LPM_PANE_ID"), "migrated to per-pane key: {cmd}");
+    }
+
+    #[test]
     fn install_is_idempotent() {
         let dir = tempfile::tempdir().unwrap();
         let path = settings_at(dir.path(), "{}");
-        install_claude_hooks_at(&path);
+        install_claude_hooks_at(&path).unwrap();
         let first = std::fs::read_to_string(&path).unwrap();
-        install_claude_hooks_at(&path); // second run: marker present -> no-op
+        install_claude_hooks_at(&path).unwrap(); // second run: marker present -> no-op
         assert_eq!(std::fs::read_to_string(&path).unwrap(), first, "no duplicate hooks");
     }
 
@@ -249,7 +315,7 @@ mod tests {
     fn missing_settings_is_noop() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("settings.json"); // does not exist
-        install_claude_hooks_at(&path);
+        install_claude_hooks_at(&path).unwrap();
         assert!(!path.exists(), "must not create the file");
         let st = claude_hooks_status_at(&path);
         assert!(!st.settings_exists && !st.hooks_installed);
@@ -259,7 +325,7 @@ mod tests {
     fn invalid_json_is_left_untouched() {
         let dir = tempfile::tempdir().unwrap();
         let path = settings_at(dir.path(), "{ not json");
-        install_claude_hooks_at(&path);
+        install_claude_hooks_at(&path).unwrap();
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "{ not json");
         let st = claude_hooks_status_at(&path);
         assert!(st.settings_exists && !st.hooks_installed);
@@ -269,7 +335,7 @@ mod tests {
     fn reset_removes_then_reinstalls_preserving_siblings() {
         let dir = tempfile::tempdir().unwrap();
         let path = settings_at(dir.path(), r#"{"model":"opus"}"#);
-        install_claude_hooks_at(&path);
+        install_claude_hooks_at(&path).unwrap();
         reset_claude_hooks_at(&path).unwrap();
         let v: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
         assert_eq!(v["model"], "opus");
