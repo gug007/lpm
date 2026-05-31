@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useAnchoredPanel } from "../hooks/useAnchoredPanel";
 import type { ActionInfo } from "../types";
 import { ChevronDownIcon } from "./icons";
+import { withEmoji } from "../withEmoji";
 
 const SIZE_CLASSES = {
   default: {
@@ -68,7 +69,7 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
     <div ref={panelRef} style={style} className={dropdownPanelClass}>
       {children.map((child) => (
         <button key={child.name} onClick={() => handleSelectChild(child)} className={dropdownItemClass}>
-          <span className="flex-1 truncate">{child.label}</span>
+          <span className="flex-1 truncate">{withEmoji(child.emoji, child.label)}</span>
         </button>
       ))}
     </div>,
@@ -82,7 +83,7 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
         disabled={disabled}
         className={`whitespace-nowrap ${s.roundedL} ${s.padding} font-medium ${s.text} transition-all duration-100 active:scale-[0.97] ${s.hover} disabled:cursor-not-allowed disabled:opacity-40`}
       >
-        {action.label}
+        {withEmoji(action.emoji, action.label)}
       </button>
       <button
         onClick={() => setOpen((v) => !v)}
@@ -98,7 +99,7 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
       disabled={disabled}
       className={`inline-flex items-center gap-1 whitespace-nowrap ${s.rounded} ${s.border} ${s.padding} font-medium ${s.text} transition-all duration-100 active:scale-[0.97] ${s.hover} disabled:cursor-not-allowed disabled:opacity-40`}
     >
-      {action.label}
+      {withEmoji(action.emoji, action.label)}
       <ChevronDownIcon />
     </button>
   );

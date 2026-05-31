@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { LoadSettings, SaveSettings } from "../../wailsjs/go/main/App";
-import type { main } from "../../wailsjs/go/models";
+import { LoadSettings, SaveSettings } from "../../bridge/commands";
+import type { main } from "../../bridge/models";
 import type { Theme } from "../theme";
 
 export const GIT_PULL_STRATEGIES = ["ff-only", "merge", "rebase"] as const;
@@ -23,8 +23,13 @@ export interface DetachedWindowState {
 
 export interface Settings {
   theme: Theme;
+  browserTheme?: "light" | "dark"; // unset = follow the app theme
+
   doubleClickToToggle: boolean;
   soundNotifications?: boolean;
+  doneSound?: string;
+  waitingSound?: string;
+  errorSound?: string;
   projectOrder?: string[];
   terminalTheme?: string;
   terminalFontSize?: number;
@@ -63,13 +68,18 @@ interface SettingsActions {
 
 type SettingsState = Settings & SettingsActions;
 
-// Empty strings from the Wails binding collapse to undefined so consumers
+// Empty strings from the backend binding collapse to undefined so consumers
 // can rely on `value ?? fallback` and on truthiness checks.
 function normalize(s: main.Settings): Settings {
   return {
     theme: (s.theme as Theme) || defaults.theme,
+    browserTheme:
+      s.browserTheme === "light" || s.browserTheme === "dark" ? s.browserTheme : undefined,
     doubleClickToToggle: s.doubleClickToToggle ?? defaults.doubleClickToToggle,
     soundNotifications: s.soundNotifications,
+    doneSound: s.doneSound || undefined,
+    waitingSound: s.waitingSound || undefined,
+    errorSound: s.errorSound || undefined,
     projectOrder: s.projectOrder,
     terminalTheme: s.terminalTheme,
     terminalFontSize: s.terminalFontSize,

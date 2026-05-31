@@ -11,7 +11,7 @@ import { ActionInputsModal } from "./project-detail/ActionInputsModal";
 import { ActionTerminal } from "./project-detail/ActionTerminal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { TerminalIcon } from "./icons";
-import { GetProject } from "../../wailsjs/go/main/App";
+import { GetProject } from "../../bridge/commands";
 import type { ActionInfo, ProjectInfo } from "../types";
 import {
   GLOBAL_TERMINALS_KEY,

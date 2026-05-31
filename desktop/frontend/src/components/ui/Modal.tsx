@@ -1,6 +1,7 @@
 import { type ReactNode, type Ref } from "react";
 import { createPortal } from "react-dom";
 import { useEventListener } from "../../hooks/useEventListener";
+import { useOverlay } from "../../store/overlay";
 
 interface ModalProps {
   open: boolean;
@@ -35,6 +36,8 @@ export function Modal({
     document,
     open && closeOnEscape,
   );
+
+  useOverlay(open); // park the in-pane browser webview while open (it floats above the DOM)
 
   if (!open) return null;
 

@@ -50,8 +50,8 @@ export function DemoSection() {
               Live interactive demo
             </span>
           }
-          title="Projects, terminals, Claude Code or Codex — one click each"
-          description="Click anywhere below. Switch projects, start services, launch Claude Code or Codex — all running live in your browser, right now."
+          title="Projects, terminals, agents, a built-in browser — one click each"
+          description="Click anywhere below. Switch projects, start services, launch Claude Code or Codex, and preview your dev server in the in-pane browser — all running live in your browser, right now."
           className="mb-10"
         />
         <DemoApp

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { EventsOn } from "../../../wailsjs/runtime/runtime";
+import { EventsOn } from "../../../bridge/runtime";
 import { XIcon, CheckIcon } from "../icons";
 import { SpinnerIcon, ErrorCircleIcon } from "./icons";
 

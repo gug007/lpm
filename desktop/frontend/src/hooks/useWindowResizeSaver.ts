@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { SaveWindowSize } from "../../wailsjs/go/main/App";
-import { WindowGetSize } from "../../wailsjs/runtime/runtime";
+import { SaveWindowSize } from "../../bridge/commands";
+import { WindowGetSize } from "../../bridge/runtime";
 
 const DEBOUNCE_MS = 500;
 

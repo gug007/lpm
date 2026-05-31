@@ -171,12 +171,13 @@
             "name": { "type": "string", "description": "Key used when the action is defined in array form." },
             "cmd": { "type": "string" },
             "label": { "type": "string" },
+            "emoji": { "type": "string", "description": "Optional emoji shown as the action's icon and on the terminal tab it launches." },
             "cwd": { "type": "string" },
             "port": {
               "type": "integer",
               "minimum": 0,
               "maximum": 65535,
-              "description": "Port the action wants free. Holders are surfaced via a confirmation dialog (or as an error in the CLI) before the action runs."
+              "description": "Port the action wants free. Holders are surfaced via a confirmation dialog before the action runs."
             },
             "env": { "$ref": "#/definitions/envMap" },
             "confirm": { "type": "boolean", "description": "Prompt before running." },
@@ -251,6 +252,7 @@
             "name": { "type": "string", "description": "Key used when the terminal is defined in array form." },
             "cmd": { "type": "string" },
             "label": { "type": "string" },
+            "emoji": { "type": "string", "description": "Optional emoji shown as the terminal tab's icon." },
             "cwd": { "type": "string" },
             "port": {
               "type": "integer",

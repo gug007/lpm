@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { StatusDot } from "./StatusDot";
 import { getSettings } from "../store/settings";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { InstallUpdate } from "../../wailsjs/go/main/App";
+import { EventsOn } from "../../bridge/runtime";
+import { InstallUpdate } from "../../bridge/commands";
 import { type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
 import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon, MoreVerticalIcon, DetachIcon, TerminalIcon } from "./icons";
 import { ProgressBar } from "./ui/ProgressBar";
@@ -35,6 +35,7 @@ interface SidebarProps {
   onDetachProject: (name: string) => void;
   onAttachProject: (name: string) => void;
   detached: Set<string>;
+  detachedSelf?: string;
   showTerminals: boolean;
   showSettings: boolean;
   duplicatingName: string | null;
@@ -66,7 +67,7 @@ function computeStatus(project: ProjectInfo): ProjectStatus {
   return { isRunning, isDone, isWaiting, isError, className };
 }
 
-export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onDuplicateProject, onRemoveProject, onRenameProject, onReorder, onDetachProject, onAttachProject, detached, showTerminals, showSettings, duplicatingName, removingName }: SidebarProps) {
+export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onDuplicateProject, onRemoveProject, onRenameProject, onReorder, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showSettings, duplicatingName, removingName }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -145,13 +146,13 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
       style={{ width: collapsed ? 0 : width, overflow: collapsed ? "hidden" : undefined }}
     >
       <div
-        className="wails-drag flex h-11 shrink-0 items-center justify-end pr-3 pt-[7px]"
+        className="app-drag flex h-11 shrink-0 items-center justify-end pr-3 pt-[7px]"
         style={{ minWidth: width }}
       >
         <div className={collapsed ? "opacity-0 pointer-events-none" : "opacity-100"}>
           <button
             onClick={() => onCollapsedChange(true)}
-            style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}
+            style={{ "--app-draggable": "no-drag" } as React.CSSProperties}
             className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
             title="Collapse sidebar (⌘B)"
           >
@@ -177,7 +178,8 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           {rows.map(({ project, isChild }) => {
             const status = computeStatus(project);
             const isDetached = detached.has(project.name);
-            const isSelected = selected === project.name && !isDetached;
+            const isSelf = project.name === detachedSelf;
+            const isSelected = selected === project.name && (!isDetached || isSelf);
             const isContextTarget = contextMenu?.name === project.name;
             const isBusy = duplicatingName === project.name || removingName === project.name;
             const parent = project.parentName ? projectByName.get(project.parentName) : undefined;
@@ -221,7 +223,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                   >
                     {status.className ? <span className={status.className}>{name}</span> : name}
                   </span>
-                  {isDetached && (
+                  {isDetached && !isSelf && (
                     <span
                       className="shrink-0 text-[var(--text-muted)]"
                       title="Open in a separate window — click to focus"

@@ -12,12 +12,12 @@ import {
   GitDiff,
   GitDiscardFiles,
   GitPush,
-} from "../../wailsjs/go/main/App";
-import { main } from "../../wailsjs/go/models";
+} from "../../bridge/commands";
+import { main } from "../../bridge/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useAIPicker } from "../hooks/useAIPicker";
 import { aiEffectiveFast } from "../types";
-import { EventsEmit } from "../../wailsjs/runtime/runtime";
+import { EventsEmit } from "../../bridge/runtime";
 import { getSettings, saveSettings } from "../store/settings";
 import { ChangedFilesTree } from "./ChangedFilesTree";
 import { SideBySideDiffModal } from "./SideBySideDiffModal";

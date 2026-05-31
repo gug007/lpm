@@ -17,8 +17,8 @@ export function downloadBlob(bytes: Uint8Array, filename: string, mimeType: stri
   URL.revokeObjectURL(url);
 }
 
-// Used for bytes crossing the Wails bridge: Go's json.Marshal emits []byte
-// as base64, so the Wails-generated Array<number> type is a lie.
+// Used for bytes crossing the IPC bridge: Go's json.Marshal emits []byte
+// as base64, so the binding.s Array<number> type is a lie.
 export function base64ToBytes(b64: string): Uint8Array {
   const binary = atob(b64);
   const bytes = new Uint8Array(binary.length);

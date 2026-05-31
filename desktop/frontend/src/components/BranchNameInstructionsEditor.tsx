@@ -1,4 +1,4 @@
-import { ReadBranchNameInstructions, SaveBranchNameInstructions } from "../../wailsjs/go/main/App";
+import { ReadBranchNameInstructions, SaveBranchNameInstructions } from "../../bridge/commands";
 import { InstructionsEditor } from "./InstructionsEditor";
 
 export function BranchNameInstructionsEditor({ onBack }: { onBack: () => void }) {

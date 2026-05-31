@@ -11,7 +11,7 @@ const PATH = vsPath("overmind");
 export const metadata: Metadata = {
   title: "lpm vs Overmind",
   description:
-    "Overmind-grade per-process control, without managing tmux yourself. lpm gives Rails devs live panes, single-service restarts, and multi-project switching in a macOS app and CLI.",
+    "Overmind-grade per-process control, without managing tmux yourself. lpm gives Rails devs live panes, single-service restarts, and multi-project switching in a native macOS app.",
   keywords: [
     "overmind alternative",
     "overmind vs lpm",
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "lpm vs Overmind",
     description:
-      "Overmind-grade per-process control without hands-on tmux. A desktop app plus CLI with per-service panes, single-service restarts, and multi-project switching.",
+      "Overmind-grade per-process control without hands-on tmux. A native macOS desktop app with per-service panes, single-service restarts, and multi-project switching.",
     type: "website",
     url: PATH,
     siteName: "lpm",
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "lpm vs Overmind",
     description:
-      "Overmind-grade per-process control without hands-on tmux. Per-service panes, single-service restarts, multi-project switching — app and CLI.",
+      "Overmind-grade per-process control without hands-on tmux. Per-service panes, single-service restarts, multi-project switching — in a native macOS app.",
   },
 };
 
@@ -97,11 +97,6 @@ const MATRIX_ROWS: MatrixRow[] = [
     lpm: true,
     competitor: false,
   },
-  {
-    label: "CLI is a single static Go binary",
-    lpm: true,
-    competitor: true,
-  },
 ];
 
 const FAQS: FaqItem[] = [
@@ -113,12 +108,12 @@ const FAQS: FaqItem[] = [
   {
     question: "Does lpm require tmux?",
     answer:
-      "Yes — lpm uses tmux under the hood to keep sessions alive and give each service its own window. The difference from Overmind is that lpm hides tmux from you: you don't write a .tmux.conf, you don't memorize keybindings, and you don't run tmux attach by hand. Output renders in the desktop app's panes or streams through the lpm CLI. If tmux isn't installed, the lpm installer nudges you to brew install tmux.",
+      "Yes — lpm uses tmux under the hood to keep sessions alive and give each service its own window. The difference from Overmind is that lpm hides tmux from you: you don't write a .tmux.conf, you don't memorize keybindings, and you don't run tmux attach by hand. Output renders in the desktop app's panes. If tmux isn't installed, lpm prompts you to brew install tmux.",
   },
   {
     question: "How do I attach to a single process the way overmind connect does?",
     answer:
-      "Click the service in the sidebar and its pane takes focus with full scrollback and an interactive prompt, so you can hit a debugger, run a pry session, or send input to just that one process. From the CLI you can stream a single service's output the same way.",
+      "Click the service in the sidebar and its pane takes focus with full scrollback and an interactive prompt, so you can hit a debugger, run a pry session, or send input to just that one process.",
   },
   {
     question: "Can I use lpm on a remote dev box over SSH?",
@@ -180,7 +175,7 @@ export default function OvermindVsPage() {
         title="Keep Overmind's per-process control. Skip the hands-on tmux."
         description={
           <>
-            Install lpm, convert your Procfile lines into a small YAML, and every service shows up as its own live pane — in the app or the CLI. tmux runs under the hood so sessions persist; you never have to touch it. Free and open source on{" "}
+            Install lpm, convert your Procfile lines into a small YAML, and every service shows up as its own live pane in the desktop app. tmux runs under the hood so sessions persist; you never have to touch it. Free and open source on{" "}
             <a
               href={REPO_URL}
               className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"

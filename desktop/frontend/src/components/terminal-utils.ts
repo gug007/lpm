@@ -1,4 +1,4 @@
-import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
+import { BrowserOpenURL } from "../../bridge/runtime";
 
 export const openTerminalLink = (_e: MouseEvent, uri: string) => BrowserOpenURL(uri);
 

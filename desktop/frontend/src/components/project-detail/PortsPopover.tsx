@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime";
+import { BrowserOpenURL } from "../../../bridge/runtime";
 import {
   AddPortForward,
   ClearPortSuggestions,
   DismissPortSuggestion,
   RemovePortForward,
-} from "../../../wailsjs/go/main/App";
-import type { main } from "../../../wailsjs/go/models";
+} from "../../../bridge/commands";
+import type { main } from "../../../bridge/models";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { PlusIcon, XIcon } from "../icons";
 import { forwardPortAndOpen } from "./forwardPort";
@@ -134,7 +134,7 @@ export function PortsPopover({ projectName, forwards, suggestions, onClose }: Po
     <div
       ref={ref}
       className="absolute right-0 top-full z-50 mt-1.5 w-[28rem] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl"
-      style={{ "--wails-draggable": "no-drag" } as React.CSSProperties}
+      style={{ "--app-draggable": "no-drag" } as React.CSSProperties}
     >
       <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2">
         <span className="text-xs font-medium text-[var(--text-primary)]">Forwarded ports</span>

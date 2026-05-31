@@ -8,7 +8,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { trackDownload } from "@/lib/analytics";
-import { CLI_PATH, releaseAsset, RELEASES_URL } from "@/lib/links";
+import { releaseAsset, RELEASES_URL } from "@/lib/links";
 import type { Platform } from "@/lib/use-platform";
 import { HighlightPlatform } from "./highlight-platform";
 import { SignatureBadge } from "./signature-badge";
@@ -81,13 +81,6 @@ export function Downloads() {
           ))}
         </div>
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-x-6 gap-y-2 text-sm">
-          <a
-            href={CLI_PATH}
-            className="inline-flex items-center gap-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-          >
-            Prefer the CLI?
-            <ArrowRight className="w-3.5 h-3.5" />
-          </a>
           <a
             href={RELEASES_URL}
             className="inline-flex items-center gap-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"

@@ -1,4 +1,4 @@
-import type { notes } from "../../wailsjs/go/models";
+import type { notes } from "../../bridge/models";
 import { PlusIcon, SidebarIcon, SearchIcon } from "./icons";
 
 interface MiniChatRailProps {

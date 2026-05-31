@@ -27,7 +27,7 @@ export default function PrivacyPage() {
         </h2>
         <p>
           lpm is an open-source project. The <strong>software itself</strong>{" "}
-          (the CLI and the macOS desktop app) runs entirely on your machine.
+          (the macOS desktop app) runs entirely on your machine.
           It does not collect, transmit, or share any personal data, telemetry,
           or usage information.
         </p>
@@ -39,7 +39,7 @@ export default function PrivacyPage() {
 
       <section className="mt-8 space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          The software (CLI and desktop app)
+          The software (desktop app)
         </h2>
         <ul className="list-disc pl-5 space-y-1">
           <li>No analytics, tracking, or telemetry.</li>

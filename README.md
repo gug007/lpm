@@ -63,7 +63,6 @@ Supports macOS (Apple Silicon & Intel).
 - **Profiles** for running service subsets
 - **Actions** — one-shot commands like tests, migrations, and deploys, runnable from the Actions button
 - **Works with any stack** — if it runs in a terminal, lpm can manage it
-- **CLI + App in sync** — same features, same state, mix and match freely
 
 ## AI Agent Skill
 
@@ -76,9 +75,3 @@ npx skills add gug007/lpm
 Then just tell your agent "set up lpm for this project" and it will analyze your codebase, discover services, and write the config.
 
 See [lpm-config/README.md](lpm-config/README.md) for details.
-
-## CLI
-
-Prefer the terminal? lpm also ships with a CLI that shares the same config and state as the desktop app.
-
-See [README-CLI.md](README-CLI.md) for install instructions, commands, and configuration reference.

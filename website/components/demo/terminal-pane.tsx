@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import {
   Columns2,
-  Plus,
+  Globe,
+  Pin,
   Rows2,
   Terminal as TerminalIcon,
   X,
 } from "lucide-react";
 import type { LineColor, OutputLine } from "./projects";
+import { AddTabSplitButton } from "./tab-controls";
 
 const MAX_LINES = 140;
 const LOOP_START_DELAY_MS = 800;
@@ -26,9 +28,11 @@ const COLOR_CLASS: Record<LineColor, string> = {
 export type TabInfo = {
   key: string;
   label: string;
-  type: "service" | "terminal";
+  type: "service" | "terminal" | "browser";
   port?: number;
   running: boolean;
+  emoji?: string;
+  pinned?: boolean;
 };
 
 type PaneHeaderProps = {
@@ -37,8 +41,10 @@ type PaneHeaderProps = {
   onSelectTab: (idx: number) => void;
   onCloseTab: (idx: number) => void;
   onNewTab?: () => void;
+  onNewBrowser?: () => void;
   onSplitRight?: () => void;
   onSplitDown?: () => void;
+  onTabContextMenu?: (idx: number, x: number, y: number) => void;
 };
 
 export function PaneHeader({
@@ -47,14 +53,22 @@ export function PaneHeader({
   onSelectTab,
   onCloseTab,
   onNewTab,
+  onNewBrowser,
   onSplitRight,
   onSplitDown,
+  onTabContextMenu,
 }: PaneHeaderProps) {
   return (
     <div role="tablist" className="flex-shrink-0 flex items-center gap-0.5 bg-[#2d2d2d] px-1.5 py-1">
       <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
         {tabs.map((tab, i) => {
           const active = i === activeIdx;
+          const canContext = tab.type !== "service";
+          const onContext = (e: MouseEvent) => {
+            if (!canContext || !onTabContextMenu) return;
+            e.preventDefault();
+            onTabContextMenu(i, e.clientX, e.clientY);
+          };
           return (
             <div
               key={tab.key}
@@ -62,6 +76,7 @@ export function PaneHeader({
               tabIndex={0}
               aria-selected={active}
               onClick={() => onSelectTab(i)}
+              onContextMenu={onContext}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
@@ -74,18 +89,23 @@ export function PaneHeader({
                   : "text-[#a0a0a0] hover:bg-white/[0.04] hover:text-[#d4d4d4]"
               }`}
             >
-              {tab.type === "service" ? (
-                <span
-                  aria-hidden="true"
-                  className={`inline-block w-2 h-2 rounded-full shrink-0 ${
-                    tab.running
-                      ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]"
-                      : "bg-gray-600"
-                  }`}
-                />
-              ) : (
-                <TerminalIcon aria-hidden="true" className="w-3 h-3 text-[#8e8e8e] shrink-0" />
-              )}
+              <span aria-hidden="true" className="flex w-3.5 shrink-0 items-center justify-center">
+                {tab.type === "service" ? (
+                  <span
+                    className={`inline-block w-2 h-2 rounded-full ${
+                      tab.running
+                        ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]"
+                        : "bg-gray-600"
+                    }`}
+                  />
+                ) : tab.type === "browser" ? (
+                  <Globe className="w-3.5 h-3.5 text-[#8e8e8e]" />
+                ) : tab.emoji ? (
+                  <span className="text-[12px] leading-none">{tab.emoji}</span>
+                ) : (
+                  <TerminalIcon className="w-3 h-3 text-[#8e8e8e]" />
+                )}
+              </span>
               <span className="font-mono text-[11px] font-medium truncate">
                 {tab.label}
               </span>
@@ -94,30 +114,33 @@ export function PaneHeader({
                   :{tab.port}
                 </span>
               )}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCloseTab(i);
-                }}
-                aria-label={`Close ${tab.label}`}
-                className="rounded text-[#8e8e8e] hover:text-gray-100 transition-colors shrink-0 leading-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
-              >
-                <X className="w-3 h-3" />
-              </button>
+              {tab.pinned ? (
+                <Pin
+                  aria-hidden="true"
+                  className="w-3 h-3 text-[#8e8e8e] shrink-0"
+                  fill="currentColor"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCloseTab(i);
+                  }}
+                  aria-label={`Close ${tab.label}`}
+                  className="rounded text-[#8e8e8e] hover:text-gray-100 transition-colors shrink-0 leading-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
             </div>
           );
         })}
         {onNewTab && (
-          <button
-            type="button"
-            onClick={onNewTab}
-            aria-label="New terminal"
-            title="New terminal"
-            className="rounded-md px-1.5 py-0.5 text-[#8e8e8e] hover:bg-white/[0.08] hover:text-gray-100 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
-          >
-            <Plus className="w-3 h-3" />
-          </button>
+          <AddTabSplitButton
+            onAddTerminal={onNewTab}
+            onAddBrowser={onNewBrowser ?? onNewTab}
+          />
         )}
       </div>
       {onSplitRight && (

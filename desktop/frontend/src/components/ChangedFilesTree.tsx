@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { main } from "../../wailsjs/go/models";
+import { main } from "../../bridge/models";
 import { UndoIcon } from "./icons";
 import { DiffViewer } from "./DiffViewer";
 

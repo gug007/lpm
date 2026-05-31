@@ -1,0 +1,75 @@
+[package]
+name = "lpm-desktop"
+version = "0.0.1"
+description = "lpm — Local Project Manager"
+edition = "2021"
+rust-version = "1.77"
+
+# Tauri 2 convention: a lib crate (the app logic) plus a thin main.rs binary.
+[lib]
+name = "lpm_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[target.'cfg(target_os = "macos")'.build-dependencies]
+cc = "1"
+
+[dependencies]
+tauri = { version = "2", features = ["unstable"] }  # unstable = multiwebview (in-pane browser)
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+dirs = "5"
+portable-pty = "0.8"
+hex = "0.4"
+uuid = { version = "1", features = ["v4"] }
+notify = "6"
+tauri-plugin-dialog = "2"
+base64 = "0.22"
+urlencoding = "2"
+glob = "0.3"
+libc = "0.2"
+regex = "1"           # sniff localhost URLs from remote PTY output (port poller)
+
+# --- Notes + vault (encrypted notes.db, blob store, Keychain, key export) ---
+# SQLCipher 4.x compiled from source with vendored OpenSSL so the build is
+# self-contained (no Homebrew openssl / OPENSSL_DIR). On-disk format is crypto-
+# provider-independent, so it reads files written by Go's go-sqlcipher/v4.
+rusqlite = { version = "0.32", features = ["bundled-sqlcipher-vendored-openssl"] }
+aes-gcm = "0.10"        # AES-256-GCM blob + export AEAD (ct||tag, 12B nonce)
+argon2 = "0.5"          # Argon2id KEK for vault key export/import
+sha2 = "0.10"           # blob content addressing
+getrandom = "0.2"       # key / salt / nonce CSPRNG
+zeroize = "1"           # wipe key buffers
+tempfile = "3"          # atomic blob temp-then-rename
+# macOS Keychain (legacy login keychain, generic password). Raw SecItem FFI:
+# kSec* constants + errSec codes from -sys, core-foundation to build the query
+# dictionaries. We mirror go-keychain's exact attributes (SynchronizableAny on
+# read) so the existing vault key is found, never recreated.
+security-framework-sys = "2.11"
+core-foundation = "0.9"
+core-foundation-sys = "0.8"
+chrono = "0.4"         # vault-export filename timestamp (local time)
+mime_guess = "2"       # attachment MIME from extension
+tar = "0.4"            # config export/import archive
+flate2 = "1"           # gzip for the config archive
+# Blocking HTTP for the self-updater (GitHub release check + DMG download).
+# default-tls = native-tls = Security.framework on macOS (no extra OpenSSL).
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "default-tls"] }
+
+# objc2 for the in-pane browser's per-webview NSAppearance override (window theme
+# is app-wide on macOS). Versions match what Tauri already pulls in.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSString"] }
+
+# thin LTO + parallel codegen roughly halves CI link time; the runtime
+# difference is imperceptible for a GUI app. opt-level = "s" keeps DMG size down.
+[profile.release]
+codegen-units = 16
+lto = "thin"
+opt-level = "s"
+strip = true

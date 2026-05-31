@@ -20,9 +20,9 @@ import {
   NotesRenameChat,
   NotesSaveAttachment,
   NotesSearch,
-} from "../../wailsjs/go/main/App";
+} from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
-import { main, notes } from "../../wailsjs/go/models";
+import { main, notes } from "../../bridge/models";
 import {
   PaperclipIcon,
   SendIcon,

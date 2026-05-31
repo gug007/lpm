@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { GitStatus as ApiGitStatus, ListBranches } from "../../wailsjs/go/main/App";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { main } from "../../wailsjs/go/models";
+import { GitStatus as ApiGitStatus, ListBranches } from "../../bridge/commands";
+import { EventsOn } from "../../bridge/runtime";
+import { main } from "../../bridge/models";
 import { GIT_CHANGED_EVENT } from "../types";
 import { useEventListener } from "./useEventListener";
 

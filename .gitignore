@@ -6,16 +6,10 @@ docs/superpowers/
 lpm
 *.exe
 
-# Desktop app (Wails)
-desktop/desktop
-desktop/.task/
-desktop/bin/
-desktop/build/bin/
-desktop/build/darwin/icons.icns
+# Desktop app
 desktop/frontend/dist/
 desktop/frontend/node_modules/
-desktop/frontend/bindings/
-desktop/frontend/package.json.md5
+desktop/frontend/src-tauri/target/
 
 # Dependencies
 node_modules

@@ -46,11 +46,6 @@ const FAQS: QA[] = [
     answer:
       "Rails, Next.js, Go, Django, Flask, and Docker Compose are detected out of the box. Anything else still works — if it runs in a terminal, lpm can start it.",
   },
-  {
-    question: "Is there a CLI, a desktop app, or both?",
-    answer:
-      "This page is about the native macOS desktop app — tabs, live output per service, and a visual project switcher are the main pitch. A CLI is also available and shares the same config if you want to script things or drive lpm from an agent.",
-  },
 ];
 
 const faqJsonLd = {

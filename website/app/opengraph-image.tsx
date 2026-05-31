@@ -81,8 +81,8 @@ export default function Image() {
               maxWidth: 980,
             }}
           >
-            A CLI and native macOS app for managing local dev projects — run
-            Claude Code, Codex, and more side by side on the same codebase.
+            A native macOS app for managing local dev projects — run Claude
+            Code, Codex, and more side by side on the same codebase.
           </div>
         </div>
 
@@ -106,7 +106,7 @@ export default function Image() {
             />
             lpm.cx
           </div>
-          <div>macOS · CLI · Desktop</div>
+          <div>macOS · Desktop App</div>
         </div>
       </div>
     ),

@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
+import { BrowserOpenURL } from "../../bridge/runtime";
 import { useYamlEditor } from "../hooks/useYamlEditor";
 import { ChevronLeftIcon } from "./icons";
 import { MonacoEditor } from "./MonacoEditor";

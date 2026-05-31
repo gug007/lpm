@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ListOpenInTargets, OpenIn } from "../../wailsjs/go/main/App";
-import { main } from "../../wailsjs/go/models";
+import { ListOpenInTargets, OpenIn } from "../../bridge/commands";
+import { main } from "../../bridge/models";
 
 export type OpenInTarget = main.OpenInTarget;
 

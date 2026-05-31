@@ -89,7 +89,7 @@ Actions and terminals accept the same sequence form. See `decodeNamedMap` in `in
 
 ## Actions
 
-One-shot commands — test runners, migrations, deploy scripts, linters. Run via `lpm run <project> <action>` or from the app UI.
+One-shot commands — test runners, migrations, deploy scripts, linters. Run from the app UI.
 
 Actions can be **standalone** (single command), **terminal actions** (run in a persistent pane), or **action groups** (containing nested sub-actions).
 
@@ -231,7 +231,7 @@ actions:
         confirm: true
 ```
 
-Sub-actions inherit `cwd` and `env` from the parent; child values win on conflict. Run a sub-action via CLI: `lpm run <project> database migrate`.
+Sub-actions inherit `cwd` and `env` from the parent; child values win on conflict.
 
 ### Fields
 
@@ -246,7 +246,7 @@ Sub-actions inherit `cwd` and `env` from the parent; child values win on conflic
 | `type` | string | no | — | Action type. `terminal` runs in a terminal pane; `background` runs hidden and shows a toast on completion. Omit for the default inline runner (modal with streaming output). |
 | `reuse` | bool | no | false | When `type: terminal`, reuse the same terminal pane across runs instead of opening a new one. |
 | `mode` | string | no | — | SSH-only execution mode. `remote` (default on SSH projects) runs the command on the host. `sync` rsyncs `ssh.dir` into a local mirror, runs the action locally, then rsyncs changes back. `sync` is rejected on local projects. See [SSH Action Modes](#ssh-action-modes). |
-| `port` | int | no | — | Port the action wants free. lpm probes it before launching; if held, the user gets a confirmation dialog listing the holder (or a CLI error). 0–65535. Different from `services.<key>.port` (which is "this is the port I will listen on"). |
+| `port` | int | no | — | Port the action wants free. lpm probes it before launching; if held, the user gets a confirmation dialog listing the holder. 0–65535. Different from `services.<key>.port` (which is "this is the port I will listen on"). |
 | `position` | number | no | — | Sort key in the UI. Lower renders first. Floats allowed for easy insertion between existing entries. Default is alphabetical order. |
 | `inputs` | map[string]InputField | no | — | Named inputs prompted before running. Values substitute `{{key}}` in `cmd`. |
 | `actions` | map[string]Action | no | — | Nested sub-actions. Makes this an action group. See [Action Groups](#action-groups-nested-actions). Children inherit `cwd`, `env`, and `mode` from the parent. |
@@ -341,7 +341,7 @@ Use `terminals:` when the intent is "persistent interactive shell". Drop a `type
 
 ## Profiles
 
-Named subsets of services. Start a profile with `lpm myapp -p <profile>`.
+Named subsets of services. Pick a profile when starting a project in lpm.
 
 ```yaml
 profiles:
@@ -351,7 +351,7 @@ profiles:
 
 Each service name must reference a service defined in `services`.
 
-**The `default` profile is special.** When the user starts a project without picking a profile (`lpm myapp`), lpm uses the `default` profile if one is defined. If no profiles exist at all, lpm starts every service (sorted alphabetically for stable pane ordering).
+**The `default` profile is special.** When the user starts a project without picking a profile, lpm uses the `default` profile if one is defined. If no profiles exist at all, lpm starts every service (sorted alphabetically for stable pane ordering).
 
 ---
 
@@ -506,8 +506,8 @@ extends:
 
 services:
   dev:
-    cmd: ./cleanup.sh && wails3 dev
-    cwd: ./desktop
+    cmd: ./cleanup.sh && npm run tauri dev
+    cwd: ./desktop/frontend
 
   website:
     cmd: npm run dev
@@ -638,7 +638,7 @@ actions:
 ## Naming Keys
 
 - Use short, lowercase, hyphen-separated identifiers: `db-migrate`, `run-tests`, `redis-cli`.
-- The key is used as the CLI argument in `lpm run <project> <key>`.
+- The key is the action's stable identifier and the default button label when `label` is omitted.
 
 ## Shorthand vs Full Form
 

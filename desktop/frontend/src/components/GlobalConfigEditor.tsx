@@ -1,4 +1,4 @@
-import { ReadGlobalConfig, SaveGlobalConfig } from "../../wailsjs/go/main/App";
+import { ReadGlobalConfig, SaveGlobalConfig } from "../../bridge/commands";
 import { GLOBAL_MODEL_URI } from "../monaco-setup";
 import { YamlConfigEditor } from "./YamlConfigEditor";
 

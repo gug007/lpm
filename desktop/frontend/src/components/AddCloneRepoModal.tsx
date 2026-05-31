@@ -6,7 +6,7 @@ import { Modal } from "./ui/Modal";
 import { XIcon } from "./icons";
 import { slugify } from "../slugify";
 import { useAppStore } from "../store/app";
-import { BrowseFolder } from "../../wailsjs/go/main/App";
+import { BrowseFolder } from "../../bridge/commands";
 import { gitUrlSchema, projectNameSchema } from "../forms/schemas";
 import {
   modalErrorInputClass,

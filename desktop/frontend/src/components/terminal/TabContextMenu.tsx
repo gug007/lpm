@@ -1,5 +1,5 @@
 import { Pin, PinOff } from "lucide-react";
-import { PencilIcon } from "../icons";
+import { PencilIcon, XIcon } from "../icons";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
 
@@ -9,6 +9,7 @@ interface TabContextMenuProps {
   pinned: boolean;
   onRename: () => void;
   onTogglePin: () => void;
+  onCloseTab: () => void;
   onClose: () => void;
 }
 
@@ -18,6 +19,7 @@ export function TabContextMenu({
   pinned,
   onRename,
   onTogglePin,
+  onCloseTab,
   onClose,
 }: TabContextMenuProps) {
   const close = (fn: () => void) => () => {
@@ -35,6 +37,12 @@ export function TabContextMenu({
         label={pinned ? "Unpin" : "Pin"}
         icon={pinned ? <PinOff size={12} /> : <Pin size={12} />}
         onClick={close(onTogglePin)}
+      />
+      <ContextMenuItem
+        label="Close"
+        icon={<XIcon />}
+        destructive
+        onClick={close(onCloseTab)}
       />
     </ContextMenuShell>
   );

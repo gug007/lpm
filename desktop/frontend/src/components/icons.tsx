@@ -15,7 +15,10 @@ export function SidebarIcon() { return <svg {...iconProps} viewBox="0 0 22 16" w
 export function TrashIcon({ size = 14 }: { size?: number } = {}) { return <svg {...iconProps} width={size} height={size}><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>; }
 export function UndoIcon() { return <svg {...iconProps}><path d="M3 7v6h6" /><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6.7 2.7L3 13" /></svg>; }
 export function RefreshIcon() { return <svg {...iconProps}><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>; }
-export function TerminalIcon() { return <svg {...iconProps}><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>; }
+export function GlobeIcon() { return <svg {...iconProps}><circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>; }
+export function SunIcon() { return <svg {...iconProps}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" /></svg>; }
+export function MoonIcon() { return <svg {...iconProps}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>; }
+export function TerminalIcon() { return <svg {...iconProps}><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="m7 10 2.5 2-2.5 2" /><line x1="12.5" y1="14" x2="16" y2="14" /></svg>; }
 export function ChevronLeftIcon() { return <svg {...iconProps}><polyline points="15 18 9 12 15 6" /></svg>; }
 export function ChevronRightIcon() { return <svg {...iconProps}><polyline points="9 18 15 12 9 6" /></svg>; }
 export function ChevronDownIcon() { return <svg {...iconProps}><path d="m6 9 6 6 6-6" /></svg>; }

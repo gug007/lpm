@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { ReadTemplate, SaveTemplate } from "../../wailsjs/go/main/App";
+import { ReadTemplate, SaveTemplate } from "../../bridge/commands";
 import { TEMPLATE_MODEL_URI } from "../monaco-setup";
 import { YamlConfigEditor } from "./YamlConfigEditor";
 

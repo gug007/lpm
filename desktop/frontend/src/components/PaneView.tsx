@@ -1,26 +1,59 @@
 import { memo, useEffect, useMemo, useState } from "react";
 import type { ITheme } from "@xterm/xterm";
 import { InteractivePane, type InteractivePaneHandle } from "./InteractivePane";
+import { BrowserPane } from "./BrowserPane";
 import { Pane, type PaneHandle } from "./Pane";
 import { HeaderTab } from "./terminal/HeaderTab";
 import { RenameModal } from "./RenameModal";
 import { TabContextMenu } from "./terminal/TabContextMenu";
 import { IconBtn } from "./terminal/IconBtn";
 import {
-  PlusIcon,
   SplitRightIcon,
   SplitDownIcon,
   ClearIcon,
   ExpandIcon,
   ShrinkIcon,
 } from "./terminal/icons";
+import { AddTabSplitButton } from "./terminal/AddTabSplitButton";
 import { TerminalSearchBar } from "./terminal/TerminalSearchBar";
-import { XIcon } from "./icons";
+import { XIcon, GlobeIcon, TerminalIcon, ZapIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
 import { SortableTab, TabStrip } from "./TerminalTabDnd";
 import { ALL_SERVICES, type PaneLeaf, type SplitDirection } from "../paneTree";
+import { useBrowserUrls } from "../store/browserUrls";
 
 export type StatusKind = "Done" | "Waiting" | "Error";
+
+function faviconFor(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    return `${u.origin}/favicon.ico`;
+  } catch {
+    return null;
+  }
+}
+
+// The in-pane browser has no IPC to report its real favicon, so guess it from
+// the origin and fall back to a globe when that 404s or doesn't decode (some
+// servers answer /favicon.ico with an HTML page → naturalWidth 0).
+function BrowserTabIcon({ id }: { id: string }) {
+  const url = useBrowserUrls((s) => s.urls[id]);
+  const src = faviconFor(url);
+  const [brokenSrc, setBrokenSrc] = useState<string | null>(null);
+  if (!src || src === brokenSrc) return <GlobeIcon />;
+  return (
+    <img
+      src={src}
+      alt=""
+      draggable={false}
+      onError={() => setBrokenSrc(src)}
+      onLoad={(e) => { if (e.currentTarget.naturalWidth === 0) setBrokenSrc(src); }}
+      className="h-3.5 w-3.5 rounded-sm"
+    />
+  );
+}
 
 /** A running service that the primary pane renders as an additional tab. */
 export interface ServiceTabInfo {
@@ -51,8 +84,14 @@ export interface PaneViewProps {
   onFocusTab: (paneId: string, tabIdx: number) => void;
   onFocusService: (paneId: string, serviceName: string) => void;
   onAddTerminal: (paneId: string) => void;
+  onAddBrowser: (paneId: string) => void;
   onCloseTerminal: (paneId: string, tabIdx: number) => void;
-  onRenameTerminal: (paneId: string, tabIdx: number, label: string) => void;
+  onRenameTerminal: (
+    paneId: string,
+    tabIdx: number,
+    label: string,
+    emoji?: string,
+  ) => void;
   onTogglePinTab: (paneId: string, tabIdx: number) => void;
   onSplit: (paneId: string, direction: SplitDirection) => void;
   onClosePane: (paneId: string) => void;
@@ -91,6 +130,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onFocusTab,
     onFocusService,
     onAddTerminal,
+    onAddBrowser,
     onCloseTerminal,
     onRenameTerminal,
     onTogglePinTab,
@@ -167,6 +207,7 @@ function PaneViewImpl(props: PaneViewProps) {
           {hasMultipleServices && (
             <HeaderTab
               label="All"
+              icon={<ZapIcon />}
               active={isAllActive}
               onClick={() => onFocusService(pane.id, ALL_SERVICES)}
             />
@@ -177,6 +218,7 @@ function PaneViewImpl(props: PaneViewProps) {
               <HeaderTab
                 key={`svc:${svc.name}`}
                 label={svc.name}
+                icon={<ZapIcon />}
                 active={isActive}
                 onClick={() => onFocusService(pane.id, svc.name)}
               />
@@ -197,6 +239,17 @@ function PaneViewImpl(props: PaneViewProps) {
                 <SortableTab key={t.id} id={t.id} paneId={pane.id} index={i}>
                   <HeaderTab
                     label={t.label}
+                    icon={
+                      t.kind === "browser" ? (
+                        <BrowserTabIcon id={t.id} />
+                      ) : t.emoji ? (
+                        <span className="flex h-3.5 w-3.5 items-center justify-center text-[12px] leading-none">
+                          {t.emoji}
+                        </span>
+                      ) : (
+                        <TerminalIcon />
+                      )
+                    }
                     active={isActive}
                     pinned={t.pinned}
                     shimmer={runningPaneIDs?.has(t.id) ?? false}
@@ -218,13 +271,10 @@ function PaneViewImpl(props: PaneViewProps) {
               );
             })}
           </TabStrip>
-          <button
-            onClick={() => onAddTerminal(pane.id)}
-            title="Open new terminal (⌘T)"
-            className="flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[11px] font-medium text-[var(--terminal-header-text)] transition-colors hover:bg-[var(--terminal-header-hover)] hover:text-[var(--terminal-tab-active)]"
-          >
-            <PlusIcon />
-          </button>
+          <AddTabSplitButton
+            onAddTerminal={() => onAddTerminal(pane.id)}
+            onAddBrowser={() => onAddBrowser(pane.id)}
+          />
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           <Tooltip
@@ -336,14 +386,18 @@ function PaneViewImpl(props: PaneViewProps) {
                   : "hidden"
               }
             >
-              <InteractivePane
-                ref={(el) => onRegisterTerminalHandle(t.id, el)}
-                terminalId={t.id}
-                visible={visible && isActive}
-                fontSize={fontSize}
-                themeOverride={themeOverride}
-                cwd={interactiveCwd}
-              />
+              {t.kind === "browser" ? (
+                <BrowserPane id={t.id} active={visible && isActive} />
+              ) : (
+                <InteractivePane
+                  ref={(el) => onRegisterTerminalHandle(t.id, el)}
+                  terminalId={t.id}
+                  visible={visible && isActive}
+                  fontSize={fontSize}
+                  themeOverride={themeOverride}
+                  cwd={interactiveCwd}
+                />
+              )}
             </div>
           );
         })}
@@ -359,6 +413,7 @@ function PaneViewImpl(props: PaneViewProps) {
             pinned={tab.pinned === true}
             onRename={() => setRenamingTabIdx(tabMenu.tabIdx)}
             onTogglePin={() => onTogglePinTab(tabMenu.paneId, tabMenu.tabIdx)}
+            onCloseTab={() => onCloseTerminal(tabMenu.paneId, tabMenu.tabIdx)}
             onClose={() => setTabMenu(null)}
           />
         );
@@ -366,15 +421,22 @@ function PaneViewImpl(props: PaneViewProps) {
       <RenameModal
         open={renamingTabIdx !== null}
         title="Rename tab"
+        withEmoji={
+          renamingTabIdx !== null &&
+          pane.tabs[renamingTabIdx]?.kind !== "browser"
+        }
         initialValue={
           renamingTabIdx !== null
             ? pane.tabs[renamingTabIdx]?.label ?? ""
             : ""
         }
+        initialEmoji={
+          renamingTabIdx !== null ? pane.tabs[renamingTabIdx]?.emoji ?? "" : ""
+        }
         onClose={() => setRenamingTabIdx(null)}
-        onSubmit={(value) => {
+        onSubmit={(value, emoji) => {
           if (renamingTabIdx !== null)
-            onRenameTerminal(pane.id, renamingTabIdx, value);
+            onRenameTerminal(pane.id, renamingTabIdx, value, emoji);
         }}
       />
     </div>

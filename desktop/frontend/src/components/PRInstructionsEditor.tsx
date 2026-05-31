@@ -3,7 +3,7 @@ import {
   SavePRTitleInstructions,
   ReadPRDescriptionInstructions,
   SavePRDescriptionInstructions,
-} from "../../wailsjs/go/main/App";
+} from "../../bridge/commands";
 import { useYamlEditor } from "../hooks/useYamlEditor";
 import { ChevronLeftIcon } from "./icons";
 

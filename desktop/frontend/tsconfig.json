@@ -15,8 +15,8 @@
     "checkJs": false,
     "baseUrl": "src",
     "paths": {
-      "wailsjs/*": ["../wailsjs/*"]
+      "bridge/*": ["../bridge/*"]
     }
   },
-  "include": ["src", "wailsjs", "bindings"]
+  "include": ["src", "bridge"]
 }

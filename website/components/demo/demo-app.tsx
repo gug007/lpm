@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MousePointer2 } from "lucide-react";
 import INITIAL_PROJECTS, {
+  type DemoAction,
   type DemoBranch,
   type DemoGit,
   type DemoProject,
+  type OutputLine,
 } from "./projects";
 import { DemoSidebar } from "./sidebar";
 import { DemoProjectView } from "./project-view";
@@ -13,6 +15,7 @@ import {
   DemoAddProjectModal,
   type NewProjectInput,
 } from "./add-project-modal";
+import type { NewActionInput } from "./add-action-modal";
 
 type DemoAppProps = {
   heightCss?: string;
@@ -38,6 +41,61 @@ function uniqueName(base: string, taken: Set<string>): string {
   let i = 2;
   while (taken.has(`${base}-${i}`)) i++;
   return `${base}-${i}`;
+}
+
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function actionOutput(
+  cmd: string,
+  mode: "once" | "terminal",
+): { output: OutputLine[]; loop?: { line: OutputLine; intervalMs: number } } {
+  const head: OutputLine = { text: `$ ${cmd}`, color: "green", delay: 50 };
+  if (mode === "terminal") {
+    return {
+      output: [
+        head,
+        { text: "starting process…", color: "muted", delay: 350 },
+        { text: "ready — watching for changes", color: "cyan", delay: 850 },
+      ],
+      loop: {
+        line: { text: "· recompiled in 41ms", color: "muted", delay: 0 },
+        intervalMs: 2600,
+      },
+    };
+  }
+  return {
+    output: [
+      head,
+      { text: "working…", color: "muted", delay: 350 },
+      { text: "✓ done in 0.9s", color: "green", delay: 950 },
+    ],
+  };
+}
+
+function buildActionFromInput(
+  input: NewActionInput,
+  existing: DemoAction[],
+): DemoAction {
+  const taken = new Set(existing.map((a) => a.name));
+  const name = uniqueName(slugify(input.name) || "action", taken);
+  const { output, loop } = actionOutput(input.cmd, input.runMode);
+  return {
+    name,
+    label: input.name,
+    ...(input.emoji ? { emoji: input.emoji } : {}),
+    cmd: input.cmd,
+    display: "header",
+    ...(input.runMode === "terminal" ? { type: "terminal" as const } : {}),
+    ...(input.confirm ? { confirm: true } : {}),
+    durationMs: 1000,
+    output,
+    ...(loop ? { loop } : {}),
+  };
 }
 
 function buildProjectFromInput(
@@ -325,6 +383,16 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     }));
   };
 
+  const handleAddAction = (input: NewActionInput) => {
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.name === project.name
+          ? { ...p, actions: [...p.actions, buildActionFromInput(input, p.actions)] }
+          : p,
+      ),
+    );
+  };
+
   const handleAddProject = (input: NewProjectInput) => {
     const newProject = buildProjectFromInput(input, projects);
     setProjects((prev) => [...prev, newProject]);
@@ -372,6 +440,7 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
         onGitCreateBranch={handleCreateBranch}
         onGitRenameBranch={handleRenameBranch}
         onGitDeleteBranch={handleDeleteBranch}
+        onAddAction={handleAddAction}
         startButtonRef={startButtonRef}
         startRingPulse={ringPulseOn && !hasInteracted}
       />

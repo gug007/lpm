@@ -9,9 +9,9 @@ import {
   PullBranch,
   RenameBranch,
   SyncBranch,
-} from "../../wailsjs/go/main/App";
+} from "../../bridge/commands";
 import { getSettings, saveSettings, DEFAULT_PULL_STRATEGY, type GitPullStrategy } from "../store/settings";
-import { main } from "../../wailsjs/go/models";
+import { main } from "../../bridge/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useEventListener } from "../hooks/useEventListener";
 import type { useGitStatus } from "../hooks/useGitStatus";

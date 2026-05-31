@@ -6,8 +6,8 @@ interface DropTarget {
 }
 
 // v3's native drag interception swallows DOM dragover on macOS. The runtime.js
-// shim re-publishes v3's drag callbacks as `wails:handleDragEnter/Over/Leave`
-// CustomEvents and a `wails:filesDropped` event on drop. File count is not
+// shim re-publishes v3's drag callbacks as `app:handleDragEnter/Over/Leave`
+// CustomEvents and a `app:filesDropped` event on drop. File count is not
 // exposed during the drag, so the overlay shows a generic label.
 function terminalAt(x: number, y: number): HTMLElement | null {
   return (
@@ -46,16 +46,16 @@ export function TerminalDropOverlayHost() {
       setTarget(el ? { rect: el.getBoundingClientRect() } : null);
     };
 
-    window.addEventListener("wails:handleDragEnter", onEnter);
-    window.addEventListener("wails:handleDragOver", onOver);
-    window.addEventListener("wails:handleDragLeave", clear);
-    window.addEventListener("wails:filesDropped", clear);
+    window.addEventListener("app:handleDragEnter", onEnter);
+    window.addEventListener("app:handleDragOver", onOver);
+    window.addEventListener("app:handleDragLeave", clear);
+    window.addEventListener("app:filesDropped", clear);
 
     return () => {
-      window.removeEventListener("wails:handleDragEnter", onEnter);
-      window.removeEventListener("wails:handleDragOver", onOver);
-      window.removeEventListener("wails:handleDragLeave", clear);
-      window.removeEventListener("wails:filesDropped", clear);
+      window.removeEventListener("app:handleDragEnter", onEnter);
+      window.removeEventListener("app:handleDragOver", onOver);
+      window.removeEventListener("app:handleDragLeave", clear);
+      window.removeEventListener("app:filesDropped", clear);
     };
   }, []);
 

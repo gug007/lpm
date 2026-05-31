@@ -1,24 +1,17 @@
 import { useEffect } from "react";
 import { toast } from "sonner";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
+import { EventsOn } from "../../bridge/runtime";
 import { useAppStore } from "../store/app";
-import { playDoneSound, playErrorSound, playWaitingSound } from "../sounds";
 
 // Events safe to handle in every window — they don't reach into
 // main-window-only state (selection, settings view, modals).
 export function useAmbientAppEvents(): void {
   useEffect(() => {
-    const cancelSound = EventsOn("play-sound", (kind: string) => {
-      if (kind === "Done") playDoneSound();
-      else if (kind === "Waiting") playWaitingSound();
-      else if (kind === "Error") playErrorSound();
-    });
     const cancelSyncError = EventsOn("sync-error", (msg: string) => {
       toast.error(`Sync push failed: ${msg}`);
     });
 
     return () => {
-      if (typeof cancelSound === "function") cancelSound();
       if (typeof cancelSyncError === "function") cancelSyncError();
     };
   }, []);
@@ -30,10 +23,17 @@ export function useAmbientAppEvents(): void {
 export function useAppEvents(): void {
   useAmbientAppEvents();
   useEffect(() => {
-    const { selectProject, setView, setFeedbackOpen } = useAppStore.getState();
+    const { selectProject, setView, setFeedbackOpen, addProject } =
+      useAppStore.getState();
 
     const cancelDock = EventsOn("dock-project-selected", (name: string) => {
       selectProject(name);
+    });
+    const cancelNavView = EventsOn("navigate-main-view", (view: string) => {
+      setView(view as Parameters<typeof setView>[0]);
+    });
+    const cancelNewProject = EventsOn("open-new-project", () => {
+      addProject();
     });
     const cancelSettings = EventsOn("menu-open-settings", () => {
       setView("settings");
@@ -53,6 +53,8 @@ export function useAppEvents(): void {
 
     return () => {
       if (typeof cancelDock === "function") cancelDock();
+      if (typeof cancelNavView === "function") cancelNavView();
+      if (typeof cancelNewProject === "function") cancelNewProject();
       if (typeof cancelSettings === "function") cancelSettings();
       if (typeof cancelCommitInstr === "function") cancelCommitInstr();
       if (typeof cancelPRInstr === "function") cancelPRInstr();

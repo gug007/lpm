@@ -102,7 +102,7 @@ const MATRIX_ROWS: MatrixRow[] = [
     competitor: true,
   },
   {
-    label: "CLI + desktop share same config",
+    label: "Portable, shareable config",
     lpm: true,
     competitor: "GUI-first",
   },
@@ -132,7 +132,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Can I migrate a cmux.json to an lpm YAML?",
     answer:
-      "There's no automatic converter, but the shapes are close. Each cmux command roughly maps to an lpm service or action. `lpm init` in the repo gives you a starting YAML you can prune to match what your cmux.json was launching.",
+      "There's no automatic converter, but the shapes are close. Each cmux command roughly maps to an lpm service or action. Pointing lpm at the repo gives you a starting config you can prune to match what your cmux.json was launching.",
   },
   {
     question:
@@ -181,8 +181,8 @@ export default function LpmVsCmuxPage() {
             "You want one switcher that owns starting, stopping, duplicating, and switching whole projects.",
           points: [
             "You bounce between multiple local projects and want a single visual switcher with services + agents already wired up.",
-            "You want `lpm init` to read your repo and write a working config instead of writing one by hand.",
-            "You want one config that both a CLI and a desktop app understand.",
+            "You want lpm to read your repo and generate a working config instead of writing one by hand.",
+            "You want a portable config you can read, edit, and commit — not settings locked inside a GUI.",
             "You want a fully free tool with no commercial-license tier.",
             "You rely on duplicating a project to run a second agent in parallel without conflicts.",
           ],

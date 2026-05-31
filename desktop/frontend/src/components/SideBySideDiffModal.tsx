@@ -8,8 +8,8 @@ import {
 import parseDiff from "parse-diff";
 import { Modal } from "./ui/Modal";
 import { XIcon } from "./icons";
-import { GitDiff } from "../../wailsjs/go/main/App";
-import { main } from "../../wailsjs/go/models";
+import { GitDiff } from "../../bridge/commands";
+import { main } from "../../bridge/models";
 import {
   type Token,
   getLang,

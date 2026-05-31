@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
 import { XIcon } from "./icons";
-import { GitDiff, ReadFile, WriteFile } from "../../wailsjs/go/main/App";
+import { GitDiff, ReadFile, WriteFile } from "../../bridge/commands";
 import { ensureLang, getLang, tokenizeLines, type Token } from "../highlight";
 import { basename, relTo } from "../path";
 import { useEventListener } from "../hooks/useEventListener";

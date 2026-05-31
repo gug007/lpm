@@ -5,16 +5,13 @@ description: Create, modify, and delete lpm (Local Project Manager) project conf
 
 ## Instructions
 
-Use this skill to create, modify, and delete [lpm](https://lpm.cx) (Local Project Manager) YAML configuration files. lpm is a CLI + macOS app that manages long-running services, one-shot commands (actions), and interactive terminals for dev projects.
+Use this skill to create, modify, and delete [lpm](https://lpm.cx) (Local Project Manager) YAML configuration files. lpm is a macOS app that manages long-running services, one-shot commands (actions), and interactive terminals for dev projects.
 
 For the full YAML field reference, see [YAML Schema Reference](references/yaml-schema.md).
 
 ### Installation
 
-**Install lpm** (if not already installed):
-```bash
-curl -fsSL https://raw.githubusercontent.com/gug007/lpm/main/install.sh | bash
-```
+**Install lpm** (if not already installed): download the macOS app from [lpm.cx](https://lpm.cx), open the `.dmg`, and drag lpm to Applications.
 
 **Install this skill** via [skills.sh](https://skills.sh):
 ```bash
@@ -74,10 +71,10 @@ sudo apt install tmux
 **Step 1: Check that lpm is installed**
 
 ```bash
-command -v lpm
+ls -d /Applications/lpm.app >/dev/null 2>&1 || test -d ~/.lpm
 ```
 
-If not found, run the install command from Installation above.
+If not found, download the macOS app from [lpm.cx](https://lpm.cx) (see Installation above).
 
 **Step 2: Pick the target project file**
 
@@ -106,7 +103,7 @@ Work out which `~/.lpm/projects/<name>.yml` to edit *before* asking the user any
    |---------|-----------|
    | 1 | **Silently** edit `~/.lpm/projects/<name>.yml`. No "I'll edit X" line, no confirmation. Apply the change and write the file. |
    | ≥2 | Ask once: *"cwd is inside multiple lpm projects (`a`, `b`). Which one?"* |
-   | 0 | Offer two options in the same reply: (1) create a new project for this cwd (`lpm init` or from scratch), (2) pick an existing project by name — list every `~/.lpm/projects/*.yml`. |
+   | 0 | Offer two options in the same reply: (1) create a new project config for this cwd, (2) pick an existing project by name — list every `~/.lpm/projects/*.yml`. |
 
 **Overrides (these win over cwd detection):**
 - The user names a project explicitly ("add a service to `myapp`") → use that name.
@@ -136,7 +133,7 @@ Short form: **`templates < global < .lpm.yml < project`** (where `<` means "lose
 **Create:**
 1. Check if a config already exists at `~/.lpm/projects/<name>.yml` — if so, confirm with the user before overwriting (or switch to **Modify** flow).
 2. Read [YAML Schema Reference](references/yaml-schema.md) for the full field reference.
-3. Consider using `lpm init` first — it auto-detects services for Rails, Next.js, Go, Django, Flask, Docker Compose, and more. You can then read the generated config and refine it rather than writing from scratch.
+3. Auto-detect the project's services first — Rails, Next.js, Go, Django, Flask, Docker Compose, and more all leave recognizable signals in the repo. Draft the config from what you detect, then refine it rather than writing from scratch.
 4. If writing from scratch, analyze the project directory to discover:
    - **Services** — look at `package.json` scripts, `Makefile`, `docker-compose.yml`, `Procfile`, `mise.toml` for long-running processes (dev servers, watchers, workers).
    - **Actions** — one-shot commands: test, lint, build, migrate, deploy scripts.
@@ -255,11 +252,11 @@ Ask: "Should the button run a default command with alternatives behind a chevron
 
 **"Make sure port X is free before this runs"**
 
-→ Set `port:` on the action (or terminal). lpm probes the port before launching; if something else holds it, the user gets a confirmation dialog listing the holder process. From the CLI it is a hard error. Range 0–65535. Different from `services.<key>.port`, which announces what port the service listens on (and feeds the service-side dedup check).
+→ Set `port:` on the action (or terminal). lpm probes the port before launching; if something else holds it, the user gets a confirmation dialog listing the holder process. Range 0–65535. Different from `services.<key>.port`, which announces what port the service listens on (and feeds the service-side dedup check).
 
 **"Share these actions/terminals with the team"**
 
-→ Write them to `<root>/.lpm.yml` instead of `~/.lpm/projects/<name>.yml`. The file is checked into the repo. Schema is a subset of project config: supports `services`, `actions`, `terminals`, `profiles`, `extends`. **No** identity fields (no `name`, `root`, `parent_name`, `ssh`) — those stay in each teammate's personal project file. Anyone running `lpm` from this repo picks up these entries automatically.
+→ Write them to `<root>/.lpm.yml` instead of `~/.lpm/projects/<name>.yml`. The file is checked into the repo. Schema is a subset of project config: supports `services`, `actions`, `terminals`, `profiles`, `extends`. **No** identity fields (no `name`, `root`, `parent_name`, `ssh`) — those stay in each teammate's personal project file. Anyone who opens this project in lpm picks up these entries automatically.
 
 **"Make a reusable building block" / "I want to reuse this across projects"**
 
@@ -386,7 +383,7 @@ profiles: {}            # optional
 - Keys: short, lowercase, hyphen-separated (`db-migrate`, `run-tests`).
 - `~` expands to home. Relative `cwd` resolves from `root` (local projects) or from `ssh.dir` on the remote host (SSH projects). Local `cwd` paths must exist; remote `cwd` paths are not validated locally.
 - `position` is a float; lower renders first; default is alphabetical. Use floats so you can insert between existing entries (e.g. `1`, `2`, `2.5`, `3`) without renumbering.
-- `port` on an action/terminal triggers a pre-flight conflict probe — the user is shown the holding process before the action runs (or as an error in the CLI).
+- `port` on an action/terminal triggers a pre-flight conflict probe — the user is shown the holding process before the action runs.
 - `extends: [a, b]` layers templates underneath the current file; `a` wins over `b`; current file wins over all.
 - Sparse override pattern: a project YAML can hold `myAction: {position: 3}` to override only that field; the rest inherits from global / `.lpm.yml` / templates. Bool fields (`confirm`, `reuse`) cannot sparse-override `true` → `false`.
 

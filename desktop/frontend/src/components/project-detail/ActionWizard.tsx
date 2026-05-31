@@ -19,6 +19,7 @@ import {
 import { MonacoEditor } from "../MonacoEditor";
 import { slugify } from "../../slugify";
 import { uniqueKey } from "../../uniqueKey";
+import { withEmoji } from "../../withEmoji";
 import type { ActionInfo } from "../../types";
 import { AIActionModal } from "./AIActionModal";
 import {
@@ -37,7 +38,7 @@ import {
 } from "../icons";
 import { Modal } from "../ui/Modal";
 import { TrafficLights } from "../ui/TrafficLights";
-import { EmojiPickerButton } from "../EmojiPickerButton";
+import { EmojiSlotButton } from "../EmojiPickerButton";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 
 type Shape = "button" | "split" | "dropdown";
@@ -295,7 +296,8 @@ function applyTemplate(template: ActionTemplate, base: FormDraft): FormDraft {
   return {
     ...base,
     shape: "button",
-    name: `${template.emoji} ${template.name}`,
+    name: template.name,
+    emoji: template.emoji,
     cmd: template.cmd,
     runMode: template.runMode,
     reuse: template.reuse ?? false,
@@ -324,6 +326,7 @@ function getMissingHint(
 interface FormDraft {
   shape: Shape;
   name: string;
+  emoji: string;
   cmd: string;
   cwd: string;
   configLayer: ActionConfigLayer;
@@ -393,6 +396,7 @@ function buildChildMap(children: ChildDraft[]): Record<string, unknown> {
 function buildActionPatch({
   shape,
   name,
+  emoji,
   cmd,
   cwd,
   children,
@@ -402,6 +406,9 @@ function buildActionPatch({
 }: FormDraft): ActionPatch {
   const set: Record<string, unknown> = { label: name.trim() };
   const remove: string[] = [];
+
+  if (emoji.trim()) set.emoji = emoji.trim();
+  else remove.push("emoji");
 
   if (shape === "dropdown") {
     remove.push("cmd", "cwd", "type", "reuse", "confirm");
@@ -492,6 +499,7 @@ function yamlToActionInfo(yaml: string): ActionInfo {
   return {
     name: "",
     label: typeof obj.label === "string" ? obj.label : "",
+    emoji: typeof obj.emoji === "string" ? obj.emoji : undefined,
     cmd: typeof obj.cmd === "string" ? obj.cmd : "",
     cwd: typeof obj.cwd === "string" ? obj.cwd : undefined,
     confirm: Boolean(obj.confirm),
@@ -537,6 +545,7 @@ function actionToDraft(action: ActionInfo): FormDraft {
   return {
     shape: inferShape(action),
     name: action.label,
+    emoji: action.emoji ?? "",
     cmd: action.cmd,
     cwd: action.cwd ?? "",
     configLayer: "project",
@@ -551,6 +560,7 @@ function defaultDraft(): FormDraft {
   return {
     shape: "button",
     name: "",
+    emoji: "",
     cmd: "",
     cwd: "",
     configLayer: "project",
@@ -622,6 +632,7 @@ export function ActionWizard({
   const {
     shape,
     name,
+    emoji,
     cmd,
     cwd,
     configLayer,
@@ -640,7 +651,7 @@ export function ActionWizard({
     nameFilled && (shape === "dropdown" || (shape === "split" && cmdFilled));
   const missingHint = getMissingHint(draft, hasMenuOption);
   const formIsValid = missingHint === null;
-  const actionLabel = name.trim() || PLACEHOLDER_LABEL;
+  const actionLabel = withEmoji(emoji, name.trim() || PLACEHOLDER_LABEL);
   const { title, hint, primary: primaryLabel } = wizardCopy(isEditing);
   const savingLabel = isEditing ? "Saving..." : "Creating...";
 
@@ -902,6 +913,13 @@ export function ActionWizard({
                 )}
                 <FieldSection label="Button name">
                   <div className="relative">
+                    <EmojiSlotButton
+                      inputRef={nameRef}
+                      value={emoji}
+                      onSelect={(next) => updateField("emoji", next)}
+                      size="md"
+                      placeholder={<TerminalIcon />}
+                    />
                     <input
                       ref={nameRef}
                       value={name}
@@ -912,13 +930,7 @@ export function ActionWizard({
                         handleNameEnter();
                       }}
                       placeholder="Run tests"
-                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] py-3.5 pl-4 pr-12 text-[15px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--text-primary)] focus:bg-[var(--bg-primary)]"
-                    />
-                    <EmojiPickerButton
-                      inputRef={nameRef}
-                      value={name}
-                      onChange={updateName}
-                      size="md"
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] py-3.5 pl-12 pr-4 text-[15px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--text-primary)] focus:bg-[var(--bg-primary)]"
                     />
                   </div>
                 </FieldSection>
@@ -1017,6 +1029,7 @@ export function ActionWizard({
 
               <ActionPreviewPanel
                 name={name}
+                emoji={emoji}
                 shape={shape}
                 options={children}
                 runMode={runMode}
@@ -1321,6 +1334,7 @@ type DemoState = RunMode | "confirm" | null;
 
 function ActionPreviewPanel({
   name,
+  emoji,
   shape,
   options,
   runMode,
@@ -1328,14 +1342,16 @@ function ActionPreviewPanel({
   cmd,
 }: {
   name: string;
+  emoji: string;
   shape: Shape;
   options: ChildDraft[];
   runMode: RunMode;
   confirm: boolean;
   cmd: string;
 }) {
-  const displayLabel = name.trim();
-  const hasName = displayLabel.length > 0;
+  const trimmedName = name.trim();
+  const hasName = trimmedName.length > 0;
+  const displayLabel = withEmoji(emoji, trimmedName);
   const [menuOpen, setMenuOpen] = useState(false);
   const [running, setRunning] = useState<DemoState>(null);
   const menuRef = useOutsideClick<HTMLDivElement>(

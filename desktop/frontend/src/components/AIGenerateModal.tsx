@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "./ui/Modal";
-import { CheckAICLIs } from "../../wailsjs/go/main/App";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
-import type { main } from "../../wailsjs/go/models";
+import { CheckAICLIs } from "../../bridge/commands";
+import { EventsOn } from "../../bridge/runtime";
+import type { main } from "../../bridge/models";
 
 import { type AICLI, AI_CLI_OPTIONS } from "../types";
 

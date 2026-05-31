@@ -7,8 +7,8 @@ import { CheckIcon, ChevronDownIcon, ServerIcon, XIcon } from "./icons";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { slugify } from "../slugify";
 import { useAppStore } from "../store/app";
-import { ListSSHHosts } from "../../wailsjs/go/main/App";
-import type { main } from "../../wailsjs/go/models";
+import { ListSSHHosts } from "../../bridge/commands";
+import type { main } from "../../bridge/models";
 import {
   portInputSchema,
   projectNameSchema,

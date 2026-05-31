@@ -24,11 +24,10 @@ export const metadata: Metadata = {
     template: "%s — lpm",
   },
   description:
-    "lpm is a CLI and native macOS desktop app for managing local dev projects. Start, stop, and switch between projects with one command. CLI and app stay fully in sync. Supports Rails, Next.js, Go, Django, Docker Compose, and more.",
+    "lpm is a native macOS desktop app for managing local dev projects. Start, stop, duplicate, and switch between projects with a single click. Supports Rails, Next.js, Go, Django, Docker Compose, and more.",
   keywords: [
     "local project manager",
     "dev tools",
-    "CLI",
     "macOS app",
     "process manager",
     "developer workflow",
@@ -41,7 +40,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "lpm — Local Project Manager",
     description:
-      "Use the CLI or the desktop app — they stay in sync. Start, stop, and switch between local dev projects with one command.",
+      "A native macOS desktop app. Start, stop, duplicate, and switch between local dev projects with a single click.",
     type: "website",
     url: SITE_URL,
     siteName: "lpm",
@@ -50,7 +49,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "lpm — Local Project Manager",
     description:
-      "Use the CLI or the desktop app — they stay in sync. Start, stop, and switch between local dev projects with one command.",
+      "A native macOS desktop app. Start, stop, duplicate, and switch between local dev projects with a single click.",
   },
 };
 
@@ -70,7 +69,7 @@ const structuredData = {
   name: "lpm",
   alternateName: "Local Project Manager",
   description:
-    "A CLI and native macOS desktop app to manage local dev projects. Start, stop, and switch with one command. CLI and app stay fully in sync.",
+    "A native macOS desktop app to manage local dev projects. Start, stop, duplicate, and switch with a single click.",
   applicationCategory: "DeveloperApplication",
   operatingSystem: "macOS",
   url: SITE_URL,

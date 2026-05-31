@@ -24,7 +24,7 @@ export function ConfigErrorView({
 }: ConfigErrorViewProps) {
   return (
     <div className="flex h-full flex-col">
-      <div className={`wails-drag flex items-center gap-4 -mx-3 py-1 transition-[padding] duration-200 ${sidebarCollapsed ? "pl-[100px]" : ""}`}>
+      <div className={`app-drag flex items-center gap-4 -mx-3 py-1 transition-[padding] duration-200 ${sidebarCollapsed ? "pl-[100px]" : ""}`}>
         {showProjectName && (
           <h1 className="shrink-0 text-xl font-semibold tracking-tight">{projectName}</h1>
         )}
