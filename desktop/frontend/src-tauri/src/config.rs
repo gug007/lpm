@@ -1293,11 +1293,39 @@ pub fn list_projects(run: &HashMap<String, RunState>) -> Result<Vec<Value>, Stri
 }
 
 pub fn get_project(name: &str, run: &HashMap<String, RunState>) -> Result<Option<Value>, String> {
+    if name == RESERVED_PROJECT_NAME {
+        return Ok(Some(global_project_info()));
+    }
     if !project_names().iter().any(|n| n == name) {
         return Ok(None);
     }
     let running = crate::tmux::running_sessions();
     Ok(Some(read_project(name, &running, run)))
+}
+
+/// The reserved global project has no YAML file of its own — it's a
+/// home-rooted local shell host whose only config-driven content is the
+/// global.yml actions. spawn_info/get_project synthesize it rather than
+/// reading from disk (a disk read would fail and break new-terminal + the
+/// Global Actions row in the Terminals view).
+fn global_root() -> String {
+    dirs::home_dir().unwrap_or_default().to_string_lossy().into_owned()
+}
+
+fn global_project_info() -> Value {
+    json!({
+        "name": RESERVED_PROJECT_NAME,
+        "session": RESERVED_PROJECT_NAME,
+        "root": global_root(),
+        "running": false,
+        "services": [],
+        "allServices": [],
+        "actions": resolve_actions(RESERVED_PROJECT_NAME),
+        "profiles": [],
+        "activeProfile": "",
+        "statusEntries": [],
+        "isRemote": false,
+    })
 }
 
 // ---- spawn info (for service start/stop) ------------------------------------
@@ -1314,6 +1342,17 @@ pub struct SpawnInfo {
 }
 
 pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
+    if name == RESERVED_PROJECT_NAME {
+        return Ok(SpawnInfo {
+            file_name: RESERVED_PROJECT_NAME.to_string(),
+            session: RESERVED_PROJECT_NAME.to_string(),
+            root: global_root(),
+            is_remote: false,
+            ssh: SshSettings::default(),
+            services: BTreeMap::new(),
+            profiles: BTreeMap::new(),
+        });
+    }
     let y = parse_project_yaml(name)?;
     let session = if y.name.is_empty() {
         name.to_string()
