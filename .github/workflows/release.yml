@@ -9,8 +9,19 @@ permissions:
   contents: write
 
 jobs:
-  desktop-macos:
+  # Each architecture builds on its own runner so the two Rust release
+  # compilations (the bulk of the wall-clock) run in parallel instead of
+  # back-to-back on a single machine.
+  build:
     runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            arch: arm64
+          - target: x86_64-apple-darwin
+            arch: amd64
     env:
       # Tauri's bundler signs the .app with this identity (cert imported below).
       APPLE_SIGNING_IDENTITY: "Developer ID Application: Gurgen Abagyan (N7S7ZCZ5P7)"
@@ -23,14 +34,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/frontend/package-lock.json
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: desktop/frontend/src-tauri
+          key: ${{ matrix.target }}
 
       - name: Import signing certificate
         env:
@@ -58,13 +72,13 @@ jobs:
 
       - name: Install dependencies
         working-directory: desktop/frontend
-        run: npm ci
+        run: npm ci --prefer-offline --no-audit --no-fund
 
       # `tauri build` signs (APPLE_SIGNING_IDENTITY), then notarizes + staples
-      # using the App Store Connect API key, then builds the DMG — replacing the
-      # old manual codesign/notarytool/stapler/create-dmg.sh steps. LPM_VERSION is
-      # the version the app reports (option_env! at compile time); --config keeps
-      # the bundle's CFBundleShortVersionString in sync.
+      # the .app using the App Store Connect API key, then builds the DMG —
+      # replacing the old manual codesign/notarytool/stapler/create-dmg.sh steps.
+      # LPM_VERSION is the version the app reports (option_env! at compile time);
+      # --config keeps the bundle's CFBundleShortVersionString in sync.
       - name: Build, sign & notarize
         working-directory: desktop/frontend
         env:
@@ -73,51 +87,39 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_KEY_PATH: ${{ runner.temp }}/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
         run: |
-          npx tauri build --target aarch64-apple-darwin --config "{\"version\":\"$VERSION\"}"
-          npx tauri build --target x86_64-apple-darwin --config "{\"version\":\"$VERSION\"}"
+          npx tauri build --target ${{ matrix.target }} --config "{\"version\":\"$VERSION\"}"
 
       # Tauri notarizes + staples the .app but leaves the DMG itself
       # un-notarized, which can trip Gatekeeper on a manual browser download.
       # (The in-app updater copies the stapled .app from inside, so it's
       # unaffected — this is purely for clean manual-download UX.)
-      - name: Notarize & staple DMGs
+      - name: Notarize & staple DMG
         working-directory: desktop/frontend
         env:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER_ID }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_KEY_PATH: ${{ runner.temp }}/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
         run: |
-          arm_dmg=(src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg)
-          amd_dmg=(src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg)
-          submit() {
-            xcrun notarytool submit "$1" \
-              --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" \
-              --wait --timeout 30m
-          }
-          # Submit both arches concurrently so the two Apple waits overlap.
-          submit "$arm_dmg" & arm_pid=$!
-          submit "$amd_dmg" & amd_pid=$!
-          wait "$arm_pid"
-          wait "$amd_pid"
-          xcrun stapler staple "$arm_dmg"
-          xcrun stapler staple "$amd_dmg"
+          dmg=(src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg)
+          xcrun notarytool submit "$dmg" \
+            --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" \
+            --wait --timeout 30m
+          xcrun stapler staple "$dmg"
 
       # The in-app updater (updates.rs) only matches assets ending in
       # macos-arm64.dmg / macos-amd64.dmg, so rename Tauri's per-arch output.
-      - name: Rename DMGs to updater asset names
+      - name: Rename DMG to updater asset name
         working-directory: desktop/frontend
         run: |
-          cp src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg lpm-desktop-macos-arm64.dmg
-          cp src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg lpm-desktop-macos-amd64.dmg
+          cp src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg lpm-desktop-macos-${{ matrix.arch }}.dmg
 
-      - name: Upload to release
-        uses: softprops/action-gh-release@v2
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
         with:
-          files: |
-            desktop/frontend/lpm-desktop-macos-arm64.dmg
-            desktop/frontend/lpm-desktop-macos-amd64.dmg
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: dmg-${{ matrix.arch }}
+          path: desktop/frontend/lpm-desktop-macos-${{ matrix.arch }}.dmg
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Cleanup
         if: always()
@@ -125,3 +127,23 @@ jobs:
           KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
           [ -f "$KEYCHAIN_PATH" ] && security delete-keychain "$KEYCHAIN_PATH" || true
           rm -rf "$RUNNER_TEMP/private_keys"
+
+  # Collect both already-notarized DMGs and publish them in a single release —
+  # one creation, so the two parallel build jobs can't race on it.
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download DMG artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.dmg
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
