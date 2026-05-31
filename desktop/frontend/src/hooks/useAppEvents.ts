@@ -2,23 +2,16 @@ import { useEffect } from "react";
 import { toast } from "sonner";
 import { EventsOn } from "../../bridge/runtime";
 import { useAppStore } from "../store/app";
-import { playDoneSound, playErrorSound, playWaitingSound } from "../sounds";
 
 // Events safe to handle in every window — they don't reach into
 // main-window-only state (selection, settings view, modals).
 export function useAmbientAppEvents(): void {
   useEffect(() => {
-    const cancelSound = EventsOn("play-sound", (kind: string) => {
-      if (kind === "Done") playDoneSound();
-      else if (kind === "Waiting") playWaitingSound();
-      else if (kind === "Error") playErrorSound();
-    });
     const cancelSyncError = EventsOn("sync-error", (msg: string) => {
       toast.error(`Sync push failed: ${msg}`);
     });
 
     return () => {
-      if (typeof cancelSound === "function") cancelSound();
       if (typeof cancelSyncError === "function") cancelSyncError();
     };
   }, []);

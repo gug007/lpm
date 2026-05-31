@@ -9,7 +9,7 @@ use serde_json::Value;
 
 
 
-/// All 159 commands for tauri::generate_handler!.
+/// All 162 commands for tauri::generate_handler!.
 #[macro_export]
 macro_rules! all_command_handlers {
     () => {
@@ -89,6 +89,7 @@ macro_rules! all_command_handlers {
         list_port_forwards,
         list_projects,
         list_ssh_hosts,
+        list_system_sounds,
         list_templates,
         load_settings,
         load_terminals,
@@ -108,6 +109,8 @@ macro_rules! all_command_handlers {
         open_in,
         open_path_in_default_app,
         pause_tts,
+        pick_audio_file,
+        play_sound_preview,
         pull_branch,
         read_branch_name_instructions,
         read_clipboard_files,

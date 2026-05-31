@@ -29,7 +29,9 @@ import {
   UninstallKokoro,
   VaultExportKey,
   VaultImportKey,
+  ListSystemSounds,
 } from "../../bridge/commands";
+import { SoundPicker } from "./SoundPicker";
 import type { main } from "../../bridge/models";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Modal } from "./ui/Modal";
@@ -95,6 +97,9 @@ export function Settings({
   const theme = useSettingsStore((s) => s.theme);
   const dblClick = useSettingsStore((s) => s.doubleClickToToggle);
   const soundEnabled = useSettingsStore((s) => s.soundNotifications ?? false);
+  const doneSound = useSettingsStore((s) => s.doneSound ?? "chime");
+  const waitingSound = useSettingsStore((s) => s.waitingSound ?? "chime");
+  const errorSound = useSettingsStore((s) => s.errorSound ?? "chime");
   const ttsEnabled = useSettingsStore((s) => s.ttsEnabled ?? false);
   const ttsVoice = useSettingsStore((s) => s.ttsVoice ?? "af_heart");
   const ttsSpeed = useSettingsStore((s) => s.ttsSpeed ?? 1.0);
@@ -110,6 +115,7 @@ export function Settings({
   };
 
   const [kokoroStatus, setKokoroStatus] = useState<KokoroStatus>("idle");
+  const [systemSounds, setSystemSounds] = useState<string[]>([]);
   const activeTab = useAppStore((s) => s.settingsTab);
   const setActiveTab = useAppStore((s) => s.setSettingsTab);
   const setFeedbackOpen = useAppStore((s) => s.setFeedbackOpen);
@@ -122,6 +128,12 @@ export function Settings({
   const { fontSize: terminalFontSize, zoomIn: terminalZoomIn, zoomOut: terminalZoomOut } =
     useTerminalFontSize();
   const { theme: terminalTheme, setTheme: setTerminalTheme } = useTerminalTheme();
+
+  useEffect(() => {
+    ListSystemSounds()
+      .then((s) => setSystemSounds(Array.isArray(s) ? s : []))
+      .catch(() => setSystemSounds([]));
+  }, []);
 
   useEffect(() => {
     if (!ttsEnabled) return;
@@ -288,12 +300,25 @@ export function Settings({
 
   const navItems: [SettingsTab, string][] = [
     ["general", "General"],
+    ["notifications", "Notifications"],
     ["terminal", "Terminal"],
     ...(experimentalTTS ? [["tts", "Text to Speech"] as [SettingsTab, string]] : []),
     ["ai", "AI & Integrations"],
     ["global-config", "Global Config"],
     ["templates", "Templates"],
     ["backup", "Backup & Transfer"],
+  ];
+
+  const soundRows: {
+    event: "done" | "waiting" | "error";
+    label: string;
+    desc: string;
+    value: string;
+    apply: (v: string) => void;
+  }[] = [
+    { event: "done", label: "Finished sound", desc: "Plays when an agent finishes", value: doneSound, apply: (v) => updateSettings({ doneSound: v }) },
+    { event: "waiting", label: "Needs approval sound", desc: "Plays when an agent is waiting for you", value: waitingSound, apply: (v) => updateSettings({ waitingSound: v }) },
+    { event: "error", label: "Error sound", desc: "Plays when an agent stops with an error", value: errorSound, apply: (v) => updateSettings({ errorSound: v }) },
   ];
 
   return (
@@ -332,9 +357,6 @@ export function Settings({
               <SettingsRow label="Double-click to start/stop" description="Double-click a project in sidebar to toggle it">
                 <Toggle enabled={dblClick} onChange={(v) => updateSettings({ doubleClickToToggle: v })} />
               </SettingsRow>
-              <SettingsRow label="Sound notifications" description="Play sounds when agents finish or need approval">
-                <Toggle enabled={soundEnabled} onChange={(v) => updateSettings({ soundNotifications: v })} />
-              </SettingsRow>
             </SettingsSection>
 
             <SettingsSection title="About">
@@ -359,6 +381,30 @@ export function Settings({
               </SettingsRow>
             </SettingsSection>
             </>
+          )}
+
+          {activeTab === "notifications" && (
+            <SettingsSection title="Notifications">
+              <SettingsRow label="Sound notifications" description="Play a sound when agents finish or need approval">
+                <Toggle enabled={soundEnabled} onChange={(v) => updateSettings({ soundNotifications: v })} />
+              </SettingsRow>
+              {soundEnabled &&
+                soundRows.map((r) => (
+                  <SettingsRow key={r.event} label={r.label} description={r.desc}>
+                    <SoundPicker event={r.event} value={r.value} sounds={systemSounds} onChange={r.apply} />
+                  </SettingsRow>
+                ))}
+              <SettingsRow label="Claude Code Hooks" description={HOOKS_DESCRIPTION[hooksStatus]}>
+                <div className="flex items-center gap-2">
+                  <button onClick={handleCheckHooks} disabled={hooksStatus === "checking" || resettingHooks} className={BTN_SECONDARY}>
+                    {hooksStatus === "checking" ? <RefreshIcon spinning /> : "Check"}
+                  </button>
+                  <button onClick={handleResetHooks} disabled={resettingHooks || hooksStatus === "checking"} className={BTN_SECONDARY}>
+                    {resettingHooks ? <RefreshIcon spinning /> : "Reset"}
+                  </button>
+                </div>
+              </SettingsRow>
+            </SettingsSection>
           )}
 
           {activeTab === "terminal" && (
@@ -453,16 +499,6 @@ export function Settings({
 
           {activeTab === "ai" && (
             <SettingsSection title="AI & Integrations">
-              <SettingsRow label="Claude Code Hooks" description={HOOKS_DESCRIPTION[hooksStatus]}>
-                <div className="flex items-center gap-2">
-                  <button onClick={handleCheckHooks} disabled={hooksStatus === "checking" || resettingHooks} className={BTN_SECONDARY}>
-                    {hooksStatus === "checking" ? <RefreshIcon spinning /> : "Check"}
-                  </button>
-                  <button onClick={handleResetHooks} disabled={resettingHooks || hooksStatus === "checking"} className={BTN_SECONDARY}>
-                    {resettingHooks ? <RefreshIcon spinning /> : "Reset"}
-                  </button>
-                </div>
-              </SettingsRow>
               <SettingsRow label="Commit Instructions" description="Custom instructions for AI commit messages">
                 <button onClick={() => onNavigate("commit-instructions")} className={BTN_SECONDARY}>Edit</button>
               </SettingsRow>

@@ -54,9 +54,8 @@ fn claude_hooks_status_at(path: &Path) -> ClaudeHooksStatus {
 }
 
 fn reset_claude_hooks_at(path: &Path) -> Result<(), String> {
-    // Validate the file (so the UI can surface a real error), then reinstall. The
-    // install path strips stale lpm hooks and re-adds fresh ones, leaving the user's
-    // own hooks intact — unlike a blunt remove of the whole `hooks` key.
+    // Validate for a real UI error, then reinstall (which strips+re-adds lpm hooks,
+    // keeping the user's own — unlike removing the whole `hooks` key).
     let data = std::fs::read(path).map_err(|e| format!("cannot read Claude settings: {e}"))?;
     serde_json::from_slice::<Value>(&data).map_err(|e| format!("invalid JSON in Claude settings: {e}"))?;
     install_claude_hooks_at(path)
@@ -83,14 +82,12 @@ fn install_claude_hooks_at(path: &Path) -> Result<(), String> {
         obj.insert("hooks".into(), json!({}));
     }
     let hooks = obj.get_mut("hooks").unwrap().as_object_mut().unwrap();
-    // Drop any prior lpm hooks first, so re-running stays idempotent and self-heals
-    // across versions (e.g. migrating the old shared-key hooks to the per-pane key
-    // below). The user's own hooks are left untouched.
+    // Strip prior lpm hooks first so re-runs stay idempotent and migrate old keys;
+    // the user's own hooks are kept.
     strip_lpm_hooks(hooks);
 
-    // The status key is per-pane ($LPM_PANE_ID) so concurrent agents in one project
-    // each get their own StatusStore entry. A shared key would collide (the store is
-    // keyed by project+key) and only one tab would ever show as running.
+    // Per-pane key: a shared key collides in the StatusStore (keyed by project+key),
+    // so only one pane would show as running.
     let set_running = send_cmd("set_status '$LPM_PROJECT_NAME' claude_code_$LPM_PANE_ID Running --icon=bolt --color=#4C8DFF --pane=$LPM_PANE_ID");
     let set_done = send_cmd("set_status '$LPM_PROJECT_NAME' claude_code_$LPM_PANE_ID Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID");
     let set_error = send_cmd("set_status '$LPM_PROJECT_NAME' claude_code_$LPM_PANE_ID Error --icon=warning --color=#ef4444 --pane=$LPM_PANE_ID");
@@ -104,8 +101,7 @@ fn install_claude_hooks_at(path: &Path) -> Result<(), String> {
     append_hook(hooks, "StopFailure", claude_hook(&set_error, ""));
     append_hook(hooks, "SessionEnd", claude_hook(&clear, ""));
 
-    // Only rewrite when something actually changed, to avoid churning the file on
-    // every launch. Write errors propagate so the Reset button can surface them.
+    // Write only on change; errors propagate so the Reset button can surface them.
     if settings != original {
         let out = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
         std::fs::write(path, out).map_err(|e| format!("cannot write Claude settings: {e}"))?;
@@ -123,8 +119,7 @@ fn install_codex_hooks() {
     }
     enable_codex_hooks_feature(&config_path);
 
-    // Per-pane key ($LPM_PANE_ID), same reason as the Claude hooks: a shared key
-    // collides in the StatusStore so only one pane would show as running.
+    // Per-pane key, same reason as the Claude hooks.
     let set_running = send_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Running --icon=sparkle --color=#10A37F --pane=$LPM_PANE_ID");
     let set_done = send_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID");
 
@@ -140,8 +135,6 @@ fn install_codex_hooks() {
         .ok()
         .and_then(|d| serde_json::from_slice::<Value>(&d).ok());
 
-    // Merge into an existing hooks.json (strip stale lpm hooks, then append) when its
-    // top-level `hooks` is an object; otherwise write a fresh structure.
     let hooks_data = if let Some(mut existing) = original
         .clone()
         .filter(|e| e.get("hooks").map(Value::is_object).unwrap_or(false))
@@ -161,7 +154,6 @@ fn install_codex_hooks() {
         json!({ "hooks": Value::Object(m) })
     };
 
-    // Only rewrite when something actually changed (self-heal without churn).
     if original.as_ref() != Some(&hooks_data) {
         if let Ok(out) = serde_json::to_string_pretty(&hooks_data) {
             let _ = std::fs::write(&hooks_path, out);
@@ -204,9 +196,7 @@ fn has_marker(hooks: &Value) -> bool {
     serde_json::to_string(hooks).map(|s| s.contains(MARKER)).unwrap_or(false)
 }
 
-/// Remove every lpm-installed hook entry (its command carries the MARKER) from each
-/// event array, dropping any event left empty. The user's own hooks stay. This makes
-/// (re)installs idempotent and self-updating across versions.
+/// Remove lpm-installed hook entries (command carries MARKER), keeping the user's own.
 fn strip_lpm_hooks(hooks: &mut Map<String, Value>) {
     let events: Vec<String> = hooks.keys().cloned().collect();
     for ev in events {

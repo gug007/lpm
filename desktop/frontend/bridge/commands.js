@@ -208,6 +208,9 @@ export function ListProjects() {
 export function ListSSHHosts() {
   return invoke("list_ssh_hosts");
 }
+export function ListSystemSounds() {
+  return invoke("list_system_sounds");
+}
 export function ListTemplates() {
   return invoke("list_templates");
 }
@@ -264,6 +267,12 @@ export function OpenPathInDefaultApp(absPath) {
 }
 export function PauseTTS() {
   return invoke("pause_tts");
+}
+export function PlaySoundPreview(name, event) {
+  return invoke("play_sound_preview", { name, event });
+}
+export function PickAudioFile() {
+  return invoke("pick_audio_file");
 }
 export function PullBranch(cwd, strategy) {
   return invoke("pull_branch", { cwd, strategy });

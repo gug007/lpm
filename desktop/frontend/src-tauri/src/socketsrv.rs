@@ -7,11 +7,10 @@
 //   clear_status <project> <key>
 //   list_status <project>
 // Each line gets a single-line reply. set_status/clear_status mutate the
-// StatusStore and emit "status-changed" (+ "play-sound" on Done/Waiting/Error
-// when sound notifications are enabled). std::thread (no tokio), matching the
-// pty/tmux house style.
-use crate::config;
-use crate::status::{now_millis, StatusEntry, StatusStore, STATUS_DONE, STATUS_ERROR, STATUS_WAITING};
+// StatusStore and emit "status-changed"; a Done/Waiting/Error transition also
+// plays the configured native notification sound (sound.rs). std::thread (no
+// tokio), matching the pty/tmux house style.
+use crate::status::{now_millis, StatusEntry, StatusStore};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::fs::PermissionsExt;
@@ -96,9 +95,7 @@ fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> Stri
     };
     if store.set(project, entry) {
         let _ = app.emit("status-changed", project);
-        if (value == STATUS_DONE || value == STATUS_WAITING || value == STATUS_ERROR) && sound_enabled() {
-            let _ = app.emit("play-sound", &value);
-        }
+        crate::sound::play_status_sound(&value);
     }
     "OK".into()
 }
@@ -123,13 +120,6 @@ fn cmd_list_status(args: &[String], store: &StatusStore) -> String {
         Ok(s) => s,
         Err(e) => format!("ERROR: {e}"),
     }
-}
-
-fn sound_enabled() -> bool {
-    config::load_settings()
-        .get("soundNotifications")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false)
 }
 
 /// Splits on unquoted spaces, honoring '…' and "…" spans (quotes deleted, no

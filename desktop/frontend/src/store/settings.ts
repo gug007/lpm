@@ -27,6 +27,9 @@ export interface Settings {
 
   doubleClickToToggle: boolean;
   soundNotifications?: boolean;
+  doneSound?: string;
+  waitingSound?: string;
+  errorSound?: string;
   projectOrder?: string[];
   terminalTheme?: string;
   terminalFontSize?: number;
@@ -74,6 +77,9 @@ function normalize(s: main.Settings): Settings {
       s.browserTheme === "light" || s.browserTheme === "dark" ? s.browserTheme : undefined,
     doubleClickToToggle: s.doubleClickToToggle ?? defaults.doubleClickToToggle,
     soundNotifications: s.soundNotifications,
+    doneSound: s.doneSound || undefined,
+    waitingSound: s.waitingSound || undefined,
+    errorSound: s.errorSound || undefined,
     projectOrder: s.projectOrder,
     terminalTheme: s.terminalTheme,
     terminalFontSize: s.terminalFontSize,
