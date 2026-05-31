@@ -21,12 +21,12 @@ const TRAILING_FILL =
 
 export function AIButton({ onClick, disabled, loading, title, trailing, children }: AIButtonProps) {
   return (
-    <div className={`group relative inline-flex ${GRADIENT} active:scale-[0.98] ${disabled ? "opacity-40 hover:shadow-sm" : ""}`}>
+    <div className={`group relative inline-flex ${GRADIENT} active:scale-[0.98] ${disabled ? "hover:shadow-sm" : ""}`}>
       <button
         onClick={onClick}
         disabled={disabled}
         title={title}
-        className={`${INNER} ${trailing ? "rounded-l-full pl-3 pr-2" : "rounded-full px-3"} text-xs font-medium ${HOVER} disabled:pointer-events-none`}
+        className={`${INNER} ${trailing ? "rounded-l-full pl-3 pr-2" : "rounded-full px-3"} text-xs font-medium ${HOVER} disabled:opacity-40 disabled:pointer-events-none`}
       >
         <span className={loading ? "animate-spin" : ""}><SparkleIcon /></span>
         {children}

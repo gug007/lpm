@@ -53,7 +53,6 @@ export function AIPickerButton({
         trailing={
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            disabled={disabled}
             title="Select AI CLI and model"
           >
             <ChevronDownIcon />
