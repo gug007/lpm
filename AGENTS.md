@@ -10,3 +10,4 @@ lpm starts, stops, duplicates, and switches between local dev projects, with a b
 - Do not add comments. Only comment when the purpose or reasoning is unclear from the code itself
 - macOS-only: don't add Windows/Linux code paths
 - For each react component use separate file
+- Never commit or push any changes

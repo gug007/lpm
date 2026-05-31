@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { StatusDot } from "./StatusDot";
 import { getSettings } from "../store/settings";
 import { EventsOn } from "../../bridge/runtime";
-import { InstallUpdate } from "../../bridge/commands";
+import { CheckForUpdate, InstallUpdate } from "../../bridge/commands";
 import { type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
 import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon, MoreVerticalIcon, DetachIcon, TerminalIcon } from "./icons";
 import { ProgressBar } from "./ui/ProgressBar";
@@ -119,6 +119,11 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
   };
 
   useEffect(() => EventsOn("update-available", setUpdateInfo), []);
+  useEffect(() => {
+    CheckForUpdate()
+      .then((info) => { if (info.updateAvail) setUpdateInfo(info); })
+      .catch(() => {});
+  }, []);
   useEffect(() => EventsOn("update-progress", (pct: number) => setProgress(pct)), []);
   useEffect(() => EventsOn("update-status", (status: string) => {
     if (status === "downloading") setUpdatePhase("downloading");

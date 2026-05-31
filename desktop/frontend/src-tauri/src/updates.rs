@@ -80,8 +80,9 @@ pub fn check_for_update(state: State<'_, UpdateState>) -> Result<UpdateInfo, Str
     do_check(&state)
 }
 
-/// Background check used by the "Check for Updates…" menu item — emits
-/// "update-available" when a newer release exists (mirrors Go's autoCheck).
+/// Background check used by the "Check for Updates…" menu item and the
+/// auto-checker — emits "update-available" when a newer release exists
+/// (mirrors Go's autoCheck).
 pub fn check_and_emit(app: &AppHandle) {
     let state = app.state::<UpdateState>();
     if let Ok(info) = do_check(&state) {
@@ -89,6 +90,15 @@ pub fn check_and_emit(app: &AppHandle) {
             let _ = app.emit("update-available", info);
         }
     }
+}
+
+const AUTO_CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
+
+pub fn start_auto_check(app: AppHandle) {
+    std::thread::spawn(move || loop {
+        std::thread::sleep(AUTO_CHECK_INTERVAL);
+        check_and_emit(&app);
+    });
 }
 
 fn do_check(state: &UpdateState) -> Result<UpdateInfo, String> {

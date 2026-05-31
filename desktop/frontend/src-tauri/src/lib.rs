@@ -132,6 +132,10 @@ pub fn run() {
             // the socket. Backgrounded — touches files, never blocks startup.
             std::thread::spawn(hooks::install_agent_hooks);
 
+            // Daily re-check; the app keeps running while the main window is hidden.
+            // The launch check is the Sidebar's on-mount CheckForUpdate.
+            updates::start_auto_check(handle.clone());
+
             // Backgrounded startup chores: drop sync caches for deleted projects
             // and resume port pollers for remote projects whose tmux session is
             // still alive. Both read configs/tmux, so off the main thread.
