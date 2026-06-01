@@ -84,7 +84,7 @@ const SHAPE_OPTIONS: Array<{
     shape: "button",
     title: "Button",
     description: "One click runs one command.",
-    badge: "Recommended",
+    badge: "Best for most actions",
   },
   {
     shape: "split",
@@ -936,22 +936,14 @@ export function ActionWizard({
                 </FieldSection>
 
                 {showShape && (
-                  <Reveal>
+                  <Reveal className="relative z-20">
                     <FieldSection label="How should it appear?">
-                      <div className="space-y-1.5">
-                        {SHAPE_OPTIONS.map((option) => (
-                          <ShapeChoice
-                            key={option.shape}
-                            active={shape === option.shape}
-                            shape={option.shape}
-                            title={option.title}
-                            badge={option.badge}
-                            description={option.description}
-                            previewLabel={actionLabel}
-                            onClick={() => updateField("shape", option.shape)}
-                          />
-                        ))}
-                      </div>
+                      <ShapeMenu
+                        shape={shape}
+                        options={SHAPE_OPTIONS}
+                        previewLabel={actionLabel}
+                        onChange={(next) => updateField("shape", next)}
+                      />
                     </FieldSection>
                   </Reveal>
                 )}
@@ -1295,8 +1287,14 @@ function TemplateGallery({
   );
 }
 
-function Reveal({ children }: { children: ReactNode }) {
-  return <div className="field-reveal">{children}</div>;
+function Reveal({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return <div className={`field-reveal ${className}`}>{children}</div>;
 }
 
 function YamlPreview({
@@ -1608,63 +1606,92 @@ function RunModeDemo({
   );
 }
 
-function ShapeChoice({
-  active,
+function ShapeMenu({
   shape,
-  title,
-  badge,
-  description,
+  options,
   previewLabel,
-  onClick,
+  onChange,
 }: {
-  active: boolean;
   shape: Shape;
-  title: string;
-  badge?: string;
-  description: string;
+  options: typeof SHAPE_OPTIONS;
   previewLabel: string;
-  onClick: () => void;
+  onChange: (next: Shape) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
+  const current = options.find((opt) => opt.shape === shape) ?? options[0];
+
+  const choose = (next: Shape) => {
+    setOpen(false);
+    if (next !== shape) onChange(next);
+  };
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`group relative flex w-full items-center gap-3 rounded-lg border px-3.5 py-2.5 text-left transition ${
-        active
-          ? "border-[var(--text-primary)] bg-[var(--bg-primary)]"
-          : "border-[var(--border)] bg-[var(--bg-primary)] hover:border-[var(--text-muted)]"
-      }`}
-    >
-      <span
-        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-          active
-            ? "border-[var(--text-primary)] bg-[var(--text-primary)]"
-            : "border-[var(--border)] group-hover:border-[var(--text-muted)]"
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label={previewLabel}
+        className={`flex w-full items-center gap-2 rounded-xl border py-3.5 pl-4 pr-3.5 text-left transition ${
+          open
+            ? "border-[var(--text-primary)] bg-[var(--bg-primary)]"
+            : "border-[var(--border)] bg-[var(--bg-secondary)] hover:border-[var(--text-muted)]"
         }`}
       >
-        {active && (
-          <span className="h-1 w-1 rounded-full bg-[var(--bg-primary)]" />
-        )}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
-          <span className="text-[13px] font-semibold text-[var(--text-primary)]">
-            {title}
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="text-[15px] text-[var(--text-primary)]">
+            {current.title}
           </span>
-          {badge && (
+          {current.badge && (
             <span className="rounded-md bg-[var(--bg-secondary)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">
-              {badge}
+              {current.badge}
             </span>
           )}
-          <span className="truncate text-[12px] text-[var(--text-secondary)]">
-            {description}
-          </span>
         </span>
-      </span>
-      <span className="hidden shrink-0 sm:block">
-        <ShapePreviewButton shape={shape} label={previewLabel} />
-      </span>
-    </button>
+        <span className="shrink-0 text-[var(--text-muted)]">
+          <ChevronDownIcon />
+        </span>
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 top-full z-50 mt-1.5 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-2xl">
+          {options.map((opt) => {
+            const active = opt.shape === shape;
+            return (
+              <button
+                key={opt.shape}
+                type="button"
+                onClick={() => choose(opt.shape)}
+                className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
+              >
+                <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-[var(--text-primary)]">
+                  {active && <CheckIcon />}
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={`text-[12px] font-medium ${active ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}
+                    >
+                      {opt.title}
+                    </span>
+                    {opt.badge && (
+                      <span className="rounded-md bg-[var(--bg-secondary)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">
+                        {opt.badge}
+                      </span>
+                    )}
+                  </span>
+                  <span className="truncate text-[11px] text-[var(--text-muted)]">
+                    {opt.description}
+                  </span>
+                </span>
+                <span className="hidden shrink-0 sm:block">
+                  <ShapePreviewButton shape={opt.shape} label={previewLabel} />
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
