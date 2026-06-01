@@ -1606,6 +1606,14 @@ function RunModeDemo({
   );
 }
 
+function ShapeBadge({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">
+      {label}
+    </span>
+  );
+}
+
 function ShapeMenu({
   shape,
   options,
@@ -1642,11 +1650,7 @@ function ShapeMenu({
           <span className="text-[15px] text-[var(--text-primary)]">
             {current.title}
           </span>
-          {current.badge && (
-            <span className="rounded-md bg-[var(--bg-secondary)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">
-              {current.badge}
-            </span>
-          )}
+          {current.badge && <ShapeBadge label={current.badge} />}
         </span>
         <span className="shrink-0 text-[var(--text-muted)]">
           <ChevronDownIcon />
@@ -1673,11 +1677,7 @@ function ShapeMenu({
                     >
                       {opt.title}
                     </span>
-                    {opt.badge && (
-                      <span className="rounded-md bg-[var(--bg-secondary)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">
-                        {opt.badge}
-                      </span>
-                    )}
+                    {opt.badge && <ShapeBadge label={opt.badge} />}
                   </span>
                   <span className="truncate text-[11px] text-[var(--text-muted)]">
                     {opt.description}
