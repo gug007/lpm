@@ -60,8 +60,6 @@ pub fn build_and_set(app: &AppHandle) -> tauri::Result<()> {
         .maximize()
         .separator()
         .fullscreen()
-        .separator()
-        .close_window()
         .build()?;
 
     let menu = MenuBuilder::new(app)
