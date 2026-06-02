@@ -1,6 +1,11 @@
 // Action runners — port of desktop/actions.go (RunAction / RunActionBackground).
 //
-// One-shot (non-terminal) actions run as `/bin/sh -c <cmd>` in the action's cwd.
+// One-shot (non-terminal) local actions run through the user's interactive login
+// shell (`$SHELL -ilc`) in the action's cwd, so shell init (nvm, version
+// managers, PATH tweaks) is loaded — matching the terminal and tmux service
+// panes. A GUI launch otherwise inherits launchd's minimal PATH and would pick
+// up the wrong toolchain. Remote actions keep `/bin/sh -c`: the ssh command line
+// resolves its environment on the far side.
 // RunAction streams combined stdout+stderr line-by-line via "action-output" and
 // finishes with "action-done"; it returns immediately. RunActionBackground runs
 // the same command synchronously and returns a trimmed error tail on failure.
@@ -30,6 +35,9 @@ struct ActionPlan {
     cmd_str: String,
     cwd: String,
     port: i64,
+    /// Run the command through the user's interactive login shell (local actions),
+    /// vs. plain `/bin/sh -c` (remote actions, where cmd_str is an ssh line).
+    login_shell: bool,
     /// Ran after the action's process exits (e.g. push a sync-mode mirror).
     on_exit: Option<Box<dyn FnOnce() + Send>>,
 }
@@ -72,6 +80,7 @@ fn resolve_action_command(
                 cmd_str: config::build_local_script(&a.env, &a.cmd),
                 cwd,
                 port: a.port,
+                login_shell: false,
                 on_exit: Some(Box::new(move || crate::sshsync::push_after_action(&app2, &project2))),
             });
         }
@@ -79,6 +88,7 @@ fn resolve_action_command(
             cmd_str: config::ssh_command_line(&info.ssh, &a.cwd, &a.env, &a.cmd),
             cwd: info.root, // local cwd for the ssh client
             port: a.port,
+            login_shell: false,
             on_exit: None,
         })
     } else {
@@ -86,6 +96,7 @@ fn resolve_action_command(
             cmd_str: config::build_local_script(&a.env, &a.cmd),
             cwd: config::resolve_cwd(&info.root, &a.cwd),
             port: a.port,
+            login_shell: true,
             on_exit: None,
         })
     }
@@ -100,6 +111,25 @@ fn merge_stderr_into_stdout(cmd: &mut Command) {
             }
             Ok(())
         });
+    }
+}
+
+/// Build the child process for an action. Local actions run through the user's
+/// interactive login shell so shell init (nvm, version managers, PATH) is loaded;
+/// the cwd is set with an explicit `cd` so the user's rc can't redirect it.
+/// Remote actions keep `/bin/sh -c` — cmd_str is an ssh line that resolves its
+/// environment on the far side.
+fn action_command(plan: &ActionPlan) -> Command {
+    if plan.login_shell {
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+        let script = format!("cd {} && {}", config::shell_quote(&plan.cwd), plan.cmd_str);
+        let mut cmd = Command::new(shell);
+        cmd.arg("-ilc").arg(script).current_dir(&plan.cwd);
+        cmd
+    } else {
+        let mut cmd = Command::new("/bin/sh");
+        cmd.arg("-c").arg(&plan.cmd_str).current_dir(&plan.cwd);
+        cmd
     }
 }
 
@@ -123,8 +153,8 @@ pub fn run_action(
     ports::format_action_port(&action_name, plan.port)?; // pre-check; no spawn on conflict
     let on_exit = plan.on_exit.take();
 
-    let mut cmd = Command::new("/bin/sh");
-    cmd.arg("-c").arg(&plan.cmd_str).current_dir(&plan.cwd).stdout(Stdio::piped());
+    let mut cmd = action_command(&plan);
+    cmd.stdout(Stdio::piped());
     merge_stderr_into_stdout(&mut cmd);
     let mut child = cmd.spawn().map_err(|e| e.to_string())?;
     let stdout = child.stdout.take().ok_or("failed to capture action output")?;
@@ -163,8 +193,7 @@ pub fn run_action_background(
     ports::format_action_port(&action_name, plan.port)?;
     let on_exit = plan.on_exit.take();
 
-    let mut cmd = Command::new("/bin/sh");
-    cmd.arg("-c").arg(&plan.cmd_str).current_dir(&plan.cwd);
+    let mut cmd = action_command(&plan);
     merge_stderr_into_stdout(&mut cmd); // out.stdout carries combined output
     let out = cmd.output().map_err(|e| e.to_string())?;
     if let Some(f) = on_exit {
