@@ -19,7 +19,6 @@ import { FileViewerHost } from "./components/FileViewerHost";
 import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverlayHost";
 import { Toaster } from "sonner";
 import { MainTopBar } from "./components/MainTopBar";
-import { useWindowResizeSaver } from "./hooks/useWindowResizeSaver";
 import { useIsFullscreen } from "./hooks/useIsFullscreen";
 import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
 import { useProjectsSync } from "./hooks/useProjectsSync";
@@ -82,7 +81,6 @@ export default function App() {
 
   useProjectsSync();
   useAppEvents();
-  useWindowResizeSaver();
   const isFullscreen = useIsFullscreen();
 
   useEffect(() => {

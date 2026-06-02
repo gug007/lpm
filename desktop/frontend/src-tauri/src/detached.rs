@@ -4,6 +4,7 @@
 // settings.detachedWindows; windows reopen on launch. The per-window file-drop
 // bridge is handled entirely by the runtime.js shim (per-webview), so no
 // backend file-drop registration is needed (unlike the Go version).
+use crate::bounds;
 use crate::config;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -13,10 +14,6 @@ const EVENT_CHANGED: &str = "detached-changed";
 const LABEL_PREFIX: &str = "detached-";
 const DEFAULT_W: f64 = 900.0;
 const DEFAULT_H: f64 = 700.0;
-const MIN_W: f64 = 700.0;
-const MIN_H: f64 = 500.0;
-const MAX_W: f64 = 7680.0;
-const MAX_H: f64 = 4320.0;
 const CASCADE_STEP: f64 = 28.0;
 
 /// Live registry of open detached windows: project FILE name -> window label.
@@ -45,10 +42,6 @@ fn label_for(name: &str) -> String {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     name.hash(&mut hasher);
     format!("{LABEL_PREFIX}{safe}-{:08x}", hasher.finish())
-}
-
-fn valid_bounds(w: f64, h: f64) -> bool {
-    w >= MIN_W && h >= MIN_H && w <= MAX_W && h <= MAX_H
 }
 
 // ---- commands ---------------------------------------------------------------
@@ -177,7 +170,7 @@ fn open_window(
         .title(project_name)
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .hidden_title(true)
-        .min_inner_size(MIN_W, MIN_H)
+        .min_inner_size(bounds::MIN_W, bounds::MIN_H)
         .resizable(true);
 
     builder = match bounds {
@@ -208,7 +201,7 @@ fn attach_events(app: &AppHandle, project_name: &str, label: &str, win: &tauri::
     win.on_window_event(move |event| match event {
         WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
             if let Some(w) = app.get_webview_window(&label) {
-                if let Some((x, y, ww, hh)) = read_logical_bounds(&w) {
+                if let Some((x, y, ww, hh)) = bounds::read_logical_bounds(&w) {
                     persist_detached_bounds(&name, x, y, ww, hh);
                 }
             }
@@ -225,19 +218,6 @@ fn attach_events(app: &AppHandle, project_name: &str, label: &str, win: &tauri::
     });
 }
 
-/// Physical -> logical bounds (builder takes logical; getters return physical).
-fn read_logical_bounds(win: &tauri::WebviewWindow) -> Option<(f64, f64, f64, f64)> {
-    let scale = win.scale_factor().ok()?;
-    let pos = win.outer_position().ok()?;
-    let size = win.inner_size().ok()?;
-    let (x, y) = (pos.x as f64 / scale, pos.y as f64 / scale);
-    let (w, h) = (size.width as f64 / scale, size.height as f64 / scale);
-    if !valid_bounds(w, h) {
-        return None;
-    }
-    Some((x, y, w, h))
-}
-
 // ---- settings persistence (read-modify-write with change detection) ---------
 
 fn saved_bounds(name: &str) -> Option<(f64, f64, f64, f64)> {
@@ -245,7 +225,7 @@ fn saved_bounds(name: &str) -> Option<(f64, f64, f64, f64)> {
     let e = s.get("detachedWindows")?.get(name)?;
     let g = |k: &str| e.get(k).and_then(|v| v.as_i64());
     let (w, h) = (g("width")? as f64, g("height")? as f64);
-    if !valid_bounds(w, h) {
+    if !bounds::valid_bounds(w, h) {
         return None;
     }
     Some((g("x").unwrap_or(0) as f64, g("y").unwrap_or(0) as f64, w, h))

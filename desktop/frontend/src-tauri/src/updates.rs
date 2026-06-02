@@ -101,20 +101,31 @@ pub fn start_auto_check(app: AppHandle) {
     });
 }
 
+// reqwest::blocking owns a tokio runtime that panics if dropped on a
+// #[command(async)] worker; run such work on a plain thread, which is not an async
+// context (the start_auto_check path relied on the same property).
+fn run_off_worker<T: Send + 'static>(
+    f: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    std::thread::spawn(f).join().map_err(|_| "background thread panicked".to_string())?
+}
+
 fn do_check(state: &UpdateState) -> Result<UpdateInfo, String> {
-    let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(30))
-        .user_agent("lpm")
-        .build()
-        .map_err(|e| e.to_string())?;
-    let resp = client
-        .get(RELEASES_URL)
-        .send()
-        .map_err(|e| format!("failed to check for updates: {e}"))?;
-    if !resp.status().is_success() {
-        return Err(format!("GitHub API returned status {}", resp.status().as_u16()));
-    }
-    let body = resp.text().map_err(|e| e.to_string())?;
+    let body = run_off_worker(|| {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(30))
+            .user_agent("lpm")
+            .build()
+            .map_err(|e| e.to_string())?;
+        let resp = client
+            .get(RELEASES_URL)
+            .send()
+            .map_err(|e| format!("failed to check for updates: {e}"))?;
+        if !resp.status().is_success() {
+            return Err(format!("GitHub API returned status {}", resp.status().as_u16()));
+        }
+        resp.text().map_err(|e| e.to_string())
+    })?;
     let release: Release =
         serde_json::from_str(&body).map_err(|e| format!("failed to parse response: {e}"))?;
 
@@ -175,23 +186,28 @@ pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(
         .suffix(".dmg")
         .tempfile()
         .map_err(|e| format!("failed to create temp file: {e}"))?;
-    let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(300))
-        .user_agent("lpm")
-        .build()
-        .map_err(|e| e.to_string())?;
-    let mut resp = client
-        .get(&url)
-        .send()
-        .map_err(|e| format!("failed to download update: {e}"))?;
-    if !resp.status().is_success() {
-        return Err(format!("download returned status {}", resp.status().as_u16()));
-    }
-    let total = resp.content_length().unwrap_or(0);
-    copy_with_progress(&mut resp, &mut tmp.as_file(), total, &|pct| {
-        let _ = app.emit("update-progress", pct);
-    })
-    .map_err(|e| format!("failed to save update: {e}"))?;
+    let app_progress = app.clone();
+    let url_owned = url.clone();
+    let mut out_file = tmp.as_file().try_clone().map_err(|e| e.to_string())?;
+    run_off_worker(move || {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(300))
+            .user_agent("lpm")
+            .build()
+            .map_err(|e| e.to_string())?;
+        let mut resp = client
+            .get(&url_owned)
+            .send()
+            .map_err(|e| format!("failed to download update: {e}"))?;
+        if !resp.status().is_success() {
+            return Err(format!("download returned status {}", resp.status().as_u16()));
+        }
+        let total = resp.content_length().unwrap_or(0);
+        copy_with_progress(&mut resp, &mut out_file, total, &|pct| {
+            let _ = app_progress.emit("update-progress", pct);
+        })
+        .map_err(|e| format!("failed to save update: {e}"))
+    })?;
     let dmg_path = tmp.into_temp_path();
 
     let _ = app.emit("update-status", "installing");

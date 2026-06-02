@@ -1,5 +1,6 @@
 mod actions;
 mod aigen;
+mod bounds;
 mod browser;
 mod clipboard;
 mod commands_real;
@@ -12,6 +13,7 @@ mod generated_commands;
 mod git;
 mod hooks;
 mod log_streaming;
+mod mainwindow;
 mod menu;
 mod notes_blobs;
 mod notes_cmds;
@@ -108,15 +110,10 @@ pub fn run() {
                 eprintln!("warning: failed to set app menu: {e}");
             }
             dockmenu::install(&handle);
-            // Restore the saved main-window size (settings.windowWidth/Height).
+            // Restore the saved main-window bounds, then persist on move/resize.
             if let Some(win) = handle.get_webview_window("main") {
-                let s = config::load_settings();
-                let g = |k: &str| s.get(k).and_then(|v| v.as_i64());
-                if let (Some(w), Some(h)) = (g("windowWidth"), g("windowHeight")) {
-                    if w >= 700 && h >= 500 && w <= 7680 && h <= 4320 {
-                        let _ = win.set_size(tauri::LogicalSize::new(w as f64, h as f64));
-                    }
-                }
+                mainwindow::restore(&win);
+                mainwindow::attach(&win);
             }
             // Reopen any windows that were detached when the app last closed.
             let state = app.state::<detached::DetachedState>();

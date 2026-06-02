@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { TerminalView, type TerminalViewHandle } from "./TerminalView";
 import { ActionView } from "./ActionView";
 import { Header } from "./project-detail/Header";
-import { EMPTY_SERVICES, noop } from "./project-detail/constants";
+import { EMPTY_SERVICES, noop, NO_DRAG_STYLE } from "./project-detail/constants";
 import { useTerminalFontSize } from "../hooks/useTerminalFontSize";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
@@ -62,7 +62,7 @@ export function GlobalTerminalsView({
 
   const showEmptyState = terminalCount === 0;
   const actionsRow = actions.length > 0 && (
-    <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className="flex flex-wrap items-center justify-end gap-2" style={NO_DRAG_STYLE}>
       {actions.map((a) => (
         <ActionView
           key={a.name}

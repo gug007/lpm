@@ -22,8 +22,14 @@ const TOP_LEVEL_FILES: [&str; 5] = [
     "pr-title-instructions.txt",
     "pr-description-instructions.txt",
 ];
-const PER_MACHINE_KEYS: [&str; 4] =
-    ["windowWidth", "windowHeight", "sidebarWidth", "lastSelectedProject"];
+const PER_MACHINE_KEYS: [&str; 6] = [
+    "windowWidth",
+    "windowHeight",
+    "windowX",
+    "windowY",
+    "sidebarWidth",
+    "lastSelectedProject",
+];
 // Hardening Go lacks: bound extraction so a crafted archive can't exhaust disk.
 const MAX_ENTRY_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_TOTAL_BYTES: u64 = 512 * 1024 * 1024;
