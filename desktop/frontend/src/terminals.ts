@@ -8,6 +8,8 @@ export interface PersistedTab {
   actionName?: string;
   pinned?: boolean;
   emoji?: string;
+  // Only the off state is persisted; absent restores to the default (on).
+  filterMode?: boolean;
 }
 
 // Mirrors the Go binding (main.PaneNode) so it round-trips through the
@@ -46,6 +48,9 @@ export interface ProjectTerminalState {
   activeTab?: string;
   panes?: PersistedPaneNode;
   focusedPanePath?: number[];
+  // Per-service search filter toggle, keyed by service name. Only off states
+  // are stored; a missing key restores to the default (on).
+  serviceFilterModes?: Record<string, boolean>;
   // Legacy field — read on load for migration, never written back.
   terminals?: PersistedTerminalEntry[];
   history?: PersistedHistoryEntry[];

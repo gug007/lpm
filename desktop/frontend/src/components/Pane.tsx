@@ -7,6 +7,7 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { getTerminalTheme, openTerminalLink } from "./terminal-utils";
 import { copyTerminalSelection, handleCopyShortcut } from "./terminal/copySelection";
+import { FilterMirror } from "./terminal/FilterMirror";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { ChevronRightIcon } from "./icons";
 import "@xterm/xterm/css/xterm.css";
@@ -103,6 +104,7 @@ export interface PaneHandle {
   findNext: (query: string) => boolean;
   findPrevious: (query: string) => boolean;
   clearSearch: () => void;
+  setFilter: (query: string | null, onCount?: (count: number) => void) => void;
   scrollToBottom: () => void;
   focus: () => void;
 }
@@ -124,8 +126,11 @@ interface PaneProps {
 export function Pane({ label, onLabelClick, labelActions, output, visible = true, fontSize = 12, onScrollStateChange, themeOverride, sessionKey, cwd = "", ref }: PaneProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const sessionRef = useRef<PaneSession | null>(null);
+    const filterRef = useRef<FilterMirror | null>(null);
+    const fontSizeRef = useRef(fontSize);
     const scrollCallbackRef = useRef(onScrollStateChange);
     const themeOverrideRef = useRef(themeOverride);
+    fontSizeRef.current = fontSize;
     scrollCallbackRef.current = onScrollStateChange;
     themeOverrideRef.current = themeOverride;
 
@@ -144,6 +149,22 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
       },
       clearSearch() {
         sessionRef.current?.search?.clearDecorations();
+      },
+      setFilter(query: string | null, onCount?: (count: number) => void) {
+        const session = sessionRef.current;
+        const el = containerRef.current;
+        if (!session || !el) return;
+        if (!query && !filterRef.current) return;
+        session.search?.clearDecorations();
+        if (!filterRef.current) {
+          filterRef.current = new FilterMirror(
+            el,
+            session,
+            () => themeOverrideRef.current ?? getTerminalTheme(el),
+            () => fontSizeRef.current,
+          );
+        }
+        filterRef.current.setQuery(query, onCount);
       },
       scrollToBottom() {
         const session = sessionRef.current;
@@ -222,6 +243,8 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
         globalObserver.disconnect();
         ro.disconnect();
         session.onScrollState = undefined;
+        filterRef.current?.dispose();
+        filterRef.current = null;
 
         if (sessionKey) {
           // Detach host from this mount's container; the cached session
@@ -241,13 +264,16 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
     useEffect(() => {
       const session = sessionRef.current;
       if (!session) return;
-      session.term.options.theme = themeOverride ?? getTerminalTheme(containerRef.current);
+      const theme = themeOverride ?? getTerminalTheme(containerRef.current);
+      session.term.options.theme = theme;
+      filterRef.current?.setTheme(theme);
     }, [themeOverride]);
 
     useEffect(() => {
       const session = sessionRef.current;
       if (!session) return;
       session.term.options.fontSize = fontSize;
+      filterRef.current?.setFontSize(fontSize);
       try { session.fit.fit(); } catch {}
     }, [fontSize]);
 
@@ -258,7 +284,10 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
     }, [cwd]);
 
     useEffect(() => {
-      if (!visible) return;
+      if (!visible) {
+        filterRef.current?.setQuery(null);
+        return;
+      }
       const session = sessionRef.current;
       if (!session) return;
       requestAnimationFrame(() => {

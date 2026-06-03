@@ -15,6 +15,9 @@ export interface TerminalInstance {
   // Custom emoji shown as the tab icon (in place of the terminal icon).
   // Inherited from the action that launched the terminal.
   emoji?: string;
+  // Terminal-search filter toggle. Absent means the default (on); only the
+  // off state is stored so persisted data stays minimal.
+  filterMode?: boolean;
   // Absent == terminal; "browser" tabs render an in-pane web browser instead.
   kind?: "terminal" | "browser";
 }
@@ -54,6 +57,7 @@ export function makeTerminal(
     actionName?: string;
     pinned?: boolean;
     emoji?: string;
+    filterMode?: boolean;
   },
 ): TerminalInstance {
   return {
@@ -64,6 +68,7 @@ export function makeTerminal(
     ...(opts?.actionName ? { actionName: opts.actionName } : {}),
     ...(opts?.pinned ? { pinned: true } : {}),
     ...(opts?.emoji ? { emoji: opts.emoji } : {}),
+    ...(opts?.filterMode === false ? { filterMode: false } : {}),
   };
 }
 

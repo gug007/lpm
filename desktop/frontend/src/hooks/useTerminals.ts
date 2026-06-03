@@ -76,6 +76,9 @@ export interface UseTerminalsResult {
     emoji?: string,
   ) => void;
   toggleTabPinned: (paneId: string, tabIdx: number) => void;
+  setTerminalFilterMode: (paneId: string, tabIdx: number, on: boolean) => void;
+  getServiceFilterMode: (serviceName: string) => boolean;
+  setServiceFilterMode: (serviceName: string, on: boolean) => void;
   reorderTerminals: (paneId: string, order: string[]) => void;
   moveTerminal: (fromPaneId: string, termId: string, toPaneId: string, toIdx?: number) => void;
   splitPane: (paneId: string, direction: SplitDirection) => Promise<void>;
@@ -520,6 +523,44 @@ export function useTerminals(
     [applyTree],
   );
 
+  const setTerminalFilterMode = useCallback(
+    (paneId: string, tabIdx: number, on: boolean) => {
+      const current = treeRef.current;
+      if (!current) return;
+      const pane = findPane(current, paneId);
+      if (!pane || !pane.tabs[tabIdx]) return;
+      if ((pane.tabs[tabIdx].filterMode ?? true) === on) return;
+      const next = mapPane(current, paneId, (p) => ({
+        ...p,
+        tabs: p.tabs.map((t, i) => (i === tabIdx ? { ...t, filterMode: on } : t)),
+      }));
+      applyTree(next);
+    },
+    [applyTree],
+  );
+
+  const getServiceFilterMode = useCallback(
+    (serviceName: string) =>
+      getProjectTerminals(projectName).serviceFilterModes?.[serviceName] ?? true,
+    [projectName],
+  );
+
+  const setServiceFilterMode = useCallback(
+    (serviceName: string, on: boolean) => {
+      const state = getProjectTerminals(projectName);
+      const prev = state.serviceFilterModes ?? {};
+      if ((prev[serviceName] ?? true) === on) return;
+      const nextModes = { ...prev };
+      if (on) delete nextModes[serviceName];
+      else nextModes[serviceName] = false;
+      void saveProjectTerminals(projectName, {
+        ...state,
+        serviceFilterModes: nextModes,
+      });
+    },
+    [projectName],
+  );
+
   // Reorder follows the active terminal by id rather than by index so the
   // user's focused tab stays focused after the drop, even if its position
   // shifted.
@@ -705,6 +746,9 @@ export function useTerminals(
     focusService,
     renameTerminal,
     toggleTabPinned,
+    setTerminalFilterMode,
+    getServiceFilterMode,
+    setServiceFilterMode,
     reorderTerminals,
     moveTerminal,
     splitPane,
@@ -762,6 +806,7 @@ async function reifyTreeWithFreshPtys(
           actionName: persistedTabs[i].actionName,
           pinned: persistedTabs[i].pinned,
           emoji: persistedTabs[i].emoji,
+          filterMode: persistedTabs[i].filterMode,
         }),
       );
       const pane = makePaneLeaf(nextId("pane"), tabs, clampIdx(node.activeTabIdx, tabs.length));
@@ -807,6 +852,7 @@ function treeToPersisted(node: PaneNode): PersistedPaneNode {
           ...(t.actionName ? { actionName: t.actionName } : {}),
           ...(t.pinned ? { pinned: true } : {}),
           ...(t.emoji ? { emoji: t.emoji } : {}),
+          ...(t.filterMode === false ? { filterMode: false } : {}),
         })),
     };
   }
