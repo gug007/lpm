@@ -29,6 +29,7 @@ const MSG_MAX_HEIGHT = { maxHeight: "calc(5 * 1.5em + 1rem)" };
 
 interface CommitModalProps {
   open: boolean;
+  projectName: string;
   projectPath: string;
   onClose: () => void;
   onCommitted: () => void;
@@ -36,6 +37,7 @@ interface CommitModalProps {
 
 export function CommitModal({
   open,
+  projectName,
   projectPath,
   onClose,
   onCommitted,
@@ -204,6 +206,7 @@ export function CommitModal({
     setGenerating(true);
     try {
       const msg = await GenerateCommitMessage(
+        projectName,
         projectPath,
         ai.selectedCLI,
         ai.selectedModel,

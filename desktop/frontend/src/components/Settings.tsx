@@ -15,6 +15,7 @@ import {
   getTerminalThemeColors,
 } from "../terminal-themes";
 import { ProgressBar } from "./ui/ProgressBar";
+import { BTN_SECONDARY } from "./ui/buttons";
 import { BrowserOpenURL, EventsOn } from "../../bridge/runtime";
 import {
   GetVersion,
@@ -52,9 +53,6 @@ const HOOKS_DESCRIPTION: Record<HooksStatus, string> = {
   missing: "Hooks not configured",
   "no-settings": "Claude Code settings not found",
 };
-
-const BTN_SECONDARY =
-  "rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-active)] disabled:opacity-50";
 
 const SELECT_CLASS =
   "rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1.5 text-xs text-[var(--text-primary)]";

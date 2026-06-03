@@ -1,13 +1,16 @@
 import { ReadBranchNameInstructions, SaveBranchNameInstructions } from "../../bridge/commands";
 import { InstructionsEditor } from "./InstructionsEditor";
+import { DEFAULT_BRANCH_NAME_INSTRUCTIONS, withDefault } from "../aiInstructions";
+
+const load = withDefault(ReadBranchNameInstructions, DEFAULT_BRANCH_NAME_INSTRUCTIONS);
 
 export function BranchNameInstructionsEditor({ onBack }: { onBack: () => void }) {
   return (
     <InstructionsEditor
       title="Branch Name Instructions"
       description="Custom instructions for AI-generated branch names. Applied globally to all projects."
-      placeholder={"Use kebab-case (lowercase words separated by hyphens).\nKeep under 50 characters.\nOptionally prefix with a type: feat/, fix/, refactor/, docs/, chore/.\nBe descriptive but concise.\nOutput ONLY the branch name. No code fences. No explanation."}
-      load={ReadBranchNameInstructions}
+      placeholder={DEFAULT_BRANCH_NAME_INSTRUCTIONS}
+      load={load}
       save={SaveBranchNameInstructions}
       onBack={onBack}
     />

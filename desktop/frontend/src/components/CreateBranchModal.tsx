@@ -16,6 +16,7 @@ import { slugify } from "../slugify";
 interface CreateBranchModalProps {
   open: boolean;
   busy: boolean;
+  projectName: string;
   projectPath: string;
   onClose: () => void;
   onCreate: (name: string) => Promise<void> | void;
@@ -29,6 +30,7 @@ const normalize = (s: string) => slugify(s, { allowSlash: true });
 export function CreateBranchModal({
   open,
   busy,
+  projectName,
   projectPath,
   onClose,
   onCreate,
@@ -66,6 +68,7 @@ export function CreateBranchModal({
     setGenerating(true);
     try {
       const result = await GenerateBranchName(
+        projectName,
         projectPath,
         ai.selectedCLI,
         ai.selectedModel,

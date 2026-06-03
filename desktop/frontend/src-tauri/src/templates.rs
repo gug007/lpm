@@ -160,3 +160,68 @@ pub fn read_branch_name_instructions() -> Result<String, String> {
 pub fn save_branch_name_instructions(content: String) -> Result<(), String> {
     save_instructions("branch-name", &content)
 }
+
+// ---- Per-project instruction overrides (~/.lpm/instructions/<project>/<key>-instructions.txt) ----
+// When a project's file is non-blank it takes precedence over the global
+// instructions for the same key; otherwise the global file is used.
+
+const INSTRUCTION_KEYS: &[&str] = &["commit", "pr-title", "pr-description", "branch-name"];
+
+fn project_instructions_path(project: &str, key: &str) -> std::path::PathBuf {
+    config::lpm_dir()
+        .join("instructions")
+        .join(project)
+        .join(format!("{key}-instructions.txt"))
+}
+
+fn validate_instruction_args(project: &str, key: &str) -> Result<(), String> {
+    config::validate_name(project)?;
+    if !INSTRUCTION_KEYS.contains(&key) {
+        return Err(format!("unknown instruction key: {key:?}"));
+    }
+    Ok(())
+}
+
+fn read_project_instructions_file(project: &str, key: &str) -> Result<String, String> {
+    match std::fs::read_to_string(project_instructions_path(project, key)) {
+        Ok(s) => Ok(s),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(String::new()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+fn save_project_instructions_file(project: &str, key: &str, content: &str) -> Result<(), String> {
+    let path = project_instructions_path(project, key);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&path, content).map_err(|e| e.to_string())
+}
+
+/// A project's own instructions when set (non-blank), otherwise the global ones.
+pub fn resolve_instructions(project: &str, key: &str) -> String {
+    if !project.is_empty() {
+        if let Ok(s) = read_project_instructions_file(project, key) {
+            if !s.trim().is_empty() {
+                return s;
+            }
+        }
+    }
+    read_instructions(key).unwrap_or_default()
+}
+
+#[tauri::command]
+pub fn read_project_instructions(project: String, key: String) -> Result<String, String> {
+    validate_instruction_args(&project, &key)?;
+    read_project_instructions_file(&project, &key)
+}
+
+#[tauri::command]
+pub fn save_project_instructions(
+    project: String,
+    key: String,
+    content: String,
+) -> Result<(), String> {
+    validate_instruction_args(&project, &key)?;
+    save_project_instructions_file(&project, &key, &content)
+}

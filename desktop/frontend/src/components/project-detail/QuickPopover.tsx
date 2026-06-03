@@ -1,6 +1,6 @@
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import type { ActionInfo } from "../../types";
-import { HistoryIcon, TrashIcon, RefreshIcon, PencilIcon, MessageIcon } from "../icons";
+import { HistoryIcon, TrashIcon, RefreshIcon, PencilIcon, MessageIcon, SparkleIcon } from "../icons";
 import { PlayIcon } from "./icons";
 
 const sectionLabelClass = "px-4 pb-1.5 pt-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]";
@@ -16,6 +16,7 @@ interface QuickPopoverProps {
   onOpenHistory: () => void;
   onEditConfig: () => void;
   onOpenNotes: () => void;
+  onOpenAI: () => void;
   onRestart: () => void;
   onRemove: () => void;
 }
@@ -30,6 +31,7 @@ export function QuickPopover({
   onOpenHistory,
   onEditConfig,
   onOpenNotes,
+  onOpenAI,
   onRestart,
   onRemove,
 }: QuickPopoverProps) {
@@ -94,6 +96,13 @@ export function QuickPopover({
         <MessageIcon />
         <span className="flex-1 truncate">Notes</span>
         <kbd className="ml-auto text-[10px] text-[var(--text-muted)]">⌘⇧N</kbd>
+      </button>
+      <button
+        onClick={() => { onOpenAI(); onClose(); }}
+        className={`${menuItemClass} text-[var(--text-secondary)]`}
+      >
+        <SparkleIcon />
+        <span className="flex-1 truncate">AI Instructions</span>
       </button>
       {hasHistory && (
         <button

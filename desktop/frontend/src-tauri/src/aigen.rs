@@ -458,6 +458,7 @@ fn pr_diff_and_log(cwd: &str, base: &str) -> Result<(String, String), String> {
 #[tauri::command(async)]
 pub fn generate_commit_message(
     app: AppHandle,
+    project_name: String,
     cwd: String,
     cli: String,
     model: String,
@@ -470,7 +471,7 @@ pub fn generate_commit_message(
         return Err("no diff to summarize".into());
     }
     let diff = truncate_diff(&diff, MAX_DIFF);
-    let instr = crate::templates::read_commit_instructions().unwrap_or_default();
+    let instr = crate::templates::resolve_instructions(&project_name, "commit");
     let mut prompt = COMMIT_MSG_PROMPT.to_string();
     if !instr.is_empty() {
         prompt.push_str(&format!("Additional instructions from the user:\n{instr}\n\n"));
@@ -482,6 +483,7 @@ pub fn generate_commit_message(
 #[tauri::command(async)]
 pub fn generate_pr_title(
     app: AppHandle,
+    project_name: String,
     cwd: String,
     cli: String,
     model: String,
@@ -490,7 +492,7 @@ pub fn generate_pr_title(
     base: String,
 ) -> Result<String, String> {
     let (diff, log) = pr_diff_and_log(&cwd, &base)?;
-    let instr = crate::templates::read_pr_title_instructions().unwrap_or_default();
+    let instr = crate::templates::resolve_instructions(&project_name, "pr-title");
     let prompt = build_pr_prompt(PR_TITLE_PROMPT, &instr, &diff, &log);
     run_ai(&app, &cli, &cwd, &prompt, ropts(model, effort, fast, false), "pr-title-progress")
 }
@@ -498,6 +500,7 @@ pub fn generate_pr_title(
 #[tauri::command(async)]
 pub fn generate_pr_description(
     app: AppHandle,
+    project_name: String,
     cwd: String,
     cli: String,
     model: String,
@@ -506,7 +509,7 @@ pub fn generate_pr_description(
     base: String,
 ) -> Result<String, String> {
     let (diff, log) = pr_diff_and_log(&cwd, &base)?;
-    let instr = crate::templates::read_pr_description_instructions().unwrap_or_default();
+    let instr = crate::templates::resolve_instructions(&project_name, "pr-description");
     let prompt = build_pr_prompt(PR_DESCRIPTION_PROMPT, &instr, &diff, &log);
     run_ai(&app, &cli, &cwd, &prompt, ropts(model, effort, fast, false), "pr-description-progress")
 }
@@ -514,6 +517,7 @@ pub fn generate_pr_description(
 #[tauri::command(async)]
 pub fn generate_branch_name(
     app: AppHandle,
+    project_name: String,
     cwd: String,
     cli: String,
     model: String,
@@ -535,7 +539,7 @@ pub fn generate_branch_name(
         return Err("no changes to summarize".into());
     }
     let diff = truncate_diff(&diff, MAX_BRANCH_DIFF);
-    let instr = crate::templates::read_branch_name_instructions().unwrap_or_default();
+    let instr = crate::templates::resolve_instructions(&project_name, "branch-name");
     let prompt = build_pr_prompt(BRANCH_NAME_PROMPT, &instr, &diff, &commit_log);
     run_ai(&app, &cli, &cwd, &prompt, ropts(model, effort, fast, false), "branch-name-progress")
 }

@@ -103,20 +103,20 @@ export function FocusMainWindow(project, view, addProject) {
 export function GenerateActionYAML(projectName, cli, model, effort, fast, userPrompt, currentYAML) {
   return invoke("generate_action_yaml", { projectName, cli, model, effort, fast, userPrompt, currentYaml: currentYAML });
 }
-export function GenerateBranchName(cwd, cli, model, effort, fast) {
-  return invoke("generate_branch_name", { cwd, cli, model, effort, fast });
+export function GenerateBranchName(projectName, cwd, cli, model, effort, fast) {
+  return invoke("generate_branch_name", { projectName, cwd, cli, model, effort, fast });
 }
-export function GenerateCommitMessage(cwd, cli, model, effort, fast, files) {
-  return invoke("generate_commit_message", { cwd, cli, model, effort, fast, files });
+export function GenerateCommitMessage(projectName, cwd, cli, model, effort, fast, files) {
+  return invoke("generate_commit_message", { projectName, cwd, cli, model, effort, fast, files });
 }
-export function GeneratePRDescription(cwd, cli, model, effort, fast, base) {
-  return invoke("generate_pr_description", { cwd, cli, model, effort, fast, base });
+export function GeneratePRDescription(projectName, cwd, cli, model, effort, fast, base) {
+  return invoke("generate_pr_description", { projectName, cwd, cli, model, effort, fast, base });
 }
 export function GenerateProjectConfig(projectName, cli, extraPrompt) {
   return invoke("generate_project_config", { projectName, cli, extraPrompt });
 }
-export function GeneratePRTitle(cwd, cli, model, effort, fast, base) {
-  return invoke("generate_pr_title", { cwd, cli, model, effort, fast, base });
+export function GeneratePRTitle(projectName, cwd, cli, model, effort, fast, base) {
+  return invoke("generate_pr_title", { projectName, cwd, cli, model, effort, fast, base });
 }
 export function GetPlatform() {
   return invoke("get_platform");
@@ -304,6 +304,9 @@ export function ReadPRDescriptionInstructions() {
 export function ReadPRTitleInstructions() {
   return invoke("read_pr_title_instructions");
 }
+export function ReadProjectInstructions(project, key) {
+  return invoke("read_project_instructions", { project, key });
+}
 export function ReadRepoConfig(name) {
   return invoke("read_repo_config", { name });
 }
@@ -369,6 +372,9 @@ export function SavePRDescriptionInstructions(content) {
 }
 export function SavePRTitleInstructions(content) {
   return invoke("save_pr_title_instructions", { content });
+}
+export function SaveProjectInstructions(project, key, content) {
+  return invoke("save_project_instructions", { project, key, content });
 }
 export function SaveRepoConfig(name, content) {
   return invoke("save_repo_config", { name, content });

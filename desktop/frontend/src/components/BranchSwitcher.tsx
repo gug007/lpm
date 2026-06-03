@@ -30,7 +30,8 @@ const PULL_STRATEGIES: { value: GitPullStrategy; label: string }[] = [
   { value: "rebase", label: "Pull (Rebase)" },
 ];
 
-export function BranchSwitcher({ projectPath, gitState }: {
+export function BranchSwitcher({ projectName, projectPath, gitState }: {
+  projectName: string;
   projectPath: string;
   gitState: ReturnType<typeof useGitStatus>;
 }) {
@@ -488,18 +489,21 @@ export function BranchSwitcher({ projectPath, gitState }: {
       <CreateBranchModal
         open={creating}
         busy={busy}
+        projectName={projectName}
         projectPath={projectPath}
         onClose={() => setCreating(false)}
         onCreate={create}
       />
       <CommitModal
         open={committing}
+        projectName={projectName}
         projectPath={projectPath}
         onClose={() => setCommitting(false)}
         onCommitted={refresh}
       />
       <PRModal
         open={creatingPR}
+        projectName={projectName}
         projectPath={projectPath}
         currentBranch={status.branch}
         onClose={() => setCreatingPR(false)}

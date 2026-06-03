@@ -29,6 +29,7 @@ interface ControlsProps {
   onOpenHistory: () => void;
   onEditConfig: () => void;
   onOpenNotes: () => void;
+  onOpenAI: () => void;
   onRestart: () => void;
   onRequestRemove: () => void;
   onAddService: () => void;
@@ -61,6 +62,7 @@ export function Controls({
   onOpenHistory,
   onEditConfig,
   onOpenNotes,
+  onOpenAI,
   onRestart,
   onRequestRemove,
   onAddService,
@@ -99,6 +101,7 @@ export function Controls({
             onOpenHistory={onOpenHistory}
             onEditConfig={onEditConfig}
             onOpenNotes={onOpenNotes}
+            onOpenAI={onOpenAI}
             onRestart={onRestart}
             onRemove={onRequestRemove}
           />

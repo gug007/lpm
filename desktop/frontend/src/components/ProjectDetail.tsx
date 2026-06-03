@@ -5,6 +5,7 @@ import { type ActionGroup } from "./actionsDndLayout";
 import { ActionView } from "./ActionView";
 import { ConfigEditor } from "./ConfigEditor";
 import { NotesView } from "./NotesView";
+import { ProjectAIInstructions } from "./ProjectAIInstructions";
 import { type TerminalViewHandle } from "./TerminalView";
 import { ConfigErrorView } from "./project-detail/ConfigErrorView";
 import { Controls } from "./project-detail/Controls";
@@ -330,6 +331,7 @@ export function ProjectDetail({
       onOpenHistory={handleOpenHistory}
       onEditConfig={() => switchDetailView("config")}
       onOpenNotes={() => switchDetailView("notes")}
+      onOpenAI={() => switchDetailView("ai")}
       onRestart={() => withLoading(() => onRestart(project.name, activeProfile))}
       onRequestRemove={() => setConfirmRemove(true)}
       onAddService={() => {
@@ -432,6 +434,14 @@ export function ProjectDetail({
         {detailView === "notes" && (
           <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden">
             <NotesView projectName={project.name} visible={visible && detailView === "notes"} />
+          </div>
+        )}
+        {detailView === "ai" && (
+          <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden">
+            <ProjectAIInstructions
+              projectName={project.name}
+              onBack={() => switchDetailView("terminal")}
+            />
           </div>
         )}
 

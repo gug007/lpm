@@ -1,13 +1,16 @@
 import { ReadCommitInstructions, SaveCommitInstructions } from "../../bridge/commands";
 import { InstructionsEditor } from "./InstructionsEditor";
+import { DEFAULT_COMMIT_INSTRUCTIONS, withDefault } from "../aiInstructions";
+
+const load = withDefault(ReadCommitInstructions, DEFAULT_COMMIT_INSTRUCTIONS);
 
 export function CommitInstructionsEditor({ onBack }: { onBack: () => void }) {
   return (
     <InstructionsEditor
       title="Commit Instructions"
       description="Custom instructions for AI-generated commit messages. Applied globally to all projects."
-      placeholder={"Use conventional commit format: type(scope): description\nTypes: feat, fix, refactor, docs, test, chore, style, perf\nKeep the first line under 72 characters.\nIf needed, add a blank line then a brief body paragraph.\nOutput ONLY the commit message text. No code fences. No explanation."}
-      load={ReadCommitInstructions}
+      placeholder={DEFAULT_COMMIT_INSTRUCTIONS}
+      load={load}
       save={SaveCommitInstructions}
       onBack={onBack}
     />

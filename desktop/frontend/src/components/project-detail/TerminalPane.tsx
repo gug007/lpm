@@ -72,6 +72,7 @@ export function TerminalPane({
         visible={visible && active}
       />
       <TerminalFooter
+        projectName={projectName}
         projectPath={projectRoot}
         actions={footerActions}
         actionIds={footerIds}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { useKeyboardShortcut } from "./useKeyboardShortcut";
 
-export type DetailView = "terminal" | "config" | "notes";
+export type DetailView = "terminal" | "config" | "notes" | "ai";
 
 export interface UseDetailViewOptions {
   projectName: string;

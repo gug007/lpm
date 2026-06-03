@@ -30,6 +30,7 @@ const DESC_MAX_HEIGHT = { maxHeight: "50vh" };
 
 interface PRModalProps {
   open: boolean;
+  projectName: string;
   projectPath: string;
   currentBranch: string;
   onClose: () => void;
@@ -38,6 +39,7 @@ interface PRModalProps {
 
 export function PRModal({
   open,
+  projectName,
   projectPath,
   currentBranch,
   onClose,
@@ -177,6 +179,7 @@ export function PRModal({
     setGeneratingTitle(true);
     try {
       const result = await GeneratePRTitle(
+        projectName,
         projectPath,
         ai.selectedCLI,
         ai.selectedModel,
@@ -197,6 +200,7 @@ export function PRModal({
     setGeneratingDesc(true);
     try {
       const result = await GeneratePRDescription(
+        projectName,
         projectPath,
         ai.selectedCLI,
         ai.selectedModel,

@@ -7,6 +7,7 @@ import { ActionsSortableItem } from "./ActionsSortableItem";
 import type { ActionInfo } from "../types";
 
 interface TerminalFooterProps {
+  projectName: string;
   projectPath: string;
   actions: ActionInfo[];
   actionIds: string[];
@@ -16,6 +17,7 @@ interface TerminalFooterProps {
 }
 
 export function TerminalFooter({
+  projectName,
   projectPath,
   actions,
   actionIds,
@@ -45,7 +47,7 @@ export function TerminalFooter({
           />
         </ActionsSortableItem>
       ))}
-      {isGitRepo && <BranchSwitcher projectPath={projectPath} gitState={gitState} />}
+      {isGitRepo && <BranchSwitcher projectName={projectName} projectPath={projectPath} gitState={gitState} />}
     </ActionsGroup>
   );
 }
