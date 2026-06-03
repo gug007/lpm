@@ -107,6 +107,10 @@ export interface PaneViewProps {
   ) => void;
   onClearStatus: (terminalId: string, kind: StatusKind) => void;
   onFindInPane: (paneId: string, query: string, direction: "next" | "prev") => boolean;
+  filterMode: boolean;
+  matchCount: number;
+  onFilterInPane: (paneId: string, query: string | null) => void;
+  onToggleFilterMode: () => void;
   onCloseSearch: () => void;
 }
 
@@ -142,6 +146,10 @@ function PaneViewImpl(props: PaneViewProps) {
     onRegisterServiceHandle,
     onClearStatus,
     onFindInPane,
+    filterMode,
+    matchCount,
+    onFilterInPane,
+    onToggleFilterMode,
     onCloseSearch,
   } = props;
 
@@ -341,8 +349,12 @@ function PaneViewImpl(props: PaneViewProps) {
         {searchActive && (
           <TerminalSearchBar
             key={`${pane.id}:${activeServiceName ?? activeTerm?.id ?? "empty"}`}
+            filterMode={filterMode}
+            matchCount={matchCount}
             onFindNext={(query) => onFindInPane(pane.id, query, "next")}
             onFindPrevious={(query) => onFindInPane(pane.id, query, "prev")}
+            onFilterChange={(query) => onFilterInPane(pane.id, query)}
+            onToggleFilterMode={onToggleFilterMode}
             onClose={onCloseSearch}
           />
         )}

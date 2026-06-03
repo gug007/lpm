@@ -15,6 +15,7 @@ import { TerminalIcon } from "./icons";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { useTerminals, type TerminalStartOpts } from "../hooks/useTerminals";
 import { type PersistedHistoryEntry } from "../terminals";
+import { getSettings, saveSettings } from "../store/settings";
 import { useTTSHotkeys } from "../hooks/useTTSHotkeys";
 import { TTSControls } from "./TTSControls";
 import { joinAbs } from "../path";
@@ -46,6 +47,8 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   const [outputs, setOutputs] = useState<string[]>([]);
   const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null);
   const [searchPaneId, setSearchPaneId] = useState<string | null>(null);
+  const [filterMode, setFilterMode] = useState(false);
+  const [matchCount, setMatchCount] = useState(0);
 
   const terminalHandles = useRef<Map<string, InteractivePaneHandle>>(new Map());
   const serviceHandles = useRef<Map<string, PaneHandle>>(new Map());
@@ -229,9 +232,26 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     [resolveActiveHandle],
   );
 
+  const filterInPane = useCallback(
+    (paneId: string, query: string | null) => {
+      resolveActiveHandle(paneId)?.setFilter(query, setMatchCount);
+    },
+    [resolveActiveHandle],
+  );
+
+  const toggleFilterMode = useCallback(() => {
+    const next = !filterMode;
+    setFilterMode(next);
+    void saveSettings({ searchFilterMode: next });
+  }, [filterMode]);
+
   const handleCloseSearch = useCallback(() => {
     setSearchPaneId((current) => {
-      if (current) resolveActiveHandle(current)?.clearSearch();
+      if (current) {
+        const handle = resolveActiveHandle(current);
+        handle?.clearSearch();
+        handle?.setFilter(null);
+      }
       return null;
     });
   }, [resolveActiveHandle]);
@@ -361,6 +381,8 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
         const pane = getFocusedPane();
         if (!pane) return;
         setSearchPaneId(pane.id);
+        setFilterMode(getSettings().searchFilterMode ?? false);
+        setMatchCount(0);
         return;
       }
       if (matched.key === "Escape" && fullscreenPaneId) {
@@ -399,6 +421,8 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             focusedPaneId={focusedPaneId}
             fullscreenPaneId={fullscreenPaneId}
             searchPaneId={searchPaneId}
+            filterMode={filterMode}
+            matchCount={matchCount}
             canClose={tree.kind === "split"}
             fontSize={fontSize}
             themeOverride={xtermTheme}
@@ -425,6 +449,8 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onClearStatus={handleClearStatus}
             onRatioChange={setRatio}
             onFindInPane={findInPane}
+            onFilterInPane={filterInPane}
+            onToggleFilterMode={toggleFilterMode}
             onCloseSearch={handleCloseSearch}
           />
         </TerminalTabDnd>

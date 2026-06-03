@@ -2,6 +2,9 @@ import { BrowserOpenURL } from "../../bridge/runtime";
 
 export const openTerminalLink = (_e: MouseEvent, uri: string) => BrowserOpenURL(uri);
 
+export const TERMINAL_FONT_FAMILY =
+  "'SF Mono', Menlo, Monaco, 'Courier New', 'Segoe UI Emoji', 'Noto Color Emoji', monospace";
+
 // ANSI color palette matching iTerm2 defaults for consistent rendering,
 // except blue is brightened for legibility on dark backgrounds.
 export const ansiColors = {

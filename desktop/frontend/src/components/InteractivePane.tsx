@@ -18,8 +18,9 @@ import {
   UploadClipboardImageForTerminal,
 } from "../../bridge/commands";
 import { sendTerminalInput, shellQuote } from "../terminal-io";
-import { getTerminalTheme, openTerminalLink } from "./terminal-utils";
+import { getTerminalTheme, openTerminalLink, TERMINAL_FONT_FAMILY } from "./terminal-utils";
 import { handleCopyShortcut } from "./terminal/copySelection";
+import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { registerFileDropHandler } from "../fileDrop";
 import "@xterm/xterm/css/xterm.css";
@@ -29,6 +30,7 @@ export interface InteractivePaneHandle {
   findNext: (query: string) => boolean;
   findPrevious: (query: string) => boolean;
   clearSearch: () => void;
+  setFilter: (query: string | null, onCount?: (count: number) => void) => void;
   scrollToBottom: () => void;
   focus: () => void;
 }
@@ -244,8 +246,7 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   // values from props before the session is ever attached.
   const term = new Terminal({
     fontSize: 12,
-    fontFamily:
-      "'SF Mono', Menlo, Monaco, 'Courier New', 'Segoe UI Emoji', 'Noto Color Emoji', monospace",
+    fontFamily: TERMINAL_FONT_FAMILY,
     cursorBlink: true,
     disableStdin: false,
     scrollback: 10000,
@@ -460,9 +461,12 @@ export function InteractivePane({
 }: InteractivePaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<InteractiveSession | null>(null);
+  const filterRef = useRef<FilterMirror | null>(null);
+  const fontSizeRef = useRef(fontSize);
   const scrollCallbackRef = useRef(onScrollStateChange);
   const themeOverrideRef = useRef(themeOverride);
   const onExitRef = useRef(onExit);
+  fontSizeRef.current = fontSize;
   scrollCallbackRef.current = onScrollStateChange;
   themeOverrideRef.current = themeOverride;
   onExitRef.current = onExit;
@@ -480,6 +484,20 @@ export function InteractivePane({
     },
     clearSearch() {
       sessionRef.current?.search?.clearDecorations();
+    },
+    setFilter(query: string | null, onCount?: (count: number) => void) {
+      const session = sessionRef.current;
+      const el = containerRef.current;
+      if (!session || !el) return;
+      applyFilterQuery(
+        filterRef,
+        el,
+        session,
+        () => themeOverrideRef.current ?? getTerminalTheme(el),
+        () => fontSizeRef.current,
+        query,
+        onCount,
+      );
     },
     scrollToBottom() {
       const session = sessionRef.current;
@@ -536,6 +554,8 @@ export function InteractivePane({
       ro.disconnect();
       session.onScrollState = undefined;
       session.onExit = undefined;
+      filterRef.current?.dispose();
+      filterRef.current = null;
       if (session.host.parentNode) {
         session.host.parentNode.removeChild(session.host);
       }
@@ -547,14 +567,16 @@ export function InteractivePane({
     const session = sessionRef.current;
     if (!session) return;
     session.themeOverride = themeOverride ?? null;
-    session.term.options.theme =
-      themeOverride ?? getTerminalTheme(containerRef.current);
+    const theme = themeOverride ?? getTerminalTheme(containerRef.current);
+    session.term.options.theme = theme;
+    filterRef.current?.setTheme(theme);
   }, [themeOverride]);
 
   useEffect(() => {
     const session = sessionRef.current;
     if (!session) return;
     session.term.options.fontSize = fontSize;
+    filterRef.current?.setFontSize(fontSize);
     try {
       session.fit.fit();
     } catch {}
@@ -567,7 +589,10 @@ export function InteractivePane({
   }, [cwd]);
 
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      filterRef.current?.setQuery(null);
+      return;
+    }
     const session = sessionRef.current;
     if (!session) return;
     const term = session.term;

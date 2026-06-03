@@ -137,7 +137,14 @@ export function useTerminals(
   const persist = useCallback(
     (next: PaneNode | null) => {
       const focusedId = focusedRef.current;
-      const state = getProjectTerminals(projectName);
+      // serviceFilterModes is a removed field (filter mode is now a single
+      // global setting); strip it so a dead key from an earlier build doesn't
+      // round-trip back into terminals.json.
+      const { serviceFilterModes: _legacy, ...state } = getProjectTerminals(
+        projectName,
+      ) as ReturnType<typeof getProjectTerminals> & {
+        serviceFilterModes?: unknown;
+      };
       saveProjectTerminals(projectName, {
         ...state,
         panes: next ? treeToPersisted(next) : undefined,

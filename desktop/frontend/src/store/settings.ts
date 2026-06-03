@@ -54,6 +54,7 @@ export interface Settings {
   ttsSpeed?: number;
   preferredEditor?: string;
   detachedWindows?: Record<string, DetachedWindowState>;
+  searchFilterMode?: boolean;
 }
 
 const defaults: Settings = {
@@ -106,6 +107,7 @@ function normalize(s: main.Settings): Settings {
     ttsVoice: s.ttsVoice || undefined,
     ttsSpeed: s.ttsSpeed,
     preferredEditor: s.preferredEditor || undefined,
+    searchFilterMode: s.searchFilterMode,
     detachedWindows: s.detachedWindows
       ? Object.fromEntries(
           Object.entries(s.detachedWindows).map(([name, raw]) => {
