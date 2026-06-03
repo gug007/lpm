@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { StartTerminal, StartTerminalForConfig, StartTerminalForRestore, StartTerminalWithCwdEnv, StopTerminal } from "../../bridge/commands";
+import { StartTerminal, StartTerminalForConfig, StartTerminalForRestore, StartTerminalWithCwdEnv, StopTerminal, ClearPaneStatus } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 import { sendTerminalInput } from "../terminal-io";
 import { isInteractivePaneSessionDead } from "../components/InteractivePane";
@@ -430,6 +430,9 @@ export function useTerminals(
       if (isTabPinned(pane, tabIdx)) return;
       const closingTab = pane.tabs[tabIdx];
       StopTerminal(closingTab.id).catch(() => {});
+      if (closingTab.kind !== "browser") {
+        ClearPaneStatus(projectName, closingTab.id).catch(() => {});
+      }
       recordClosingTabs([closingTab]);
 
       // Collapse the pane only when it would otherwise be empty — panes
@@ -445,7 +448,7 @@ export function useTerminals(
       const next = mapPane(current, paneId, (p) => ({ ...p, tabs: newTabs, activeTabIdx: newActive }));
       applyTree(next);
     },
-    [applyTree, collapsePane, recordClosingTabs],
+    [applyTree, collapsePane, recordClosingTabs, projectName],
   );
 
   const focusTerminal = useCallback(
@@ -632,11 +635,16 @@ export function useTerminals(
       if (!current) return;
       const pane = findPane(current, paneId);
       if (!pane) return;
-      pane.tabs.forEach((t) => StopTerminal(t.id).catch(() => {}));
+      pane.tabs.forEach((t) => {
+        StopTerminal(t.id).catch(() => {});
+        if (t.kind !== "browser") {
+          ClearPaneStatus(projectName, t.id).catch(() => {});
+        }
+      });
       recordClosingTabs(pane.tabs);
       collapsePane(current, paneId);
     },
-    [collapsePane, recordClosingTabs],
+    [collapsePane, recordClosingTabs, projectName],
   );
 
   // Divider drag mutates the tree on every frame. setRatioAtPath returns

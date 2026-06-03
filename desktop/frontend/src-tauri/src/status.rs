@@ -90,20 +90,33 @@ impl StatusStore {
         true
     }
 
-    /// Remove every entry of `project` whose value==value && pane_id==pane_id.
-    /// Drives the tab-click dismiss (status.go ClearByPaneValue).
-    pub fn clear_by_pane_value(&self, project: &str, pane_id: &str, value: &str) -> bool {
+    /// Drop every entry of `project` for which `drop` returns true, removing the
+    /// project bucket once it empties. Returns whether anything was removed.
+    fn retain_where<F: Fn(&StatusEntry) -> bool>(&self, project: &str, drop: F) -> bool {
         let mut m = self.entries.write().unwrap();
         let Some(bucket) = m.get_mut(project) else {
             return false;
         };
         let before = bucket.len();
-        bucket.retain(|_, e| !(e.value == value && e.pane_id == pane_id));
+        bucket.retain(|_, e| !drop(e));
         let changed = bucket.len() != before;
         if changed && bucket.is_empty() {
             m.remove(project);
         }
         changed
+    }
+
+    /// Remove every entry of `project` whose value==value && pane_id==pane_id.
+    /// Drives the tab-click dismiss (status.go ClearByPaneValue).
+    pub fn clear_by_pane_value(&self, project: &str, pane_id: &str, value: &str) -> bool {
+        self.retain_where(project, |e| e.value == value && e.pane_id == pane_id)
+    }
+
+    /// Remove every entry of `project` for `pane_id`, regardless of value.
+    /// Drives close cleanup so a killed pane leaves no orphaned status behind
+    /// (a stale Waiting/Done would otherwise outrank a new pane's status).
+    pub fn clear_pane(&self, project: &str, pane_id: &str) -> bool {
+        self.retain_where(project, |e| e.pane_id == pane_id)
     }
 
     /// Entries for a project, sorted priority desc, timestamp desc, key asc.
@@ -149,6 +162,21 @@ pub fn clear_status(
     value: String,
 ) -> Result<(), String> {
     if store.clear_by_pane_value(&project, &pane_id, &value) {
+        let _ = app.emit("status-changed", &project);
+    }
+    Ok(())
+}
+
+/// App-level ClearPaneStatus: drop ALL status of a pane (used when its terminal
+/// is closed). Frontend sends {project, paneId}; paneId -> pane_id via camelCase.
+#[tauri::command]
+pub fn clear_pane_status(
+    app: AppHandle,
+    store: State<'_, Arc<StatusStore>>,
+    project: String,
+    pane_id: String,
+) -> Result<(), String> {
+    if store.clear_pane(&project, &pane_id) {
         let _ = app.emit("status-changed", &project);
     }
     Ok(())
@@ -213,5 +241,17 @@ mod tests {
         let keys: Vec<String> = s.list("p").into_iter().map(|e| e.key).collect();
         assert_eq!(keys, ["done2", "wait1"]); // p-1 Done gone; Waiting survives (persist rule); p-2 Done untouched
         assert!(!s.clear_by_pane_value("p", "p-1", "Done"), "second clear is a no-op");
+    }
+
+    #[test]
+    fn clear_pane_removes_all_values_for_pane() {
+        let s = StatusStore::new();
+        s.set("p", entry("run1", "Running", 0, 1, "p-1"));
+        s.set("p", entry("wait1", "Waiting", 0, 1, "p-1"));
+        s.set("p", entry("run2", "Running", 0, 1, "p-2"));
+        assert!(s.clear_pane("p", "p-1"));
+        let keys: Vec<String> = s.list("p").into_iter().map(|e| e.key).collect();
+        assert_eq!(keys, ["run2"]); // every p-1 entry gone regardless of value; p-2 untouched
+        assert!(!s.clear_pane("p", "p-1"), "second clear is a no-op");
     }
 }

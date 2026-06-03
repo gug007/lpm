@@ -16,6 +16,7 @@ export function CheckPortConflictsForServices(...args: any[]): Promise<any>;
 export function CheckoutBranch(...args: any[]): Promise<any>;
 export function ClearPortSuggestions(...args: any[]): Promise<any>;
 export function ClearStatus(...args: any[]): Promise<any>;
+export function ClearPaneStatus(...args: any[]): Promise<any>;
 export function CreateBranch(...args: any[]): Promise<any>;
 export function CreateProject(...args: any[]): Promise<any>;
 export function CreateProjectFromClone(...args: any[]): Promise<any>;

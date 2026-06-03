@@ -9,7 +9,7 @@ use serde_json::Value;
 
 
 
-/// All 162 commands for tauri::generate_handler!.
+/// All 163 commands for tauri::generate_handler!.
 #[macro_export]
 macro_rules! all_command_handlers {
     () => {
@@ -38,6 +38,7 @@ macro_rules! all_command_handlers {
         check_port_conflicts_for_services,
         clear_port_suggestions,
         clear_status,
+        clear_pane_status,
         create_branch,
         create_project,
         create_project_from_clone,
