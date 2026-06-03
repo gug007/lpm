@@ -7,7 +7,7 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { getTerminalTheme, openTerminalLink } from "./terminal-utils";
 import { copyTerminalSelection, handleCopyShortcut } from "./terminal/copySelection";
-import { FilterMirror } from "./terminal/FilterMirror";
+import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { ChevronRightIcon } from "./icons";
 import "@xterm/xterm/css/xterm.css";
@@ -154,17 +154,15 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
         const session = sessionRef.current;
         const el = containerRef.current;
         if (!session || !el) return;
-        if (!query && !filterRef.current) return;
-        session.search?.clearDecorations();
-        if (!filterRef.current) {
-          filterRef.current = new FilterMirror(
-            el,
-            session,
-            () => themeOverrideRef.current ?? getTerminalTheme(el),
-            () => fontSizeRef.current,
-          );
-        }
-        filterRef.current.setQuery(query, onCount);
+        applyFilterQuery(
+          filterRef,
+          el,
+          session,
+          () => themeOverrideRef.current ?? getTerminalTheme(el),
+          () => fontSizeRef.current,
+          query,
+          onCount,
+        );
       },
       scrollToBottom() {
         const session = sessionRef.current;

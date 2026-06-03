@@ -2,10 +2,8 @@ import { Terminal, type IDisposable, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import type { SerializeAddon } from "@xterm/addon-serialize";
+import { TERMINAL_FONT_FAMILY } from "../terminal-utils";
 import { filterLines } from "./filterLines";
-
-const FONT_FAMILY =
-  "'SF Mono', Menlo, Monaco, 'Courier New', 'Segoe UI Emoji', 'Noto Color Emoji', monospace";
 
 const MATCH_DECORATIONS = {
   matchBackground: "#5c4a00",
@@ -62,10 +60,6 @@ export class FilterMirror {
     this.run();
   }
 
-  refresh(): void {
-    if (this.active) this.run();
-  }
-
   setTheme(theme: ITheme): void {
     if (this.mirror) this.mirror.options.theme = theme;
   }
@@ -104,7 +98,7 @@ export class FilterMirror {
 
     const term = new Terminal({
       fontSize: this.getFontSize(),
-      fontFamily: FONT_FAMILY,
+      fontFamily: TERMINAL_FONT_FAMILY,
       cursorBlink: false,
       disableStdin: true,
       convertEol: false,
@@ -183,7 +177,7 @@ export class FilterMirror {
     const mirror = this.mirror;
     if (!mirror || !this.query) return;
 
-    const { lines, count } = filterLines(this.readSourceText(), this.query);
+    const lines = filterLines(this.readSourceText(), this.query);
 
     try {
       this.search?.clearDecorations();
@@ -200,11 +194,11 @@ export class FilterMirror {
       });
     }
 
-    if (this.emptyHint) this.emptyHint.style.display = count ? "none" : "flex";
+    if (this.emptyHint) this.emptyHint.style.display = lines.length ? "none" : "flex";
     try {
       this.fit?.fit();
     } catch {}
-    this.onCount(count);
+    this.onCount(lines.length);
   }
 
   private hide(): void {
@@ -215,4 +209,25 @@ export class FilterMirror {
     }
     if (this.host) this.host.style.display = "none";
   }
+}
+
+interface FilterMirrorHost extends FilterMirrorSource {
+  search?: { clearDecorations(): void } | null;
+}
+
+export function applyFilterQuery(
+  filterRef: { current: FilterMirror | null },
+  container: HTMLElement,
+  source: FilterMirrorHost,
+  getTheme: () => ITheme,
+  getFontSize: () => number,
+  query: string | null,
+  onCount?: (count: number) => void,
+): void {
+  if (!query && !filterRef.current) return;
+  source.search?.clearDecorations();
+  if (!filterRef.current) {
+    filterRef.current = new FilterMirror(container, source, getTheme, getFontSize);
+  }
+  filterRef.current.setQuery(query, onCount);
 }

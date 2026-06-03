@@ -13,19 +13,14 @@ export function stripAnsi(input: string): string {
   return input.replace(ANSI_PATTERN, "");
 }
 
-export interface FilterResult {
-  lines: string[];
-  count: number;
-}
-
 // Keeps only the lines whose visible text contains `query` (case-insensitive),
 // returning them with ANSI intact so a mirror terminal renders them in color.
-export function filterLines(ansiText: string, query: string): FilterResult {
-  if (!query) return { lines: [], count: 0 };
+export function filterLines(ansiText: string, query: string): string[] {
+  if (!query) return [];
   const needle = query.toLowerCase();
   const lines: string[] = [];
   for (const raw of ansiText.split(/\r?\n/)) {
     if (stripAnsi(raw).toLowerCase().includes(needle)) lines.push(raw);
   }
-  return { lines, count: lines.length };
+  return lines;
 }

@@ -18,9 +18,9 @@ import {
   UploadClipboardImageForTerminal,
 } from "../../bridge/commands";
 import { sendTerminalInput, shellQuote } from "../terminal-io";
-import { getTerminalTheme, openTerminalLink } from "./terminal-utils";
+import { getTerminalTheme, openTerminalLink, TERMINAL_FONT_FAMILY } from "./terminal-utils";
 import { handleCopyShortcut } from "./terminal/copySelection";
-import { FilterMirror } from "./terminal/FilterMirror";
+import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { registerFileDropHandler } from "../fileDrop";
 import "@xterm/xterm/css/xterm.css";
@@ -246,8 +246,7 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   // values from props before the session is ever attached.
   const term = new Terminal({
     fontSize: 12,
-    fontFamily:
-      "'SF Mono', Menlo, Monaco, 'Courier New', 'Segoe UI Emoji', 'Noto Color Emoji', monospace",
+    fontFamily: TERMINAL_FONT_FAMILY,
     cursorBlink: true,
     disableStdin: false,
     scrollback: 10000,
@@ -490,17 +489,15 @@ export function InteractivePane({
       const session = sessionRef.current;
       const el = containerRef.current;
       if (!session || !el) return;
-      if (!query && !filterRef.current) return;
-      session.search?.clearDecorations();
-      if (!filterRef.current) {
-        filterRef.current = new FilterMirror(
-          el,
-          session,
-          () => themeOverrideRef.current ?? getTerminalTheme(el),
-          () => fontSizeRef.current,
-        );
-      }
-      filterRef.current.setQuery(query, onCount);
+      applyFilterQuery(
+        filterRef,
+        el,
+        session,
+        () => themeOverrideRef.current ?? getTerminalTheme(el),
+        () => fontSizeRef.current,
+        query,
+        onCount,
+      );
     },
     scrollToBottom() {
       const session = sessionRef.current;

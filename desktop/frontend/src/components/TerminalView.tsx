@@ -5,7 +5,7 @@ import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus } from
 import type { ITheme } from "@xterm/xterm";
 import { disposePaneSession, type PaneHandle } from "./Pane";
 import { disposeInteractivePaneSession, type InteractivePaneHandle } from "./InteractivePane";
-import { collectTerminals, isTabPinned, type PaneLeaf } from "../paneTree";
+import { collectTerminals, isTabPinned } from "../paneTree";
 import { PaneLayout } from "./PaneLayout";
 import { TerminalTabDnd } from "./TerminalTabDnd";
 import type { ServiceTabInfo, StatusKind } from "./PaneView";
@@ -15,6 +15,7 @@ import { TerminalIcon } from "./icons";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { useTerminals, type TerminalStartOpts } from "../hooks/useTerminals";
 import { type PersistedHistoryEntry } from "../terminals";
+import { getSettings, saveSettings } from "../store/settings";
 import { useTTSHotkeys } from "../hooks/useTTSHotkeys";
 import { TTSControls } from "./TTSControls";
 import { joinAbs } from "../path";
@@ -46,7 +47,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   const [outputs, setOutputs] = useState<string[]>([]);
   const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null);
   const [searchPaneId, setSearchPaneId] = useState<string | null>(null);
-  const [filterMode, setFilterMode] = useState(true);
+  const [filterMode, setFilterMode] = useState(false);
   const [matchCount, setMatchCount] = useState(0);
 
   const terminalHandles = useRef<Map<string, InteractivePaneHandle>>(new Map());
@@ -70,9 +71,6 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     focusService,
     renameTerminal,
     toggleTabPinned,
-    setTerminalFilterMode,
-    getServiceFilterMode,
-    setServiceFilterMode,
     reorderTerminals,
     moveTerminal,
     splitPane,
@@ -234,14 +232,6 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     [resolveActiveHandle],
   );
 
-  const readPaneFilterMode = useCallback(
-    (pane: PaneLeaf): boolean => {
-      if (pane.activeServiceName) return getServiceFilterMode(pane.activeServiceName);
-      return pane.tabs[pane.activeTabIdx]?.filterMode ?? true;
-    },
-    [getServiceFilterMode],
-  );
-
   const filterInPane = useCallback(
     (paneId: string, query: string | null) => {
       resolveActiveHandle(paneId)?.setFilter(query, setMatchCount);
@@ -250,16 +240,10 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   );
 
   const toggleFilterMode = useCallback(() => {
-    if (!searchPaneId) return;
-    const pane = getPane(searchPaneId);
-    if (!pane) return;
-    setFilterMode((prev) => {
-      const next = !prev;
-      if (pane.activeServiceName) setServiceFilterMode(pane.activeServiceName, next);
-      else setTerminalFilterMode(pane.id, pane.activeTabIdx, next);
-      return next;
-    });
-  }, [searchPaneId, getPane, setServiceFilterMode, setTerminalFilterMode]);
+    const next = !filterMode;
+    setFilterMode(next);
+    void saveSettings({ searchFilterMode: next });
+  }, [filterMode]);
 
   const handleCloseSearch = useCallback(() => {
     setSearchPaneId((current) => {
@@ -271,21 +255,6 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       return null;
     });
   }, [resolveActiveHandle]);
-
-  // Identity of the entity the open search bar targets (active service or
-  // tab). Switching it re-reads that entity's persisted filter toggle.
-  const searchEntityKey = useMemo(() => {
-    if (!searchPaneId) return null;
-    const pane = getPane(searchPaneId);
-    if (!pane) return null;
-    return pane.activeServiceName ?? pane.tabs[pane.activeTabIdx]?.id ?? null;
-  }, [searchPaneId, tree, getPane]);
-
-  useEffect(() => {
-    if (!searchPaneId) return;
-    const pane = getPane(searchPaneId);
-    if (pane) setFilterMode(readPaneFilterMode(pane));
-  }, [searchEntityKey, searchPaneId, getPane, readPaneFilterMode]);
 
   useEffect(() => {
     setOutputs(new Array(stableServices.length).fill(""));
@@ -412,7 +381,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
         const pane = getFocusedPane();
         if (!pane) return;
         setSearchPaneId(pane.id);
-        setFilterMode(readPaneFilterMode(pane));
+        setFilterMode(getSettings().searchFilterMode ?? false);
         setMatchCount(0);
         return;
       }
