@@ -324,7 +324,7 @@ export function useTerminals(
           emoji: opts.emoji,
         });
         addTerminal(term);
-        scheduleCmdInject(launch.id, launch.startCmd);
+        if (launch.startCmd) scheduleCmdInject(launch.id, launch.startCmd);
         return;
       }
 

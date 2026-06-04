@@ -325,6 +325,19 @@ fn resolve_spawn(project_name: &str) -> Result<(String, Option<config::SshSettin
     Ok((info.root, ssh))
 }
 
+/// (cwd, env, cmd) for a named terminal action, falling back to a plain shell
+/// (all empty) when the action was renamed/removed or a stale tab still
+/// references it — so the terminal still opens instead of erroring.
+fn resolve_terminal_spawn(
+    project: &str,
+    name: &str,
+) -> Result<(String, BTreeMap<String, String>, String), String> {
+    Ok(match config::resolve_terminal_action(project, name)? {
+        Some(t) => (t.cwd, t.env, t.cmd),
+        None => (String::new(), BTreeMap::new(), String::new()),
+    })
+}
+
 #[tauri::command]
 pub fn start_terminal(
     app: AppHandle,
@@ -356,12 +369,7 @@ pub fn start_terminal_for_restore(
     terminal_name: String,
 ) -> Result<String, String> {
     let (root, ssh) = resolve_spawn(&project_name)?;
-    // Use the action's cwd/env when present; fall back to a plain shell (Go
-    // behavior when the action was renamed/removed).
-    let (cwd, env) = match config::resolve_terminal_action(&project_name, &terminal_name)? {
-        Some(t) => (t.cwd, t.env),
-        None => (String::new(), BTreeMap::new()),
-    };
+    let (cwd, env, _) = resolve_terminal_spawn(&project_name, &terminal_name)?;
     start_internal(&app, &state, &project_name, &root, &cwd, &env, ssh.as_ref())
 }
 
@@ -373,10 +381,11 @@ pub fn start_terminal_for_config(
     terminal_name: String,
 ) -> Result<TerminalLaunch, String> {
     let (root, ssh) = resolve_spawn(&project_name)?;
-    let act = config::resolve_terminal_action(&project_name, &terminal_name)?
-        .ok_or_else(|| format!("terminal {terminal_name:?} not found in project {project_name:?}"))?;
-    let id = start_internal(&app, &state, &project_name, &root, &act.cwd, &act.env, ssh.as_ref())?;
-    let (start_cmd, resume_cmd) = resolve_restore_cmds(&act.cmd);
+    // On the plain-shell fallback `cmd` is empty, so startCmd is empty and the
+    // frontend injects nothing.
+    let (cwd, env, cmd) = resolve_terminal_spawn(&project_name, &terminal_name)?;
+    let id = start_internal(&app, &state, &project_name, &root, &cwd, &env, ssh.as_ref())?;
+    let (start_cmd, resume_cmd) = resolve_restore_cmds(&cmd);
     Ok(TerminalLaunch {
         id,
         start_cmd,

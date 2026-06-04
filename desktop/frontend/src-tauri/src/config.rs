@@ -630,24 +630,37 @@ pub struct TerminalSpawn {
 }
 
 /// Resolve a named terminal action: an entry under `terminals:` (implicitly a
-/// terminal) or one under `actions:` with `type: terminal`. Does NOT yet apply
-/// `extends` inheritance or the global-config merge (later phase).
+/// terminal) or one under `actions:` with `type: terminal`. The name may be a
+/// `parent:child` composite (a nested action) — same lookup as action_port /
+/// resolve_action_full. Returns None when the name resolves to a non-terminal
+/// action or doesn't exist at all (callers fall back to a plain shell).
 pub fn resolve_terminal_action(
     project: &str,
     name: &str,
 ) -> Result<Option<TerminalSpawn>, String> {
     // Use the fully resolved map so global/extends terminal entries launch too.
     let map = resolve_action_map(project);
-    if let Some(a) = map.get(name) {
-        if a.kind == "terminal" {
-            return Ok(Some(TerminalSpawn {
-                cmd: a.cmd.clone(),
-                cwd: a.cwd.clone(),
-                env: a.env.clone(),
-            }));
+    Ok(lookup_action(&map, name)
+        .filter(|a| a.kind == "terminal")
+        .map(|a| TerminalSpawn {
+            cmd: a.cmd,
+            cwd: a.cwd,
+            env: a.env,
+        }))
+}
+
+/// Look up an action by name in an already-resolved map, handling the
+/// `parent:child` composite form (a nested action, with parent inheritance
+/// applied). Shared by every action consumer so they treat names identically.
+fn lookup_action(map: &BTreeMap<String, ActionFull>, name: &str) -> Option<ActionFull> {
+    match name.split_once(':') {
+        Some((parent, child)) => {
+            let p = map.get(parent)?;
+            let c = p.actions.get(child)?.clone().into_full();
+            Some(resolved_child(p, &c))
         }
+        None => map.get(name).cloned(),
     }
-    Ok(None)
 }
 
 // ---- action resolution engine (config.ResolvedActions / toProjectInfo) ------
@@ -924,6 +937,12 @@ fn resolved_child(parent: &ActionFull, child: &ActionFull) -> ActionFull {
     }
     if c.mode.is_empty() {
         c.mode = parent.mode.clone();
+    }
+    // A child under a terminal parent is itself a terminal unless it says
+    // otherwise — without this it serializes as a plain (non-terminal) action and
+    // resolve_terminal_action's kind filter would drop it. Mirrors cwd/mode above.
+    if c.kind.is_empty() {
+        c.kind = parent.kind.clone();
     }
     let mut env = parent.env.clone();
     for (k, v) in &child.env {
@@ -1383,12 +1402,7 @@ pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
 /// doesn't exist; Some(0) when it exists without a port.
 pub fn action_port(file_name: &str, action_name: &str) -> Option<i64> {
     let map = resolve_action_map(file_name);
-    if let Some((parent, child)) = action_name.split_once(':') {
-        let p = map.get(parent)?;
-        let c = p.actions.get(child)?.clone().into_full();
-        return Some(resolved_child(p, &c).port);
-    }
-    Some(map.get(action_name)?.port)
+    Some(lookup_action(&map, action_name)?.port)
 }
 
 /// Fully resolved action fields needed to run it (RunAction/RunActionBackground).
@@ -1403,13 +1417,7 @@ pub struct ActionResolved {
 
 pub fn resolve_action_full(file_name: &str, action_name: &str) -> Option<ActionResolved> {
     let map = resolve_action_map(file_name);
-    let act = if let Some((parent, child)) = action_name.split_once(':') {
-        let p = map.get(parent)?;
-        let c = p.actions.get(child)?.clone().into_full();
-        resolved_child(p, &c)
-    } else {
-        map.get(action_name)?.clone()
-    };
+    let act = lookup_action(&map, action_name)?;
     Some(ActionResolved {
         cmd: act.cmd,
         cwd: act.cwd,
@@ -1465,5 +1473,64 @@ mod repo_merge_tests {
         let mut profiles = BTreeMap::new();
         merge_repo_services_profiles(&dir.path().to_string_lossy(), true, &mut services, &mut profiles);
         assert!(services.is_empty(), "remote repo file lives on the remote; never merged locally");
+    }
+}
+
+#[cfg(test)]
+mod action_lookup_tests {
+    use super::*;
+
+    fn terminal_action(cmd: &str) -> ActionFull {
+        ActionFull { cmd: cmd.into(), kind: "terminal".into(), ..Default::default() }
+    }
+
+    fn parent_with_child(child_name: &str, child: ActionFull) -> BTreeMap<String, ActionFull> {
+        let mut parent = ActionFull {
+            display: "menu".into(),
+            cwd: "app".into(),
+            ..Default::default()
+        };
+        parent.actions.insert(child_name.into(), ActionDef::Full(child));
+        let mut map = BTreeMap::new();
+        map.insert("Run".to_string(), parent);
+        map
+    }
+
+    #[test]
+    fn resolves_nested_terminal_by_composite_name() {
+        let map = parent_with_child("hellphone", terminal_action("make run"));
+        let got = lookup_action(&map, "Run:hellphone").expect("child resolves");
+        assert_eq!(got.cmd, "make run");
+        assert_eq!(got.kind, "terminal");
+        assert_eq!(got.cwd, "app", "child inherits the parent cwd");
+    }
+
+    #[test]
+    fn missing_parent_or_child_returns_none() {
+        let map = parent_with_child("hellphone", terminal_action("make run"));
+        assert!(lookup_action(&map, "Run:ghost").is_none(), "unknown child");
+        assert!(lookup_action(&map, "Ghost:hellphone").is_none(), "unknown parent");
+        assert!(lookup_action(&map, "ghost").is_none(), "unknown top-level");
+    }
+
+    #[test]
+    fn nested_child_inherits_terminal_kind_from_parent() {
+        // Parent under `terminals:` has kind defaulted to "terminal"; a child
+        // with no explicit type must inherit it (else it'd launch a bare shell).
+        let mut parent = ActionFull { kind: "terminal".into(), cwd: "app".into(), ..Default::default() };
+        parent.actions.insert("hellphone".into(), ActionDef::Cmd("make run".into()));
+        let mut map = BTreeMap::new();
+        map.insert("Run".to_string(), parent);
+
+        let got = lookup_action(&map, "Run:hellphone").expect("child resolves");
+        assert_eq!(got.kind, "terminal", "empty-kind child inherits parent terminal kind");
+        assert_eq!(got.cmd, "make run");
+    }
+
+    #[test]
+    fn top_level_lookup_still_works() {
+        let mut map = BTreeMap::new();
+        map.insert("build".to_string(), terminal_action("make"));
+        assert_eq!(lookup_action(&map, "build").unwrap().cmd, "make");
     }
 }
