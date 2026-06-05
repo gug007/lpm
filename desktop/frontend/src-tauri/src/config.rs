@@ -940,6 +940,35 @@ fn merge_repo_services_profiles(
     }
 }
 
+/// Merge a duplicate's parent project services + profiles UNDER the given maps
+/// (the duplicate's own config wins). resolve_actions already inherits actions
+/// from the parent; without the same for services a duplicate has no services
+/// and loses its Start button.
+fn merge_parent_services_profiles(
+    file_name: &str,
+    services: &mut BTreeMap<String, ServiceFull>,
+    profiles: &mut BTreeMap<String, Vec<String>>,
+) {
+    let Some(parent) = peek_parent(file_name) else {
+        return;
+    };
+    let Ok(parent_yaml) = parse_project_yaml(&parent) else {
+        return;
+    };
+    for (n, d) in parent_yaml.services {
+        let full = d.into_full();
+        match services.get_mut(&n) {
+            Some(existing) => merge_service(existing, &full),
+            None => {
+                services.insert(n, full);
+            }
+        }
+    }
+    for (k, v) in parent_yaml.profiles {
+        profiles.entry(k).or_insert(v);
+    }
+}
+
 /// config.Action.ResolvedChild: child inherits parent cwd/mode; env overlaid.
 fn resolved_child(parent: &ActionFull, child: &ActionFull) -> ActionFull {
     let mut c = child.clone();
@@ -1136,6 +1165,7 @@ fn to_project_info(file_name: &str, mut yaml: ProjectYaml, running: bool, state:
     // Merge the repo <root>/.lpm.yml services + profiles UNDER the user project.
     // Without this, projects whose services live in committed repo config show
     // no services -> no Start button.
+    merge_parent_services_profiles(file_name, &mut services, &mut yaml.profiles);
     merge_repo_services_profiles(&root, is_remote, &mut services, &mut yaml.profiles);
     let all_names: Vec<String> = services.keys().cloned().collect();
 
@@ -1397,6 +1427,7 @@ pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
     let mut profiles = y.profiles;
     // Repo .lpm.yml services/profiles must also feed the start path, else a
     // shown Start button would have nothing to launch.
+    merge_parent_services_profiles(name, &mut services, &mut profiles);
     merge_repo_services_profiles(&root, is_remote, &mut services, &mut profiles);
     Ok(SpawnInfo {
         file_name: name.to_string(),
