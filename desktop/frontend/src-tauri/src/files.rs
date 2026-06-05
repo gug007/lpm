@@ -3,7 +3,7 @@
 use crate::config::expand_home;
 use std::path::PathBuf;
 use std::process::Command;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::{DialogExt, FilePath};
 
 const READ_FILE_MAX_BYTES: usize = 5 * 1024 * 1024;
@@ -47,6 +47,35 @@ pub async fn browse_folder(app: AppHandle) -> Result<String, String> {
         Some(p) => Ok(p.to_string_lossy().into_owned()),
         None => Ok(String::new()), // cancel -> "" (matches Go)
     }
+}
+
+#[tauri::command]
+pub async fn save_text_file(
+    app: AppHandle,
+    default_name: String,
+    content: String,
+) -> Result<bool, String> {
+    // Bounded by the terminal's scrollback, but a wide buffer can still be a
+    // few MB — cap generously so a real save is never rejected.
+    if content.len() > 64 * 1024 * 1024 {
+        return Err(format!("content too large ({} bytes)", content.len()));
+    }
+    let Some(path) = pick_path(app, move |app| {
+        let mut builder = app
+            .dialog()
+            .file()
+            .set_file_name(&default_name);
+        if let Ok(dir) = app.path().download_dir() {
+            builder = builder.set_directory(dir);
+        }
+        builder.blocking_save_file()
+    })
+    .await?
+    else {
+        return Ok(false);
+    };
+    std::fs::write(&path, content).map_err(|e| e.to_string())?;
+    Ok(true)
 }
 
 #[tauri::command]

@@ -388,6 +388,9 @@ export function SaveTemplate(name, content) {
 export function SaveTerminals(c) {
   return invoke("save_terminals", { c });
 }
+export function SaveTextFile(defaultName, content) {
+  return invoke("save_text_file", { defaultName, content });
+}
 export function SaveWindowSize(width, height) {
   return invoke("save_window_size", { width, height });
 }

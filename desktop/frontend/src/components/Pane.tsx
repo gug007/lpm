@@ -1,4 +1,4 @@
-import { useRef, useEffect, useImperativeHandle, type Ref, type ReactNode } from "react";
+import { useRef, useEffect, useImperativeHandle, useState, type Ref, type ReactNode } from "react";
 import { Terminal, type IDisposable, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
@@ -6,10 +6,11 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { getTerminalTheme, openTerminalLink } from "./terminal-utils";
-import { copyTerminalSelection, handleCopyShortcut } from "./terminal/copySelection";
+import { copyTerminalSelection, handleCopyShortcut, handleSelectAllShortcut, handleClearShortcut } from "./terminal/copySelection";
 import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { ChevronRightIcon } from "./icons";
+import { ConsoleContextMenu } from "./terminal/ConsoleContextMenu";
 import "@xterm/xterm/css/xterm.css";
 
 const labelBarClass = "flex items-center justify-between gap-1 border-b border-[var(--terminal-header-hover)] bg-[var(--terminal-header)] px-3 py-0.5 font-mono text-[10px] font-medium text-[var(--terminal-header-text)]";
@@ -58,8 +59,6 @@ function createPaneSession(opts: { fontSize: number; theme: ITheme; cwd: string 
   try { term.loadAddon(new WebLinksAddon(openTerminalLink)); } catch {}
   try { const u = new Unicode11Addon(); term.loadAddon(u); term.unicode.activeVersion = "11"; } catch {}
 
-  term.attachCustomKeyEventHandler((e) => !handleCopyShortcut(e, term, serialize));
-
   term.open(host);
 
   const session: PaneSession = {
@@ -87,7 +86,19 @@ function createPaneSession(opts: { fontSize: number; theme: ITheme; cwd: string 
     session.onScrollState?.(atBottom);
   });
 
+  term.attachCustomKeyEventHandler((e) => {
+    if (handleCopyShortcut(e, term, serialize)) return false;
+    if (handleSelectAllShortcut(e, term)) return false;
+    if (handleClearShortcut(e, term, { force: true, onClear: () => clearPaneSession(session) })) return false;
+    return true;
+  });
+
   return session;
+}
+
+function clearPaneSession(session: PaneSession): void {
+  session.term.reset();
+  session.prevLines = [];
 }
 
 export function disposePaneSession(key: string): void {
@@ -133,13 +144,13 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
     fontSizeRef.current = fontSize;
     scrollCallbackRef.current = onScrollStateChange;
     themeOverrideRef.current = themeOverride;
+    const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
 
     useImperativeHandle(ref, () => ({
       clear() {
         const session = sessionRef.current;
         if (!session) return;
-        session.term.reset();
-        session.prevLines = [];
+        clearPaneSession(session);
       },
       findNext(query: string) {
         return sessionRef.current?.search?.findNext(query) ?? false;
@@ -211,7 +222,8 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
 
       try { session.fit.fit(); } catch {}
 
-      const handleMouseUp = () => {
+      const handleMouseUp = (e: MouseEvent) => {
+        if (e.button !== 0) return;
         copyTerminalSelection(session.term, session.serialize);
       };
       session.host.addEventListener("mouseup", handleMouseUp);
@@ -256,6 +268,7 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
         }
 
         sessionRef.current = null;
+        setMenu(null);
       };
     }, [sessionKey]);
 
@@ -357,7 +370,29 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
             )}
           </div>
         )}
-        <div ref={containerRef} className="relative min-h-0 min-w-0 flex-1" />
+        <div
+          ref={containerRef}
+          onContextMenu={(e) => {
+            if (!sessionRef.current) return;
+            e.preventDefault();
+            setMenu({ x: e.clientX, y: e.clientY });
+          }}
+          className="relative min-h-0 min-w-0 flex-1"
+        />
+        {menu && sessionRef.current && (
+          <ConsoleContextMenu
+            x={menu.x}
+            y={menu.y}
+            term={sessionRef.current.term}
+            serialize={sessionRef.current.serialize}
+            canPaste={false}
+            onClear={() => {
+              const s = sessionRef.current;
+              if (s) clearPaneSession(s);
+            }}
+            onClose={() => setMenu(null)}
+          />
+        )}
       </div>
     );
 }

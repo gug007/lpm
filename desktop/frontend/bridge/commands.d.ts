@@ -127,6 +127,7 @@ export function SaveRepoConfig(...args: any[]): Promise<any>;
 export function SaveSettings(...args: any[]): Promise<any>;
 export function SaveTemplate(...args: any[]): Promise<any>;
 export function SaveTerminals(...args: any[]): Promise<any>;
+export function SaveTextFile(...args: any[]): Promise<any>;
 export function SaveWindowSize(...args: any[]): Promise<any>;
 export function SearchBranches(...args: any[]): Promise<any>;
 export function SetProjectLabel(...args: any[]): Promise<any>;

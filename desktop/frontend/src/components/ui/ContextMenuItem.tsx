@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 interface ContextMenuItemProps {
   label: ReactNode;
   icon?: ReactNode;
+  shortcut?: string;
   onClick: () => void;
   disabled?: boolean;
   destructive?: boolean;
@@ -12,6 +13,7 @@ interface ContextMenuItemProps {
 export function ContextMenuItem({
   label,
   icon,
+  shortcut,
   onClick,
   disabled,
   destructive,
@@ -30,6 +32,9 @@ export function ContextMenuItem({
     >
       {icon && <span className="flex shrink-0 items-center">{icon}</span>}
       <span className="flex-1 truncate">{label}</span>
+      {shortcut && (
+        <span className="shrink-0 text-[10px] opacity-50">{shortcut}</span>
+      )}
     </button>
   );
 }

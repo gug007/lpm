@@ -1,4 +1,4 @@
-import { useRef, useEffect, useImperativeHandle, type Ref } from "react";
+import { useRef, useEffect, useImperativeHandle, useState, type Ref } from "react";
 import { Terminal, type IDisposable, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
@@ -19,7 +19,8 @@ import {
 } from "../../bridge/commands";
 import { sendTerminalInput, shellQuote } from "../terminal-io";
 import { getTerminalTheme, openTerminalLink, TERMINAL_FONT_FAMILY } from "./terminal-utils";
-import { handleCopyShortcut } from "./terminal/copySelection";
+import { handleCopyShortcut, handleSelectAllShortcut, handleClearShortcut } from "./terminal/copySelection";
+import { ConsoleContextMenu } from "./terminal/ConsoleContextMenu";
 import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { registerFileDropHandler } from "../fileDrop";
@@ -283,6 +284,8 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   // triggering paste/copy/other OS-level shortcuts.
   term.attachCustomKeyEventHandler((e) => {
     if (handleCopyShortcut(e, term, serialize)) return false;
+    if (handleSelectAllShortcut(e, term)) return false;
+    if (handleClearShortcut(e, term)) return false;
     if (!e.metaKey) return true;
     return false;
   });
@@ -466,6 +469,7 @@ export function InteractivePane({
   const scrollCallbackRef = useRef(onScrollStateChange);
   const themeOverrideRef = useRef(themeOverride);
   const onExitRef = useRef(onExit);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   fontSizeRef.current = fontSize;
   scrollCallbackRef.current = onScrollStateChange;
   themeOverrideRef.current = themeOverride;
@@ -560,6 +564,7 @@ export function InteractivePane({
         session.host.parentNode.removeChild(session.host);
       }
       sessionRef.current = null;
+      setMenu(null);
     };
   }, [terminalId]);
 
@@ -612,8 +617,32 @@ export function InteractivePane({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div
         ref={containerRef}
+        onContextMenu={(e) => {
+          if (!sessionRef.current) return;
+          e.preventDefault();
+          setMenu({ x: e.clientX, y: e.clientY });
+        }}
         className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
       />
+      {menu && sessionRef.current && (
+        <ConsoleContextMenu
+          x={menu.x}
+          y={menu.y}
+          term={sessionRef.current.term}
+          serialize={sessionRef.current.serialize}
+          canPaste
+          onClear={() => sessionRef.current?.term.clear()}
+          onPaste={() => {
+            navigator.clipboard
+              .readText()
+              .then((text) => {
+                if (text) sessionRef.current?.term.paste(text);
+              })
+              .catch(() => {});
+          }}
+          onClose={() => setMenu(null)}
+        />
+      )}
     </div>
   );
 }
