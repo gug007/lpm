@@ -9,7 +9,7 @@ use serde_json::Value;
 
 
 
-/// All 165 commands for tauri::generate_handler!.
+/// All 167 commands for tauri::generate_handler!.
 #[macro_export]
 macro_rules! all_command_handlers {
     () => {
@@ -150,6 +150,7 @@ macro_rules! all_command_handlers {
         save_settings,
         save_template,
         save_terminals,
+        save_text_file,
         save_window_size,
         search_branches,
         set_project_label,

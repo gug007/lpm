@@ -254,3 +254,43 @@ export function handleCopyShortcut(
   copyTerminalSelection(term, serialize);
   return true;
 }
+
+export function handleSelectAllShortcut(e: KeyboardEvent, term: Terminal): boolean {
+  if (
+    !(
+      e.type === "keydown" &&
+      e.metaKey &&
+      !e.ctrlKey &&
+      !e.altKey &&
+      e.key.toLowerCase() === "a"
+    )
+  ) {
+    return false;
+  }
+  e.preventDefault();
+  term.selectAll();
+  return true;
+}
+
+export function handleClearShortcut(
+  e: KeyboardEvent,
+  term: Terminal,
+  opts?: { force?: boolean; onClear?: () => void },
+): boolean {
+  if (
+    !(
+      e.type === "keydown" &&
+      e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey &&
+      e.key.toLowerCase() === "l"
+    )
+  ) {
+    return false;
+  }
+  if (!opts?.force && term.buffer.active.type === "alternate") return false;
+  e.preventDefault();
+  if (opts?.onClear) opts.onClear();
+  else term.clear();
+  return true;
+}
