@@ -857,6 +857,17 @@ pub const IGNORED_WATCH_DIRS: &[&str] = &[
     ".idea", ".vscode",
 ];
 
+/// Build outputs and compiler/tool caches: regenerable and tied to the source's
+/// absolute path. Skipped when duplicating a project — cloning a stale .next /
+/// Turbopack cache from the original path forces a full cold recompile on the
+/// copy's first run, which saturates CPU. Dependency dirs (node_modules, .venv,
+/// …) are deliberately absent so a duplicate still runs without a reinstall.
+pub const DUPLICATE_SKIP_DIRS: &[&str] = &[
+    ".next", ".nuxt", ".svelte-kit", ".turbo", ".swc", ".cache", ".parcel-cache",
+    "dist", "build", "out", "target", "__pycache__", ".mypy_cache", ".pytest_cache",
+    ".gradle",
+];
+
 /// Declared service ports (port > 0) of an already-loaded project — the set the
 /// port poller / PTY sniffer auto-forwards (vs. merely suggesting).
 pub fn declared_service_ports_of(info: &SpawnInfo) -> std::collections::HashSet<u16> {

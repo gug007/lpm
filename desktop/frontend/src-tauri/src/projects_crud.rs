@@ -207,18 +207,31 @@ fn next_available_duplicate(original: &str, parent_dir: &Path) -> Result<(String
 }
 
 /// macOS APFS copy-on-write clone (kernel falls back to a full copy off-APFS).
+/// Clones each top-level entry individually so regenerable build/tool caches
+/// (config::DUPLICATE_SKIP_DIRS) can be skipped — carrying a stale .next cache
+/// into the duplicate makes its first `dev` run cold-compile and peg the machine.
 fn cp_clone(src: &Path, dst: &Path) -> Result<(), String> {
-    let out = Command::new("/bin/cp")
-        .args(["-c", "-R"])
-        .arg(src)
-        .arg(dst)
-        .output()
-        .map_err(|e| format!("clone copy failed: {e}"))?;
-    if !out.status.success() {
-        return Err(format!(
-            "clone copy failed: {}",
-            String::from_utf8_lossy(&out.stderr).trim()
-        ));
+    std::fs::create_dir(dst).map_err(|e| format!("create duplicate dir failed: {e}"))?;
+    for entry in std::fs::read_dir(src).map_err(|e| format!("read source failed: {e}"))? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let name = entry.file_name();
+        if name.to_str().is_some_and(|s| config::DUPLICATE_SKIP_DIRS.contains(&s)) {
+            continue;
+        }
+        let from = entry.path();
+        let out = Command::new("/bin/cp")
+            .args(["-c", "-R"])
+            .arg(&from)
+            .arg(dst.join(&name))
+            .output()
+            .map_err(|e| format!("clone copy failed: {e}"))?;
+        if !out.status.success() {
+            return Err(format!(
+                "clone copy failed for {}: {}",
+                from.display(),
+                String::from_utf8_lossy(&out.stderr).trim()
+            ));
+        }
     }
     Ok(())
 }
