@@ -129,8 +129,9 @@ pub fn run() {
             // the socket. Backgrounded — touches files, never blocks startup.
             std::thread::spawn(hooks::install_agent_hooks);
 
-            // Daily re-check; the app keeps running while the main window is hidden.
-            // The launch check is the Sidebar's on-mount CheckForUpdate.
+            // Check for updates on startup, then every 24h while the app runs
+            // (the window may be hidden). The Sidebar also pulls on mount, so the
+            // launch notification never depends on the startup emit's timing.
             updates::start_auto_check(handle.clone());
 
             // Backgrounded startup chores: drop sync caches for deleted projects

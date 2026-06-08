@@ -122,7 +122,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
   useEffect(() => {
     CheckForUpdate()
       .then((info) => { if (info.updateAvail) setUpdateInfo(info); })
-      .catch(() => {});
+      .catch((err) => console.warn("update check failed:", err));
   }, []);
   useEffect(() => EventsOn("update-progress", (pct: number) => setProgress(pct)), []);
   useEffect(() => EventsOn("update-status", (status: string) => {

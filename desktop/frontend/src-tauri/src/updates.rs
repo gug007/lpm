@@ -94,10 +94,14 @@ pub fn check_and_emit(app: &AppHandle) {
 
 const AUTO_CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
 
+/// Check once at startup, then every 24h while the app runs (the window may be
+/// hidden). Mirrors Go's autoCheckForUpdate, which checked before starting its
+/// daily ticker — checking after the sleep meant no check fired until the app
+/// had run 24h uninterrupted.
 pub fn start_auto_check(app: AppHandle) {
     std::thread::spawn(move || loop {
-        std::thread::sleep(AUTO_CHECK_INTERVAL);
         check_and_emit(&app);
+        std::thread::sleep(AUTO_CHECK_INTERVAL);
     });
 }
 
