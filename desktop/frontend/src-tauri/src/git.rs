@@ -40,6 +40,19 @@ fn git_raw(cwd: &str, args: &[&str]) -> String {
         .unwrap_or_default()
 }
 
+/// Raw stdout bytes of a successful command, empty otherwise. Bytes (not lossy
+/// UTF-8) so binary content is detectable before it is decoded for display.
+fn git_bytes(cwd: &str, args: &[&str]) -> Vec<u8> {
+    Command::new("git")
+        .args(args)
+        .current_dir(cwd)
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| o.stdout)
+        .unwrap_or_default()
+}
+
 fn branch_exists(cwd: &str, ref_: &str) -> bool {
     git_out(cwd, &["show-ref", "--verify", "--quiet", ref_]).is_ok()
 }
@@ -300,6 +313,60 @@ pub fn git_diff_branch(cwd: String, base: String) -> Result<String, String> {
     }
     let base = resolve_branch_ref(&cwd, &base);
     git_out(&cwd, &["diff", &format!("{base}...HEAD")])
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileDiff {
+    original: String,
+    modified: String,
+    binary: bool,
+}
+
+fn is_binary(bytes: &[u8]) -> bool {
+    bytes.iter().take(8000).any(|&b| b == 0)
+}
+
+/// Path a renamed file had at HEAD, so the original side resolves to the right
+/// blob. porcelain v1 -z emits a rename as `R.. <dest>` then a `<src>` chunk.
+fn rename_source(cwd: &str, new_path: &str) -> Option<String> {
+    let raw = git_raw(cwd, &["status", "--porcelain=v1", "-z", "--", new_path]);
+    let entries: Vec<&str> = raw.split('\u{0}').filter(|e| !e.is_empty()).collect();
+    for (i, e) in entries.iter().enumerate() {
+        let b = e.as_bytes();
+        if b.len() >= 2 && (matches!(b[0], b'R' | b'C') || matches!(b[1], b'R' | b'C')) {
+            return entries.get(i + 1).map(|s| s.to_string());
+        }
+    }
+    None
+}
+
+/// HEAD vs working-tree content of one file, for a side-by-side (Monaco) view.
+/// `original` is empty for an added file, `modified` empty for a deleted one.
+#[tauri::command(async)]
+pub fn git_file_diff(cwd: String, path: String) -> Result<FileDiff, String> {
+    let work = std::path::Path::new(&cwd).join(&path);
+    let mod_bytes = std::fs::read(&work).unwrap_or_default();
+
+    let mut orig_bytes = git_bytes(&cwd, &["show", &format!("HEAD:{path}")]);
+    if orig_bytes.is_empty() && work.exists() {
+        if let Some(src) = rename_source(&cwd, &path) {
+            orig_bytes = git_bytes(&cwd, &["show", &format!("HEAD:{src}")]);
+        }
+    }
+
+    if is_binary(&orig_bytes) || is_binary(&mod_bytes) {
+        return Ok(FileDiff {
+            original: String::new(),
+            modified: String::new(),
+            binary: true,
+        });
+    }
+    Ok(FileDiff {
+        original: String::from_utf8_lossy(&orig_bytes).into_owned(),
+        modified: String::from_utf8_lossy(&mod_bytes).into_owned(),
+        binary: false,
+    })
 }
 
 #[tauri::command(async)]

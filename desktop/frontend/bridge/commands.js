@@ -154,6 +154,9 @@ export function GitDiff(cwd, files) {
 export function GitDiffBranch(cwd, base) {
   return invoke("git_diff_branch", { cwd, base });
 }
+export function GitFileDiff(cwd, path) {
+  return invoke("git_file_diff", { cwd, path });
+}
 export function GitDiscardAll(cwd) {
   return invoke("git_discard_all", { cwd });
 }

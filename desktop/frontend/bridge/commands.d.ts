@@ -50,6 +50,7 @@ export function GitCommitCount(...args: any[]): Promise<any>;
 export function GitDefaultBranch(...args: any[]): Promise<any>;
 export function GitDiff(...args: any[]): Promise<any>;
 export function GitDiffBranch(...args: any[]): Promise<any>;
+export function GitFileDiff(...args: any[]): Promise<any>;
 export function GitDiscardAll(...args: any[]): Promise<any>;
 export function GitDiscardFiles(...args: any[]): Promise<any>;
 export function GitFetchAll(...args: any[]): Promise<any>;
