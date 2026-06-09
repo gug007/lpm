@@ -1,8 +1,6 @@
 import { useMemo, useState } from "react";
 import { useOutsideClick } from "../hooks/useOutsideClick";
-import { launchOpenInTarget, useOpenInTargets, type OpenInTarget } from "../hooks/useOpenInTargets";
-
-const SELECTED_KEY = "lpm.openIn.selectedId";
+import { launchOpenInTarget, useOpenInTargets, OPEN_IN_SELECTED_KEY, type OpenInTarget } from "../hooks/useOpenInTargets";
 
 export function OpenInDropdown({ projectPath }: {
   projectPath: string;
@@ -10,7 +8,7 @@ export function OpenInDropdown({ projectPath }: {
   const [open, setOpen] = useState(false);
   const allTargets = useOpenInTargets();
   const targets = useMemo(() => allTargets.filter((t) => !t.fileOnly), [allTargets]);
-  const [selectedId, setSelectedId] = useState<string>(() => localStorage.getItem(SELECTED_KEY) ?? "");
+  const [selectedId, setSelectedId] = useState<string>(() => localStorage.getItem(OPEN_IN_SELECTED_KEY) ?? "");
   const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
 
   const selected = useMemo(() => {
@@ -24,7 +22,7 @@ export function OpenInDropdown({ projectPath }: {
 
   const pick = (t: OpenInTarget) => {
     setSelectedId(t.id);
-    localStorage.setItem(SELECTED_KEY, t.id);
+    localStorage.setItem(OPEN_IN_SELECTED_KEY, t.id);
     setOpen(false);
     launch(t);
   };

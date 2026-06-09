@@ -1,7 +1,7 @@
 import { ChevronRightIcon, ClipboardIcon, CopyIcon, DetachIcon, PencilIcon, RefreshIcon, TrashIcon } from "./icons";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
-import { launchOpenInTarget, useOpenInTargets } from "../hooks/useOpenInTargets";
+import { launchOpenInTarget, primaryOpenInTarget, useOpenInTargets } from "../hooks/useOpenInTargets";
 
 interface ProjectContextMenuProps {
   x: number;
@@ -39,6 +39,7 @@ export function ProjectContextMenu({
   onClose,
 }: ProjectContextMenuProps) {
   const openInTargets = useOpenInTargets().filter((t) => !t.fileOnly);
+  const primaryTarget = primaryOpenInTarget(openInTargets);
   const close = (fn: () => void) => () => {
     fn();
     onClose();
@@ -98,8 +99,18 @@ export function ProjectContextMenu({
       {projectPath && openInTargets.length > 0 && (
         <div className="group relative">
           <button
+            onClick={() => {
+              if (primaryTarget) {
+                launchOpenInTarget(primaryTarget, projectPath);
+                onClose();
+              }
+            }}
+            title={primaryTarget ? `Open in ${primaryTarget.label}` : undefined}
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors group-hover:bg-[var(--bg-hover)] group-hover:text-[var(--text-primary)]"
           >
+            {primaryTarget && (
+              <img src={primaryTarget.icon} alt="" className="h-4 w-4 shrink-0" />
+            )}
             <span className="flex-1 truncate">Open with</span>
             <ChevronRightIcon />
           </button>
