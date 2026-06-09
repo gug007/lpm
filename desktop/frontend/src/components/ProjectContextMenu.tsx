@@ -1,4 +1,4 @@
-import { ChevronRightIcon, ClipboardIcon, CopyIcon, DetachIcon, PencilIcon, TrashIcon } from "./icons";
+import { ChevronRightIcon, ClipboardIcon, CopyIcon, DetachIcon, PencilIcon, RefreshIcon, TrashIcon } from "./icons";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
 import { launchOpenInTarget, useOpenInTargets } from "../hooks/useOpenInTargets";
@@ -13,6 +13,7 @@ interface ProjectContextMenuProps {
   onRename: () => void;
   onDuplicate: () => void;
   onDuplicateExcludeUncommitted: () => void;
+  onReinstallDeps: () => void;
   onCopyPath: () => void;
   onDetach: () => void;
   onAttach: () => void;
@@ -30,6 +31,7 @@ export function ProjectContextMenu({
   onRename,
   onDuplicate,
   onDuplicateExcludeUncommitted,
+  onReinstallDeps,
   onCopyPath,
   onDetach,
   onAttach,
@@ -45,19 +47,40 @@ export function ProjectContextMenu({
   return (
     <ContextMenuShell x={x} y={y} minWidth={180} onClose={onClose}>
       <ContextMenuItem label="Rename" icon={<PencilIcon />} onClick={close(onRename)} />
-      <ContextMenuItem
-        label="Duplicate project"
-        icon={<CopyIcon />}
-        onClick={close(onDuplicate)}
-        disabled={busy}
-      />
-      <ContextMenuItem
-        label="Duplicate (committed only)"
-        icon={<CopyIcon />}
-        onClick={close(onDuplicateExcludeUncommitted)}
-        disabled={busy}
-        title="Duplicate the project and reset the copy to HEAD, discarding staged, unstaged, and untracked changes"
-      />
+      <div className="group relative">
+        <button
+          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors group-hover:bg-[var(--bg-hover)] group-hover:text-[var(--text-primary)]"
+        >
+          <span className="flex shrink-0 items-center">
+            <CopyIcon />
+          </span>
+          <span className="flex-1 truncate">Duplicate</span>
+          <ChevronRightIcon />
+        </button>
+        <div className="absolute left-full top-0 -ml-px hidden min-w-[200px] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg group-hover:block">
+          <ContextMenuItem
+            label="Duplicate project"
+            icon={<CopyIcon />}
+            onClick={close(onDuplicate)}
+            disabled={busy}
+            title="Copy the project as-is, including installed dependencies"
+          />
+          <ContextMenuItem
+            label="Committed changes only"
+            icon={<CopyIcon />}
+            onClick={close(onDuplicateExcludeUncommitted)}
+            disabled={busy}
+            title="Duplicate the project and reset the copy to HEAD, discarding staged, unstaged, and untracked changes"
+          />
+          <ContextMenuItem
+            label="Reinstall dependencies"
+            icon={<RefreshIcon />}
+            onClick={close(onReinstallDeps)}
+            disabled={busy}
+            title="Copy the project without its installed packages, then install them fresh with the project's package manager"
+          />
+        </div>
+      </div>
       <ContextMenuItem label="Copy path" icon={<ClipboardIcon />} onClick={close(onCopyPath)} />
       {isDetached ? (
         <ContextMenuItem

@@ -206,31 +206,67 @@ fn next_available_duplicate(original: &str, parent_dir: &Path) -> Result<(String
     Err("could not generate a unique duplicate name".into())
 }
 
+fn is_prunable(name: &std::ffi::OsStr, skip_node_modules: bool) -> bool {
+    name.to_str().is_some_and(|s| {
+        config::DUPLICATE_SKIP_DIRS.contains(&s) || (skip_node_modules && s == "node_modules")
+    })
+}
+
+fn subtree_has_prunable(dir: &Path, skip_node_modules: bool) -> bool {
+    let Ok(rd) = std::fs::read_dir(dir) else { return false; };
+    let mut subdirs = Vec::new();
+    for entry in rd.flatten() {
+        let name = entry.file_name();
+        if is_prunable(&name, skip_node_modules) {
+            return true;
+        }
+        // A kept node_modules is opaque: packages ship dist/build/out we must not strip.
+        if name.to_str() == Some("node_modules") {
+            continue;
+        }
+        if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            subdirs.push(entry.path());
+        }
+    }
+    subdirs.iter().any(|d| subtree_has_prunable(d, skip_node_modules))
+}
+
+fn cp_c_r(from: &Path, to: &Path) -> Result<(), String> {
+    let out = Command::new("/bin/cp")
+        .args(["-c", "-R"])
+        .arg(from)
+        .arg(to)
+        .output()
+        .map_err(|e| format!("clone copy failed: {e}"))?;
+    if !out.status.success() {
+        return Err(format!(
+            "clone copy failed for {}: {}",
+            from.display(),
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
+    Ok(())
+}
+
 /// macOS APFS copy-on-write clone (kernel falls back to a full copy off-APFS).
-/// Clones each top-level entry individually so regenerable build/tool caches
-/// (config::DUPLICATE_SKIP_DIRS) can be skipped — carrying a stale .next cache
-/// into the duplicate makes its first `dev` run cold-compile and peg the machine.
-fn cp_clone(src: &Path, dst: &Path) -> Result<(), String> {
+/// Recurses only into dirs holding something prunable, so the rest is cloned whole
+/// in one `cp -c -R` and keeps COW. The reinstall variant prunes node_modules and
+/// caches at every depth; the default keeps deps and only skips top-level caches.
+fn cp_clone(src: &Path, dst: &Path, skip_node_modules: bool) -> Result<(), String> {
     std::fs::create_dir(dst).map_err(|e| format!("create duplicate dir failed: {e}"))?;
     for entry in std::fs::read_dir(src).map_err(|e| format!("read source failed: {e}"))? {
         let entry = entry.map_err(|e| e.to_string())?;
         let name = entry.file_name();
-        if name.to_str().is_some_and(|s| config::DUPLICATE_SKIP_DIRS.contains(&s)) {
+        if is_prunable(&name, skip_node_modules) {
             continue;
         }
         let from = entry.path();
-        let out = Command::new("/bin/cp")
-            .args(["-c", "-R"])
-            .arg(&from)
-            .arg(dst.join(&name))
-            .output()
-            .map_err(|e| format!("clone copy failed: {e}"))?;
-        if !out.status.success() {
-            return Err(format!(
-                "clone copy failed for {}: {}",
-                from.display(),
-                String::from_utf8_lossy(&out.stderr).trim()
-            ));
+        let to = dst.join(&name);
+        let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+        if skip_node_modules && is_dir && subtree_has_prunable(&from, skip_node_modules) {
+            cp_clone(&from, &to, skip_node_modules)?;
+        } else {
+            cp_c_r(&from, &to)?;
         }
     }
     Ok(())
@@ -257,11 +293,90 @@ fn strip_uncommitted(root: &Path) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(Clone, Copy)]
+enum PackageManager {
+    Pnpm,
+    Yarn,
+    Npm,
+    Bun,
+}
+
+impl PackageManager {
+    fn install_cmd(self) -> &'static str {
+        match self {
+            PackageManager::Pnpm => "pnpm install",
+            PackageManager::Yarn => "yarn install",
+            PackageManager::Npm => "npm install",
+            PackageManager::Bun => "bun install",
+        }
+    }
+
+    fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "pnpm" => Some(Self::Pnpm),
+            "yarn" => Some(Self::Yarn),
+            "npm" => Some(Self::Npm),
+            "bun" => Some(Self::Bun),
+            _ => None,
+        }
+    }
+}
+
+fn detect_package_manager(root: &Path) -> Option<PackageManager> {
+    if !root.join("package.json").exists() {
+        return None;
+    }
+    if let Ok(text) = std::fs::read_to_string(root.join("package.json")) {
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+            if let Some(spec) = json.get("packageManager").and_then(|v| v.as_str()) {
+                if let Some(pm) = PackageManager::from_name(spec.split('@').next().unwrap_or("")) {
+                    return Some(pm);
+                }
+            }
+        }
+    }
+    let has = |f: &str| root.join(f).exists();
+    if has("bun.lockb") || has("bun.lock") {
+        Some(PackageManager::Bun)
+    } else if has("pnpm-lock.yaml") {
+        Some(PackageManager::Pnpm)
+    } else if has("yarn.lock") {
+        Some(PackageManager::Yarn)
+    } else {
+        Some(PackageManager::Npm)
+    }
+}
+
+/// Login shell (`-ilc`) so PATH and version managers (nvm/fnm/volta, corepack)
+/// resolve the binary, matching how actions run.
+fn run_install(root: &Path, pm: PackageManager) -> Result<(), String> {
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+    let script = format!(
+        "cd {} && {} 2>&1",
+        config::shell_quote(&root.to_string_lossy()),
+        pm.install_cmd()
+    );
+    let out = Command::new(shell)
+        .arg("-ilc")
+        .arg(script)
+        .current_dir(root)
+        .output()
+        .map_err(|e| format!("failed to launch {}: {e}", pm.install_cmd()))?;
+    if out.status.success() {
+        return Ok(());
+    }
+    let text = String::from_utf8_lossy(&out.stdout);
+    let mut tail: Vec<&str> = text.lines().rev().take(20).collect();
+    tail.reverse();
+    Err(format!("{} failed:\n{}", pm.install_cmd(), tail.join("\n").trim()))
+}
+
 #[tauri::command(async)]
 pub fn duplicate_project(
     app: AppHandle,
     name: String,
     exclude_uncommitted: bool,
+    reinstall_deps: bool,
 ) -> Result<String, String> {
     let src = load_root_and_parent(&name)?;
     if src.root.trim().is_empty() {
@@ -275,7 +390,7 @@ pub fn duplicate_project(
 
     let (new_name, new_root) = next_available_duplicate(&original, &parent_dir)?;
 
-    if let Err(e) = cp_clone(Path::new(&src.root), &new_root) {
+    if let Err(e) = cp_clone(Path::new(&src.root), &new_root, reinstall_deps) {
         let _ = std::fs::remove_dir_all(&new_root);
         return Err(e);
     }
@@ -299,6 +414,12 @@ pub fn duplicate_project(
         return Err(e);
     }
     let _ = app.emit("projects-changed", ());
+
+    if reinstall_deps {
+        if let Some(pm) = detect_package_manager(&new_root) {
+            run_install(&new_root, pm)?;
+        }
+    }
     Ok(new_name)
 }
 

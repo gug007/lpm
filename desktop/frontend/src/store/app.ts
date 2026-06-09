@@ -139,6 +139,7 @@ interface AppState {
   duplicateProject: (
     name: string,
     excludeUncommitted?: boolean,
+    reinstallDeps?: boolean,
   ) => Promise<void>;
   removeProject: (name: string) => Promise<void>;
   renameProject: (name: string, label: string) => Promise<void>;
@@ -683,15 +684,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  duplicateProject: async (name, excludeUncommitted = false) => {
+  duplicateProject: async (
+    name,
+    excludeUncommitted = false,
+    reinstallDeps = false,
+  ) => {
     if (get().duplicatingName) return;
     set({ duplicatingName: name });
+    const toastId = reinstallDeps
+      ? toast.loading(`Duplicating ${name} and installing dependencies…`)
+      : undefined;
     try {
-      const newName = await DuplicateProject(name, excludeUncommitted);
+      const newName = await DuplicateProject(name, excludeUncommitted, reinstallDeps);
       await get().refreshProjects();
       if (newName) set({ selected: newName, view: "projects" });
+      if (toastId) toast.success(`Installed dependencies for ${newName}`, { id: toastId });
     } catch (err) {
-      toast.error(`Failed to duplicate ${name}: ${err}`);
+      toast.error(`Failed to duplicate ${name}: ${err}`, { id: toastId });
     } finally {
       set({ duplicatingName: null });
     }
