@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 interface ContextMenuItemProps {
   label: ReactNode;
+  description?: ReactNode;
   icon?: ReactNode;
   shortcut?: string;
   onClick: () => void;
@@ -12,6 +13,7 @@ interface ContextMenuItemProps {
 
 export function ContextMenuItem({
   label,
+  description,
   icon,
   shortcut,
   onClick,
@@ -28,10 +30,15 @@ export function ContextMenuItem({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${tone}`}
+      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${tone} ${description ? "items-start" : ""}`}
     >
-      {icon && <span className="flex shrink-0 items-center">{icon}</span>}
-      <span className="flex-1 truncate">{label}</span>
+      {icon && <span className={`flex shrink-0 items-center ${description ? "pt-0.5" : ""}`}>{icon}</span>}
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="truncate">{label}</span>
+        {description && (
+          <span className="text-[10px] leading-snug text-[var(--text-muted)]">{description}</span>
+        )}
+      </span>
       {shortcut && (
         <span className="shrink-0 text-[10px] opacity-50">{shortcut}</span>
       )}

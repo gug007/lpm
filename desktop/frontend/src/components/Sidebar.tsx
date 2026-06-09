@@ -280,9 +280,9 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           isDetached={detached.has(contextMenu.name)}
           projectPath={contextProject?.root ?? null}
           onRename={() => setRenamingName(contextMenu.name)}
-          onDuplicate={() => onDuplicateProject(contextMenu.name)}
-          onDuplicateExcludeUncommitted={() => onDuplicateProject(contextMenu.name, true)}
-          onReinstallDeps={() => onDuplicateProject(contextMenu.name, false, true)}
+          onDuplicate={(excludeUncommitted, reinstallDeps) =>
+            onDuplicateProject(contextMenu.name, excludeUncommitted, reinstallDeps)
+          }
           onCopyPath={() => {
             if (contextProject?.root) navigator.clipboard.writeText(contextProject.root);
           }}
