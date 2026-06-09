@@ -50,7 +50,10 @@ export function ProjectContextMenu({
       <ContextMenuItem label="Rename" icon={<PencilIcon />} onClick={close(onRename)} />
       <div className="group relative">
         <button
-          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors group-hover:bg-[var(--bg-hover)] group-hover:text-[var(--text-primary)]"
+          onClick={close(onDuplicate)}
+          disabled={busy}
+          title="Copy the project as-is, including installed dependencies"
+          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors group-hover:bg-[var(--bg-hover)] group-hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <span className="flex shrink-0 items-center">
             <CopyIcon />
