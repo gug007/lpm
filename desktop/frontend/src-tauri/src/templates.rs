@@ -167,11 +167,12 @@ pub fn save_branch_name_instructions(content: String) -> Result<(), String> {
 
 const INSTRUCTION_KEYS: &[&str] = &["commit", "pr-title", "pr-description", "branch-name"];
 
+pub fn project_instructions_dir(project: &str) -> std::path::PathBuf {
+    config::lpm_dir().join("instructions").join(project)
+}
+
 fn project_instructions_path(project: &str, key: &str) -> std::path::PathBuf {
-    config::lpm_dir()
-        .join("instructions")
-        .join(project)
-        .join(format!("{key}-instructions.txt"))
+    project_instructions_dir(project).join(format!("{key}-instructions.txt"))
 }
 
 fn validate_instruction_args(project: &str, key: &str) -> Result<(), String> {

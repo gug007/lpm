@@ -5,17 +5,31 @@ interface ProjectNameDisplayProps {
   parent?: ProjectInfo;
 }
 
-export function ProjectNameDisplay({ project, parent }: ProjectNameDisplayProps) {
-  if (project.label) return <>{project.label}</>;
+function duplicateDisplayName(project: ProjectInfo, parent?: ProjectInfo): string | null {
   const parentName = project.parentName;
   if (parent && parentName && project.name.startsWith(parentName + "-")) {
-    const suffix = project.name.slice(parentName.length);
-    return (
-      <span className="text-[var(--text-muted)]">
-        {parent.label || parent.name}
-        {suffix}
-      </span>
-    );
+    return (parent.label || parent.name) + project.name.slice(parentName.length);
   }
-  return <>{project.name}</>;
+  return null;
+}
+
+export function findParentProject(
+  project: ProjectInfo | undefined,
+  projects: ProjectInfo[],
+): ProjectInfo | undefined {
+  return project?.parentName
+    ? projects.find((p) => p.name === project.parentName)
+    : undefined;
+}
+
+export function projectDisplayName(project: ProjectInfo, parent?: ProjectInfo): string {
+  return project.label || duplicateDisplayName(project, parent) || project.name;
+}
+
+export function ProjectNameDisplay({ project, parent }: ProjectNameDisplayProps) {
+  const inherited = !project.label && duplicateDisplayName(project, parent);
+  if (inherited) {
+    return <span className="text-[var(--text-muted)]">{inherited}</span>;
+  }
+  return <>{projectDisplayName(project, parent)}</>;
 }

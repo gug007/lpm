@@ -9,7 +9,7 @@ import { ProgressBar } from "./ui/ProgressBar";
 import { SortableItem, SortableList } from "./ui/SortableList";
 import { useSidebarResize } from "../hooks/useSidebarResize";
 import { ProjectContextMenu } from "./ProjectContextMenu";
-import { ProjectNameDisplay } from "./ProjectNameDisplay";
+import { ProjectNameDisplay, projectDisplayName } from "./ProjectNameDisplay";
 import { RenameModal } from "./RenameModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Tooltip } from "./ui/Tooltip";
@@ -96,6 +96,11 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
     }
     return { rows: outRows, topLevelNames: outTop, projectByName: byName };
   }, [projects]);
+
+  const renamingProject = renamingName ? projectByName.get(renamingName) : undefined;
+  const renamingParent = renamingProject?.parentName
+    ? projectByName.get(renamingProject.parentName)
+    : undefined;
 
   // Backend stores a flat order; expand the dragged top-level list with
   // each parent's duplicates so the optimistic client-side sort matches
@@ -316,9 +321,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
         open={renamingName !== null}
         title="Rename project"
         initialValue={
-          renamingName
-            ? projectByName.get(renamingName)?.label ?? renamingName
-            : ""
+          renamingProject ? projectDisplayName(renamingProject, renamingParent) : ""
         }
         onClose={() => setRenamingName(null)}
         onSubmit={(value) => {

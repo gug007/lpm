@@ -159,11 +159,11 @@ pub fn reorder_projects(app: AppHandle, order: Vec<String>) -> Result<(), String
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_project_label(app: AppHandle, name: String, label: String) -> Result<(), String> {
-    // A duplicate's label routes to its parent's config file (matches read_config).
-    let target = config::peek_parent(&name).unwrap_or_else(|| name.clone());
-    let path = config::project_path(&target);
+    // Write to the project's own file: list_projects reads each label per-file,
+    // so routing a duplicate's label to its parent would rename the parent.
+    let path = config::project_path(&name);
     let mut doc: serde_yaml::Value =
         serde_yaml::from_slice(&std::fs::read(&path).map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;

@@ -45,6 +45,7 @@ import {
   type PersistedHistoryEntry,
 } from "../terminals";
 import { useAppStore } from "../store/app";
+import { findParentProject, projectDisplayName } from "./ProjectNameDisplay";
 import {
   isFooterDisplay,
   type ActionInfo,
@@ -153,6 +154,9 @@ export function ProjectDetail({
     onCloseRunning: () => setShowQuickMenu(false),
   });
   const { runningAction, handleRunAction, modals: actionModals } = projectActions;
+
+  const parentProject = useAppStore((s) => findParentProject(project, s.projects));
+  const displayName = projectDisplayName(project, parentProject);
 
   const reorderActions = useAppStore((s) => s.reorderActions);
   const previewReorderActions = useAppStore((s) => s.previewReorderActions);
@@ -380,7 +384,7 @@ export function ProjectDetail({
     >
       <div className="flex h-full flex-col">
         <Header
-          projectName={project.name}
+          projectName={displayName}
           showProjectName={showProjectName}
           sidebarCollapsed={sidebarCollapsed}
           rowRef={headerRowRef}

@@ -6,7 +6,7 @@ use serde::Deserialize;
 use serde_yaml::{Mapping, Value as Yaml};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -446,8 +446,16 @@ pub fn remove_project(app: AppHandle, name: String) -> Result<(), String> {
     crate::portforward::stop_project_forwards(&app, &name); // tunnels + poller + suggestions
     crate::sshsync::remove_project_sync(&app, &name); // watcher + local cache dir
 
-    if is_duplicate && !root.trim().is_empty() {
-        remove_dir_all_retry(Path::new(&root))?;
+    if is_duplicate {
+        if !root.trim().is_empty() {
+            config::remove_dir_all_retry(Path::new(&root))?;
+        }
+        // Numbered duplicate names get reused; purge per-name state so the
+        // next project under this name doesn't inherit the removed one's
+        // notes, instructions, or terminal layout.
+        app.state::<crate::notes_cmds::NotesState>().purge(&name);
+        let _ = config::remove_dir_all_retry(&crate::templates::project_instructions_dir(&name));
+        clean_terminals_entry(&name);
     }
     std::fs::remove_file(config::project_path(&name)).map_err(|e| e.to_string())?;
     clean_settings_references(&name);
@@ -456,21 +464,19 @@ pub fn remove_project(app: AppHandle, name: String) -> Result<(), String> {
     Ok(())
 }
 
-fn remove_dir_all_retry(p: &Path) -> Result<(), String> {
-    use std::io::ErrorKind;
-    let base = std::time::Duration::from_millis(100);
-    let mut last = String::new();
-    for attempt in 0..5u32 {
-        match std::fs::remove_dir_all(p) {
-            Ok(()) => return Ok(()),
-            Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
-            Err(e) => {
-                last = e.to_string();
-                std::thread::sleep(base * (attempt + 1));
-            }
-        }
+/// Drop the project's entry from the persisted terminals config so a future
+/// project reusing the name doesn't restore this one's pane tree.
+fn clean_terminals_entry(name: &str) {
+    let path = config::lpm_dir().join("terminals.json");
+    let Ok(bytes) = std::fs::read(&path) else { return };
+    let Ok(mut v) = serde_json::from_slice::<serde_json::Value>(&bytes) else { return };
+    let Some(projects) = v.get_mut("projects").and_then(|p| p.as_object_mut()) else { return };
+    if projects.remove(name).is_none() {
+        return;
     }
-    Err(format!("failed to remove duplicate folder: {last}"))
+    if let Ok(data) = serde_json::to_vec_pretty(&v) {
+        let _ = std::fs::write(&path, data);
+    }
 }
 
 fn clean_settings_references(name: &str) {

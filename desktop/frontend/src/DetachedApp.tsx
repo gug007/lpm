@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Toaster } from "sonner";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
+import { findParentProject, projectDisplayName } from "./components/ProjectNameDisplay";
 import { PortConflictDialog } from "./components/PortConflictDialog";
 import { FileViewerHost } from "./components/FileViewerHost";
 import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverlayHost";
@@ -46,9 +47,11 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
   const project = projects.find((p) => p.name === projectName);
   useProjectWatcher(project?.root);
 
+  const parentProject = findParentProject(project, projects);
+
   useEffect(() => {
-    if (project) document.title = project.label || project.name;
-  }, [project]);
+    if (project) document.title = projectDisplayName(project, parentProject);
+  }, [project, parentProject]);
 
   useKeyboardShortcut({ key: "b", meta: true }, () =>
     setSidebarCollapsed((v) => !v),

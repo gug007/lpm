@@ -83,6 +83,13 @@ impl NotesState {
         Err("notes: vault key invalidated repeatedly during open".into())
     }
 
+    /// Drop the cached store and delete the on-disk notes for a removed
+    /// project, so a future project reusing the name starts clean.
+    pub fn purge(&self, project: &str) {
+        self.inner.lock().unwrap().stores.remove(project);
+        let _ = config::remove_dir_all_retry(&config::notes_dir(project));
+    }
+
     /// Next access re-fetches from the Keychain; drops cached stores. Called
     /// after a key import.
     fn invalidate_key(&self) {

@@ -46,6 +46,25 @@ pub fn ensure_dirs() -> Result<(), String> {
     Ok(())
 }
 
+/// Recursive delete with backoff for transiently-held files (e.g. a process
+/// still flushing inside the tree). Missing path is success.
+pub fn remove_dir_all_retry(p: &std::path::Path) -> Result<(), String> {
+    use std::io::ErrorKind;
+    let base = std::time::Duration::from_millis(100);
+    let mut last = String::new();
+    for attempt in 0..5u32 {
+        match std::fs::remove_dir_all(p) {
+            Ok(()) => return Ok(()),
+            Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
+            Err(e) => {
+                last = e.to_string();
+                std::thread::sleep(base * (attempt + 1));
+            }
+        }
+    }
+    Err(format!("failed to remove {}: {last}", p.display()))
+}
+
 /// Write a config file, preserving the existing mode on overwrite (else 0644).
 pub fn write_config_file(path: &std::path::Path, content: &str) -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt;

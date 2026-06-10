@@ -109,8 +109,9 @@ export function updateProjectTerminalsCache(
   };
 }
 
-// Without this, the next saveProjectTerminals call would write the
-// whole cache back and resurrect the deleted entry.
+// The backend deletes the persisted entry when it removes the project; this
+// drops it from the in-memory cache so the next saveProjectTerminals call
+// doesn't write it back.
 export function forgetProjectTerminals(projectName: string): void {
   if (!(projectName in cached.projects)) return;
   const { [projectName]: _removed, ...rest } = cached.projects;
