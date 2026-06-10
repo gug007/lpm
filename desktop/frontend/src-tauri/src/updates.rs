@@ -162,6 +162,30 @@ fn do_check(state: &UpdateState) -> Result<UpdateInfo, String> {
     })
 }
 
+/// Probe that the folder holding the .app is writable before downloading
+/// anything — it isn't when the app runs Gatekeeper-translocated (launched
+/// from ~/Downloads), straight off a mounted DMG, or without permission to
+/// the install folder. "Open it from there" matters: moving the .app doesn't
+/// change the running process's path, so Retry alone can't succeed.
+fn ensure_app_dir_writable(app_dir: &Path) -> Result<(), String> {
+    use std::io::ErrorKind;
+    match tempfile::Builder::new().prefix(".lpm-update-probe-").tempdir_in(app_dir) {
+        Ok(_) => Ok(()),
+        Err(e) if matches!(e.kind(), ErrorKind::PermissionDenied | ErrorKind::ReadOnlyFilesystem) => {
+            Err("lpm can't update itself in its current location. Move it to a folder you can change — like the Applications folder — then open it from there.".into())
+        }
+        Err(e) => Err(format!("failed to prepare update: {e}")),
+    }
+}
+
+/// stderr is where hdiutil/ditto write diagnostics (stdout is empty on
+/// failure); fall back to the exit status so the cause is never blank.
+fn command_failure(out: &std::process::Output) -> String {
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let stderr = stderr.trim();
+    if stderr.is_empty() { out.status.to_string() } else { stderr.to_string() }
+}
+
 /// Walk up from the current executable to the enclosing `*.app` bundle.
 fn app_bundle_path() -> Result<PathBuf, String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
@@ -200,6 +224,7 @@ pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(
         .parent()
         .ok_or("could not determine app directory")?
         .to_path_buf();
+    ensure_app_dir_writable(&app_dir)?;
 
     let _ = app.emit("update-status", "downloading");
 
@@ -250,10 +275,7 @@ pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(
         .output()
         .map_err(|e| e.to_string())?;
     if !attach.status.success() {
-        return Err(format!(
-            "failed to mount DMG: {}",
-            String::from_utf8_lossy(&attach.stdout)
-        ));
+        return Err(format!("failed to open the update package: {}", command_failure(&attach)));
     }
     // Always detach the DMG, even on the error paths below.
     let _detach_guard = DetachGuard(mount_point.clone());
@@ -277,7 +299,7 @@ pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(
         .map_err(|e| e.to_string())?;
     if !copy.status.success() {
         let _ = std::fs::remove_dir_all(&staging);
-        return Err(format!("failed to copy new app: {}", String::from_utf8_lossy(&copy.stdout)));
+        return Err(format!("failed to copy new app: {}", command_failure(&copy)));
     }
     if let Err(e) = std::fs::remove_dir_all(&dst_app) {
         let _ = std::fs::remove_dir_all(&staging);
@@ -423,5 +445,20 @@ mod tests {
     #[test]
     fn go_arch_mapping() {
         assert!(matches!(go_arch(), "arm64" | "amd64"));
+    }
+
+    #[test]
+    fn writable_probe() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let writable = tempfile::tempdir().unwrap();
+        assert!(ensure_app_dir_writable(writable.path()).is_ok());
+        assert!(std::fs::read_dir(writable.path()).unwrap().next().is_none());
+
+        let read_only = tempfile::tempdir().unwrap();
+        std::fs::set_permissions(read_only.path(), std::fs::Permissions::from_mode(0o555))
+            .unwrap();
+        let err = ensure_app_dir_writable(read_only.path()).unwrap_err();
+        assert!(err.contains("Applications"), "unexpected message: {err}");
     }
 }
