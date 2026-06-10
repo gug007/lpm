@@ -11,7 +11,6 @@ import { ConfigErrorView } from "./project-detail/ConfigErrorView";
 import { Controls } from "./project-detail/Controls";
 import { ActionWizard } from "./project-detail/ActionWizard";
 import { ActionContextMenu } from "./project-detail/ActionContextMenu";
-import { EmptyTerminalState } from "./project-detail/EmptyTerminalState";
 import { Header } from "./project-detail/Header";
 import { HeaderActions } from "./project-detail/HeaderActions";
 import { Modals } from "./project-detail/Modals";
@@ -391,17 +390,12 @@ export function ProjectDetail({
           controls={controlsNode}
         />
 
-        {showEmptyState && (
-          <EmptyTerminalState
-            projectName={project.name}
-            onNewTerminal={handleNewTerminal}
-            onEditConfig={() => switchDetailView("config")}
-          />
-        )}
-
         <TerminalPane
-          active={detailView === "terminal" && !showEmptyState}
+          active={detailView === "terminal"}
           visible={visible}
+          showEmptyState={showEmptyState}
+          onNewTerminal={handleNewTerminal}
+          onEditConfig={() => switchDetailView("config")}
           themeStyle={themeStyle}
           terminalRef={terminalRef}
           projectName={project.name}

@@ -8,7 +8,7 @@ interface EmptyTerminalStateProps {
 
 export function EmptyTerminalState({ projectName, onNewTerminal, onEditConfig }: EmptyTerminalStateProps) {
   return (
-    <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden">
       <div className="flex max-w-sm flex-col items-center gap-5 text-center">
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--bg-hover)] text-[var(--text-muted)]">
           <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
