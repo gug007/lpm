@@ -202,7 +202,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                     e.preventDefault();
                     setContextMenu({ name: project.name, x: e.clientX, y: e.clientY });
                   }}
-                  className={`flex w-full select-none items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                  className={`flex w-full select-none items-center gap-3 rounded-md px-3 py-2 text-left text-sm outline-none transition-colors ${
                     isContextTarget
                       ? "pr-9 ring-1 ring-inset ring-[var(--accent-cyan)]/60"
                       : "group-hover:pr-9"

@@ -2,7 +2,6 @@ import { type ReactNode } from "react";
 import {
   DndContext,
   type DragEndEvent,
-  KeyboardSensor,
   PointerSensor,
   closestCenter,
   useSensor,
@@ -11,7 +10,6 @@ import {
 import {
   SortableContext,
   horizontalListSortingStrategy,
-  sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
@@ -32,7 +30,6 @@ interface SortableListProps {
 export function SortableList({ ids, direction = "vertical", onReorder, children }: SortableListProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -72,7 +69,7 @@ export function SortableItem({ id, children }: SortableItemProps) {
     opacity: isDragging ? 0.3 : undefined,
   };
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div ref={setNodeRef} className="outline-none" style={style} {...attributes} {...listeners}>
       {children}
     </div>
   );
