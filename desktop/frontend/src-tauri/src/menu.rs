@@ -78,7 +78,9 @@ pub fn handle_event(app: &AppHandle, event: MenuEvent) {
         ID_CHECK_UPDATES => {
             show_main(app);
             let app2 = app.clone();
-            std::thread::spawn(move || crate::updates::check_and_emit(&app2));
+            std::thread::spawn(move || {
+                let _ = crate::updates::check_and_emit(&app2);
+            });
         }
         _ => {}
     }

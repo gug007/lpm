@@ -9,7 +9,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 const RELEASES_URL: &str = "https://api.github.com/repos/gug007/lpm/releases/latest";
@@ -81,27 +81,34 @@ pub fn check_for_update(state: State<'_, UpdateState>) -> Result<UpdateInfo, Str
 }
 
 /// Background check used by the "Check for Updates…" menu item and the
-/// auto-checker — emits "update-available" when a newer release exists
-/// (mirrors Go's autoCheck).
-pub fn check_and_emit(app: &AppHandle) {
+/// auto-checker — emits "update-available" when a newer release exists.
+pub fn check_and_emit(app: &AppHandle) -> Result<(), String> {
     let state = app.state::<UpdateState>();
-    if let Ok(info) = do_check(&state) {
-        if info.update_avail {
-            let _ = app.emit("update-available", info);
-        }
+    let info = do_check(&state)?;
+    if info.update_avail {
+        let _ = app.emit("update-available", info);
     }
+    Ok(())
 }
 
 const AUTO_CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
+const AUTO_CHECK_TICK: Duration = Duration::from_secs(15 * 60);
 
-/// Check once at startup, then every 24h while the app runs (the window may be
-/// hidden). Mirrors Go's autoCheckForUpdate, which checked before starting its
-/// daily ticker — checking after the sleep meant no check fired until the app
-/// had run 24h uninterrupted.
+/// Check once at startup, then every 24h of wall-clock time while the app runs
+/// (the window may be hidden). thread::sleep on macOS stops counting while the
+/// system is asleep, so a single 24h sleep stretches by however long the Mac
+/// slept — tick in short intervals and compare SystemTime instead. A failed
+/// check (e.g. network not up yet at login) retries on the next tick rather
+/// than silently waiting another 24h.
 pub fn start_auto_check(app: AppHandle) {
-    std::thread::spawn(move || loop {
-        check_and_emit(&app);
-        std::thread::sleep(AUTO_CHECK_INTERVAL);
+    std::thread::spawn(move || {
+        let mut next_check = SystemTime::now();
+        loop {
+            if SystemTime::now() >= next_check && check_and_emit(&app).is_ok() {
+                next_check = SystemTime::now() + AUTO_CHECK_INTERVAL;
+            }
+            std::thread::sleep(AUTO_CHECK_TICK);
+        }
     });
 }
 
