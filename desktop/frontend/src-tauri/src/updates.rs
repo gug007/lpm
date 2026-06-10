@@ -1,9 +1,11 @@
 // Self-updater + tmux installer — port of desktop/updates.go + app.go InstallTmux.
 //
 // CheckForUpdate hits the GitHub releases API and stashes the matching
-// macos-<arch>.dmg download URL. InstallUpdate downloads that DMG (emitting
-// progress), mounts it, swaps the running .app, and relaunches. In dev there is
-// no enclosing .app, so InstallUpdate errors early (before any destructive step).
+// macos-<arch>.dmg download URL. InstallUpdate re-runs that check so it always
+// targets the actual latest release (the stashed URL can be up to 24h stale),
+// downloads the DMG (emitting progress), mounts it, swaps the running .app, and
+// relaunches. In dev there is no enclosing .app, so InstallUpdate errors early
+// (before any destructive step).
 use serde::{Deserialize, Serialize};
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -178,10 +180,20 @@ fn app_bundle_path() -> Result<PathBuf, String> {
 
 #[tauri::command(async)]
 pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(), String> {
+    let _ = app.emit("update-status", "checking");
+
+    // Re-check so we install the actual latest release, not whatever was
+    // stashed at the last check — a newer version may have shipped since.
+    let info = do_check(&state)?;
+    if !info.update_avail {
+        return Err("You're already on the latest version.".into());
+    }
     let url = state.pending_url.lock().unwrap().clone();
     if url.is_empty() {
-        return Err("no update available — check for updates first".into());
+        return Err("The download for this version isn't available yet — try again in a few minutes.".into());
     }
+    let _ = app.emit("update-available", info);
+
     // Errors here in dev (no enclosing .app) BEFORE any download/swap.
     let app_path = app_bundle_path()?;
     let app_dir = app_path

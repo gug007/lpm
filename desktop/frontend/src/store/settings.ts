@@ -141,7 +141,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   // Re-loads from disk before merging so concurrent writers don't clobber
-  // each other on independent fields.
+  // each other on independent fields. Raw disk values are spread first so
+  // backend-only keys (e.g. windowX/windowY from mainwindow.rs) survive the
+  // full-file rewrite — normalize() only carries keys this type knows about.
   update: async (partial) => {
     const cur = get();
     const dirty = (Object.keys(partial) as (keyof Settings)[]).some(
@@ -149,7 +151,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     );
     if (!dirty) return;
     const fresh = await LoadSettings();
-    const merged: Settings = { ...defaults, ...normalize(fresh), ...partial };
+    const merged: Settings = { ...fresh, ...defaults, ...normalize(fresh), ...partial };
     await SaveSettings(merged);
     set(merged);
   },

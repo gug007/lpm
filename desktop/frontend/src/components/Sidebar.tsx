@@ -71,7 +71,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
-  const [updatePhase, setUpdatePhase] = useState<"downloading" | "installing">("downloading");
+  const [updatePhase, setUpdatePhase] = useState<"checking" | "downloading" | "installing">("checking");
   const [updateError, setUpdateError] = useState("");
   const [contextMenu, setContextMenu] = useState<{ name: string; x: number; y: number } | null>(null);
   const [confirmRemoveDuplicate, setConfirmRemoveDuplicate] = useState<string | null>(null);
@@ -131,7 +131,8 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
   }, []);
   useEffect(() => EventsOn("update-progress", (pct: number) => setProgress(pct)), []);
   useEffect(() => EventsOn("update-status", (status: string) => {
-    if (status === "downloading") setUpdatePhase("downloading");
+    if (status === "checking") setUpdatePhase("checking");
+    else if (status === "downloading") setUpdatePhase("downloading");
     else if (status === "installing") setUpdatePhase("installing");
   }), []);
 
@@ -139,7 +140,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
     setInstalling(true);
     setUpdateError("");
     setProgress(-1);
-    setUpdatePhase("downloading");
+    setUpdatePhase("checking");
     try {
       await InstallUpdate();
     } catch (err) {
@@ -412,7 +413,11 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
             </svg>
             <div className="flex flex-col items-center gap-1">
               <p className="text-sm font-medium text-[var(--text-primary)]">
-                {updatePhase === "downloading" ? "Downloading update..." : "Installing update..."}
+                {updatePhase === "checking"
+                  ? "Checking for updates..."
+                  : updatePhase === "downloading"
+                  ? "Downloading update..."
+                  : "Installing update..."}
               </p>
               {updatePhase === "downloading" && progress >= 0 ? (
                 <ProgressBar value={progress} />

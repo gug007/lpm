@@ -16,10 +16,18 @@ pub fn attach(win: &WebviewWindow) {
 }
 
 fn persist(win: &WebviewWindow) {
+    if win.is_fullscreen().unwrap_or(false) {
+        return;
+    }
     let Some((x, y, w, h)) = read_logical_bounds(win) else {
         return;
     };
-    let (xi, yi, wi, hi) = (x as i64, y as i64, w as i64, h as i64);
+    let (xi, yi, wi, hi) = (
+        x.round() as i64,
+        y.round() as i64,
+        w.round() as i64,
+        h.round() as i64,
+    );
     let mut s = config::load_settings();
     let Some(obj) = s.as_object_mut() else {
         return;
@@ -50,14 +58,20 @@ pub fn restore(win: &WebviewWindow) {
         return;
     }
     let _ = win.set_size(LogicalSize::new(w, h));
+    // set_size grows the window from the default frame's top-left corner, so
+    // without an explicit position it ends up off-center (or off-screen).
+    // Re-center when there is no usable saved position: legacy size-only
+    // settings, or a saved spot that's off-screen after a display change.
     let (Some(x), Some(y)) = (g("windowX"), g("windowY")) else {
+        let _ = win.center();
         return;
     };
     let (x, y) = (x as f64, y as f64);
     if position_on_screen(win, x, y, w) {
         let _ = win.set_position(LogicalPosition::new(x, y));
+    } else {
+        let _ = win.center();
     }
-    // Off-screen (e.g. monitor unplugged): leave unset so the OS repositions it.
 }
 
 /// Guards against restoring a window fully off-screen after a display change.

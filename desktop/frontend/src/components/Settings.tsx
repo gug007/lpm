@@ -149,7 +149,7 @@ export function Settings({
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [resettingHooks, setResettingHooks] = useState(false);
   const [installProgress, setInstallProgress] = useState(-1);
-  const [installPhase, setInstallPhase] = useState<"downloading" | "installing">("downloading");
+  const [installPhase, setInstallPhase] = useState<"checking" | "downloading" | "installing">("checking");
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [showImportOptions, setShowImportOptions] = useState(false);
@@ -172,7 +172,8 @@ export function Settings({
 
   useEffect(() => EventsOn("update-progress", (pct: number) => setInstallProgress(pct)), []);
   useEffect(() => EventsOn("update-status", (status: string) => {
-    if (status === "downloading") setInstallPhase("downloading");
+    if (status === "checking") setInstallPhase("checking");
+    else if (status === "downloading") setInstallPhase("downloading");
     else if (status === "installing") setInstallPhase("installing");
   }), []);
 
@@ -209,7 +210,7 @@ export function Settings({
   const handleInstallUpdate = async () => {
     setUpdateStatus("installing");
     setInstallProgress(-1);
-    setInstallPhase("downloading");
+    setInstallPhase("checking");
     try {
       await InstallUpdate();
     } catch (err) {
@@ -808,13 +809,17 @@ function RefreshIcon({ spinning, size = 12 }: { spinning?: boolean; size?: numbe
   );
 }
 
-function InstallingOverlay({ phase, progress }: { phase: "downloading" | "installing"; progress: number }) {
+function InstallingOverlay({ phase, progress }: { phase: "checking" | "downloading" | "installing"; progress: number }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="flex flex-col items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-6 py-5 shadow-lg">
         <RefreshIcon spinning size={24} />
         <p className="text-sm font-medium text-[var(--text-primary)]">
-          {phase === "downloading" ? "Downloading update..." : "Installing update..."}
+          {phase === "checking"
+            ? "Checking for updates..."
+            : phase === "downloading"
+            ? "Downloading update..."
+            : "Installing update..."}
         </p>
         {phase === "downloading" && progress >= 0 ? (
           <ProgressBar value={progress} />
