@@ -45,7 +45,8 @@ import {
 } from "../terminals";
 import { useAppStore } from "../store/app";
 import { loadLevelMap, levelOf as levelOfMap, type LevelMap } from "../actionLevels";
-import type { StructuralOp } from "../actionsGesture";
+import { type StructuralOp, structuralSubject } from "../actionsGesture";
+import { splitChild } from "../actionIds";
 import { findParentProject, projectDisplayName } from "./ProjectNameDisplay";
 import {
   isFooterDisplay,
@@ -161,8 +162,7 @@ export function ProjectDetail({
   const reorderActions = useAppStore((s) => s.reorderActions);
   const previewReorderActions = useAppStore((s) => s.previewReorderActions);
   const handleMoveActions = useCallback(
-    (next: ActionsLayout, baseline: ActionsLayout) =>
-      reorderActions(project.name, next, baseline),
+    (next: ActionsLayout) => reorderActions(project.name, next),
     [reorderActions, project.name],
   );
   const handlePreviewActions = useCallback(
@@ -179,8 +179,9 @@ export function ProjectDetail({
     (id: string, overGroup: ActionGroup | null) => {
       const all = actionsRef.current ?? [];
       let action = all.find((a) => a.name === id);
-      if (!action && id.includes(":")) {
-        const parent = all.find((a) => a.name === id.slice(0, id.indexOf(":")));
+      const childRef = action ? null : splitChild(id);
+      if (childRef) {
+        const parent = all.find((a) => a.name === childRef.parent);
         action = parent?.children?.find((c) => c.name === id);
       }
       if (!action) return null;
@@ -202,6 +203,10 @@ export function ProjectDetail({
 
   const levelMapRef = useRef<LevelMap>(new Map());
   useEffect(() => {
+    // Hidden instances stay mounted (App keeps every visited project's
+    // detail alive); skipping them avoids re-reading all three config
+    // layers per project on every refresh.
+    if (!visible) return;
     let cancelled = false;
     loadLevelMap(project.name).then((m) => {
       if (!cancelled) levelMapRef.current = m;
@@ -209,9 +214,16 @@ export function ProjectDetail({
     return () => {
       cancelled = true;
     };
-  }, [project.name, project.actions]);
+  }, [project.name, project.actions, visible]);
 
   const levelOf = useCallback((id: string) => levelOfMap(levelMapRef.current, id), []);
+  const canNest = useCallback(
+    (activeId: string, targetId: string) => {
+      const level = levelOf(activeId);
+      return level !== null && level === levelOf(targetId);
+    },
+    [levelOf],
+  );
   const isMenu = useCallback(
     (id: string) => !!(actionsRef.current ?? []).find((a) => a.name === id)?.children?.length,
     [],
@@ -219,9 +231,7 @@ export function ProjectDetail({
   const applyStructuralOp = useAppStore((s) => s.applyStructuralOp);
   const handleStructural = useCallback(
     (op: StructuralOp) => {
-      const level = levelOf(
-        op.kind === "nest" || op.kind === "merge" ? op.source : op.parent,
-      );
+      const level = levelOf(structuralSubject(op));
       if (!level) return;
       applyStructuralOp(project.name, op, level);
     },
@@ -317,8 +327,7 @@ export function ProjectDetail({
     setActionMenu({ x: e.clientX, y: e.clientY, action });
   }, []);
 
-  // No baseline arg: reorderActions captures its own undo entry. A null
-  // group means an external edit moved the action mid-menu; both
+  // A null group means an external edit moved the action mid-menu; both
   // destinations stay enabled so it can still be placed.
   const actionMenuMove = useMemo(() => {
     if (!actionMenu) return null;
@@ -450,7 +459,7 @@ export function ProjectDetail({
       onMove={handleMoveActions}
       onPreview={handlePreviewActions}
       onStructural={handleStructural}
-      levelOf={levelOf}
+      canNest={canNest}
       isMenu={isMenu}
       renderOverlay={renderActionOverlay}
     >

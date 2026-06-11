@@ -268,19 +268,19 @@ function reorderedPositions(doc: ReturnType<typeof parse>) {
 describe("applyOpToDoc: reorderMenu matches the drag preview (arrayMove)", () => {
   it("moves the dragged child one slot down onto its neighbor", () => {
     const doc = parse(MENU_ABC);
-    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "b" });
+    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "b" }, ["a", "b", "c"]);
     expect(reorderedPositions(doc)).toEqual({ b: 1, a: 2, c: 3 });
   });
 
   it("moves the dragged child down to the end", () => {
     const doc = parse(MENU_ABC);
-    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "c" });
+    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "c" }, ["a", "b", "c"]);
     expect(reorderedPositions(doc)).toEqual({ b: 1, c: 2, a: 3 });
   });
 
   it("moves the dragged child up before the item it lands on", () => {
     const doc = parse(MENU_ABC);
-    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "c", over: "a" });
+    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "c", over: "a" }, ["a", "b", "c"]);
     expect(reorderedPositions(doc)).toEqual({ c: 1, a: 2, b: 3 });
   });
 
@@ -296,60 +296,17 @@ actions:
       b:
         cmd: echo b
 `);
-    // No positions yet, so the resolver displays [a, b, c] by name.
-    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "b" });
+    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "b" }, ["a", "b", "c"]);
     expect(reorderedPositions(doc)).toEqual({ b: 1, a: 2, c: 3 });
   });
 
-  it("respects existing position fields when computing the base order", () => {
-    const doc = parse(`
-actions:
-  menu:
-    actions:
-      a:
-        cmd: echo a
-        position: 2
-      b:
-        cmd: echo b
-        position: 3
-      c:
-        cmd: echo c
-        position: 1
-`);
-    // Displayed [c, a, b]; dragging b up onto c gives [b, c, a].
-    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "b", over: "c" });
-    expect(reorderedPositions(doc)).toEqual({ b: 1, c: 2, a: 3 });
-  });
-
-  it("is a no-op when over is missing or equals the dragged child", () => {
+  it("is a no-op when over is missing, equals the dragged child, or no order is supplied", () => {
     const doc = parse(MENU_ABC);
     const before = String(doc);
-    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "missing" });
-    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "a" });
+    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "missing" }, ["a", "b", "c"]);
+    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "a" }, ["a", "b", "c"]);
+    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "a", over: "b" });
     expect(String(doc)).toBe(before);
-  });
-
-  it("reads positions stamped by an earlier reorder on the same doc", () => {
-    const doc = parse(MENU_ABC);
-    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "c", over: "a" });
-    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "b", over: "c" });
-    expect(reorderedPositions(doc)).toEqual({ b: 1, c: 2, a: 3 });
-  });
-
-  it("orders names by code point like the resolver, not by UTF-16 units", () => {
-    const doc = parse(`
-actions:
-  menu:
-    actions:
-      "ﬁx":
-        cmd: echo ligature
-      "\u{1F600} deploy":
-        cmd: echo emoji
-      build:
-        cmd: echo build
-`);
-    applyOpToDoc(doc, { kind: "reorderMenu", parent: "menu", child: "build", over: "ﬁx" });
-    expect(reorderedPositions(doc)).toEqual({ "ﬁx": 1, build: 2, "\u{1F600} deploy": 3 });
   });
 });
 

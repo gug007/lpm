@@ -22,6 +22,7 @@ import {
 import { SortableContext, horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import type { ActionsLayout } from "../types";
 import type { StructuralOp } from "../actionsGesture";
+import { isChildId, splitChild } from "../actionIds";
 import { useActionsDnd } from "../hooks/useActionsDnd";
 import { useActionsDropZone } from "../hooks/useActionsDropZone";
 import {
@@ -74,14 +75,12 @@ function computeInsertion(
 
 interface ActionsDndProps {
   layout: ActionsLayout;
-  // baseline is the layout at drag-start so the undo entry survives
-  // intermediate previews.
-  onMove: (next: ActionsLayout, baseline: ActionsLayout) => void;
+  onMove: (next: ActionsLayout) => void;
   onPreview: (next: ActionsLayout) => void;
   onStructural: (op: StructuralOp) => void;
-  // Returns the config level of an action id, or null. Used to gate which
+  // True when both actions live in the same config layer. Gates which
   // items are valid nest targets while dragging.
-  levelOf: (id: string) => "project" | "repo" | "global" | null;
+  canNest: (activeId: string, targetId: string) => boolean;
   isMenu: (id: string) => boolean;
   renderOverlay: (id: string, overGroup: ActionGroup | null) => ReactNode;
   children: ReactNode;
@@ -144,12 +143,29 @@ const autoScrollOptions = {
   layoutShiftCompensation: false,
 } as const;
 
+// Nest is the default while the pointer is in the leading part of a
+// same-level button; the target only yields to a sortable reorder gap
+// once the pointer crosses this fraction of its width in the drag
+// direction. Lower = easier to reorder, higher = easier to nest.
+const NEST_THRESHOLD = 0.45;
+
+function inNestRegion(
+  rect: { left: number; width: number },
+  px: number,
+  movingRight: boolean,
+): boolean {
+  const line = movingRight
+    ? rect.left + rect.width * NEST_THRESHOLD
+    : rect.left + rect.width * (1 - NEST_THRESHOLD);
+  return movingRight ? px <= line : px >= line;
+}
+
 export function ActionsDnd({
   layout,
   onMove,
   onPreview,
   onStructural,
-  levelOf,
+  canNest,
   isMenu,
   renderOverlay,
   children,
@@ -164,19 +180,13 @@ export function ActionsDnd({
   }, []);
 
   const { sensors, activeId, overGroup, onDragStart, onDragOver, onDragCancel, onDragEnd } =
-    useActionsDnd({ layout, onMove, onPreview, onStructural, levelOf, isMenu, indicatorRef });
+    useActionsDnd({ layout, onMove, onPreview, onStructural, canNest, isMenu, indicatorRef });
   const reduceMotion = usePrefersReducedMotion();
   useDragBodyAttribute(activeId !== null);
 
   useEffect(() => {
     if (activeId === null) updateIndicator(null);
   }, [activeId, updateIndicator]);
-
-  // Nest is the default while the pointer is in the leading part of a
-  // same-level button; the target only yields to a sortable reorder gap
-  // once the pointer crosses this fraction of its width in the drag
-  // direction. Lower = easier to reorder, higher = easier to nest.
-  const NEST_THRESHOLD = 0.45;
 
   // pointerWithin reports the item, its full-size nest zone, and the
   // wrapping row zone. We pick exactly one: a top-level button nests until
@@ -197,53 +207,38 @@ export function ActionsDnd({
       }
 
       const active = String(args.active.id);
-      const activeLevel = levelOf(active);
-      const activeIsChild = active.includes(":");
+      const activeRef = splitChild(active);
       const nonNest = pointer.filter((c) => !isNestId(String(c.id)));
       const items = pointer.filter((c) => {
         const id = String(c.id);
         return !isZoneId(id) && !isNestId(id) && id !== active;
       });
-      const nestHit = (name: string) =>
-        pointer.find((c) => String(c.id) === nestId(name)) ?? { id: nestId(name) };
+      const nestHit = (name: string) => [{ id: nestId(name) }];
       const px = args.pointerCoordinates?.x ?? null;
       const py = args.pointerCoordinates?.y ?? null;
       const initialLeft = args.active.rect.current.initial?.left ?? args.collisionRect.left;
       const movingRight = args.collisionRect.left - initialLeft >= 0;
 
-      if (activeIsChild) {
+      if (activeRef) {
         const overItem = items[0] ? String(items[0].id) : null;
         // A child over a sibling reorders within the open menu.
-        if (overItem && overItem.includes(":")) {
+        if (overItem && isChildId(overItem)) {
           updateIndicator(null);
           return [items[0]];
         }
-        // Over a same-level button's leading region it nests onto it.
-        const parent = active.slice(0, active.indexOf(":"));
         // Dropping back onto its own menu is a no-op revert — still highlight
         // the menu so it reads as a valid target (detectGesture returns null
         // for this, which the drop handler treats as a revert).
-        if (overItem === parent) {
+        if (overItem === activeRef.parent) {
           updateIndicator(null);
-          return [nestHit(parent)];
+          return nestHit(activeRef.parent);
         }
-        if (
-          overItem &&
-          overItem !== parent &&
-          activeLevel !== null &&
-          levelOf(overItem) === activeLevel &&
-          px != null
-        ) {
+        // Over a same-level button's leading region it nests onto it.
+        if (overItem && canNest(active, overItem) && px != null) {
           const rect = args.droppableRects.get(items[0].id);
-          if (rect) {
-            const line = movingRight
-              ? rect.left + rect.width * NEST_THRESHOLD
-              : rect.left + rect.width * (1 - NEST_THRESHOLD);
-            const nesting = movingRight ? px <= line : px >= line;
-            if (nesting) {
-              updateIndicator(null);
-              return [nestHit(overItem)];
-            }
+          if (rect && inNestRegion(rect, px, movingRight)) {
+            updateIndicator(null);
+            return nestHit(overItem);
           }
         }
         // Otherwise surface an insertion gap and extract to that position.
@@ -265,20 +260,13 @@ export function ActionsDnd({
       if (!targetCollision) return nonNest;
       const target = String(targetCollision.id);
 
-      if (!target.includes(":")) {
-        const canNest = activeLevel !== null && levelOf(target) === activeLevel;
+      if (!isChildId(target) && canNest(active, target) && px != null) {
         const rect = args.droppableRects.get(targetCollision.id);
-        if (canNest && rect && px != null) {
-          const line = movingRight
-            ? rect.left + rect.width * NEST_THRESHOLD
-            : rect.left + rect.width * (1 - NEST_THRESHOLD);
-          const reorder = movingRight ? px > line : px < line;
-          if (!reorder) return [nestHit(target)];
-        }
+        if (rect && inNestRegion(rect, px, movingRight)) return nestHit(target);
       }
       return [targetCollision];
     },
-    [activeId, levelOf, layout, updateIndicator],
+    [canNest, layout, updateIndicator],
   );
 
   return (

@@ -1,5 +1,6 @@
 import YAML from "yaml";
-import { ACTION_SECTIONS } from "./actionConfig";
+import { arrayMove } from "@dnd-kit/sortable";
+import { ACTION_SECTIONS, findActionSection } from "./actionConfig";
 import type { StructuralOp } from "./actionsGesture";
 
 type Doc = ReturnType<typeof YAML.parseDocument>;
@@ -13,13 +14,9 @@ export interface EntryRef {
 
 // Locate a top-level action entry across the actions:/terminals: sections.
 export function findTopEntry(doc: Doc, key: string): EntryRef | null {
-  for (const section of ACTION_SECTIONS) {
-    const node = doc.get(section, true);
-    if (YAML.isMap(node) && node.has(key)) {
-      return { section, map: node, value: node.get(key, true) };
-    }
-  }
-  return null;
+  const match = findActionSection(doc, key);
+  if (!match) return null;
+  return { section: match.section, map: match.node, value: match.node.get(key, true) };
 }
 
 function ensureSection(doc: Doc, section: string): MapNode {
@@ -67,6 +64,11 @@ function peekChildren(container: MapNode, key: string): MapNode | null {
   return YAML.isMap(children) ? children : null;
 }
 
+function attachChild(doc: Doc, target: EntryRef, targetKey: string, childKey: string, node: unknown): void {
+  const targetMap = asMap(doc, target.map, targetKey);
+  childActionsMap(doc, targetMap).set(childKey, node);
+}
+
 // Move a top-level source entry into target's nested actions: map.
 // Used for leaf->leaf (target widens to split menu) and leaf->menu.
 export function nestEntry(doc: Doc, sourceKey: string, targetKey: string): void {
@@ -77,9 +79,7 @@ export function nestEntry(doc: Doc, sourceKey: string, targetKey: string): void 
   if (peekChildren(target.map, targetKey)?.has(sourceKey)) throw conflictError(sourceKey);
   const sourceNode = source.map.get(sourceKey, true);
   source.map.delete(sourceKey);
-  const targetMap = asMap(doc, target.map, targetKey);
-  const children = childActionsMap(doc, targetMap);
-  children.set(sourceKey, sourceNode);
+  attachChild(doc, target, targetKey, sourceKey, sourceNode);
 }
 
 // Spread a source menu into target: its default (if any) becomes a regular
@@ -194,8 +194,7 @@ export function extractOnto(
   if (peekChildren(target.map, targetKey)?.has(childKey)) throw conflictError(childKey);
   const node = detachChild(doc, parentKey, childKey);
   if (node === null) return;
-  const targetMap = asMap(doc, target.map, targetKey);
-  childActionsMap(doc, targetMap).set(childKey, node);
+  attachChild(doc, target, targetKey, childKey, node);
   collapseMenu(doc, parentKey);
 }
 
@@ -226,50 +225,10 @@ export function reorderMenu(doc: Doc, parentKey: string, order: string[]): void 
   });
 }
 
-function childPosition(children: MapNode, key: string): number | null {
-  const node = children.get(key, true);
-  if (!YAML.isMap(node)) return null;
-  const pos = node.get("position", true);
-  // A position stamped by reorderMenu on this same doc is a raw number,
-  // not a scalar node — it only becomes one after a save/parse round-trip.
-  if (typeof pos === "number") return pos;
-  return YAML.isScalar(pos) && typeof pos.value === "number" ? pos.value : null;
-}
-
-// The resolver compares names by code point (Rust str cmp on UTF-8); JS "<"
-// compares UTF-16 units, which disagrees once astral characters appear.
-function compareNames(a: string, b: string): number {
-  const ca = [...a];
-  const cb = [...b];
-  const n = Math.min(ca.length, cb.length);
-  for (let i = 0; i < n; i++) {
-    const d = (ca[i].codePointAt(0) ?? 0) - (cb[i].codePointAt(0) ?? 0);
-    if (d !== 0) return d;
-  }
-  return ca.length - cb.length;
-}
-
-// The order the user sees, not YAML key order: the resolver sorts children
-// by position then name (sort_action_names in config.rs).
-function displayedChildOrder(doc: Doc, parentKey: string): string[] {
-  const parent = findTopEntry(doc, parentKey);
-  if (!parent || !YAML.isMap(parent.value)) return [];
-  const children = parent.value.get("actions", true);
-  if (!YAML.isMap(children)) return [];
-  const keys = children.items
-    .filter((i) => YAML.isScalar(i.key))
-    .map((i) => String((i.key as YAML.Scalar).value));
-  return keys.sort((a, b) => {
-    const pa = childPosition(children, a);
-    const pb = childPosition(children, b);
-    if (pa !== null && pb !== null && pa !== pb) return pa - pb;
-    if (pa !== null && pb === null) return -1;
-    if (pa === null && pb !== null) return 1;
-    return compareNames(a, b);
-  });
-}
-
-export function applyOpToDoc(doc: Doc, op: StructuralOp): void {
+// displayedChildren is the resolved display order of op.parent's children
+// (leaf names) — supplied by the caller because it merges config layers,
+// which a single doc can't reconstruct.
+export function applyOpToDoc(doc: Doc, op: StructuralOp, displayedChildren?: string[]): void {
   switch (op.kind) {
     case "nest":
       nestEntry(doc, op.source, op.target);
@@ -285,13 +244,12 @@ export function applyOpToDoc(doc: Doc, op: StructuralOp): void {
       return;
     case "reorderMenu": {
       // Match the drag preview's arrayMove semantics: the dragged child
-      // takes over's slot, computed against the displayed order.
-      const order = displayedChildOrder(doc, op.parent);
+      // takes over's slot.
+      const order = displayedChildren ?? [];
       const from = order.indexOf(op.child);
       const to = order.indexOf(op.over);
       if (from < 0 || to < 0 || from === to) return;
-      order.splice(to, 0, ...order.splice(from, 1));
-      reorderMenu(doc, op.parent, order);
+      reorderMenu(doc, op.parent, arrayMove(order, from, to));
       return;
     }
   }

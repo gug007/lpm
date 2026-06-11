@@ -1,3 +1,6 @@
+import { splitChild } from "./actionIds";
+import type { ExtractIndicator } from "./components/actionsDndLayout";
+
 export type StructuralOp =
   | { kind: "nest"; source: string; target: string }
   | { kind: "merge"; source: string; target: string }
@@ -11,12 +14,13 @@ export interface GestureInput {
   overNestTarget: string | null;
   overItemId: string | null;
   sameLevel: boolean;
+  // Insertion gap an extracted item would land in; without one it appends.
+  extractTarget: ExtractIndicator | null;
 }
 
-function splitChild(id: string): { parent: string; child: string } | null {
-  const i = id.indexOf(":");
-  if (i < 0) return null;
-  return { parent: id.slice(0, i), child: id.slice(i + 1) };
+// The action whose config level decides which layer a structural op edits.
+export function structuralSubject(op: StructuralOp): string {
+  return op.kind === "nest" || op.kind === "merge" ? op.source : op.parent;
 }
 
 export function detectGesture(input: GestureInput): StructuralOp | null {
@@ -42,7 +46,13 @@ export function detectGesture(input: GestureInput): StructuralOp | null {
         return { kind: "reorderMenu", parent: childRef.parent, child: childRef.child, over: oc.child };
       }
     }
-    return { kind: "extractToTop", parent: childRef.parent, child: childRef.child };
+    return {
+      kind: "extractToTop",
+      parent: childRef.parent,
+      child: childRef.child,
+      group: input.extractTarget?.group,
+      index: input.extractTarget?.index,
+    };
   }
 
   return null;

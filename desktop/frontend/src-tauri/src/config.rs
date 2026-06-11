@@ -1064,14 +1064,16 @@ fn sort_action_names(names: &mut [String], pos_of: impl Fn(&str) -> Option<f64>)
     });
 }
 
-fn action_to_info(name: &str, act: &ActionFull) -> ActionInfo {
+// `id` may be composite (`parent:child`) for menu children; `name` is the
+// plain action name the label falls back to.
+fn action_to_info(id: &str, name: &str, act: &ActionFull) -> ActionInfo {
     let label = if act.label.is_empty() {
         name.to_string()
     } else {
         act.label.clone()
     };
     ActionInfo {
-        name: name.to_string(),
+        name: id.to_string(),
         label,
         emoji: act.emoji.clone(),
         cmd: act.cmd.clone(),
@@ -1097,7 +1099,7 @@ pub fn resolve_actions(file_name: &str) -> Vec<Value> {
     let mut out: Vec<ActionInfo> = Vec::with_capacity(names.len());
     for name in &names {
         let act = &resolved[name];
-        let mut info = action_to_info(name, act);
+        let mut info = action_to_info(name, name, act);
         if !act.actions.is_empty() {
             let children: BTreeMap<String, ActionFull> = act
                 .actions
@@ -1108,15 +1110,7 @@ pub fn resolve_actions(file_name: &str) -> Vec<Value> {
             sort_action_names(&mut cnames, |cn| children.get(cn).and_then(|a| a.position));
             info.children = cnames
                 .iter()
-                .map(|cn| {
-                    let mut child_info = action_to_info(&format!("{name}:{cn}"), &children[cn]);
-                    // The id stays composite for unique DnD ids, but the visible
-                    // label must not inherit the `parent:child` form.
-                    if children[cn].label.is_empty() {
-                        child_info.label = cn.clone();
-                    }
-                    child_info
-                })
+                .map(|cn| action_to_info(&format!("{name}:{cn}"), cn, &children[cn]))
                 .collect();
         }
         out.push(info);

@@ -7,6 +7,7 @@ const base: GestureInput = {
   overNestTarget: null,
   overItemId: null,
   sameLevel: true,
+  extractTarget: null,
 };
 
 describe("detectGesture", () => {
@@ -31,6 +32,17 @@ describe("detectGesture", () => {
   it("child onto empty -> extractToTop", () => {
     expect(detectGesture({ ...base, draggedId: "menu:a" })).toEqual({
       kind: "extractToTop", parent: "menu", child: "a",
+    });
+  });
+
+  it("child onto an insertion gap -> extractToTop carrying the slot", () => {
+    const op = detectGesture({
+      ...base,
+      draggedId: "menu:a",
+      extractTarget: { group: "footer", index: 2 },
+    });
+    expect(op).toEqual({
+      kind: "extractToTop", parent: "menu", child: "a", group: "footer", index: 2,
     });
   });
 

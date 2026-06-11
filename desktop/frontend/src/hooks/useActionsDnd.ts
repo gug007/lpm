@@ -11,6 +11,7 @@ import {
 } from "@dnd-kit/core";
 import type { ActionsLayout } from "../types";
 import { type StructuralOp, detectGesture } from "../actionsGesture";
+import { isChildId } from "../actionIds";
 import {
   type ActionGroup,
   type ExtractIndicator,
@@ -25,14 +26,16 @@ import {
 
 export interface UseActionsDndOptions {
   layout: ActionsLayout;
-  // No undo, no persist — repeated mid-drag.
+  // No persist — repeated mid-drag.
   onPreview: (next: ActionsLayout) => void;
-  // Pushes undo against baseline and persists — fired once on drop.
-  onMove: (next: ActionsLayout, baseline: ActionsLayout) => void;
+  // Persists — fired once on drop.
+  onMove: (next: ActionsLayout) => void;
   // Fired on a drop classified as a structural gesture (nest/merge/extract/
   // reorder); the caller then skips the flat reorder.
   onStructural: (op: StructuralOp) => void;
-  levelOf: (id: string) => "project" | "repo" | "global" | null;
+  // True when both actions live in the same config layer — nesting across
+  // layers is rejected.
+  canNest: (activeId: string, targetId: string) => boolean;
   isMenu: (id: string) => boolean;
   // Where a dragged-out menu item would land, kept current by ActionsDnd's
   // collision detection so the drop can extract to that exact position.
@@ -66,7 +69,7 @@ export function useActionsDnd({
   onPreview,
   onMove,
   onStructural,
-  levelOf,
+  canNest,
   isMenu,
   indicatorRef,
 }: UseActionsDndOptions): UseActionsDndResult {
@@ -79,13 +82,13 @@ export function useActionsDnd({
   const onPreviewRef = useRef(onPreview);
   const onMoveRef = useRef(onMove);
   const onStructuralRef = useRef(onStructural);
-  const levelOfRef = useRef(levelOf);
+  const canNestRef = useRef(canNest);
   const isMenuRef = useRef(isMenu);
   layoutRef.current = layout;
   onPreviewRef.current = onPreview;
   onMoveRef.current = onMove;
   onStructuralRef.current = onStructural;
-  levelOfRef.current = levelOf;
+  canNestRef.current = canNest;
   isMenuRef.current = isMenu;
 
   // Prevent a stale baseline from leaking across an unmount mid-drag.
@@ -106,7 +109,7 @@ export function useActionsDnd({
     // A dragged-out menu item isn't a member of the row's sortable list, so
     // the flat cross-zone preview doesn't apply — its placeholder is driven
     // by the extract indicator instead.
-    if (String(active.id).includes(":")) {
+    if (isChildId(String(active.id))) {
       setOverGroup(null);
       return;
     }
@@ -151,25 +154,16 @@ export function useActionsDnd({
     const overId = over ? String(over.id) : "";
     const overNestTarget = isNestId(overId) ? nestTargetOf(overId) : null;
     const overItemId = over && !isZoneId(overId) && !isNestId(overId) ? overId : null;
-    const draggedLevel = levelOfRef.current(draggedId);
-    const nestLevel = overNestTarget ? levelOfRef.current(overNestTarget) : null;
     const op = detectGesture({
       draggedId,
       draggedIsMenu: isMenuRef.current(draggedId),
       overNestTarget,
       overItemId,
-      sameLevel: draggedLevel !== null && draggedLevel === nestLevel,
+      sameLevel: overNestTarget !== null && canNestRef.current(draggedId, overNestTarget),
+      extractTarget: indicatorRef.current,
     });
     if (op) {
-      if (op.kind === "extractToTop" && indicatorRef.current) {
-        onStructuralRef.current({
-          ...op,
-          group: indicatorRef.current.group,
-          index: indicatorRef.current.index,
-        });
-      } else {
-        onStructuralRef.current(op);
-      }
+      onStructuralRef.current(op);
       return;
     }
     if (!over) return revertToBaseline(baseline);
@@ -179,14 +173,14 @@ export function useActionsDnd({
     // because dnd-kit reports `over` as the active id.)
     if (draggedId === overId) {
       if (sameLayout(baseline, current)) return;
-      onMoveRef.current(current, baseline);
+      onMoveRef.current(current);
       return;
     }
     const target = resolveTarget(overId, current);
     if (!target) return revertToBaseline(baseline);
     const final = applyMove(baseline, draggedId, target);
     if (sameLayout(baseline, final)) return revertToBaseline(baseline);
-    onMoveRef.current(final, baseline);
+    onMoveRef.current(final);
   }, [revertToBaseline]);
 
   return { sensors, activeId, overGroup, onDragStart, onDragOver, onDragCancel, onDragEnd };
