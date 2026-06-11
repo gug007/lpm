@@ -40,7 +40,7 @@ export function TerminalFooter({
     <ActionsGroup
       group="footer"
       ids={actionIds}
-      className={`flex shrink-0 items-center justify-end gap-1 bg-[var(--terminal-bg)] px-2 py-1${floating ? " absolute inset-x-0 bottom-0 z-30" : ""}`}
+      className={`flex flex-wrap items-center justify-end gap-1 bg-[var(--terminal-bg)] px-2 py-1${floating ? " absolute inset-x-0 bottom-0 z-30" : ""}`}
     >
       {actions.map((action) => (
         <ActionsSortableItem key={action.name} id={action.name}>
