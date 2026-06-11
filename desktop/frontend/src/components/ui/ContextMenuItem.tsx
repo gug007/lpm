@@ -5,6 +5,7 @@ interface ContextMenuItemProps {
   description?: ReactNode;
   icon?: ReactNode;
   shortcut?: string;
+  trailing?: ReactNode;
   onClick: () => void;
   disabled?: boolean;
   destructive?: boolean;
@@ -16,6 +17,7 @@ export function ContextMenuItem({
   description,
   icon,
   shortcut,
+  trailing,
   onClick,
   disabled,
   destructive,
@@ -42,6 +44,7 @@ export function ContextMenuItem({
       {shortcut && (
         <span className="shrink-0 text-[10px] opacity-50">{shortcut}</span>
       )}
+      {trailing && <span className="flex shrink-0 items-center opacity-60">{trailing}</span>}
     </button>
   );
 }

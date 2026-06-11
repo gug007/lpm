@@ -1,5 +1,5 @@
 import type { MouseEvent } from "react";
-import { ActionsGroup, EmptyDropHint } from "../ActionsDnd";
+import { ActionsGroup } from "../ActionsDnd";
 import { ActionView } from "../ActionView";
 import { PlusIcon } from "../icons";
 import { ActionsSortableItem } from "../ActionsSortableItem";
@@ -49,13 +49,12 @@ export function HeaderActions({
           />
         </ActionsSortableItem>
       ))}
-      {actions.length === 0 && <EmptyDropHint />}
       <Tooltip
         content={
           <span className="flex flex-col gap-0.5">
             <span className="font-medium text-[var(--text-primary)]">Create action</span>
             <span className="text-[var(--text-secondary)]">
-              One-click shortcuts for the commands you run all the time — tests, builds, deploys, migrations, log tails, or anything else.
+              One-click shortcuts for the commands you run all the time — tests, builds, deploys, migrations, log tails, or anything else. Drag actions to rearrange them between the header and the footer, or right-click one for more options.
             </span>
           </span>
         }

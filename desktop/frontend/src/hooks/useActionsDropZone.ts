@@ -1,10 +1,12 @@
 import { useDroppable } from "@dnd-kit/core";
 import { ZONE_ID, type ActionGroup } from "../components/actionsDndLayout";
 
+// Same outline pair in both states so the over-state crossfades in.
 const HINT_BASE = "transition-all duration-150";
 const HINT_AVAILABLE =
-  "outline outline-1 outline-dashed outline-[var(--accent-blue)]/30 bg-[var(--accent-blue)]/[0.03]";
-const HINT_OVER = "ring-2 ring-inset ring-[var(--accent-blue)] bg-[var(--accent-blue)]/10";
+  "outline-1 -outline-offset-1 outline-dashed outline-[var(--accent-blue)]/30 bg-[var(--accent-blue)]/[0.03]";
+const HINT_OVER =
+  "outline-2 -outline-offset-1 outline-dashed outline-[var(--accent-blue)] bg-[var(--accent-blue)]/10";
 
 export interface UseActionsDropZoneResult {
   setNodeRef: (node: HTMLElement | null) => void;
