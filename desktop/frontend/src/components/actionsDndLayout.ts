@@ -2,6 +2,13 @@ import type { ActionsLayout } from "../types";
 
 export type ActionGroup = "header" | "footer";
 
+// Where a menu item being dragged out would land if dropped: the row and
+// the gap index between top-level buttons. Drives the insertion placeholder.
+export interface ExtractIndicator {
+  group: ActionGroup;
+  index: number;
+}
+
 // Prefixed so it can't collide with action names (slugify excludes colons).
 export const ZONE_ID_PREFIX = "actions-zone:";
 

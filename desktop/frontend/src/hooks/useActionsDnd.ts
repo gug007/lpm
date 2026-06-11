@@ -13,6 +13,7 @@ import type { ActionsLayout } from "../types";
 import { type StructuralOp, detectGesture } from "../actionsGesture";
 import {
   type ActionGroup,
+  type ExtractIndicator,
   applyMove,
   groupOf,
   isNestId,
@@ -33,6 +34,9 @@ export interface UseActionsDndOptions {
   onStructural: (op: StructuralOp) => void;
   levelOf: (id: string) => "project" | "repo" | "global" | null;
   isMenu: (id: string) => boolean;
+  // Where a dragged-out menu item would land, kept current by ActionsDnd's
+  // collision detection so the drop can extract to that exact position.
+  indicatorRef: { current: ExtractIndicator | null };
 }
 
 export interface UseActionsDndResult {
@@ -64,6 +68,7 @@ export function useActionsDnd({
   onStructural,
   levelOf,
   isMenu,
+  indicatorRef,
 }: UseActionsDndOptions): UseActionsDndResult {
   const sensors = useSensors(useSensor(PointerSensor, POINTER_OPTS));
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -98,6 +103,13 @@ export function useActionsDnd({
 
   const onDragOver = useCallback((event: DragOverEvent) => {
     const { active, over } = event;
+    // A dragged-out menu item isn't a member of the row's sortable list, so
+    // the flat cross-zone preview doesn't apply — its placeholder is driven
+    // by the extract indicator instead.
+    if (String(active.id).includes(":")) {
+      setOverGroup(null);
+      return;
+    }
     if (!over) {
       setOverGroup(null);
       return;
@@ -149,7 +161,15 @@ export function useActionsDnd({
       sameLevel: draggedLevel !== null && draggedLevel === nestLevel,
     });
     if (op) {
-      onStructuralRef.current(op);
+      if (op.kind === "extractToTop" && indicatorRef.current) {
+        onStructuralRef.current({
+          ...op,
+          group: indicatorRef.current.group,
+          index: indicatorRef.current.index,
+        });
+      } else {
+        onStructuralRef.current(op);
+      }
       return;
     }
     if (!over) return revertToBaseline(baseline);

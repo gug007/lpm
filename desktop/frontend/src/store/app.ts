@@ -841,6 +841,21 @@ export const useAppStore = create<AppState>((set, get) => ({
       else if (level === "repo") await editRepoDoc(projectName, mutate);
       else await editProjectDoc(projectName, mutate);
       await get().refreshProjects();
+      // An extracted item lands appended; place it at the dropped gap by
+      // running the normal reorder (which also sets its header/footer group).
+      if (op.kind === "extractToTop" && op.group && op.index != null) {
+        const project = get().projects.find((p) => p.name === projectName);
+        if (project) {
+          const base = captureActionsLayout(project.actions);
+          const next: ActionsLayout = {
+            header: base.header.filter((id) => id !== op.child),
+            footer: base.footer.filter((id) => id !== op.child),
+          };
+          const arr = op.group === "header" ? next.header : next.footer;
+          arr.splice(Math.max(0, Math.min(op.index, arr.length)), 0, op.child);
+          await get().reorderActions(projectName, next);
+        }
+      }
     } catch (err) {
       toast.error(`Failed to restructure actions: ${err}`);
       await get().refreshProjects();

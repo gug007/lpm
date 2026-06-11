@@ -2,7 +2,7 @@ export type StructuralOp =
   | { kind: "nest"; source: string; target: string }
   | { kind: "merge"; source: string; target: string }
   | { kind: "extractOnto"; parent: string; child: string; target: string }
-  | { kind: "extractToTop"; parent: string; child: string }
+  | { kind: "extractToTop"; parent: string; child: string; group?: "header" | "footer"; index?: number }
   | { kind: "reorderMenu"; parent: string; child: string; over: string };
 
 export interface GestureInput {
