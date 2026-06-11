@@ -28,7 +28,7 @@ interface ActionsDndProps {
 // pointerWithin reports both the item under the cursor AND the zone
 // wrapping it; preferring the item makes drop-on-item land precisely
 // while a bare-zone match means drop-at-end. closestCenter falls back
-// for keyboard sort and the rare gap where pointerWithin matches none.
+// for the rare gap where pointerWithin matches none.
 const collisionDetection: CollisionDetection = (args) => {
   const pointer = pointerWithin(args);
   if (pointer.length > 0) {
@@ -71,12 +71,7 @@ const announcements: Announcements = {
     `Action drag cancelled. Action ${active.id} returned to its original position.`,
 };
 
-const screenReaderInstructions = {
-  draggable:
-    "To pick up an action, press space or enter. While dragging, use the arrow keys to move the action between zones. Press space or enter again to drop, or press escape to cancel.",
-};
-
-const accessibility = { announcements, screenReaderInstructions };
+const accessibility = { announcements };
 
 // Module-scoped — a fresh object each render would force dnd-kit's
 // useAutoScroller to teardown/setup on every parent re-render.
@@ -102,10 +97,17 @@ export function ActionsDnd({ layout, onMove, onPreview, renderOverlay, children 
       autoScroll={autoScrollOptions}
     >
       {children}
-      <DragOverlay dropAnimation={reduceMotion ? reducedMotionDropAnimation : dropAnimation}>
+      {/* pointer-events-none must sit on DragOverlay itself: it lands on
+          the position:fixed wrapper dnd-kit hit-tests, so the overlay can
+          never swallow clicks aimed at the buttons beneath it. On a child
+          div it has no effect — the wrapper still intercepts. */}
+      <DragOverlay
+        className="pointer-events-none"
+        dropAnimation={reduceMotion ? reducedMotionDropAnimation : dropAnimation}
+      >
         {activeId ? (
           <div
-            className="lpm-actions-overlay shadow-2xl cursor-grabbing pointer-events-none"
+            className="lpm-actions-overlay shadow-2xl cursor-grabbing"
             style={{ transform: reduceMotion ? undefined : "scale(1.04) rotate(-1.5deg)" }}
           >
             {renderOverlay(activeId, overGroup)}

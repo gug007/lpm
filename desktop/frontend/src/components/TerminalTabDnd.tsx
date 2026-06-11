@@ -2,7 +2,6 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import {
   DndContext,
   DragOverlay,
-  KeyboardSensor,
   PointerSensor,
   pointerWithin,
   rectIntersection,
@@ -18,7 +17,6 @@ import {
   SortableContext,
   arrayMove,
   horizontalListSortingStrategy,
-  sortableKeyboardCoordinates,
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -83,11 +81,11 @@ export function TerminalTabDnd({ tree, onReorder, onMove, children }: TerminalTa
   const [overIndex, setOverIndex] = useState<number | null>(null);
 
   // 5px activation distance matches the old SortableList — lets a quick
-  // click on a tab pass through to its onClick handler.
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  // click on a tab pass through to its onClick handler. Pointer only:
+  // without a dedicated drag handle, dnd-kit's KeyboardSensor hijacks
+  // Enter/Space on the tabs and starts a drag that mouse input can never
+  // end, leaving a stuck overlay that blocks clicks.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const resetDrag = useCallback(() => {
     setActive(null);
@@ -201,7 +199,10 @@ export function TerminalTabDnd({ tree, onReorder, onMove, children }: TerminalTa
     >
       <DndHoverContext.Provider value={hoverState}>
         {children}
-        <DragOverlay dropAnimation={null}>
+        {/* pointer-events-none lands on the position:fixed wrapper dnd-kit
+            hit-tests, so the overlay can never swallow clicks aimed at the
+            tabs beneath it. */}
+        <DragOverlay className="pointer-events-none" dropAnimation={null}>
           {active ? <HeaderTab label={active.label} active onClick={() => {}} /> : null}
         </DragOverlay>
       </DndHoverContext.Provider>
@@ -274,8 +275,11 @@ interface SortableTabProps {
   children: ReactNode;
 }
 
+// No {...attributes} spread: it would make the wrapper a focusable
+// role="button" around the interactive tab, which WebKit then focuses
+// on click — confusing assistive tech with nested buttons.
 export function SortableTab({ id, paneId, index, children }: SortableTabProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   const { isCrossPaneTarget, overIndex } = useCrossPaneHover(paneId);
   const showLeadingIndicator = isCrossPaneTarget && overIndex === index;
   const style: React.CSSProperties = {
@@ -285,7 +289,7 @@ export function SortableTab({ id, paneId, index, children }: SortableTabProps) {
     position: "relative",
   };
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} {...listeners}>
       {showLeadingIndicator && <LeadingDropIndicator />}
       {children}
     </div>

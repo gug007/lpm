@@ -3,15 +3,12 @@ import {
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
-  KeyboardSensor,
   PointerSensor,
   type SensorDescriptor,
   type SensorOptions,
-  TouchSensor,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import type { ActionsLayout } from "../types";
 import {
   type ActionGroup,
@@ -39,22 +36,20 @@ export interface UseActionsDndResult {
   onDragEnd: (event: DragEndEvent) => void;
 }
 
-// Activation thresholds let a quick click / tap pass through to onClick
-// rather than start a drag.
+// The activation threshold lets a quick click pass through to onClick
+// rather than start a drag. Pointer only: keyboard and touch sensors
+// are deliberately absent — without a dedicated drag handle, dnd-kit's
+// KeyboardSensor hijacks Enter/Space on the buttons and starts a drag
+// that mouse input can never end, leaving a stuck overlay that blocks
+// clicks.
 const POINTER_OPTS = { activationConstraint: { distance: 5 } } as const;
-const TOUCH_OPTS = { activationConstraint: { delay: 200, tolerance: 8 } } as const;
-const KEYBOARD_OPTS = { coordinateGetter: sortableKeyboardCoordinates } as const;
 
 // Multi-container sortable: snapshot layout at drag-start, preview only
 // on cross-zone moves (within-zone reorder rides on SortableContext for
 // free), commit on drop against the snapshot. Handlers read live values
 // via refs because dnd-kit holds the handler reference for the whole drag.
 export function useActionsDnd({ layout, onPreview, onMove }: UseActionsDndOptions): UseActionsDndResult {
-  const sensors = useSensors(
-    useSensor(PointerSensor, POINTER_OPTS),
-    useSensor(TouchSensor, TOUCH_OPTS),
-    useSensor(KeyboardSensor, KEYBOARD_OPTS),
-  );
+  const sensors = useSensors(useSensor(PointerSensor, POINTER_OPTS));
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overGroup, setOverGroup] = useState<ActionGroup | null>(null);
   const baselineRef = useRef<ActionsLayout | null>(null);
