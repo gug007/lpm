@@ -2,6 +2,13 @@ import type { ActionsLayout } from "../types";
 
 export type ActionGroup = "header" | "footer";
 
+// Where a menu item being dragged out would land if dropped: the row and
+// the gap index between top-level buttons. Drives the insertion placeholder.
+export interface ExtractIndicator {
+  group: ActionGroup;
+  index: number;
+}
+
 // Prefixed so it can't collide with action names (slugify excludes colons).
 export const ZONE_ID_PREFIX = "actions-zone:";
 
@@ -14,6 +21,17 @@ export const ZONE_ID: Record<ActionGroup, string> = {
 
 export function isZoneId(id: string): boolean {
   return id.startsWith(ZONE_ID_PREFIX);
+}
+
+export const NEST_ID_PREFIX = "nest:";
+export function nestId(name: string): string {
+  return `${NEST_ID_PREFIX}${name}`;
+}
+export function isNestId(id: string): boolean {
+  return id.startsWith(NEST_ID_PREFIX);
+}
+export function nestTargetOf(id: string): string {
+  return id.slice(NEST_ID_PREFIX.length);
 }
 
 export function groupOf(layout: ActionsLayout, id: string): ActionGroup | null {

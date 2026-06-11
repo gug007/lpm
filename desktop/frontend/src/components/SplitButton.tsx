@@ -1,9 +1,12 @@
-import { useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useAnchoredPanel } from "../hooks/useAnchoredPanel";
 import type { ActionInfo } from "../types";
 import { ChevronDownIcon } from "./icons";
 import { withEmoji } from "../withEmoji";
+import { useActionsDragActive } from "./ActionsDnd";
+import { SplitButtonMenuItem } from "./SplitButtonMenuItem";
 
 const SIZE_CLASSES = {
   default: {
@@ -37,7 +40,6 @@ const SIZE_CLASSES = {
 const PANEL_WIDTH = 256;
 
 const dropdownPanelClass = "z-50 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl";
-const dropdownItemClass = "flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]";
 
 interface SplitButtonProps {
   action: ActionInfo;
@@ -49,9 +51,20 @@ interface SplitButtonProps {
 
 export function SplitButton({ action, disabled, onRunAction, onContextMenu, compact = false }: SplitButtonProps) {
   const [open, setOpen] = useState(false);
+  const dragActive = useActionsDragActive();
+  // Keep this menu open through a drag only if it was already open when the
+  // drag started (so its items stay draggable), rather than popping every
+  // menu open on any drag.
+  const keepOpenRef = useRef(false);
+  const prevDragActiveRef = useRef(false);
+  useEffect(() => {
+    if (dragActive && !prevDragActiveRef.current) keepOpenRef.current = open;
+    prevDragActiveRef.current = dragActive;
+  }, [dragActive, open]);
+  const panelOpen = open || (dragActive && keepOpenRef.current);
   const s = compact ? SIZE_CLASSES.compact : SIZE_CLASSES.default;
   const { triggerRef, panelRef, style } = useAnchoredPanel<HTMLDivElement, HTMLDivElement>({
-    open,
+    open: panelOpen,
     onClose: () => setOpen(false),
     width: PANEL_WIDTH,
     side: s.side,
@@ -65,13 +78,13 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
     onRunAction(child);
   };
 
-  const dropdown = open && style && createPortal(
+  const dropdown = panelOpen && style && createPortal(
     <div ref={panelRef} style={style} className={dropdownPanelClass}>
-      {children.map((child) => (
-        <button key={child.name} onClick={() => handleSelectChild(child)} className={dropdownItemClass}>
-          <span className="flex-1 truncate">{withEmoji(child.emoji, child.label)}</span>
-        </button>
-      ))}
+      <SortableContext items={children.map((c) => c.name)} strategy={verticalListSortingStrategy}>
+        {children.map((child) => (
+          <SplitButtonMenuItem key={child.name} child={child} onSelect={handleSelectChild} />
+        ))}
+      </SortableContext>
     </div>,
     document.body,
   );

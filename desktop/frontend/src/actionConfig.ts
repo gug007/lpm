@@ -17,7 +17,7 @@ export type ActionSection = (typeof ACTION_SECTIONS)[number];
 
 // The UI surface merges `actions:` and `terminals:` (see ResolvedActions),
 // so edit/delete must look in both sections to find any displayed entry.
-function findActionSection(doc: ReturnType<typeof YAML.parseDocument>, key: string) {
+export function findActionSection(doc: ReturnType<typeof YAML.parseDocument>, key: string) {
   for (const section of ACTION_SECTIONS) {
     const node = doc.get(section, true);
     if (YAML.isMap(node) && node.has(key)) return { section, node };
@@ -28,7 +28,7 @@ function findActionSection(doc: ReturnType<typeof YAML.parseDocument>, key: stri
 // True when the entry carries the action's body (cmd, child actions, or the
 // scalar-string shorthand for cmd). Thin overrides that only set per-user
 // metadata like position aren't definitions — they layer on top of one.
-function hasActionBody(entry: unknown): boolean {
+export function hasActionBody(entry: unknown): boolean {
   if (YAML.isScalar(entry)) {
     const value = (entry as YAML.Scalar).value;
     return typeof value === "string" && value.trim() !== "";

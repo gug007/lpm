@@ -10,20 +10,36 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import type { ActionsLayout } from "../types";
+import { type StructuralOp, detectGesture } from "../actionsGesture";
+import { isChildId } from "../actionIds";
 import {
   type ActionGroup,
+  type ExtractIndicator,
   applyMove,
   groupOf,
+  isNestId,
+  isZoneId,
+  nestTargetOf,
   resolveTarget,
   sameLayout,
 } from "../components/actionsDndLayout";
 
 export interface UseActionsDndOptions {
   layout: ActionsLayout;
-  // No undo, no persist — repeated mid-drag.
+  // No persist — repeated mid-drag.
   onPreview: (next: ActionsLayout) => void;
-  // Pushes undo against baseline and persists — fired once on drop.
-  onMove: (next: ActionsLayout, baseline: ActionsLayout) => void;
+  // Persists — fired once on drop.
+  onMove: (next: ActionsLayout) => void;
+  // Fired on a drop classified as a structural gesture (nest/merge/extract/
+  // reorder); the caller then skips the flat reorder.
+  onStructural: (op: StructuralOp) => void;
+  // True when both actions live in the same config layer — nesting across
+  // layers is rejected.
+  canNest: (activeId: string, targetId: string) => boolean;
+  isMenu: (id: string) => boolean;
+  // Where a dragged-out menu item would land, kept current by ActionsDnd's
+  // collision detection so the drop can extract to that exact position.
+  indicatorRef: { current: ExtractIndicator | null };
 }
 
 export interface UseActionsDndResult {
@@ -48,7 +64,15 @@ const POINTER_OPTS = { activationConstraint: { distance: 5 } } as const;
 // on cross-zone moves (within-zone reorder rides on SortableContext for
 // free), commit on drop against the snapshot. Handlers read live values
 // via refs because dnd-kit holds the handler reference for the whole drag.
-export function useActionsDnd({ layout, onPreview, onMove }: UseActionsDndOptions): UseActionsDndResult {
+export function useActionsDnd({
+  layout,
+  onPreview,
+  onMove,
+  onStructural,
+  canNest,
+  isMenu,
+  indicatorRef,
+}: UseActionsDndOptions): UseActionsDndResult {
   const sensors = useSensors(useSensor(PointerSensor, POINTER_OPTS));
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overGroup, setOverGroup] = useState<ActionGroup | null>(null);
@@ -57,9 +81,15 @@ export function useActionsDnd({ layout, onPreview, onMove }: UseActionsDndOption
   const layoutRef = useRef(layout);
   const onPreviewRef = useRef(onPreview);
   const onMoveRef = useRef(onMove);
+  const onStructuralRef = useRef(onStructural);
+  const canNestRef = useRef(canNest);
+  const isMenuRef = useRef(isMenu);
   layoutRef.current = layout;
   onPreviewRef.current = onPreview;
   onMoveRef.current = onMove;
+  onStructuralRef.current = onStructural;
+  canNestRef.current = canNest;
+  isMenuRef.current = isMenu;
 
   // Prevent a stale baseline from leaking across an unmount mid-drag.
   useEffect(() => () => { baselineRef.current = null; }, []);
@@ -76,6 +106,13 @@ export function useActionsDnd({ layout, onPreview, onMove }: UseActionsDndOption
 
   const onDragOver = useCallback((event: DragOverEvent) => {
     const { active, over } = event;
+    // A dragged-out menu item isn't a member of the row's sortable list, so
+    // the flat cross-zone preview doesn't apply — its placeholder is driven
+    // by the extract indicator instead.
+    if (isChildId(String(active.id))) {
+      setOverGroup(null);
+      return;
+    }
     if (!over) {
       setOverGroup(null);
       return;
@@ -110,23 +147,40 @@ export function useActionsDnd({ layout, onPreview, onMove }: UseActionsDndOption
     baselineRef.current = null;
     if (!baseline) return;
     const current = layoutRef.current;
-    if (!over) return revertToBaseline(baseline);
+    // Classify before the no-target early-return: extractToTop fires when a
+    // menu child is dropped on empty space (over absent or a zone). A child
+    // target id (parent:child) is an item; only zone ids are not.
     const draggedId = String(active.id);
-    const overId = String(over.id);
+    const overId = over ? String(over.id) : "";
+    const overNestTarget = isNestId(overId) ? nestTargetOf(overId) : null;
+    const overItemId = over && !isZoneId(overId) && !isNestId(overId) ? overId : null;
+    const op = detectGesture({
+      draggedId,
+      draggedIsMenu: isMenuRef.current(draggedId),
+      overNestTarget,
+      overItemId,
+      sameLevel: overNestTarget !== null && canNestRef.current(draggedId, overNestTarget),
+      extractTarget: indicatorRef.current,
+    });
+    if (op) {
+      onStructuralRef.current(op);
+      return;
+    }
+    if (!over) return revertToBaseline(baseline);
     // Cursor on the dragged item's own placeholder: the preview already
     // represents where the user wants it to land — commit current as
     // final. (Without this, cross-zone drops snap back to baseline
     // because dnd-kit reports `over` as the active id.)
     if (draggedId === overId) {
       if (sameLayout(baseline, current)) return;
-      onMoveRef.current(current, baseline);
+      onMoveRef.current(current);
       return;
     }
     const target = resolveTarget(overId, current);
     if (!target) return revertToBaseline(baseline);
     const final = applyMove(baseline, draggedId, target);
     if (sameLayout(baseline, final)) return revertToBaseline(baseline);
-    onMoveRef.current(final, baseline);
+    onMoveRef.current(final);
   }, [revertToBaseline]);
 
   return { sensors, activeId, overGroup, onDragStart, onDragOver, onDragCancel, onDragEnd };

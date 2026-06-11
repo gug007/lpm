@@ -39,6 +39,12 @@ import { getSettings } from "./settings";
 import { forgetProjectTerminals } from "../terminals";
 import { activeChatStorageKey } from "../components/NotesView";
 import { ACTION_SECTIONS, type ActionSection } from "../actionConfig";
+import { editGlobalDoc, editProjectDoc, editRepoDoc } from "../yamlQueue";
+import { applyOpToDoc } from "../actionsStructural";
+import { splitChild } from "../actionIds";
+import { applyMove } from "../components/actionsDndLayout";
+import type { StructuralOp } from "../actionsGesture";
+import type { ActionLevel } from "../actionLevels";
 
 export type View =
   | "projects"
@@ -95,8 +101,6 @@ interface AppState {
   portConflict: PortConflictPrompt | null;
   resolvingPortConflict: boolean;
   detached: Set<string>;
-  actionsUndoStack: Record<string, ActionsLayout[]>;
-  actionsRedoStack: Record<string, ActionsLayout[]>;
 
   setView: (view: View) => void;
   setSettingsTab: (tab: SettingsTab) => void;
@@ -148,20 +152,17 @@ interface AppState {
   attachProject: (name: string) => Promise<void>;
   focusDetachedProject: (name: string) => Promise<boolean>;
   refreshDetached: () => Promise<void>;
-  reorderActions: (
+  reorderActions: (projectName: string, layout: ActionsLayout) => Promise<void>;
+  applyStructuralOp: (
     projectName: string,
-    layout: ActionsLayout,
-    baseline?: ActionsLayout,
+    op: StructuralOp,
+    level: ActionLevel,
   ) => Promise<void>;
-  // Optimistic update without undo push or persist; final commit
-  // happens on drop via reorderActions(baseline).
+  // Optimistic update without persist; final commit happens on drop via
+  // reorderActions.
   previewReorderActions: (projectName: string, layout: ActionsLayout) => void;
-  undoActionsReorder: (projectName: string) => Promise<boolean>;
-  redoActionsReorder: (projectName: string) => Promise<boolean>;
   refreshAfterRename: (newName?: string) => Promise<void>;
 }
-
-const ACTIONS_HISTORY_CAP = 20;
 
 // Mirrors the backend's sortActionNames (projects.go) so optimistic updates
 // match what the next ListProjects will return.
@@ -316,17 +317,6 @@ function captureActionsLayout(actions: ActionInfo[] | undefined): ActionsLayout 
   return { header, footer };
 }
 
-function pushHistory(
-  stack: Record<string, ActionsLayout[]>,
-  projectName: string,
-  layout: ActionsLayout,
-): Record<string, ActionsLayout[]> {
-  const prev = stack[projectName] ?? [];
-  const next = [...prev, layout];
-  if (next.length > ACTIONS_HISTORY_CAP) next.splice(0, next.length - ACTIONS_HISTORY_CAP);
-  return { ...stack, [projectName]: next };
-}
-
 function projectsEqual(a: ProjectInfo[], b: ProjectInfo[]): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
@@ -339,11 +329,9 @@ function applyActionsLayoutToStore(
   projectName: string,
   project: ProjectInfo,
   layout: ActionsLayout,
-  stackUpdater?: (s: AppState) => Partial<AppState>,
 ): Map<string, ActionUpdate> {
   const updates = buildActionUpdates(project.actions ?? [], layout);
   set((s) => ({
-    ...(stackUpdater ? stackUpdater(s) : {}),
     projects: s.projects.map((p) =>
       p.name === projectName
         ? { ...p, actions: sortActionsByPosition(applyActionUpdates(p.actions ?? [], updates)) }
@@ -369,27 +357,12 @@ async function persistActionsLayoutOrRecover(
   }
 }
 
-async function shiftHistoryEntry(
-  set: AppSet,
-  get: AppGet,
-  projectName: string,
-  direction: "undo" | "redo",
-): Promise<boolean> {
-  const state = get();
-  const fromKey = direction === "undo" ? "actionsUndoStack" : "actionsRedoStack";
-  const toKey = direction === "undo" ? "actionsRedoStack" : "actionsUndoStack";
-  const stack = state[fromKey][projectName] ?? [];
-  if (stack.length === 0) return false;
-  const project = state.projects.find((p) => p.name === projectName);
-  if (!project) return false;
-  const target = stack[stack.length - 1];
-  const currentLayout = captureActionsLayout(project.actions);
-  const updates = applyActionsLayoutToStore(set, projectName, project, target, (s) => ({
-    [fromKey]: { ...s[fromKey], [projectName]: stack.slice(0, -1) },
-    [toKey]: pushHistory(s[toKey], projectName, currentLayout),
-  }));
-  await persistActionsLayoutOrRecover(get, projectName, updates);
-  return true;
+// Resolved display order of a menu's children (leaf names) — children can
+// span config layers, so the resolver output is the only authoritative order.
+function menuChildOrder(get: AppGet, projectName: string, parent: string): string[] {
+  const project = get().projects.find((p) => p.name === projectName);
+  const menu = project?.actions?.find((a) => a.name === parent);
+  return (menu?.children ?? []).map((c) => splitChild(c.name)?.child ?? c.name);
 }
 
 // Held outside zustand state because functions don't belong in store
@@ -427,8 +400,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   portConflict: null,
   resolvingPortConflict: false,
   detached: new Set<string>(),
-  actionsUndoStack: {},
-  actionsRedoStack: {},
 
   setView: (view) => set({ view }),
 
@@ -810,33 +781,48 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  reorderActions: async (projectName, layout, baseline) => {
+  reorderActions: async (projectName, layout) => {
     const project = get().projects.find((p) => p.name === projectName);
     if (!project) return;
     // Position values can collide across groups because the header/
     // footer/menu filter runs after the sort. Display is only touched
     // when an action's group changed, so legacy values like "button"
     // survive a within-group reorder.
-    const prevLayout = baseline ?? captureActionsLayout(project.actions);
-    const updates = applyActionsLayoutToStore(set, projectName, project, layout, (s) => ({
-      actionsUndoStack: pushHistory(s.actionsUndoStack, projectName, prevLayout),
-      actionsRedoStack: { ...s.actionsRedoStack, [projectName]: [] },
-    }));
+    const updates = applyActionsLayoutToStore(set, projectName, project, layout);
     await persistActionsLayoutOrRecover(get, projectName, updates);
+  },
+
+  applyStructuralOp: async (projectName, op, level) => {
+    const childOrder =
+      op.kind === "reorderMenu" ? menuChildOrder(get, projectName, op.parent) : undefined;
+    const mutate = (doc: ReturnType<typeof YAML.parseDocument>) =>
+      applyOpToDoc(doc, op, childOrder);
+    try {
+      if (level === "global") await editGlobalDoc(mutate);
+      else if (level === "repo") await editRepoDoc(projectName, mutate);
+      else await editProjectDoc(projectName, mutate);
+      await get().refreshProjects();
+      // An extracted item lands appended; place it at the dropped gap by
+      // running the normal reorder (which also sets its header/footer group).
+      if (op.kind === "extractToTop" && op.group && op.index != null) {
+        const project = get().projects.find((p) => p.name === projectName);
+        if (project) {
+          const base = captureActionsLayout(project.actions);
+          const next = applyMove(base, op.child, { group: op.group, index: op.index });
+          await get().reorderActions(projectName, next);
+        }
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to restructure actions: ${message}`);
+      await get().refreshProjects();
+    }
   },
 
   previewReorderActions: (projectName, layout) => {
     const project = get().projects.find((p) => p.name === projectName);
     if (!project) return;
     applyActionsLayoutToStore(set, projectName, project, layout);
-  },
-
-  undoActionsReorder: async (projectName) => {
-    return shiftHistoryEntry(set, get, projectName, "undo");
-  },
-
-  redoActionsReorder: async (projectName) => {
-    return shiftHistoryEntry(set, get, projectName, "redo");
   },
 
   refreshAfterRename: async (newName) => {
