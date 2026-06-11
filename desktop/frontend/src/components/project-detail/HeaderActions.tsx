@@ -1,5 +1,5 @@
 import type { MouseEvent } from "react";
-import { ActionsGroup } from "../ActionsDnd";
+import { ActionsGroup, useActionsDragActive } from "../ActionsDnd";
 import { ActionView } from "../ActionView";
 import { PlusIcon } from "../icons";
 import { ActionsSortableItem } from "../ActionsSortableItem";
@@ -27,6 +27,7 @@ export function HeaderActions({
   onContextMenu,
   onAddAction,
 }: HeaderActionsProps) {
+  const dragActive = useActionsDragActive();
   return (
     <ActionsGroup
       group="header"
@@ -34,7 +35,9 @@ export function HeaderActions({
       className={
         wrapped
           ? "flex flex-wrap items-center justify-end gap-2"
-          : "flex shrink-0 items-center gap-2"
+          : dragActive
+            ? "flex grow items-center justify-end gap-2"
+            : "flex shrink-0 items-center gap-2"
       }
       style={NO_DRAG_STYLE}
     >

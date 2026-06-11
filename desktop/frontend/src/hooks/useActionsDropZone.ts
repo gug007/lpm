@@ -2,7 +2,11 @@ import { useDroppable } from "@dnd-kit/core";
 import { ZONE_ID, type ActionGroup } from "../components/actionsDndLayout";
 
 // Same outline pair in both states so the over-state crossfades in.
-const HINT_BASE = "transition-all duration-150";
+// Transition only the hint's own paint properties — not layout. The header
+// zone toggles flex-grow while dragging, and `transition-all` would animate
+// that width change, sliding the buttons around on drop.
+const HINT_BASE =
+  "transition-[outline-color,outline-width,background-color] duration-150";
 const HINT_AVAILABLE =
   "outline-1 -outline-offset-1 outline-dashed outline-[var(--accent-blue)]/30 bg-[var(--accent-blue)]/[0.03]";
 const HINT_OVER =
