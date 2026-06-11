@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode } from "react";
+import { type CSSProperties, type ReactNode, createContext, useContext } from "react";
 import {
   type Announcements,
   type CollisionDetection,
@@ -13,6 +13,7 @@ import type { ActionsLayout } from "../types";
 import { useActionsDnd } from "../hooks/useActionsDnd";
 import { useActionsDropZone } from "../hooks/useActionsDropZone";
 import { type ActionGroup, ZONE_ID, isZoneId } from "./actionsDndLayout";
+import { useDragBodyAttribute } from "../hooks/useDragBodyAttribute";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 
 interface ActionsDndProps {
@@ -28,14 +29,20 @@ interface ActionsDndProps {
 // pointerWithin reports both the item under the cursor AND the zone
 // wrapping it; preferring the item makes drop-on-item land precisely
 // while a bare-zone match means drop-at-end. closestCenter falls back
-// for keyboard sort and the rare gap where pointerWithin matches none.
+// for the rare gap where pointerWithin matches none.
 const collisionDetection: CollisionDetection = (args) => {
   const pointer = pointerWithin(args);
   if (pointer.length > 0) {
     const items = pointer.filter((c) => !isZoneId(String(c.id)));
     return items.length > 0 ? items : pointer;
   }
-  return closestCenter(args);
+  // Hidden zones (footer under the config/notes view) register 0x0
+  // rects that closestCenter would pick, committing invisible drops.
+  const measurable = args.droppableContainers.filter((c) => {
+    const rect = c.rect.current;
+    return !!rect && rect.width > 0 && rect.height > 0;
+  });
+  return closestCenter({ ...args, droppableContainers: measurable });
 };
 
 const dropAnimation = {
@@ -71,12 +78,21 @@ const announcements: Announcements = {
     `Action drag cancelled. Action ${active.id} returned to its original position.`,
 };
 
-const screenReaderInstructions = {
-  draggable:
-    "To pick up an action, press space or enter. While dragging, use the arrow keys to move the action between zones. Press space or enter again to drop, or press escape to cancel.",
-};
+const accessibility = { announcements };
 
-const accessibility = { announcements, screenReaderInstructions };
+// Not useDndContext: dnd-kit's public context changes identity every
+// pointermove; this boolean flips only at drag start/end.
+const DragActiveContext = createContext(false);
+
+export function useActionsDragActive(): boolean {
+  return useContext(DragActiveContext);
+}
+
+const ZoneContext = createContext<ActionGroup>("header");
+
+export function useActionsZone(): ActionGroup {
+  return useContext(ZoneContext);
+}
 
 // Module-scoped — a fresh object each render would force dnd-kit's
 // useAutoScroller to teardown/setup on every parent re-render.
@@ -90,6 +106,7 @@ export function ActionsDnd({ layout, onMove, onPreview, renderOverlay, children 
   const { sensors, activeId, overGroup, onDragStart, onDragOver, onDragCancel, onDragEnd } =
     useActionsDnd({ layout, onMove, onPreview });
   const reduceMotion = usePrefersReducedMotion();
+  useDragBodyAttribute(activeId !== null);
   return (
     <DndContext
       sensors={sensors}
@@ -101,17 +118,26 @@ export function ActionsDnd({ layout, onMove, onPreview, renderOverlay, children 
       accessibility={accessibility}
       autoScroll={autoScrollOptions}
     >
-      {children}
-      <DragOverlay dropAnimation={reduceMotion ? reducedMotionDropAnimation : dropAnimation}>
-        {activeId ? (
-          <div
-            className="lpm-actions-overlay shadow-2xl cursor-grabbing pointer-events-none"
-            style={{ transform: reduceMotion ? undefined : "scale(1.04) rotate(-1.5deg)" }}
-          >
-            {renderOverlay(activeId, overGroup)}
-          </div>
-        ) : null}
-      </DragOverlay>
+      <DragActiveContext.Provider value={activeId !== null}>
+        {children}
+        {/* pointer-events-none must sit on DragOverlay itself: it lands on
+            the position:fixed wrapper dnd-kit hit-tests, so the overlay can
+            never swallow clicks aimed at the buttons beneath it. On a child
+            div it has no effect — the wrapper still intercepts. */}
+        <DragOverlay
+          className="pointer-events-none"
+          dropAnimation={reduceMotion ? reducedMotionDropAnimation : dropAnimation}
+        >
+          {activeId ? (
+            <div
+              className="lpm-actions-overlay"
+              style={{ transform: reduceMotion ? undefined : "scale(1.04) rotate(-1.5deg)" }}
+            >
+              {renderOverlay(activeId, overGroup)}
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DragActiveContext.Provider>
     </DndContext>
   );
 }
@@ -124,9 +150,14 @@ interface ActionsGroupProps {
   children: ReactNode;
 }
 
-export function EmptyDropHint() {
+function EmptyDropHint() {
+  const dragging = useActionsDragActive();
+  const compact = useActionsZone() === "footer";
+  if (!dragging) return null;
   return (
-    <div className="rounded-md border border-dashed border-[var(--border)] px-2 py-1 text-center text-[10px] text-[var(--text-muted)]">
+    <div
+      className={`flex items-center border border-dashed border-[var(--accent-blue)]/50 px-2 text-center text-[10px] text-[var(--accent-blue)] ${compact ? "h-6 rounded-md" : "h-7 rounded-lg"}`}
+    >
       Drop here
     </div>
   );
@@ -136,13 +167,17 @@ export function ActionsGroup({ group, ids, className, style, children }: Actions
   const { setNodeRef, hintClass } = useActionsDropZone(group);
   return (
     <SortableContext items={ids} strategy={horizontalListSortingStrategy}>
-      <div
-        ref={setNodeRef}
-        className={`${className ?? ""} ${hintClass}`}
-        style={style}
-      >
-        {children}
-      </div>
+      <ZoneContext.Provider value={group}>
+        <div
+          ref={setNodeRef}
+          data-actions-zone={group}
+          className={`${className ?? ""} ${hintClass}`}
+          style={style}
+        >
+          {ids.length === 0 && <EmptyDropHint />}
+          {children}
+        </div>
+      </ZoneContext.Provider>
     </SortableContext>
   );
 }

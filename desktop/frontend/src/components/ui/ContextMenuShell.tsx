@@ -12,6 +12,9 @@ interface ContextMenuShellProps {
 
 const VIEWPORT_MARGIN = 8;
 
+export const MENU_PANEL_CLASS =
+  "rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg";
+
 export function ContextMenuShell({ x, y, minWidth = 160, onClose, children }: ContextMenuShellProps) {
   const ref = useOutsideClick<HTMLDivElement>(onClose);
   useEventListener("keydown", (e) => {
@@ -33,7 +36,7 @@ export function ContextMenuShell({ x, y, minWidth = 160, onClose, children }: Co
   return (
     <div
       ref={ref}
-      className="fixed z-50 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg"
+      className={`fixed z-50 ${MENU_PANEL_CLASS}`}
       style={{ left: pos.left, top: pos.top, minWidth }}
     >
       {children}

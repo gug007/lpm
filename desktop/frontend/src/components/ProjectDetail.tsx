@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { toast } from "sonner";
 import { ActionsDnd } from "./ActionsDnd";
-import { type ActionGroup } from "./actionsDndLayout";
+import { type ActionGroup, applyMove, groupOf } from "./actionsDndLayout";
 import { ActionView } from "./ActionView";
 import { ConfigEditor } from "./ConfigEditor";
 import { NotesView } from "./NotesView";
@@ -258,6 +258,12 @@ export function ProjectDetail({
     () => (project.actions ?? []).map((action) => action.name),
     [project.actions],
   );
+
+  // An external config edit can delete the action while its menu is
+  // open; acting on the vanished name would persist a ghost entry.
+  useEffect(() => {
+    if (actionMenu && !existingActionKeys.includes(actionMenu.action.name)) setActionMenu(null);
+  }, [actionMenu, existingActionKeys]);
   const nextHeaderActionPosition =
     headerActions.reduce((max, action, index) => Math.max(max, action.position ?? index + 1), 0) + 1;
   const showEmptyState = !project.running && detailView === "terminal" && terminalCount === 0;
@@ -277,6 +283,36 @@ export function ProjectDetail({
     e.preventDefault();
     setActionMenu({ x: e.clientX, y: e.clientY, action });
   }, []);
+
+  // No baseline arg: reorderActions captures its own undo entry. A null
+  // group means an external edit moved the action mid-menu; both
+  // destinations stay enabled so it can still be placed.
+  const actionMenuMove = useMemo(() => {
+    if (!actionMenu) return null;
+    const name = actionMenu.action.name;
+    const group = groupOf(actionsLayout, name);
+    const row: string[] = group ? actionsLayout[group] : [];
+    const idx = row.indexOf(name);
+    return {
+      group,
+      canMoveLeft: idx > 0,
+      canMoveRight: idx !== -1 && idx < row.length - 1,
+      toGroup: (target: ActionGroup) => {
+        const next = applyMove(actionsLayout, name, {
+          group: target,
+          index: actionsLayout[target].length,
+        });
+        reorderActions(project.name, next);
+        if (target === "footer" && detailView !== "terminal") toast("Moved to footer");
+      },
+      left: () => {
+        if (group) reorderActions(project.name, applyMove(actionsLayout, name, { group, index: idx - 1 }));
+      },
+      right: () => {
+        if (group) reorderActions(project.name, applyMove(actionsLayout, name, { group, index: idx + 1 }));
+      },
+    };
+  }, [actionMenu, actionsLayout, reorderActions, project.name, detailView]);
 
   const handleConfirmDeleteAction = async () => {
     if (!actionToDelete) return;
@@ -477,10 +513,16 @@ export function ProjectDetail({
           />
         )}
 
-        {actionMenu && (
+        {actionMenu && actionMenuMove && (
           <ActionContextMenu
             x={actionMenu.x}
             y={actionMenu.y}
+            currentGroup={actionMenuMove.group}
+            canMoveLeft={actionMenuMove.canMoveLeft}
+            canMoveRight={actionMenuMove.canMoveRight}
+            onMoveTo={actionMenuMove.toGroup}
+            onMoveLeft={actionMenuMove.left}
+            onMoveRight={actionMenuMove.right}
             onEdit={() => setEditingAction(actionMenu.action)}
             onDelete={() => setActionToDelete(actionMenu.action)}
             onClose={() => setActionMenu(null)}

@@ -219,3 +219,25 @@ body {
     will-change: auto;
   }
 }
+
+/* Set by useDragBodyAttribute while a drag is live. The cursor under
+   the pointer-events-none overlay bleeds through; !important beats
+   xterm's higher-specificity link-hover cursor. */
+body[data-lpm-drag],
+body[data-lpm-drag] * {
+  cursor: grabbing !important;
+}
+
+/* opacity, not display: Tooltip measures itself once on open, and a
+   display:none box measures 0x0 — it would reappear after the drop at
+   a garbage position. */
+body[data-lpm-drag] [role="tooltip"] {
+  opacity: 0;
+}
+
+/* No hover states or tooltips inside the zones mid-drag. Drops are
+   unaffected: collision detection is rect-based, not hit-tested. */
+body[data-lpm-drag] [data-actions-zone],
+body[data-lpm-drag] [data-actions-zone] * {
+  pointer-events: none;
+}
