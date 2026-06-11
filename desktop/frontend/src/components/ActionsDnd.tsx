@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, createContext, useContext } from "react";
+import { type CSSProperties, type ReactNode, createContext, useContext, useMemo } from "react";
 import {
   type Announcements,
   type CollisionDetection,
@@ -10,9 +10,10 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import type { ActionsLayout } from "../types";
+import type { StructuralOp } from "../actionsGesture";
 import { useActionsDnd } from "../hooks/useActionsDnd";
 import { useActionsDropZone } from "../hooks/useActionsDropZone";
-import { type ActionGroup, ZONE_ID, isZoneId } from "./actionsDndLayout";
+import { type ActionGroup, ZONE_ID, isZoneId, isNestId, nestId } from "./actionsDndLayout";
 import { useDragBodyAttribute } from "../hooks/useDragBodyAttribute";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 
@@ -22,28 +23,14 @@ interface ActionsDndProps {
   // intermediate previews.
   onMove: (next: ActionsLayout, baseline: ActionsLayout) => void;
   onPreview: (next: ActionsLayout) => void;
+  onStructural: (op: StructuralOp) => void;
+  // Returns the config level of an action id, or null. Used to gate which
+  // items are valid nest targets while dragging.
+  levelOf: (id: string) => "project" | "repo" | "global" | null;
+  isMenu: (id: string) => boolean;
   renderOverlay: (id: string, overGroup: ActionGroup | null) => ReactNode;
   children: ReactNode;
 }
-
-// pointerWithin reports both the item under the cursor AND the zone
-// wrapping it; preferring the item makes drop-on-item land precisely
-// while a bare-zone match means drop-at-end. closestCenter falls back
-// for the rare gap where pointerWithin matches none.
-const collisionDetection: CollisionDetection = (args) => {
-  const pointer = pointerWithin(args);
-  if (pointer.length > 0) {
-    const items = pointer.filter((c) => !isZoneId(String(c.id)));
-    return items.length > 0 ? items : pointer;
-  }
-  // Hidden zones (footer under the config/notes view) register 0x0
-  // rects that closestCenter would pick, committing invisible drops.
-  const measurable = args.droppableContainers.filter((c) => {
-    const rect = c.rect.current;
-    return !!rect && rect.width > 0 && rect.height > 0;
-  });
-  return closestCenter({ ...args, droppableContainers: measurable });
-};
 
 const dropAnimation = {
   ...defaultDropAnimation,
@@ -102,11 +89,88 @@ const autoScrollOptions = {
   layoutShiftCompensation: false,
 } as const;
 
-export function ActionsDnd({ layout, onMove, onPreview, renderOverlay, children }: ActionsDndProps) {
+export function ActionsDnd({
+  layout,
+  onMove,
+  onPreview,
+  onStructural,
+  levelOf,
+  isMenu,
+  renderOverlay,
+  children,
+}: ActionsDndProps) {
   const { sensors, activeId, overGroup, onDragStart, onDragOver, onDragCancel, onDragEnd } =
-    useActionsDnd({ layout, onMove, onPreview });
+    useActionsDnd({ layout, onMove, onPreview, onStructural, levelOf, isMenu });
   const reduceMotion = usePrefersReducedMotion();
   useDragBodyAttribute(activeId !== null);
+
+  // Nest is the default while the pointer is in the leading part of a
+  // same-level button; the target only yields to a sortable reorder gap
+  // once the pointer crosses this fraction of its width in the drag
+  // direction. Lower = easier to reorder, higher = easier to nest.
+  const NEST_THRESHOLD = 0.45;
+
+  // pointerWithin reports the item, its full-size nest zone, and the
+  // wrapping row zone. We pick exactly one: a child reorders/extracts; a
+  // top-level button nests until the pointer passes NEST_THRESHOLD in the
+  // drag direction, then it reorders (the sortable list opens the gap).
+  // closestCenter falls back when pointerWithin matches nothing.
+  const collisionDetection = useMemo<CollisionDetection>(
+    () => (args) => {
+      const pointer = pointerWithin(args);
+      if (pointer.length === 0) {
+        // Hidden zones (footer under the config/notes view) register 0x0
+        // rects that closestCenter would pick, committing invisible drops.
+        const measurable = args.droppableContainers.filter((c) => {
+          const rect = c.rect.current;
+          return !!rect && rect.width > 0 && rect.height > 0;
+        });
+        return closestCenter({ ...args, droppableContainers: measurable });
+      }
+
+      const active = String(args.active.id);
+      const activeLevel = levelOf(active);
+      const activeIsChild = active.includes(":");
+      const nonNest = pointer.filter((c) => !isNestId(String(c.id)));
+      const items = pointer.filter((c) => {
+        const id = String(c.id);
+        return !isZoneId(id) && !isNestId(id) && id !== active;
+      });
+      const targetCollision = items[0];
+      if (!targetCollision) return nonNest;
+      const target = String(targetCollision.id);
+      const nestHit = (name: string) =>
+        pointer.find((c) => String(c.id) === nestId(name)) ?? { id: nestId(name) };
+
+      if (activeIsChild) {
+        // A child over a sibling reorders within the open menu; over a
+        // same-level top-level button it nests (extracts onto it).
+        if (target.includes(":")) return [targetCollision];
+        const parent = active.slice(0, active.indexOf(":"));
+        const canNest =
+          target !== parent && activeLevel !== null && levelOf(target) === activeLevel;
+        return canNest ? [nestHit(target)] : [targetCollision];
+      }
+
+      if (!target.includes(":")) {
+        const canNest = activeLevel !== null && levelOf(target) === activeLevel;
+        const rect = args.droppableRects.get(targetCollision.id);
+        const px = args.pointerCoordinates?.x;
+        if (canNest && rect && px != null) {
+          const initialLeft = args.active.rect.current.initial?.left ?? args.collisionRect.left;
+          const movingRight = args.collisionRect.left - initialLeft >= 0;
+          const line = movingRight
+            ? rect.left + rect.width * NEST_THRESHOLD
+            : rect.left + rect.width * (1 - NEST_THRESHOLD);
+          const reorder = movingRight ? px > line : px < line;
+          if (!reorder) return [nestHit(target)];
+        }
+      }
+      return [targetCollision];
+    },
+    [activeId, levelOf],
+  );
+
   return (
     <DndContext
       sensors={sensors}

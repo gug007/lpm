@@ -39,6 +39,10 @@ import { getSettings } from "./settings";
 import { forgetProjectTerminals } from "../terminals";
 import { activeChatStorageKey } from "../components/NotesView";
 import { ACTION_SECTIONS, type ActionSection } from "../actionConfig";
+import { editGlobalDoc, editProjectDoc, editRepoDoc } from "../yamlQueue";
+import { applyOpToDoc } from "../actionsStructural";
+import type { StructuralOp } from "../actionsGesture";
+import type { ActionLevel } from "../actionLevels";
 
 export type View =
   | "projects"
@@ -152,6 +156,11 @@ interface AppState {
     projectName: string,
     layout: ActionsLayout,
     baseline?: ActionsLayout,
+  ) => Promise<void>;
+  applyStructuralOp: (
+    projectName: string,
+    op: StructuralOp,
+    level: ActionLevel,
   ) => Promise<void>;
   // Optimistic update without undo push or persist; final commit
   // happens on drop via reorderActions(baseline).
@@ -823,6 +832,19 @@ export const useAppStore = create<AppState>((set, get) => ({
       actionsRedoStack: { ...s.actionsRedoStack, [projectName]: [] },
     }));
     await persistActionsLayoutOrRecover(get, projectName, updates);
+  },
+
+  applyStructuralOp: async (projectName, op, level) => {
+    const mutate = (doc: ReturnType<typeof YAML.parseDocument>) => applyOpToDoc(doc, op);
+    try {
+      if (level === "global") await editGlobalDoc(mutate);
+      else if (level === "repo") await editRepoDoc(projectName, mutate);
+      else await editProjectDoc(projectName, mutate);
+      await get().refreshProjects();
+    } catch (err) {
+      toast.error(`Failed to restructure actions: ${err}`);
+      await get().refreshProjects();
+    }
   },
 
   previewReorderActions: (projectName, layout) => {

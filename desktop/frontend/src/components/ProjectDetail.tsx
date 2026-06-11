@@ -26,7 +26,6 @@ import { deleteProfile } from "../profileConfig";
 import { deleteService } from "../serviceConfig";
 import { EMPTY_SERVICES, noop } from "./project-detail/constants";
 import { useActionsByDisplay } from "../hooks/useActionsByDisplay";
-import { useActionsUndo } from "../hooks/useActionsUndo";
 import { useDetailView } from "../hooks/useDetailView";
 import { useEntityEditor } from "../hooks/useEntityEditor";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
@@ -45,6 +44,8 @@ import {
   type PersistedHistoryEntry,
 } from "../terminals";
 import { useAppStore } from "../store/app";
+import { loadLevelMap, levelOf as levelOfMap, type LevelMap } from "../actionLevels";
+import type { StructuralOp } from "../actionsGesture";
 import { findParentProject, projectDisplayName } from "./ProjectNameDisplay";
 import {
   isFooterDisplay,
@@ -145,7 +146,6 @@ export function ProjectDetail({
     terminalRef.current?.createTerminal();
   }, [switchDetailView]);
   useKeyboardShortcut({ key: "t", meta: true }, handleNewTerminal, visible);
-  useActionsUndo({ projectName: project.name, visible });
 
   const projectActions = useProjectActions({
     projectName: project.name,
@@ -177,7 +177,12 @@ export function ProjectDetail({
   actionsRef.current = project.actions;
   const renderActionOverlay = useCallback(
     (id: string, overGroup: ActionGroup | null) => {
-      const action = (actionsRef.current ?? []).find((a) => a.name === id);
+      const all = actionsRef.current ?? [];
+      let action = all.find((a) => a.name === id);
+      if (!action && id.includes(":")) {
+        const parent = all.find((a) => a.name === id.slice(0, id.indexOf(":")));
+        action = parent?.children?.find((c) => c.name === id);
+      }
       if (!action) return null;
       // Mirror the destination form factor while hovering, so the user
       // sees how the action will look in the zone they're aiming for —
@@ -193,6 +198,34 @@ export function ProjectDetail({
       );
     },
     [],
+  );
+
+  const levelMapRef = useRef<LevelMap>(new Map());
+  useEffect(() => {
+    let cancelled = false;
+    loadLevelMap(project.name).then((m) => {
+      if (!cancelled) levelMapRef.current = m;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.name, project.actions]);
+
+  const levelOf = useCallback((id: string) => levelOfMap(levelMapRef.current, id), []);
+  const isMenu = useCallback(
+    (id: string) => !!(actionsRef.current ?? []).find((a) => a.name === id)?.children?.length,
+    [],
+  );
+  const applyStructuralOp = useAppStore((s) => s.applyStructuralOp);
+  const handleStructural = useCallback(
+    (op: StructuralOp) => {
+      const level = levelOf(
+        op.kind === "nest" || op.kind === "merge" ? op.source : op.parent,
+      );
+      if (!level) return;
+      applyStructuralOp(project.name, op, level);
+    },
+    [applyStructuralOp, project.name, levelOf],
   );
 
   const withLoading = async (fn: () => Promise<void>) => {
@@ -416,6 +449,9 @@ export function ProjectDetail({
       layout={actionsLayout}
       onMove={handleMoveActions}
       onPreview={handlePreviewActions}
+      onStructural={handleStructural}
+      levelOf={levelOf}
+      isMenu={isMenu}
       renderOverlay={renderActionOverlay}
     >
       <div className="flex h-full flex-col">

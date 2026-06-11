@@ -10,10 +10,14 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import type { ActionsLayout } from "../types";
+import { type StructuralOp, detectGesture } from "../actionsGesture";
 import {
   type ActionGroup,
   applyMove,
   groupOf,
+  isNestId,
+  isZoneId,
+  nestTargetOf,
   resolveTarget,
   sameLayout,
 } from "../components/actionsDndLayout";
@@ -24,6 +28,11 @@ export interface UseActionsDndOptions {
   onPreview: (next: ActionsLayout) => void;
   // Pushes undo against baseline and persists — fired once on drop.
   onMove: (next: ActionsLayout, baseline: ActionsLayout) => void;
+  // Fired on a drop classified as a structural gesture (nest/merge/extract/
+  // reorder); the caller then skips the flat reorder.
+  onStructural: (op: StructuralOp) => void;
+  levelOf: (id: string) => "project" | "repo" | "global" | null;
+  isMenu: (id: string) => boolean;
 }
 
 export interface UseActionsDndResult {
@@ -48,7 +57,14 @@ const POINTER_OPTS = { activationConstraint: { distance: 5 } } as const;
 // on cross-zone moves (within-zone reorder rides on SortableContext for
 // free), commit on drop against the snapshot. Handlers read live values
 // via refs because dnd-kit holds the handler reference for the whole drag.
-export function useActionsDnd({ layout, onPreview, onMove }: UseActionsDndOptions): UseActionsDndResult {
+export function useActionsDnd({
+  layout,
+  onPreview,
+  onMove,
+  onStructural,
+  levelOf,
+  isMenu,
+}: UseActionsDndOptions): UseActionsDndResult {
   const sensors = useSensors(useSensor(PointerSensor, POINTER_OPTS));
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overGroup, setOverGroup] = useState<ActionGroup | null>(null);
@@ -57,9 +73,15 @@ export function useActionsDnd({ layout, onPreview, onMove }: UseActionsDndOption
   const layoutRef = useRef(layout);
   const onPreviewRef = useRef(onPreview);
   const onMoveRef = useRef(onMove);
+  const onStructuralRef = useRef(onStructural);
+  const levelOfRef = useRef(levelOf);
+  const isMenuRef = useRef(isMenu);
   layoutRef.current = layout;
   onPreviewRef.current = onPreview;
   onMoveRef.current = onMove;
+  onStructuralRef.current = onStructural;
+  levelOfRef.current = levelOf;
+  isMenuRef.current = isMenu;
 
   // Prevent a stale baseline from leaking across an unmount mid-drag.
   useEffect(() => () => { baselineRef.current = null; }, []);
@@ -110,9 +132,27 @@ export function useActionsDnd({ layout, onPreview, onMove }: UseActionsDndOption
     baselineRef.current = null;
     if (!baseline) return;
     const current = layoutRef.current;
-    if (!over) return revertToBaseline(baseline);
+    // Classify before the no-target early-return: extractToTop fires when a
+    // menu child is dropped on empty space (over absent or a zone). A child
+    // target id (parent:child) is an item; only zone ids are not.
     const draggedId = String(active.id);
-    const overId = String(over.id);
+    const overId = over ? String(over.id) : "";
+    const overNestTarget = isNestId(overId) ? nestTargetOf(overId) : null;
+    const overItemId = over && !isZoneId(overId) && !isNestId(overId) ? overId : null;
+    const draggedLevel = levelOfRef.current(draggedId);
+    const nestLevel = overNestTarget ? levelOfRef.current(overNestTarget) : null;
+    const op = detectGesture({
+      draggedId,
+      draggedIsMenu: isMenuRef.current(draggedId),
+      overNestTarget,
+      overItemId,
+      sameLevel: draggedLevel !== null && draggedLevel === nestLevel,
+    });
+    if (op) {
+      onStructuralRef.current(op);
+      return;
+    }
+    if (!over) return revertToBaseline(baseline);
     // Cursor on the dragged item's own placeholder: the preview already
     // represents where the user wants it to land — commit current as
     // final. (Without this, cross-zone drops snap back to baseline

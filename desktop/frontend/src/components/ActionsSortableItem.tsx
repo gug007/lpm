@@ -2,6 +2,7 @@ import { type ReactNode } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useActionsZone } from "./ActionsDnd";
+import { NestDropZone } from "./NestDropZone";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 
 interface ActionsSortableItemProps {
@@ -26,11 +27,12 @@ export function ActionsSortableItem({ id, children }: ActionsSortableItemProps) 
   };
   // Outline, not border: paint-only, so siblings don't shift at lift-off.
   const wrapperClass = isDragging
-    ? `${compact ? "rounded-md" : "rounded-lg"} outline-2 -outline-offset-2 outline-dashed outline-[var(--accent-blue)]/50 cursor-grabbing [&>*]:opacity-0`
-    : "cursor-grab";
+    ? `relative ${compact ? "rounded-md" : "rounded-lg"} outline-2 -outline-offset-2 outline-dashed outline-[var(--accent-blue)]/50 cursor-grabbing [&>*]:opacity-0`
+    : "relative cursor-grab";
   return (
     <div ref={setNodeRef} style={style} className={wrapperClass} {...listeners}>
       {children}
+      <NestDropZone targetId={id} />
     </div>
   );
 }

@@ -16,6 +16,17 @@ export function isZoneId(id: string): boolean {
   return id.startsWith(ZONE_ID_PREFIX);
 }
 
+export const NEST_ID_PREFIX = "nest:";
+export function nestId(name: string): string {
+  return `${NEST_ID_PREFIX}${name}`;
+}
+export function isNestId(id: string): boolean {
+  return id.startsWith(NEST_ID_PREFIX);
+}
+export function nestTargetOf(id: string): string {
+  return id.slice(NEST_ID_PREFIX.length);
+}
+
 export function groupOf(layout: ActionsLayout, id: string): ActionGroup | null {
   if (layout.header.includes(id)) return "header";
   if (layout.footer.includes(id)) return "footer";

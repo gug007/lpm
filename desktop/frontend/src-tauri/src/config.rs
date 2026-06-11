@@ -1108,7 +1108,15 @@ pub fn resolve_actions(file_name: &str) -> Vec<Value> {
             sort_action_names(&mut cnames, |cn| children.get(cn).and_then(|a| a.position));
             info.children = cnames
                 .iter()
-                .map(|cn| action_to_info(&format!("{name}:{cn}"), &children[cn]))
+                .map(|cn| {
+                    let mut child_info = action_to_info(&format!("{name}:{cn}"), &children[cn]);
+                    // The id stays composite for unique DnD ids, but the visible
+                    // label must not inherit the `parent:child` form.
+                    if children[cn].label.is_empty() {
+                        child_info.label = cn.clone();
+                    }
+                    child_info
+                })
                 .collect();
         }
         out.push(info);
