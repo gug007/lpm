@@ -857,7 +857,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       }
     } catch (err) {
-      toast.error(`Failed to restructure actions: ${err}`);
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to restructure actions: ${message}`);
       await get().refreshProjects();
     }
   },

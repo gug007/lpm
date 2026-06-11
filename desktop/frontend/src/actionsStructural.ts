@@ -54,12 +54,27 @@ function childActionsMap(doc: Doc, parent: MapNode): MapNode {
   return created;
 }
 
+// Moves abort on a name collision instead of overwriting — a silent replace
+// would permanently destroy the existing entry's config.
+function conflictError(key: string): Error {
+  return new Error(`an action named "${key}" already exists at the destination`);
+}
+
+function peekChildren(container: MapNode, key: string): MapNode | null {
+  const value = container.get(key, true);
+  if (!YAML.isMap(value)) return null;
+  const children = value.get("actions", true);
+  return YAML.isMap(children) ? children : null;
+}
+
 // Move a top-level source entry into target's nested actions: map.
 // Used for leaf->leaf (target widens to split menu) and leaf->menu.
 export function nestEntry(doc: Doc, sourceKey: string, targetKey: string): void {
+  if (sourceKey === targetKey) return;
   const source = findTopEntry(doc, sourceKey);
   const target = findTopEntry(doc, targetKey);
   if (!source || !target) return;
+  if (peekChildren(target.map, targetKey)?.has(sourceKey)) throw conflictError(sourceKey);
   const sourceNode = source.map.get(sourceKey, true);
   source.map.delete(sourceKey);
   const targetMap = asMap(doc, target.map, targetKey);
@@ -70,21 +85,33 @@ export function nestEntry(doc: Doc, sourceKey: string, targetKey: string): void 
 // Spread a source menu into target: its default (if any) becomes a regular
 // child, its existing children move up as equal items, source is removed.
 export function mergeMenu(doc: Doc, sourceKey: string, targetKey: string): void {
+  if (sourceKey === targetKey) return;
   const source = findTopEntry(doc, sourceKey);
   const target = findTopEntry(doc, targetKey);
   if (!source || !target) return;
 
   const sourceNode = source.map.get(sourceKey, true);
+  const childMap = YAML.isMap(sourceNode) ? sourceNode.get("actions", true) : null;
+  const incoming: string[] = [];
+  if (YAML.isMap(childMap)) {
+    for (const item of childMap.items) {
+      if (YAML.isScalar(item.key)) incoming.push(String(item.key.value));
+    }
+  }
+  if (hasDefaultCmd(sourceNode)) incoming.push(sourceKey);
+  const existing = peekChildren(target.map, targetKey);
+  const seen = new Set<string>();
+  for (const key of incoming) {
+    if (seen.has(key) || existing?.has(key)) throw conflictError(key);
+    seen.add(key);
+  }
+
   const targetMap = asMap(doc, target.map, targetKey);
   const dest = childActionsMap(doc, targetMap);
 
   if (YAML.isMap(sourceNode)) {
-    const childMap = sourceNode.get("actions", true);
     sourceNode.delete("actions");
-    const hasDefault =
-      sourceNode.has("cmd") &&
-      typeof (sourceNode.get("cmd", true) as YAML.Scalar)?.value === "string";
-    if (hasDefault) dest.set(sourceKey, sourceNode);
+    if (hasDefaultCmd(sourceNode)) dest.set(sourceKey, sourceNode);
     if (YAML.isMap(childMap)) {
       for (const item of childMap.items) {
         if (YAML.isScalar(item.key)) dest.set(item.key.value as string, item.value);
@@ -134,13 +161,18 @@ export function collapseMenu(doc: Doc, parentKey: string): void {
   if (YAML.isMap(children) && children.items.length === 1) {
     const only = children.items[0];
     if (YAML.isScalar(only.key)) {
+      const survivorKey = String(only.key.value);
+      // Collapse runs after the primary move already mutated the doc, so a
+      // collision can't abort the op — keep the one-item menu instead.
+      if (survivorKey !== parentKey && findTopEntry(doc, survivorKey)) return;
       parent.map.delete(parentKey);
-      parent.map.set(only.key.value as string, only.value);
+      parent.map.set(survivorKey, only.value);
     }
   }
 }
 
 export function extractToTop(doc: Doc, parentKey: string, childKey: string): void {
+  if (findTopEntry(doc, childKey)) throw conflictError(childKey);
   const node = detachChild(doc, parentKey, childKey);
   if (node === null) return;
   const section = findTopEntry(doc, parentKey)?.section ?? ACTION_SECTIONS[0];
@@ -149,20 +181,21 @@ export function extractToTop(doc: Doc, parentKey: string, childKey: string): voi
   collapseMenu(doc, parentKey);
 }
 
-// Move a menu child directly onto another top-level item, then collapse
-// the source parent. Re-homes the node at top level first so nestEntry can
-// treat it uniformly with a leaf drag.
+// Move a menu child directly into another top-level item's children, then
+// collapse the source parent.
 export function extractOnto(
   doc: Doc,
   parentKey: string,
   childKey: string,
   targetKey: string,
 ): void {
+  const target = findTopEntry(doc, targetKey);
+  if (!target) return;
+  if (peekChildren(target.map, targetKey)?.has(childKey)) throw conflictError(childKey);
   const node = detachChild(doc, parentKey, childKey);
   if (node === null) return;
-  const section = findTopEntry(doc, parentKey)?.section ?? ACTION_SECTIONS[0];
-  ensureSection(doc, section).set(childKey, node);
-  nestEntry(doc, childKey, targetKey);
+  const targetMap = asMap(doc, target.map, targetKey);
+  childActionsMap(doc, targetMap).set(childKey, node);
   collapseMenu(doc, parentKey);
 }
 
@@ -193,14 +226,47 @@ export function reorderMenu(doc: Doc, parentKey: string, order: string[]): void 
   });
 }
 
-function currentChildOrder(doc: Doc, parentKey: string): string[] {
+function childPosition(children: MapNode, key: string): number | null {
+  const node = children.get(key, true);
+  if (!YAML.isMap(node)) return null;
+  const pos = node.get("position", true);
+  // A position stamped by reorderMenu on this same doc is a raw number,
+  // not a scalar node — it only becomes one after a save/parse round-trip.
+  if (typeof pos === "number") return pos;
+  return YAML.isScalar(pos) && typeof pos.value === "number" ? pos.value : null;
+}
+
+// The resolver compares names by code point (Rust str cmp on UTF-8); JS "<"
+// compares UTF-16 units, which disagrees once astral characters appear.
+function compareNames(a: string, b: string): number {
+  const ca = [...a];
+  const cb = [...b];
+  const n = Math.min(ca.length, cb.length);
+  for (let i = 0; i < n; i++) {
+    const d = (ca[i].codePointAt(0) ?? 0) - (cb[i].codePointAt(0) ?? 0);
+    if (d !== 0) return d;
+  }
+  return ca.length - cb.length;
+}
+
+// The order the user sees, not YAML key order: the resolver sorts children
+// by position then name (sort_action_names in config.rs).
+function displayedChildOrder(doc: Doc, parentKey: string): string[] {
   const parent = findTopEntry(doc, parentKey);
   if (!parent || !YAML.isMap(parent.value)) return [];
   const children = parent.value.get("actions", true);
   if (!YAML.isMap(children)) return [];
-  return children.items
+  const keys = children.items
     .filter((i) => YAML.isScalar(i.key))
     .map((i) => String((i.key as YAML.Scalar).value));
+  return keys.sort((a, b) => {
+    const pa = childPosition(children, a);
+    const pb = childPosition(children, b);
+    if (pa !== null && pb !== null && pa !== pb) return pa - pb;
+    if (pa !== null && pb === null) return -1;
+    if (pa === null && pb !== null) return 1;
+    return compareNames(a, b);
+  });
 }
 
 export function applyOpToDoc(doc: Doc, op: StructuralOp): void {
@@ -218,9 +284,13 @@ export function applyOpToDoc(doc: Doc, op: StructuralOp): void {
       extractToTop(doc, op.parent, op.child);
       return;
     case "reorderMenu": {
-      const order = currentChildOrder(doc, op.parent).filter((k) => k !== op.child);
-      const at = order.indexOf(op.over);
-      order.splice(at < 0 ? order.length : at, 0, op.child);
+      // Match the drag preview's arrayMove semantics: the dragged child
+      // takes over's slot, computed against the displayed order.
+      const order = displayedChildOrder(doc, op.parent);
+      const from = order.indexOf(op.child);
+      const to = order.indexOf(op.over);
+      if (from < 0 || to < 0 || from === to) return;
+      order.splice(to, 0, ...order.splice(from, 1));
       reorderMenu(doc, op.parent, order);
       return;
     }
