@@ -14,7 +14,7 @@ export default function Hero() {
           <br className="hidden sm:block" />
           built natively for Apple Silicon.
         </h1>
-        <p className="mt-6 text-base sm:text-lg text-gray-400 dark:text-gray-500 max-w-xl mx-auto leading-relaxed tracking-wide">
+        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed tracking-wide">
           A real macOS desktop app that runs your whole dev stack in one window
           — live output per service, a visual project switcher, and no Electron
           runtime to drain your MacBook&apos;s battery.

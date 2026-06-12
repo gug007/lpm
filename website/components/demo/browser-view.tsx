@@ -508,7 +508,7 @@ function AppPreview({ project, c }: { project: DemoProject; c: Palette }) {
           ))}
         </aside>
         <main className="min-w-0 flex-1 p-4">
-          <h1 className="text-base font-semibold">Dashboard</h1>
+          <div className="text-base font-semibold">Dashboard</div>
           <div className="mt-3 grid grid-cols-3 gap-2.5">
             {metrics.map((m) => (
               <div
@@ -620,7 +620,7 @@ function DocsPreview({ project, c }: { project: DemoProject; c: Palette }) {
           <div className="text-[11px] font-medium" style={{ color: c.accent }}>
             Getting Started
           </div>
-          <h1 className="mt-1 text-xl font-bold">Introduction</h1>
+          <div className="mt-1 text-xl font-bold">Introduction</div>
           <p className="mt-3 text-[12px] leading-relaxed" style={{ color: c.sub }}>
             Welcome to the {project.label ?? project.name} documentation. This guide walks you
             through installing the toolkit, wiring up your first project, and shipping to
@@ -838,7 +838,7 @@ function GenericSite({ host, c }: { host: string; c: Palette }) {
         </div>
       </header>
       <div className="px-5 py-10 text-center">
-        <h1 className="text-2xl font-bold tracking-tight">Build something great</h1>
+        <div className="text-2xl font-bold tracking-tight">Build something great</div>
         <p className="mx-auto mt-3 max-w-md text-[13px] leading-relaxed" style={{ color: c.sub }}>
           Welcome to {host}. This is a simulated page — the real lpm browser loads live sites in a
           native webview, right next to your terminals.

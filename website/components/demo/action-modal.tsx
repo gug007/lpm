@@ -65,9 +65,9 @@ export function DemoActionModal({
       ) : (
         <div className="relative w-[28rem] max-w-[calc(100%-2rem)] rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-5 shadow-xl">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+            <div className="text-base font-semibold text-gray-900 dark:text-white">
               {phase === "result" ? `${action.label} finished` : `Running ${action.label}`}
-            </h3>
+            </div>
             {phase === "result" ? (
               <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
                 <Check className="w-3 h-3" />

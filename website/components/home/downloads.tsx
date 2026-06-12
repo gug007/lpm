@@ -45,7 +45,7 @@ export function Downloads() {
   return (
     <section
       id="download"
-      className="py-20 sm:py-24 border-t border-gray-200 dark:border-gray-800 text-center"
+      className="scroll-mt-20 py-20 sm:py-24 border-t border-gray-200 dark:border-gray-800 text-center"
     >
       <div className="max-w-4xl mx-auto px-6">
         <div className="flex flex-col items-center gap-3 mb-12">

@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import { DemoSection } from "@/components/home/demo";
-import { GIT_TERMINAL_MAC_PATH } from "@/lib/links";
+import { RelatedPages } from "@/components/related-pages";
+import {
+  BEST_TERMINAL_MAC_PATH,
+  GIT_TERMINAL_MAC_PATH,
+  vsPath,
+} from "@/lib/links";
+import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
 import Benefits from "./_components/benefits";
 import Comparison from "./_components/comparison";
 import Cta from "./_components/cta";
@@ -16,25 +22,11 @@ export const metadata: Metadata = {
     "lpm is the git terminal for Mac developers — run git workflows alongside your dev servers in one native window, watch CI logs, and never lose branch context again.",
   keywords: [
     "git terminal for mac",
-    "git terminal mac",
     "best git terminal for mac",
     "mac terminal for git",
     "git terminal macos",
     "terminal git workflow mac",
-    "mac git client terminal",
-    "git rebase terminal mac",
     "git branching terminal mac",
-    "git terminal vs gui mac",
-    "gitkraken alternative mac",
-    "sourcetree alternative mac",
-    "tower git alternative mac",
-    "iterm2 git workflow",
-    "mac terminal for github",
-    "terminal git and dev server mac",
-    "git pr workflow terminal mac",
-    "mac terminal branch switching",
-    "lpm",
-    "local project manager",
   ],
   alternates: {
     canonical: GIT_TERMINAL_MAC_PATH,
@@ -55,9 +47,26 @@ export const metadata: Metadata = {
   },
 };
 
+const structuredData = [
+  webPageJsonLd({
+    title: "Git Terminal for Mac — Branch, Rebase, and Ship Faster",
+    description:
+      "lpm is the git terminal for Mac developers — run git workflows alongside your dev servers in one native window, watch CI logs, and never lose branch context again.",
+    path: GIT_TERMINAL_MAC_PATH,
+  }),
+  breadcrumbJsonLd([
+    { name: "Home", path: "/" },
+    { name: "Git Terminal for Mac", path: GIT_TERMINAL_MAC_PATH },
+  ]),
+];
+
 export default function GitTerminalForMacPage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <Hero />
       <DemoSection />
       <Problem />
@@ -66,6 +75,22 @@ export default function GitTerminalForMacPage() {
       <Workflows />
       <Comparison />
       <Faq />
+      <RelatedPages
+        links={[
+          {
+            href: BEST_TERMINAL_MAC_PATH,
+            title: "Best terminal for Mac",
+            description:
+              "Why a native Apple Silicon workspace beats Electron terminals and tab strips.",
+          },
+          {
+            href: vsPath("tmux"),
+            title: "lpm vs tmux",
+            description:
+              "How lpm compares to tmux for running services and shells side by side.",
+          },
+        ]}
+      />
       <Cta />
     </>
   );

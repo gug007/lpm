@@ -1,10 +1,18 @@
 import type { Metadata } from "next";
+import { DemoSection } from "@/components/home/demo";
+import { RelatedPages } from "@/components/related-pages";
 import { ComparisonHero } from "@/components/vs/comparison-hero";
 import { Cta } from "@/components/vs/cta";
 import { Faq, type FaqItem } from "@/components/vs/faq";
 import { FeatureMatrix, type MatrixRow } from "@/components/vs/feature-matrix";
 import { WhenToPick } from "@/components/vs/when-to-pick";
-import { REPO_URL, vsPath } from "@/lib/links";
+import {
+  AI_AGENTS_PATH,
+  REPO_URL,
+  VS_BASE_PATH,
+  vsPath,
+} from "@/lib/links";
+import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
 
 const PATH = vsPath("tmux");
 
@@ -18,11 +26,7 @@ export const metadata: Metadata = {
     "tmux for dev projects",
     "tmuxinator alternative",
     "tmux dev stack",
-    "tmux process manager",
-    "tmux panes per service",
-    "zellij alternative dev",
     "lpm vs tmux",
-    "local dev stack manager",
   ],
   alternates: { canonical: PATH },
   openGraph: {
@@ -113,26 +117,25 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Does lpm use tmux under the hood?",
     answer:
-      "Yes — lpm runs services inside tmux sessions so they persist across terminal restarts and each one has its own scrollable window. The point is that lpm wraps the tmux mechanics: you never edit a .tmux.conf, never memorize keybindings, never attach to a window by name. You get the tmux benefits (sessions stay alive, per-service windows) without the config burden. If tmux isn't installed, lpm prompts you to brew install tmux.",
+      "What matters is the behavior: your services run in persistent sessions that survive app and terminal restarts, and each one gets its own scrollable pane in the desktop app. There's nothing to install, configure, or attach to — no .tmux.conf to edit, no keybindings to memorize, no windows to attach to by name. You get the persistence and per-service visibility you'd normally build with tmux, without setting any of it up.",
   },
   {
     question: "What about my remote / SSH workflow?",
     answer:
-      "tmux is the right tool there and nothing here changes that. The lpm desktop app is macOS-only and local-first. If most of your work is inside an SSH session on a remote box, keep tmux — lpm is not trying to replace it.",
+      "lpm can attach remote dev boxes as SSH projects — run remote services in panes beside local ones and forward remote ports to localhost from the app. That said, if your entire session lives inside SSH on a remote box and you reach it from arbitrary machines, tmux on that box is still the right tool — lpm is not trying to replace it there.",
   },
   {
     question: "Is this basically tmuxinator with a GUI?",
     answer:
-      "Overlapping goals, different shape. tmuxinator gives you named, YAML-defined tmux layouts per project. lpm gives you auto-detected projects with live pane output, a visual switcher, and first-class start / stop / duplicate. If your tmuxinator file is mostly `rails s`, `npm dev`, `redis`, `sidekiq`, lpm will feel like a shortcut. If you lean on custom layouts, splits, and keybindings, tmuxinator will still suit you better.",
+      "Overlapping goals, different shape. tmuxinator gives you named, YAML-defined tmux layouts per project. lpm gives you managed projects with live pane output, a visual switcher, and first-class start / stop / duplicate. If your tmuxinator file is mostly `rails s`, `npm dev`, `redis`, `sidekiq`, lpm will feel like a shortcut. If you lean on custom layouts, splits, and keybindings, tmuxinator will still suit you better.",
   },
   {
     question: "How do I move a tmuxinator project over to lpm?",
     answer: (
       <>
-        For an auto-detected stack (Rails, Next.js, Go, Django, Flask, Docker
-        Compose), point lpm at the directory and it figures out the services on
-        its own — usually no config at all. For anything custom, define the
-        services in lpm&apos;s config and start the project from the app.
+        Point lpm at the directory and let it generate the service config
+        from your repo, or define the services yourself — each one is just a
+        name and a command. Then start the project from the app.
         You can keep the tmuxinator file around as a fallback; lpm
         won&apos;t touch it. Source and examples are on{" "}
         <a
@@ -144,18 +147,38 @@ const FAQ_ITEMS: FaqItem[] = [
         .
       </>
     ),
-    answerText: `For an auto-detected stack (Rails, Next.js, Go, Django, Flask, Docker Compose), point lpm at the directory and it figures out the services on its own — usually no config at all. For anything custom, define the services in lpm's config and start the project from the app. You can keep the tmuxinator file around as a fallback; lpm won't touch it. Source and examples are on GitHub at ${REPO_URL}.`,
+    answerText: `Point lpm at the directory and let it generate the service config from your repo, or define the services yourself — each one is just a name and a command. Then start the project from the app. You can keep the tmuxinator file around as a fallback; lpm won't touch it. Source and examples are on GitHub at ${REPO_URL}.`,
   },
+];
+
+const structuredData = [
+  webPageJsonLd({
+    title: "lpm vs tmux",
+    description:
+      "tmux-level visibility, one-command start, no config. An honest comparison of lpm and tmux for running local dev stacks with services in panes.",
+    path: PATH,
+  }),
+  breadcrumbJsonLd([
+    { name: "Home", path: "/" },
+    { name: "Compare", path: VS_BASE_PATH },
+    { name: "tmux", path: PATH },
+  ]),
 ];
 
 export default function VsTmuxPage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <ComparisonHero
         eyebrow="lpm vs tmux"
         title="tmux-level visibility, one-command start, no config."
         description="tmux is a wonderful terminal multiplexer. lpm is a local project manager that happens to give you the same pane-per-service layout for free. If you only use tmux to wire up your dev stack, this page is for you."
       />
+
+      <DemoSection />
 
       <FeatureMatrix
         title="Where each tool earns its keep"
@@ -197,6 +220,23 @@ export default function VsTmuxPage() {
       <Faq
         title="lpm vs tmux, answered honestly"
         items={FAQ_ITEMS}
+      />
+
+      <RelatedPages
+        links={[
+          {
+            href: AI_AGENTS_PATH,
+            title: "Best terminal for Claude Code & Codex",
+            description:
+              "Run AI coding agents next to your services with status on every tab.",
+          },
+          {
+            href: vsPath("overmind"),
+            title: "lpm vs Overmind",
+            description:
+              "The Procfile runner comparison, for when your panes come from a Procfile.",
+          },
+        ]}
       />
 
       <Cta

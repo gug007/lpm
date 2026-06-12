@@ -13,7 +13,7 @@ const FAQS: QA[] = [
     question:
       "Is lpm the best terminal for Mac on Apple Silicon (M1, M2, M3, M4)?",
     answer:
-      "Yes. lpm ships as a universal macOS binary that runs natively on every Apple Silicon chip from M1 to M4, and on Intel Macs too. There is no Rosetta layer, no Electron runtime, and no Chromium tax — it behaves like a first-class Mac app and respects your battery.",
+      "Yes. lpm ships native builds for both Apple Silicon (M1–M4) and Intel Macs — no Rosetta, no Electron. There is no Chromium tax — it behaves like a first-class Mac app and respects your battery.",
   },
   {
     question: "Is lpm a free terminal for Mac?",
@@ -33,12 +33,12 @@ const FAQS: QA[] = [
   {
     question: "How do I download lpm for macOS?",
     answer:
-      "Go to lpm.cx, download the .dmg, open it, and drag lpm to your Applications folder. The app supports macOS 12 and later on both Apple Silicon and Intel Macs. On first launch, point it at any project folder and lpm will auto-detect its services.",
+      "Go to lpm.cx, download the .dmg, open it, and drag lpm to your Applications folder. The app supports macOS 12 and later on both Apple Silicon and Intel Macs. On first launch, point it at any project folder and lpm can generate its service config for you with AI.",
   },
   {
     question: "Is lpm a good terminal for beginners on Mac?",
     answer:
-      "Yes. Beginners get a visual sidebar, one-click Start and Stop buttons, and auto-detected services for common frameworks like Rails, Next.js, Django, and Flask. You never have to memorize which command starts which server — lpm surfaces them as labelled buttons while still giving you a full macOS terminal underneath when you want one.",
+      "Yes. Beginners get a visual sidebar, one-click Start and Stop buttons, and an AI-generated service config for common frameworks like Rails, Next.js, Django, and Flask. You never have to memorize which command starts which server — lpm surfaces them as labelled buttons while still giving you a full macOS terminal underneath when you want one.",
   },
 ];
 

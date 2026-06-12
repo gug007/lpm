@@ -12,8 +12,8 @@ export default function Cta() {
           Free, native, Apple Silicon ready.
         </h2>
         <p className="mt-6 text-base sm:text-lg text-gray-400 dark:text-gray-500 max-w-xl mx-auto leading-relaxed tracking-wide">
-          A universal macOS binary. Drag to Applications and you&apos;re in.
-          Works on every Intel and Apple Silicon Mac running macOS 12 or later.
+          Native builds for Apple Silicon and Intel Macs. Drag to Applications
+          and you&apos;re in. Works on every Mac running macOS 12 or later.
         </p>
 
         <div className="mt-10 flex justify-center">

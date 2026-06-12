@@ -8,7 +8,14 @@ import {
   type MatrixRow,
 } from "@/components/vs/feature-matrix";
 import { WhenToPick } from "@/components/vs/when-to-pick";
-import { REPO_URL, vsPath } from "@/lib/links";
+import { RelatedPages } from "@/components/related-pages";
+import {
+  AI_AGENTS_PATH,
+  REPO_URL,
+  VS_BASE_PATH,
+  vsPath,
+} from "@/lib/links";
+import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
 
 const PATH = vsPath("cmux");
 
@@ -20,13 +27,9 @@ export const metadata: Metadata = {
     "lpm vs cmux",
     "cmux alternative",
     "cmux alternative macos",
-    "cmux project manager",
     "terminal for claude code",
     "terminal for codex",
     "manaflow cmux",
-    "macos coding agent terminal",
-    "lpm",
-    "local project manager",
   ],
   alternates: { canonical: PATH },
   openGraph: {
@@ -53,7 +56,7 @@ const MATRIX_ROWS: MatrixRow[] = [
   },
   {
     label: "Per-project config",
-    lpm: "YAML in ~/.lpm/projects/",
+    lpm: "small file you can edit and commit",
     competitor: "cmux.json in repo",
   },
   {
@@ -82,18 +85,18 @@ const MATRIX_ROWS: MatrixRow[] = [
     competitor: "as pane commands",
   },
   {
-    label: "Embedded scriptable browser",
-    lpm: false,
-    competitor: true,
+    label: "Embedded browser",
+    lpm: "tabs beside terminals",
+    competitor: "scriptable",
   },
   {
     label: "Native SSH workspaces",
-    lpm: false,
+    lpm: "remote projects + port forwarding",
     competitor: true,
   },
   {
     label: "Pre-built agent hooks (Claude Code, Codex, Aider, etc.)",
-    lpm: "partial",
+    lpm: "Claude Code, Codex, Gemini, OpenCode",
     competitor: true,
   },
   {
@@ -127,36 +130,55 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "What's the license difference?",
     answer:
-      "lpm is open source and free for any use, including inside companies. cmux is GPL-3.0, which means commercial use in an org that can't ship GPL code requires a paid commercial license from Manaflow.",
+      "lpm is open source and free for any use, including inside companies. cmux is GPL-3.0; that's fine for running it internally, and orgs that want to embed or redistribute it without GPL obligations can buy a commercial license from Manaflow.",
   },
   {
-    question: "Can I migrate a cmux.json to an lpm YAML?",
+    question: "Can I migrate a cmux.json to an lpm config?",
     answer:
       "There's no automatic converter, but the shapes are close. Each cmux command roughly maps to an lpm service or action. Pointing lpm at the repo gives you a starting config you can prune to match what your cmux.json was launching.",
   },
   {
-    question:
-      "Does lpm have an embedded browser or SSH workspaces like cmux?",
+    question: "Does lpm have an embedded browser like cmux?",
     answer: (
       <>
-        No to both — if those matter, cmux is the better fit. The source lives
-        on{" "}
+        Yes — lpm opens browser tabs in panes right next to your terminals, so
+        the app you&apos;re building renders in the same workspace as the
+        agents building it. cmux&apos;s browser is scriptable, which matters
+        if you automate browser checks. The source lives on{" "}
         <a
           href={REPO_URL}
           className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
         >
           GitHub
         </a>{" "}
-        if you want to see what lpm focuses on instead.
+        if you want to see how lpm&apos;s browser tabs fit in.
       </>
     ),
-    answerText: `No to both — if those matter, cmux is the better fit. The source lives on GitHub at ${REPO_URL} if you want to see what lpm focuses on instead.`,
+    answerText: `Yes — lpm opens browser tabs in panes right next to your terminals, so the app you're building renders in the same workspace as the agents building it. cmux's browser is scriptable, which matters if you automate browser checks. The source lives on GitHub at ${REPO_URL} if you want to see how lpm's browser tabs fit in.`,
   },
+];
+
+const structuredData = [
+  webPageJsonLd({
+    title: "lpm vs cmux",
+    description:
+      "lpm and cmux both target Mac developers running AI coding agents. Honest side-by-side: lpm manages projects, cmux is the terminal.",
+    path: PATH,
+  }),
+  breadcrumbJsonLd([
+    { name: "Home", path: "/" },
+    { name: "Compare", path: VS_BASE_PATH },
+    { name: "cmux", path: PATH },
+  ]),
 ];
 
 export default function LpmVsCmuxPage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <ComparisonHero
         eyebrow="lpm vs cmux"
         title="Project manager vs. terminal — both built for coding agents."
@@ -192,8 +214,7 @@ export default function LpmVsCmuxPage() {
           headline:
             "You want a native macOS terminal with agent ergonomics baked in.",
           points: [
-            "You want an embedded scriptable browser and native SSH workspaces in the same window.",
-            "You want pre-built notification rings and ready-state detection across many agents out of the box.",
+            "You want a scriptable browser and an external control API for automation.",
             "Your work is one repo at a time, and project juggling isn't your bottleneck.",
             "You're fine writing a cmux.json by hand for each project.",
           ],
@@ -201,6 +222,23 @@ export default function LpmVsCmuxPage() {
       />
 
       <Faq title="lpm vs cmux — the honest FAQ" items={FAQ_ITEMS} />
+
+      <RelatedPages
+        links={[
+          {
+            href: AI_AGENTS_PATH,
+            title: "Best terminal for Claude Code & Codex",
+            description:
+              "Run AI coding agents next to your services with status on every tab.",
+          },
+          {
+            href: vsPath("tmux"),
+            title: "lpm vs tmux",
+            description:
+              "How lpm compares when your agent panes come from tmux instead.",
+          },
+        ]}
+      />
 
       <Cta
         title="Run your projects, your way."

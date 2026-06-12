@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { DemoSection } from "@/components/home/demo";
+import { RelatedPages } from "@/components/related-pages";
 import { ComparisonHero } from "@/components/vs/comparison-hero";
 import { Cta } from "@/components/vs/cta";
 import { Faq, type FaqItem } from "@/components/vs/faq";
@@ -7,7 +10,14 @@ import {
   type MatrixRow,
 } from "@/components/vs/feature-matrix";
 import { WhenToPick } from "@/components/vs/when-to-pick";
-import { REPO_URL, vsPath } from "@/lib/links";
+import {
+  CONFIG_PATH,
+  MAC_TERMINAL_DEVELOPERS_PATH,
+  REPO_URL,
+  VS_BASE_PATH,
+  vsPath,
+} from "@/lib/links";
+import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
 
 const PATH = vsPath("pm2");
 
@@ -21,12 +31,7 @@ export const metadata: Metadata = {
     "dev process manager",
     "node dev process manager",
     "pm2 for local development",
-    "pm2 ecosystem config",
     "node.js process manager",
-    "multi-project manager",
-    "parallel ai agents",
-    "lpm",
-    "local project manager",
   ],
   alternates: { canonical: PATH },
   openGraph: {
@@ -72,7 +77,7 @@ const MATRIX_ROWS: MatrixRow[] = [
     competitor: false,
   },
   {
-    label: "Framework auto-detect (Rails, Next.js, Go, Django, Flask, Compose)",
+    label: "Generates project config from your repo",
     lpm: true,
     competitor: "Node-focused",
   },
@@ -118,7 +123,7 @@ const MATRIX_ROWS: MatrixRow[] = [
   },
   {
     label: "Config format",
-    lpm: "YAML name + command",
+    lpm: "name + command per service",
     competitor: "ecosystem.config.js",
   },
   {
@@ -142,12 +147,30 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "I run non-Node projects — Rails, Django, Go. Does lpm help more than PM2 there?",
     answer:
-      "This is where the split is clearest. PM2 can run non-Node commands via its interpreter: \"none\" or bash escape hatch, but the ecosystem, docs, and defaults all assume Node. lpm auto-detects Rails, Next.js, Go, Django, Flask, and Docker Compose as first-class — you point it at the repo, it figures out the services, and each one gets its own live pane. If your stack is mixed or non-Node, lpm is built for that shape.",
+      "This is where the split is clearest. PM2 can run non-Node commands via its interpreter: \"none\" or bash escape hatch, but the ecosystem, docs, and defaults all assume Node. lpm treats any stack as first-class — point it at the repo, let it generate the service config, and each service gets its own live pane. If your stack is mixed or non-Node, lpm is built for that shape.",
   },
   {
     question: "How do I migrate from ecosystem.config.js to lpm?",
-    answer:
-      "You don't fully migrate — you'd keep ecosystem.config.js for production and add an lpm config for dev. lpm uses a lightweight YAML where each service is name + command, which maps cleanly to the apps array in ecosystem.config.js: take each entry's name and script/args, drop it into the lpm config, and you're running. Env vars, cwd, and ports are handled in the lpm config separately. For many Node projects the framework auto-detect means you don't even need a config.",
+    answer: (
+      <>
+        You don&apos;t fully migrate — you&apos;d keep ecosystem.config.js for
+        production and add an lpm config for dev. lpm uses a{" "}
+        <Link
+          href={CONFIG_PATH}
+          className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
+        >
+          small per-project config file
+        </Link>{" "}
+        you can read, edit, and commit, where each service is just a name and
+        a command — which maps cleanly to the apps array in
+        ecosystem.config.js: take each entry&apos;s name and script/args, drop
+        it into the lpm config, and you&apos;re running. Env vars, cwd, and
+        ports are handled in the lpm config separately. Or let lpm read the
+        repo and generate the config for you.
+      </>
+    ),
+    answerText:
+      "You don't fully migrate — you'd keep ecosystem.config.js for production and add an lpm config for dev. lpm uses a small per-project config file you can read, edit, and commit, where each service is just a name and a command — which maps cleanly to the apps array in ecosystem.config.js: take each entry's name and script/args, drop it into the lpm config, and you're running. Env vars, cwd, and ports are handled in the lpm config separately. Or let lpm read the repo and generate the config for you.",
   },
   {
     question: "Can I run PM2 under lpm during development?",
@@ -173,14 +196,34 @@ const FAQ_ITEMS: FaqItem[] = [
   },
 ];
 
+const structuredData = [
+  webPageJsonLd({
+    title: "lpm vs PM2",
+    description:
+      "PM2 keeps Node apps alive in production. lpm runs your dev loop with per-service panes, multi-project switching, and AI-agent workflows. Honest comparison.",
+    path: PATH,
+  }),
+  breadcrumbJsonLd([
+    { name: "Home", path: "/" },
+    { name: "Compare", path: VS_BASE_PATH },
+    { name: "PM2", path: PATH },
+  ]),
+];
+
 export default function LpmVsPm2Page() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <ComparisonHero
         eyebrow="lpm vs PM2"
         title="PM2 is for production. lpm is for the dev loop."
         description="PM2 is a rock-solid daemon for keeping Node apps alive in prod — clustering, auto-restart, startup scripts. lpm is a workflow tool for starting, stopping, and switching between local projects while you code. Different jobs."
       />
+
+      <DemoSection />
 
       <FeatureMatrix
         title="PM2 and lpm, feature by feature"
@@ -221,6 +264,23 @@ export default function LpmVsPm2Page() {
       <Faq
         title="lpm vs PM2 — the honest FAQ"
         items={FAQ_ITEMS}
+      />
+
+      <RelatedPages
+        links={[
+          {
+            href: MAC_TERMINAL_DEVELOPERS_PATH,
+            title: "Mac terminal for developers",
+            description:
+              "Run your whole stack — services, logs, and agents — in one native Mac app.",
+          },
+          {
+            href: vsPath("docker-compose"),
+            title: "lpm vs Docker Compose",
+            description:
+              "Native dev versus containers for the local stack you edit every day.",
+          },
+        ]}
       />
 
       <Cta

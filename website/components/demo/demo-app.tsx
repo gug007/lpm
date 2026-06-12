@@ -10,6 +10,7 @@ import INITIAL_PROJECTS, {
   type OutputLine,
 } from "./projects";
 import { DemoSidebar } from "./sidebar";
+import { MobileProjectSwitcher } from "./mobile-project-switcher";
 import { DemoProjectView } from "./project-view";
 import {
   DemoAddProjectModal,
@@ -178,9 +179,12 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (prefersReducedMotion) return;
-    setGlowActive(true);
+    const raf = requestAnimationFrame(() => setGlowActive(true));
     const timeout = window.setTimeout(() => setGlowActive(false), 1200);
-    return () => window.clearTimeout(timeout);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(timeout);
+    };
   }, [isInView]);
 
   useEffect(() => {
@@ -228,8 +232,12 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     const startX = containerRect.width * 0.45;
     const startY = containerRect.height * 0.65;
 
-    setRingPulseOn(true);
-
+    timers.push(
+      setTimeout(() => {
+        if (cancelled) return;
+        setRingPulseOn(true);
+      }, 0),
+    );
     timers.push(
       setTimeout(() => {
         if (cancelled) return;
@@ -423,27 +431,36 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
         runningByProject={runningByProject}
         onAddProject={() => setAdding(true)}
       />
-      <DemoProjectView
-        key={project.name}
-        project={project}
-        runningServices={runningHere}
-        onStartServices={startServices}
-        onStopAll={stopAll}
-        onToggleService={toggleService}
-        git={gitHere}
-        onGitCheckout={handleCheckout}
-        onGitCommit={handleCommit}
-        onGitPull={handlePull}
-        onGitCreatePR={handleCreatePR}
-        onGitDiscard={handleDiscard}
-        onGitSync={handleSync}
-        onGitCreateBranch={handleCreateBranch}
-        onGitRenameBranch={handleRenameBranch}
-        onGitDeleteBranch={handleDeleteBranch}
-        onAddAction={handleAddAction}
-        startButtonRef={startButtonRef}
-        startRingPulse={ringPulseOn && !hasInteracted}
-      />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <MobileProjectSwitcher
+          projects={projects}
+          selected={project.name}
+          onSelect={setSelected}
+          runningByProject={runningByProject}
+          onAddProject={() => setAdding(true)}
+        />
+        <DemoProjectView
+          key={project.name}
+          project={project}
+          runningServices={runningHere}
+          onStartServices={startServices}
+          onStopAll={stopAll}
+          onToggleService={toggleService}
+          git={gitHere}
+          onGitCheckout={handleCheckout}
+          onGitCommit={handleCommit}
+          onGitPull={handlePull}
+          onGitCreatePR={handleCreatePR}
+          onGitDiscard={handleDiscard}
+          onGitSync={handleSync}
+          onGitCreateBranch={handleCreateBranch}
+          onGitRenameBranch={handleRenameBranch}
+          onGitDeleteBranch={handleDeleteBranch}
+          onAddAction={handleAddAction}
+          startButtonRef={startButtonRef}
+          startRingPulse={ringPulseOn && !hasInteracted}
+        />
+      </div>
       <DemoAddProjectModal
         open={adding}
         onClose={() => setAdding(false)}

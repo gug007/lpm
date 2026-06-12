@@ -13,7 +13,7 @@ export default function Hero() {
         <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.05] bg-gradient-to-br from-gray-950 via-gray-700 to-gray-500 dark:from-white dark:via-gray-200 dark:to-gray-500 bg-clip-text text-transparent">
           The SSH terminal for Mac that makes remote dev boxes feel local.
         </h1>
-        <p className="mt-6 text-base sm:text-lg text-gray-500 dark:text-gray-400 max-w-xl mx-auto leading-relaxed tracking-wide">
+        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed tracking-wide">
           lpm is a native SSH terminal for Mac that imports your{" "}
           <code className="text-xs">~/.ssh/config</code>, forwards remote ports
           to <code className="text-xs">localhost</code>, and keeps remote

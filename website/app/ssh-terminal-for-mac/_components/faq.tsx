@@ -28,9 +28,9 @@ const FAQS: QA[] = [
       "Yes, when the jump host is part of the selected `Host` entry in your OpenSSH config. lpm saves the Host alias and invokes OpenSSH with that alias, so options such as `ProxyJump bastion` or `ProxyCommand` remain in OpenSSH's hands. The first connection prompts for whatever your bastion requires (key passphrase, 2FA); the multiplexed channel keeps it open after that, so later services, actions, and terminals can reuse it.",
   },
   {
-    question: "What's the difference between `mode: remote` and `mode: sync` for actions?",
+    question: "Can actions run on the remote host, or locally against remote files?",
     answer:
-      "This is the ssh action mode switch on each action. `mode: remote` (the default for SSH projects) runs the action's command on the remote host over ssh — useful for a deploy, a migration, a remote build. `mode: sync` rsyncs the remote source tree into a local mirror, runs the action locally against the mirror, and pushes changes back — so a local tool (a code formatter, an IDE refactor, an AI coding session) can act on remote source without you shuttling files manually. Each action picks its mode independently.",
+      "Both — each action picks its mode independently. Remote actions (the default for SSH projects) run their command on the remote host over ssh — useful for a deploy, a migration, a remote build. Sync actions mirror the remote source tree to your Mac, run the command locally against the mirror, and push changes back — so a local tool (a code formatter, an IDE refactor, an AI coding session) can act on remote source without you shuttling files manually.",
   },
   {
     question: "Is lpm a good iTerm2 or Warp alternative for SSH work specifically?",

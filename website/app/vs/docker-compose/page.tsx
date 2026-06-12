@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { DemoSection } from "@/components/home/demo";
+import { RelatedPages } from "@/components/related-pages";
 import { ComparisonHero } from "@/components/vs/comparison-hero";
 import { Cta } from "@/components/vs/cta";
 import { Faq, type FaqItem } from "@/components/vs/faq";
@@ -7,7 +9,13 @@ import {
   type MatrixRow,
 } from "@/components/vs/feature-matrix";
 import { WhenToPick } from "@/components/vs/when-to-pick";
-import { REPO_URL, vsPath } from "@/lib/links";
+import {
+  BEST_TERMINAL_MAC_PATH,
+  REPO_URL,
+  VS_BASE_PATH,
+  vsPath,
+} from "@/lib/links";
+import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
 
 const PATH = vsPath("docker-compose");
 
@@ -22,11 +30,6 @@ export const metadata: Metadata = {
     "native dev process manager",
     "docker compose macos slow",
     "local dev without containers",
-    "rails without docker",
-    "next.js without docker",
-    "docker compose for local development",
-    "lpm",
-    "local project manager",
   ],
   alternates: { canonical: PATH },
   openGraph: {
@@ -117,7 +120,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Can I use lpm and Docker Compose together?",
     answer:
-      "Yes, and this is the common case. lpm auto-detects docker-compose.yml in a project and can run compose up as one of your services alongside native processes. So you can keep Postgres and Redis in containers for prod parity while running your Rails or Next.js app natively, and watch every pane — container logs included — in the same desktop app. They are not mutually exclusive.",
+      "Yes, and this is the common case. lpm can run compose up as one of your services alongside native processes. So you can keep Postgres and Redis in containers for prod parity while running your Rails or Next.js app natively, and watch every pane — container logs included — in the same desktop app. They are not mutually exclusive.",
   },
   {
     question: "Does lpm replace Docker Compose?",
@@ -158,14 +161,34 @@ const FAQ_ITEMS: FaqItem[] = [
   },
 ];
 
+const structuredData = [
+  webPageJsonLd({
+    title: "lpm vs Docker Compose",
+    description:
+      "Native dev, without container overhead. Honest comparison of lpm and Docker Compose for running your Rails, Next.js, Go, or Python stack locally.",
+    path: PATH,
+  }),
+  breadcrumbJsonLd([
+    { name: "Home", path: "/" },
+    { name: "Compare", path: VS_BASE_PATH },
+    { name: "Docker Compose", path: PATH },
+  ]),
+];
+
 export default function LpmVsDockerComposePage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <ComparisonHero
         eyebrow="lpm vs Docker Compose"
         title="Native dev, without container overhead."
         description="Docker Compose is excellent for prod parity and cross-team reproducibility. lpm is about the daily native dev loop on one machine — with per-service panes, a project switcher, and room for AI agents alongside your stack."
       />
+
+      <DemoSection />
 
       <FeatureMatrix
         title="Docker Compose and lpm, feature by feature"
@@ -207,6 +230,23 @@ export default function LpmVsDockerComposePage() {
       <Faq
         title="Switching from — or alongside — Docker Compose"
         items={FAQ_ITEMS}
+      />
+
+      <RelatedPages
+        links={[
+          {
+            href: BEST_TERMINAL_MAC_PATH,
+            title: "Best terminal for Mac",
+            description:
+              "A native Apple Silicon workspace for services, logs, and agents.",
+          },
+          {
+            href: vsPath("pm2"),
+            title: "lpm vs PM2",
+            description:
+              "Where the dev loop ends and production process management begins.",
+          },
+        ]}
       />
 
       <Cta

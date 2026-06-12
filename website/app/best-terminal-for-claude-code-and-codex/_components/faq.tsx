@@ -23,7 +23,7 @@ const FAQS: QA[] = [
   {
     question: "Do I need Docker to use lpm?",
     answer:
-      "No. lpm runs anything that runs in a terminal. If you already use Docker Compose it is auto-detected, but plain Rails, Next.js, Go, Django, or Flask projects work without containers.",
+      "No. lpm runs anything that runs in a terminal. Docker Compose stacks work, and plain Rails, Next.js, Go, Django, or Flask projects work without containers.",
   },
   {
     question: "Is lpm open source?",
@@ -42,9 +42,9 @@ const FAQS: QA[] = [
     answerText: `Yes. The source, issue tracker, and releases live on GitHub at ${REPO_URL}. Contributions and bug reports are welcome.`,
   },
   {
-    question: "Which frameworks does lpm auto-detect?",
+    question: "Which frameworks does lpm work with?",
     answer:
-      "Rails, Next.js, Go, Django, Flask, and Docker Compose are detected out of the box. Anything else still works — if it runs in a terminal, lpm can start it.",
+      "Rails, Next.js, Go, Django, Flask, Docker Compose, and anything else that runs in a terminal. lpm can generate the service config for you with AI when you add a project.",
   },
 ];
 

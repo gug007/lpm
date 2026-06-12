@@ -1,34 +1,40 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { DemoSection } from "@/components/home/demo";
+import { RelatedPages } from "@/components/related-pages";
 import { ComparisonHero } from "@/components/vs/comparison-hero";
 import { FeatureMatrix, type MatrixRow } from "@/components/vs/feature-matrix";
 import { WhenToPick } from "@/components/vs/when-to-pick";
 import { Faq, type FaqItem } from "@/components/vs/faq";
 import { Cta } from "@/components/vs/cta";
-import { REPO_URL, vsPath } from "@/lib/links";
+import {
+  CONFIG_PATH,
+  MAC_TERMINAL_DEVELOPERS_PATH,
+  REPO_URL,
+  VS_BASE_PATH,
+  vsPath,
+} from "@/lib/links";
+import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
 
 const PATH = vsPath("overmind");
 
 export const metadata: Metadata = {
   title: "lpm vs Overmind",
   description:
-    "Overmind-grade per-process control, without managing tmux yourself. lpm gives Rails devs live panes, single-service restarts, and multi-project switching in a native macOS app.",
+    "Overmind-grade per-process control — no tmux to install or learn. lpm gives Rails devs live panes, single-service restarts, and multi-project switching in a native macOS app.",
   keywords: [
     "overmind alternative",
     "overmind vs lpm",
     "procfile manager",
-    "tmux alternative rails",
     "rails process manager",
-    "foreman overmind lpm",
     "procfile gui",
     "per-process dev server",
-    "rails dev environment",
-    "macOS process manager",
   ],
   alternates: { canonical: PATH },
   openGraph: {
     title: "lpm vs Overmind",
     description:
-      "Overmind-grade per-process control without hands-on tmux. A native macOS desktop app with per-service panes, single-service restarts, and multi-project switching.",
+      "Overmind-grade per-process control — no tmux to install or learn. A native macOS desktop app with per-service panes, single-service restarts, and multi-project switching.",
     type: "website",
     url: PATH,
     siteName: "lpm",
@@ -37,7 +43,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "lpm vs Overmind",
     description:
-      "Overmind-grade per-process control without hands-on tmux. Per-service panes, single-service restarts, multi-project switching — in a native macOS app.",
+      "Overmind-grade per-process control — no tmux to install or learn. Per-service panes, single-service restarts, multi-project switching — in a native macOS app.",
   },
 };
 
@@ -68,9 +74,9 @@ const MATRIX_ROWS: MatrixRow[] = [
     competitor: true,
   },
   {
-    label: "Uses tmux under the hood",
-    lpm: "hidden from you",
-    competitor: "you manage windows",
+    label: "Requires installing and learning tmux",
+    lpm: false,
+    competitor: true,
   },
   {
     label: "Session survives terminal restart",
@@ -79,7 +85,7 @@ const MATRIX_ROWS: MatrixRow[] = [
   },
   {
     label: "Remote dev over SSH",
-    lpm: false,
+    lpm: "remote projects + port forwarding",
     competitor: true,
   },
   {
@@ -93,7 +99,7 @@ const MATRIX_ROWS: MatrixRow[] = [
     competitor: false,
   },
   {
-    label: "Framework auto-detect (Rails, Next.js, Go, Docker)",
+    label: "Generates project config from your repo",
     lpm: true,
     competitor: false,
   },
@@ -102,13 +108,29 @@ const MATRIX_ROWS: MatrixRow[] = [
 const FAQS: FaqItem[] = [
   {
     question: "I already have a Procfile for Overmind — do I have to throw it away?",
-    answer:
-      "You'll convert the lines, but the shape is the same. lpm uses a small YAML config at ~/.lpm/projects/<name>.yml where each service is a name and a command — exactly like your Procfile. Keep the Procfile in the repo if Foreman or Heroku still needs it; lpm just reads its own config alongside.",
+    answer: (
+      <>
+        You&apos;ll convert the lines, but the shape is the same. lpm keeps
+        each project in a{" "}
+        <Link
+          href={CONFIG_PATH}
+          className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
+        >
+          small per-project config file
+        </Link>{" "}
+        you can read, edit, and commit — each service is just a name and a
+        command, exactly like your Procfile. Keep the Procfile in the repo if
+        Foreman or Heroku still needs it; lpm just reads its own config
+        alongside.
+      </>
+    ),
+    answerText:
+      "You'll convert the lines, but the shape is the same. lpm keeps each project in a small per-project config file you can read, edit, and commit — each service is just a name and a command, exactly like your Procfile. Keep the Procfile in the repo if Foreman or Heroku still needs it; lpm just reads its own config alongside.",
   },
   {
     question: "Does lpm require tmux?",
     answer:
-      "Yes — lpm uses tmux under the hood to keep sessions alive and give each service its own window. The difference from Overmind is that lpm hides tmux from you: you don't write a .tmux.conf, you don't memorize keybindings, and you don't run tmux attach by hand. Output renders in the desktop app's panes. If tmux isn't installed, lpm prompts you to brew install tmux.",
+      "No. Your services run in persistent sessions that survive app and terminal restarts, and each one renders in its own pane in the desktop app — there's nothing to install, configure, or attach to. The difference from Overmind is that you don't write a .tmux.conf, memorize keybindings, or attach to windows by hand; you just click a pane.",
   },
   {
     question: "How do I attach to a single process the way overmind connect does?",
@@ -118,7 +140,7 @@ const FAQS: FaqItem[] = [
   {
     question: "Can I use lpm on a remote dev box over SSH?",
     answer:
-      "Not as a first-class workflow. The desktop app is macOS-native and local. If you're doing remote development over SSH and need session persistence across terminal reconnects, Overmind on top of tmux is still a better fit — the tmux server keeps running on the remote host. lpm is aimed at local dev on your own machine.",
+      "Yes — lpm supports SSH remote projects: connect to a dev box, run its services in panes beside your local ones, and forward remote ports to localhost from the app. If your entire session lives on the remote host and you only ever reach it from a terminal, Overmind on top of a remote multiplexer still fits that shape; lpm gives you the remote box managed from a local desktop app.",
   },
   {
     question: "What does lpm add if I'm running Claude Code or Codex alongside my Rails stack?",
@@ -127,18 +149,38 @@ const FAQS: FaqItem[] = [
   },
 ];
 
+const structuredData = [
+  webPageJsonLd({
+    title: "lpm vs Overmind",
+    description:
+      "Overmind-grade per-process control — no tmux to install or learn. lpm gives Rails devs live panes, single-service restarts, and multi-project switching in a native macOS app.",
+    path: PATH,
+  }),
+  breadcrumbJsonLd([
+    { name: "Home", path: "/" },
+    { name: "Compare", path: VS_BASE_PATH },
+    { name: "Overmind", path: PATH },
+  ]),
+];
+
 export default function OvermindVsPage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <ComparisonHero
         eyebrow="lpm vs Overmind"
         title="Overmind-grade per-process control, in a desktop app."
-        description="Overmind is a great Procfile runner that asks you to know tmux. lpm uses tmux under the hood but hides it — same single-service attach, restart, and signal behavior, plus a native macOS app, multi-project switching, and a YAML config that auto-detects Rails, Next.js, Go, and more."
+        description="Overmind is a great Procfile runner that asks you to know tmux. lpm gives you the same single-service attach, restart, and signal behavior — plus a native macOS app, multi-project switching, and project configs generated straight from your repo."
       />
+
+      <DemoSection />
 
       <FeatureMatrix
         title="Where the two tools differ"
-        description="Both tools drive tmux under the hood. Overmind exposes tmux windows and asks you to drive them; lpm wraps tmux in a desktop app and multi-project sidebar so you never see it."
+        description="Overmind exposes tmux windows and asks you to drive them. lpm gives you the same per-process control in a desktop app and multi-project sidebar — nothing to install, configure, or attach to."
         competitorName="Overmind"
         rows={MATRIX_ROWS}
       />
@@ -171,11 +213,28 @@ export default function OvermindVsPage() {
 
       <Faq title="Switching from Overmind" items={FAQS} />
 
+      <RelatedPages
+        links={[
+          {
+            href: MAC_TERMINAL_DEVELOPERS_PATH,
+            title: "Mac terminal for developers",
+            description:
+              "Run your whole stack — services, logs, and agents — in one native Mac app.",
+          },
+          {
+            href: vsPath("foreman"),
+            title: "lpm vs Foreman",
+            description:
+              "How lpm compares to the original Procfile runner for Rails devs.",
+          },
+        ]}
+      />
+
       <Cta
-        title="Keep Overmind's per-process control. Skip the hands-on tmux."
+        title="Keep Overmind's per-process control. Skip the tmux."
         description={
           <>
-            Install lpm, convert your Procfile lines into a small YAML, and every service shows up as its own live pane in the desktop app. tmux runs under the hood so sessions persist; you never have to touch it. Free and open source on{" "}
+            Install lpm, convert your Procfile lines into a small per-project config, and every service shows up as its own live pane in the desktop app. Sessions persist across app and terminal restarts — nothing to attach to. Free and open source on{" "}
             <a
               href={REPO_URL}
               className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"

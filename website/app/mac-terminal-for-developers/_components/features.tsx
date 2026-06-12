@@ -30,7 +30,7 @@ const FEATURES: Feature[] = [
   {
     icon: Zap,
     title: "One-click full-stack start",
-    body: "Define your services once. After that, one click starts your entire stack in the right order. lpm auto-detects Rails, Next.js, Go, Django, Flask, and Docker Compose configurations the first time you open a project folder.",
+    body: "Define your services once. After that, one click starts your entire stack. lpm can generate the config with AI the first time you open a project folder — Rails, Next.js, Go, Django, Flask, or Docker Compose.",
   },
   {
     icon: GitBranch,

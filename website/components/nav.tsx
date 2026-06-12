@@ -46,6 +46,12 @@ export function Nav() {
           >
             Compare
           </Link>
+          <Link
+            href="/#download"
+            className="hidden sm:inline-flex items-center rounded-full bg-gray-900 dark:bg-white px-3.5 py-1.5 text-[12px] font-medium text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-200 transition-colors duration-200"
+          >
+            Download
+          </Link>
           <ThemeToggle />
           <NavMobileMenu />
         </div>

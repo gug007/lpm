@@ -1,12 +1,11 @@
-import Image from "next/image";
 import { SectionHeader } from "@/components/section-header";
 
 type Step = {
   n: number;
   title: string;
   body: React.ReactNode;
-  src: string;
-  alt: string;
+  media: string;
+  label: string;
 };
 
 const STEPS: Step[] = [
@@ -20,8 +19,8 @@ const STEPS: Step[] = [
         appears in the sidebar ready to start.
       </>
     ),
-    src: "/screenrecording/add-project.gif",
-    alt: "Adding a new project in lpm desktop app",
+    media: "/screenrecording/add-project",
+    label: "Adding a new project in lpm desktop app",
   },
   {
     n: 2,
@@ -33,8 +32,8 @@ const STEPS: Step[] = [
         them all at once.
       </>
     ),
-    src: "/screenrecording/start-project.gif",
-    alt: "Starting a project in lpm desktop app",
+    media: "/screenrecording/start-project",
+    label: "Starting a project in lpm desktop app",
   },
   {
     n: 3,
@@ -46,8 +45,8 @@ const STEPS: Step[] = [
         without leaving the app.
       </>
     ),
-    src: "/screenrecording/add-action.gif",
-    alt: "Adding an action to a project in lpm desktop app",
+    media: "/screenrecording/add-action",
+    label: "Adding an action to a project in lpm desktop app",
   },
   {
     n: 4,
@@ -60,8 +59,8 @@ const STEPS: Step[] = [
         you need everything running.
       </>
     ),
-    src: "/screenrecording/run-profile-project.gif",
-    alt: "Running a project with multiple profiles in lpm desktop app",
+    media: "/screenrecording/run-profile-project",
+    label: "Running a project with multiple profiles in lpm desktop app",
   },
   {
     n: 5,
@@ -75,8 +74,8 @@ const STEPS: Step[] = [
         no setup, no excuses. From zero to coding in seconds.
       </>
     ),
-    src: "/screenrecording/start-project-claude.gif",
-    alt: "Launching Claude Code on a project in lpm desktop app",
+    media: "/screenrecording/start-project-claude",
+    label: "Launching Claude Code on a project in lpm desktop app",
   },
   {
     n: 6,
@@ -90,8 +89,8 @@ const STEPS: Step[] = [
         context bleed.
       </>
     ),
-    src: "/screenrecording/duplicate-project.gif",
-    alt: "Duplicating a project in lpm to run multiple agents in parallel",
+    media: "/screenrecording/duplicate-project",
+    label: "Duplicating a project in lpm to run multiple agents in parallel",
   },
 ];
 
@@ -113,12 +112,17 @@ export function HowItWorks() {
                   {step.body}
                 </p>
               </div>
-              <Image
-                src={step.src}
-                alt={step.alt}
-                width={1200}
-                height={750}
-                unoptimized
+              <video
+                src={`${step.media}.mp4`}
+                poster={`${step.media}-poster.jpg`}
+                width={1224}
+                height={804}
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="none"
+                aria-label={step.label}
                 className="w-full h-auto rounded-lg shadow-2xl shadow-gray-200/60 dark:shadow-black/40"
               />
             </div>

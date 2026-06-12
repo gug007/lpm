@@ -72,9 +72,9 @@ export function Header(props: HeaderProps) {
 
   return (
     <div className="flex items-center gap-4 -mx-3 py-1">
-      <h1 className="shrink-0 text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
+      <div className="shrink-0 text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
         {projectName}
-      </h1>
+      </div>
       <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
         {plainActions.map((a) => (
           <SecondaryButton key={a.key} onClick={() => handleOpenAction(a)}>

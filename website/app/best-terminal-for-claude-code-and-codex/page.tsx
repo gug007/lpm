@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { DemoSection } from "@/components/home/demo";
-import { AI_AGENTS_PATH } from "@/lib/links";
+import { RelatedPages } from "@/components/related-pages";
+import { AI_AGENTS_PATH, vsPath } from "@/lib/links";
+import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
 import Benefits from "./_components/benefits";
 import Comparison from "./_components/comparison";
 import Cta from "./_components/cta";
@@ -20,12 +22,7 @@ export const metadata: Metadata = {
     "claude code terminal",
     "codex terminal",
     "parallel ai agents",
-    "ai coding agents",
-    "claude code and codex",
     "ai agent workspace",
-    "lpm",
-    "local project manager",
-    "dev stack manager",
   ],
   alternates: {
     canonical: AI_AGENTS_PATH,
@@ -46,9 +43,29 @@ export const metadata: Metadata = {
   },
 };
 
+const structuredData = [
+  webPageJsonLd({
+    title: "Best Terminal for Claude Code & Codex AI Agents",
+    description:
+      "lpm is the terminal workspace built for running Claude Code and Codex in parallel on the same codebase. Start your dev stack in one command and keep every agent in view.",
+    path: AI_AGENTS_PATH,
+  }),
+  breadcrumbJsonLd([
+    { name: "Home", path: "/" },
+    {
+      name: "Best Terminal for Claude Code & Codex AI Agents",
+      path: AI_AGENTS_PATH,
+    },
+  ]),
+];
+
 export default function BestTerminalForClaudeCodeAndCodexPage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <Hero />
       <DemoSection />
       <WhyParallel />
@@ -57,6 +74,22 @@ export default function BestTerminalForClaudeCodeAndCodexPage() {
       <Workflows />
       <Comparison />
       <Faq />
+      <RelatedPages
+        links={[
+          {
+            href: vsPath("cmux"),
+            title: "lpm vs cmux",
+            description:
+              "How lpm compares to cmux for running parallel AI coding agents.",
+          },
+          {
+            href: vsPath("tmux"),
+            title: "lpm vs tmux",
+            description:
+              "How lpm compares to tmux for running services and shells side by side.",
+          },
+        ]}
+      />
       <Cta />
     </>
   );

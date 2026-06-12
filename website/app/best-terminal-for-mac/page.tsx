@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import { DemoSection } from "@/components/home/demo";
-import { BEST_TERMINAL_MAC_PATH } from "@/lib/links";
+import { RelatedPages } from "@/components/related-pages";
+import {
+  BEST_TERMINAL_MAC_PATH,
+  GIT_TERMINAL_MAC_PATH,
+  MAC_TERMINAL_DEVELOPERS_PATH,
+} from "@/lib/links";
+import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
 import Benefits from "./_components/benefits";
 import Comparison from "./_components/comparison";
 import Cta from "./_components/cta";
@@ -19,22 +25,8 @@ export const metadata: Metadata = {
     "best terminal for macos",
     "best terminal for mac developers",
     "best terminal for mac m1",
-    "best terminal for mac 2026",
     "best free terminal for mac",
-    "best git terminal for mac",
-    "best terminal for coding",
-    "terminal for macbook pro",
-    "mac terminal for developers",
-    "developer terminal for mac",
-    "iterm2 alternative mac",
-    "hyper terminal for mac",
-    "tabby terminal for mac",
-    "terminal for web developers",
-    "mac terminal for beginners",
-    "download terminal for mac",
     "native mac terminal",
-    "lpm",
-    "local project manager",
   ],
   alternates: {
     canonical: BEST_TERMINAL_MAC_PATH,
@@ -55,9 +47,26 @@ export const metadata: Metadata = {
   },
 };
 
+const structuredData = [
+  webPageJsonLd({
+    title: "Best Terminal for Mac — Native Apple Silicon Workspace",
+    description:
+      "lpm is the best terminal for Mac developers — a native Apple Silicon app with live output per service, a visual project switcher, and no Electron bloat.",
+    path: BEST_TERMINAL_MAC_PATH,
+  }),
+  breadcrumbJsonLd([
+    { name: "Home", path: "/" },
+    { name: "Best Terminal for Mac", path: BEST_TERMINAL_MAC_PATH },
+  ]),
+];
+
 export default function BestTerminalForMacPage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <Hero />
       <DemoSection />
       <WhyMac />
@@ -66,6 +75,22 @@ export default function BestTerminalForMacPage() {
       <Workflows />
       <Comparison />
       <Faq />
+      <RelatedPages
+        links={[
+          {
+            href: MAC_TERMINAL_DEVELOPERS_PATH,
+            title: "Mac terminal for developers",
+            description:
+              "Run your whole stack — services, logs, and agents — in one native Mac app.",
+          },
+          {
+            href: GIT_TERMINAL_MAC_PATH,
+            title: "Git terminal for Mac",
+            description:
+              "Branch, rebase, and ship while your dev servers stream in the same window.",
+          },
+        ]}
+      />
       <Cta />
     </>
   );

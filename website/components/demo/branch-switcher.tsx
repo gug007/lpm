@@ -202,14 +202,20 @@ export function DemoBranchSwitcher({
   const newBranchRef = useRef<HTMLInputElement>(null);
   const pullCloseTimer = useRef<number | null>(null);
 
+  const closeBranchMenu = () => {
+    setBranchOpen(false);
+    setQuery("");
+    setCreating(false);
+    setNewBranchName("");
+    setRenamingKey(null);
+  };
+
   useEffect(() => {
     if (!branchOpen && !commitMenuOpen) return;
     const onClick = (e: MouseEvent) => {
       const target = e.target as Node;
       if (branchOpen && branchRef.current && !branchRef.current.contains(target)) {
-        setBranchOpen(false);
-        setCreating(false);
-        setRenamingKey(null);
+        closeBranchMenu();
       }
       if (commitMenuOpen && commitRef.current && !commitRef.current.contains(target)) {
         setCommitMenuOpen(false);
@@ -223,12 +229,6 @@ export function DemoBranchSwitcher({
   useEffect(() => {
     if (branchOpen && !creating) searchRef.current?.focus();
     if (creating) newBranchRef.current?.focus();
-    if (!branchOpen) {
-      setQuery("");
-      setCreating(false);
-      setNewBranchName("");
-      setRenamingKey(null);
-    }
   }, [branchOpen, creating]);
 
   useEffect(() => () => {
@@ -270,9 +270,7 @@ export function DemoBranchSwitcher({
     const name = newBranchName.trim();
     if (!name) return;
     onCreateBranch(name);
-    setCreating(false);
-    setNewBranchName("");
-    setBranchOpen(false);
+    closeBranchMenu();
   };
 
   const submitRename = (b: DemoBranch) => {
@@ -321,7 +319,8 @@ export function DemoBranchSwitcher({
           type="button"
           onClick={() => {
             setCommitMenuOpen(false);
-            setBranchOpen((v) => !v);
+            if (branchOpen) closeBranchMenu();
+            else setBranchOpen(true);
           }}
           disabled={busy}
           aria-label={`Current branch: ${git.branch}. Switch branch`}
@@ -411,7 +410,7 @@ export function DemoBranchSwitcher({
                           type="button"
                           onClick={() => {
                             onCheckout(b);
-                            setBranchOpen(false);
+                            closeBranchMenu();
                           }}
                           disabled={busy}
                           title={
@@ -552,7 +551,7 @@ export function DemoBranchSwitcher({
         <button
           type="button"
           onClick={() => {
-            setBranchOpen(false);
+            closeBranchMenu();
             setCommitMenuOpen((v) => !v);
           }}
           disabled={busy}

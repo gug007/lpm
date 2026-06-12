@@ -10,14 +10,10 @@ const WORKFLOWS: Workflow[] = [
     title: "Spin up an unfamiliar repo your first morning on a project",
     body: (
       <>
-        Clone the repo, open it in lpm. The auto-detection pass reads your{" "}
-        <code className="text-xs">package.json</code>,{" "}
-        <code className="text-xs">Procfile</code>,{" "}
-        <code className="text-xs">docker-compose.yml</code>, or{" "}
-        <code className="text-xs">manage.py</code> and proposes a service
-        config. Review it, tweak the ports, hit Start. Every service streams
-        live side by side — no README guessing, no missing env vars surfaced at
-        runtime.
+        Clone the repo, open it in lpm, and let AI propose a service config
+        for your stack. Review it, tweak the ports, hit Start. Every service
+        streams live side by side — no README guessing, no missing env vars
+        surfaced at runtime.
       </>
     ),
   },

@@ -13,9 +13,9 @@ export default function Cta() {
         </h2>
         <p className="mt-6 text-base sm:text-lg text-gray-400 dark:text-gray-500 max-w-xl mx-auto leading-relaxed tracking-wide">
           Download a native macOS binary, drag to Applications, open your first
-          project. lpm auto-detects your stack and has you running in under two
-          minutes. Works on every Intel and Apple Silicon Mac running macOS 12
-          or later.
+          project. lpm generates your config with AI and has you running in
+          under two minutes. Works on every Intel and Apple Silicon Mac running
+          macOS 12 or later.
         </p>
 
         <div className="mt-10 flex justify-center">

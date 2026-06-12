@@ -90,3 +90,26 @@ export async function getDownloadStats(): Promise<DownloadStats | null> {
     fetchedAt: new Date().toISOString(),
   };
 }
+
+export async function fetchStarCount(): Promise<number | null> {
+  try {
+    const res = await fetch(REPO_API_URL, {
+      headers: { Accept: "application/vnd.github+json" },
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { stargazers_count?: number };
+    return typeof data.stargazers_count === "number"
+      ? data.stargazers_count
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export function formatCount(n: number): string {
+  if (n >= 1000) {
+    return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+  }
+  return n.toString();
+}

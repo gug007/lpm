@@ -34,9 +34,6 @@ export const metadata: Metadata = {
     "terminal",
     "project switcher",
   ],
-  alternates: {
-    canonical: SITE_URL,
-  },
   openGraph: {
     title: "lpm — Local Project Manager",
     description:
@@ -65,21 +62,30 @@ const themeScript = `
 
 const structuredData = {
   "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  name: "lpm",
-  alternateName: "Local Project Manager",
-  description:
-    "A native macOS desktop app to manage local dev projects. Start, stop, duplicate, and switch with a single click.",
-  applicationCategory: "DeveloperApplication",
-  operatingSystem: "macOS",
-  url: SITE_URL,
-  downloadUrl: "https://github.com/gug007/lpm/releases/latest",
-  softwareHelp: "https://github.com/gug007/lpm",
-  offers: {
-    "@type": "Offer",
-    price: "0",
-    priceCurrency: "USD",
-  },
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      name: "lpm",
+      alternateName: "Local Project Manager",
+      description:
+        "A native macOS desktop app to manage local dev projects. Start, stop, duplicate, and switch with a single click.",
+      applicationCategory: "DeveloperApplication",
+      operatingSystem: "macOS",
+      url: SITE_URL,
+      downloadUrl: "https://github.com/gug007/lpm/releases/latest",
+      softwareHelp: "https://github.com/gug007/lpm",
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+      },
+    },
+    {
+      "@type": "WebSite",
+      name: "lpm",
+      url: SITE_URL,
+    },
+  ],
 };
 
 const GA_ID = "G-ZDCK654G10";

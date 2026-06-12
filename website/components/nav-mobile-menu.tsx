@@ -35,6 +35,13 @@ export function NavMobileMenu() {
           <Link href={VS_BASE_PATH} onClick={close} className={linkClass}>
             Compare
           </Link>
+          <Link
+            href="/#download"
+            onClick={close}
+            className="inline-flex w-fit items-center rounded-full bg-gray-900 dark:bg-white px-4 py-2 text-sm font-medium text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-200 transition-colors duration-200"
+          >
+            Download
+          </Link>
         </div>
       )}
     </>

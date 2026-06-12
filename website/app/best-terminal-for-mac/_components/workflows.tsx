@@ -10,10 +10,10 @@ const WORKFLOWS: Workflow[] = [
     title: "Boot your full stack on a fresh MacBook in under a minute",
     body: (
       <>
-        Clone the repo, open the folder in lpm, and the config editor
-        auto-detects Rails, Next.js, Go, Django, Flask, or Docker Compose. Hit
-        Start and every service streams live output side by side — no Brewfile
-        archaeology, no README spelunking.
+        Clone the repo, open the folder in lpm, and let AI generate the
+        service config — Rails, Next.js, Go, Django, Flask, or Docker Compose.
+        Hit Start and every service streams live output side by side — no
+        Brewfile archaeology, no README spelunking.
       </>
     ),
   },

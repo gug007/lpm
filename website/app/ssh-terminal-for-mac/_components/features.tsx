@@ -51,7 +51,7 @@ const FEATURES: Feature[] = [
   {
     icon: Server,
     title: "Remote services in panes, beside your local ones",
-    body: "Services declared in the project's YAML run on the remote host but stream into lpm panes the same way local services do. Switch between staging-api (remote) and frontend (local) like they're the same shape — because in lpm they are. One native Mac window holds the whole stack regardless of which side of the SSH boundary each piece lives on.",
+    body: "Services declared in the project's config run on the remote host but stream into lpm panes the same way local services do. Switch between staging-api (remote) and frontend (local) like they're the same shape — because in lpm they are. One native Mac window holds the whole stack regardless of which side of the SSH boundary each piece lives on.",
   },
   {
     icon: Shuffle,

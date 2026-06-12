@@ -14,7 +14,7 @@ export default function Hero() {
           <br className="hidden sm:block" />
           for Claude Code and Codex.
         </h1>
-        <p className="mt-6 text-base sm:text-lg text-gray-400 dark:text-gray-500 max-w-xl mx-auto leading-relaxed tracking-wide">
+        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed tracking-wide">
           A native macOS app with live output per service in one window. Watch
           multiple agents work side by side and switch projects visually —
           without juggling a wall of terminal tabs.

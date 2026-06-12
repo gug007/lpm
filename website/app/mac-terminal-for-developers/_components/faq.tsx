@@ -10,7 +10,7 @@ const FAQS: QA[] = [
   {
     question: "Does lpm work with monorepos?",
     answer:
-      "Yes. lpm is designed around multi-service projects. Open a monorepo folder and lpm reads your service definitions from a Procfile, docker-compose.yml, package.json workspaces config, or any combination. Each service gets its own pane and start/stop controls. You can start the entire monorepo in one click or bring up individual services independently.",
+      "Yes. lpm is designed around multi-service projects. Open a monorepo folder, define each service once — or let AI generate the config for you — and each service gets its own pane and start/stop controls. You can start the entire monorepo in one click or bring up individual services independently.",
   },
   {
     question: "Can I use lpm alongside VS Code or another editor?",
@@ -20,7 +20,7 @@ const FAQS: QA[] = [
   {
     question: "Does lpm support SSH or remote development?",
     answer:
-      "lpm runs your local development stack natively on your Mac. It does not currently proxy SSH sessions or manage remote machines. If you need remote terminal sessions, you can open a plain shell pane in lpm and SSH from there, but the service management and log pane features apply to local processes only.",
+      "Yes. lpm supports SSH remote projects: connect to a remote dev box, forward remote ports to localhost, and run remote services in panes right beside your local stack. Service management and log panes work for remote services the same way they do for local ones.",
   },
   {
     question: "How does lpm help when running multiple AI coding agents?",

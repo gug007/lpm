@@ -20,7 +20,7 @@ const OUTCOMES: Outcome[] = [
   },
   {
     title: "Starting fresh after a big merge is one click, not a script.",
-    body: "After pulling a release branch or merging a long-running feature, lpm restarts the full defined stack in order. No mental dependency graph, no --force-recreate flags typed from memory.",
+    body: "After pulling a release branch or merging a long-running feature, lpm restarts the full defined stack in one click. No mental dependency graph, no --force-recreate flags typed from memory.",
   },
 ];
 

@@ -63,7 +63,7 @@ const CAPABILITIES: Capability[] = [
     sourceTree: false,
   },
   {
-    label: "Auto-detects Rails, Next.js, Go, Django, Flask, Docker Compose",
+    label: "AI-generated service config for your stack",
     lpm: true,
     gitKraken: false,
     iterm2: false,

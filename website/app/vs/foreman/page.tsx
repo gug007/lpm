@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { DemoSection } from "@/components/home/demo";
+import { RelatedPages } from "@/components/related-pages";
 import { ComparisonHero } from "@/components/vs/comparison-hero";
 import { Cta } from "@/components/vs/cta";
 import { Faq, type FaqItem } from "@/components/vs/faq";
@@ -7,7 +10,14 @@ import {
   type MatrixRow,
 } from "@/components/vs/feature-matrix";
 import { WhenToPick } from "@/components/vs/when-to-pick";
-import { REPO_URL, vsPath } from "@/lib/links";
+import {
+  CONFIG_PATH,
+  MAC_TERMINAL_DEVELOPERS_PATH,
+  REPO_URL,
+  VS_BASE_PATH,
+  vsPath,
+} from "@/lib/links";
+import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
 
 const PATH = vsPath("foreman");
 
@@ -21,12 +31,7 @@ export const metadata: Metadata = {
     "procfile manager",
     "rails process manager",
     "procfile alternative",
-    "modern foreman",
-    "rails dev stack",
-    "ddollar foreman",
     "foreman start",
-    "lpm",
-    "local project manager",
   ],
   alternates: { canonical: PATH },
   openGraph: {
@@ -53,7 +58,7 @@ const MATRIX_ROWS: MatrixRow[] = [
   },
   {
     label: "Name + command services in a lightweight config",
-    lpm: "YAML",
+    lpm: "per-project file",
     competitor: "Procfile",
   },
   {
@@ -69,7 +74,7 @@ const MATRIX_ROWS: MatrixRow[] = [
   {
     label: "Native macOS desktop app",
     lpm: true,
-    competitor: false,
+    competitor: "CLI only",
   },
   {
     label: "Visual project switcher",
@@ -102,14 +107,9 @@ const MATRIX_ROWS: MatrixRow[] = [
     competitor: "via foreman export",
   },
   {
-    label: "Framework auto-detect (Rails, Next.js, Go, Django, Flask, Compose)",
+    label: "Generates project config from your repo",
     lpm: true,
     competitor: false,
-  },
-  {
-    label: "Native macOS desktop app with shared config",
-    lpm: true,
-    competitor: "CLI only",
   },
   {
     label: "Open source, free",
@@ -121,8 +121,24 @@ const MATRIX_ROWS: MatrixRow[] = [
 const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Can I move to lpm without rewriting my Procfile?",
-    answer:
-      "You'll convert it, but the shape is the same. lpm uses a small YAML config at ~/.lpm/projects/<name>.yml where each service is a name and a command — the same web/worker/css/jobs lines, just in YAML instead of Procfile syntax. For Rails, Next.js, Go, Django, Flask, and Docker Compose projects, framework auto-detection often means no config at all — lpm figures out your services for you.",
+    answer: (
+      <>
+        You&apos;ll convert it, but the shape is the same. lpm keeps each
+        project in a{" "}
+        <Link
+          href={CONFIG_PATH}
+          className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
+        >
+          small per-project config file
+        </Link>{" "}
+        you can read, edit, and commit — each service is just a name and a
+        command, the same web/worker/css/jobs lines from your Procfile. Or skip
+        the conversion entirely — lpm can read your repo and generate the
+        config for you.
+      </>
+    ),
+    answerText:
+      "You'll convert it, but the shape is the same. lpm keeps each project in a small per-project config file you can read, edit, and commit — each service is just a name and a command, the same web/worker/css/jobs lines from your Procfile. Or skip the conversion entirely — lpm can read your repo and generate the config for you.",
   },
   {
     question: "Does lpm replace foreman export?",
@@ -161,14 +177,34 @@ const FAQ_ITEMS: FaqItem[] = [
   },
 ];
 
+const structuredData = [
+  webPageJsonLd({
+    title: "lpm vs Foreman",
+    description:
+      "A modern Procfile experience for local dev: per-service panes, a desktop app, and multi-project switching. Honest comparison of lpm and Foreman.",
+    path: PATH,
+  }),
+  breadcrumbJsonLd([
+    { name: "Home", path: "/" },
+    { name: "Compare", path: VS_BASE_PATH },
+    { name: "Foreman", path: PATH },
+  ]),
+];
+
 export default function LpmVsForemanPage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <ComparisonHero
         eyebrow="lpm vs Foreman"
         title="A modern Procfile experience for local dev."
         description="Foreman is stable and lovable for Rails devs. lpm keeps the name-plus-command simplicity and adds per-service panes, a desktop app, multi-project switching, and parallel AI-agent workflows."
       />
+
+      <DemoSection />
 
       <FeatureMatrix
         title="Foreman and lpm, feature by feature"
@@ -209,6 +245,23 @@ export default function LpmVsForemanPage() {
       <Faq
         title="Switching from Foreman to lpm — the honest FAQ"
         items={FAQ_ITEMS}
+      />
+
+      <RelatedPages
+        links={[
+          {
+            href: MAC_TERMINAL_DEVELOPERS_PATH,
+            title: "Mac terminal for developers",
+            description:
+              "Run your whole stack — services, logs, and agents — in one native Mac app.",
+          },
+          {
+            href: vsPath("overmind"),
+            title: "lpm vs Overmind",
+            description:
+              "How lpm compares to the other big Procfile runner for Rails devs.",
+          },
+        ]}
       />
 
       <Cta

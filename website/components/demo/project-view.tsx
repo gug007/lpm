@@ -344,7 +344,7 @@ export function DemoProjectView({
   };
 
   return (
-    <div className="relative flex flex-1 min-w-0 flex-col bg-[#1a1a1a]">
+    <div className="relative flex flex-1 min-w-0 min-h-0 flex-col bg-[#1a1a1a]">
       <Header
         project={project}
         anyRunning={anyRunning}
@@ -719,10 +719,10 @@ function EmptyState({
           />
         </div>
         <div className="flex flex-col items-center gap-2">
-          <h3 className="text-base font-semibold tracking-tight text-[#e5e5e5]">
+          <div className="text-base font-semibold tracking-tight text-[#e5e5e5]">
             Ready when you are,{" "}
             <span className="font-mono text-[#e5e5e5]">{projectName}</span>
-          </h3>
+          </div>
           <p className="max-w-xs text-xs leading-relaxed text-[#919191]">
             Hit{" "}
             <span className="rounded-md border border-[#2e2e2e] bg-[#242424] px-1.5 py-px font-mono text-[10px] text-[#b3b3b3]">
@@ -955,9 +955,9 @@ function Header({
   return (
     <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 h-12 shrink-0">
       <div className="flex flex-col min-w-0">
-        <h1 className="truncate text-base font-semibold text-[#e5e5e5]">
+        <div className="truncate text-base font-semibold text-[#e5e5e5]">
           {project.label ?? project.name}
-        </h1>
+        </div>
         <span className="text-[10px] text-[#919191] truncate">
           {project.stack}
         </span>

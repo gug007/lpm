@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import { DemoSection } from "@/components/home/demo";
-import { MAC_TERMINAL_DEVELOPERS_PATH } from "@/lib/links";
+import { RelatedPages } from "@/components/related-pages";
+import {
+  BEST_TERMINAL_MAC_PATH,
+  MAC_TERMINAL_DEVELOPERS_PATH,
+  SSH_TERMINAL_MAC_PATH,
+} from "@/lib/links";
+import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
 import Benefits from "./_components/benefits";
 import Comparison from "./_components/comparison";
 import Cta from "./_components/cta";
@@ -18,22 +24,9 @@ export const metadata: Metadata = {
     "mac terminal for developers",
     "terminal for mac developers",
     "developer terminal mac",
-    "mac terminal dev tools",
-    "mac terminal monorepo",
-    "best terminal for full stack development",
     "mac terminal for web developers",
-    "mac terminal for node developers",
-    "mac terminal for python developers",
-    "mac terminal multi service",
-    "mac terminal git workflow",
-    "vs code terminal alternative mac",
-    "warp terminal alternative",
-    "iterm2 alternative mac",
-    "mac terminal apple silicon",
     "run multiple services mac terminal",
     "mac dev environment terminal",
-    "lpm",
-    "local project manager",
   ],
   alternates: {
     canonical: MAC_TERMINAL_DEVELOPERS_PATH,
@@ -54,9 +47,26 @@ export const metadata: Metadata = {
   },
 };
 
+const structuredData = [
+  webPageJsonLd({
+    title: "Mac Terminal for Developers — Run Your Full Stack",
+    description:
+      "lpm is a Mac terminal built for developers — launch your full stack in one window, track per-service logs, and switch between repos without losing context.",
+    path: MAC_TERMINAL_DEVELOPERS_PATH,
+  }),
+  breadcrumbJsonLd([
+    { name: "Home", path: "/" },
+    { name: "Mac Terminal for Developers", path: MAC_TERMINAL_DEVELOPERS_PATH },
+  ]),
+];
+
 export default function MacTerminalForDevelopersPage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <Hero />
       <DemoSection />
       <Problem />
@@ -65,6 +75,22 @@ export default function MacTerminalForDevelopersPage() {
       <Workflows />
       <Comparison />
       <Faq />
+      <RelatedPages
+        links={[
+          {
+            href: BEST_TERMINAL_MAC_PATH,
+            title: "Best terminal for Mac",
+            description:
+              "Why a native Apple Silicon workspace beats Electron terminals and tab strips.",
+          },
+          {
+            href: SSH_TERMINAL_MAC_PATH,
+            title: "SSH terminal for Mac",
+            description:
+              "Remote dev boxes, port forwarding, and your local stack in one window.",
+          },
+        ]}
+      />
       <Cta />
     </>
   );

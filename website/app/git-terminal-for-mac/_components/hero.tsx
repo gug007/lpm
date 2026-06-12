@@ -13,7 +13,7 @@ export default function Hero() {
           The Mac terminal that keeps git and your dev servers in the same
           window.
         </h1>
-        <p className="mt-6 text-base sm:text-lg text-gray-400 dark:text-gray-500 max-w-xl mx-auto leading-relaxed tracking-wide">
+        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed tracking-wide">
           lpm gives you a shell pane for branching, rebasing, and pushing right
           next to live service log panes — so you never toggle between a GUI git
           client and a separate terminal again. Native Apple Silicon, zero

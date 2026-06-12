@@ -28,9 +28,9 @@ export function DemoSidebar({
         <span className="inline-block w-2.5 h-2.5 rounded-full bg-[#28c840]" />
       </div>
       <div className="flex items-center justify-between px-4 pt-2 pb-2">
-        <h2 className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
+        <div className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
           Projects
-        </h2>
+        </div>
         <button
           type="button"
           onClick={onAddProject}

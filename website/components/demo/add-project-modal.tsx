@@ -204,12 +204,12 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
           aria-labelledby="add-project-title"
           className="relative w-[360px] rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] px-2 pb-2 pt-5 shadow-2xl"
         >
-          <h3
+          <div
             id="add-project-title"
             className="px-4 text-[13px] font-medium text-[#e5e5e5]"
           >
             Add a project
-          </h3>
+          </div>
           <div className="mt-3 flex flex-col">
             <button
               type="button"
@@ -280,9 +280,9 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
             <ChevronLeft size={14} strokeWidth={1.5} />
             Back
           </button>
-          <h3 id="ssh-host-title" className="text-[13px] font-medium text-[#e5e5e5]">
+          <div id="ssh-host-title" className="text-[13px] font-medium text-[#e5e5e5]">
             Add an SSH host
-          </h3>
+          </div>
 
           <form
             className="mt-4 flex flex-col gap-3"

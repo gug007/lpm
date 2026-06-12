@@ -14,7 +14,7 @@ export default function Hero() {
           <br className="hidden sm:block" />
           who run real stacks.
         </h1>
-        <p className="mt-6 text-base sm:text-lg text-gray-400 dark:text-gray-500 max-w-xl mx-auto leading-relaxed tracking-wide">
+        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed tracking-wide">
           lpm replaces scattered terminal tabs with a project-aware workspace —
           one window for every service, per-service log panes, and instant
           project switching that keeps your state intact. Native Apple Silicon,

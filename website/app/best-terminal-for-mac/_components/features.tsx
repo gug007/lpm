@@ -22,9 +22,9 @@ const FEATURES: Feature[] = [
     title: "Apple Silicon native",
     body: (
       <>
-        Ships as a universal binary tuned for M1, M2, M3, and M4. No Rosetta,
-        no Electron, no Chromium tax — just a fast macOS app that respects
-        your battery and your fan curve.
+        Ships native builds for both Apple Silicon (M1–M4) and Intel Macs. No
+        Rosetta, no Electron, no Chromium tax — just a fast macOS app that
+        respects your battery and your fan curve.
       </>
     ),
   },
@@ -57,8 +57,8 @@ const FEATURES: Feature[] = [
     body: (
       <>
         Define your services once, then start the entire stack with a single
-        click. Rails, Next.js, Go, Django, Flask, and Docker Compose are
-        auto-detected the first time you open a project.
+        click. lpm can generate the config for you with AI the first time you
+        open a project — Rails, Next.js, Go, Django, Flask, or Docker Compose.
       </>
     ),
   },

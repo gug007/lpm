@@ -4,26 +4,26 @@ import { ArrowRight } from "lucide-react";
 import { Cta } from "@/components/vs/cta";
 import { SectionHeader } from "@/components/section-header";
 import { VS_BASE_PATH, vsPath, type VsSlug } from "@/lib/links";
+import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
   title: "How lpm compares",
   description:
-    "Side-by-side comparisons of lpm against Foreman, Overmind, Docker Compose, tmux, and PM2 — honest, per-workflow, no marketing fluff.",
+    "Side-by-side comparisons of lpm against Foreman, Overmind, Docker Compose, tmux, PM2, and cmux — honest, per-workflow, no marketing fluff.",
   keywords: [
     "lpm alternatives",
     "foreman alternative",
     "overmind alternative",
-    "docker compose alternative for dev",
     "tmux alternative",
     "pm2 alternative dev",
-    "dev process manager comparison",
-    "local project manager",
+    "docker compose alternative for dev",
+    "cmux alternative",
   ],
   alternates: { canonical: VS_BASE_PATH },
   openGraph: {
     title: "How lpm compares",
     description:
-      "Side-by-side comparisons of lpm against Foreman, Overmind, Docker Compose, tmux, and PM2.",
+      "Side-by-side comparisons of lpm against Foreman, Overmind, Docker Compose, tmux, PM2, and cmux.",
     type: "website",
     url: VS_BASE_PATH,
     siteName: "lpm",
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "How lpm compares",
     description:
-      "Honest side-by-side comparisons of lpm against Foreman, Overmind, Docker Compose, tmux, and PM2.",
+      "Honest side-by-side comparisons of lpm against Foreman, Overmind, Docker Compose, tmux, PM2, and cmux.",
   },
 };
 
@@ -77,13 +77,30 @@ const ENTRIES: Entry[] = [
     slug: "cmux",
     name: "cmux",
     tagline:
-      "Native macOS terminal for AI coding agents from Manaflow (YC). lpm adds project-level start/stop/duplicate and auto-detected dev stacks on top.",
+      "Native macOS terminal for AI coding agents from Manaflow (YC). lpm adds project-level start/stop/duplicate and repo-generated configs on top.",
   },
+];
+
+const structuredData = [
+  webPageJsonLd({
+    title: "How lpm compares",
+    description:
+      "Side-by-side comparisons of lpm against Foreman, Overmind, Docker Compose, tmux, PM2, and cmux — honest, per-workflow, no marketing fluff.",
+    path: VS_BASE_PATH,
+  }),
+  breadcrumbJsonLd([
+    { name: "Home", path: "/" },
+    { name: "Compare", path: VS_BASE_PATH },
+  ]),
 ];
 
 export default function ComparisonsHubPage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <section className="pt-28 sm:pt-40 pb-12 sm:pb-16 text-center">
         <div className="max-w-3xl mx-auto px-6">
           <p className="text-xs font-medium uppercase tracking-[0.25em] text-gray-400 dark:text-gray-500 mb-6">

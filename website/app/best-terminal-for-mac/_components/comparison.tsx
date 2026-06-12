@@ -54,7 +54,7 @@ const CAPABILITIES: Capability[] = [
     warp: false,
   },
   {
-    label: "Auto-detects Rails, Next.js, Go, Django, Flask, Docker Compose",
+    label: "AI-generated service config for your stack",
     lpm: true,
     iterm2: false,
     terminal: false,

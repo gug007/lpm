@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { DemoSection } from "@/components/home/demo";
+import { RelatedPages } from "@/components/related-pages";
 import {
-  RELEASES_URL,
+  GIT_TERMINAL_MAC_PATH,
+  MAC_TERMINAL_DEVELOPERS_PATH,
   SITE_URL,
   SSH_TERMINAL_MAC_PATH,
 } from "@/lib/links";
@@ -17,30 +19,16 @@ import Workflows from "./_components/workflows";
 const pageUrl = `${SITE_URL}${SSH_TERMINAL_MAC_PATH}`;
 
 export const metadata: Metadata = {
-  title: "SSH Terminal for Mac — ~/.ssh/config, Port Forwarding, Remote Dev",
+  title: "SSH Terminal for Mac — Port Forwarding & Remote Dev",
   description:
     "lpm is a native SSH terminal for Mac developers. Import ~/.ssh/config hosts, forward remote ports to localhost, and run remote dev box services beside your local stack.",
   keywords: [
     "ssh terminal for mac",
     "ssh client for mac",
-    "mac terminal ssh",
     "macos ssh terminal",
-    "ssh terminal mac developers",
-    "mac terminal with ssh config",
-    "ssh config host picker mac",
     "ssh port forwarding mac terminal",
-    "remote port forwarding mac",
-    "mac terminal for remote dev box",
-    "ssh and dev server mac terminal",
-    "jump host terminal mac",
-    "bastion host terminal mac",
-    "ec2 ssh terminal mac",
     "mac terminal for remote development",
-    "termius alternative mac",
-    "iterm2 ssh workflow",
-    "warp terminal ssh alternative",
-    "lpm",
-    "local project manager",
+    "ssh terminal mac developers",
   ],
   alternates: {
     canonical: SSH_TERMINAL_MAC_PATH,
@@ -83,29 +71,6 @@ const structuredData = [
   },
   {
     "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    name: "lpm",
-    applicationCategory: "DeveloperApplication",
-    operatingSystem: "macOS",
-    url: pageUrl,
-    downloadUrl: RELEASES_URL,
-    description:
-      "A native SSH terminal for Mac developers that imports ~/.ssh/config hosts, forwards remote ports to localhost, and runs remote services in panes beside local services.",
-    offers: {
-      "@type": "Offer",
-      price: "0",
-      priceCurrency: "USD",
-    },
-    featureList: [
-      "Import hosts from ~/.ssh/config",
-      "Forward remote ports to localhost",
-      "Run remote services in terminal panes",
-      "Use ProxyJump and bastion hosts from existing SSH config",
-      "Run remote or rsync-backed local actions",
-    ],
-  },
-  {
-    "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
       {
@@ -139,6 +104,22 @@ export default function SshTerminalForMacPage() {
       <Workflows />
       <Comparison />
       <Faq />
+      <RelatedPages
+        links={[
+          {
+            href: GIT_TERMINAL_MAC_PATH,
+            title: "Git terminal for Mac",
+            description:
+              "Branch, rebase, and ship while your dev servers stream in the same window.",
+          },
+          {
+            href: MAC_TERMINAL_DEVELOPERS_PATH,
+            title: "Mac terminal for developers",
+            description:
+              "Run your whole stack — services, logs, and agents — in one native Mac app.",
+          },
+        ]}
+      />
       <Cta />
     </>
   );

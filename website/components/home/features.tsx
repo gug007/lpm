@@ -52,11 +52,11 @@ const FEATURES: Feature[] = [
   },
   {
     icon: ScanSearch,
-    title: "Auto-detect frameworks",
+    title: "AI writes your config",
     body: (
       <>
-        Automatically detects Rails, Next.js, Go, Django, Flask, and Docker
-        Compose projects.
+        Let your AI agent analyze a repo and generate the full project setup —
+        services, ports, actions, and profiles — ready to run.
       </>
     ),
   },
@@ -65,7 +65,7 @@ const FEATURES: Feature[] = [
     title: "Instant project switching",
     body: (
       <>
-        Stop one project and start another in a single command. No manual
+        Stop one project and start another in a single click. No manual
         cleanup needed.
       </>
     ),

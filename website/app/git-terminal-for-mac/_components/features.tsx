@@ -51,7 +51,7 @@ const FEATURES: Feature[] = [
     body: (
       <>
         After a rebase that touches dependencies or migrations, one click stops
-        and restarts your entire defined stack in the correct order. No manual{" "}
+        and restarts your entire defined stack. No manual{" "}
         <code className="text-xs">npm install && rails db:migrate && npm run dev</code>{" "}
         typed from memory.
       </>

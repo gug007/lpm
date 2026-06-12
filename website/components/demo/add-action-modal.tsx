@@ -23,6 +23,17 @@ export function DemoAddActionModal({
   onClose: () => void;
   onCreate: (input: NewActionInput) => void;
 }) {
+  if (!open) return null;
+  return <AddActionForm onClose={onClose} onCreate={onCreate} />;
+}
+
+function AddActionForm({
+  onClose,
+  onCreate,
+}: {
+  onClose: () => void;
+  onCreate: (input: NewActionInput) => void;
+}) {
   const [name, setName] = useState("");
   const [emoji, setEmoji] = useState("🚀");
   const [cmd, setCmd] = useState("");
@@ -31,17 +42,9 @@ export function DemoAddActionModal({
   const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!open) return;
-    setName("");
-    setEmoji("🚀");
-    setCmd("");
-    setRunMode("once");
-    setConfirm(false);
     const id = requestAnimationFrame(() => nameRef.current?.focus());
     return () => cancelAnimationFrame(id);
-  }, [open]);
-
-  if (!open) return null;
+  }, []);
 
   const canSubmit = name.trim().length > 0 && cmd.trim().length > 0;
 
@@ -69,7 +72,7 @@ export function DemoAddActionModal({
         onSubmit={submit}
         className="relative w-[400px] max-w-[calc(100%-2rem)] rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] p-5 shadow-2xl"
       >
-        <h3 className="text-[13px] font-semibold text-[#e5e5e5]">New action</h3>
+        <div className="text-[13px] font-semibold text-[#e5e5e5]">New action</div>
         <p className="mt-1 text-[11px] leading-relaxed text-[#919191]">
           A one-click shortcut for a command you run all the time — tests, builds,
           deploys, migrations.

@@ -1,6 +1,7 @@
-import { ArrowRight, Monitor } from "lucide-react";
-import { REPO_URL } from "@/lib/links";
+import { ArrowRight, Monitor, Play } from "lucide-react";
+import { DEMO_ANCHOR, REPO_URL } from "@/lib/links";
 import { HeroDownload } from "./hero-download";
+import { ProofStrip } from "./proof-strip";
 
 export function Hero() {
   return (
@@ -16,8 +17,10 @@ export function Hero() {
         <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.1] bg-gradient-to-br from-gray-900 via-gray-700 to-gray-500 dark:from-white dark:via-gray-200 dark:to-gray-500 bg-clip-text text-transparent">
           Switch between projects and terminals in seconds
         </h1>
-        <p className="mt-6 text-base sm:text-lg text-gray-400 dark:text-gray-500 max-w-lg mx-auto leading-relaxed tracking-wide">
-          Built for Claude Code, Codex, and other AI coding agents.
+        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed tracking-wide">
+          lpm starts, stops, and duplicates your local dev projects — every
+          service streaming live, with one-click terminals for Claude Code and
+          Codex. Free, open source, native macOS.
         </p>
 
         <div className="mt-10 max-w-xl mx-auto space-y-4 text-left">
@@ -30,7 +33,18 @@ export function Hero() {
             </div>
             <HeroDownload />
           </div>
+          <div className="flex justify-center">
+            <a
+              href={DEMO_ANCHOR}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
+            >
+              <Play className="w-3.5 h-3.5" aria-hidden />
+              Try the interactive demo
+            </a>
+          </div>
         </div>
+
+        <ProofStrip />
 
         <div className="mt-8">
           <a

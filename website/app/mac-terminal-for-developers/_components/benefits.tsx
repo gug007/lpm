@@ -8,7 +8,7 @@ type Outcome = {
 const OUTCOMES: Outcome[] = [
   {
     title: "Onboard a new repo in under two minutes.",
-    body: "Open any project folder, let lpm auto-detect its services, review the generated config, hit Start. Every service streams live output immediately — no README archaeology, no `which python`, no \"wait, what port does this run on?\".",
+    body: "Open any project folder, let AI generate its service config, review it, hit Start. Every service streams live output immediately — no README archaeology, no `which python`, no \"wait, what port does this run on?\".",
   },
   {
     title: "Debug across services without losing the thread.",

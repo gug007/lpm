@@ -155,22 +155,42 @@ export function TabRenameModal({
   onClose: () => void;
   onSubmit: (value: string, emoji?: string) => void;
 }) {
+  if (!open) return null;
+  return (
+    <TabRenameForm
+      withEmoji={withEmoji}
+      initialValue={initialValue}
+      initialEmoji={initialEmoji}
+      onClose={onClose}
+      onSubmit={onSubmit}
+    />
+  );
+}
+
+function TabRenameForm({
+  withEmoji,
+  initialValue,
+  initialEmoji,
+  onClose,
+  onSubmit,
+}: {
+  withEmoji: boolean;
+  initialValue: string;
+  initialEmoji: string;
+  onClose: () => void;
+  onSubmit: (value: string, emoji?: string) => void;
+}) {
   const [value, setValue] = useState(initialValue);
   const [emoji, setEmoji] = useState(initialEmoji);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!open) return;
-    setValue(initialValue);
-    setEmoji(initialEmoji);
     const id = requestAnimationFrame(() => {
       inputRef.current?.focus();
       inputRef.current?.select();
     });
     return () => cancelAnimationFrame(id);
-  }, [open, initialValue, initialEmoji]);
-
-  if (!open) return null;
+  }, []);
 
   const trimmed = value.trim();
   const canSubmit =
@@ -195,9 +215,9 @@ export function TabRenameModal({
         onSubmit={submit}
         className="relative w-[360px] rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] p-5 shadow-2xl"
       >
-        <h3 className="text-[11px] font-medium uppercase tracking-wider text-[#919191]">
+        <div className="text-[11px] font-medium uppercase tracking-wider text-[#919191]">
           Rename tab
-        </h3>
+        </div>
         {(() => {
           const field = (
             <input
