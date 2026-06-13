@@ -7,7 +7,7 @@ interface ProjectContextMenuProps {
   x: number;
   y: number;
   busy: boolean;
-  canRemove: boolean;
+  isDuplicate: boolean;
   isDetached: boolean;
   projectPath: string | null;
   onRename: () => void;
@@ -23,7 +23,7 @@ export function ProjectContextMenu({
   x,
   y,
   busy,
-  canRemove,
+  isDuplicate,
   isDetached,
   projectPath,
   onRename,
@@ -137,18 +137,14 @@ export function ProjectContextMenu({
           </div>
         </div>
       )}
-      {canRemove && (
-        <>
-          <div className="my-1 border-t border-[var(--border)]" />
-          <ContextMenuItem
-            destructive
-            label="Remove duplicate"
-            icon={<TrashIcon />}
-            onClick={close(onRemove)}
-            disabled={busy}
-          />
-        </>
-      )}
+      <div className="my-1 border-t border-[var(--border)]" />
+      <ContextMenuItem
+        destructive
+        label={isDuplicate ? "Delete duplicate" : "Remove from lpm"}
+        icon={<TrashIcon />}
+        onClick={close(onRemove)}
+        disabled={busy}
+      />
     </ContextMenuShell>
   );
 }

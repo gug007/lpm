@@ -34,6 +34,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
   const toggleProjectRunning = useAppStore((s) => s.toggleProjectRunning);
   const duplicateProject = useAppStore((s) => s.duplicateProject);
   const removeProject = useAppStore((s) => s.removeProject);
+  const removeProjectCascade = useAppStore((s) => s.removeProjectCascade);
   const renameProject = useAppStore((s) => s.renameProject);
   const reorderProjects = useAppStore((s) => s.reorderProjects);
   const detachProject = useAppStore((s) => s.detachProject);
@@ -97,6 +98,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
           onAddProject={() => FocusMainWindow(undefined, undefined, true)}
           onDuplicateProject={duplicateProject}
           onRemoveProject={removeProject}
+          onRemoveProjectCascade={removeProjectCascade}
           onRenameProject={renameProject}
           onReorder={reorderProjects}
           onDetachProject={detachProject}

@@ -322,6 +322,9 @@ export function RemovePortForward(project, localPort) {
 export function RemoveProject(name) {
   return invoke("remove_project", { name });
 }
+export function RemoveProjectCascade(name) {
+  return invoke("remove_project_cascade", { name });
+}
 export function RenameBranch(cwd, oldName, newName) {
   return invoke("rename_branch", { cwd, oldName, newName });
 }

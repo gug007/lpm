@@ -425,6 +425,36 @@ pub fn duplicate_project(
 
 // ---- remove -----------------------------------------------------------------
 
+/// Tear down a single project: stop its session/forwards/sync, delete its
+/// folder if it's a duplicate (originals keep their source folder), and drop
+/// its config + settings references. Does not emit; callers emit once.
+fn remove_one(app: &AppHandle, name: &str) -> Result<(), String> {
+    let info = load_root_and_parent(name).ok();
+    let is_duplicate = info.as_ref().and_then(|i| i.parent.as_ref()).is_some();
+    let root = info.as_ref().map(|i| i.root.clone()).unwrap_or_default();
+
+    // Stop the running session before deleting files (session name == file name
+    // for created projects), then tear down port forwards/poller + sync mirror.
+    let _ = crate::tmux::kill_session(name);
+    crate::portforward::stop_project_forwards(app, name); // tunnels + poller + suggestions
+    crate::sshsync::remove_project_sync(app, name); // watcher + local cache dir
+
+    if is_duplicate {
+        if !root.trim().is_empty() {
+            config::remove_dir_all_retry(Path::new(&root))?;
+        }
+        // Numbered duplicate names get reused; purge per-name state so the
+        // next project under this name doesn't inherit the removed one's
+        // notes, instructions, or terminal layout.
+        app.state::<crate::notes_cmds::NotesState>().purge(name);
+        let _ = config::remove_dir_all_retry(&crate::templates::project_instructions_dir(name));
+        clean_terminals_entry(name);
+    }
+    std::fs::remove_file(config::project_path(name)).map_err(|e| e.to_string())?;
+    clean_settings_references(name);
+    Ok(())
+}
+
 #[tauri::command(async)]
 pub fn remove_project(app: AppHandle, name: String) -> Result<(), String> {
     let dups = config::duplicates_of(&name)?;
@@ -435,31 +465,21 @@ pub fn remove_project(app: AppHandle, name: String) -> Result<(), String> {
             dups.join(", ")
         ));
     }
+    remove_one(&app, &name)?;
+    let _ = app.emit("projects-changed", ());
+    Ok(())
+}
 
-    let info = load_root_and_parent(&name).ok();
-    let is_duplicate = info.as_ref().and_then(|i| i.parent.as_ref()).is_some();
-    let root = info.as_ref().map(|i| i.root.clone()).unwrap_or_default();
-
-    // Stop the running session before deleting files (session name == file name
-    // for created projects), then tear down port forwards/poller + sync mirror.
-    let _ = crate::tmux::kill_session(&name);
-    crate::portforward::stop_project_forwards(&app, &name); // tunnels + poller + suggestions
-    crate::sshsync::remove_project_sync(&app, &name); // watcher + local cache dir
-
-    if is_duplicate {
-        if !root.trim().is_empty() {
-            config::remove_dir_all_retry(Path::new(&root))?;
-        }
-        // Numbered duplicate names get reused; purge per-name state so the
-        // next project under this name doesn't inherit the removed one's
-        // notes, instructions, or terminal layout.
-        app.state::<crate::notes_cmds::NotesState>().purge(&name);
-        let _ = config::remove_dir_all_retry(&crate::templates::project_instructions_dir(&name));
-        clean_terminals_entry(&name);
+/// Remove a project together with every duplicate that references it. Each
+/// duplicate's folder is deleted from disk (irreversible); the original keeps
+/// its source folder. Duplicates are flattened to one level, so a single pass
+/// over `duplicates_of` covers them all.
+#[tauri::command(async)]
+pub fn remove_project_cascade(app: AppHandle, name: String) -> Result<(), String> {
+    for dup in config::duplicates_of(&name)? {
+        remove_one(&app, &dup)?;
     }
-    std::fs::remove_file(config::project_path(&name)).map_err(|e| e.to_string())?;
-    clean_settings_references(&name);
-
+    remove_one(&app, &name)?;
     let _ = app.emit("projects-changed", ());
     Ok(())
 }

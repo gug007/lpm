@@ -56,6 +56,7 @@ export default function App() {
   const addProject = useAppStore((s) => s.addProject);
   const duplicateProject = useAppStore((s) => s.duplicateProject);
   const removeProject = useAppStore((s) => s.removeProject);
+  const removeProjectCascade = useAppStore((s) => s.removeProjectCascade);
   const renameProject = useAppStore((s) => s.renameProject);
   const reorderProjects = useAppStore((s) => s.reorderProjects);
   const detachProject = useAppStore((s) => s.detachProject);
@@ -177,6 +178,7 @@ export default function App() {
           onAddProject={addProject}
           onDuplicateProject={duplicateProject}
           onRemoveProject={removeProject}
+          onRemoveProjectCascade={removeProjectCascade}
           onRenameProject={renameProject}
           onReorder={reorderProjects}
           onDetachProject={detachProject}

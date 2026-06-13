@@ -30,6 +30,7 @@ interface SidebarProps {
   onAddProject: () => void;
   onDuplicateProject: (name: string, excludeUncommitted?: boolean, reinstallDeps?: boolean) => void;
   onRemoveProject: (name: string) => void;
+  onRemoveProjectCascade: (name: string) => void;
   onRenameProject: (name: string, label: string) => void;
   onReorder: (order: string[]) => void;
   onDetachProject: (name: string) => void;
@@ -67,14 +68,14 @@ function computeStatus(project: ProjectInfo): ProjectStatus {
   return { isRunning, isDone, isWaiting, isError, className };
 }
 
-export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onDuplicateProject, onRemoveProject, onRenameProject, onReorder, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showSettings, duplicatingName, removingName }: SidebarProps) {
+export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onDuplicateProject, onRemoveProject, onRemoveProjectCascade, onRenameProject, onReorder, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showSettings, duplicatingName, removingName }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
   const [updatePhase, setUpdatePhase] = useState<"checking" | "downloading" | "installing">("checking");
   const [updateError, setUpdateError] = useState("");
   const [contextMenu, setContextMenu] = useState<{ name: string; x: number; y: number } | null>(null);
-  const [confirmRemoveDuplicate, setConfirmRemoveDuplicate] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [renamingName, setRenamingName] = useState<string | null>(null);
   const { width, handleResizeStart } = useSidebarResize();
 
@@ -101,6 +102,88 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
   const renamingParent = renamingProject?.parentName
     ? projectByName.get(renamingProject.parentName)
     : undefined;
+
+  const pendingRemove = confirmRemove ? projectByName.get(confirmRemove) : undefined;
+  const pendingRemoveParent = pendingRemove?.parentName
+    ? projectByName.get(pendingRemove.parentName)
+    : undefined;
+  const pendingRemoveLabel = pendingRemove
+    ? projectDisplayName(pendingRemove, pendingRemoveParent)
+    : "";
+  const pendingRemoveDuplicates =
+    pendingRemove && !pendingRemove.parentName
+      ? projects.filter((p) => p.parentName === pendingRemove.name)
+      : [];
+  const dupCount = pendingRemoveDuplicates.length;
+  const dupPlural = dupCount === 1 ? "" : "s";
+  const removeMode: "duplicate" | "cascade" | "plain" = pendingRemove?.parentName
+    ? "duplicate"
+    : dupCount > 0
+    ? "cascade"
+    : "plain";
+  const removeDialog =
+    removeMode === "duplicate"
+      ? {
+          title: "Delete duplicate",
+          confirmLabel: "Delete",
+          confirmText: undefined as string | undefined,
+          onConfirm: onRemoveProject,
+          body: (
+            <>
+              Delete{" "}
+              <span className="font-medium text-[var(--text-primary)]">
+                {pendingRemoveLabel}
+              </span>
+              ? Its folder and everything inside is permanently deleted from
+              disk. This can't be undone.
+            </>
+          ),
+        }
+      : removeMode === "cascade"
+      ? {
+          title: `Delete project and ${dupCount} duplicate${dupPlural}`,
+          confirmLabel: "Delete",
+          confirmText: pendingRemoveLabel,
+          onConfirm: onRemoveProjectCascade,
+          body: (
+            <>
+              Deleting{" "}
+              <span className="font-medium text-[var(--text-primary)]">
+                {pendingRemoveLabel}
+              </span>{" "}
+              also permanently deletes its {dupCount} duplicate{dupPlural} from
+              disk:
+              <ul className="mt-2 list-disc space-y-0.5 pl-5">
+                {pendingRemoveDuplicates.map((dup) => (
+                  <li key={dup.name} className="text-[var(--text-primary)]">
+                    {projectDisplayName(dup, pendingRemove)}
+                  </li>
+                ))}
+              </ul>
+              <span className="mt-2 block">
+                The original's source folder stays on disk — only the duplicate
+                copies are deleted. This can't be undone.
+              </span>
+            </>
+          ),
+        }
+      : {
+          title: "Remove project",
+          confirmLabel: "Remove",
+          confirmText: pendingRemoveLabel,
+          onConfirm: onRemoveProject,
+          body: (
+            <>
+              Remove{" "}
+              <span className="font-medium text-[var(--text-primary)]">
+                {pendingRemoveLabel}
+              </span>{" "}
+              from lpm? This stops any running session and removes the project
+              entry. Your source folder stays on disk, so you can add it back
+              anytime.
+            </>
+          ),
+        };
 
   // Backend stores a flat order; expand the dragged top-level list with
   // each parent's duplicates so the optimistic client-side sort matches
@@ -282,7 +365,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           x={contextMenu.x}
           y={contextMenu.y}
           busy={duplicatingName !== null || removingName !== null}
-          canRemove={Boolean(contextProject?.parentName)}
+          isDuplicate={Boolean(contextProject?.parentName)}
           isDetached={detached.has(contextMenu.name)}
           projectPath={contextProject?.root ?? null}
           onRename={() => setRenamingName(contextMenu.name)}
@@ -294,28 +377,21 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           }}
           onDetach={() => onDetachProject(contextMenu.name)}
           onAttach={() => onAttachProject(contextMenu.name)}
-          onRemove={() => setConfirmRemoveDuplicate(contextMenu.name)}
+          onRemove={() => setConfirmRemove(contextMenu.name)}
           onClose={() => setContextMenu(null)}
         />
       )}
       <ConfirmDialog
-        open={confirmRemoveDuplicate !== null}
-        title="Remove duplicate"
+        open={confirmRemove !== null}
+        title={removeDialog.title}
         variant="destructive"
-        confirmLabel="Remove"
-        body={
-          <>
-            Remove{" "}
-            <span className="font-medium text-[var(--text-primary)]">
-              {confirmRemoveDuplicate}
-            </span>
-            ? Its folder will be deleted from disk.
-          </>
-        }
-        onCancel={() => setConfirmRemoveDuplicate(null)}
+        confirmLabel={removeDialog.confirmLabel}
+        confirmText={removeDialog.confirmText || undefined}
+        body={removeDialog.body}
+        onCancel={() => setConfirmRemove(null)}
         onConfirm={() => {
-          if (confirmRemoveDuplicate) onRemoveProject(confirmRemoveDuplicate);
-          setConfirmRemoveDuplicate(null);
+          if (confirmRemove) removeDialog.onConfirm(confirmRemove);
+          setConfirmRemove(null);
         }}
       />
       <RenameModal

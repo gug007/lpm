@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Modal } from "./Modal";
 
 export type ConfirmVariant = "default" | "destructive";
@@ -11,6 +11,7 @@ interface ConfirmDialogProps {
   confirmLabel?: string;
   variant?: ConfirmVariant;
   disabled?: boolean;
+  confirmText?: string;
   onCancel: () => void;
   onConfirm: () => void;
 }
@@ -23,9 +24,16 @@ export function ConfirmDialog({
   confirmLabel = "Confirm",
   variant = "default",
   disabled = false,
+  confirmText,
   onCancel,
   onConfirm,
 }: ConfirmDialogProps) {
+  const [typed, setTyped] = useState("");
+  useEffect(() => setTyped(""), [open]);
+
+  const mustType = Boolean(confirmText);
+  const typedOk = !mustType || typed.trim() === confirmText;
+  const confirmBlocked = disabled || !typedOk;
   const confirmClass =
     variant === "destructive"
       ? "rounded-lg bg-[var(--accent-red)] px-4 py-2 text-sm font-medium text-white transition-all hover:opacity-85 disabled:opacity-40"
@@ -49,6 +57,33 @@ export function ConfirmDialog({
       >
         {body}
       </div>
+      {mustType && (
+        <div className="mt-4">
+          <label className="block text-[11px] text-[var(--text-muted)]">
+            Type{" "}
+            <span className="font-medium text-[var(--text-secondary)]">
+              {confirmText}
+            </span>{" "}
+            to confirm
+          </label>
+          <input
+            autoFocus
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !confirmBlocked) {
+                e.preventDefault();
+                onConfirm();
+              }
+            }}
+            placeholder={confirmText}
+            spellCheck={false}
+            autoCapitalize="off"
+            autoCorrect="off"
+            className="mt-1.5 w-full rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent-cyan)]"
+          />
+        </div>
+      )}
       <div className={`${title ? "mt-5" : "mt-4"} flex justify-end gap-2`}>
         <button
           onClick={onCancel}
@@ -58,7 +93,7 @@ export function ConfirmDialog({
         </button>
         <button
           onClick={onConfirm}
-          disabled={disabled}
+          disabled={confirmBlocked}
           className={
             variant === "destructive"
               ? confirmClass

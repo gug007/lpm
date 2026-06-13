@@ -25,6 +25,7 @@ import {
   ListTemplates,
   ReadConfig,
   RemoveProject,
+  RemoveProjectCascade,
   RenameTemplate,
   ReorderProjects,
   ResolvePortConflict,
@@ -146,6 +147,7 @@ interface AppState {
     reinstallDeps?: boolean,
   ) => Promise<void>;
   removeProject: (name: string) => Promise<void>;
+  removeProjectCascade: (name: string) => Promise<void>;
   renameProject: (name: string, label: string) => Promise<void>;
   reorderProjects: (order: string[]) => Promise<void>;
   detachProject: (name: string) => Promise<void>;
@@ -376,6 +378,30 @@ function templatesEqual(a: main.TemplateInfo[], b: main.TemplateInfo[]): boolean
     if (a[i].name !== b[i].name || a[i].path !== b[i].path) return false;
   }
   return true;
+}
+
+async function runProjectRemoval(
+  set: AppSet,
+  get: AppGet,
+  name: string,
+  removedNames: string[],
+  call: () => Promise<unknown>,
+) {
+  if (get().removingName) return;
+  set({ removingName: name });
+  try {
+    await call();
+    for (const removedName of removedNames) {
+      forgetProjectTerminals(removedName);
+      window.localStorage.removeItem(activeChatStorageKey(removedName));
+    }
+    set({ selected: null });
+    await get().refreshProjects();
+  } catch (err) {
+    toast.error(`Failed to remove ${name}: ${err}`);
+  } finally {
+    set({ removingName: null });
+  }
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -677,21 +703,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  removeProject: async (name) => {
-    if (get().removingName) return;
-    set({ removingName: name });
-    try {
-      await RemoveProject(name);
-      forgetProjectTerminals(name);
-      window.localStorage.removeItem(activeChatStorageKey(name));
-      set({ selected: null });
-      await get().refreshProjects();
-    } catch (err) {
-      toast.error(`Failed to remove ${name}: ${err}`);
-    } finally {
-      set({ removingName: null });
-    }
-  },
+  removeProject: (name) =>
+    runProjectRemoval(set, get, name, [name], () => RemoveProject(name)),
+
+  removeProjectCascade: (name) =>
+    runProjectRemoval(
+      set,
+      get,
+      name,
+      [name, ...get().projects.filter((p) => p.parentName === name).map((p) => p.name)],
+      () => RemoveProjectCascade(name),
+    ),
 
   renameProject: async (name, label) => {
     const current = get().projects.find((p) => p.name === name)?.label ?? "";
