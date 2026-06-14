@@ -246,7 +246,8 @@ Sub-actions inherit `cwd` and `env` from the parent; child values win on conflic
 | `type` | string | no | — | Action type. `terminal` runs in a terminal pane; `background` runs hidden and shows a toast on completion. Omit for the default inline runner (modal with streaming output). |
 | `reuse` | bool | no | false | When `type: terminal`, reuse the same terminal pane across runs instead of opening a new one. |
 | `mode` | string | no | — | SSH-only execution mode. `remote` (default on SSH projects) runs the command on the host. `sync` rsyncs `ssh.dir` into a local mirror, runs the action locally, then rsyncs changes back. `sync` is rejected on local projects. See [SSH Action Modes](#ssh-action-modes). |
-| `port` | int | no | — | Port the action wants free. lpm probes it before launching; if held, the user gets a confirmation dialog listing the holder. 0–65535. Different from `services.<key>.port` (which is "this is the port I will listen on"). |
+| `port` | int \| string \| list | no | — | Port(s) that must be free before the action runs. Single port, inclusive range string (`"3002-3010"`), or a list mixing both. Busy ports are handled per `portConflict`. See [Ports & Conflicts](#ports--conflicts). Different from `services.<key>.port` (which is "this is the port I will listen on"). |
+| `portConflict` | string | no | `ask` | What to do when a declared port is busy: `ask` (prompt before freeing), `free` (free automatically), `fail` (refuse to run). |
 | `position` | number | no | — | Sort key in the UI. Lower renders first. Floats allowed for easy insertion between existing entries. Default is alphabetical order. |
 | `inputs` | map[string]InputField | no | — | Named inputs prompted before running. Values substitute `{{key}}` in `cmd`. |
 | `actions` | map[string]Action | no | — | Nested sub-actions. Makes this an action group. See [Action Groups](#action-groups-nested-actions). Children inherit `cwd`, `env`, and `mode` from the parent. |
@@ -257,6 +258,43 @@ Sub-actions inherit `cwd` and `env` from the parent; child values win on conflic
 - **`footer`** — action appears as a compact button in the terminal footer (right next to the branch switcher). Use for tight, always-one-click controls. Footer also accepts split-button groups (parent `cmd` + nested `actions`).
 - **`menu`** *(legacy)* — action appears in the overflow menu. Still accepted but no longer suggested by autocomplete; may be deprecated in a future version.
 - **`button`** *(deprecated alias for `header`)* — flagged as an error in the editor; runtime still treats it like `header`.
+
+### Ports & Conflicts
+
+`port` declares the TCP port(s) an action (or terminal) needs free before it runs. Before launching, lpm checks each port; busy ones are handled per `portConflict`. It accepts four shapes:
+
+```yaml
+actions:
+  dev:
+    cmd: npm run dev
+    port: 3000                      # single port
+
+  preview:
+    cmd: npm run preview
+    port: [3000, 3001, 4000]        # explicit list
+
+  cluster:
+    cmd: ./run-cluster.sh
+    port: "5001-5020"               # inclusive range (quote it!)
+
+  stack:
+    cmd: docker compose up
+    port: [3000, "3002-3010", 8080] # list mixing single ports and ranges
+```
+
+**Ranges:**
+- Write a range as `"<lo>-<hi>"` — a string with a dash. It is **inclusive** on both ends: `"3002-3010"` expands to 3002, 3003, … 3010.
+- Quote it. In YAML an unquoted `3002-3010` (or `[3000, 3002-3010]`) is parsed as a string element, not a number, so always wrap range entries in quotes.
+- You can mix explicit ports and ranges freely inside one list.
+- A reversed range (`"3010-3002"`) is normalized; ends are clamped to 1–65535; a single range is capped at 1024 ports to keep a stray `"1-65535"` from exploding the set. Unparseable entries (e.g. `"abc"`) are silently dropped.
+
+**`portConflict`** controls what happens when any declared port is already in use:
+
+- **`ask`** (default) — prompt before freeing the port (the port-conflict picker lets you choose which to free).
+- **`free`** — kill whatever holds the port and run.
+- **`fail`** — refuse to run while the port is busy.
+
+> Service `port:` is different — a service declares the **single** port it listens on (used for forwarding and uniqueness checks), so it takes one integer only, not lists or ranges.
 
 ### Input Fields
 
@@ -321,7 +359,8 @@ terminals:
 | `display` | string | no | `header` | UI placement: `header` (main button row, default) or `footer` (terminal footer strip). `menu` is still accepted (legacy) but no longer suggested. `button` is a deprecated alias for `header`. |
 | `confirm` | bool | no | false | Prompt before opening. |
 | `reuse` | bool | no | false | Reuse the existing pane on next launch. |
-| `port` | int | no | — | Port the terminal wants free. lpm probes it before launching; if held, the user gets a confirmation dialog listing the holder. 0–65535. |
+| `port` | int \| string \| list | no | — | Port(s) that must be free before the terminal launches. Single port, inclusive range string (`"3002-3010"`), or a list mixing both. Busy ports are handled per `portConflict`. See [Ports & Conflicts](#ports--conflicts). |
+| `portConflict` | string | no | `ask` | What to do when a declared port is busy: `ask`, `free`, or `fail`. |
 | `position` | number | no | — | Sort key in the UI. Lower renders first. Floats allowed for easy insertion between existing entries. Default is alphabetical order. |
 | `inputs` | map[string]InputField | no | — | Named inputs prompted before opening. Values substitute `{{key}}` in `cmd`. |
 | `actions` | map[string]Action | no | — | Nested sub-actions. Makes this a split-button or dropdown — see Action Groups. |
@@ -671,7 +710,7 @@ lpm validates config on load:
 9. Nested sub-actions are validated recursively (cmd required if no children, cwd must exist on local projects, mode validated the same way).
 10. `parent_name` must reference an existing, loadable project.
 11. `extends` entries must resolve to readable YAML files. Cycles are rejected at load time.
-12. `port` on actions/terminals is in range 0–65535 (or omitted).
+12. `port` on actions/terminals is in range 0–65535 (or omitted). Range entries use the quoted `"lo-hi"` form (inclusive) — never an unquoted dash range (`port: 3002-3010` / `[3000, 3002-3010]` is invalid; quote as `"3002-3010"`). `portConflict` is only `ask`, `free`, or `fail`.
 13. `position` is a number (integer or float).
 14. `.lpm.yml` and templates must NOT contain `name`, `root`, `parent_name`, or `ssh` — identity stays in personal project files.
 
