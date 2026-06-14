@@ -39,16 +39,18 @@ export async function WindowGetSize() {
 
 // File drop bridge. Tauri delivers native drag/drop via the webview's
 // onDragDropEvent; re-publish it as the `app:*` CustomEvents the drag
-// overlay listens for, and invoke the registered drop handler. Coordinates
-// from Tauri are physical pixels; the overlay's elementFromPoint() needs CSS
-// pixels, so divide by devicePixelRatio.
+// overlay listens for, and invoke the registered drop handler. Despite the
+// PhysicalPosition type, wry's macOS handler reports draggingLocation() in
+// AppKit points (CSS pixels) without applying the backing scale factor, so
+// the coordinates are already what elementFromPoint() wants — do NOT divide
+// by devicePixelRatio (doing so halved hit-tests on Retina, pulling drops
+// toward the top-left so the terminal's left/top edges silently missed).
 let fileDropHandler = null;
 let dragSubscribed = false;
 
 function toLogical(position) {
-  const dpr = window.devicePixelRatio || 1;
   if (!position) return { x: 0, y: 0 };
-  return { x: Math.round(position.x / dpr), y: Math.round(position.y / dpr) };
+  return { x: Math.round(position.x), y: Math.round(position.y) };
 }
 
 function ensureDragSubscription() {
