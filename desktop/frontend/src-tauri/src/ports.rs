@@ -333,8 +333,21 @@ fn free_port(app: &AppHandle, svc: &State<'_, ServiceState>, port: i64) -> Resul
     if !taken {
         return Ok(());
     }
-    let project = walk_to_project(holder.pid, &lpm_pane_index(), &process_parents());
-    if !project.is_empty() {
+    let self_pid = std::process::id() as i64;
+    if holder.pid == self_pid {
+        return Err(format!("port {port} is held by lpm itself"));
+    }
+    let pane_idx = lpm_pane_index();
+    let parents = process_parents();
+    let project = walk_to_project(holder.pid, &pane_idx, &parents);
+    // Tearing down a whole project to free a port is only right for a different,
+    // separately-running project. When the holder belongs to the project that
+    // also hosts this running lpm process (self-hosted dev, where `npm run tauri
+    // dev` is itself a service), killing the session would take lpm down with
+    // it — so kill just the port holder instead.
+    let hosts_self =
+        !project.is_empty() && walk_to_project(self_pid, &pane_idx, &parents) == project;
+    if !project.is_empty() && !hosts_self {
         crate::services::stop_project_internal(app, svc, &project)?;
     } else if holder.pid > 0 {
         kill_term(holder.pid)?;
