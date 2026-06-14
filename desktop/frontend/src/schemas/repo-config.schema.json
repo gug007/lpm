@@ -103,6 +103,12 @@
             "cmd": { "type": "string", "description": "Shell command to run." },
             "cwd": { "type": "string", "description": "Working directory, relative to project root or absolute." },
             "port": { "type": "integer", "minimum": 0, "maximum": 65535 },
+            "portConflict": {
+              "type": "string",
+              "enum": ["ask", "free", "fail"],
+              "default": "ask",
+              "description": "What to do when this service's port is busy at start. \"ask\" (default) prompts before freeing it; \"free\" frees it automatically; \"fail\" refuses to start."
+            },
             "env": { "$ref": "#/definitions/envMap" },
             "profiles": {
               "type": "array",
@@ -125,10 +131,17 @@
             "emoji": { "type": "string", "description": "Optional emoji shown as the action's icon and on the terminal tab it launches." },
             "cwd": { "type": "string" },
             "port": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 65535,
-              "description": "Port the action wants free. Holders are surfaced via a confirmation dialog before the action runs."
+              "oneOf": [
+                { "type": "integer", "minimum": 0, "maximum": 65535 },
+                { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 65535 } }
+              ],
+              "description": "Port(s) the action wants free before it runs. Accepts a single port or a list. Busy ports are handled per \"portConflict\"."
+            },
+            "portConflict": {
+              "type": "string",
+              "enum": ["ask", "free", "fail"],
+              "default": "ask",
+              "description": "What to do when a declared port is busy. \"ask\" (default) prompts before freeing it; \"free\" frees it automatically; \"fail\" refuses to run."
             },
             "env": { "$ref": "#/definitions/envMap" },
             "confirm": { "type": "boolean", "description": "Prompt before running." },
@@ -206,10 +219,17 @@
             "emoji": { "type": "string", "description": "Optional emoji shown as the terminal tab's icon." },
             "cwd": { "type": "string" },
             "port": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 65535,
-              "description": "Port the terminal wants free. Holders are surfaced via a confirmation dialog before the terminal launches."
+              "oneOf": [
+                { "type": "integer", "minimum": 0, "maximum": 65535 },
+                { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 65535 } }
+              ],
+              "description": "Port(s) the terminal wants free before it launches. Accepts a single port or a list. Busy ports are handled per \"portConflict\"."
+            },
+            "portConflict": {
+              "type": "string",
+              "enum": ["ask", "free", "fail"],
+              "default": "ask",
+              "description": "What to do when a declared port is busy. \"ask\" (default) prompts before freeing it; \"free\" frees it automatically; \"fail\" refuses to launch."
             },
             "env": { "$ref": "#/definitions/envMap" },
             "confirm": { "type": "boolean" },

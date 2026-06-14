@@ -34,7 +34,7 @@ struct ActionDone {
 struct ActionPlan {
     cmd_str: String,
     cwd: String,
-    port: i64,
+    ports: Vec<i64>,
     /// Run the command through the user's interactive login shell (local actions),
     /// vs. plain `/bin/sh -c` (remote actions, where cmd_str is an ssh line).
     login_shell: bool,
@@ -79,7 +79,7 @@ fn resolve_action_command(
             return Ok(ActionPlan {
                 cmd_str: config::build_local_script(&a.env, &a.cmd),
                 cwd,
-                port: a.port,
+                ports: a.ports,
                 login_shell: false,
                 on_exit: Some(Box::new(move || crate::sshsync::push_after_action(&app2, &project2))),
             });
@@ -87,7 +87,7 @@ fn resolve_action_command(
         Ok(ActionPlan {
             cmd_str: config::ssh_command_line(&info.ssh, &a.cwd, &a.env, &a.cmd),
             cwd: info.root, // local cwd for the ssh client
-            port: a.port,
+            ports: a.ports,
             login_shell: false,
             on_exit: None,
         })
@@ -95,7 +95,7 @@ fn resolve_action_command(
         Ok(ActionPlan {
             cmd_str: config::build_local_script(&a.env, &a.cmd),
             cwd: config::resolve_cwd(&info.root, &a.cwd),
-            port: a.port,
+            ports: a.ports,
             login_shell: true,
             on_exit: None,
         })
@@ -150,7 +150,7 @@ pub fn run_action(
     input_values: HashMap<String, String>,
 ) -> Result<(), String> {
     let mut plan = resolve_action_command(&app, &project_name, &action_name, &input_values)?;
-    ports::format_action_port(&action_name, plan.port)?; // pre-check; no spawn on conflict
+    ports::format_action_port(&action_name, &plan.ports)?; // pre-check; no spawn on conflict
     let on_exit = plan.on_exit.take();
 
     let mut cmd = action_command(&plan);
@@ -190,7 +190,7 @@ pub fn run_action_background(
     input_values: HashMap<String, String>,
 ) -> Result<(), String> {
     let mut plan = resolve_action_command(&app, &project_name, &action_name, &input_values)?;
-    ports::format_action_port(&action_name, plan.port)?;
+    ports::format_action_port(&action_name, &plan.ports)?;
     let on_exit = plan.on_exit.take();
 
     let mut cmd = action_command(&plan);

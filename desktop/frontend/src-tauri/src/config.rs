@@ -221,6 +221,8 @@ pub struct ServiceFull {
     pub cwd: String,
     #[serde(default)]
     pub port: i64,
+    #[serde(rename = "portConflict", default)]
+    pub port_conflict: String,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
 }
@@ -263,6 +265,38 @@ enum ActionDef {
     Full(ActionFull),
 }
 
+/// An action's `port` is either a single port or a list of them. A scalar stays
+/// back-compatible with the long-standing `port: 3000` form.
+#[derive(Deserialize, Clone)]
+#[serde(untagged)]
+enum PortSpec {
+    One(i64),
+    Many(Vec<i64>),
+}
+
+impl Default for PortSpec {
+    fn default() -> Self {
+        PortSpec::Many(Vec::new())
+    }
+}
+
+impl PortSpec {
+    fn to_vec(&self) -> Vec<i64> {
+        match self {
+            PortSpec::One(p) if *p > 0 => vec![*p],
+            PortSpec::One(_) => vec![],
+            PortSpec::Many(v) => v.iter().copied().filter(|p| *p > 0).collect(),
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        match self {
+            PortSpec::One(p) => *p <= 0,
+            PortSpec::Many(v) => !v.iter().any(|p| *p > 0),
+        }
+    }
+}
+
 #[derive(Deserialize, Default, Clone)]
 struct ActionFull {
     #[serde(default)]
@@ -274,7 +308,9 @@ struct ActionFull {
     #[serde(default)]
     cwd: String,
     #[serde(default)]
-    port: i64,
+    port: PortSpec,
+    #[serde(rename = "portConflict", default)]
+    port_conflict: String,
     #[serde(default)]
     env: BTreeMap<String, String>,
     #[serde(default)]
@@ -650,8 +686,8 @@ pub struct TerminalSpawn {
 
 /// Resolve a named terminal action: an entry under `terminals:` (implicitly a
 /// terminal) or one under `actions:` with `type: terminal`. The name may be a
-/// `parent:child` composite (a nested action) — same lookup as action_port /
-/// resolve_action_full. Returns None when the name resolves to a non-terminal
+/// `parent:child` composite (a nested action) — same lookup as
+/// action_ports_and_conflict / resolve_action_full. Returns None when the name resolves to a non-terminal
 /// action or doesn't exist at all (callers fall back to a plain shell).
 pub fn resolve_terminal_action(
     project: &str,
@@ -715,8 +751,10 @@ pub struct ActionInfo {
     pub emoji: String,
     pub cmd: String,
     pub cwd: String,
-    #[serde(skip_serializing_if = "is_zero_i64")]
-    pub port: i64,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub port: Vec<i64>,
+    #[serde(rename = "portConflict", skip_serializing_if = "String::is_empty")]
+    pub port_conflict: String,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub env: BTreeMap<String, String>,
     pub confirm: bool,
@@ -730,10 +768,6 @@ pub struct ActionInfo {
     pub inputs: Vec<ActionInputInfo>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub children: Vec<ActionInfo>,
-}
-
-fn is_zero_i64(v: &i64) -> bool {
-    *v == 0
 }
 
 fn terminal_to_action(mut a: ActionFull) -> ActionFull {
@@ -809,8 +843,11 @@ fn merge_action(d: &mut ActionFull, s: &ActionFull) {
     if d.cwd.is_empty() {
         d.cwd = s.cwd.clone();
     }
-    if d.port == 0 {
-        d.port = s.port;
+    if d.port.is_empty() {
+        d.port = s.port.clone();
+    }
+    if d.port_conflict.is_empty() {
+        d.port_conflict = s.port_conflict.clone();
     }
     if d.env.is_empty() {
         d.env = s.env.clone();
@@ -913,6 +950,9 @@ fn merge_service(dst: &mut ServiceFull, src: &ServiceFull) {
     if dst.port == 0 {
         dst.port = src.port;
     }
+    if dst.port_conflict.is_empty() {
+        dst.port_conflict = src.port_conflict.clone();
+    }
     if dst.env.is_empty() {
         dst.env = src.env.clone();
     }
@@ -997,6 +1037,9 @@ fn resolved_child(parent: &ActionFull, child: &ActionFull) -> ActionFull {
     if c.mode.is_empty() {
         c.mode = parent.mode.clone();
     }
+    if c.port_conflict.is_empty() {
+        c.port_conflict = parent.port_conflict.clone();
+    }
     // A child under a terminal parent is itself a terminal unless it says
     // otherwise — without this it serializes as a plain (non-terminal) action and
     // resolve_terminal_action's kind filter would drop it. Mirrors cwd/mode above.
@@ -1078,7 +1121,8 @@ fn action_to_info(id: &str, name: &str, act: &ActionFull) -> ActionInfo {
         emoji: act.emoji.clone(),
         cmd: act.cmd.clone(),
         cwd: act.cwd.clone(),
-        port: act.port,
+        port: act.port.to_vec(),
+        port_conflict: act.port_conflict.clone(),
         env: act.env.clone(),
         confirm: act.confirm,
         display: act.display.clone(),
@@ -1197,6 +1241,7 @@ fn to_project_info(file_name: &str, mut yaml: ProjectYaml, running: bool, state:
             "cmd": svc.cmd,
             "cwd": svc.cwd,
             "port": svc.port,
+            "portConflict": svc.port_conflict,
             "env": svc.env,
         })
     };
@@ -1461,19 +1506,24 @@ pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
     })
 }
 
-/// The resolved `port` for an action (or `parent:child`). None when the action
-/// doesn't exist; Some(0) when it exists without a port.
-pub fn action_port(file_name: &str, action_name: &str) -> Option<i64> {
+/// The resolved port list + `portConflict` policy for an action (or
+/// `parent:child`), from a single config resolve. None when the action doesn't
+/// exist; an empty vec / empty policy when unset (callers treat "" as "ask").
+pub fn action_ports_and_conflict(
+    file_name: &str,
+    action_name: &str,
+) -> Option<(Vec<i64>, String)> {
     let map = resolve_action_map(file_name);
-    Some(lookup_action(&map, action_name)?.port)
+    let act = lookup_action(&map, action_name)?;
+    Some((act.port.to_vec(), act.port_conflict))
 }
 
 /// Fully resolved action fields needed to run it (RunAction/RunActionBackground).
-/// Mirrors action_port's lookup incl. `parent:child` child-resolution.
+/// Mirrors action_ports_and_conflict's lookup incl. `parent:child` resolution.
 pub struct ActionResolved {
     pub cmd: String,
     pub cwd: String,
-    pub port: i64,
+    pub ports: Vec<i64>,
     pub env: BTreeMap<String, String>,
     pub mode: String, // "" | "remote" | "sync"
 }
@@ -1484,7 +1534,7 @@ pub fn resolve_action_full(file_name: &str, action_name: &str) -> Option<ActionR
     Some(ActionResolved {
         cmd: act.cmd,
         cwd: act.cwd,
-        port: act.port,
+        ports: act.port.to_vec(),
         env: act.env,
         mode: act.mode,
     })

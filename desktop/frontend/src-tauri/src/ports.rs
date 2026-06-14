@@ -21,6 +21,10 @@ pub struct PortConflictInfo {
     #[serde(rename = "lpmProject")]
     pub lpm_project: String,
     pub description: String,
+    /// The owning entry's portConflict policy ("" | "ask" | "free" | "fail"),
+    /// so the frontend can resolve each conflict per its own policy.
+    #[serde(rename = "portConflict", skip_serializing_if = "String::is_empty")]
+    pub port_conflict: String,
 }
 
 #[derive(Clone, Default)]
@@ -171,7 +175,7 @@ fn walk_to_project(pid: i64, pane_idx: &HashMap<i64, String>, parents: &HashMap<
     String::new()
 }
 
-fn to_info(service: &str, port: i64, h: &Holder, project: &str) -> PortConflictInfo {
+fn to_info(service: &str, port: i64, h: &Holder, project: &str, policy: &str) -> PortConflictInfo {
     PortConflictInfo {
         service: service.into(),
         port,
@@ -179,6 +183,7 @@ fn to_info(service: &str, port: i64, h: &Holder, project: &str) -> PortConflictI
         process: h.command.clone(),
         lpm_project: project.into(),
         description: holder_phrase(h, project),
+        port_conflict: policy.into(),
     }
 }
 
@@ -221,27 +226,49 @@ fn check_services(info: &config::SpawnInfo, service_names: &[String]) -> Vec<Por
         if project == info.file_name {
             continue; // our own running service — not a conflict
         }
-        out.push(to_info(&service, port, &holder, &project));
+        let policy = info
+            .services
+            .get(&service)
+            .map(|s| s.port_conflict.clone())
+            .unwrap_or_default();
+        out.push(to_info(&service, port, &holder, &project, &policy));
     }
     out
 }
 
-fn check_action_port(action: &str, port: i64) -> Vec<PortConflictInfo> {
-    if port <= 0 {
+fn check_action_port(action: &str, ports: &[i64], policy: &str) -> Vec<PortConflictInfo> {
+    let ports: Vec<i64> = ports.iter().copied().filter(|p| *p > 0).collect();
+    if ports.is_empty() {
         return vec![];
     }
-    let (holder, taken) = probe(port);
-    if !taken {
-        return vec![];
+    let holders = lookup_holders(&ports);
+    let mut pane_idx = HashMap::new();
+    let mut parents = HashMap::new();
+    let mut indexed = false;
+    let mut out = vec![];
+    for port in ports {
+        let (holder, taken) = match holders.get(&port) {
+            Some(h) => (h.clone(), true),
+            None => (Holder::default(), !can_bind(port)),
+        };
+        if !taken {
+            continue;
+        }
+        if !indexed {
+            pane_idx = lpm_pane_index();
+            parents = process_parents();
+            indexed = true;
+        }
+        let project = walk_to_project(holder.pid, &pane_idx, &parents);
+        out.push(to_info(action, port, &holder, &project, policy));
     }
-    let project = walk_to_project(holder.pid, &lpm_pane_index(), &process_parents());
-    vec![to_info(action, port, &holder, &project)]
+    out
 }
 
 /// portcheck.FormatActionPort: Ok(()) when free, else a human-readable error
 /// (one bullet per conflict) used as the RunAction/RunActionBackground pre-check.
-pub fn format_action_port(action: &str, port: i64) -> Result<(), String> {
-    let conflicts = check_action_port(action, port);
+pub fn format_action_port(action: &str, ports: &[i64]) -> Result<(), String> {
+    let conflicts = check_action_port(action, ports, "");
     if conflicts.is_empty() {
         return Ok(());
     }
@@ -284,9 +311,9 @@ pub fn check_action_port_conflict(
     project_name: String,
     action_name: String,
 ) -> Result<Vec<PortConflictInfo>, String> {
-    let port = config::action_port(&project_name, &action_name)
+    let (ports, policy) = config::action_ports_and_conflict(&project_name, &action_name)
         .ok_or_else(|| format!("action {action_name:?} not found in project {project_name:?}"))?;
-    Ok(check_action_port(&action_name, port))
+    Ok(check_action_port(&action_name, &ports, &policy))
 }
 
 #[tauri::command(async)]

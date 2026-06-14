@@ -3,6 +3,7 @@ export interface ServiceInfo {
   cmd: string;
   cwd: string;
   port: number;
+  portConflict?: ActionPortConflict;
   env?: Record<string, string>;
 }
 
@@ -14,6 +15,8 @@ export interface ProfileInfo {
 export type ActionType = "terminal" | "background" | (string & {});
 
 export type ActionDisplay = "header" | "menu" | "footer" | (string & {});
+
+export type ActionPortConflict = "ask" | "free" | "fail";
 
 // "" / "header" / "button" all render in the header row. "button" is the
 // legacy alias kept around for back-compat.
@@ -47,7 +50,8 @@ export interface ActionInfo {
   emoji?: string;
   cmd: string;
   cwd?: string;
-  port?: number;
+  port?: number[];
+  portConflict?: ActionPortConflict;
   env?: Record<string, string>;
   confirm: boolean;
   display: ActionDisplay;

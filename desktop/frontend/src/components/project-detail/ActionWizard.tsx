@@ -22,6 +22,12 @@ import { uniqueKey } from "../../uniqueKey";
 import { withEmoji } from "../../withEmoji";
 import type { ActionInfo } from "../../types";
 import { AIActionModal } from "./AIActionModal";
+import { ModeButton } from "./ModeButton";
+import {
+  PortConflictPicker,
+  isExplicitPolicy,
+  toPickerValue,
+} from "./PortConflictPicker";
 import {
   CheckIcon,
   ChevronDownIcon,
@@ -329,11 +335,23 @@ interface FormDraft {
   emoji: string;
   cmd: string;
   cwd: string;
+  port: string;
+  portConflict: string;
   configLayer: ActionConfigLayer;
   children: ChildDraft[];
   runMode: RunMode;
   reuse: boolean;
   confirm: boolean;
+}
+
+// Ports may be entered as a single value or a space/comma-separated list.
+function parsePorts(raw: string): number[] {
+  return raw
+    .split(/[\s,]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => Number.parseInt(part, 10))
+    .filter((n) => Number.isFinite(n) && n >= 1 && n <= 65535);
 }
 
 const CONFIG_LAYER_OPTIONS: Array<{
@@ -399,6 +417,8 @@ function buildActionPatch({
   emoji,
   cmd,
   cwd,
+  port,
+  portConflict,
   children,
   runMode,
   reuse,
@@ -411,7 +431,7 @@ function buildActionPatch({
   else remove.push("emoji");
 
   if (shape === "dropdown") {
-    remove.push("cmd", "cwd", "type", "reuse", "confirm");
+    remove.push("cmd", "cwd", "type", "reuse", "confirm", "port", "portConflict");
   } else {
     set.cmd = cmd.trim();
     const cwdTrim = cwd.trim();
@@ -423,6 +443,12 @@ function buildActionPatch({
     else remove.push("reuse");
     if (confirm) set.confirm = true;
     else remove.push("confirm");
+    const ports = parsePorts(port);
+    if (ports.length === 1) set.port = ports[0];
+    else if (ports.length > 1) set.port = ports;
+    else remove.push("port");
+    if (isExplicitPolicy(portConflict)) set.portConflict = portConflict;
+    else remove.push("portConflict");
   }
 
   if (shape === "button") remove.push("actions");
@@ -548,6 +574,8 @@ function actionToDraft(action: ActionInfo): FormDraft {
     emoji: action.emoji ?? "",
     cmd: action.cmd,
     cwd: action.cwd ?? "",
+    port: (action.port ?? []).join(", "),
+    portConflict: toPickerValue(action.portConflict),
     configLayer: "project",
     children: children.length ? children : [newChild()],
     runMode: toRunMode(action.type),
@@ -563,6 +591,8 @@ function defaultDraft(): FormDraft {
     emoji: "",
     cmd: "",
     cwd: "",
+    port: "",
+    portConflict: "",
     configLayer: "project",
     children: [newChild()],
     runMode: "once",
@@ -635,6 +665,8 @@ export function ActionWizard({
     emoji,
     cmd,
     cwd,
+    port,
+    portConflict,
     configLayer,
     children,
     runMode,
@@ -990,6 +1022,12 @@ export function ActionWizard({
                       <ConfirmPicker
                         confirm={confirm}
                         onConfirm={(value) => updateField("confirm", value)}
+                      />
+                      <PortField
+                        port={port}
+                        portConflict={portConflict}
+                        onPort={(value) => updateField("port", value)}
+                        onPortConflict={(value) => updateField("portConflict", value)}
                       />
                     </div>
                   </Reveal>
@@ -1778,6 +1816,33 @@ function CommandField({
   );
 }
 
+function PortField({
+  port,
+  portConflict,
+  onPort,
+  onPortConflict,
+}: {
+  port: string;
+  portConflict: string;
+  onPort: (value: string) => void;
+  onPortConflict: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <CommandField
+        label="Port"
+        hint="Optional. Separate several with spaces or commas."
+        value={port}
+        onChange={onPort}
+        placeholder="3000"
+      />
+      {port.trim() && (
+        <PortConflictPicker value={portConflict} onChange={onPortConflict} />
+      )}
+    </div>
+  );
+}
+
 function MenuOptionsEditor({
   options,
   onChange,
@@ -1959,29 +2024,3 @@ function ConfirmPicker({
   );
 }
 
-function ModeButton({
-  active,
-  icon,
-  title,
-  onClick,
-}: {
-  active: boolean;
-  icon: ReactNode;
-  title: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors ${
-        active
-          ? "bg-[var(--bg-primary)] text-[var(--text-primary)] shadow-sm"
-          : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-      }`}
-    >
-      <span className={active ? "" : "opacity-80"}>{icon}</span>
-      {title}
-    </button>
-  );
-}

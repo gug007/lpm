@@ -14,6 +14,11 @@ import { portInputSchema, slugifiedNameSchema } from "../../forms/schemas";
 import type { ProfileInfo, ServiceInfo } from "../../types";
 import { ChevronDownIcon, ChevronRightIcon, PlusIcon, TrashIcon, XIcon } from "../icons";
 import { Modal } from "../ui/Modal";
+import {
+  PortConflictPicker,
+  isExplicitPolicy,
+  toPickerValue,
+} from "./PortConflictPicker";
 import { StartMenuPreview } from "./StartMenuPreview";
 
 const FALLBACK_KEY = "new-service";
@@ -79,6 +84,7 @@ interface ServiceDraft {
   trimmedCmd: string;
   trimmedCwd: string;
   port: number;
+  portConflict: string;
   envObj: Record<string, string>;
 }
 
@@ -92,6 +98,7 @@ interface FormValues {
   cmd: string;
   cwd: string;
   port: string;
+  portConflict: string;
   env: EnvDraft[];
 }
 
@@ -100,6 +107,7 @@ const DEFAULT_VALUES: FormValues = {
   cmd: "",
   cwd: "",
   port: "",
+  portConflict: "",
   env: [],
 };
 
@@ -107,6 +115,9 @@ function buildPayload(draft: ServiceDraft): Record<string, unknown> {
   const payload: Record<string, unknown> = { cmd: draft.trimmedCmd };
   if (draft.trimmedCwd) payload.cwd = draft.trimmedCwd;
   if (draft.port > 0) payload.port = draft.port;
+  if (isExplicitPolicy(draft.portConflict)) {
+    payload.portConflict = draft.portConflict;
+  }
   if (Object.keys(draft.envObj).length > 0) payload.env = draft.envObj;
   return payload;
 }
@@ -115,7 +126,7 @@ function buildPatch(payload: Record<string, unknown>): ServicePatch {
   // Explicitly remove fields the user cleared so stale values don't linger
   // from the previous YAML.
   const remove: string[] = [];
-  for (const field of ["cwd", "port", "env"] as const) {
+  for (const field of ["cwd", "port", "portConflict", "env"] as const) {
     if (payload[field] === undefined) remove.push(field);
   }
   return { set: payload, remove };
@@ -151,6 +162,7 @@ export function ServiceForm({
       cmd: z.string().trim().min(1, "Command is required"),
       cwd: z.string().trim(),
       port: portInputSchema,
+      portConflict: z.string(),
       env: z.array(envEntrySchema),
     });
   }, [services, editing]);
@@ -163,6 +175,7 @@ export function ServiceForm({
     reset,
     trigger,
     setFocus,
+    setValue,
     formState: { errors, isValid },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -179,11 +192,13 @@ export function ServiceForm({
   useEffect(() => {
     if (!open) return;
     if (editing) {
+      const portConflict = toPickerValue(editing.portConflict);
       reset({
         name: editing.name,
         cmd: editing.cmd,
         cwd: editing.cwd ?? "",
         port: editing.port > 0 ? String(editing.port) : "",
+        portConflict,
         env: envFromRecord(editing.env),
       });
       // Auto-expand Advanced when any optional field is already set, so the
@@ -191,6 +206,7 @@ export function ServiceForm({
       setAdvancedOpen(
         Boolean(editing.cwd) ||
           editing.port > 0 ||
+          Boolean(portConflict) ||
           Object.keys(editing.env ?? {}).length > 0,
       );
     } else {
@@ -209,6 +225,7 @@ export function ServiceForm({
   const watchedCmd = watch("cmd");
   const watchedCwd = watch("cwd");
   const watchedPort = watch("port");
+  const watchedPortConflict = watch("portConflict");
   const watchedEnv = watch("env");
 
   const trimmedName = watchedName.trim();
@@ -233,9 +250,10 @@ export function ServiceForm({
       trimmedCmd,
       trimmedCwd,
       port: portValid ? portValue : 0,
+      portConflict: watchedPortConflict,
       envObj: envToRecord(watchedEnv),
     }),
-    [trimmedName, trimmedCmd, trimmedCwd, portValid, portValue, watchedEnv],
+    [trimmedName, trimmedCmd, trimmedCwd, portValid, portValue, watchedPortConflict, watchedEnv],
   );
 
   const previewServiceEntries = useMemo(() => {
@@ -273,6 +291,7 @@ export function ServiceForm({
         trimmedCmd: values.cmd.trim(),
         trimmedCwd: values.cwd.trim(),
         port: portInfo.valid ? portInfo.value : 0,
+        portConflict: values.portConflict,
         envObj: envToRecord(values.env),
       };
       const targetKey = computeDesiredKey({
@@ -365,31 +384,38 @@ export function ServiceForm({
                   open={advancedOpen}
                   onToggle={() => setAdvancedOpen((v) => !v)}
                 >
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                    <div className="sm:col-span-2">
-                      <Field
-                        label="Working directory"
-                        hint="Relative to project root or absolute."
-                      >
-                        <input
-                          placeholder="apps/api"
-                          className={inputClass}
-                          {...register("cwd")}
-                        />
-                      </Field>
-                    </div>
-                    <Field label="Port">
-                      <input
-                        placeholder="3000"
-                        inputMode="numeric"
-                        className={
-                          inputClass +
-                          (errors.port ? " border-[var(--accent-red,#dc2626)]" : "")
-                        }
-                        {...register("port")}
-                      />
-                    </Field>
-                  </div>
+                  <Field
+                    label="Working directory"
+                    hint="Relative to project root or absolute."
+                  >
+                    <input
+                      placeholder="apps/api"
+                      className={inputClass}
+                      {...register("cwd")}
+                    />
+                  </Field>
+
+                  <Field label="Port" hint="The port this service listens on.">
+                    <input
+                      placeholder="3000"
+                      inputMode="numeric"
+                      className={
+                        inputClass +
+                        (errors.port ? " border-[var(--accent-red,#dc2626)]" : "")
+                      }
+                      {...register("port")}
+                    />
+                  </Field>
+
+                  {watchedPort.trim() && (
+                    <PortConflictPicker
+                      value={watchedPortConflict}
+                      onChange={(value) =>
+                        setValue("portConflict", value, { shouldDirty: true })
+                      }
+                      verb="start"
+                    />
+                  )}
 
                   <div>
                     <div className="mb-2 flex items-center justify-between">

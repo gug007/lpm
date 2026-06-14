@@ -46,13 +46,13 @@ export function useProjectActions({
   const [pendingInputValues, setPendingInputValues] = useState<Record<string, string> | null>(null);
 
   const ensurePortFree = async (action: ActionInfo): Promise<boolean> => {
-    if (!action.port) return true;
+    if (!action.port?.length) return true;
     try {
       const conflicts = (await CheckActionPortConflict(projectName, action.name)) || [];
       if (conflicts.length === 0) return true;
       return await useAppStore
         .getState()
-        .triggerPortConflictPrompt(`Cannot run "${action.label}"`, conflicts);
+        .resolvePortConflicts(`Cannot run "${action.label}"`, conflicts);
     } catch (err) {
       toast.error(`Failed to run "${action.label}": ${err}`);
       return false;

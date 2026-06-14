@@ -133,6 +133,10 @@ interface AppState {
     title: string,
     conflicts: main.PortConflictInfo[],
   ) => Promise<boolean>;
+  resolvePortConflicts: (
+    title: string,
+    conflicts: main.PortConflictInfo[],
+  ) => Promise<boolean>;
   addProject: () => void;
   closeAddProjectPicker: () => void;
   pickAddProjectKind: (kind: "local" | "ssh" | "clone") => Promise<void>;
@@ -521,7 +525,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const conflicts = (await CheckPortConflicts(name, profile)) || [];
       if (conflicts.length > 0) {
-        const ok = await get().triggerPortConflictPrompt(
+        const ok = await get().resolvePortConflicts(
           `Cannot start "${name}"`,
           conflicts,
         );
@@ -589,6 +593,33 @@ export const useAppStore = create<AppState>((set, get) => ({
       resolvePortConflictPromise = resolve;
       set({ portConflict: { title, conflicts } });
     }),
+
+  resolvePortConflicts: async (title, conflicts) => {
+    const policyOf = (c: main.PortConflictInfo) => c.portConflict || "ask";
+    const noun = (cs: main.PortConflictInfo[]) => (cs.length > 1 ? "ports" : "port");
+    const list = (cs: main.PortConflictInfo[]) => cs.map((c) => c.port).join(", ");
+
+    const fails = conflicts.filter((c) => policyOf(c) === "fail");
+    if (fails.length > 0) {
+      toast.error(`${title}: ${noun(fails)} ${list(fails)} in use`);
+      return false;
+    }
+    const frees = conflicts.filter((c) => policyOf(c) === "free");
+    if (frees.length > 0) {
+      try {
+        await Promise.all(frees.map((c) => ResolvePortConflict(c)));
+        toast.success(`Freed ${noun(frees)} ${list(frees)}`);
+      } catch (err) {
+        toast.error(`Failed to free port: ${err}`);
+        return false;
+      }
+    }
+    const asks = conflicts.filter((c) => policyOf(c) === "ask");
+    if (asks.length > 0) {
+      return await get().triggerPortConflictPrompt(title, asks);
+    }
+    return true;
+  },
 
   toggleService: async (name, service) => {
     try {
