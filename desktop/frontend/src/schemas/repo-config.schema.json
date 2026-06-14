@@ -133,9 +133,18 @@
             "port": {
               "oneOf": [
                 { "type": "integer", "minimum": 0, "maximum": 65535 },
-                { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 65535 } }
+                { "type": "string", "pattern": "^\\s*\\d{1,5}\\s*(-\\s*\\d{1,5}\\s*)?$" },
+                {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      { "type": "integer", "minimum": 0, "maximum": 65535 },
+                      { "type": "string", "pattern": "^\\s*\\d{1,5}\\s*(-\\s*\\d{1,5}\\s*)?$" }
+                    ]
+                  }
+                }
               ],
-              "description": "Port(s) the action wants free before it runs. Accepts a single port or a list. Busy ports are handled per \"portConflict\"."
+              "description": "Port(s) the action wants free before it runs. Accepts a single port, an inclusive range string like \"3002-3010\", or a list mixing both. Busy ports are handled per \"portConflict\"."
             },
             "portConflict": {
               "type": "string",
@@ -221,9 +230,18 @@
             "port": {
               "oneOf": [
                 { "type": "integer", "minimum": 0, "maximum": 65535 },
-                { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 65535 } }
+                { "type": "string", "pattern": "^\\s*\\d{1,5}\\s*(-\\s*\\d{1,5}\\s*)?$" },
+                {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      { "type": "integer", "minimum": 0, "maximum": 65535 },
+                      { "type": "string", "pattern": "^\\s*\\d{1,5}\\s*(-\\s*\\d{1,5}\\s*)?$" }
+                    ]
+                  }
+                }
               ],
-              "description": "Port(s) the terminal wants free before it launches. Accepts a single port or a list. Busy ports are handled per \"portConflict\"."
+              "description": "Port(s) the terminal wants free before it launches. Accepts a single port, an inclusive range string like \"3002-3010\", or a list mixing both. Busy ports are handled per \"portConflict\"."
             },
             "portConflict": {
               "type": "string",

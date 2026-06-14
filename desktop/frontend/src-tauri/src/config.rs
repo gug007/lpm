@@ -265,13 +265,23 @@ enum ActionDef {
     Full(ActionFull),
 }
 
-/// An action's `port` is either a single port or a list of them. A scalar stays
-/// back-compatible with the long-standing `port: 3000` form.
+/// A single `port` entry: a bare port number, or a string holding either one
+/// port (`"3000"`) or an inclusive range (`"3002-3010"`).
+#[derive(Deserialize, Clone)]
+#[serde(untagged)]
+enum PortEntry {
+    Num(i64),
+    Text(String),
+}
+
+/// An action's `port` is either a single entry or a list of them. A scalar
+/// integer stays back-compatible with the long-standing `port: 3000` form;
+/// string entries allow inclusive ranges, e.g. `port: [3000, "3002-3010"]`.
 #[derive(Deserialize, Clone)]
 #[serde(untagged)]
 enum PortSpec {
-    One(i64),
-    Many(Vec<i64>),
+    One(PortEntry),
+    Many(Vec<PortEntry>),
 }
 
 impl Default for PortSpec {
@@ -280,20 +290,63 @@ impl Default for PortSpec {
     }
 }
 
+/// Upper bound on ports a single range may expand to, to keep a stray
+/// `"1-65535"` from ballooning the conflict set.
+const PORT_RANGE_MAX: usize = 1024;
+
+fn push_port(out: &mut Vec<i64>, p: i64) {
+    if p > 0 && p <= 65535 {
+        out.push(p);
+    }
+}
+
+/// Expands one string entry: an inclusive `lo-hi` range, or a single number.
+/// Reversed ranges (`hi-lo`) are normalized; out-of-range ends are clamped to
+/// 1..=65535; the expansion is capped at PORT_RANGE_MAX ports.
+fn expand_port_text(s: &str, out: &mut Vec<i64>) {
+    let s = s.trim();
+    if let Some((lo, hi)) = s.split_once('-') {
+        if let (Ok(lo), Ok(hi)) = (lo.trim().parse::<i64>(), hi.trim().parse::<i64>()) {
+            let (lo, hi) = if lo <= hi { (lo, hi) } else { (hi, lo) };
+            let lo = lo.max(1);
+            let hi = hi.min(65535);
+            if lo <= hi {
+                let last = (lo + PORT_RANGE_MAX as i64 - 1).min(hi);
+                for p in lo..=last {
+                    out.push(p);
+                }
+            }
+        }
+        return;
+    }
+    if let Ok(p) = s.parse::<i64>() {
+        push_port(out, p);
+    }
+}
+
+fn expand_port_entry(e: &PortEntry, out: &mut Vec<i64>) {
+    match e {
+        PortEntry::Num(p) => push_port(out, *p),
+        PortEntry::Text(s) => expand_port_text(s, out),
+    }
+}
+
 impl PortSpec {
     fn to_vec(&self) -> Vec<i64> {
+        let mut out = Vec::new();
         match self {
-            PortSpec::One(p) if *p > 0 => vec![*p],
-            PortSpec::One(_) => vec![],
-            PortSpec::Many(v) => v.iter().copied().filter(|p| *p > 0).collect(),
+            PortSpec::One(e) => expand_port_entry(e, &mut out),
+            PortSpec::Many(v) => {
+                for e in v {
+                    expand_port_entry(e, &mut out);
+                }
+            }
         }
+        out
     }
 
     fn is_empty(&self) -> bool {
-        match self {
-            PortSpec::One(p) => *p <= 0,
-            PortSpec::Many(v) => !v.iter().any(|p| *p > 0),
-        }
+        self.to_vec().is_empty()
     }
 }
 
@@ -1544,6 +1597,54 @@ pub fn resolve_action_full(file_name: &str, action_name: &str) -> Option<ActionR
 pub fn resolve_running_services(info: &SpawnInfo, state: &RunState) -> Vec<String> {
     let all: Vec<String> = info.services.keys().cloned().collect();
     running_service_names(&info.profiles, &all, state)
+}
+
+#[cfg(test)]
+mod port_spec_tests {
+    use super::*;
+
+    fn ports(yaml: &str) -> Vec<i64> {
+        serde_yaml::from_str::<PortSpec>(yaml).unwrap().to_vec()
+    }
+
+    #[test]
+    fn scalar_and_list_stay_backcompat() {
+        assert_eq!(ports("3000"), vec![3000]);
+        assert_eq!(ports("[3000, 3001, 3002]"), vec![3000, 3001, 3002]);
+    }
+
+    #[test]
+    fn string_range_expands_inclusive() {
+        assert_eq!(ports("\"3002-3005\""), vec![3002, 3003, 3004, 3005]);
+    }
+
+    #[test]
+    fn list_mixes_numbers_and_ranges() {
+        assert_eq!(
+            ports("[3000, '3002-3004', 4000, '5001-5003']"),
+            vec![3000, 3002, 3003, 3004, 4000, 5001, 5002, 5003],
+        );
+    }
+
+    #[test]
+    fn range_is_normalized_and_clamped() {
+        assert_eq!(ports("\"3005-3002\""), vec![3002, 3003, 3004, 3005]);
+        assert_eq!(ports("\"0-3\""), vec![1, 2, 3]);
+        assert!(ports("\"70000-70010\"").is_empty());
+    }
+
+    #[test]
+    fn oversized_range_is_capped() {
+        assert_eq!(ports("\"1-65535\"").len(), PORT_RANGE_MAX);
+    }
+
+    #[test]
+    fn invalid_or_empty_entries_are_dropped() {
+        assert!(ports("0").is_empty());
+        assert!(ports("\"\"").is_empty());
+        assert!(ports("\"abc\"").is_empty());
+        assert_eq!(ports("[3000, 'nope', 3001]"), vec![3000, 3001]);
+    }
 }
 
 #[cfg(test)]
