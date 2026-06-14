@@ -252,7 +252,28 @@ Ask: "Should the button run a default command with alternatives behind a chevron
 
 **"Make sure port X is free before this runs"**
 
-→ Set `port:` on the action (or terminal). lpm probes the port before launching; if something else holds it, the user gets a confirmation dialog listing the holder process. Range 0–65535. Different from `services.<key>.port`, which announces what port the service listens on (and feeds the service-side dedup check).
+→ Set `port:` on the action (or terminal). lpm probes each port before launching and handles busy ones per `portConflict`. Range 0–65535. Different from `services.<key>.port`, which announces what port the service listens on (and feeds the service-side dedup check).
+
+`port` accepts four shapes:
+
+```yaml
+actions:
+  dev:     { cmd: npm run dev,        port: 3000 }                       # single port
+  preview: { cmd: npm run preview,    port: [3000, 3001, 4000] }         # explicit list
+  cluster: { cmd: ./run-cluster.sh,   port: "5001-5020" }               # inclusive range (quote it!)
+  stack:   { cmd: docker compose up,  port: [3000, "3002-3010", 8080] } # mix of ports and ranges
+```
+
+- **Ranges** are written as a quoted string `"<lo>-<hi>"`, dash-separated and **inclusive** on both ends (`"3002-3010"` → 3002…3010). They **must be quoted** — unquoted `3002-3010` (or `[3000, 3002-3010]`) is parsed by YAML as a string element, not a number, and is invalid.
+- Lists may freely mix single ports and ranges. Reversed ranges are normalized; ends clamp to 1–65535; a single range is capped at 1024 ports; unparseable entries are dropped.
+
+**`portConflict`** decides what happens when any declared port is busy:
+
+- **`ask`** (default) — prompt before freeing it (the picker lets the user choose which to free).
+- **`free`** — kill the holder and run.
+- **`fail`** — refuse to run while the port is busy.
+
+> Service `port:` is single-int only — it's the listen port, not a free-before-run check, so it does not take lists or ranges.
 
 **"Share these actions/terminals with the team"**
 
@@ -328,7 +349,8 @@ actions:                 # optional — one-shot commands
     cmd: <string>        # required (unless nested actions)
     label: <string>      # optional — display name in UI
     cwd: <path>          # optional (remote path on SSH projects)
-    port: <int>          # optional (0-65535) — pre-flight port-conflict probe
+    port: <int|str|list> # optional — port(s) freed before run: 3000, [3000,3001], "3002-3010", or a mix
+    portConflict: <str>  # optional — ask (default) | free | fail
     env: {}              # optional
     confirm: <bool>      # optional (default: false)
     display: <string>    # optional (header | footer, default: header). "menu" still accepted (legacy).
@@ -345,7 +367,8 @@ terminals:               # optional — interactive shells (sugar for actions wi
     cmd: <string>        # required (unless nested actions)
     label: <string>      # optional
     cwd: <path>          # optional (remote path on SSH projects)
-    port: <int>          # optional (0-65535) — pre-flight port-conflict probe
+    port: <int|str|list> # optional — port(s) freed before launch: 3000, [3000,3001], "3002-3010", or a mix
+    portConflict: <str>  # optional — ask (default) | free | fail
     env: {}              # optional
     display: <string>    # optional (header | footer, default: header). "menu" still accepted (legacy).
     confirm: <bool>      # optional
@@ -383,7 +406,7 @@ profiles: {}            # optional
 - Keys: short, lowercase, hyphen-separated (`db-migrate`, `run-tests`).
 - `~` expands to home. Relative `cwd` resolves from `root` (local projects) or from `ssh.dir` on the remote host (SSH projects). Local `cwd` paths must exist; remote `cwd` paths are not validated locally.
 - `position` is a float; lower renders first; default is alphabetical. Use floats so you can insert between existing entries (e.g. `1`, `2`, `2.5`, `3`) without renumbering.
-- `port` on an action/terminal triggers a pre-flight conflict probe — the user is shown the holding process before the action runs.
+- `port` on an action/terminal triggers a pre-flight conflict probe handled per `portConflict` (`ask`/`free`/`fail`). It accepts a single int, a list, or an **inclusive range string** like `"3002-3010"` (dash-separated, **must be quoted**); lists may mix them: `port: [3000, "3002-3010", 8080]`. (Service `port` is single-int only.)
 - `extends: [a, b]` layers templates underneath the current file; `a` wins over `b`; current file wins over all.
 - Sparse override pattern: a project YAML can hold `myAction: {position: 3}` to override only that field; the rest inherits from global / `.lpm.yml` / templates. Bool fields (`confirm`, `reuse`) cannot sparse-override `true` → `false`.
 
@@ -401,7 +424,7 @@ profiles: {}            # optional
 - Nested sub-actions are validated recursively.
 - `parent_name` references an existing project.
 - `extends` entries must resolve to readable YAML files. Cycles are rejected at load time.
-- `port` on actions/terminals is in range 0–65535 (or omitted).
+- `port` on actions/terminals is in range 0–65535 (or omitted). Range entries use the quoted `"lo-hi"` form (inclusive) — never an unquoted dash range; `port: 3002-3010` or `port: [3000, 3002-3010]` is invalid, quote it as `"3002-3010"`. `portConflict` is only `ask`, `free`, or `fail`.
 - `position` is a number (integer or float).
 - `.lpm.yml` and templates must not contain identity fields (`name`, `root`, `parent_name`, `ssh`). Identity stays in personal project files.
 
@@ -675,6 +698,13 @@ actions:
     cmd: npm run preview -- --port 4173
     label: Preview
     port: 4173        # warn if 4173 is already taken before running
+    display: header
+
+  cluster:
+    cmd: ./run-cluster.sh
+    label: Cluster
+    port: [3000, "3002-3010", 8080]   # single ports + an inclusive range (quote ranges!)
+    portConflict: free                # auto-free any busy port instead of asking
     display: header
 ```
 
