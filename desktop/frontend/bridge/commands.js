@@ -88,6 +88,9 @@ export function DismissPortSuggestion(project, port) {
 export function DuplicateProject(name, excludeUncommitted, reinstallDeps) {
   return invoke("duplicate_project", { name, excludeUncommitted, reinstallDeps });
 }
+export function DuplicateProjects(name, count, excludeUncommitted, reinstallDeps) {
+  return invoke("duplicate_projects", { name, count, excludeUncommitted, reinstallDeps });
+}
 export function ExportConfig() {
   return invoke("export_config");
 }

@@ -28,6 +28,7 @@ export function DeleteTemplate(...args: any[]): Promise<any>;
 export function DetachProject(...args: any[]): Promise<any>;
 export function DismissPortSuggestion(...args: any[]): Promise<any>;
 export function DuplicateProject(...args: any[]): Promise<any>;
+export function DuplicateProjects(...args: any[]): Promise<any>;
 export function ExportConfig(...args: any[]): Promise<any>;
 export function FileExists(...args: any[]): Promise<any>;
 export function FocusDetachedWindow(...args: any[]): Promise<any>;

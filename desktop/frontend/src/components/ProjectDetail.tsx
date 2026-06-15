@@ -69,6 +69,13 @@ interface ProjectDetailProps {
   onRemove: (name: string) => Promise<void>;
 }
 
+// A short, readable terminal-tab label from an ad-hoc command (first word,
+// e.g. "claude" or "npm").
+function spawnCommandLabel(command: string): string {
+  const first = command.trim().split(/\s+/)[0] ?? "";
+  return first.slice(0, 24) || "Command";
+}
+
 export function ProjectDetail({
   project,
   visible = true,
@@ -155,6 +162,34 @@ export function ProjectDetail({
     onCloseRunning: () => setShowQuickMenu(false),
   });
   const { runningAction, handleRunAction, modals: actionModals } = projectActions;
+
+  // "Bulk Duplicate" queues tasks (actions or ad-hoc commands) to run on each
+  // fresh copy; this detail stays mounted (App keeps every visited project
+  // alive) even while hidden, so the tasks launch in the background. Fire once
+  // per mount.
+  const spawnTasks = useAppStore((s) => s.spawnTasks[project.name]);
+  const consumeSpawnTasks = useAppStore((s) => s.consumeSpawnTasks);
+  const spawnConsumed = useRef(false);
+  useEffect(() => {
+    if (spawnConsumed.current || !spawnTasks?.length) return;
+    const actions = project.actions ?? [];
+    const needsActions = spawnTasks.some((t) => t.kind === "action");
+    if (needsActions && actions.length === 0) return;
+    spawnConsumed.current = true;
+    consumeSpawnTasks(project.name);
+    for (const task of spawnTasks) {
+      if (task.kind === "command") {
+        switchDetailView("terminal");
+        terminalRef.current?.createTerminalWithCmd(
+          spawnCommandLabel(task.command),
+          task.command,
+        );
+      } else {
+        const action = actions.find((a) => a.name === task.actionName);
+        if (action) handleRunAction(action);
+      }
+    }
+  }, [spawnTasks, project.actions, project.name, consumeSpawnTasks, handleRunAction, switchDetailView]);
 
   const parentProject = useAppStore((s) => findParentProject(project, s.projects));
   const displayName = projectDisplayName(project, parentProject);

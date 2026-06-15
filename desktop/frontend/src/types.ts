@@ -62,6 +62,12 @@ export interface ActionInfo {
   children?: ActionInfo[];
 }
 
+// A task to run on each freshly created copy from "Bulk Duplicate": either an
+// existing project action or an ad-hoc shell command typed by the user.
+export type SpawnTask =
+  | { kind: "action"; actionName: string }
+  | { kind: "command"; command: string };
+
 export interface ProjectInfo {
   name: string;
   session: string;

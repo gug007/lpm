@@ -10,6 +10,7 @@ import { SortableItem, SortableList } from "./ui/SortableList";
 import { useSidebarResize } from "../hooks/useSidebarResize";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { ProjectContextMenu } from "./ProjectContextMenu";
+import { BulkDuplicateDialog, type BulkDuplicateOptions } from "./BulkDuplicateDialog";
 import { ProjectNameDisplay, projectDisplayName } from "./ProjectNameDisplay";
 import { RenameModal } from "./RenameModal";
 import { SelectionContextMenu } from "./SelectionContextMenu";
@@ -33,7 +34,7 @@ interface SidebarProps {
   onTerminals: () => void;
   onSettings: () => void;
   onAddProject: () => void;
-  onDuplicateProject: (name: string, excludeUncommitted?: boolean, reinstallDeps?: boolean) => void;
+  onBulkDuplicate: (name: string, count: number, opts: BulkDuplicateOptions) => void;
   onRemoveProject: (name: string) => void;
   onRemoveProjectCascade: (name: string) => void;
   onRemoveProjectsBatch: (names: string[]) => void;
@@ -46,7 +47,7 @@ interface SidebarProps {
   showTerminals: boolean;
   showSettings: boolean;
   duplicatingName: string | null;
-  removingName: string | null;
+  removingNames: Set<string>;
 }
 
 interface ProjectStatus {
@@ -74,7 +75,7 @@ function computeStatus(project: ProjectInfo): ProjectStatus {
   return { isRunning, isDone, isWaiting, isError, className };
 }
 
-export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onDuplicateProject, onRemoveProject, onRemoveProjectCascade, onRemoveProjectsBatch, onRenameProject, onReorder, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showSettings, duplicatingName, removingName }: SidebarProps) {
+export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectsBatch, onRenameProject, onReorder, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showSettings, duplicatingName, removingNames }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -83,6 +84,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
   const [contextMenu, setContextMenu] = useState<{ name: string; x: number; y: number } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [renamingName, setRenamingName] = useState<string | null>(null);
+  const [bulkDuplicateName, setBulkDuplicateName] = useState<string | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
   const [confirmBatch, setConfirmBatch] = useState(false);
@@ -349,7 +351,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
             const isSelf = project.name === detachedSelf;
             const isSelected = selected === project.name && (!isDetached || isSelf);
             const isContextTarget = contextMenu?.name === project.name;
-            const isBusy = duplicatingName === project.name || removingName === project.name;
+            const isBusy = duplicatingName === project.name || removingNames.has(project.name);
             const parent = project.parentName ? projectByName.get(project.parentName) : undefined;
             const name = <ProjectNameDisplay project={project} parent={parent} />;
             const showCheck = status.isDone && !status.isWaiting && !status.isError;
@@ -466,7 +468,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
             x={contextMenu.x}
             y={contextMenu.y}
             count={selectedForDelete.size}
-            busy={removingName !== null}
+            busy={removingNames.size > 0}
             onDelete={() => {
               if (selectedForDelete.size > 0) setConfirmBatch(true);
             }}
@@ -477,15 +479,13 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           <ProjectContextMenu
             x={contextMenu.x}
             y={contextMenu.y}
-            busy={duplicatingName !== null || removingName !== null}
+            busy={duplicatingName !== null || removingNames.size > 0}
             isDuplicate={Boolean(contextProject?.parentName)}
             isDetached={detached.has(contextMenu.name)}
             canSelect={projects.length > 1}
             projectPath={contextProject?.root ?? null}
             onRename={() => setRenamingName(contextMenu.name)}
-            onDuplicate={(excludeUncommitted, reinstallDeps) =>
-              onDuplicateProject(contextMenu.name, excludeUncommitted, reinstallDeps)
-            }
+            onBulkDuplicate={() => setBulkDuplicateName(contextMenu.name)}
             onCopyPath={() => {
               if (contextProject?.root) navigator.clipboard.writeText(contextProject.root);
             }}
@@ -554,6 +554,16 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           setConfirmBatch(false);
           exitSelectMode();
           if (names.length > 0) onRemoveProjectsBatch(names);
+        }}
+      />
+      <BulkDuplicateDialog
+        open={bulkDuplicateName !== null}
+        project={bulkDuplicateName ? projectByName.get(bulkDuplicateName) ?? null : null}
+        busy={duplicatingName !== null}
+        onCancel={() => setBulkDuplicateName(null)}
+        onConfirm={(count, opts) => {
+          if (bulkDuplicateName) onBulkDuplicate(bulkDuplicateName, count, opts);
+          setBulkDuplicateName(null);
         }}
       />
       <RenameModal

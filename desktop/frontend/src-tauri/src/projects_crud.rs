@@ -197,7 +197,7 @@ fn random_id6() -> String {
 
 fn next_available_duplicate(original: &str, parent_dir: &Path) -> Result<(String, PathBuf), String> {
     for _ in 0..10 {
-        let candidate = format!("{original}-copy-{}", random_id6());
+        let candidate = format!("{original}-{}", random_id6());
         let root = parent_dir.join(&candidate);
         if !config::project_exists(&candidate) && !root.exists() {
             return Ok((candidate, root));
@@ -371,18 +371,17 @@ fn run_install(root: &Path, pm: PackageManager) -> Result<(), String> {
     Err(format!("{} failed:\n{}", pm.install_cmd(), tail.join("\n").trim()))
 }
 
-#[tauri::command(async)]
-pub fn duplicate_project(
-    app: AppHandle,
-    name: String,
+fn duplicate_one(
+    app: &AppHandle,
+    name: &str,
     exclude_uncommitted: bool,
     reinstall_deps: bool,
 ) -> Result<String, String> {
-    let src = load_root_and_parent(&name)?;
+    let src = load_root_and_parent(name)?;
     if src.root.trim().is_empty() {
         return Err("cannot duplicate an SSH project (no local root)".into());
     }
-    let original = src.parent.clone().unwrap_or_else(|| name.clone());
+    let original = src.parent.clone().unwrap_or_else(|| name.to_string());
     let parent_dir = Path::new(&src.root)
         .parent()
         .ok_or("source root has no parent directory")?
@@ -421,6 +420,45 @@ pub fn duplicate_project(
         }
     }
     Ok(new_name)
+}
+
+#[tauri::command(async)]
+pub fn duplicate_project(
+    app: AppHandle,
+    name: String,
+    exclude_uncommitted: bool,
+    reinstall_deps: bool,
+) -> Result<String, String> {
+    duplicate_one(&app, &name, exclude_uncommitted, reinstall_deps)
+}
+
+/// Create `count` copies of a project in one pass (used to spawn a batch of
+/// throwaway duplicates to run agents/commands on). Each copy is created via
+/// `duplicate_one`, which emits `projects-changed` per copy so the sidebar
+/// streams them in. If the very first copy fails the error is surfaced;
+/// otherwise the batch stops at the first failure and returns the names
+/// created so far so the caller can report a partial result.
+#[tauri::command(async)]
+pub fn duplicate_projects(
+    app: AppHandle,
+    name: String,
+    count: u32,
+    exclude_uncommitted: bool,
+    reinstall_deps: bool,
+) -> Result<Vec<String>, String> {
+    let mut created = Vec::new();
+    for _ in 0..count {
+        match duplicate_one(&app, &name, exclude_uncommitted, reinstall_deps) {
+            Ok(new_name) => created.push(new_name),
+            Err(e) => {
+                if created.is_empty() {
+                    return Err(e);
+                }
+                break;
+            }
+        }
+    }
+    Ok(created)
 }
 
 // ---- remove -----------------------------------------------------------------

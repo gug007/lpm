@@ -7,6 +7,7 @@ import {
   type ActionInfo,
   type ActionsLayout,
   type ProjectInfo,
+  type SpawnTask,
 } from "../types";
 import {
   AttachProject,
@@ -94,7 +95,11 @@ interface AppState {
   tmuxReady: boolean | null;
   visited: Set<string>;
   duplicatingName: string | null;
-  removingName: string | null;
+  removingNames: Set<string>;
+  // Per-project queue of tasks (actions or ad-hoc commands) to auto-run once
+  // the freshly created copy's detail mounts. Used by "Bulk Duplicate" to fan
+  // work across every new copy without the user opening each one.
+  spawnTasks: Record<string, SpawnTask[]>;
   addProjectPickerOpen: boolean;
   sshModalOpen: boolean;
   addingSSHProject: boolean;
@@ -146,11 +151,16 @@ interface AppState {
   openAddCloneModal: () => void;
   closeAddCloneModal: () => void;
   addCloneProject: (params: CloneProjectParams) => Promise<void>;
-  duplicateProject: (
+  bulkDuplicate: (
     name: string,
-    excludeUncommitted?: boolean,
-    reinstallDeps?: boolean,
+    count: number,
+    opts?: {
+      excludeUncommitted?: boolean;
+      reinstallDeps?: boolean;
+      tasks?: SpawnTask[];
+    },
   ) => Promise<void>;
+  consumeSpawnTasks: (name: string) => void;
   removeProject: (name: string) => Promise<void>;
   removeProjectCascade: (name: string) => Promise<void>;
   removeProjectsBatch: (names: string[]) => Promise<void>;
@@ -402,8 +412,8 @@ async function runProjectRemoval(
   removedNames: string[],
   call: () => Promise<unknown>,
 ) {
-  if (get().removingName) return;
-  set({ removingName: name });
+  if (get().removingNames.size > 0) return;
+  set({ removingNames: new Set(removedNames) });
   try {
     await call();
     forgetRemovedProjects(removedNames);
@@ -412,7 +422,7 @@ async function runProjectRemoval(
   } catch (err) {
     toast.error(`Failed to remove ${name}: ${err}`);
   } finally {
-    set({ removingName: null });
+    set({ removingNames: new Set() });
   }
 }
 
@@ -429,7 +439,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   tmuxReady: null,
   visited: new Set<string>(),
   duplicatingName: null,
-  removingName: null,
+  spawnTasks: {},
+  removingNames: new Set<string>(),
   addProjectPickerOpen: false,
   sshModalOpen: false,
   addingSSHProject: false,
@@ -720,27 +731,67 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  duplicateProject: async (
-    name,
-    excludeUncommitted = false,
-    reinstallDeps = false,
-  ) => {
-    if (get().duplicatingName) return;
+  bulkDuplicate: async (name, count, opts = {}) => {
+    if (get().duplicatingName || count < 1) return;
+    const tasks = opts.tasks ?? [];
     set({ duplicatingName: name });
-    const toastId = reinstallDeps
-      ? toast.loading(`Duplicating ${name} and installing dependencies…`)
-      : undefined;
+    const noun = (n: number) => (n === 1 ? "copy" : "copies");
+    const toastId = toast.loading(`Creating ${count} ${noun(count)} of ${name}…`);
+    const created: string[] = [];
     try {
-      const newName = await DuplicateProject(name, excludeUncommitted, reinstallDeps);
-      await get().refreshProjects();
-      if (newName) set({ selected: newName, view: "projects" });
-      if (toastId) toast.success(`Installed dependencies for ${newName}`, { id: toastId });
+      // Create copies one at a time so each can start working the moment it's
+      // ready, instead of waiting for the whole batch. After each copy: queue
+      // its tasks, refresh so it (with its actions) enters the list, then mark
+      // it visited — that mounts its detail and fires the auto-run effect.
+      for (let i = 0; i < count; i++) {
+        let newName: string | null;
+        try {
+          newName = await DuplicateProject(
+            name,
+            opts.excludeUncommitted ?? false,
+            opts.reinstallDeps ?? false,
+          );
+        } catch (err) {
+          if (created.length === 0) throw err;
+          break;
+        }
+        if (!newName) break;
+        const copyName = newName;
+        created.push(copyName);
+        if (tasks.length > 0) {
+          set((s) => ({ spawnTasks: { ...s.spawnTasks, [copyName]: tasks } }));
+        }
+        await get().refreshProjects();
+        get().markVisited(copyName);
+        if (created.length === 1) set({ selected: copyName, view: "projects" });
+      }
+      if (created.length === 0) {
+        toast.error(`Failed to duplicate ${name}`, { id: toastId });
+      } else if (created.length < count) {
+        toast.error(
+          `Created ${created.length} of ${count} ${noun(count)} of ${name}`,
+          { id: toastId },
+        );
+      } else {
+        toast.success(
+          `Created ${created.length} ${noun(created.length)} of ${name}`,
+          { id: toastId },
+        );
+      }
     } catch (err) {
       toast.error(`Failed to duplicate ${name}: ${err}`, { id: toastId });
     } finally {
       set({ duplicatingName: null });
     }
   },
+
+  consumeSpawnTasks: (name) =>
+    set((s) => {
+      if (!(name in s.spawnTasks)) return s;
+      const next = { ...s.spawnTasks };
+      delete next[name];
+      return { spawnTasks: next };
+    }),
 
   removeProject: (name) =>
     runProjectRemoval(set, get, name, [name], () => RemoveProject(name)),
@@ -755,8 +806,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     ),
 
   removeProjectsBatch: async (names) => {
-    if (get().removingName || names.length === 0) return;
-    set({ removingName: names[0] });
+    if (get().removingNames.size > 0 || names.length === 0) return;
+    set({ removingNames: new Set(names) });
     try {
       const failed: string[] = (await RemoveProjects(names)) || [];
       const failedSet = new Set(failed);
@@ -777,7 +828,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (err) {
       toast.error(`Failed to remove projects: ${err}`);
     } finally {
-      set({ removingName: null });
+      set({ removingNames: new Set() });
     }
   },
 

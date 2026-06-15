@@ -24,7 +24,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
   const detached = useAppStore((s) => s.detached);
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
   const duplicatingName = useAppStore((s) => s.duplicatingName);
-  const removingName = useAppStore((s) => s.removingName);
+  const removingNames = useAppStore((s) => s.removingNames);
 
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
   const startProject = useAppStore((s) => s.startProject);
@@ -32,7 +32,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
   const restartProject = useAppStore((s) => s.restartProject);
   const toggleService = useAppStore((s) => s.toggleService);
   const toggleProjectRunning = useAppStore((s) => s.toggleProjectRunning);
-  const duplicateProject = useAppStore((s) => s.duplicateProject);
+  const bulkDuplicate = useAppStore((s) => s.bulkDuplicate);
   const removeProject = useAppStore((s) => s.removeProject);
   const removeProjectCascade = useAppStore((s) => s.removeProjectCascade);
   const removeProjectsBatch = useAppStore((s) => s.removeProjectsBatch);
@@ -97,7 +97,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
           onTerminals={() => FocusMainWindow(undefined, "terminals")}
           onSettings={() => FocusMainWindow(undefined, "settings")}
           onAddProject={() => FocusMainWindow(undefined, undefined, true)}
-          onDuplicateProject={duplicateProject}
+          onBulkDuplicate={bulkDuplicate}
           onRemoveProject={removeProject}
           onRemoveProjectCascade={removeProjectCascade}
           onRemoveProjectsBatch={removeProjectsBatch}
@@ -110,7 +110,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
           showTerminals={false}
           showSettings={false}
           duplicatingName={duplicatingName}
-          removingName={removingName}
+          removingNames={removingNames}
         />
         <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">
           <MainTopBar
