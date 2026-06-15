@@ -325,6 +325,9 @@ export function RemoveProject(name) {
 export function RemoveProjectCascade(name) {
   return invoke("remove_project_cascade", { name });
 }
+export function RemoveProjects(names) {
+  return invoke("remove_projects", { names });
+}
 export function RenameBranch(cwd, oldName, newName) {
   return invoke("rename_branch", { cwd, oldName, newName });
 }

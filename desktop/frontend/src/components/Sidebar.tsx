@@ -8,13 +8,18 @@ import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon, MoreVerticalIcon, De
 import { ProgressBar } from "./ui/ProgressBar";
 import { SortableItem, SortableList } from "./ui/SortableList";
 import { useSidebarResize } from "../hooks/useSidebarResize";
+import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { ProjectContextMenu } from "./ProjectContextMenu";
 import { ProjectNameDisplay, projectDisplayName } from "./ProjectNameDisplay";
 import { RenameModal } from "./RenameModal";
+import { SelectionContextMenu } from "./SelectionContextMenu";
+import { CheckboxBox } from "./ChangedFilesTree";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Tooltip } from "./ui/Tooltip";
 import { SpinnerIcon } from "./project-detail/icons";
 
+const ROW_BASE_CLASS =
+  "flex w-full select-none items-center gap-3 rounded-md px-3 py-2 text-left text-sm outline-none transition-colors";
 const MUTED_STYLE = { color: "var(--text-muted)" } as const;
 const DONE_STYLE = { color: "var(--accent-blue)" } as const;
 
@@ -31,6 +36,7 @@ interface SidebarProps {
   onDuplicateProject: (name: string, excludeUncommitted?: boolean, reinstallDeps?: boolean) => void;
   onRemoveProject: (name: string) => void;
   onRemoveProjectCascade: (name: string) => void;
+  onRemoveProjectsBatch: (names: string[]) => void;
   onRenameProject: (name: string, label: string) => void;
   onReorder: (order: string[]) => void;
   onDetachProject: (name: string) => void;
@@ -68,7 +74,7 @@ function computeStatus(project: ProjectInfo): ProjectStatus {
   return { isRunning, isDone, isWaiting, isError, className };
 }
 
-export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onDuplicateProject, onRemoveProject, onRemoveProjectCascade, onRenameProject, onReorder, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showSettings, duplicatingName, removingName }: SidebarProps) {
+export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onDuplicateProject, onRemoveProject, onRemoveProjectCascade, onRemoveProjectsBatch, onRenameProject, onReorder, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showSettings, duplicatingName, removingName }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -77,6 +83,9 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
   const [contextMenu, setContextMenu] = useState<{ name: string; x: number; y: number } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [renamingName, setRenamingName] = useState<string | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
+  const [confirmBatch, setConfirmBatch] = useState(false);
   const { width, handleResizeStart } = useSidebarResize();
 
   const contextProject = contextMenu
@@ -97,6 +106,65 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
     }
     return { rows: outRows, topLevelNames: outTop, projectByName: byName };
   }, [projects]);
+
+  // Leaving select mode (or running out of projects) clears the pending
+  // selection; deleting projects drops their now-stale names from the set.
+  useEffect(() => {
+    if (!selectMode) return;
+    if (rows.length === 0) {
+      setSelectMode(false);
+      return;
+    }
+    setSelectedForDelete((prev) => {
+      const valid = new Set(rows.map((r) => r.project.name));
+      const next = new Set([...prev].filter((n) => valid.has(n)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [selectMode, rows]);
+
+  // Removing an original also removes its duplicates (matching the single
+  // cascade delete), so expand the pending set before partitioning.
+  const removalProjects = useMemo(() => {
+    const names = new Set(selectedForDelete);
+    for (const name of selectedForDelete) {
+      const p = projectByName.get(name);
+      if (p && !p.parentName) {
+        for (const { project } of rows) {
+          if (project.parentName === name) names.add(project.name);
+        }
+      }
+    }
+    return rows.filter((r) => names.has(r.project.name)).map((r) => r.project);
+  }, [selectedForDelete, rows, projectByName]);
+
+  // Duplicates have their folder deleted from disk; regular projects only lose
+  // their lpm entry (source folder stays), so their removal needs the same
+  // typed confirmation as the single delete flow.
+  const foldersDeleted = removalProjects.filter((p) => p.parentName);
+  const entriesRemoved = removalProjects.filter((p) => !p.parentName);
+  // Mirror the single delete flow: removing a regular project requires typing
+  // its name, so a batch asks for each regular project's name separately.
+  const batchConfirmNames = entriesRemoved.map((p) => projectDisplayName(p));
+
+  const enterSelectMode = (preselect?: string) => {
+    setSelectedForDelete(preselect ? new Set([preselect]) : new Set());
+    setSelectMode(true);
+  };
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedForDelete(new Set());
+  };
+  const toggleSelected = (name: string) =>
+    setSelectedForDelete((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+
+  // Escape leaves select mode, but only when no menu is open (the open menu's
+  // own Escape handler closes it first).
+  useKeyboardShortcut({ key: "Escape" }, exitSelectMode, selectMode && !contextMenu);
 
   const renamingProject = renamingName ? projectByName.get(renamingName) : undefined;
   const renamingParent = renamingProject?.parentName
@@ -258,13 +326,19 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
         <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
           Projects
         </h2>
-        <button
-          onClick={onAddProject}
-          className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          title="Add project"
-        >
-          +
-        </button>
+        {selectMode ? (
+          <span className="text-[11px] font-medium text-[var(--text-muted)]">
+            {selectedForDelete.size} selected
+          </span>
+        ) : (
+          <button
+            onClick={onAddProject}
+            className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            title="Add project"
+          >
+            +
+          </button>
+        )}
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2">
@@ -279,29 +353,53 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
             const parent = project.parentName ? projectByName.get(project.parentName) : undefined;
             const name = <ProjectNameDisplay project={project} parent={parent} />;
             const showCheck = status.isDone && !status.isWaiting && !status.isError;
+            const isChecked = selectedForDelete.has(project.name);
+
+            const buttonClass = selectMode
+              ? `${ROW_BASE_CLASS} ${
+                  isChecked
+                    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                }`
+              : `${ROW_BASE_CLASS} ${
+                  isContextTarget
+                    ? "pr-9 ring-1 ring-inset ring-[var(--accent-cyan)]/60"
+                    : "group-hover:pr-9"
+                } ${
+                  isSelected
+                    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                }`;
 
             const rowItem = (
               <div className="group relative">
                 <button
-                  onClick={() => onSelect(project.name)}
-                  onDoubleClick={() => {
-                    if (getSettings().doubleClickToToggle) onToggle(project.name);
-                  }}
+                  onClick={
+                    selectMode
+                      ? () => toggleSelected(project.name)
+                      : () => onSelect(project.name)
+                  }
+                  onDoubleClick={
+                    selectMode
+                      ? undefined
+                      : () => {
+                          if (getSettings().doubleClickToToggle) onToggle(project.name);
+                        }
+                  }
                   onContextMenu={(e) => {
                     e.preventDefault();
                     setContextMenu({ name: project.name, x: e.clientX, y: e.clientY });
                   }}
-                  className={`flex w-full select-none items-center gap-3 rounded-md px-3 py-2 text-left text-sm outline-none transition-colors ${
-                    isContextTarget
-                      ? "pr-9 ring-1 ring-inset ring-[var(--accent-cyan)]/60"
-                      : "group-hover:pr-9"
-                  } ${
-                    isSelected
-                      ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                      : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                  }`}
+                  className={buttonClass}
                 >
-                  {isBusy ? (
+                  {selectMode ? (
+                    <span className="shrink-0">
+                      <CheckboxBox
+                        state={isChecked ? "all" : "none"}
+                        tone={project.running ? "green" : "blue"}
+                      />
+                    </span>
+                  ) : isBusy ? (
                     <span className="shrink-0 text-[var(--text-muted)]">
                       <SpinnerIcon />
                     </span>
@@ -328,28 +426,30 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
                   {status.isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
                   {showCheck && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
                 </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // useOutsideClick's mousedown already closed the menu — skip the reopen so the second click toggles off.
-                    if (isContextTarget) return;
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    setContextMenu({ name: project.name, x: rect.left, y: rect.bottom + 4 });
-                  }}
-                  className={`absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
-                    isContextTarget
-                      ? "opacity-100"
-                      : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100"
-                  }`}
-                  title="More options"
-                  aria-label={`More options for ${project.name}`}
-                >
-                  <MoreVerticalIcon />
-                </button>
+                {!selectMode && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // useOutsideClick's mousedown already closed the menu — skip the reopen so the second click toggles off.
+                      if (isContextTarget) return;
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setContextMenu({ name: project.name, x: rect.left, y: rect.bottom + 4 });
+                    }}
+                    className={`absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
+                      isContextTarget
+                        ? "opacity-100"
+                        : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100"
+                    }`}
+                    title="More options"
+                    aria-label={`More options for ${project.name}`}
+                  >
+                    <MoreVerticalIcon />
+                  </button>
+                )}
               </div>
             );
 
-            if (isChild) {
+            if (isChild || selectMode) {
               return <div key={project.name}>{rowItem}</div>;
             }
             return (
@@ -360,27 +460,42 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           })}
         </SortableList>
       </nav>
-      {contextMenu && (
-        <ProjectContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          busy={duplicatingName !== null || removingName !== null}
-          isDuplicate={Boolean(contextProject?.parentName)}
-          isDetached={detached.has(contextMenu.name)}
-          projectPath={contextProject?.root ?? null}
-          onRename={() => setRenamingName(contextMenu.name)}
-          onDuplicate={(excludeUncommitted, reinstallDeps) =>
-            onDuplicateProject(contextMenu.name, excludeUncommitted, reinstallDeps)
-          }
-          onCopyPath={() => {
-            if (contextProject?.root) navigator.clipboard.writeText(contextProject.root);
-          }}
-          onDetach={() => onDetachProject(contextMenu.name)}
-          onAttach={() => onAttachProject(contextMenu.name)}
-          onRemove={() => setConfirmRemove(contextMenu.name)}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
+      {contextMenu &&
+        (selectMode ? (
+          <SelectionContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            count={selectedForDelete.size}
+            busy={removingName !== null}
+            onDelete={() => {
+              if (selectedForDelete.size > 0) setConfirmBatch(true);
+            }}
+            onCancel={exitSelectMode}
+            onClose={() => setContextMenu(null)}
+          />
+        ) : (
+          <ProjectContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            busy={duplicatingName !== null || removingName !== null}
+            isDuplicate={Boolean(contextProject?.parentName)}
+            isDetached={detached.has(contextMenu.name)}
+            canSelect={projects.length > 1}
+            projectPath={contextProject?.root ?? null}
+            onRename={() => setRenamingName(contextMenu.name)}
+            onDuplicate={(excludeUncommitted, reinstallDeps) =>
+              onDuplicateProject(contextMenu.name, excludeUncommitted, reinstallDeps)
+            }
+            onCopyPath={() => {
+              if (contextProject?.root) navigator.clipboard.writeText(contextProject.root);
+            }}
+            onDetach={() => onDetachProject(contextMenu.name)}
+            onAttach={() => onAttachProject(contextMenu.name)}
+            onSelect={() => enterSelectMode(contextMenu.name)}
+            onRemove={() => setConfirmRemove(contextMenu.name)}
+            onClose={() => setContextMenu(null)}
+          />
+        ))}
       <ConfirmDialog
         open={confirmRemove !== null}
         title={removeDialog.title}
@@ -392,6 +507,53 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
         onConfirm={() => {
           if (confirmRemove) removeDialog.onConfirm(confirmRemove);
           setConfirmRemove(null);
+        }}
+      />
+      <ConfirmDialog
+        open={confirmBatch}
+        title={
+          entriesRemoved.length === 0
+            ? `Delete ${removalProjects.length} ${removalProjects.length === 1 ? "copy" : "copies"}`
+            : `Delete ${removalProjects.length} ${removalProjects.length === 1 ? "project" : "projects"}`
+        }
+        variant="destructive"
+        confirmLabel="Delete"
+        confirmText={batchConfirmNames.length > 0 ? batchConfirmNames : undefined}
+        body={
+          <>
+            {removalProjects.length === 1
+              ? "Delete this project?"
+              : `Delete these ${removalProjects.length} projects?`}
+            <ul className="mt-2 max-h-40 list-disc space-y-0.5 overflow-y-auto pl-5">
+              {removalProjects.map((p) => (
+                <li key={p.name} className="text-[var(--text-primary)]">
+                  {projectDisplayName(p, projectByName.get(p.parentName ?? ""))}
+                </li>
+              ))}
+            </ul>
+            {foldersDeleted.length > 0 && (
+              <span className="mt-2 block">
+                {foldersDeleted.length === 1
+                  ? "1 copy and everything inside is permanently deleted from disk."
+                  : `${foldersDeleted.length} copies and everything inside are permanently deleted from disk.`}{" "}
+                This can't be undone.
+              </span>
+            )}
+            {entriesRemoved.length > 0 && (
+              <span className="mt-2 block">
+                {entriesRemoved.length === 1
+                  ? "1 project is removed from lpm; its source folder stays on disk."
+                  : `${entriesRemoved.length} projects are removed from lpm; their source folders stay on disk.`}
+              </span>
+            )}
+          </>
+        }
+        onCancel={() => setConfirmBatch(false)}
+        onConfirm={() => {
+          const names = removalProjects.map((p) => p.name);
+          setConfirmBatch(false);
+          exitSelectMode();
+          if (names.length > 0) onRemoveProjectsBatch(names);
         }}
       />
       <RenameModal

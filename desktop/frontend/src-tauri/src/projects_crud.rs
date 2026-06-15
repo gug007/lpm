@@ -484,6 +484,24 @@ pub fn remove_project_cascade(app: AppHandle, name: String) -> Result<(), String
     Ok(())
 }
 
+/// Remove several projects in one pass (used for bulk-pruning duplicates). Each
+/// name is torn down via `remove_one`, so running sessions, port forwards, and
+/// sync mirrors are stopped and duplicate folders are deleted from disk. A
+/// single failure doesn't abort the batch: failed names are collected and
+/// returned so the caller can report a partial result. Emits `projects-changed`
+/// once at the end to avoid a refresh storm.
+#[tauri::command(async)]
+pub fn remove_projects(app: AppHandle, names: Vec<String>) -> Result<Vec<String>, String> {
+    let mut failed = Vec::new();
+    for name in &names {
+        if remove_one(&app, name).is_err() {
+            failed.push(name.clone());
+        }
+    }
+    let _ = app.emit("projects-changed", ());
+    Ok(failed)
+}
+
 /// Drop the project's entry from the persisted terminals config so a future
 /// project reusing the name doesn't restore this one's pane tree.
 fn clean_terminals_entry(name: &str) {

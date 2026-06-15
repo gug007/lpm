@@ -129,14 +129,24 @@ export function folderState(
 
 export type CheckState = "none" | "some" | "all";
 
-export function CheckboxBox({ state }: { state: CheckState }) {
+export function CheckboxBox({
+  state,
+  tone = "blue",
+}: {
+  state: CheckState;
+  tone?: "blue" | "green";
+}) {
+  const colors =
+    state === "none"
+      ? tone === "green"
+        ? "border-[var(--accent-green)]/50"
+        : "border-[var(--text-muted)]/25"
+      : tone === "green"
+        ? "border-[var(--accent-green)] text-[var(--accent-green)]"
+        : "border-[var(--accent-blue)] text-[var(--accent-blue)]";
   return (
     <span
-      className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[4px] border transition-all duration-150 ${
-        state === "none"
-          ? "border-[var(--text-muted)]/25"
-          : "border-[var(--accent-blue)] text-[var(--accent-blue)]"
-      }`}
+      className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[4px] border transition-all duration-150 ${colors}`}
     >
       {state === "all" && (
         <svg

@@ -11,7 +11,9 @@ interface ConfirmDialogProps {
   confirmLabel?: string;
   variant?: ConfirmVariant;
   disabled?: boolean;
-  confirmText?: string;
+  // A single string requires one typed confirmation; an array requires a
+  // separate input matching each entry (e.g. one per project in a batch).
+  confirmText?: string | string[];
   onCancel: () => void;
   onConfirm: () => void;
 }
@@ -28,11 +30,14 @@ export function ConfirmDialog({
   onCancel,
   onConfirm,
 }: ConfirmDialogProps) {
-  const [typed, setTyped] = useState("");
-  useEffect(() => setTyped(""), [open]);
+  const required =
+    confirmText == null ? [] : Array.isArray(confirmText) ? confirmText : [confirmText];
+  const [typed, setTyped] = useState<string[]>([]);
+  useEffect(() => setTyped(required.map(() => "")), [open, required.length]);
 
-  const mustType = Boolean(confirmText);
-  const typedOk = !mustType || typed.trim() === confirmText;
+  const mustType = required.length > 0;
+  const typedOk =
+    !mustType || required.every((t, i) => (typed[i] ?? "").trim() === t);
   const confirmBlocked = disabled || !typedOk;
   const confirmClass =
     variant === "destructive"
@@ -57,33 +62,39 @@ export function ConfirmDialog({
       >
         {body}
       </div>
-      {mustType && (
-        <div className="mt-4">
+      {required.map((req, i) => (
+        <div className="mt-4" key={`${req}-${i}`}>
           <label className="block text-[11px] text-[var(--text-muted)]">
             Type{" "}
             <span className="font-medium text-[var(--text-secondary)]">
-              {confirmText}
+              {req}
             </span>{" "}
             to confirm
           </label>
           <input
-            autoFocus
-            value={typed}
-            onChange={(e) => setTyped(e.target.value)}
+            autoFocus={i === 0}
+            value={typed[i] ?? ""}
+            onChange={(e) =>
+              setTyped((prev) => {
+                const next = [...prev];
+                next[i] = e.target.value;
+                return next;
+              })
+            }
             onKeyDown={(e) => {
               if (e.key === "Enter" && !confirmBlocked) {
                 e.preventDefault();
                 onConfirm();
               }
             }}
-            placeholder={confirmText}
+            placeholder={req}
             spellCheck={false}
             autoCapitalize="off"
             autoCorrect="off"
             className="mt-1.5 w-full rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent-cyan)]"
           />
         </div>
-      )}
+      ))}
       <div className={`${title ? "mt-5" : "mt-4"} flex justify-end gap-2`}>
         <button
           onClick={onCancel}

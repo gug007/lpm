@@ -35,6 +35,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
   const duplicateProject = useAppStore((s) => s.duplicateProject);
   const removeProject = useAppStore((s) => s.removeProject);
   const removeProjectCascade = useAppStore((s) => s.removeProjectCascade);
+  const removeProjectsBatch = useAppStore((s) => s.removeProjectsBatch);
   const renameProject = useAppStore((s) => s.renameProject);
   const reorderProjects = useAppStore((s) => s.reorderProjects);
   const detachProject = useAppStore((s) => s.detachProject);
@@ -99,6 +100,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
           onDuplicateProject={duplicateProject}
           onRemoveProject={removeProject}
           onRemoveProjectCascade={removeProjectCascade}
+          onRemoveProjectsBatch={removeProjectsBatch}
           onRenameProject={renameProject}
           onReorder={reorderProjects}
           onDetachProject={detachProject}

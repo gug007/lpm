@@ -1,4 +1,4 @@
-import { ChevronRightIcon, ClipboardIcon, CopyIcon, DetachIcon, PencilIcon, RefreshIcon, TrashIcon } from "./icons";
+import { CheckSquareIcon, ChevronRightIcon, ClipboardIcon, CopyIcon, DetachIcon, PencilIcon, RefreshIcon, TrashIcon } from "./icons";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
 import { launchOpenInTarget, primaryOpenInTarget, useOpenInTargets } from "../hooks/useOpenInTargets";
@@ -9,12 +9,14 @@ interface ProjectContextMenuProps {
   busy: boolean;
   isDuplicate: boolean;
   isDetached: boolean;
+  canSelect: boolean;
   projectPath: string | null;
   onRename: () => void;
   onDuplicate: (excludeUncommitted: boolean, reinstallDeps: boolean) => void;
   onCopyPath: () => void;
   onDetach: () => void;
   onAttach: () => void;
+  onSelect: () => void;
   onRemove: () => void;
   onClose: () => void;
 }
@@ -25,12 +27,14 @@ export function ProjectContextMenu({
   busy,
   isDuplicate,
   isDetached,
+  canSelect,
   projectPath,
   onRename,
   onDuplicate,
   onCopyPath,
   onDetach,
   onAttach,
+  onSelect,
   onRemove,
   onClose,
 }: ProjectContextMenuProps) {
@@ -136,6 +140,13 @@ export function ProjectContextMenu({
             ))}
           </div>
         </div>
+      )}
+      {canSelect && (
+        <ContextMenuItem
+          label="Select"
+          icon={<CheckSquareIcon />}
+          onClick={close(onSelect)}
+        />
       )}
       <div className="my-1 border-t border-[var(--border)]" />
       <ContextMenuItem

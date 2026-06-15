@@ -26,6 +26,7 @@ import {
   ReadConfig,
   RemoveProject,
   RemoveProjectCascade,
+  RemoveProjects,
   RenameTemplate,
   ReorderProjects,
   ResolvePortConflict,
@@ -152,6 +153,7 @@ interface AppState {
   ) => Promise<void>;
   removeProject: (name: string) => Promise<void>;
   removeProjectCascade: (name: string) => Promise<void>;
+  removeProjectsBatch: (names: string[]) => Promise<void>;
   renameProject: (name: string, label: string) => Promise<void>;
   reorderProjects: (order: string[]) => Promise<void>;
   detachProject: (name: string) => Promise<void>;
@@ -384,6 +386,15 @@ function templatesEqual(a: main.TemplateInfo[], b: main.TemplateInfo[]): boolean
   return true;
 }
 
+// Drop client-side state tied to projects that no longer exist: their cached
+// terminal panes and persisted chat selection.
+function forgetRemovedProjects(names: string[]) {
+  for (const name of names) {
+    forgetProjectTerminals(name);
+    window.localStorage.removeItem(activeChatStorageKey(name));
+  }
+}
+
 async function runProjectRemoval(
   set: AppSet,
   get: AppGet,
@@ -395,10 +406,7 @@ async function runProjectRemoval(
   set({ removingName: name });
   try {
     await call();
-    for (const removedName of removedNames) {
-      forgetProjectTerminals(removedName);
-      window.localStorage.removeItem(activeChatStorageKey(removedName));
-    }
+    forgetRemovedProjects(removedNames);
     set({ selected: null });
     await get().refreshProjects();
   } catch (err) {
@@ -745,6 +753,33 @@ export const useAppStore = create<AppState>((set, get) => ({
       [name, ...get().projects.filter((p) => p.parentName === name).map((p) => p.name)],
       () => RemoveProjectCascade(name),
     ),
+
+  removeProjectsBatch: async (names) => {
+    if (get().removingName || names.length === 0) return;
+    set({ removingName: names[0] });
+    try {
+      const failed: string[] = (await RemoveProjects(names)) || [];
+      const failedSet = new Set(failed);
+      const removed = names.filter((n) => !failedSet.has(n));
+      forgetRemovedProjects(removed);
+      set((s) =>
+        s.selected && removed.includes(s.selected) ? { selected: null } : s,
+      );
+      await get().refreshProjects();
+      if (failed.length > 0) {
+        const plural = (n: number) => (n === 1 ? "project" : "projects");
+        toast.error(
+          removed.length > 0
+            ? `Removed ${removed.length}, ${failed.length} failed`
+            : `Failed to remove ${failed.length} ${plural(failed.length)}`,
+        );
+      }
+    } catch (err) {
+      toast.error(`Failed to remove projects: ${err}`);
+    } finally {
+      set({ removingName: null });
+    }
+  },
 
   renameProject: async (name, label) => {
     const current = get().projects.find((p) => p.name === name)?.label ?? "";
