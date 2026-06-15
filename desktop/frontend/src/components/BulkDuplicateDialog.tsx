@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { GitBranch, Package } from "lucide-react";
 import { useEventListener } from "../hooks/useEventListener";
 import { Modal } from "./ui/Modal";
 import { ActionPicker } from "./ActionPicker";
@@ -53,7 +54,9 @@ export function BulkDuplicateDialog({
   );
 
   const clamp = (n: number) => Math.max(MIN_COUNT, n);
-  const noun = count === 1 ? "copy" : "copies";
+  const single = count === 1;
+  const noun = single ? "copy" : "copies";
+  const copyRef = single ? "the copy" : "each copy";
 
   const pickMode = (next: RunMode) => {
     setMode(next);
@@ -101,6 +104,7 @@ export function BulkDuplicateDialog({
   const renderToggle = (
     checked: boolean,
     onChange: (v: boolean) => void,
+    icon: ReactNode,
     title: string,
     description: string,
   ): ReactNode => (
@@ -114,17 +118,13 @@ export function BulkDuplicateDialog({
       }`}
     >
       <span
-        className={`mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border transition-colors ${
+        className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
           checked
-            ? "border-[var(--accent-cyan)] bg-[var(--accent-cyan)] text-[var(--bg-primary)]"
-            : "border-[var(--border)]"
+            ? "bg-[var(--accent-cyan)] text-[var(--bg-primary)]"
+            : "bg-[var(--bg-secondary)] text-[var(--text-muted)]"
         }`}
       >
-        {checked && (
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M20 6 9 17l-5-5" />
-          </svg>
-        )}
+        {icon}
       </span>
       <span className="min-w-0">
         <span className="block text-sm font-medium text-[var(--text-primary)]">{title}</span>
@@ -150,11 +150,13 @@ export function BulkDuplicateDialog({
         <div className="min-w-0">
           <h3 className="text-base font-semibold text-[var(--text-primary)]">Duplicate</h3>
           <p className="mt-0.5 text-[13px] leading-snug text-[var(--text-secondary)]">
-            Create one or more copies of{" "}
+            Create {single ? "a copy" : `${count} copies`} of{" "}
             <span className="font-medium text-[var(--text-primary)]">
               {project?.label || project?.name}
             </span>
-            , each ready to work in on its own.
+            {single
+              ? ", ready to work in on its own."
+              : ", each ready to work in on its own."}
           </p>
         </div>
       </div>
@@ -193,7 +195,7 @@ export function BulkDuplicateDialog({
 
       <div className="mt-5">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-          Run on each copy
+          Run on {copyRef}
         </p>
         <div className="mt-2 flex gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-1">
           {segments.map((s) => (
@@ -236,8 +238,8 @@ export function BulkDuplicateDialog({
         {mode !== "none" && (
           <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">
             {mode === "command"
-              ? "Runs in a terminal on each copy as soon as it's created."
-              : "Starts on each copy in the background as soon as it's created."}
+              ? `Runs in a terminal on ${copyRef} as soon as it's created.`
+              : `Starts on ${copyRef} in the background as soon as it's created.`}
           </p>
         )}
       </div>
@@ -246,14 +248,16 @@ export function BulkDuplicateDialog({
         {renderToggle(
           excludeUncommitted,
           setExcludeUncommitted,
-          "Fresh checkout",
-          "Reset each copy to the last commit, dropping uncommitted changes.",
+          <GitBranch size={16} />,
+          "Committed work only",
+          `Reset ${copyRef} to the last commit, dropping uncommitted changes.`,
         )}
         {renderToggle(
           reinstallDeps,
           setReinstallDeps,
+          <Package size={16} />,
           "Reinstall dependencies",
-          "Copy without dependencies, then install them fresh in each copy.",
+          `Copy without dependencies, then install them fresh in ${copyRef}.`,
         )}
       </div>
 
