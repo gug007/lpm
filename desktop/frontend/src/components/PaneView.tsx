@@ -19,6 +19,7 @@ import { TerminalSearchBar } from "./terminal/TerminalSearchBar";
 import { XIcon, GlobeIcon, TerminalIcon, ZapIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
 import { SortableTab, TabStrip } from "./TerminalTabDnd";
+import { useScrollFade } from "../hooks/useScrollFade";
 import { ALL_SERVICES, type PaneLeaf, type SplitDirection } from "../paneTree";
 import { useBrowserUrls } from "../store/browserUrls";
 
@@ -195,6 +196,12 @@ function PaneViewImpl(props: PaneViewProps) {
 
   const tabIds = useMemo(() => pane.tabs.map((t) => t.id), [pane.tabs]);
 
+  const { ref: scrollRef, canScrollLeft, canScrollRight } = useScrollFade<HTMLDivElement>([
+    pane.tabs,
+    services,
+    activeServiceName,
+  ]);
+
   const containerClass = fullscreen
     ? "fixed inset-0 z-50 flex flex-col overflow-hidden bg-[var(--terminal-bg)]"
     : "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-t border-x border-[var(--border)]";
@@ -211,7 +218,11 @@ function PaneViewImpl(props: PaneViewProps) {
       onMouseDownCapture={() => onFocusPane(pane.id)}
     >
       <div className={headerClass}>
-        <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
+        <div className="relative flex min-w-0 flex-1 items-center">
+          <div
+            ref={scrollRef}
+            className="flex w-full min-w-0 items-center gap-0.5 overflow-x-auto"
+          >
           {hasMultipleServices && (
             <HeaderTab
               label="All"
@@ -233,7 +244,7 @@ function PaneViewImpl(props: PaneViewProps) {
             );
           })}
           {services.length > 0 && pane.tabs.length > 0 && (
-            <div className="mx-1 h-3.5 w-px bg-[var(--terminal-header-hover)]" />
+            <div className="mx-1 h-3.5 w-px shrink-0 bg-[var(--terminal-header-hover)]" />
           )}
           <TabStrip paneId={pane.id} tabIds={tabIds}>
             {pane.tabs.map((t, i) => {
@@ -283,6 +294,13 @@ function PaneViewImpl(props: PaneViewProps) {
             onAddTerminal={() => onAddTerminal(pane.id)}
             onAddBrowser={() => onAddBrowser(pane.id)}
           />
+          </div>
+          {canScrollLeft && (
+            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-[var(--terminal-header)] to-transparent" />
+          )}
+          {canScrollRight && (
+            <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-[var(--terminal-header)] to-transparent" />
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           <Tooltip

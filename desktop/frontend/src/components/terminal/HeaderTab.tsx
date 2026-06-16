@@ -2,6 +2,7 @@ import { type MouseEvent, type ReactNode } from "react";
 import { Pin } from "lucide-react";
 import { XIcon } from "../icons";
 import { Tooltip } from "../ui/Tooltip";
+import { useIsTruncated } from "../../hooks/useIsTruncated";
 
 export function HeaderTab({
   label,
@@ -30,11 +31,29 @@ export function HeaderTab({
 }) {
   const closable = !!onClose && !pinned;
   const hasHoverIcon = closable || !!pinned;
+  const { ref: labelRef, truncated } = useIsTruncated(label);
+
+  const statusClassName = error
+    ? "text-red-400"
+    : waiting
+    ? "sidebar-waiting"
+    : shimmer
+    ? "sidebar-shimmer"
+    : "";
+  const statusStyle =
+    done && !shimmer && !waiting && !error ? { color: "var(--accent-blue)" } : undefined;
+
+  const labelNode = (
+    <span ref={labelRef} className={`min-w-0 truncate ${statusClassName}`} style={statusStyle}>
+      {label}
+    </span>
+  );
+
   return (
     <button
       onClick={onClick}
       onContextMenu={onContextMenu}
-      className={`group flex select-none items-center gap-1 rounded-md px-2.5 py-1 font-mono text-[11px] font-medium transition-colors ${
+      className={`group flex max-w-[200px] select-none items-center gap-1 overflow-hidden rounded-md px-2.5 py-1 font-mono text-[11px] font-medium transition-colors ${
         active
           ? "bg-[var(--terminal-header-active)] text-[var(--terminal-tab-active)]"
           : "text-[var(--terminal-header-text)] hover:text-[var(--terminal-tab-active)]"
@@ -68,24 +87,13 @@ export function HeaderTab({
           ) : null}
         </span>
       )}
-      <span
-        className={
-          error
-            ? "text-red-400"
-            : waiting
-            ? "sidebar-waiting"
-            : shimmer
-            ? "sidebar-shimmer"
-            : ""
-        }
-        style={
-          done && !shimmer && !waiting && !error
-            ? { color: "var(--accent-blue)" }
-            : undefined
-        }
-      >
-        {label}
-      </span>
+      {truncated ? (
+        <Tooltip content={label} side="bottom" triggerClassName="flex min-w-0">
+          {labelNode}
+        </Tooltip>
+      ) : (
+        labelNode
+      )}
     </button>
   );
 }
