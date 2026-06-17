@@ -374,6 +374,7 @@ fn run_install(root: &Path, pm: PackageManager) -> Result<(), String> {
 fn duplicate_one(
     app: &AppHandle,
     name: &str,
+    desired_name: Option<&str>,
     exclude_uncommitted: bool,
     reinstall_deps: bool,
 ) -> Result<String, String> {
@@ -387,7 +388,17 @@ fn duplicate_one(
         .ok_or("source root has no parent directory")?
         .to_path_buf();
 
-    let (new_name, new_root) = next_available_duplicate(&original, &parent_dir)?;
+    let (new_name, new_root) = match desired_name.map(str::trim).filter(|d| !d.is_empty()) {
+        Some(d) => {
+            config::validate_name(d)?;
+            let root = parent_dir.join(d);
+            if config::project_exists(d) || root.exists() {
+                return Err(format!("a project named {d:?} already exists"));
+            }
+            (d.to_string(), root)
+        }
+        None => next_available_duplicate(&original, &parent_dir)?,
+    };
 
     if let Err(e) = cp_clone(Path::new(&src.root), &new_root, reinstall_deps) {
         let _ = std::fs::remove_dir_all(&new_root);
@@ -426,10 +437,17 @@ fn duplicate_one(
 pub fn duplicate_project(
     app: AppHandle,
     name: String,
+    desired_name: Option<String>,
     exclude_uncommitted: bool,
     reinstall_deps: bool,
 ) -> Result<String, String> {
-    duplicate_one(&app, &name, exclude_uncommitted, reinstall_deps)
+    duplicate_one(
+        &app,
+        &name,
+        desired_name.as_deref(),
+        exclude_uncommitted,
+        reinstall_deps,
+    )
 }
 
 /// Create `count` copies of a project in one pass (used to spawn a batch of
@@ -448,7 +466,7 @@ pub fn duplicate_projects(
 ) -> Result<Vec<String>, String> {
     let mut created = Vec::new();
     for _ in 0..count {
-        match duplicate_one(&app, &name, exclude_uncommitted, reinstall_deps) {
+        match duplicate_one(&app, &name, None, exclude_uncommitted, reinstall_deps) {
             Ok(new_name) => created.push(new_name),
             Err(e) => {
                 if created.is_empty() {

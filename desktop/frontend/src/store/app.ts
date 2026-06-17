@@ -157,6 +157,7 @@ interface AppState {
     opts?: {
       excludeUncommitted?: boolean;
       reinstallDeps?: boolean;
+      names?: string[];
       tasks?: SpawnTask[];
     },
   ) => Promise<void>;
@@ -405,6 +406,16 @@ function forgetRemovedProjects(names: string[]) {
   }
 }
 
+// Removals run concurrently, so `removingNames` is tracked additively: each
+// flow unions its own names in while it runs and removes only those when done.
+const withAdded = (prev: Set<string>, names: string[]) =>
+  new Set([...prev, ...names]);
+const withRemoved = (prev: Set<string>, names: string[]) => {
+  const next = new Set(prev);
+  names.forEach((n) => next.delete(n));
+  return next;
+};
+
 async function runProjectRemoval(
   set: AppSet,
   get: AppGet,
@@ -412,17 +423,18 @@ async function runProjectRemoval(
   removedNames: string[],
   call: () => Promise<unknown>,
 ) {
-  if (get().removingNames.size > 0) return;
-  set({ removingNames: new Set(removedNames) });
+  if (removedNames.some((n) => get().removingNames.has(n))) return;
+  set((s) => ({ removingNames: withAdded(s.removingNames, removedNames) }));
   try {
     await call();
     forgetRemovedProjects(removedNames);
-    set({ selected: null });
+    const sel = get().selected;
+    if (sel && removedNames.includes(sel)) set({ selected: null });
     await get().refreshProjects();
   } catch (err) {
     toast.error(`Failed to remove ${name}: ${err}`);
   } finally {
-    set({ removingNames: new Set() });
+    set((s) => ({ removingNames: withRemoved(s.removingNames, removedNames) }));
   }
 }
 
@@ -748,6 +760,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         try {
           newName = await DuplicateProject(
             name,
+            (opts.names?.[i] ?? "").trim(),
             opts.excludeUncommitted ?? false,
             opts.reinstallDeps ?? false,
           );
@@ -806,8 +819,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     ),
 
   removeProjectsBatch: async (names) => {
-    if (get().removingNames.size > 0 || names.length === 0) return;
-    set({ removingNames: new Set(names) });
+    if (names.length === 0 || names.some((n) => get().removingNames.has(n)))
+      return;
+    set((s) => ({ removingNames: withAdded(s.removingNames, names) }));
     try {
       const failed: string[] = (await RemoveProjects(names)) || [];
       const failedSet = new Set(failed);
@@ -828,7 +842,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (err) {
       toast.error(`Failed to remove projects: ${err}`);
     } finally {
-      set({ removingNames: new Set() });
+      set((s) => ({ removingNames: withRemoved(s.removingNames, names) }));
     }
   },
 

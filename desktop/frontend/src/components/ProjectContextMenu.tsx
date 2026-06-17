@@ -6,7 +6,8 @@ import { launchOpenInTarget, primaryOpenInTarget, useOpenInTargets } from "../ho
 interface ProjectContextMenuProps {
   x: number;
   y: number;
-  busy: boolean;
+  duplicateDisabled: boolean;
+  removeDisabled: boolean;
   isDuplicate: boolean;
   isDetached: boolean;
   canSelect: boolean;
@@ -24,7 +25,8 @@ interface ProjectContextMenuProps {
 export function ProjectContextMenu({
   x,
   y,
-  busy,
+  duplicateDisabled,
+  removeDisabled,
   isDuplicate,
   isDetached,
   canSelect,
@@ -52,7 +54,7 @@ export function ProjectContextMenu({
         label="Duplicate"
         icon={<CopyIcon />}
         onClick={close(onBulkDuplicate)}
-        disabled={busy}
+        disabled={duplicateDisabled}
       />
       <ContextMenuItem label="Copy path" icon={<ClipboardIcon />} onClick={close(onCopyPath)} />
       {isDetached ? (
@@ -116,7 +118,7 @@ export function ProjectContextMenu({
         label={isDuplicate ? "Delete duplicate" : "Remove from lpm"}
         icon={<TrashIcon />}
         onClick={close(onRemove)}
-        disabled={busy}
+        disabled={removeDisabled}
       />
     </ContextMenuShell>
   );

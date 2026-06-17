@@ -479,7 +479,13 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           <ProjectContextMenu
             x={contextMenu.x}
             y={contextMenu.y}
-            busy={duplicatingName !== null || removingNames.size > 0}
+            duplicateDisabled={
+              duplicatingName !== null || removingNames.has(contextMenu.name)
+            }
+            removeDisabled={
+              removingNames.has(contextMenu.name) ||
+              duplicatingName === contextMenu.name
+            }
             isDuplicate={Boolean(contextProject?.parentName)}
             isDetached={detached.has(contextMenu.name)}
             canSelect={projects.length > 1}
@@ -559,6 +565,7 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
       <BulkDuplicateDialog
         open={bulkDuplicateName !== null}
         project={bulkDuplicateName ? projectByName.get(bulkDuplicateName) ?? null : null}
+        existingNames={projects.map((p) => p.name)}
         busy={duplicatingName !== null}
         onCancel={() => setBulkDuplicateName(null)}
         onConfirm={(count, opts) => {

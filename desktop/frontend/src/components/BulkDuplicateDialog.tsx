@@ -6,18 +6,21 @@ import { ActionPicker } from "./ActionPicker";
 import type { ProjectInfo, SpawnTask } from "../types";
 
 const MIN_COUNT = 1;
+const MAX_COUNT = 50;
 
 type RunMode = "none" | "action" | "command";
 
 export interface BulkDuplicateOptions {
   excludeUncommitted: boolean;
   reinstallDeps: boolean;
+  names: string[];
   tasks: SpawnTask[];
 }
 
 interface BulkDuplicateDialogProps {
   open: boolean;
   project: ProjectInfo | null;
+  existingNames: string[];
   busy: boolean;
   onCancel: () => void;
   onConfirm: (count: number, opts: BulkDuplicateOptions) => void;
@@ -26,20 +29,56 @@ interface BulkDuplicateDialogProps {
 export function BulkDuplicateDialog({
   open,
   project,
+  existingNames,
   busy,
   onCancel,
   onConfirm,
 }: BulkDuplicateDialogProps) {
-  const [count, setCount] = useState(1);
+  const [names, setNames] = useState<string[]>([""]);
+  const count = names.length;
   const [mode, setMode] = useState<RunMode>("none");
   const [actionName, setActionName] = useState("");
   const [command, setCommand] = useState("");
   const [excludeUncommitted, setExcludeUncommitted] = useState(false);
   const [reinstallDeps, setReinstallDeps] = useState(false);
 
+  // Propose the actual folder name each copy will be created with: the source's
+  // name (or its parent's, for a duplicate-of-a-duplicate) plus a short random
+  // id. Mirrors the backend scheme in src-tauri/src/projects_crud.rs
+  // (`random_id6` / `next_available_duplicate`) so the shown name is the one
+  // really used — keep the two in sync.
+  const slugBase = (project?.parentName || project?.name || "").trim();
+  const randomId6 = (): string => {
+    const alphabet =
+      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let id = "";
+    for (let i = 0; i < 6; i++)
+      id += alphabet[Math.floor(Math.random() * alphabet.length)];
+    return id;
+  };
+  const buildNames = (n: number, seed: string[] = []): string[] => {
+    const out = seed.slice(0, n);
+    if (!slugBase) {
+      while (out.length < n) out.push("");
+      return out;
+    }
+    const taken = new Set([
+      ...existingNames.map((x) => x.toLowerCase()),
+      ...out.map((x) => x.trim().toLowerCase()).filter(Boolean),
+    ]);
+    while (out.length < n) {
+      let candidate = `${slugBase}-${randomId6()}`;
+      for (let k = 0; k < 10 && taken.has(candidate.toLowerCase()); k++)
+        candidate = `${slugBase}-${randomId6()}`;
+      taken.add(candidate.toLowerCase());
+      out.push(candidate);
+    }
+    return out;
+  };
+
   useEffect(() => {
     if (!open) return;
-    setCount(1);
+    setNames(buildNames(1));
     setMode("none");
     setActionName("");
     setCommand("");
@@ -53,7 +92,22 @@ export function BulkDuplicateDialog({
     (a) => !a.children?.length && !a.inputs?.length && !a.confirm,
   );
 
-  const clamp = (n: number) => Math.max(MIN_COUNT, n);
+  const clamp = (n: number) => Math.min(MAX_COUNT, Math.max(MIN_COUNT, n));
+
+  // Keep one name field per copy: grow with fresh suggestions, shrink by
+  // trimming, and preserve names the user already typed.
+  const changeCount = (next: number) => {
+    const n = clamp(next);
+    setNames((prev) => (n <= prev.length ? prev.slice(0, n) : buildNames(n, prev)));
+  };
+
+  const setNameAt = (i: number, value: string) =>
+    setNames((prev) => {
+      const next = prev.slice();
+      next[i] = value;
+      return next;
+    });
+
   const single = count === 1;
   const noun = single ? "copy" : "copies";
   const copyRef = single ? "the copy" : "each copy";
@@ -77,6 +131,7 @@ export function BulkDuplicateDialog({
     onConfirm(count, {
       excludeUncommitted,
       reinstallDeps,
+      names: names.map((n) => n.trim()),
       tasks: buildTasks(),
     });
   };
@@ -138,7 +193,7 @@ export function BulkDuplicateDialog({
       open={open}
       onClose={onCancel}
       zIndexClassName="z-[60]"
-      contentClassName="w-[440px] rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] p-6 shadow-2xl"
+      contentClassName="max-h-[85vh] w-[440px] overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] p-6 shadow-2xl"
     >
       <div className="flex items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--bg-secondary)] text-[var(--accent-cyan)]">
@@ -167,7 +222,7 @@ export function BulkDuplicateDialog({
         </p>
         <div className="inline-flex items-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]">
           <button
-            onClick={() => setCount((c) => clamp(c - 1))}
+            onClick={() => changeCount(count - 1)}
             disabled={count <= MIN_COUNT}
             className="flex h-9 w-9 items-center justify-center text-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-30"
             aria-label="Fewer copies"
@@ -178,19 +233,52 @@ export function BulkDuplicateDialog({
             value={count}
             onChange={(e) => {
               const n = parseInt(e.target.value.replace(/\D/g, ""), 10);
-              if (!Number.isNaN(n)) setCount(clamp(n));
+              if (!Number.isNaN(n)) changeCount(n);
             }}
             inputMode="numeric"
             className="h-9 w-11 border-x border-[var(--border)] bg-transparent text-center text-sm font-semibold text-[var(--text-primary)] outline-none"
           />
           <button
-            onClick={() => setCount((c) => clamp(c + 1))}
-            className="flex h-9 w-9 items-center justify-center text-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            onClick={() => changeCount(count + 1)}
+            disabled={count >= MAX_COUNT}
+            className="flex h-9 w-9 items-center justify-center text-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-30"
             aria-label="More copies"
           >
             +
           </button>
         </div>
+      </div>
+
+      <div className="mt-5">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          {single ? "Name" : "Names"}
+        </p>
+        <div className="mt-2 max-h-[180px] space-y-1.5 overflow-y-auto pr-0.5">
+          {names.map((value, i) => (
+            <div key={i} className="flex items-center gap-2">
+              {!single && (
+                <span className="w-4 shrink-0 text-right text-[11px] tabular-nums text-[var(--text-muted)]">
+                  {i + 1}
+                </span>
+              )}
+              <input
+                value={value}
+                onChange={(e) => setNameAt(i, e.target.value)}
+                autoFocus={i === 0}
+                spellCheck={false}
+                autoCapitalize="off"
+                autoCorrect="off"
+                placeholder="Auto-named"
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
+              />
+            </div>
+          ))}
+        </div>
+        <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">
+          {single
+            ? "The copy is created with this name. Leave blank to name it automatically."
+            : "Copies are created with these names. Leave any blank to name automatically."}
+        </p>
       </div>
 
       <div className="mt-5">
