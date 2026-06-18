@@ -35,6 +35,7 @@ import {
   paneAtPath,
   isTabPinned,
 } from "../paneTree";
+import { useTabScroll } from "../store/tabScroll";
 
 export interface TerminalStartOpts {
   configName?: string;
@@ -306,6 +307,9 @@ export function useTerminals(
                 activeServiceName: undefined,
               })), pane.id);
             }
+            // Always bring the reused tab into view: when it's already active no
+            // pane state changes, so PaneView's activation effect wouldn't fire.
+            useTabScroll.getState().requestScroll(pane.id);
             await sendTerminalInput(pane.tabs[idx].id, cmd + "\n");
             return;
           }

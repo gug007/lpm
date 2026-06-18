@@ -20,7 +20,7 @@ export function HeaderTab({
   label: string;
   icon?: ReactNode;
   active: boolean;
-  onClick: () => void;
+  onClick: (e: MouseEvent<HTMLButtonElement>) => void;
   onClose?: () => void;
   onContextMenu?: (e: MouseEvent<HTMLButtonElement>) => void;
   pinned?: boolean;
@@ -53,6 +53,7 @@ export function HeaderTab({
     <button
       onClick={onClick}
       onContextMenu={onContextMenu}
+      data-active-tab={active || undefined}
       className={`group flex max-w-[200px] select-none items-center gap-1 overflow-hidden rounded-md px-2.5 py-1 font-mono text-[11px] font-medium transition-colors ${
         active
           ? "bg-[var(--terminal-header-active)] text-[var(--terminal-tab-active)]"
