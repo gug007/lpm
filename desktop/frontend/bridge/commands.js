@@ -223,6 +223,9 @@ export function ListSystemSounds() {
 export function ListTemplates() {
   return invoke("list_templates");
 }
+export function LoadGroups() {
+  return invoke("load_groups");
+}
 export function LoadSettings() {
   return invoke("load_settings");
 }
@@ -378,6 +381,9 @@ export function SaveConfig(name, content) {
 }
 export function SaveGlobalConfig(content) {
   return invoke("save_global_config", { content });
+}
+export function SaveGroups(groups) {
+  return invoke("save_groups", { groups });
 }
 export function SavePRDescriptionInstructions(content) {
   return invoke("save_pr_description_instructions", { content });

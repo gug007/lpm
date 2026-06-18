@@ -85,6 +85,27 @@ export interface ProjectInfo {
   isRemote: boolean;
 }
 
+// A user-created sidebar folder. Persisted in ~/.lpm/groups.json; `members`
+// are top-level project names in their within-folder order (duplicates ride
+// with their parent and are never listed here).
+export interface ProjectGroup {
+  id: string;
+  name: string;
+  collapsed?: boolean;
+  members: string[];
+}
+
+// A project is a duplicate (renders as a child of its parent) when its parent
+// is also present in the list. `present.has` is satisfied by a Set of names or
+// a Map keyed by name. This is the single rule for "is this a top-level project"
+// — the names eligible for sidebar order/folder membership are the non-duplicates.
+export function isDuplicate(
+  project: ProjectInfo,
+  present: { has(name: string): boolean },
+): boolean {
+  return !!(project.parentName && present.has(project.parentName));
+}
+
 export const STATUS_RUNNING = "Running";
 export const STATUS_DONE = "Done";
 export const STATUS_WAITING = "Waiting";

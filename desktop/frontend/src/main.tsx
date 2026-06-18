@@ -5,6 +5,7 @@ import App from "./App";
 import { DetachedApp } from "./DetachedApp";
 import { loadSettings } from "./store/settings";
 import { loadTerminals } from "./terminals";
+import { loadGroups } from "./store/groups";
 import { applyTheme } from "./theme";
 import { hydrateAppStore } from "./store/app";
 import { initTTSEvents } from "./store/tts";
@@ -15,9 +16,9 @@ const detachedProject = new URLSearchParams(window.location.search).get(
   "detached",
 );
 
-Promise.all([loadSettings(), loadTerminals()]).then(([s]) => {
+Promise.all([loadSettings(), loadTerminals(), loadGroups()]).then(([s, , g]) => {
   applyTheme(s.theme);
-  hydrateAppStore();
+  hydrateAppStore(g);
   initTTSEvents();
   createRoot(document.getElementById("root")!).render(
     <StrictMode>

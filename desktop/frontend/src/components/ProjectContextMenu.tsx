@@ -1,7 +1,10 @@
-import { CheckSquareIcon, ChevronRightIcon, ClipboardIcon, CopyIcon, DetachIcon, PencilIcon, TrashIcon } from "./icons";
+import { CheckSquareIcon, ChevronRightIcon, ClipboardIcon, CopyIcon, DetachIcon, FolderIcon, PencilIcon, TrashIcon } from "./icons";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
+import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
+import { ContextMenuSubmenu } from "./ui/ContextMenuSubmenu";
 import { launchOpenInTarget, primaryOpenInTarget, useOpenInTargets } from "../hooks/useOpenInTargets";
+import type { ProjectGroup } from "../types";
 
 interface ProjectContextMenuProps {
   x: number;
@@ -12,12 +15,16 @@ interface ProjectContextMenuProps {
   isDetached: boolean;
   canSelect: boolean;
   projectPath: string | null;
+  groups: ProjectGroup[];
+  currentGroupId: string | null;
   onRename: () => void;
   onBulkDuplicate: () => void;
   onCopyPath: () => void;
   onDetach: () => void;
   onAttach: () => void;
   onSelect: () => void;
+  onMoveToGroup: (groupId: string | null) => void;
+  onCreateGroupWith: () => void;
   onRemove: () => void;
   onClose: () => void;
 }
@@ -31,12 +38,16 @@ export function ProjectContextMenu({
   isDetached,
   canSelect,
   projectPath,
+  groups,
+  currentGroupId,
   onRename,
   onBulkDuplicate,
   onCopyPath,
   onDetach,
   onAttach,
   onSelect,
+  onMoveToGroup,
+  onCreateGroupWith,
   onRemove,
   onClose,
 }: ProjectContextMenuProps) {
@@ -105,6 +116,24 @@ export function ProjectContextMenu({
           </div>
         </div>
       )}
+      <ContextMenuSubmenu label="Move to folder" icon={<FolderIcon />}>
+        <ContextMenuItem label="New folder…" icon={<FolderIcon />} onClick={close(onCreateGroupWith)} />
+        {(groups.length > 0 || currentGroupId) && <ContextMenuSeparator />}
+        {groups.map((g) => (
+          <ContextMenuItem
+            key={g.id}
+            label={g.name}
+            disabled={g.id === currentGroupId}
+            onClick={close(() => onMoveToGroup(g.id))}
+          />
+        ))}
+        {currentGroupId && (
+          <ContextMenuItem
+            label="Remove from folder"
+            onClick={close(() => onMoveToGroup(null))}
+          />
+        )}
+      </ContextMenuSubmenu>
       {canSelect && (
         <ContextMenuItem
           label="Select"
@@ -112,7 +141,7 @@ export function ProjectContextMenu({
           onClick={close(onSelect)}
         />
       )}
-      <div className="my-1 border-t border-[var(--border)]" />
+      <ContextMenuSeparator />
       <ContextMenuItem
         destructive
         label={isDuplicate ? "Delete duplicate" : "Remove from lpm"}

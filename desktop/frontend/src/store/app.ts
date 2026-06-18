@@ -2,10 +2,12 @@ import { create, type StoreApi } from "zustand";
 import { toast } from "sonner";
 import YAML from "yaml";
 import {
+  isDuplicate,
   isFooterDisplay,
   isHeaderDisplay,
   type ActionInfo,
   type ActionsLayout,
+  type ProjectGroup,
   type ProjectInfo,
   type SpawnTask,
 } from "../types";
@@ -29,7 +31,6 @@ import {
   RemoveProjectCascade,
   RemoveProjects,
   RenameTemplate,
-  ReorderProjects,
   ResolvePortConflict,
   SaveConfig,
   SetProjectLabel,
@@ -38,7 +39,22 @@ import {
   ToggleProjectService,
 } from "../../bridge/commands";
 import type { main } from "../../bridge/models";
-import { getSettings } from "./settings";
+import { getSettings, loadSettings, saveSettings } from "./settings";
+import { loadGroups, saveGroups, type GroupsConfig } from "./groups";
+import {
+  type SidebarLayout,
+  addGroup as addGroupToLayout,
+  removeGroup as removeGroupFromLayout,
+  renameGroup as renameGroupInLayout,
+  setGroupCollapsed,
+  moveIntoGroup,
+  moveOutOfGroup,
+  membershipMap,
+  groupToken,
+  flattenForProjectOrder,
+  reconcile,
+  layoutsEqual,
+} from "../components/sidebarLayout";
 import { forgetProjectTerminals } from "../terminals";
 import { activeChatStorageKey } from "../components/NotesView";
 import { ACTION_SECTIONS, type ActionSection } from "../actionConfig";
@@ -85,6 +101,11 @@ export interface PortConflictPrompt {
 interface AppState {
   projects: ProjectInfo[];
   templates: main.TemplateInfo[];
+
+  // Sidebar folders. `sidebarOrder` is the interleaved top-level order (loose
+  // project names + "group:<id>" tokens); `groups` holds the folder defs.
+  groups: ProjectGroup[];
+  sidebarOrder: string[];
 
   selected: string | null;
   selectedTemplate: string | null;
@@ -166,7 +187,16 @@ interface AppState {
   removeProjectCascade: (name: string) => Promise<void>;
   removeProjectsBatch: (names: string[]) => Promise<void>;
   renameProject: (name: string, label: string) => Promise<void>;
-  reorderProjects: (order: string[]) => Promise<void>;
+  createGroup: (name: string, opts?: { initialMember?: string }) => Promise<void>;
+  renameGroup: (id: string, name: string) => Promise<void>;
+  deleteGroup: (id: string) => Promise<void>;
+  toggleGroupCollapsed: (id: string) => Promise<void>;
+  moveProjectToGroup: (name: string, groupId: string | null) => Promise<void>;
+  // Commit a full sidebar layout (on DnD drop): persists folders + order.
+  applySidebarLayout: (layout: SidebarLayout) => Promise<void>;
+  // Drop stale entries + append new projects after a project list refresh.
+  reconcileSidebarLayout: (projects: ProjectInfo[]) => void;
+
   detachProject: (name: string) => Promise<void>;
   attachProject: (name: string) => Promise<void>;
   focusDetachedProject: (name: string) => Promise<boolean>;
@@ -438,9 +468,55 @@ async function runProjectRemoval(
   }
 }
 
+// Names of top-level (non-duplicate) projects — the only names that ever
+// appear in `sidebarOrder` or a folder's `members`. A project is a duplicate
+// when its parent exists in the list (mirrors Sidebar's `isChild`).
+function topLevelProjectNames(projects: ProjectInfo[]): string[] {
+  const names = new Set(projects.map((p) => p.name));
+  return projects.filter((p) => !isDuplicate(p, names)).map((p) => p.name);
+}
+
+// Folders only hold top-level projects, so a duplicate redirects to its
+// parent (its duplicates ride along inside the folder). Unknown names -> none.
+function resolveTopLevelName(projects: ProjectInfo[], name: string): string | undefined {
+  const byName = new Map(projects.map((p) => [p.name, p]));
+  const p = byName.get(name);
+  if (!p) return undefined;
+  return isDuplicate(p, byName) ? p.parentName : name;
+}
+
+// Where a project sits at the top level: its own slot if loose, else its
+// folder's token slot. Used to drop a new folder where its seed project was.
+function topLevelIndexOfProject(layout: SidebarLayout, name: string): number {
+  const direct = layout.order.indexOf(name);
+  if (direct >= 0) return direct;
+  const gid = membershipMap(layout.groups).get(name);
+  if (gid) {
+    const ti = layout.order.indexOf(groupToken(gid));
+    if (ti >= 0) return ti;
+  }
+  return layout.order.length;
+}
+
+// Folders -> groups.json; order -> settings (sidebarOrder + the flattened
+// projectOrder the backend reads). saveSettings dirty-checks, so a folders-only
+// change (e.g. collapse) skips the settings write.
+async function persistSidebarLayout(layout: SidebarLayout): Promise<void> {
+  await Promise.all([
+    saveGroups({ groups: layout.groups }),
+    saveSettings({
+      sidebarOrder: layout.order,
+      projectOrder: flattenForProjectOrder(layout),
+    }),
+  ]);
+}
+
 export const useAppStore = create<AppState>((set, get) => ({
   projects: [],
   templates: [],
+
+  groups: [],
+  sidebarOrder: [],
 
   selected: null,
   selectedTemplate: null,
@@ -495,10 +571,23 @@ export const useAppStore = create<AppState>((set, get) => ({
   refreshProjects: async () => {
     try {
       const list = (await ListProjects()) || [];
-      set((s) => (projectsEqual(s.projects, list) ? s : { projects: list }));
+      // Status-only refreshes (the 10s poll, agent status events) leave the
+      // project set unchanged — skip the reconcile, which can only differ when
+      // projects are added or removed.
+      if (projectsEqual(get().projects, list)) return;
+      set({ projects: list });
+      get().reconcileSidebarLayout(list);
     } catch (err) {
       console.error("Failed to load projects:", err);
     }
+  },
+
+  reconcileSidebarLayout: (projects) => {
+    const before: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
+    const after = reconcile(before, topLevelProjectNames(projects));
+    if (layoutsEqual(before, after)) return;
+    set({ sidebarOrder: after.order, groups: after.groups });
+    persistSidebarLayout(after).catch(() => undefined);
   },
 
   refreshTemplates: async () => {
@@ -863,18 +952,63 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  reorderProjects: async (order) => {
-    const orderMap = new Map(order.map((n, i) => [n, i]));
-    set((s) => ({
-      projects: [...s.projects].sort(
-        (a, b) => (orderMap.get(a.name) ?? 0) - (orderMap.get(b.name) ?? 0),
-      ),
-    }));
+  applySidebarLayout: async (layout) => {
+    const prev: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
+    set({ sidebarOrder: layout.order, groups: layout.groups });
+    // Reference may differ even when content matches (e.g. collapse no-op) —
+    // update state but skip the persist.
+    if (layoutsEqual(prev, layout)) return;
     try {
-      await ReorderProjects(order);
+      await persistSidebarLayout(layout);
     } catch (err) {
-      toast.error(`Failed to reorder: ${err}`);
+      toast.error(`Failed to save folders: ${err}`);
+      const cfg = await loadGroups();
+      const fresh = await loadSettings();
+      set({ groups: cfg.groups, sidebarOrder: fresh.sidebarOrder ?? [] });
     }
+  },
+
+  createGroup: async (name, opts = {}) => {
+    const trimmed = name.trim() || "New Folder";
+    const id = crypto.randomUUID();
+    const current: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
+    const seed = opts.initialMember
+      ? resolveTopLevelName(get().projects, opts.initialMember)
+      : undefined;
+    const atIndex = seed ? topLevelIndexOfProject(current, seed) : undefined;
+    let next = addGroupToLayout(current, { id, name: trimmed, members: [] }, atIndex);
+    if (seed) next = moveIntoGroup(next, seed, id);
+    await get().applySidebarLayout(next);
+  },
+
+  renameGroup: async (id, name) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const current: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
+    await get().applySidebarLayout(renameGroupInLayout(current, id, trimmed));
+  },
+
+  deleteGroup: async (id) => {
+    const current: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
+    await get().applySidebarLayout(removeGroupFromLayout(current, id));
+  },
+
+  toggleGroupCollapsed: async (id) => {
+    const current: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
+    const group = current.groups.find((g) => g.id === id);
+    if (!group) return;
+    await get().applySidebarLayout(setGroupCollapsed(current, id, !group.collapsed));
+  },
+
+  moveProjectToGroup: async (name, groupId) => {
+    const target = resolveTopLevelName(get().projects, name);
+    if (!target) return;
+    const current: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
+    const next =
+      groupId === null
+        ? moveOutOfGroup(current, target, current.order.length)
+        : moveIntoGroup(current, target, groupId);
+    await get().applySidebarLayout(next);
   },
 
   refreshDetached: async () => {
@@ -984,13 +1118,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 }));
 
-// Called once after `loadSettings()` resolves so the store picks up the
-// persisted selection before the app first renders. Keeping this out of
-// the initializer lets the store module import cleanly even when
-// settings haven't been loaded yet.
-export function hydrateAppStore(): void {
+// Called once after `loadSettings()`/`loadGroups()` resolve so the store picks
+// up the persisted selection and sidebar folders before the app first renders.
+// Keeping this out of the initializer lets the store module import cleanly even
+// when settings haven't been loaded yet.
+export function hydrateAppStore(groups?: GroupsConfig): void {
   const last = getSettings().lastSelectedProject ?? null;
-  if (useAppStore.getState().selected !== last) {
-    useAppStore.setState({ selected: last });
-  }
+  useAppStore.setState({
+    selected: last,
+    groups: groups?.groups ?? [],
+    sidebarOrder: getSettings().sidebarOrder ?? [],
+  });
 }

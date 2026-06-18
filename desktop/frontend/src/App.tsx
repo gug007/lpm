@@ -31,6 +31,8 @@ import { InstallTmux, TmuxInstalled } from "../bridge/commands";
 
 export default function App() {
   const projects = useAppStore((s) => s.projects);
+  const groups = useAppStore((s) => s.groups);
+  const sidebarOrder = useAppStore((s) => s.sidebarOrder);
   const selected = useAppStore((s) => s.selected);
   const view = useAppStore((s) => s.view);
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
@@ -59,7 +61,12 @@ export default function App() {
   const removeProjectCascade = useAppStore((s) => s.removeProjectCascade);
   const removeProjectsBatch = useAppStore((s) => s.removeProjectsBatch);
   const renameProject = useAppStore((s) => s.renameProject);
-  const reorderProjects = useAppStore((s) => s.reorderProjects);
+  const applySidebarLayout = useAppStore((s) => s.applySidebarLayout);
+  const createGroup = useAppStore((s) => s.createGroup);
+  const renameGroup = useAppStore((s) => s.renameGroup);
+  const deleteGroup = useAppStore((s) => s.deleteGroup);
+  const toggleGroupCollapsed = useAppStore((s) => s.toggleGroupCollapsed);
+  const moveProjectToGroup = useAppStore((s) => s.moveProjectToGroup);
   const detachProject = useAppStore((s) => s.detachProject);
   const attachProject = useAppStore((s) => s.attachProject);
   const focusDetachedProject = useAppStore((s) => s.focusDetachedProject);
@@ -169,6 +176,8 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           projects={projects}
+          groups={groups}
+          sidebarOrder={sidebarOrder}
           selected={view === "projects" ? selected : null}
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}
@@ -182,7 +191,12 @@ export default function App() {
           onRemoveProjectCascade={removeProjectCascade}
           onRemoveProjectsBatch={removeProjectsBatch}
           onRenameProject={renameProject}
-          onReorder={reorderProjects}
+          onApplySidebarLayout={applySidebarLayout}
+          onCreateGroup={createGroup}
+          onRenameGroup={renameGroup}
+          onDeleteGroup={deleteGroup}
+          onToggleGroupCollapsed={toggleGroupCollapsed}
+          onMoveProjectToGroup={moveProjectToGroup}
           onDetachProject={detachProject}
           onAttachProject={attachProject}
           detached={detached}

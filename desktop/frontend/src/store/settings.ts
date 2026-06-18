@@ -31,6 +31,7 @@ export interface Settings {
   waitingSound?: string;
   errorSound?: string;
   projectOrder?: string[];
+  sidebarOrder?: string[];
   terminalTheme?: string;
   terminalFontSize?: number;
   terminalOpenInDefaultApp?: boolean;
@@ -82,6 +83,7 @@ function normalize(s: main.Settings): Settings {
     waitingSound: s.waitingSound || undefined,
     errorSound: s.errorSound || undefined,
     projectOrder: s.projectOrder,
+    sidebarOrder: s.sidebarOrder,
     terminalTheme: s.terminalTheme,
     terminalFontSize: s.terminalFontSize,
     terminalOpenInDefaultApp: s.terminalOpenInDefaultApp,

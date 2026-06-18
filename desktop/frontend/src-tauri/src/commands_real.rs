@@ -89,6 +89,33 @@ pub fn save_terminals(c: Value) -> Result<(), String> {
     std::fs::write(path, data).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub fn load_groups() -> Value {
+    // Sidebar folders (~/.lpm/groups.json). Opaque JSON the frontend owns; we
+    // round-trip it, guaranteeing a `groups` array so the UI is safe.
+    let mut v: Value = match std::fs::read(config::groups_path()) {
+        Ok(b) => serde_json::from_slice(&b).unwrap_or_else(|_| json!({ "groups": [] })),
+        Err(_) => json!({ "groups": [] }),
+    };
+    let has_groups = v.get("groups").map(|g| g.is_array()).unwrap_or(false);
+    if !has_groups {
+        match v.as_object_mut() {
+            Some(o) => {
+                o.insert("groups".into(), json!([]));
+            }
+            None => v = json!({ "groups": [] }),
+        }
+    }
+    v
+}
+
+#[tauri::command]
+pub fn save_groups(groups: Value) -> Result<(), String> {
+    config::ensure_dirs()?;
+    let data = serde_json::to_vec_pretty(&groups).map_err(|e| e.to_string())?;
+    std::fs::write(config::groups_path(), data).map_err(|e| e.to_string())
+}
+
 // (async): config::list_projects shells out to `tmux list-sessions` (blocking),
 // and this runs on a hot path (mount + 10s poll + every projects/status event),
 // so it must stay off the main thread or the UI beachballs on each refresh.

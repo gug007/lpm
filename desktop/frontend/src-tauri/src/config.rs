@@ -37,6 +37,10 @@ pub fn settings_path() -> PathBuf {
     lpm_dir().join("settings.json")
 }
 
+pub fn groups_path() -> PathBuf {
+    lpm_dir().join("groups.json")
+}
+
 const RESERVED_PROJECT_NAME: &str = "__global__";
 
 /// Mirrors config.EnsureDirs: create the projects + templates dirs.

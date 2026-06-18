@@ -1,12 +1,40 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  closestCenter,
+  pointerWithin,
+  useSensor,
+  useSensors,
+  type CollisionDetection,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { StatusDot } from "./StatusDot";
 import { getSettings } from "../store/settings";
 import { EventsOn } from "../../bridge/runtime";
 import { CheckForUpdate, InstallUpdate } from "../../bridge/commands";
-import { type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
-import { SidebarIcon, CheckIcon, AlertCircleIcon, BellIcon, MoreVerticalIcon, DetachIcon, TerminalIcon } from "./icons";
+import { isDuplicate, type ProjectGroup, type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
+import { SidebarIcon, CheckIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, TerminalIcon } from "./icons";
 import { ProgressBar } from "./ui/ProgressBar";
-import { SortableItem, SortableList } from "./ui/SortableList";
+import { SortableItem } from "./ui/SortableList";
+import {
+  type SidebarLayout,
+  classify,
+  dropFolderTarget,
+  folderBodyId,
+  folderNestId,
+  groupById,
+  groupIdOf,
+  groupToken,
+  membershipMap,
+  resolveSidebarDrop,
+} from "./sidebarLayout";
+import { SidebarGroupRow } from "./SidebarGroupRow";
+import { GroupContextMenu } from "./GroupContextMenu";
+import { FolderDropZone } from "./FolderDropZone";
 import { useSidebarResize } from "../hooks/useSidebarResize";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { ProjectContextMenu } from "./ProjectContextMenu";
@@ -26,6 +54,8 @@ const DONE_STYLE = { color: "var(--accent-blue)" } as const;
 
 interface SidebarProps {
   projects: ProjectInfo[];
+  groups: ProjectGroup[];
+  sidebarOrder: string[];
   selected: string | null;
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
@@ -39,7 +69,12 @@ interface SidebarProps {
   onRemoveProjectCascade: (name: string) => void;
   onRemoveProjectsBatch: (names: string[]) => void;
   onRenameProject: (name: string, label: string) => void;
-  onReorder: (order: string[]) => void;
+  onApplySidebarLayout: (layout: SidebarLayout) => void;
+  onCreateGroup: (name: string, opts?: { initialMember?: string }) => void;
+  onRenameGroup: (id: string, name: string) => void;
+  onDeleteGroup: (id: string) => void;
+  onToggleGroupCollapsed: (id: string) => void;
+  onMoveProjectToGroup: (name: string, groupId: string | null) => void;
   onDetachProject: (name: string) => void;
   onAttachProject: (name: string) => void;
   detached: Set<string>;
@@ -75,54 +110,129 @@ function computeStatus(project: ProjectInfo): ProjectStatus {
   return { isRunning, isDone, isWaiting, isError, className };
 }
 
-export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectsBatch, onRenameProject, onReorder, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showSettings, duplicatingName, removingNames }: SidebarProps) {
+// One rendered sidebar row: a folder header, a project (loose, member, or
+// duplicate), or the empty-folder drop target.
+type TreeItem =
+  | { kind: "group"; group: ProjectGroup }
+  | { kind: "project"; project: ProjectInfo; isChild: boolean }
+  | { kind: "empty"; group: ProjectGroup };
+
+export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectsBatch, onRenameProject, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showSettings, duplicatingName, removingNames }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
   const [updatePhase, setUpdatePhase] = useState<"checking" | "downloading" | "installing">("checking");
   const [updateError, setUpdateError] = useState("");
   const [contextMenu, setContextMenu] = useState<{ name: string; x: number; y: number } | null>(null);
+  const [groupMenu, setGroupMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [renamingName, setRenamingName] = useState<string | null>(null);
+  const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
+  const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
+  // null = closed; otherwise the create-folder modal is open, optionally
+  // seeded with a project to drop into the new folder.
+  const [createFolder, setCreateFolder] = useState<{ initialMember?: string } | null>(null);
   const [bulkDuplicateName, setBulkDuplicateName] = useState<string | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
   const [confirmBatch, setConfirmBatch] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const { width, handleResizeStart } = useSidebarResize();
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const layoutRef = useRef<SidebarLayout>({ order: sidebarOrder, groups });
+  layoutRef.current = { order: sidebarOrder, groups };
 
   const contextProject = contextMenu
     ? projects.find((p) => p.name === contextMenu.name)
     : null;
 
-  // Backend guarantees duplicates sit immediately after their parent; we
-  // only need to mark children so they render without a drag handle.
-  const { rows, topLevelNames, projectByName } = useMemo(() => {
+  // Build the rendered tree from projects + folders + the interleaved order.
+  // Duplicates ride immediately after their parent; brand-new projects not yet
+  // in the persisted order are appended loose so they never vanish.
+  const { items, sortableIds, projectByName, memberOf } = useMemo(() => {
     const byName = new Map<string, ProjectInfo>();
     for (const p of projects) byName.set(p.name, p);
-    const outRows: { project: ProjectInfo; isChild: boolean }[] = [];
-    const outTop: string[] = [];
+    const childrenByParent = new Map<string, ProjectInfo[]>();
     for (const p of projects) {
-      const isChild = Boolean(p.parentName && byName.has(p.parentName));
-      outRows.push({ project: p, isChild });
-      if (!isChild) outTop.push(p.name);
+      if (isDuplicate(p, byName)) {
+        const arr = childrenByParent.get(p.parentName!);
+        if (arr) arr.push(p);
+        else childrenByParent.set(p.parentName!, [p]);
+      }
     }
-    return { rows: outRows, topLevelNames: outTop, projectByName: byName };
-  }, [projects]);
+    const membership = membershipMap(groups);
+    const groupsById = new Map(groups.map((g) => [g.id, g]));
+
+    const out: TreeItem[] = [];
+    const ids: string[] = [];
+    const rendered = new Set<string>();
+    const pushProject = (p: ProjectInfo) => {
+      out.push({ kind: "project", project: p, isChild: false });
+      ids.push(p.name);
+      rendered.add(p.name);
+      for (const child of childrenByParent.get(p.name) ?? []) {
+        out.push({ kind: "project", project: child, isChild: true });
+        rendered.add(child.name);
+      }
+    };
+
+    const seenGroups = new Set<string>();
+    const emitGroup = (g: ProjectGroup) => {
+      seenGroups.add(g.id);
+      const members = g.members
+        .map((n) => byName.get(n))
+        .filter((p): p is ProjectInfo => !!p && !isDuplicate(p, byName));
+      out.push({ kind: "group", group: g });
+      ids.push(groupToken(g.id));
+      if (!g.collapsed) {
+        if (members.length === 0) out.push({ kind: "empty", group: g });
+        for (const mp of members) pushProject(mp);
+      } else {
+        members.forEach((mp) => rendered.add(mp.name));
+      }
+    };
+    for (const token of sidebarOrder) {
+      const id = groupIdOf(token);
+      if (id !== null) {
+        const g = groupsById.get(id);
+        if (g && !seenGroups.has(id)) emitGroup(g);
+      } else {
+        const p = byName.get(token);
+        if (!p || rendered.has(token)) continue;
+        if (isDuplicate(p, byName)) continue;
+        if (membership.has(token)) continue;
+        pushProject(p);
+      }
+    }
+    // Folders missing from the order (defensive — reconcile normally adds them).
+    for (const g of groups) {
+      if (!seenGroups.has(g.id)) emitGroup(g);
+    }
+    // Brand-new loose projects not yet persisted into the order.
+    for (const p of projects) {
+      if (rendered.has(p.name)) continue;
+      if (isDuplicate(p, byName)) continue;
+      if (membership.has(p.name)) continue;
+      pushProject(p);
+    }
+    return { items: out, sortableIds: ids, projectByName: byName, memberOf: membership };
+  }, [projects, groups, sidebarOrder]);
 
   // Leaving select mode (or running out of projects) clears the pending
   // selection; deleting projects drops their now-stale names from the set.
   useEffect(() => {
     if (!selectMode) return;
-    if (rows.length === 0) {
+    if (projects.length === 0) {
       setSelectMode(false);
       return;
     }
     setSelectedForDelete((prev) => {
-      const valid = new Set(rows.map((r) => r.project.name));
+      const valid = new Set(projects.map((p) => p.name));
       const next = new Set([...prev].filter((n) => valid.has(n)));
       return next.size === prev.size ? prev : next;
     });
-  }, [selectMode, rows]);
+  }, [selectMode, projects]);
 
   // Removing an original also removes its duplicates (matching the single
   // cascade delete), so expand the pending set before partitioning.
@@ -131,21 +241,19 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
     for (const name of selectedForDelete) {
       const p = projectByName.get(name);
       if (p && !p.parentName) {
-        for (const { project } of rows) {
-          if (project.parentName === name) names.add(project.name);
+        for (const proj of projects) {
+          if (proj.parentName === name) names.add(proj.name);
         }
       }
     }
-    return rows.filter((r) => names.has(r.project.name)).map((r) => r.project);
-  }, [selectedForDelete, rows, projectByName]);
+    return projects.filter((p) => names.has(p.name));
+  }, [selectedForDelete, projects, projectByName]);
 
   // Duplicates have their folder deleted from disk; regular projects only lose
   // their lpm entry (source folder stays), so their removal needs the same
   // typed confirmation as the single delete flow.
   const foldersDeleted = removalProjects.filter((p) => p.parentName);
   const entriesRemoved = removalProjects.filter((p) => !p.parentName);
-  // Mirror the single delete flow: removing a regular project requires typing
-  // its name, so a batch asks for each regular project's name separately.
   const batchConfirmNames = entriesRemoved.map((p) => projectDisplayName(p));
 
   const enterSelectMode = (preselect?: string) => {
@@ -166,12 +274,14 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
 
   // Escape leaves select mode, but only when no menu is open (the open menu's
   // own Escape handler closes it first).
-  useKeyboardShortcut({ key: "Escape" }, exitSelectMode, selectMode && !contextMenu);
+  useKeyboardShortcut({ key: "Escape" }, exitSelectMode, selectMode && !contextMenu && !groupMenu);
 
   const renamingProject = renamingName ? projectByName.get(renamingName) : undefined;
   const renamingParent = renamingProject?.parentName
     ? projectByName.get(renamingProject.parentName)
     : undefined;
+  const renamingGroup = renamingGroupId ? groups.find((g) => g.id === renamingGroupId) : undefined;
+  const deletingGroup = deletingGroupId ? groups.find((g) => g.id === deletingGroupId) : undefined;
 
   const pendingRemove = confirmRemove ? projectByName.get(confirmRemove) : undefined;
   const pendingRemoveParent = pendingRemove?.parentName
@@ -255,27 +365,6 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
           ),
         };
 
-  // Backend stores a flat order; expand the dragged top-level list with
-  // each parent's duplicates so the optimistic client-side sort matches
-  // the normalized order the backend returns on next read.
-  const handleReorder = (newTopOrder: string[]) => {
-    const childrenByParent = new Map<string, string[]>();
-    for (const { project } of rows) {
-      const parentName = project.parentName;
-      if (!parentName || !projectByName.has(parentName)) continue;
-      const list = childrenByParent.get(parentName);
-      if (list) list.push(project.name);
-      else childrenByParent.set(parentName, [project.name]);
-    }
-    const flat: string[] = [];
-    for (const name of newTopOrder) {
-      flat.push(name);
-      const kids = childrenByParent.get(name);
-      if (kids) flat.push(...kids);
-    }
-    onReorder(flat);
-  };
-
   useEffect(() => EventsOn("update-available", setUpdateInfo), []);
   useEffect(() => {
     CheckForUpdate()
@@ -303,6 +392,223 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
   };
 
   const dismissError = () => setUpdateError("");
+
+  // Folder drop zones win over reorder only when a PROJECT is dragged onto a
+  // folder it doesn't already belong to; folders themselves only reorder.
+  const collisionDetection = useMemo<CollisionDetection>(
+    () => (args) => {
+      const active = String(args.active.id);
+      // Reorder fallback never picks a folder zone (those only nest) or self.
+      const reorderFallback = () => {
+        const measurable = args.droppableContainers.filter((c) => {
+          const id = String(c.id);
+          if (id === active || dropFolderTarget(id) !== null) return false;
+          const rect = c.rect.current;
+          return !!rect && rect.width > 0 && rect.height > 0;
+        });
+        return closestCenter({ ...args, droppableContainers: measurable });
+      };
+
+      const pointer = pointerWithin(args);
+      if (pointer.length === 0) return reorderFallback();
+
+      const node = classify(layoutRef.current, active);
+      if (node && node.kind !== "group") {
+        for (const c of pointer) {
+          const target = dropFolderTarget(String(c.id));
+          if (target === null) continue;
+          if (node.kind === "member" && node.groupId === target) continue;
+          return [c];
+        }
+      }
+      const items = pointer.filter((c) => {
+        const id = String(c.id);
+        return dropFolderTarget(id) === null && id !== active;
+      });
+      return items.length > 0 ? [items[0]] : reorderFallback();
+    },
+    [],
+  );
+
+  const onDragStart = (e: DragStartEvent) => setActiveId(String(e.active.id));
+  const onDragCancel = () => setActiveId(null);
+  const onDragEnd = (e: DragEndEvent) => {
+    setActiveId(null);
+    const { active, over } = e;
+    if (!over) return;
+    const next = resolveSidebarDrop(layoutRef.current, String(active.id), String(over.id));
+    if (next) onApplySidebarLayout(next);
+  };
+
+  const renderProjectRow = (project: ProjectInfo) => {
+    const status = computeStatus(project);
+    const isDetached = detached.has(project.name);
+    const isSelf = project.name === detachedSelf;
+    const isSelected = selected === project.name && (!isDetached || isSelf);
+    const isContextTarget = contextMenu?.name === project.name;
+    const isBusy = duplicatingName === project.name || removingNames.has(project.name);
+    const parent = project.parentName ? projectByName.get(project.parentName) : undefined;
+    const name = <ProjectNameDisplay project={project} parent={parent} />;
+    const showCheck = status.isDone && !status.isWaiting && !status.isError;
+    const isChecked = selectedForDelete.has(project.name);
+
+    const buttonClass = selectMode
+      ? `${ROW_BASE_CLASS} ${
+          isChecked
+            ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+            : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        }`
+      : `${ROW_BASE_CLASS} ${
+          isContextTarget
+            ? "pr-9 ring-1 ring-inset ring-[var(--accent-cyan)]/60"
+            : "group-hover:pr-9"
+        } ${
+          isSelected
+            ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+            : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        }`;
+
+    return (
+      <div className="group relative">
+        <button
+          onClick={
+            selectMode
+              ? () => toggleSelected(project.name)
+              : () => onSelect(project.name)
+          }
+          onDoubleClick={
+            selectMode
+              ? undefined
+              : () => {
+                  if (getSettings().doubleClickToToggle) onToggle(project.name);
+                }
+          }
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setContextMenu({ name: project.name, x: e.clientX, y: e.clientY });
+          }}
+          className={buttonClass}
+        >
+          {selectMode ? (
+            <span className="shrink-0">
+              <CheckboxBox
+                state={isChecked ? "all" : "none"}
+                tone={project.running ? "green" : "blue"}
+              />
+            </span>
+          ) : isBusy ? (
+            <span className="shrink-0 text-[var(--text-muted)]">
+              <SpinnerIcon />
+            </span>
+          ) : project.configError ? (
+            <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Config error" />
+          ) : (
+            <StatusDot running={project.running} />
+          )}
+          <span
+            className="truncate"
+            style={project.configError ? MUTED_STYLE : status.isDone ? DONE_STYLE : undefined}
+            title={project.configError || (project.parentName ? `Duplicate of ${project.parentName}` : undefined)}
+          >
+            {status.className ? <span className={status.className}>{name}</span> : name}
+          </span>
+          {isDetached && !isSelf && (
+            <span
+              className="shrink-0 text-[var(--text-muted)]"
+              title="Open in a separate window — click to focus"
+            >
+              <DetachIcon />
+            </span>
+          )}
+          {status.isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
+          {showCheck && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
+        </button>
+        {!selectMode && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              // useOutsideClick's mousedown already closed the menu — skip the reopen so the second click toggles off.
+              if (isContextTarget) return;
+              const rect = e.currentTarget.getBoundingClientRect();
+              setContextMenu({ name: project.name, x: rect.left, y: rect.bottom + 4 });
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className={`absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
+              isContextTarget
+                ? "opacity-100"
+                : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100"
+            }`}
+            title="More options"
+            aria-label={`More options for ${project.name}`}
+          >
+            <MoreVerticalIcon />
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  const renderRow = (item: TreeItem) => {
+    if (item.kind === "group") {
+      const header = (
+        <SidebarGroupRow
+          group={item.group}
+          collapsed={!!item.group.collapsed}
+          selectMode={selectMode}
+          isContextTarget={groupMenu?.id === item.group.id}
+          onToggle={() => onToggleGroupCollapsed(item.group.id)}
+          onMore={(x, y) => setGroupMenu({ id: item.group.id, x, y })}
+        />
+      );
+      if (selectMode) return <div key={groupToken(item.group.id)}>{header}</div>;
+      return (
+        <SortableItem key={groupToken(item.group.id)} id={groupToken(item.group.id)}>
+          <div className="relative">
+            {header}
+            <FolderDropZone id={folderNestId(item.group.id)} overlay />
+          </div>
+        </SortableItem>
+      );
+    }
+
+    if (item.kind === "empty") {
+      const emptyClass = "ml-4 mr-1 mb-0.5 rounded-md px-3 py-1.5 text-[11px] italic text-[var(--text-muted)]";
+      if (selectMode) {
+        return <div key={`empty-${item.group.id}`} className={emptyClass}>Empty</div>;
+      }
+      return (
+        <FolderDropZone key={`empty-${item.group.id}`} id={folderBodyId(item.group.id)} className={emptyClass}>
+          Empty — drop projects here
+        </FolderDropZone>
+      );
+    }
+
+    const { project, isChild } = item;
+    const row = renderProjectRow(project);
+    if (isChild || selectMode) {
+      return <div key={project.name}>{row}</div>;
+    }
+    return (
+      <SortableItem key={project.name} id={project.name}>
+        {row}
+      </SortableItem>
+    );
+  };
+
+  const overlayContent = (() => {
+    if (!activeId) return null;
+    const gid = groupIdOf(activeId);
+    if (gid !== null) {
+      const g = groupById(groups, gid);
+      return g ? <span className="truncate font-medium">{g.name}</span> : null;
+    }
+    const p = projectByName.get(activeId);
+    return p ? (
+      <span className="truncate">{projectDisplayName(p, p.parentName ? projectByName.get(p.parentName) : undefined)}</span>
+    ) : null;
+  })();
+
+  const navItems = items.map(renderRow);
 
   return (
     <aside
@@ -344,123 +650,28 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2">
-        <SortableList ids={topLevelNames} onReorder={handleReorder}>
-          {rows.map(({ project, isChild }) => {
-            const status = computeStatus(project);
-            const isDetached = detached.has(project.name);
-            const isSelf = project.name === detachedSelf;
-            const isSelected = selected === project.name && (!isDetached || isSelf);
-            const isContextTarget = contextMenu?.name === project.name;
-            const isBusy = duplicatingName === project.name || removingNames.has(project.name);
-            const parent = project.parentName ? projectByName.get(project.parentName) : undefined;
-            const name = <ProjectNameDisplay project={project} parent={parent} />;
-            const showCheck = status.isDone && !status.isWaiting && !status.isError;
-            const isChecked = selectedForDelete.has(project.name);
-
-            const buttonClass = selectMode
-              ? `${ROW_BASE_CLASS} ${
-                  isChecked
-                    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                }`
-              : `${ROW_BASE_CLASS} ${
-                  isContextTarget
-                    ? "pr-9 ring-1 ring-inset ring-[var(--accent-cyan)]/60"
-                    : "group-hover:pr-9"
-                } ${
-                  isSelected
-                    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                }`;
-
-            const rowItem = (
-              <div className="group relative">
-                <button
-                  onClick={
-                    selectMode
-                      ? () => toggleSelected(project.name)
-                      : () => onSelect(project.name)
-                  }
-                  onDoubleClick={
-                    selectMode
-                      ? undefined
-                      : () => {
-                          if (getSettings().doubleClickToToggle) onToggle(project.name);
-                        }
-                  }
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setContextMenu({ name: project.name, x: e.clientX, y: e.clientY });
-                  }}
-                  className={buttonClass}
-                >
-                  {selectMode ? (
-                    <span className="shrink-0">
-                      <CheckboxBox
-                        state={isChecked ? "all" : "none"}
-                        tone={project.running ? "green" : "blue"}
-                      />
-                    </span>
-                  ) : isBusy ? (
-                    <span className="shrink-0 text-[var(--text-muted)]">
-                      <SpinnerIcon />
-                    </span>
-                  ) : project.configError ? (
-                    <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Config error" />
-                  ) : (
-                    <StatusDot running={project.running} />
-                  )}
-                  <span
-                    className="truncate"
-                    style={project.configError ? MUTED_STYLE : status.isDone ? DONE_STYLE : undefined}
-                    title={project.configError || (project.parentName ? `Duplicate of ${project.parentName}` : undefined)}
-                  >
-                    {status.className ? <span className={status.className}>{name}</span> : name}
-                  </span>
-                  {isDetached && !isSelf && (
-                    <span
-                      className="shrink-0 text-[var(--text-muted)]"
-                      title="Open in a separate window — click to focus"
-                    >
-                      <DetachIcon />
-                    </span>
-                  )}
-                  {status.isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
-                  {showCheck && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
-                </button>
-                {!selectMode && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // useOutsideClick's mousedown already closed the menu — skip the reopen so the second click toggles off.
-                      if (isContextTarget) return;
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      setContextMenu({ name: project.name, x: rect.left, y: rect.bottom + 4 });
-                    }}
-                    className={`absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
-                      isContextTarget
-                        ? "opacity-100"
-                        : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100"
-                    }`}
-                    title="More options"
-                    aria-label={`More options for ${project.name}`}
-                  >
-                    <MoreVerticalIcon />
-                  </button>
-                )}
-              </div>
-            );
-
-            if (isChild || selectMode) {
-              return <div key={project.name}>{rowItem}</div>;
-            }
-            return (
-              <SortableItem key={project.name} id={project.name}>
-                {rowItem}
-              </SortableItem>
-            );
-          })}
-        </SortableList>
+        {selectMode ? (
+          navItems
+        ) : (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={collisionDetection}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+            onDragCancel={onDragCancel}
+          >
+            <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+              {navItems}
+            </SortableContext>
+            <DragOverlay className="pointer-events-none">
+              {overlayContent ? (
+                <div className="rounded-md bg-[var(--bg-active)] px-3 py-2 text-sm text-[var(--text-primary)] shadow-lg ring-1 ring-[var(--accent-cyan)]/40">
+                  {overlayContent}
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        )}
       </nav>
       {contextMenu &&
         (selectMode ? (
@@ -490,6 +701,8 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
             isDetached={detached.has(contextMenu.name)}
             canSelect={projects.length > 1}
             projectPath={contextProject?.root ?? null}
+            groups={groups}
+            currentGroupId={memberOf.get(contextMenu.name) ?? null}
             onRename={() => setRenamingName(contextMenu.name)}
             onBulkDuplicate={() => setBulkDuplicateName(contextMenu.name)}
             onCopyPath={() => {
@@ -498,10 +711,22 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
             onDetach={() => onDetachProject(contextMenu.name)}
             onAttach={() => onAttachProject(contextMenu.name)}
             onSelect={() => enterSelectMode(contextMenu.name)}
+            onMoveToGroup={(groupId) => onMoveProjectToGroup(contextMenu.name, groupId)}
+            onCreateGroupWith={() => setCreateFolder({ initialMember: contextMenu.name })}
             onRemove={() => setConfirmRemove(contextMenu.name)}
             onClose={() => setContextMenu(null)}
           />
         ))}
+      {groupMenu && (
+        <GroupContextMenu
+          x={groupMenu.x}
+          y={groupMenu.y}
+          onRename={() => setRenamingGroupId(groupMenu.id)}
+          onNewFolder={() => setCreateFolder({})}
+          onDelete={() => setDeletingGroupId(groupMenu.id)}
+          onClose={() => setGroupMenu(null)}
+        />
+      )}
       <ConfirmDialog
         open={confirmRemove !== null}
         title={removeDialog.title}
@@ -513,6 +738,25 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
         onConfirm={() => {
           if (confirmRemove) removeDialog.onConfirm(confirmRemove);
           setConfirmRemove(null);
+        }}
+      />
+      <ConfirmDialog
+        open={deletingGroup !== undefined}
+        title="Delete folder"
+        confirmLabel="Delete folder"
+        body={
+          <>
+            Delete the folder{" "}
+            <span className="font-medium text-[var(--text-primary)]">
+              {deletingGroup?.name}
+            </span>
+            ? Its projects move back out to the list — nothing is deleted from disk.
+          </>
+        }
+        onCancel={() => setDeletingGroupId(null)}
+        onConfirm={() => {
+          if (deletingGroupId) onDeleteGroup(deletingGroupId);
+          setDeletingGroupId(null);
         }}
       />
       <ConfirmDialog
@@ -582,6 +826,24 @@ export function Sidebar({ projects, selected, collapsed, onCollapsedChange, onSe
         onClose={() => setRenamingName(null)}
         onSubmit={(value) => {
           if (renamingName) onRenameProject(renamingName, value);
+        }}
+      />
+      <RenameModal
+        open={renamingGroupId !== null}
+        title="Rename folder"
+        initialValue={renamingGroup?.name ?? ""}
+        onClose={() => setRenamingGroupId(null)}
+        onSubmit={(value) => {
+          if (renamingGroupId) onRenameGroup(renamingGroupId, value);
+        }}
+      />
+      <RenameModal
+        open={createFolder !== null}
+        title="New folder"
+        initialValue=""
+        onClose={() => setCreateFolder(null)}
+        onSubmit={(value) => {
+          onCreateGroup(value, createFolder?.initialMember ? { initialMember: createFolder.initialMember } : undefined);
         }}
       />
 

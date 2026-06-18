@@ -508,6 +508,7 @@ fn remove_one(app: &AppHandle, name: &str) -> Result<(), String> {
     }
     std::fs::remove_file(config::project_path(name)).map_err(|e| e.to_string())?;
     clean_settings_references(name);
+    clean_group_references(name);
     Ok(())
 }
 
@@ -576,10 +577,12 @@ fn clean_terminals_entry(name: &str) {
 fn clean_settings_references(name: &str) {
     let mut s = config::load_settings();
     let mut changed = false;
-    if let Some(arr) = s.get_mut("projectOrder").and_then(|v| v.as_array_mut()) {
-        let before = arr.len();
-        arr.retain(|x| x.as_str() != Some(name));
-        changed |= arr.len() != before;
+    for key in ["projectOrder", "sidebarOrder"] {
+        if let Some(arr) = s.get_mut(key).and_then(|v| v.as_array_mut()) {
+            let before = arr.len();
+            arr.retain(|x| x.as_str() != Some(name));
+            changed |= arr.len() != before;
+        }
     }
     if s.get("lastSelectedProject").and_then(|v| v.as_str()) == Some(name) {
         if let Some(obj) = s.as_object_mut() {
@@ -592,6 +595,28 @@ fn clean_settings_references(name: &str) {
     }
     if changed {
         let _ = config::save_settings(&s);
+    }
+}
+
+/// Drop the removed project's name from every sidebar folder's `members` in
+/// groups.json. Empty folders are kept (the user can refill them).
+fn clean_group_references(name: &str) {
+    let path = config::groups_path();
+    let Ok(bytes) = std::fs::read(&path) else { return };
+    let Ok(mut v) = serde_json::from_slice::<serde_json::Value>(&bytes) else { return };
+    let Some(groups) = v.get_mut("groups").and_then(|g| g.as_array_mut()) else { return };
+    let mut changed = false;
+    for group in groups {
+        if let Some(members) = group.get_mut("members").and_then(|m| m.as_array_mut()) {
+            let before = members.len();
+            members.retain(|x| x.as_str() != Some(name));
+            changed |= members.len() != before;
+        }
+    }
+    if changed {
+        if let Ok(data) = serde_json::to_vec_pretty(&v) {
+            let _ = std::fs::write(&path, data);
+        }
     }
 }
 
