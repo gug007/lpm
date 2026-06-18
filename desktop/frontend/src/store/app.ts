@@ -181,7 +181,7 @@ interface AppState {
     opts?: {
       excludeUncommitted?: boolean;
       reinstallDeps?: boolean;
-      names?: string[];
+      labels?: string[];
       tasks?: SpawnTask[];
       groupName?: string;
     },
@@ -855,7 +855,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         try {
           newName = await DuplicateProject(
             name,
-            (opts.names?.[i] ?? "").trim(),
+            (opts.labels?.[i] ?? "").trim(),
             opts.excludeUncommitted ?? false,
             opts.reinstallDeps ?? false,
           );

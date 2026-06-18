@@ -7,6 +7,7 @@ import { modalInputDefaults } from "../forms/styles";
 interface RenameModalProps {
   open: boolean;
   title: string;
+  description?: string;
   initialValue: string;
   // When true, shows a leading emoji slot (like the action editor) instead of
   // the trailing insert-into-text picker, and reports the emoji via onSubmit.
@@ -19,6 +20,7 @@ interface RenameModalProps {
 export function RenameModal({
   open,
   title,
+  description,
   initialValue,
   withEmoji = false,
   initialEmoji = "",
@@ -64,6 +66,11 @@ export function RenameModal({
         <h3 className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
           {title}
         </h3>
+        {description && (
+          <p className="mt-1.5 text-[12px] leading-snug text-[var(--text-muted)]">
+            {description}
+          </p>
+        )}
         <div className="relative mt-2">
           {withEmoji && (
             <EmojiSlotButton

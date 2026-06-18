@@ -809,7 +809,6 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       <BulkDuplicateDialog
         open={bulkDuplicateName !== null}
         project={bulkDuplicateName ? projectByName.get(bulkDuplicateName) ?? null : null}
-        existingNames={projects.map((p) => p.name)}
         folderNames={groups.map((g) => g.name)}
         onCancel={() => setBulkDuplicateName(null)}
         onConfirm={(count, opts) => {
@@ -820,6 +819,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       <RenameModal
         open={renamingName !== null}
         title="Rename project"
+        description="Sets a display label. The project folder isn't renamed."
         initialValue={
           renamingProject ? projectDisplayName(renamingProject, renamingParent) : ""
         }
