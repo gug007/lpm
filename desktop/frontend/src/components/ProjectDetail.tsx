@@ -183,10 +183,11 @@ export function ProjectDetail({
         terminalRef.current?.createTerminalWithCmd(
           spawnCommandLabel(task.command),
           task.command,
+          { prompt: task.prompt },
         );
       } else {
         const action = actions.find((a) => a.name === task.actionName);
-        if (action) handleRunAction(action);
+        if (action) handleRunAction(action, { prompt: task.prompt });
       }
     }
   }, [spawnTasks, project.actions, project.name, consumeSpawnTasks, handleRunAction, switchDetailView]);

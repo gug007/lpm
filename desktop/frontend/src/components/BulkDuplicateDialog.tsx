@@ -9,8 +9,8 @@ import type { ProjectInfo, SpawnTask } from "../types";
 const MIN_COUNT = 1;
 const MAX_COUNT = 50;
 
-// Mirror the backend's id alphabet so the name shown is the one it would
-// generate; the copy's folder is created with exactly this name.
+// Mirror the backend's id alphabet so the default label matches the name a
+// copy would otherwise be given.
 const NAME_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
 function randomId6(): string {
@@ -23,12 +23,15 @@ function randomId6(): string {
   return out;
 }
 
+const FIELD_CLASS =
+  "w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]";
+
 type RunMode = "none" | "action" | "command";
 
 export interface BulkDuplicateOptions {
   excludeUncommitted: boolean;
   reinstallDeps: boolean;
-  names: string[];
+  labels: string[];
   tasks: SpawnTask[];
   groupName: string;
 }
@@ -48,30 +51,29 @@ export function BulkDuplicateDialog({
   onCancel,
   onConfirm,
 }: BulkDuplicateDialogProps) {
-  const [names, setNames] = useState<string[]>([""]);
-  const count = names.length;
+  const [labels, setLabels] = useState<string[]>([""]);
+  const count = labels.length;
   const [mode, setMode] = useState<RunMode>("none");
   const [actionName, setActionName] = useState("");
   const [command, setCommand] = useState("");
+  const [prompt, setPrompt] = useState("");
   const [excludeUncommitted, setExcludeUncommitted] = useState(false);
   const [reinstallDeps, setReinstallDeps] = useState(false);
   const [groupName, setGroupName] = useState("");
 
+  // Default each label to the copy's would-be name (`<original>-<id>`), the
+  // same scheme the backend uses for the folder, so the field shows the copy's
+  // name rather than the original's.
   const base = project?.parentName || project?.name;
-  const genName = () => (base ? `${base}-${randomId6()}` : "");
-  const freshName = (used: Set<string>) => {
-    if (!base) return "";
-    let name = genName();
-    while (used.has(name)) name = genName();
-    return name;
-  };
+  const genLabel = () => (base ? `${base}-${randomId6()}` : "");
 
   useEffect(() => {
     if (!open) return;
-    setNames([genName()]);
+    setLabels([genLabel()]);
     setMode("none");
     setActionName("");
     setCommand("");
+    setPrompt("");
     setExcludeUncommitted(getSettings().duplicateExcludeUncommitted ?? false);
     setReinstallDeps(getSettings().duplicateReinstallDeps ?? false);
     setGroupName("");
@@ -85,25 +87,20 @@ export function BulkDuplicateDialog({
 
   const clamp = (n: number) => Math.min(MAX_COUNT, Math.max(MIN_COUNT, n));
 
-  // Keep one name field per copy: grow with fresh auto-names, shrink by
-  // trimming, and preserve names the user already typed.
+  // Keep one label field per copy: grow with fresh default labels, shrink by
+  // trimming, and preserve labels the user already typed.
   const changeCount = (next: number) => {
     const n = clamp(next);
-    setNames((prev) => {
+    setLabels((prev) => {
       if (n <= prev.length) return prev.slice(0, n);
       const out = prev.slice();
-      const used = new Set(out.filter(Boolean));
-      while (out.length < n) {
-        const name = freshName(used);
-        if (name) used.add(name);
-        out.push(name);
-      }
+      while (out.length < n) out.push(genLabel());
       return out;
     });
   };
 
-  const setNameAt = (i: number, value: string) =>
-    setNames((prev) => {
+  const setLabelAt = (i: number, value: string) =>
+    setLabels((prev) => {
       const next = prev.slice();
       next[i] = value;
       return next;
@@ -124,9 +121,11 @@ export function BulkDuplicateDialog({
   };
 
   const buildTasks = (): SpawnTask[] => {
-    if (mode === "action" && actionName) return [{ kind: "action", actionName }];
+    const seed = prompt.trim() || undefined;
+    if (mode === "action" && actionName)
+      return [{ kind: "action", actionName, prompt: seed }];
     if (mode === "command" && command.trim())
-      return [{ kind: "command", command: command.trim() }];
+      return [{ kind: "command", command: command.trim(), prompt: seed }];
     return [];
   };
 
@@ -139,7 +138,7 @@ export function BulkDuplicateDialog({
     onConfirm(count, {
       excludeUncommitted,
       reinstallDeps,
-      names: names.map((n) => n.trim()),
+      labels: labels.map((l) => l.trim()),
       tasks: buildTasks(),
       groupName: single ? "" : groupName.trim(),
     });
@@ -260,10 +259,10 @@ export function BulkDuplicateDialog({
 
       <div className="mt-5">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-          {single ? "Name" : "Names"}
+          {single ? "Label" : "Labels"}
         </p>
         <div className="mt-2 max-h-[180px] space-y-1.5 overflow-y-auto pr-0.5">
-          {names.map((value, i) => (
+          {labels.map((value, i) => (
             <div key={i} className="relative">
               {!single && (
                 <span className="pointer-events-none absolute left-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-lg bg-[var(--bg-primary)] text-[11px] font-semibold tabular-nums text-[var(--text-muted)]">
@@ -272,21 +271,21 @@ export function BulkDuplicateDialog({
               )}
               <input
                 value={value}
-                onChange={(e) => setNameAt(i, e.target.value)}
+                onChange={(e) => setLabelAt(i, e.target.value)}
                 autoFocus={i === 0}
                 spellCheck={false}
                 autoCapitalize="off"
                 autoCorrect="off"
                 placeholder="Auto-named"
-                className={`w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] py-2 pr-3 text-[13px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)] ${single ? "pl-3" : "pl-10"}`}
+                className={`${FIELD_CLASS} transition-colors py-2 pr-3 ${single ? "pl-3" : "pl-10"}`}
               />
             </div>
           ))}
         </div>
         <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">
           {single
-            ? "The copy is created with this name. Leave blank to name it automatically."
-            : "Each copy is created with its name. Leave any blank to name it automatically."}
+            ? "A label to recognize the copy by. Leave blank to name it automatically."
+            : "Labels to recognize the copies by. Leave any blank to name them automatically."}
         </p>
       </div>
 
@@ -307,7 +306,7 @@ export function BulkDuplicateDialog({
               autoCapitalize="off"
               autoCorrect="off"
               placeholder="Group the copies in a folder…"
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] py-2 pl-9 pr-3 text-[13px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
+              className={`${FIELD_CLASS} transition-colors py-2 pl-9 pr-3`}
             />
           </div>
           {folderOptions.length > 0 && (
@@ -375,7 +374,7 @@ export function BulkDuplicateDialog({
             autoCapitalize="off"
             autoCorrect="off"
             placeholder="Enter a command…"
-            className="mt-2 w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2.5 font-mono text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
+            className={`mt-2 ${FIELD_CLASS} px-3 py-2.5 font-mono`}
           />
         )}
 
@@ -385,6 +384,25 @@ export function BulkDuplicateDialog({
               ? `Runs in a terminal on ${copyRef} as soon as it's created.`
               : `Starts on ${copyRef} in the background as soon as it's created.`}
           </p>
+        )}
+
+        {mode !== "none" && (
+          <div className="mt-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              Prompt
+            </p>
+            <input
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              spellCheck={false}
+              placeholder="Type a prompt for an AI agent…"
+              className={`mt-2 ${FIELD_CLASS} px-3 py-2.5`}
+            />
+            <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">
+              Typed into {copyRef}'s terminal once it's ready — e.g. a task for the
+              agent. Leave blank to send nothing.
+            </p>
+          </div>
         )}
       </div>
 

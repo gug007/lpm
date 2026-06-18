@@ -28,9 +28,15 @@ export interface ProjectActionsModals {
   running: { action: ActionInfo | null; onClose: () => void };
 }
 
+export interface RunActionOpts {
+  // Typed into the action's terminal once its program is ready (e.g. an
+  // initial task for an AI agent the action launches).
+  prompt?: string;
+}
+
 export interface UseProjectActionsResult {
   runningAction: ActionInfo | null;
-  handleRunAction: (action: ActionInfo) => void;
+  handleRunAction: (action: ActionInfo, opts?: RunActionOpts) => void;
   modals: ProjectActionsModals;
 }
 
@@ -59,7 +65,11 @@ export function useProjectActions({
     }
   };
 
-  const executeAction = async (action: ActionInfo, inputValues: Record<string, string> = {}) => {
+  const executeAction = async (
+    action: ActionInfo,
+    inputValues: Record<string, string> = {},
+    opts: RunActionOpts = {},
+  ) => {
     setConfirmAction(null);
     setPendingInputValues(null);
     if (!(await ensurePortFree(action))) return;
@@ -75,6 +85,7 @@ export function useProjectActions({
             actionName: action.name,
             reuse: action.reuse,
             emoji: action.emoji,
+            prompt: opts.prompt,
           });
           return;
         }
@@ -88,6 +99,7 @@ export function useProjectActions({
           actionName: action.name,
           reuse: action.reuse,
           emoji: action.emoji,
+          prompt: opts.prompt,
         });
       } catch (err) {
         toast.error(`${action.label}: ${err}`);
@@ -110,7 +122,7 @@ export function useProjectActions({
     }
   };
 
-  const handleRunAction = (action: ActionInfo) => {
+  const handleRunAction = (action: ActionInfo, opts?: RunActionOpts) => {
     if (action.inputs && action.inputs.length > 0) {
       setInputsAction(action);
       return;
@@ -119,7 +131,7 @@ export function useProjectActions({
       setConfirmAction(action);
       return;
     }
-    executeAction(action);
+    executeAction(action, undefined, opts);
   };
 
   const handleInputsSubmit = (values: Record<string, string>) => {

@@ -63,10 +63,12 @@ export interface ActionInfo {
 }
 
 // A task to run on each freshly created copy from "Bulk Duplicate": either an
-// existing project action or an ad-hoc shell command typed by the user.
+// existing project action or an ad-hoc shell command typed by the user. An
+// optional `prompt` is typed into the terminal once the launched program is
+// ready — mainly to seed an AI agent with a task.
 export type SpawnTask =
-  | { kind: "action"; actionName: string }
-  | { kind: "command"; command: string };
+  | { kind: "action"; actionName: string; prompt?: string }
+  | { kind: "command"; command: string; prompt?: string };
 
 export interface ProjectInfo {
   name: string;

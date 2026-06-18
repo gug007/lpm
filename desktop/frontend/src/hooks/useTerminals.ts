@@ -43,6 +43,9 @@ export interface TerminalStartOpts {
   actionName?: string;
   reuse?: boolean;
   emoji?: string;
+  // Typed into the terminal after `cmd`, once the launched program goes quiet
+  // — e.g. an initial task for an AI agent started by `cmd`.
+  prompt?: string;
 }
 
 // Injection waits for pty output to go quiet for PROMPT_IDLE_MS before
@@ -189,37 +192,63 @@ export function useTerminals(
     [cancelDeferredPersist, persist],
   );
 
-  // Each call registers a cleanup in pendingInjectCleanups so the unmount
-  // effect can tear down in-flight injections — otherwise the pty-output
-  // subscription would outlive the component and fire into a dead session.
-  const scheduleCmdInject = useCallback((id: string, cmd: string) => {
-    let idleTimer: ReturnType<typeof setTimeout> | null = null;
-    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
-    let fired = false;
+  // Type `text` + Enter once the pty goes quiet (or PROMPT_MAX_WAIT_MS
+  // elapses), then run `onSent`. Each call registers a cleanup in
+  // pendingInjectCleanups so the unmount effect can tear down in-flight
+  // injections — otherwise the pty-output subscription would outlive the
+  // component and fire into a dead session.
+  const scheduleInputInject = useCallback(
+    (id: string, text: string, onSent?: () => void) => {
+      let idleTimer: ReturnType<typeof setTimeout> | null = null;
+      let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+      let fired = false;
 
-    const unsubscribe = EventsOn(`pty-output-${id}`, () => {
-      if (fired) return;
-      if (idleTimer) clearTimeout(idleTimer);
-      idleTimer = setTimeout(fire, PROMPT_IDLE_MS);
-    });
+      const unsubscribe = EventsOn(`pty-output-${id}`, () => {
+        if (fired) return;
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = setTimeout(fire, PROMPT_IDLE_MS);
+      });
 
-    const cleanup = () => {
-      if (idleTimer) clearTimeout(idleTimer);
-      if (fallbackTimer) clearTimeout(fallbackTimer);
-      unsubscribe();
-      pendingInjectCleanups.current.delete(cleanup);
-    };
+      const cleanup = () => {
+        if (idleTimer) clearTimeout(idleTimer);
+        if (fallbackTimer) clearTimeout(fallbackTimer);
+        unsubscribe();
+        pendingInjectCleanups.current.delete(cleanup);
+      };
 
-    function fire() {
-      if (fired) return;
-      fired = true;
-      cleanup();
-      sendTerminalInput(id, cmd + "\n").catch(() => {});
-    }
+      function fire() {
+        if (fired) return;
+        fired = true;
+        cleanup();
+        sendTerminalInput(id, text + "\n").catch(() => {});
+        onSent?.();
+      }
 
-    fallbackTimer = setTimeout(fire, PROMPT_MAX_WAIT_MS);
-    pendingInjectCleanups.current.add(cleanup);
-  }, []);
+      fallbackTimer = setTimeout(fire, PROMPT_MAX_WAIT_MS);
+      pendingInjectCleanups.current.add(cleanup);
+    },
+    [],
+  );
+
+  // Type an optional follow-up prompt — e.g. a task for an AI agent — once the
+  // launched program has drawn its own input UI. Waits for the pty to go quiet
+  // so we never type before the receiver is ready; a blank prompt is a no-op.
+  const scheduleSeedInject = useCallback(
+    (id: string, prompt?: string) => {
+      const seed = prompt?.trim();
+      if (seed) scheduleInputInject(id, seed);
+    },
+    [scheduleInputInject],
+  );
+
+  // Type the launch command once the shell prompt settles, then seed the
+  // optional follow-up prompt once the launched program is ready.
+  const scheduleCmdInject = useCallback(
+    (id: string, cmd: string, prompt?: string) => {
+      scheduleInputInject(id, cmd, () => scheduleSeedInject(id, prompt));
+    },
+    [scheduleInputInject, scheduleSeedInject],
+  );
 
   // Restore saved tree on mount. Each leaf's terminals get re-launched
   // with fresh PTY ids; restore commands are re-injected (resumeCmd takes
@@ -307,6 +336,7 @@ export function useTerminals(
               })), pane.id);
             }
             await sendTerminalInput(pane.tabs[idx].id, cmd + "\n");
+            scheduleSeedInject(pane.tabs[idx].id, opts.prompt);
             return;
           }
         }
@@ -324,7 +354,11 @@ export function useTerminals(
           emoji: opts.emoji,
         });
         addTerminal(term);
-        if (launch.startCmd) scheduleCmdInject(launch.id, launch.startCmd);
+        if (launch.startCmd) {
+          scheduleCmdInject(launch.id, launch.startCmd, opts.prompt);
+        } else {
+          scheduleSeedInject(launch.id, opts.prompt);
+        }
         return;
       }
 
@@ -339,9 +373,9 @@ export function useTerminals(
           emoji: opts?.emoji,
         }),
       );
-      scheduleCmdInject(id, cmd);
+      scheduleCmdInject(id, cmd, opts?.prompt);
     },
-    [projectName, addTerminal, applyTree, scheduleCmdInject],
+    [projectName, addTerminal, applyTree, scheduleCmdInject, scheduleSeedInject],
   );
 
   const resumeFromHistory = useCallback(

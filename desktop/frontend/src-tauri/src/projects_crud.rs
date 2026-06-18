@@ -374,7 +374,7 @@ fn run_install(root: &Path, pm: PackageManager) -> Result<(), String> {
 fn duplicate_one(
     app: &AppHandle,
     name: &str,
-    desired_name: Option<&str>,
+    label: Option<&str>,
     exclude_uncommitted: bool,
     reinstall_deps: bool,
 ) -> Result<String, String> {
@@ -388,20 +388,10 @@ fn duplicate_one(
         .ok_or("source root has no parent directory")?
         .to_path_buf();
 
-    // The copy is created with the name the user chose; a blank name falls back
-    // to an auto-generated `<original>-<id>` that's guaranteed to be free.
-    let desired = desired_name.map(str::trim).filter(|n| !n.is_empty());
-    let (new_name, new_root) = match desired {
-        Some(want) => {
-            config::validate_name(want)?;
-            let root = parent_dir.join(want);
-            if config::project_exists(want) || root.exists() {
-                return Err(format!("project {want:?} already exists"));
-            }
-            (want.to_string(), root)
-        }
-        None => next_available_duplicate(&original, &parent_dir)?,
-    };
+    // The folder always gets an auto-generated name; any user-typed value is a
+    // display label, not the directory name.
+    let (new_name, new_root) = next_available_duplicate(&original, &parent_dir)?;
+    let label = label.map(str::trim).filter(|l| !l.is_empty());
 
     if let Err(e) = cp_clone(Path::new(&src.root), &new_root, reinstall_deps) {
         let _ = std::fs::remove_dir_all(&new_root);
@@ -421,6 +411,9 @@ fn duplicate_one(
         yset(m, "name", new_name.as_str());
         yset(m, "root", config::collapse_home(&new_root.to_string_lossy()).as_str());
         yset(m, "parent_name", original.as_str());
+        if let Some(l) = label {
+            yset(m, "label", l);
+        }
     });
     if let Err(e) = write {
         let _ = std::fs::remove_dir_all(&new_root);
@@ -440,14 +433,14 @@ fn duplicate_one(
 pub fn duplicate_project(
     app: AppHandle,
     name: String,
-    desired_name: Option<String>,
+    label: Option<String>,
     exclude_uncommitted: bool,
     reinstall_deps: bool,
 ) -> Result<String, String> {
     duplicate_one(
         &app,
         &name,
-        desired_name.as_deref(),
+        label.as_deref(),
         exclude_uncommitted,
         reinstall_deps,
     )
