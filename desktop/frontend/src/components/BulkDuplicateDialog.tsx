@@ -9,12 +9,26 @@ import type { ProjectInfo, SpawnTask } from "../types";
 const MIN_COUNT = 1;
 const MAX_COUNT = 50;
 
+// Mirror the backend's id alphabet so the name shown is the one it would
+// generate; the copy's folder is created with exactly this name.
+const NAME_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+function randomId6(): string {
+  const bytes = new Uint8Array(6);
+  crypto.getRandomValues(bytes);
+  let out = "";
+  for (let i = 0; i < bytes.length; i++) {
+    out += NAME_ALPHABET[bytes[i] % NAME_ALPHABET.length];
+  }
+  return out;
+}
+
 type RunMode = "none" | "action" | "command";
 
 export interface BulkDuplicateOptions {
   excludeUncommitted: boolean;
   reinstallDeps: boolean;
-  labels: string[];
+  names: string[];
   tasks: SpawnTask[];
   groupName: string;
 }
@@ -34,8 +48,8 @@ export function BulkDuplicateDialog({
   onCancel,
   onConfirm,
 }: BulkDuplicateDialogProps) {
-  const [labels, setLabels] = useState<string[]>([""]);
-  const count = labels.length;
+  const [names, setNames] = useState<string[]>([""]);
+  const count = names.length;
   const [mode, setMode] = useState<RunMode>("none");
   const [actionName, setActionName] = useState("");
   const [command, setCommand] = useState("");
@@ -43,9 +57,18 @@ export function BulkDuplicateDialog({
   const [reinstallDeps, setReinstallDeps] = useState(false);
   const [groupName, setGroupName] = useState("");
 
+  const base = project?.parentName || project?.name;
+  const genName = () => (base ? `${base}-${randomId6()}` : "");
+  const freshName = (used: Set<string>) => {
+    if (!base) return "";
+    let name = genName();
+    while (used.has(name)) name = genName();
+    return name;
+  };
+
   useEffect(() => {
     if (!open) return;
-    setLabels([""]);
+    setNames([genName()]);
     setMode("none");
     setActionName("");
     setCommand("");
@@ -62,20 +85,25 @@ export function BulkDuplicateDialog({
 
   const clamp = (n: number) => Math.min(MAX_COUNT, Math.max(MIN_COUNT, n));
 
-  // Keep one label field per copy: grow with blank fields, shrink by trimming,
-  // and preserve labels the user already typed.
+  // Keep one name field per copy: grow with fresh auto-names, shrink by
+  // trimming, and preserve names the user already typed.
   const changeCount = (next: number) => {
     const n = clamp(next);
-    setLabels((prev) => {
+    setNames((prev) => {
       if (n <= prev.length) return prev.slice(0, n);
       const out = prev.slice();
-      while (out.length < n) out.push("");
+      const used = new Set(out.filter(Boolean));
+      while (out.length < n) {
+        const name = freshName(used);
+        if (name) used.add(name);
+        out.push(name);
+      }
       return out;
     });
   };
 
-  const setLabelAt = (i: number, value: string) =>
-    setLabels((prev) => {
+  const setNameAt = (i: number, value: string) =>
+    setNames((prev) => {
       const next = prev.slice();
       next[i] = value;
       return next;
@@ -111,7 +139,7 @@ export function BulkDuplicateDialog({
     onConfirm(count, {
       excludeUncommitted,
       reinstallDeps,
-      labels: labels.map((l) => l.trim()),
+      names: names.map((n) => n.trim()),
       tasks: buildTasks(),
       groupName: single ? "" : groupName.trim(),
     });
@@ -232,10 +260,10 @@ export function BulkDuplicateDialog({
 
       <div className="mt-5">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-          {single ? "Label" : "Labels"}
+          {single ? "Name" : "Names"}
         </p>
         <div className="mt-2 max-h-[180px] space-y-1.5 overflow-y-auto pr-0.5">
-          {labels.map((value, i) => (
+          {names.map((value, i) => (
             <div key={i} className="relative">
               {!single && (
                 <span className="pointer-events-none absolute left-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-lg bg-[var(--bg-primary)] text-[11px] font-semibold tabular-nums text-[var(--text-muted)]">
@@ -244,7 +272,7 @@ export function BulkDuplicateDialog({
               )}
               <input
                 value={value}
-                onChange={(e) => setLabelAt(i, e.target.value)}
+                onChange={(e) => setNameAt(i, e.target.value)}
                 autoFocus={i === 0}
                 spellCheck={false}
                 autoCapitalize="off"
@@ -257,8 +285,8 @@ export function BulkDuplicateDialog({
         </div>
         <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">
           {single
-            ? "A label to recognize the copy by. Its folder is named automatically — leave blank to use that name."
-            : "Labels to recognize the copies by. Their folders are named automatically — leave any blank to use that name."}
+            ? "The copy is created with this name. Leave blank to name it automatically."
+            : "Each copy is created with its name. Leave any blank to name it automatically."}
         </p>
       </div>
 
