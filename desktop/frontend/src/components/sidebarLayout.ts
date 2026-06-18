@@ -6,8 +6,9 @@ import { arrayEq } from "./actionsDndLayout";
 // order plus the folder definitions:
 //   - `order` holds top-level tokens: a loose project name, or a "group:<id>".
 //   - each group's `members` holds its project names in within-folder order.
-// Members are top-level project names only — duplicates ride with their parent
-// and never appear as a token or a member.
+// A loose `order` slot is always a top-level (non-duplicate) project; a
+// duplicate never sits loose, but it may be an explicit folder member —
+// promoted out of its parent's nesting and onto the folder's level.
 export interface SidebarLayout {
   order: string[];
   groups: ProjectGroup[];
@@ -170,8 +171,9 @@ export function setGroupCollapsed(
 }
 
 // The flat all-projects order written to settings.projectOrder for the backend.
-// Walk top-level order, expanding each folder into its members. Duplicates are
-// omitted — the backend re-groups them after their parent on its own.
+// Walk top-level order, expanding each folder into its members. A folder member
+// may be a duplicate; the backend re-groups every duplicate after its parent on
+// its own, so a duplicate's position here is only advisory.
 export function flattenForProjectOrder(layout: SidebarLayout): string[] {
   const byId = new Map(layout.groups.map((g) => [g.id, g]));
   const out: string[] = [];
@@ -187,15 +189,23 @@ export function flattenForProjectOrder(layout: SidebarLayout): string[] {
   return out;
 }
 
-// Self-healing pass run against the live set of top-level (non-duplicate)
-// project names. Drops stale members/tokens, dedupes (a name claimed by a
-// folder can't also be loose), guarantees every folder has a token, and
-// appends brand-new projects as loose at the end. Idempotent.
-export function reconcile(layout: SidebarLayout, topLevelNames: string[]): SidebarLayout {
-  const existing = new Set(topLevelNames);
+// Self-healing pass run after a project-list refresh. `topLevelNames` are the
+// names eligible to sit loose at the top level (non-duplicate projects);
+// `memberNames` are every existing project name, since a folder may also hold a
+// duplicate that was explicitly placed in it. Drops stale members/tokens,
+// dedupes (a name claimed by a folder can't also be loose), guarantees every
+// folder has a token, and appends brand-new top-level projects as loose at the
+// end. Idempotent.
+export function reconcile(
+  layout: SidebarLayout,
+  topLevelNames: string[],
+  memberNames: string[] = topLevelNames,
+): SidebarLayout {
+  const looseNames = new Set(topLevelNames);
+  const memberable = new Set(memberNames);
   const claimed = new Set<string>();
   const groups = layout.groups.map((g) => {
-    const members = g.members.filter((m) => existing.has(m) && !claimed.has(m));
+    const members = g.members.filter((m) => memberable.has(m) && !claimed.has(m));
     members.forEach((m) => claimed.add(m));
     return { ...g, members };
   });
@@ -210,7 +220,7 @@ export function reconcile(layout: SidebarLayout, topLevelNames: string[]): Sideb
         order.push(token);
         seen.add(token);
       }
-    } else if (existing.has(token) && !claimed.has(token) && !seen.has(token)) {
+    } else if (looseNames.has(token) && !claimed.has(token) && !seen.has(token)) {
       order.push(token);
       seen.add(token);
     }

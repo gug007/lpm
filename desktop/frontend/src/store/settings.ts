@@ -56,6 +56,8 @@ export interface Settings {
   preferredEditor?: string;
   detachedWindows?: Record<string, DetachedWindowState>;
   searchFilterMode?: boolean;
+  duplicateExcludeUncommitted?: boolean;
+  duplicateReinstallDeps?: boolean;
 }
 
 const defaults: Settings = {
@@ -110,6 +112,8 @@ function normalize(s: main.Settings): Settings {
     ttsSpeed: s.ttsSpeed,
     preferredEditor: s.preferredEditor || undefined,
     searchFilterMode: s.searchFilterMode,
+    duplicateExcludeUncommitted: s.duplicateExcludeUncommitted,
+    duplicateReinstallDeps: s.duplicateReinstallDeps,
     detachedWindows: s.detachedWindows
       ? Object.fromEntries(
           Object.entries(s.detachedWindows).map(([name, raw]) => {

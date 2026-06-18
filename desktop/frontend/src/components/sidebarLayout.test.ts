@@ -185,6 +185,45 @@ describe("reconcile", () => {
     const r = reconcile(dirty, ["api"]);
     expect(r.order).toEqual(["api"]);
   });
+
+  it("keeps a folder member that is a promoted duplicate (in memberNames, not top-level)", () => {
+    const dirty: SidebarLayout = {
+      order: ["api", groupToken("Front")],
+      groups: [g("Front", ["web-copy"])],
+    };
+    const r = reconcile(dirty, ["api"], ["api", "web-copy"]);
+    expect(r.groups[0].members).toEqual(["web-copy"]);
+    expect(r.order).toEqual(["api", groupToken("Front")]);
+  });
+
+  it("never appends a promoted duplicate member as a loose project", () => {
+    const dirty: SidebarLayout = {
+      order: [groupToken("Front")],
+      groups: [g("Front", ["d1"])],
+    };
+    const r = reconcile(dirty, [], ["d1"]);
+    expect(r.order).toEqual([groupToken("Front")]);
+    expect(r.groups[0].members).toEqual(["d1"]);
+  });
+
+  it("drops a member missing from the existing project set", () => {
+    const dirty: SidebarLayout = {
+      order: ["api", groupToken("Front")],
+      groups: [g("Front", ["gone"])],
+    };
+    const r = reconcile(dirty, ["api"], ["api"]);
+    expect(r.groups[0].members).toEqual([]);
+  });
+
+  it("drops a loose token for a duplicate removed from a folder (no top-level slot)", () => {
+    const dirty: SidebarLayout = {
+      order: ["api", "web-copy", groupToken("Front")],
+      groups: [g("Front", [])],
+    };
+    const r = reconcile(dirty, ["api"], ["api", "web-copy"]);
+    expect(r.order).toEqual(["api", groupToken("Front")]);
+    expect(r.groups[0].members).toEqual([]);
+  });
 });
 
 describe("classify", () => {

@@ -81,7 +81,7 @@ interface SidebarProps {
   detachedSelf?: string;
   showTerminals: boolean;
   showSettings: boolean;
-  duplicatingName: string | null;
+  duplicatingNames: string[];
   removingNames: Set<string>;
 }
 
@@ -117,7 +117,7 @@ type TreeItem =
   | { kind: "project"; project: ProjectInfo; isChild: boolean }
   | { kind: "empty"; group: ProjectGroup };
 
-export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectsBatch, onRenameProject, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showSettings, duplicatingName, removingNames }: SidebarProps) {
+export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectsBatch, onRenameProject, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showSettings, duplicatingNames, removingNames }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -153,15 +153,17 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const { items, sortableIds, projectByName, memberOf } = useMemo(() => {
     const byName = new Map<string, ProjectInfo>();
     for (const p of projects) byName.set(p.name, p);
+    const membership = membershipMap(groups);
+    // Duplicates nest under their parent — unless one was explicitly placed in a
+    // folder, in which case it renders there as a standalone member instead.
     const childrenByParent = new Map<string, ProjectInfo[]>();
     for (const p of projects) {
-      if (isDuplicate(p, byName)) {
+      if (isDuplicate(p, byName) && !membership.has(p.name)) {
         const arr = childrenByParent.get(p.parentName!);
         if (arr) arr.push(p);
         else childrenByParent.set(p.parentName!, [p]);
       }
     }
-    const membership = membershipMap(groups);
     const groupsById = new Map(groups.map((g) => [g.id, g]));
 
     const out: TreeItem[] = [];
@@ -182,7 +184,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       seenGroups.add(g.id);
       const members = g.members
         .map((n) => byName.get(n))
-        .filter((p): p is ProjectInfo => !!p && !isDuplicate(p, byName));
+        .filter((p): p is ProjectInfo => !!p);
       out.push({ kind: "group", group: g });
       ids.push(groupToken(g.id));
       if (!g.collapsed) {
@@ -446,7 +448,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     const isSelf = project.name === detachedSelf;
     const isSelected = selected === project.name && (!isDetached || isSelf);
     const isContextTarget = contextMenu?.name === project.name;
-    const isBusy = duplicatingName === project.name || removingNames.has(project.name);
+    const isBusy = duplicatingNames.includes(project.name) || removingNames.has(project.name);
     const parent = project.parentName ? projectByName.get(project.parentName) : undefined;
     const name = <ProjectNameDisplay project={project} parent={parent} />;
     const showCheck = status.isDone && !status.isWaiting && !status.isError;
@@ -690,12 +692,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           <ProjectContextMenu
             x={contextMenu.x}
             y={contextMenu.y}
-            duplicateDisabled={
-              duplicatingName !== null || removingNames.has(contextMenu.name)
-            }
+            duplicateDisabled={removingNames.has(contextMenu.name)}
             removeDisabled={
               removingNames.has(contextMenu.name) ||
-              duplicatingName === contextMenu.name
+              duplicatingNames.includes(contextMenu.name)
             }
             isDuplicate={Boolean(contextProject?.parentName)}
             isDetached={detached.has(contextMenu.name)}
@@ -810,7 +810,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         open={bulkDuplicateName !== null}
         project={bulkDuplicateName ? projectByName.get(bulkDuplicateName) ?? null : null}
         existingNames={projects.map((p) => p.name)}
-        busy={duplicatingName !== null}
+        folderNames={groups.map((g) => g.name)}
         onCancel={() => setBulkDuplicateName(null)}
         onConfirm={(count, opts) => {
           if (bulkDuplicateName) onBulkDuplicate(bulkDuplicateName, count, opts);

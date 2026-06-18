@@ -25,7 +25,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
   const sidebarOrder = useAppStore((s) => s.sidebarOrder);
   const detached = useAppStore((s) => s.detached);
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
-  const duplicatingName = useAppStore((s) => s.duplicatingName);
+  const duplicatingNames = useAppStore((s) => s.duplicatingNames);
   const removingNames = useAppStore((s) => s.removingNames);
 
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
@@ -123,7 +123,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
           detachedSelf={projectName}
           showTerminals={false}
           showSettings={false}
-          duplicatingName={duplicatingName}
+          duplicatingNames={duplicatingNames}
           removingNames={removingNames}
         />
         <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">

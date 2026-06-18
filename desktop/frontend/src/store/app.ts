@@ -115,7 +115,10 @@ interface AppState {
   feedbackOpen: boolean;
   tmuxReady: boolean | null;
   visited: Set<string>;
-  duplicatingName: string | null;
+  // Source names with a duplication in flight. A multiset (repeats allowed) so
+  // several copies of the same source can run at once and each finishing only
+  // clears its own entry. Duplications never block one another.
+  duplicatingNames: string[];
   removingNames: Set<string>;
   // Per-project queue of tasks (actions or ad-hoc commands) to auto-run once
   // the freshly created copy's detail mounts. Used by "Bulk Duplicate" to fan
@@ -180,6 +183,7 @@ interface AppState {
       reinstallDeps?: boolean;
       names?: string[];
       tasks?: SpawnTask[];
+      groupName?: string;
     },
   ) => Promise<void>;
   consumeSpawnTasks: (name: string) => void;
@@ -476,13 +480,11 @@ function topLevelProjectNames(projects: ProjectInfo[]): string[] {
   return projects.filter((p) => !isDuplicate(p, names)).map((p) => p.name);
 }
 
-// Folders only hold top-level projects, so a duplicate redirects to its
-// parent (its duplicates ride along inside the folder). Unknown names -> none.
-function resolveTopLevelName(projects: ProjectInfo[], name: string): string | undefined {
-  const byName = new Map(projects.map((p) => [p.name, p]));
-  const p = byName.get(name);
-  if (!p) return undefined;
-  return isDuplicate(p, byName) ? p.parentName : name;
+// A folder member is any existing project: placing a duplicate in a folder
+// promotes it out of its parent's nesting and onto the folder's level.
+// Unknown names -> none.
+function resolveMemberName(projects: ProjectInfo[], name: string): string | undefined {
+  return projects.some((p) => p.name === name) ? name : undefined;
 }
 
 // Where a project sits at the top level: its own slot if loose, else its
@@ -526,7 +528,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   feedbackOpen: false,
   tmuxReady: null,
   visited: new Set<string>(),
-  duplicatingName: null,
+  duplicatingNames: [],
   spawnTasks: {},
   removingNames: new Set<string>(),
   addProjectPickerOpen: false,
@@ -584,7 +586,11 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   reconcileSidebarLayout: (projects) => {
     const before: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
-    const after = reconcile(before, topLevelProjectNames(projects));
+    const after = reconcile(
+      before,
+      topLevelProjectNames(projects),
+      projects.map((p) => p.name),
+    );
     if (layoutsEqual(before, after)) return;
     set({ sidebarOrder: after.order, groups: after.groups });
     persistSidebarLayout(after).catch(() => undefined);
@@ -833,9 +839,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   bulkDuplicate: async (name, count, opts = {}) => {
-    if (get().duplicatingName || count < 1) return;
+    if (count < 1) return;
     const tasks = opts.tasks ?? [];
-    set({ duplicatingName: name });
+    set((s) => ({ duplicatingNames: [...s.duplicatingNames, name] }));
     const noun = (n: number) => (n === 1 ? "copy" : "copies");
     const toastId = toast.loading(`Creating ${count} ${noun(count)} of ${name}…`);
     const created: string[] = [];
@@ -867,6 +873,28 @@ export const useAppStore = create<AppState>((set, get) => ({
         get().markVisited(copyName);
         if (created.length === 1) set({ selected: copyName, view: "projects" });
       }
+      const folderName = opts.groupName?.trim();
+      if (folderName && created.length > 0) {
+        try {
+          let layout: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
+          let group =
+            layout.groups.find((g) => g.name.trim() === folderName) ??
+            layout.groups.find(
+              (g) => g.name.trim().toLowerCase() === folderName.toLowerCase(),
+            );
+          if (!group) {
+            group = { id: crypto.randomUUID(), name: folderName, members: [] };
+            // Drop the new folder directly below the project being duplicated,
+            // not at the bottom of the sidebar.
+            const atIndex = topLevelIndexOfProject(layout, name) + 1;
+            layout = addGroupToLayout(layout, group, atIndex);
+          }
+          for (const copyName of created) layout = moveIntoGroup(layout, copyName, group.id);
+          await get().applySidebarLayout(layout);
+        } catch (err) {
+          toast.error(`Couldn't add copies to folder: ${err}`);
+        }
+      }
       if (created.length === 0) {
         toast.error(`Failed to duplicate ${name}`, { id: toastId });
       } else if (created.length < count) {
@@ -883,7 +911,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (err) {
       toast.error(`Failed to duplicate ${name}: ${err}`, { id: toastId });
     } finally {
-      set({ duplicatingName: null });
+      set((s) => {
+        const i = s.duplicatingNames.indexOf(name);
+        if (i < 0) return s;
+        const next = s.duplicatingNames.slice();
+        next.splice(i, 1);
+        return { duplicatingNames: next };
+      });
     }
   },
 
@@ -953,13 +987,23 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   applySidebarLayout: async (layout) => {
+    // Normalize before committing so a move can't persist an unrepresentable
+    // token — e.g. removing a duplicate from a folder leaves it with no loose
+    // top-level slot, so reconcile drops the stray token and it nests under its
+    // parent again. Idempotent, so a clean drag-drop layout passes through.
+    const projects = get().projects;
+    const next = reconcile(
+      layout,
+      topLevelProjectNames(projects),
+      projects.map((p) => p.name),
+    );
     const prev: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
-    set({ sidebarOrder: layout.order, groups: layout.groups });
+    set({ sidebarOrder: next.order, groups: next.groups });
     // Reference may differ even when content matches (e.g. collapse no-op) —
     // update state but skip the persist.
-    if (layoutsEqual(prev, layout)) return;
+    if (layoutsEqual(prev, next)) return;
     try {
-      await persistSidebarLayout(layout);
+      await persistSidebarLayout(next);
     } catch (err) {
       toast.error(`Failed to save folders: ${err}`);
       const cfg = await loadGroups();
@@ -973,7 +1017,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const id = crypto.randomUUID();
     const current: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
     const seed = opts.initialMember
-      ? resolveTopLevelName(get().projects, opts.initialMember)
+      ? resolveMemberName(get().projects, opts.initialMember)
       : undefined;
     const atIndex = seed ? topLevelIndexOfProject(current, seed) : undefined;
     let next = addGroupToLayout(current, { id, name: trimmed, members: [] }, atIndex);
@@ -1001,7 +1045,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   moveProjectToGroup: async (name, groupId) => {
-    const target = resolveTopLevelName(get().projects, name);
+    const target = resolveMemberName(get().projects, name);
     if (!target) return;
     const current: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
     const next =

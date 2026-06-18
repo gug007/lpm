@@ -85,9 +85,10 @@ export interface ProjectInfo {
   isRemote: boolean;
 }
 
-// A user-created sidebar folder. Persisted in ~/.lpm/groups.json; `members`
-// are top-level project names in their within-folder order (duplicates ride
-// with their parent and are never listed here).
+// A user-created sidebar folder. Persisted in ~/.lpm/groups.json; `members` are
+// project names in their within-folder order — usually top-level projects, but
+// a duplicate explicitly placed in a folder is listed here too (promoted out of
+// its parent's nesting).
 export interface ProjectGroup {
   id: string;
   name: string;

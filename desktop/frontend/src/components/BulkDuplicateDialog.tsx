@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { GitBranch, Package } from "lucide-react";
+import { Folder, GitBranch, Package } from "lucide-react";
 import { useEventListener } from "../hooks/useEventListener";
 import { Modal } from "./ui/Modal";
 import { ActionPicker } from "./ActionPicker";
+import { getSettings, saveSettings } from "../store/settings";
 import type { ProjectInfo, SpawnTask } from "../types";
 
 const MIN_COUNT = 1;
@@ -15,13 +16,14 @@ export interface BulkDuplicateOptions {
   reinstallDeps: boolean;
   names: string[];
   tasks: SpawnTask[];
+  groupName: string;
 }
 
 interface BulkDuplicateDialogProps {
   open: boolean;
   project: ProjectInfo | null;
   existingNames: string[];
-  busy: boolean;
+  folderNames: string[];
   onCancel: () => void;
   onConfirm: (count: number, opts: BulkDuplicateOptions) => void;
 }
@@ -30,7 +32,7 @@ export function BulkDuplicateDialog({
   open,
   project,
   existingNames,
-  busy,
+  folderNames,
   onCancel,
   onConfirm,
 }: BulkDuplicateDialogProps) {
@@ -41,6 +43,7 @@ export function BulkDuplicateDialog({
   const [command, setCommand] = useState("");
   const [excludeUncommitted, setExcludeUncommitted] = useState(false);
   const [reinstallDeps, setReinstallDeps] = useState(false);
+  const [groupName, setGroupName] = useState("");
 
   // Propose the actual folder name each copy will be created with: the source's
   // name (or its parent's, for a duplicate-of-a-duplicate) plus a short random
@@ -82,8 +85,9 @@ export function BulkDuplicateDialog({
     setMode("none");
     setActionName("");
     setCommand("");
-    setExcludeUncommitted(false);
-    setReinstallDeps(false);
+    setExcludeUncommitted(getSettings().duplicateExcludeUncommitted ?? false);
+    setReinstallDeps(getSettings().duplicateReinstallDeps ?? false);
+    setGroupName("");
   }, [open, project?.name]);
 
   // Only offer actions that run unattended on every copy: leaf actions (no
@@ -111,6 +115,9 @@ export function BulkDuplicateDialog({
   const single = count === 1;
   const noun = single ? "copy" : "copies";
   const copyRef = single ? "the copy" : "each copy";
+  const folderOptions = Array.from(
+    new Set(folderNames.map((n) => n.trim()).filter(Boolean)),
+  );
 
   const pickMode = (next: RunMode) => {
     setMode(next);
@@ -127,12 +134,17 @@ export function BulkDuplicateDialog({
   };
 
   const handleConfirm = () => {
-    if (busy || !project) return;
+    if (!project) return;
+    saveSettings({
+      duplicateExcludeUncommitted: excludeUncommitted,
+      duplicateReinstallDeps: reinstallDeps,
+    });
     onConfirm(count, {
       excludeUncommitted,
       reinstallDeps,
       names: names.map((n) => n.trim()),
       tasks: buildTasks(),
+      groupName: single ? "" : groupName.trim(),
     });
   };
 
@@ -255,9 +267,9 @@ export function BulkDuplicateDialog({
         </p>
         <div className="mt-2 max-h-[180px] space-y-1.5 overflow-y-auto pr-0.5">
           {names.map((value, i) => (
-            <div key={i} className="flex items-center gap-2">
+            <div key={i} className="relative">
               {!single && (
-                <span className="w-4 shrink-0 text-right text-[11px] tabular-nums text-[var(--text-muted)]">
+                <span className="pointer-events-none absolute left-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-lg bg-[var(--bg-primary)] text-[11px] font-semibold tabular-nums text-[var(--text-muted)]">
                   {i + 1}
                 </span>
               )}
@@ -269,7 +281,7 @@ export function BulkDuplicateDialog({
                 autoCapitalize="off"
                 autoCorrect="off"
                 placeholder="Auto-named"
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
+                className={`w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] py-2 pr-3 text-[13px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)] ${single ? "pl-3" : "pl-10"}`}
               />
             </div>
           ))}
@@ -280,6 +292,53 @@ export function BulkDuplicateDialog({
             : "Copies are created with these names. Leave any blank to name automatically."}
         </p>
       </div>
+
+      {!single && (
+        <div className="mt-5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Folder
+          </p>
+          <div className="relative mt-2">
+            <Folder
+              size={15}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
+            />
+            <input
+              value={groupName}
+              onChange={(e) => setGroupName(e.target.value)}
+              spellCheck={false}
+              autoCapitalize="off"
+              autoCorrect="off"
+              placeholder="Group the copies in a folder…"
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] py-2 pl-9 pr-3 text-[13px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
+            />
+          </div>
+          {folderOptions.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {folderOptions.map((n) => {
+                const active = groupName.trim().toLowerCase() === n.toLowerCase();
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setGroupName(active ? "" : n)}
+                    className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                      active
+                        ? "border-[var(--accent-cyan)]/60 bg-[var(--accent-cyan)]/10 text-[var(--text-primary)]"
+                        : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">
+            Use an existing folder or type a new one. Leave blank to skip.
+          </p>
+        </div>
+      )}
 
       <div className="mt-5">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
@@ -358,7 +417,7 @@ export function BulkDuplicateDialog({
         </button>
         <button
           onClick={handleConfirm}
-          disabled={busy || !project}
+          disabled={!project}
           className="rounded-lg bg-[var(--text-primary)] px-4 py-2 text-sm font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-40"
         >
           Create {count} {noun}
