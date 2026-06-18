@@ -3,7 +3,9 @@ import { Folder, GitBranch, Package } from "lucide-react";
 import { useEventListener } from "../hooks/useEventListener";
 import { Modal } from "./ui/Modal";
 import { ActionPicker } from "./ActionPicker";
+import { PromptComposer, type PromptImage } from "./PromptComposer";
 import { getSettings, saveSettings } from "../store/settings";
+import { shellQuote } from "../terminal-io";
 import type { ProjectInfo, SpawnTask } from "../types";
 
 const MIN_COUNT = 1;
@@ -57,6 +59,7 @@ export function BulkDuplicateDialog({
   const [actionName, setActionName] = useState("");
   const [command, setCommand] = useState("");
   const [prompt, setPrompt] = useState("");
+  const [promptImages, setPromptImages] = useState<PromptImage[]>([]);
   const [excludeUncommitted, setExcludeUncommitted] = useState(false);
   const [reinstallDeps, setReinstallDeps] = useState(false);
   const [groupName, setGroupName] = useState("");
@@ -74,6 +77,7 @@ export function BulkDuplicateDialog({
     setActionName("");
     setCommand("");
     setPrompt("");
+    setPromptImages([]);
     setExcludeUncommitted(getSettings().duplicateExcludeUncommitted ?? false);
     setReinstallDeps(getSettings().duplicateReinstallDeps ?? false);
     setGroupName("");
@@ -112,16 +116,33 @@ export function BulkDuplicateDialog({
   const folderOptions = Array.from(
     new Set(folderNames.map((n) => n.trim()).filter(Boolean)),
   );
+  const trimmedGroup = groupName.trim();
+  const hasGroup = !single && trimmedGroup.length > 0;
+  const railColor = hasGroup ? "bg-[var(--accent-cyan)]/45" : "bg-[var(--border)]";
+  const imagesPending = promptImages.some((im) => !im.path && !im.error);
 
   const pickMode = (next: RunMode) => {
     setMode(next);
+    if (next === "none") {
+      setPromptImages((prev) => {
+        prev.forEach((im) => URL.revokeObjectURL(im.url));
+        return [];
+      });
+    }
     if (next === "action" && !actionName && runnableActions.length > 0) {
       setActionName(runnableActions[0].name);
     }
   };
 
   const buildTasks = (): SpawnTask[] => {
-    const seed = prompt.trim() || undefined;
+    // The seed is typed into the terminal as one line then submitted, so flatten
+    // newlines and append the saved image paths for the agent to pick up.
+    const text = prompt.replace(/\s*\n\s*/g, " ").trim();
+    const paths = promptImages
+      .map((im) => im.path)
+      .filter(Boolean)
+      .map((p) => (/\s/.test(p) ? shellQuote(p) : p));
+    const seed = [text, ...paths].filter(Boolean).join(" ") || undefined;
     if (mode === "action" && actionName)
       return [{ kind: "action", actionName, prompt: seed }];
     if (mode === "command" && command.trim())
@@ -140,18 +161,22 @@ export function BulkDuplicateDialog({
       reinstallDeps,
       labels: labels.map((l) => l.trim()),
       tasks: buildTasks(),
-      groupName: single ? "" : groupName.trim(),
+      groupName: single ? "" : trimmedGroup,
     });
   };
 
   // Enter confirms from the count or command field; leave it to the focused
-  // control when a button (segment, picker option, toggle) has focus.
+  // control when a button (segment, picker option, toggle) has focus, and let
+  // Shift+Enter add a newline while composing the prompt.
   useEventListener(
     "keydown",
     (e) => {
       if (e.key !== "Enter" || e.isComposing) return;
       if (document.activeElement instanceof HTMLButtonElement) return;
+      if (e.shiftKey && document.activeElement instanceof HTMLTextAreaElement)
+        return;
       e.preventDefault();
+      if (imagesPending) return;
       handleConfirm();
     },
     document,
@@ -201,7 +226,7 @@ export function BulkDuplicateDialog({
       open={open}
       onClose={onCancel}
       zIndexClassName="z-[60]"
-      contentClassName="max-h-[85vh] w-[440px] overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] p-6 shadow-2xl"
+      contentClassName="max-h-[85vh] w-[min(560px,92vw)] overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] p-6 shadow-2xl"
     >
       <div className="flex items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--bg-secondary)] text-[var(--accent-cyan)]">
@@ -259,82 +284,100 @@ export function BulkDuplicateDialog({
 
       <div className="mt-5">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-          {single ? "Label" : "Labels"}
+          {single ? "Label" : "Folder & labels"}
         </p>
-        <div className="mt-2 max-h-[180px] space-y-1.5 overflow-y-auto pr-0.5">
-          {labels.map((value, i) => (
-            <div key={i} className="relative">
-              {!single && (
-                <span className="pointer-events-none absolute left-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-lg bg-[var(--bg-primary)] text-[11px] font-semibold tabular-nums text-[var(--text-muted)]">
-                  {i + 1}
-                </span>
-              )}
+
+        {!single && (
+          <>
+            <div className="relative mt-2">
+              <Folder
+                size={15}
+                className={`pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${
+                  hasGroup ? "text-[var(--accent-cyan)]" : "text-[var(--text-muted)]"
+                }`}
+              />
               <input
-                value={value}
-                onChange={(e) => setLabelAt(i, e.target.value)}
-                autoFocus={i === 0}
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
                 spellCheck={false}
                 autoCapitalize="off"
                 autoCorrect="off"
-                placeholder="Auto-named"
-                className={`${FIELD_CLASS} transition-colors py-2 pr-3 ${single ? "pl-3" : "pl-10"}`}
+                placeholder="Folder name (optional)"
+                className={`${FIELD_CLASS} transition-colors py-2 pl-9 pr-3`}
               />
             </div>
-          ))}
+            {folderOptions.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {folderOptions.map((n) => {
+                  const active = trimmedGroup.toLowerCase() === n.toLowerCase();
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setGroupName(active ? "" : n)}
+                      title={n}
+                      className={`flex max-w-[160px] items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                        active
+                          ? "border-[var(--accent-cyan)]/60 bg-[var(--accent-cyan)]/10 text-[var(--text-primary)]"
+                          : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                      }`}
+                    >
+                      <Folder size={11} className="shrink-0 opacity-70" />
+                      <span className="min-w-0 truncate">{n}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
+        <div
+          className={`${single ? "mt-2" : "mt-2.5"} max-h-[180px] overflow-y-auto pr-0.5`}
+        >
+          <div className={`relative ${single ? "" : "pl-6"}`}>
+            <div className="space-y-1.5">
+              {labels.map((value, i) => (
+                <div key={i} className="relative">
+                  {!single && (
+                    <>
+                      <span
+                        className={`pointer-events-none absolute left-[-13px] top-1/2 h-px w-[13px] -translate-y-1/2 transition-colors ${railColor}`}
+                      />
+                      <span className="pointer-events-none absolute left-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-lg bg-[var(--bg-primary)] text-[11px] font-semibold tabular-nums text-[var(--text-muted)]">
+                        {i + 1}
+                      </span>
+                    </>
+                  )}
+                  <input
+                    value={value}
+                    onChange={(e) => setLabelAt(i, e.target.value)}
+                    autoFocus={i === 0}
+                    spellCheck={false}
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    placeholder="Auto-named"
+                    className={`${FIELD_CLASS} transition-colors py-2 pr-3 ${single ? "pl-3" : "pl-10"}`}
+                  />
+                </div>
+              ))}
+            </div>
+            {!single && (
+              <span
+                className={`pointer-events-none absolute bottom-4 left-[11px] top-0 w-px transition-colors ${railColor}`}
+              />
+            )}
+          </div>
         </div>
-        <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">
+
+        <p className="mt-2 text-[11px] leading-snug text-[var(--text-muted)]">
           {single
             ? "A label to recognize the copy by. Leave blank to name it automatically."
-            : "Labels to recognize the copies by. Leave any blank to name them automatically."}
+            : hasGroup
+              ? `The copies are grouped under “${trimmedGroup}” in the sidebar. Leave a label blank to name it automatically.`
+              : "Name a folder above to keep the copies together in the sidebar, or leave it blank to add them on their own. Leave a label blank to name it automatically."}
         </p>
       </div>
-
-      {!single && (
-        <div className="mt-5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-            Folder
-          </p>
-          <div className="relative mt-2">
-            <Folder
-              size={15}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
-            />
-            <input
-              value={groupName}
-              onChange={(e) => setGroupName(e.target.value)}
-              spellCheck={false}
-              autoCapitalize="off"
-              autoCorrect="off"
-              placeholder="Group the copies in a folder…"
-              className={`${FIELD_CLASS} transition-colors py-2 pl-9 pr-3`}
-            />
-          </div>
-          {folderOptions.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {folderOptions.map((n) => {
-                const active = groupName.trim().toLowerCase() === n.toLowerCase();
-                return (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setGroupName(active ? "" : n)}
-                    className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                      active
-                        ? "border-[var(--accent-cyan)]/60 bg-[var(--accent-cyan)]/10 text-[var(--text-primary)]"
-                        : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                    }`}
-                  >
-                    {n}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">
-            Use an existing folder or type a new one. Leave blank to skip.
-          </p>
-        </div>
-      )}
 
       <div className="mt-5">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
@@ -391,16 +434,16 @@ export function BulkDuplicateDialog({
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
               Prompt
             </p>
-            <input
+            <PromptComposer
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              spellCheck={false}
-              placeholder="Type a prompt for an AI agent…"
-              className={`mt-2 ${FIELD_CLASS} px-3 py-2.5`}
+              onChange={setPrompt}
+              images={promptImages}
+              onImagesChange={setPromptImages}
+              placeholder="Type a task for an AI agent, and paste or attach images…"
             />
             <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">
-              Typed into {copyRef}'s terminal once it's ready — e.g. a task for the
-              agent. Leave blank to send nothing.
+              Sent to {copyRef}'s terminal once it's ready — e.g. a task for the
+              agent, with any attached images. Leave blank to send nothing.
             </p>
           </div>
         )}
@@ -432,10 +475,10 @@ export function BulkDuplicateDialog({
         </button>
         <button
           onClick={handleConfirm}
-          disabled={!project}
+          disabled={!project || imagesPending}
           className="rounded-lg bg-[var(--text-primary)] px-4 py-2 text-sm font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-40"
         >
-          Create {count} {noun}
+          {imagesPending ? "Attaching images…" : `Create ${count} ${noun}`}
         </button>
       </div>
     </Modal>

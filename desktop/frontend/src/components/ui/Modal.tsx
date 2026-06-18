@@ -43,6 +43,7 @@ export function Modal({
 
   return createPortal(
     <div
+      data-modal-overlay
       className={`fixed inset-0 ${zIndexClassName} flex items-center justify-center ${containerClassName}`}
     >
       <div

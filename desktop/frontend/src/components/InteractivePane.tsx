@@ -76,10 +76,11 @@ function initFileDrop() {
 }
 
 function terminalIdAtPoint(x: number, y: number): string | undefined {
-  const hit = document
-    .elementFromPoint(x, y)
-    ?.closest<HTMLElement>("[data-terminal-id]");
+  const top = document.elementFromPoint(x, y);
+  const hit = top?.closest<HTMLElement>("[data-terminal-id]");
   if (hit) return hit.dataset.terminalId;
+  // A modal sits above the panes; don't route a drop on it to a hidden pane.
+  if (top?.closest("[data-modal-overlay]")) return undefined;
   // Fallback: elementFromPoint can miss the pane if an overlay sits above it —
   // scan pane rects directly.
   for (const pane of document.querySelectorAll<HTMLElement>(
