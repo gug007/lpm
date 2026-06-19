@@ -8,6 +8,7 @@ import {
   type SetStateAction,
 } from "react";
 import { ImagePlus, Loader2, X } from "lucide-react";
+import { toast } from "sonner";
 import { SaveClipboardImage, NotesReadFileAsInput } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
 
@@ -122,9 +123,11 @@ export function PromptComposer({
   // Native OS drops arrive as filesystem paths; the agent reads them in place,
   // so the preview is the only thing we need to load (capped binary read).
   const addPaths = useCallback(
-    (paths: string[]) => {
+    (paths: string[]): number => {
+      let staged = 0;
       for (const p of paths) {
         if (!IMAGE_EXT.test(p)) continue;
+        staged++;
         const id = crypto.randomUUID();
         const name = p.split("/").pop() || "image";
         stage(id, name);
@@ -135,6 +138,7 @@ export function PromptComposer({
           })
           .catch(() => fail(id));
       }
+      return staged;
     },
     [stage, resolve, fail],
   );
@@ -151,24 +155,36 @@ export function PromptComposer({
     () =>
       registerFileDropHandler("prompt-composer", (x, y, paths) => {
         if (!overComposer(x, y)) return false;
-        addPaths(paths);
+        if (addPaths(paths) === 0) toast.error("Only images can be attached");
         return true;
       }),
     [addPaths],
   );
 
   // Show the drop overlay only while a drag hovers the composer. The native
-  // bridge reports position during the drag; paths arrive on drop.
+  // bridge reports position during the drag; paths arrive on drop. Gate `over`
+  // behind `enter` so a stale post-drop `over` (which wry can emit) can't
+  // re-show the overlay after it's been cleared.
   useEffect(() => {
+    let inside = false;
+    const onEnter = () => {
+      inside = true;
+    };
     const onOver = (e: Event) => {
+      if (!inside) return;
       const detail = (e as CustomEvent<[number, number]>).detail;
       setDragActive(!!detail && overComposer(detail[0], detail[1]));
     };
-    const off = () => setDragActive(false);
+    const off = () => {
+      inside = false;
+      setDragActive(false);
+    };
+    window.addEventListener("app:handleDragEnter", onEnter);
     window.addEventListener("app:handleDragOver", onOver);
     window.addEventListener("app:handleDragLeave", off);
     window.addEventListener("app:filesDropped", off);
     return () => {
+      window.removeEventListener("app:handleDragEnter", onEnter);
       window.removeEventListener("app:handleDragOver", onOver);
       window.removeEventListener("app:handleDragLeave", off);
       window.removeEventListener("app:filesDropped", off);
@@ -198,7 +214,7 @@ export function PromptComposer({
       }`}
     >
       {dragActive && (
-        <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-[var(--accent-cyan)] bg-[var(--bg-secondary)]/85 backdrop-blur-[1px]">
+        <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-[var(--accent-cyan)] bg-[var(--accent-cyan)]/10 backdrop-blur-[2px]">
           <ImagePlus size={18} className="text-[var(--accent-cyan)]" />
           <span className="text-[11px] font-medium text-[var(--accent-cyan)]">
             Drop image to attach
@@ -254,7 +270,7 @@ export function PromptComposer({
         className="block max-h-[200px] min-h-[60px] w-full resize-none bg-transparent px-3 py-2.5 text-[13px] leading-snug text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
       />
 
-      <div className="flex items-center gap-2 px-2 pb-2">
+      <div className="flex items-center px-2 pb-2">
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
@@ -263,9 +279,6 @@ export function PromptComposer({
           <ImagePlus size={13} />
           Add image
         </button>
-        <span className="text-[11px] text-[var(--text-muted)]">
-          paste or drop an image
-        </span>
       </div>
 
       <input

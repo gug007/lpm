@@ -138,10 +138,7 @@ export function BulkDuplicateDialog({
     // The seed is typed into the terminal as one line then submitted, so flatten
     // newlines and append the saved image paths for the agent to pick up.
     const text = prompt.replace(/\s*\n\s*/g, " ").trim();
-    const paths = promptImages
-      .map((im) => im.path)
-      .filter(Boolean)
-      .map((p) => (/\s/.test(p) ? shellQuote(p) : p));
+    const paths = promptImages.map((im) => im.path).filter(Boolean).map(shellQuote);
     const seed = [text, ...paths].filter(Boolean).join(" ") || undefined;
     if (mode === "action" && actionName)
       return [{ kind: "action", actionName, prompt: seed }];
