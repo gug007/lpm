@@ -112,13 +112,13 @@ export function ProjectContextMenu({
         onDiscardAll={onGitDiscardAll}
         onClose={onClose}
       />
-      <ContextMenuItem label="Rename" icon={<PencilIcon />} onClick={close(onRename)} />
       <ContextMenuItem
         label="Duplicate"
         icon={<CopyIcon />}
         onClick={close(onBulkDuplicate)}
         disabled={duplicateDisabled}
       />
+      <ContextMenuItem label="Rename" icon={<PencilIcon />} onClick={close(onRename)} />
       <ContextMenuItem label="Copy path" icon={<ClipboardIcon />} onClick={close(onCopyPath)} />
       {isDetached ? (
         <ContextMenuItem

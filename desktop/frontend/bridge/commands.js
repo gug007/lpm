@@ -109,8 +109,8 @@ export function GenerateActionYAML(projectName, cli, model, effort, fast, userPr
 export function GenerateBranchName(projectName, cwd, cli, model, effort, fast) {
   return invoke("generate_branch_name", { projectName, cwd, cli, model, effort, fast });
 }
-export function GenerateCommitMessage(projectName, cwd, cli, model, effort, fast, files) {
-  return invoke("generate_commit_message", { projectName, cwd, cli, model, effort, fast, files });
+export function GenerateCommitMessage(projectName, cwd, cli, model, effort, fast, files, taskDescription) {
+  return invoke("generate_commit_message", { projectName, cwd, cli, model, effort, fast, files, taskDescription });
 }
 export function GeneratePRDescription(projectName, cwd, cli, model, effort, fast, base) {
   return invoke("generate_pr_description", { projectName, cwd, cli, model, effort, fast, base });

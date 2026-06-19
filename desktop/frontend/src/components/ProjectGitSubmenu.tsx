@@ -30,25 +30,18 @@ interface ProjectGitSubmenuProps {
   onClose: () => void;
 }
 
-export function ProjectGitSubmenu(props: ProjectGitSubmenuProps) {
-  return (
-    <ContextMenuSubmenu label="Git" icon={<BranchIcon size={14} />} disabled={!props.projectPath}>
-      <GitSubmenuItems {...props} />
-    </ContextMenuSubmenu>
-  );
+interface GitSubmenuItemsProps extends ProjectGitSubmenuProps {
+  status: main.GitStatus | null;
+  loading: boolean;
 }
 
-function GitSubmenuItems({
-  projectPath,
-  onCommit,
-  onCreatePR,
-  onSwitchBranch,
-  onDiscardAll,
-  onClose,
-}: ProjectGitSubmenuProps) {
+export function ProjectGitSubmenu(props: ProjectGitSubmenuProps) {
+  const { projectPath } = props;
   const [status, setStatus] = useState<main.GitStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Fetched when the context menu opens (not on submenu hover) so the
+  // uncommitted-changes dot can show on the Git row before it is expanded.
   useEffect(() => {
     if (!projectPath) {
       setLoading(false);
@@ -63,6 +56,39 @@ function GitSubmenuItems({
     return () => { cancelled = true; };
   }, [projectPath]);
 
+  const uncommitted = status?.isGitRepo ? status.uncommitted : 0;
+
+  return (
+    <ContextMenuSubmenu
+      label={
+        <span className="flex items-center gap-1.5">
+          Git
+          {uncommitted > 0 && (
+            <span
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent-blue)]"
+              title={`${uncommitted} uncommitted file${uncommitted === 1 ? "" : "s"}`}
+            />
+          )}
+        </span>
+      }
+      icon={<BranchIcon size={14} />}
+      disabled={!projectPath}
+    >
+      <GitSubmenuItems {...props} status={status} loading={loading} />
+    </ContextMenuSubmenu>
+  );
+}
+
+function GitSubmenuItems({
+  projectPath,
+  onCommit,
+  onCreatePR,
+  onSwitchBranch,
+  onDiscardAll,
+  onClose,
+  status,
+  loading,
+}: GitSubmenuItemsProps) {
   if (loading) {
     return <Hint>Loading…</Hint>;
   }

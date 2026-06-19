@@ -465,6 +465,7 @@ pub fn generate_commit_message(
     effort: String,
     fast: bool,
     files: Vec<String>,
+    task_description: String,
 ) -> Result<String, String> {
     let diff = crate::git::git_diff(cwd.clone(), files)?;
     if diff.trim().is_empty() {
@@ -475,6 +476,12 @@ pub fn generate_commit_message(
     let mut prompt = COMMIT_MSG_PROMPT.to_string();
     if !instr.is_empty() {
         prompt.push_str(&format!("Additional instructions from the user:\n{instr}\n\n"));
+    }
+    let task = task_description.trim();
+    if !task.is_empty() {
+        prompt.push_str(&format!(
+            "The change implements the following task. Use it as the main basis for the message; the diff below confirms the details:\n{task}\n\n"
+        ));
     }
     prompt.push_str(&diff);
     run_ai(&app, &cli, &cwd, &prompt, ropts(model, effort, fast, false), "commit-msg-progress")

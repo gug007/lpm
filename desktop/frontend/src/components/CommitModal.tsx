@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
-import { XIcon, ChevronDownIcon, LayersIcon } from "./icons";
+import { XIcon, ChevronDownIcon, ChevronRightIcon, LayersIcon, ClipboardIcon } from "./icons";
 import { AIPickerButton } from "./ui/AIPickerButton";
 import {
   GenerateCommitMessage,
@@ -26,6 +26,7 @@ import { Tooltip } from "./ui/Tooltip";
 type ChangedFile = main.ChangedFile;
 
 const MSG_MAX_HEIGHT = { maxHeight: "calc(5 * 1.5em + 1rem)" };
+const TASK_MAX_HEIGHT = { maxHeight: "calc(6 * 1.5em)" };
 
 interface CommitModalProps {
   open: boolean;
@@ -55,7 +56,10 @@ export function CommitModal({
   const [generating, setGenerating] = useState(false);
   const ai = useAIPicker(open);
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
+  const [showContext, setShowContext] = useState(false);
+  const [taskDescription, setTaskDescription] = useState("");
   const msgRef = useRef<HTMLTextAreaElement>(null);
+  const contextRef = useRef<HTMLTextAreaElement>(null);
   const commitMenuRef = useOutsideClick<HTMLDivElement>(
     () => setCommitMenuOpen(false),
     commitMenuOpen,
@@ -78,6 +82,8 @@ export function CommitModal({
     setExpandedFile(null);
     setReviewOpen(false);
     setCollapsed(new Set());
+    setShowContext(false);
+    setTaskDescription("");
     setLoading(true);
     GitChangedFiles(projectPath)
       .then((f) => {
@@ -119,6 +125,13 @@ export function CommitModal({
     el.style.height = "auto";
     el.style.height = el.scrollHeight + "px";
   }, [message]);
+
+  useEffect(() => {
+    const el = contextRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }, [taskDescription, showContext]);
 
   const toggleFile = (path: string) => {
     setSelected((prev) => {
@@ -213,6 +226,7 @@ export function CommitModal({
         ai.selectedEffort,
         aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
         Array.from(selected),
+        taskDescription.trim(),
       );
       if (msg) setMessage(msg);
     } catch (err) {
@@ -226,6 +240,13 @@ export function CommitModal({
     const next = !autoGenerate;
     setAutoGenerate(next);
     saveSettings({ autoGenerateCommitMessage: next });
+  };
+
+  const toggleContext = () => {
+    setShowContext((prev) => {
+      if (!prev) setTimeout(() => contextRef.current?.focus(), 0);
+      return !prev;
+    });
   };
 
   const selectedFiles = useMemo(() => Array.from(selected), [selected]);
@@ -302,8 +323,68 @@ export function CommitModal({
                 ai.anyAvailable ? "pb-1.5" : "pb-3"
               }`}
             />
+            {ai.anyAvailable && showContext && (
+              <div className="flex items-start gap-2 border-t border-[var(--border)]/70 px-3.5 py-2">
+                <span className="shrink-0 pt-0.5 text-[var(--text-muted)] [&>svg]:h-3.5 [&>svg]:w-3.5">
+                  <ClipboardIcon />
+                </span>
+                <textarea
+                  ref={contextRef}
+                  value={taskDescription}
+                  onChange={(e) => setTaskDescription(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
+                  }}
+                  placeholder="Describe the task to guide the message…"
+                  aria-label="Task description"
+                  disabled={!!busy}
+                  rows={1}
+                  style={TASK_MAX_HEIGHT}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  className="w-full resize-none bg-transparent text-[13px] leading-[1.5] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-60"
+                />
+                {taskDescription && (
+                  <button
+                    onClick={() => {
+                      setTaskDescription("");
+                      contextRef.current?.focus();
+                    }}
+                    disabled={!!busy}
+                    aria-label="Clear task description"
+                    className="mt-0.5 shrink-0 rounded p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40 [&>svg]:h-3 [&>svg]:w-3"
+                  >
+                    <XIcon />
+                  </button>
+                )}
+              </div>
+            )}
             {ai.anyAvailable && (
-              <div className="flex items-center justify-end px-2 pb-2">
+              <div className="flex items-center justify-between px-2 pb-2 pt-1">
+                <button
+                  onClick={toggleContext}
+                  disabled={!!busy || generating}
+                  aria-expanded={showContext}
+                  className={`flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-40 ${
+                    showContext
+                      ? "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                  }`}
+                >
+                  <span
+                    className={`transition-transform [&>svg]:h-3 [&>svg]:w-3 ${
+                      showContext ? "rotate-90" : ""
+                    }`}
+                  >
+                    <ChevronRightIcon />
+                  </span>
+                  Task description
+                  {!showContext && taskDescription.trim().length > 0 && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-blue)]" />
+                  )}
+                </button>
                 <AIPickerButton
                   onGenerate={generateMessage}
                   generating={generating}
