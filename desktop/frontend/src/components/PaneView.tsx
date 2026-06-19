@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { ITheme } from "@xterm/xterm";
 import { InteractivePane, type InteractivePaneHandle } from "./InteractivePane";
 import { BrowserPane } from "./BrowserPane";
@@ -20,6 +20,8 @@ import { XIcon, GlobeIcon, TerminalIcon, ZapIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
 import { SortableTab, TabStrip } from "./TerminalTabDnd";
 import { useScrollFade } from "../hooks/useScrollFade";
+import { computeScrollIntoViewLeft } from "../hooks/scrollIntoViewX";
+import { useTabScroll } from "../store/tabScroll";
 import { ALL_SERVICES, type PaneLeaf, type SplitDirection } from "../paneTree";
 import { useBrowserUrls } from "../store/browserUrls";
 
@@ -202,6 +204,37 @@ function PaneViewImpl(props: PaneViewProps) {
     activeServiceName,
   ]);
 
+  // Keep the focused tab on screen. The margin clears the w-6 fade gradient at
+  // each edge so the tab isn't left half-hidden under it.
+  const scrollTabIntoView = useCallback(
+    (tab: HTMLElement | null) => {
+      const container = scrollRef.current;
+      if (!container || !tab) return;
+      const containerRect = container.getBoundingClientRect();
+      const tabRect = tab.getBoundingClientRect();
+      const next = computeScrollIntoViewLeft({
+        scrollLeft: container.scrollLeft,
+        clientWidth: container.clientWidth,
+        elementLeft: tabRect.left - containerRect.left + container.scrollLeft,
+        elementWidth: tabRect.width,
+        margin: 28,
+      });
+      if (next !== null) container.scrollTo({ left: next, behavior: "smooth" });
+    },
+    [scrollRef],
+  );
+
+  // Covers activation that changes state (reuse landing on a different tab,
+  // keyboard switches) and explicit reuse requests for the already-active tab
+  // (scrollNonce), which change no pane state. Clicks scroll imperatively
+  // below, since re-clicking the active tab also wouldn't re-run this effect.
+  const scrollNonce = useTabScroll((s) => s.nonce[pane.id] ?? 0);
+  useEffect(() => {
+    scrollTabIntoView(
+      scrollRef.current?.querySelector<HTMLElement>("[data-active-tab]") ?? null,
+    );
+  }, [scrollTabIntoView, terminalIdx, activeServiceName, pane.tabs.length, scrollNonce]);
+
   const containerClass = fullscreen
     ? "fixed inset-0 z-50 flex flex-col overflow-hidden bg-[var(--terminal-bg)]"
     : "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-t border-x border-[var(--border)]";
@@ -221,14 +254,17 @@ function PaneViewImpl(props: PaneViewProps) {
         <div className="relative flex min-w-0 flex-1 items-center">
           <div
             ref={scrollRef}
-            className="flex w-full min-w-0 items-center gap-0.5 overflow-x-auto"
+            className="no-scrollbar flex w-full min-w-0 items-center gap-0.5 overflow-x-auto"
           >
           {hasMultipleServices && (
             <HeaderTab
               label="All"
               icon={<ZapIcon />}
               active={isAllActive}
-              onClick={() => onFocusService(pane.id, ALL_SERVICES)}
+              onClick={(e) => {
+                onFocusService(pane.id, ALL_SERVICES);
+                scrollTabIntoView(e.currentTarget);
+              }}
             />
           )}
           {services.map((svc) => {
@@ -239,7 +275,10 @@ function PaneViewImpl(props: PaneViewProps) {
                 label={svc.name}
                 icon={<ZapIcon />}
                 active={isActive}
-                onClick={() => onFocusService(pane.id, svc.name)}
+                onClick={(e) => {
+                  onFocusService(pane.id, svc.name);
+                  scrollTabIntoView(e.currentTarget);
+                }}
               />
             );
           })}
@@ -275,10 +314,11 @@ function PaneViewImpl(props: PaneViewProps) {
                     done={!isActive && isDone}
                     waiting={isWaiting}
                     error={!isActive && isError}
-                    onClick={() => {
+                    onClick={(e) => {
                       if (isDone) onClearStatus(t.id, "Done");
                       if (isError) onClearStatus(t.id, "Error");
                       onFocusTab(pane.id, i);
+                      scrollTabIntoView(e.currentTarget);
                     }}
                     onClose={() => onCloseTerminal(pane.id, i)}
                     onContextMenu={(e) => {

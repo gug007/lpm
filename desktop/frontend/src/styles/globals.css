@@ -214,6 +214,17 @@ body {
   will-change: transform;
 }
 
+/* The terminal tab strip scrolls horizontally but uses fade gradients as the
+   affordance; the native bar would otherwise overlap the short tab row and
+   swallow clicks on the tabs underneath it. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lpm-actions-overlay {
     will-change: auto;
