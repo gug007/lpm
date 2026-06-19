@@ -901,11 +901,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         onRenameLabel={(value) => {
           if (renamingName) onRenameProject(renamingName, value);
         }}
-        onMoveFolder={(newRoot) =>
-          renamingName
-            ? onMoveProjectRoot(renamingName, newRoot)
-            : Promise.resolve()
-        }
+        onMoveFolder={(newRoot) => onMoveProjectRoot(renamingName!, newRoot)}
       />
       <RenameModal
         open={renamingGroupId !== null}

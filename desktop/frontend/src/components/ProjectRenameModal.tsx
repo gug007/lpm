@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Modal } from "./ui/Modal";
-import { AlertCircleIcon, ChevronRightIcon, FolderIcon } from "./icons";
+import { ChevronRightIcon, FolderIcon } from "./icons";
 import { BrowseFolder } from "../../bridge/commands";
 import { modalInputDefaults } from "../forms/styles";
 
@@ -30,6 +30,7 @@ export function ProjectRenameModal({
   const [root, setRoot] = useState(currentRoot);
   const [submitting, setSubmitting] = useState(false);
   const labelRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -38,12 +39,20 @@ export function ProjectRenameModal({
     setRoot(currentRoot);
     setSubmitting(false);
     requestAnimationFrame(() => {
-      const el = labelRef.current;
-      if (!el) return;
-      el.focus();
-      el.select();
+      labelRef.current?.focus();
+      labelRef.current?.select();
     });
   }, [open, displayName, currentRoot]);
+
+  useEffect(() => {
+    if (!expanded) return;
+    requestAnimationFrame(() => {
+      const el = rootRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(currentRoot.lastIndexOf("/") + 1, currentRoot.length);
+    });
+  }, [expanded, currentRoot]);
 
   const labelTrim = label.trim();
   const labelChanged = labelTrim.length > 0 && labelTrim !== displayName.trim();
@@ -86,15 +95,12 @@ export function ProjectRenameModal({
       open={open}
       onClose={onClose}
       zIndexClassName="z-[60]"
-      contentClassName="w-[400px] rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] p-5 shadow-2xl"
+      contentClassName="w-[380px] rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] p-5 shadow-2xl"
     >
       <form onSubmit={handleSubmit} noValidate>
         <h3 className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-          Rename project
+          Rename project label
         </h3>
-        <p className="mt-1.5 text-[12px] leading-snug text-[var(--text-muted)]">
-          Sets a display label. The folder on disk isn't renamed unless you choose to below.
-        </p>
         <input
           ref={labelRef}
           value={label}
@@ -104,14 +110,14 @@ export function ProjectRenameModal({
         />
 
         {canRenameFolder && (
-          <div className="mt-4 border-t border-[var(--border)] pt-3">
+          <div className="mt-3">
             <button
               type="button"
               onClick={() => setExpanded((v) => !v)}
-              className="flex w-full items-center gap-1.5 text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-secondary)]"
+              className="flex items-center gap-1 text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-secondary)]"
             >
               <span
-                className={`flex items-center transition-transform [&>svg]:h-3.5 [&>svg]:w-3.5 ${
+                className={`flex items-center transition-transform [&>svg]:h-3 [&>svg]:w-3 ${
                   expanded ? "rotate-90" : ""
                 }`}
               >
@@ -122,24 +128,19 @@ export function ProjectRenameModal({
 
             {expanded &&
               (folderBusy ? (
-                <p className="mt-2 text-[11px] leading-snug text-[var(--text-muted)]">
+                <p className="mt-2 pl-4 text-[11px] leading-snug text-[var(--text-muted)]">
                   Stop the project and close its terminals to rename its folder.
                 </p>
               ) : (
                 <div className="mt-2">
-                  <p
-                    className="truncate rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-[11px] text-[var(--text-muted)]"
-                    title={currentRoot}
-                  >
-                    {currentRoot}
-                  </p>
-                  <div className="relative mt-2">
+                  <div className="relative">
                     <input
+                      ref={rootRef}
                       value={root}
                       onChange={(e) => setRoot(e.target.value)}
                       {...modalInputDefaults}
-                      placeholder="New folder location"
-                      className="w-full rounded-lg border border-[var(--border)] bg-transparent py-2 pl-3 pr-10 text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
+                      placeholder="Folder location"
+                      className="w-full rounded-lg border border-[var(--border)] bg-transparent py-2 pl-3 pr-9 font-mono text-[12px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
                     />
                     <button
                       type="button"
@@ -150,12 +151,9 @@ export function ProjectRenameModal({
                       <FolderIcon />
                     </button>
                   </div>
-                  <div className="mt-2 flex items-start gap-2 rounded-lg bg-[var(--accent-red)]/10 px-3 py-2 text-[11px] leading-snug text-[var(--text-secondary)]">
-                    <span className="mt-px shrink-0 text-[var(--accent-red)] [&>svg]:h-4 [&>svg]:w-4">
-                      <AlertCircleIcon />
-                    </span>
-                    <span>This moves the actual folder on your computer.</span>
-                  </div>
+                  <p className="mt-1.5 pl-0.5 text-[11px] text-[var(--text-muted)]">
+                    Moves the folder on your computer.
+                  </p>
                 </div>
               ))}
           </div>

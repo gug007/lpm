@@ -495,15 +495,6 @@ fn move_dir(from: &Path, to: &Path) -> Result<(), String> {
     }
 }
 
-fn strip_trailing_slash(p: &str) -> &str {
-    let trimmed = p.trim_end_matches('/');
-    if trimmed.is_empty() {
-        "/"
-    } else {
-        trimmed
-    }
-}
-
 /// Validate a user-supplied move destination and return the $HOME-expanded
 /// absolute path. `old_expanded` is the project's current root.
 fn resolve_destination(old_expanded: &str, new_root: &str) -> Result<String, String> {
@@ -522,7 +513,7 @@ fn resolve_destination(old_expanded: &str, new_root: &str) -> Result<String, Str
     {
         return Err("The path can't contain \"..\".".into());
     }
-    if strip_trailing_slash(&dest_expanded) == strip_trailing_slash(old_expanded) {
+    if dest_expanded.trim_end_matches('/') == old_expanded.trim_end_matches('/') {
         return Err("The folder is already at that location.".into());
     }
 
@@ -571,7 +562,7 @@ fn rewrite_project_root(name: &str, dest_expanded: &str) -> Result<(), String> {
 /// Move/rename a local project's on-disk folder and repoint its config at the
 /// new location. Refuses remote projects and anything currently in use.
 #[tauri::command(async)]
-pub fn set_project_root(
+pub fn move_project_root(
     app: AppHandle,
     pty: State<'_, crate::pty::PtyState>,
     name: String,
