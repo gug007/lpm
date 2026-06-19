@@ -3,6 +3,7 @@ import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
 import { ContextMenuSubmenu } from "./ui/ContextMenuSubmenu";
+import { ProjectGitSubmenu } from "./ProjectGitSubmenu";
 import { launchOpenInTarget, primaryOpenInTarget, useOpenInTargets } from "../hooks/useOpenInTargets";
 import type { ProjectGroup } from "../types";
 
@@ -23,6 +24,10 @@ interface ProjectContextMenuProps {
   onDetach: () => void;
   onAttach: () => void;
   onSelect: () => void;
+  onGitCommit: () => void;
+  onGitCreatePR: () => void;
+  onGitSwitchBranch: () => void;
+  onGitDiscardAll: () => void;
   onMoveToGroup: (groupId: string | null) => void;
   onCreateGroupWith: () => void;
   onRemove: () => void;
@@ -46,6 +51,10 @@ export function ProjectContextMenu({
   onDetach,
   onAttach,
   onSelect,
+  onGitCommit,
+  onGitCreatePR,
+  onGitSwitchBranch,
+  onGitDiscardAll,
   onMoveToGroup,
   onCreateGroupWith,
   onRemove,
@@ -60,27 +69,6 @@ export function ProjectContextMenu({
 
   return (
     <ContextMenuShell x={x} y={y} minWidth={180} onClose={onClose}>
-      <ContextMenuItem label="Rename" icon={<PencilIcon />} onClick={close(onRename)} />
-      <ContextMenuItem
-        label="Duplicate"
-        icon={<CopyIcon />}
-        onClick={close(onBulkDuplicate)}
-        disabled={duplicateDisabled}
-      />
-      <ContextMenuItem label="Copy path" icon={<ClipboardIcon />} onClick={close(onCopyPath)} />
-      {isDetached ? (
-        <ContextMenuItem
-          label="Attach to main window"
-          icon={<DetachIcon />}
-          onClick={close(onAttach)}
-        />
-      ) : (
-        <ContextMenuItem
-          label="Detach to new window"
-          icon={<DetachIcon />}
-          onClick={close(onDetach)}
-        />
-      )}
       {projectPath && openInTargets.length > 0 && (
         <div className="group relative">
           <button
@@ -115,6 +103,35 @@ export function ProjectContextMenu({
             ))}
           </div>
         </div>
+      )}
+      <ProjectGitSubmenu
+        projectPath={projectPath}
+        onCommit={onGitCommit}
+        onCreatePR={onGitCreatePR}
+        onSwitchBranch={onGitSwitchBranch}
+        onDiscardAll={onGitDiscardAll}
+        onClose={onClose}
+      />
+      <ContextMenuItem label="Rename" icon={<PencilIcon />} onClick={close(onRename)} />
+      <ContextMenuItem
+        label="Duplicate"
+        icon={<CopyIcon />}
+        onClick={close(onBulkDuplicate)}
+        disabled={duplicateDisabled}
+      />
+      <ContextMenuItem label="Copy path" icon={<ClipboardIcon />} onClick={close(onCopyPath)} />
+      {isDetached ? (
+        <ContextMenuItem
+          label="Attach to main window"
+          icon={<DetachIcon />}
+          onClick={close(onAttach)}
+        />
+      ) : (
+        <ContextMenuItem
+          label="Detach to new window"
+          icon={<DetachIcon />}
+          onClick={close(onDetach)}
+        />
       )}
       <ContextMenuSubmenu label="Move to folder" icon={<FolderIcon />}>
         <ContextMenuItem label="New folder…" icon={<FolderIcon />} onClick={close(onCreateGroupWith)} />

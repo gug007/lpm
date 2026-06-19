@@ -300,6 +300,18 @@ export function resolveSidebarDrop(
   return moveTopLevel(layout, activeId, toIndex);
 }
 
+// The inclusive slice of `order` spanning `a`..`b`, regardless of which comes
+// first. Empty when either endpoint is absent (e.g. an anchor hidden inside a
+// collapsed folder). Used for shift-click range selection over the rendered
+// row order.
+export function rangeBetween(order: string[], a: string, b: string): string[] {
+  const i = order.indexOf(a);
+  const j = order.indexOf(b);
+  if (i === -1 || j === -1) return [];
+  const [lo, hi] = i <= j ? [i, j] : [j, i];
+  return order.slice(lo, hi + 1);
+}
+
 // True when the two layouts are structurally identical (used to skip no-op
 // persists). Cheap deep-equal over the known shape.
 export function layoutsEqual(a: SidebarLayout, b: SidebarLayout): boolean {

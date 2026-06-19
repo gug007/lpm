@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronRightIcon } from "../icons";
 import { ContextMenuItem } from "./ContextMenuItem";
 import { MENU_PANEL_CLASS } from "./ContextMenuShell";
@@ -25,8 +25,11 @@ export function ContextMenuSubmenu({ label, icon, disabled, children }: ContextM
 
   useEffect(() => () => window.clearTimeout(closeTimer.current), []);
 
-  useLayoutEffect(() => {
-    if (!open) return;
+  // Position the panel beside its row, flipping to the left and shifting up
+  // when it would otherwise spill past the viewport edges. The panel never
+  // climbs above the top margin; if it is taller than the viewport its own
+  // max-height + scroll keeps every row reachable.
+  const reposition = useCallback(() => {
     const wrapper = wrapperRef.current;
     const panel = panelRef.current;
     if (!wrapper || !panel) return;
@@ -37,11 +40,25 @@ export function ContextMenuSubmenu({ label, icon, disabled, children }: ContextM
     const side = overflowsRight && fitsLeft ? "left" : "right";
     const desiredTop = w.top + PANEL_PADDING_OFFSET;
     const maxTop = window.innerHeight - VIEWPORT_MARGIN - p.height;
-    const shiftY = Math.min(desiredTop, maxTop) - w.top;
+    const top = Math.max(VIEWPORT_MARGIN, Math.min(desiredTop, maxTop));
+    const shiftY = top - w.top;
     setPlacement((prev) =>
       prev.side === side && prev.shiftY === shiftY ? prev : { side, shiftY },
     );
-  }, [open]);
+  }, []);
+
+  // Re-measure whenever the open panel changes size — its content can load
+  // asynchronously (e.g. the Git submenu), growing the panel after the first
+  // measurement and pushing rows off-screen if we positioned it only once.
+  useLayoutEffect(() => {
+    if (!open) return;
+    reposition();
+    const panel = panelRef.current;
+    if (!panel) return;
+    const ro = new ResizeObserver(() => reposition());
+    ro.observe(panel);
+    return () => ro.disconnect();
+  }, [open, reposition]);
 
   return (
     <div
@@ -67,9 +84,10 @@ export function ContextMenuSubmenu({ label, icon, disabled, children }: ContextM
       {open && (
         <div
           ref={panelRef}
-          className={`absolute z-50 min-w-[120px] ${MENU_PANEL_CLASS}`}
+          className={`absolute z-50 min-w-[120px] overflow-y-auto ${MENU_PANEL_CLASS}`}
           style={{
             top: placement.shiftY,
+            maxHeight: `calc(100vh - ${2 * VIEWPORT_MARGIN}px)`,
             ...(placement.side === "right" ? { left: "100%" } : { right: "100%" }),
           }}
         >

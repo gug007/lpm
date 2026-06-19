@@ -30,6 +30,7 @@ import {
   groupIdOf,
   groupToken,
   membershipMap,
+  rangeBetween,
   resolveSidebarDrop,
 } from "./sidebarLayout";
 import { SidebarGroupRow } from "./SidebarGroupRow";
@@ -38,6 +39,7 @@ import { FolderDropZone } from "./FolderDropZone";
 import { useSidebarResize } from "../hooks/useSidebarResize";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { ProjectContextMenu } from "./ProjectContextMenu";
+import { ProjectGitModals, type GitModalTarget } from "./ProjectGitModals";
 import { BulkDuplicateDialog, type BulkDuplicateOptions } from "./BulkDuplicateDialog";
 import { ProjectNameDisplay, projectDisplayName } from "./ProjectNameDisplay";
 import { RenameModal } from "./RenameModal";
@@ -133,8 +135,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // seeded with a project to drop into the new folder.
   const [createFolder, setCreateFolder] = useState<{ initialMember?: string } | null>(null);
   const [bulkDuplicateName, setBulkDuplicateName] = useState<string | null>(null);
+  const [gitModal, setGitModal] = useState<GitModalTarget | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
+  // Anchor row for shift-click range selection; range spans anchor → clicked.
+  const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
   const [confirmBatch, setConfirmBatch] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const { width, handleResizeStart } = useSidebarResize();
@@ -146,6 +151,12 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const contextProject = contextMenu
     ? projects.find((p) => p.name === contextMenu.name)
     : null;
+
+  const openGitModal = (kind: GitModalTarget["kind"]) => {
+    if (contextProject?.root && contextMenu) {
+      setGitModal({ name: contextMenu.name, path: contextProject.root, kind });
+    }
+  };
 
   // Build the rendered tree from projects + folders + the interleaved order.
   // Duplicates ride immediately after their parent; brand-new projects not yet
@@ -221,6 +232,14 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     return { items: out, sortableIds: ids, projectByName: byName, memberOf: membership };
   }, [projects, groups, sidebarOrder]);
 
+  // Project names in rendered top-to-bottom order — the axis a shift-click
+  // range is measured along. Collapsed-folder members aren't rendered, so they
+  // fall outside any range, matching what the user can actually see.
+  const visualProjectNames = useMemo(
+    () => items.flatMap((it) => (it.kind === "project" ? [it.project.name] : [])),
+    [items],
+  );
+
   // Leaving select mode (or running out of projects) clears the pending
   // selection; deleting projects drops their now-stale names from the set.
   useEffect(() => {
@@ -260,11 +279,13 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
 
   const enterSelectMode = (preselect?: string) => {
     setSelectedForDelete(preselect ? new Set([preselect]) : new Set());
+    setSelectionAnchor(preselect ?? null);
     setSelectMode(true);
   };
   const exitSelectMode = () => {
     setSelectMode(false);
     setSelectedForDelete(new Set());
+    setSelectionAnchor(null);
   };
   const toggleSelected = (name: string) =>
     setSelectedForDelete((prev) => {
@@ -273,6 +294,33 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       else next.add(name);
       return next;
     });
+
+  // Clicking a project row. Shift-click selects the inclusive range from the
+  // anchor (the last row clicked) to the clicked row, entering select mode and
+  // adding to whatever is selected. A plain click navigates, or toggles one row
+  // when already in select mode. The anchor tracks the last row the user
+  // actually clicked rather than the open project — they diverge for detached
+  // rows (which only focus a window) and across non-project views.
+  const handleRowClick = (name: string, e: React.MouseEvent) => {
+    if (e.shiftKey) {
+      const anchor = selectionAnchor ?? name;
+      const range = rangeBetween(visualProjectNames, anchor, name);
+      const add = range.length > 0 ? range : [name];
+      setSelectedForDelete((prev) => new Set([...prev, ...add]));
+      if (!selectMode) setSelectMode(true);
+      // Keep extending from the original anchor across shift-clicks, but
+      // re-seed to the clicked row once that anchor is gone (e.g. its project
+      // was removed) so range selection can't get stuck.
+      setSelectionAnchor((prev) => (prev && visualProjectNames.includes(prev) ? prev : name));
+      return;
+    }
+    if (selectMode) {
+      toggleSelected(name);
+    } else {
+      onSelect(name);
+    }
+    setSelectionAnchor(name);
+  };
 
   // Escape leaves select mode, but only when no menu is open (the open menu's
   // own Escape handler closes it first).
@@ -473,11 +521,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     return (
       <div className="group relative">
         <button
-          onClick={
-            selectMode
-              ? () => toggleSelected(project.name)
-              : () => onSelect(project.name)
-          }
+          onClick={(e) => handleRowClick(project.name, e)}
           onDoubleClick={
             selectMode
               ? undefined
@@ -711,6 +755,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             onDetach={() => onDetachProject(contextMenu.name)}
             onAttach={() => onAttachProject(contextMenu.name)}
             onSelect={() => enterSelectMode(contextMenu.name)}
+            onGitCommit={() => openGitModal("commit")}
+            onGitCreatePR={() => openGitModal("pr")}
+            onGitSwitchBranch={() => openGitModal("switch")}
+            onGitDiscardAll={() => openGitModal("discard")}
             onMoveToGroup={(groupId) => onMoveProjectToGroup(contextMenu.name, groupId)}
             onCreateGroupWith={() => setCreateFolder({ initialMember: contextMenu.name })}
             onRemove={() => setConfirmRemove(contextMenu.name)}
@@ -846,6 +894,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           onCreateGroup(value, createFolder?.initialMember ? { initialMember: createFolder.initialMember } : undefined);
         }}
       />
+      <ProjectGitModals target={gitModal} onClose={() => setGitModal(null)} />
 
       {updateInfo && (
         <button

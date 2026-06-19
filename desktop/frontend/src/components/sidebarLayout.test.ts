@@ -20,6 +20,7 @@ import {
   reconcile,
   layoutsEqual,
   classify,
+  rangeBetween,
   resolveSidebarDrop,
 } from "./sidebarLayout";
 
@@ -290,5 +291,30 @@ describe("resolveSidebarDrop", () => {
 
   it("ignores no-op self drops", () => {
     expect(resolveSidebarDrop(sample(), "api", "api")).toBeNull();
+  });
+});
+
+describe("rangeBetween", () => {
+  const order = ["a", "b", "c", "d", "e", "f"];
+
+  it("returns the inclusive forward span", () => {
+    expect(rangeBetween(order, "b", "e")).toEqual(["b", "c", "d", "e"]);
+  });
+
+  it("is order-independent (backward span matches forward)", () => {
+    expect(rangeBetween(order, "e", "b")).toEqual(["b", "c", "d", "e"]);
+  });
+
+  it("returns a single element when endpoints match", () => {
+    expect(rangeBetween(order, "c", "c")).toEqual(["c"]);
+  });
+
+  it("spans the full list", () => {
+    expect(rangeBetween(order, "a", "f")).toEqual(order);
+  });
+
+  it("returns empty when an endpoint is absent", () => {
+    expect(rangeBetween(order, "a", "z")).toEqual([]);
+    expect(rangeBetween(order, "z", "a")).toEqual([]);
   });
 });

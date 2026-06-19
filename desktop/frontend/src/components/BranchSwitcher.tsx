@@ -22,7 +22,7 @@ import { MergeBranchDialog } from "./MergeBranchDialog";
 import { PRModal } from "./PRModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { BranchIcon, ChevronLeftIcon, CloudBranchIcon, CopyIcon, PencilIcon, TrashIcon, UndoIcon } from "./icons";
-import { branchKey, branchMatches, RemoteBadge } from "./branchUtils";
+import { branchKey, orderBranches, RemoteBadge } from "./branchUtils";
 import { relativeTime } from "../relativeTime";
 
 const PULL_STRATEGIES: { value: GitPullStrategy; label: string }[] = [
@@ -93,19 +93,10 @@ export function BranchSwitcher({ projectName, projectPath, gitState }: {
   }, [open, creating]);
 
   const current = status?.branch ?? "";
-  const filtered = useMemo(() => {
-    const base = !query
-      ? branches
-      : searchResults !== null
-        ? searchResults
-        // Fallback during the debounce window: filter the cached recent list.
-        : branches.filter((b) => branchMatches(b, query));
-    const rank = (b: main.Branch) =>
-      b.name === current && !b.remote ? 0 : b.remote ? 2 : 1;
-    // Relies on Array.prototype.sort being stable, so committer-date order
-    // from the backend is preserved within each rank group.
-    return [...base].sort((a, b) => rank(a) - rank(b));
-  }, [branches, query, searchResults, current]);
+  const filtered = useMemo(
+    () => orderBranches(branches, query, searchResults, current),
+    [branches, query, searchResults, current],
+  );
 
   if (!status?.isGitRepo) return null;
 
