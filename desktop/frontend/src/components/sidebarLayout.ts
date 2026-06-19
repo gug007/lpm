@@ -1,4 +1,4 @@
-import type { ProjectGroup } from "../types";
+import type { ProjectGroup, ProjectInfo } from "../types";
 import { arrayEq } from "./actionsDndLayout";
 
 // Pure model + move math for the sidebar's interleaved folders/projects list.
@@ -148,6 +148,76 @@ export function removeGroup(layout: SidebarLayout, groupId: string): SidebarLayo
   if (pos >= 0) order.splice(pos, 1, ...g.members);
   else order.push(...g.members);
   return { order, groups: layout.groups.filter((x) => x.id !== groupId) };
+}
+
+// Expand seed names to the full set a removal touches: each seed plus the
+// duplicates of any original seed (deleting an original takes its copies too).
+// Shared by the batch select delete, the folder delete dialog, and the store's
+// deleteGroup so the dialog and the actual deletion always agree.
+export function expandRemovalSet(
+  projects: ProjectInfo[],
+  byName: Map<string, ProjectInfo>,
+  seeds: Iterable<string>,
+): ProjectInfo[] {
+  const names = new Set<string>();
+  for (const seed of seeds) {
+    const p = byName.get(seed);
+    if (!p) continue;
+    names.add(seed);
+    if (!p.parentName) {
+      for (const proj of projects) {
+        if (proj.parentName === seed) names.add(proj.name);
+      }
+    }
+  }
+  return projects.filter((p) => names.has(p.name));
+}
+
+// Where a project sits at the top level: its own slot if loose, else its
+// folder's token slot, else order.length (no slot) for a nested duplicate.
+export function topLevelIndexOfProject(layout: SidebarLayout, name: string): number {
+  const direct = layout.order.indexOf(name);
+  if (direct >= 0) return direct;
+  const gid = membershipMap(layout.groups).get(name);
+  if (gid) {
+    const ti = layout.order.indexOf(groupToken(gid));
+    if (ti >= 0) return ti;
+  }
+  return layout.order.length;
+}
+
+// Top-level slot a new folder should take so it lands where its seed visually
+// sat. A nested duplicate has no top-level slot of its own, so anchor it to its
+// parent's slot — keeping the folder next to the original instead of at the end.
+export function projectAnchorIndex(
+  layout: SidebarLayout,
+  byName: Map<string, ProjectInfo>,
+  name: string,
+): number {
+  const direct = topLevelIndexOfProject(layout, name);
+  if (direct !== layout.order.length) return direct;
+  const parent = byName.get(name)?.parentName;
+  return parent ? topLevelIndexOfProject(layout, parent) : direct;
+}
+
+// Index within a folder's members at which to drop a duplicate so it keeps its
+// spot right after its parent (and any siblings already placed). Returns
+// undefined — append at the end — when the parent isn't in the target folder.
+export function dupInsertIndex(
+  layout: SidebarLayout,
+  byName: Map<string, ProjectInfo>,
+  name: string,
+  groupId: string,
+): number | undefined {
+  const parentName = byName.get(name)?.parentName;
+  if (!parentName) return undefined;
+  const group = layout.groups.find((g) => g.id === groupId);
+  if (!group) return undefined;
+  const parentIdx = group.members.indexOf(parentName);
+  if (parentIdx < 0) return undefined;
+  let i = parentIdx + 1;
+  while (i < group.members.length && byName.get(group.members[i])?.parentName === parentName) i++;
+  return i;
 }
 
 export function renameGroup(layout: SidebarLayout, groupId: string, name: string): SidebarLayout {

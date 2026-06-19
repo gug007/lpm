@@ -50,8 +50,11 @@ import {
   moveIntoGroup,
   moveOutOfGroup,
   membershipMap,
-  groupToken,
   flattenForProjectOrder,
+  expandRemovalSet,
+  topLevelIndexOfProject,
+  projectAnchorIndex,
+  dupInsertIndex,
   reconcile,
   layoutsEqual,
 } from "../components/sidebarLayout";
@@ -189,13 +192,14 @@ interface AppState {
   consumeSpawnTasks: (name: string) => void;
   removeProject: (name: string) => Promise<void>;
   removeProjectCascade: (name: string) => Promise<void>;
-  removeProjectsBatch: (names: string[]) => Promise<void>;
+  removeProjectsBatch: (names: string[]) => Promise<string[]>;
   renameProject: (name: string, label: string) => Promise<void>;
-  createGroup: (name: string, opts?: { initialMember?: string }) => Promise<void>;
+  createGroup: (name: string, opts?: { initialMembers?: string[] }) => Promise<void>;
   renameGroup: (id: string, name: string) => Promise<void>;
   deleteGroup: (id: string) => Promise<void>;
   toggleGroupCollapsed: (id: string) => Promise<void>;
   moveProjectToGroup: (name: string, groupId: string | null) => Promise<void>;
+  moveProjectsToGroup: (names: string[], groupId: string | null) => Promise<void>;
   // Commit a full sidebar layout (on DnD drop): persists folders + order.
   applySidebarLayout: (layout: SidebarLayout) => Promise<void>;
   // Drop stale entries + append new projects after a project list refresh.
@@ -472,6 +476,9 @@ async function runProjectRemoval(
   }
 }
 
+const projectsByName = (projects: ProjectInfo[]): Map<string, ProjectInfo> =>
+  new Map(projects.map((p) => [p.name, p]));
+
 // Names of top-level (non-duplicate) projects — the only names that ever
 // appear in `sidebarOrder` or a folder's `members`. A project is a duplicate
 // when its parent exists in the list (mirrors Sidebar's `isChild`).
@@ -485,19 +492,6 @@ function topLevelProjectNames(projects: ProjectInfo[]): string[] {
 // Unknown names -> none.
 function resolveMemberName(projects: ProjectInfo[], name: string): string | undefined {
   return projects.some((p) => p.name === name) ? name : undefined;
-}
-
-// Where a project sits at the top level: its own slot if loose, else its
-// folder's token slot. Used to drop a new folder where its seed project was.
-function topLevelIndexOfProject(layout: SidebarLayout, name: string): number {
-  const direct = layout.order.indexOf(name);
-  if (direct >= 0) return direct;
-  const gid = membershipMap(layout.groups).get(name);
-  if (gid) {
-    const ti = layout.order.indexOf(groupToken(gid));
-    if (ti >= 0) return ti;
-  }
-  return layout.order.length;
 }
 
 // Folders -> groups.json; order -> settings (sidebarOrder + the flattened
@@ -941,9 +935,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       () => RemoveProjectCascade(name),
     ),
 
+  // Returns the names actually removed, so callers (e.g. deleteGroup) can tell a
+  // partial/no-op run from a complete one.
   removeProjectsBatch: async (names) => {
     if (names.length === 0 || names.some((n) => get().removingNames.has(n)))
-      return;
+      return [];
     set((s) => ({ removingNames: withAdded(s.removingNames, names) }));
     try {
       const failed: string[] = (await RemoveProjects(names)) || [];
@@ -962,8 +958,10 @@ export const useAppStore = create<AppState>((set, get) => ({
             : `Failed to remove ${failed.length} ${plural(failed.length)}`,
         );
       }
+      return removed;
     } catch (err) {
       toast.error(`Failed to remove projects: ${err}`);
+      return [];
     } finally {
       set((s) => ({ removingNames: withRemoved(s.removingNames, names) }));
     }
@@ -1015,13 +1013,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   createGroup: async (name, opts = {}) => {
     const trimmed = name.trim() || "New Folder";
     const id = crypto.randomUUID();
+    const projects = get().projects;
+    const byName = projectsByName(projects);
     const current: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
-    const seed = opts.initialMember
-      ? resolveMemberName(get().projects, opts.initialMember)
-      : undefined;
-    const atIndex = seed ? topLevelIndexOfProject(current, seed) : undefined;
+    const seeds = (opts.initialMembers ?? [])
+      .map((n) => resolveMemberName(projects, n))
+      .filter((n): n is string => Boolean(n));
+    // Drop the new folder where its first seed sat so it keeps its place
+    // instead of landing at the end of the list.
+    const atIndex = seeds.length ? projectAnchorIndex(current, byName, seeds[0]) : undefined;
     let next = addGroupToLayout(current, { id, name: trimmed, members: [] }, atIndex);
-    if (seed) next = moveIntoGroup(next, seed, id);
+    for (const seed of seeds) next = moveIntoGroup(next, seed, id);
     await get().applySidebarLayout(next);
   },
 
@@ -1032,7 +1034,22 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().applySidebarLayout(renameGroupInLayout(current, id, trimmed));
   },
 
+  // Deleting a folder deletes everything inside it: each member, plus the
+  // duplicates of any member original (a duplicate's copy is removed from disk,
+  // an original only loses its lpm entry). The now-empty folder is then dropped.
   deleteGroup: async (id) => {
+    const group = get().groups.find((g) => g.id === id);
+    if (!group) return;
+    const projects = get().projects;
+    const byName = projectsByName(projects);
+    const names = expandRemovalSet(projects, byName, group.members).map((p) => p.name);
+    if (names.length > 0) {
+      const removed = await get().removeProjectsBatch(names);
+      // A partial/no-op removal (e.g. a member was mid-delete) would leave
+      // survivors behind; keep the folder so its contents stay visible rather
+      // than silently spilling un-deleted projects to the top level.
+      if (removed.length < names.length) return;
+    }
     const current: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
     await get().applySidebarLayout(removeGroupFromLayout(current, id));
   },
@@ -1045,14 +1062,29 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   moveProjectToGroup: async (name, groupId) => {
-    const target = resolveMemberName(get().projects, name);
-    if (!target) return;
-    const current: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
-    const next =
-      groupId === null
-        ? moveOutOfGroup(current, target, current.order.length)
-        : moveIntoGroup(current, target, groupId);
-    await get().applySidebarLayout(next);
+    await get().moveProjectsToGroup([name], groupId);
+  },
+
+  moveProjectsToGroup: async (names, groupId) => {
+    const projects = get().projects;
+    const byName = projectsByName(projects);
+    let layout: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
+    const membership = membershipMap(layout.groups);
+    let changed = false;
+    for (const name of names) {
+      const target = resolveMemberName(projects, name);
+      if (!target) continue;
+      if (groupId === null) {
+        // Only true folder members move out; a loose project would otherwise be
+        // detached and re-appended at the end, losing its position.
+        if (!membership.has(target)) continue;
+        layout = moveOutOfGroup(layout, target, layout.order.length);
+      } else {
+        layout = moveIntoGroup(layout, target, groupId, dupInsertIndex(layout, byName, target, groupId));
+      }
+      changed = true;
+    }
+    if (changed) await get().applySidebarLayout(layout);
   },
 
   refreshDetached: async () => {

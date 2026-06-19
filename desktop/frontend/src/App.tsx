@@ -67,6 +67,7 @@ export default function App() {
   const deleteGroup = useAppStore((s) => s.deleteGroup);
   const toggleGroupCollapsed = useAppStore((s) => s.toggleGroupCollapsed);
   const moveProjectToGroup = useAppStore((s) => s.moveProjectToGroup);
+  const moveProjectsToGroup = useAppStore((s) => s.moveProjectsToGroup);
   const detachProject = useAppStore((s) => s.detachProject);
   const attachProject = useAppStore((s) => s.attachProject);
   const focusDetachedProject = useAppStore((s) => s.focusDetachedProject);
@@ -197,6 +198,7 @@ export default function App() {
           onDeleteGroup={deleteGroup}
           onToggleGroupCollapsed={toggleGroupCollapsed}
           onMoveProjectToGroup={moveProjectToGroup}
+          onMoveProjectsToGroup={moveProjectsToGroup}
           onDetachProject={detachProject}
           onAttachProject={attachProject}
           detached={detached}

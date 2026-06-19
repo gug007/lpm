@@ -45,6 +45,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
   const deleteGroup = useAppStore((s) => s.deleteGroup);
   const toggleGroupCollapsed = useAppStore((s) => s.toggleGroupCollapsed);
   const moveProjectToGroup = useAppStore((s) => s.moveProjectToGroup);
+  const moveProjectsToGroup = useAppStore((s) => s.moveProjectsToGroup);
   const detachProject = useAppStore((s) => s.detachProject);
   const attachProject = useAppStore((s) => s.attachProject);
   const focusDetachedProject = useAppStore((s) => s.focusDetachedProject);
@@ -117,6 +118,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
           onDeleteGroup={deleteGroup}
           onToggleGroupCollapsed={toggleGroupCollapsed}
           onMoveProjectToGroup={moveProjectToGroup}
+          onMoveProjectsToGroup={moveProjectsToGroup}
           onDetachProject={detachProject}
           onAttachProject={attachProject}
           detached={detached}

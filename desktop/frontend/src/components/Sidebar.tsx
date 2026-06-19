@@ -24,6 +24,7 @@ import {
   type SidebarLayout,
   classify,
   dropFolderTarget,
+  expandRemovalSet,
   folderBodyId,
   folderNestId,
   groupById,
@@ -44,6 +45,7 @@ import { BulkDuplicateDialog, type BulkDuplicateOptions } from "./BulkDuplicateD
 import { ProjectNameDisplay, projectDisplayName } from "./ProjectNameDisplay";
 import { RenameModal } from "./RenameModal";
 import { SelectionContextMenu } from "./SelectionContextMenu";
+import { RemovalSummary } from "./RemovalSummary";
 import { CheckboxBox } from "./ChangedFilesTree";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Tooltip } from "./ui/Tooltip";
@@ -72,11 +74,12 @@ interface SidebarProps {
   onRemoveProjectsBatch: (names: string[]) => void;
   onRenameProject: (name: string, label: string) => void;
   onApplySidebarLayout: (layout: SidebarLayout) => void;
-  onCreateGroup: (name: string, opts?: { initialMember?: string }) => void;
+  onCreateGroup: (name: string, opts?: { initialMembers?: string[] }) => void;
   onRenameGroup: (id: string, name: string) => void;
   onDeleteGroup: (id: string) => void;
   onToggleGroupCollapsed: (id: string) => void;
   onMoveProjectToGroup: (name: string, groupId: string | null) => void;
+  onMoveProjectsToGroup: (names: string[], groupId: string | null) => void;
   onDetachProject: (name: string) => void;
   onAttachProject: (name: string) => void;
   detached: Set<string>;
@@ -119,7 +122,7 @@ type TreeItem =
   | { kind: "project"; project: ProjectInfo; isChild: boolean }
   | { kind: "empty"; group: ProjectGroup };
 
-export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectsBatch, onRenameProject, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showSettings, duplicatingNames, removingNames }: SidebarProps) {
+export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectsBatch, onRenameProject, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showSettings, duplicatingNames, removingNames }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -133,7 +136,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
   // null = closed; otherwise the create-folder modal is open, optionally
   // seeded with a project to drop into the new folder.
-  const [createFolder, setCreateFolder] = useState<{ initialMember?: string } | null>(null);
+  const [createFolder, setCreateFolder] = useState<{ initialMembers?: string[] } | null>(null);
   const [bulkDuplicateName, setBulkDuplicateName] = useState<string | null>(null);
   const [gitModal, setGitModal] = useState<GitModalTarget | null>(null);
   const [selectMode, setSelectMode] = useState(false);
@@ -257,23 +260,14 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
 
   // Removing an original also removes its duplicates (matching the single
   // cascade delete), so expand the pending set before partitioning.
-  const removalProjects = useMemo(() => {
-    const names = new Set(selectedForDelete);
-    for (const name of selectedForDelete) {
-      const p = projectByName.get(name);
-      if (p && !p.parentName) {
-        for (const proj of projects) {
-          if (proj.parentName === name) names.add(proj.name);
-        }
-      }
-    }
-    return projects.filter((p) => names.has(p.name));
-  }, [selectedForDelete, projects, projectByName]);
+  const removalProjects = useMemo(
+    () => expandRemovalSet(projects, projectByName, selectedForDelete),
+    [selectedForDelete, projects, projectByName],
+  );
 
-  // Duplicates have their folder deleted from disk; regular projects only lose
-  // their lpm entry (source folder stays), so their removal needs the same
-  // typed confirmation as the single delete flow.
-  const foldersDeleted = removalProjects.filter((p) => p.parentName);
+  // Originals only lose their lpm entry (source folder stays), so their removal
+  // needs the same typed confirmation as the single delete flow; duplicates
+  // (deleted from disk) need none.
   const entriesRemoved = removalProjects.filter((p) => !p.parentName);
   const batchConfirmNames = entriesRemoved.map((p) => projectDisplayName(p));
 
@@ -332,6 +326,24 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     : undefined;
   const renamingGroup = renamingGroupId ? groups.find((g) => g.id === renamingGroupId) : undefined;
   const deletingGroup = deletingGroupId ? groups.find((g) => g.id === deletingGroupId) : undefined;
+
+  // Deleting a folder deletes everything inside it, under the same rules as the
+  // batch/single delete: each original project requires typing its name, while
+  // duplicate copies are deleted from disk without confirmation.
+  const groupRemovalProjects = useMemo(
+    () => (deletingGroup ? expandRemovalSet(projects, projectByName, deletingGroup.members) : []),
+    [deletingGroup, projects, projectByName],
+  );
+  const groupConfirmNames = groupRemovalProjects
+    .filter((p) => !p.parentName)
+    .map((p) => projectDisplayName(p));
+  const groupRemovalCount = groupRemovalProjects.length;
+  const deleteFolderTitle =
+    groupRemovalCount === 0
+      ? "Delete folder"
+      : groupConfirmNames.length === 0
+      ? `Delete folder and ${groupRemovalCount} ${groupRemovalCount === 1 ? "copy" : "copies"}`
+      : `Delete folder and ${groupRemovalCount} ${groupRemovalCount === 1 ? "project" : "projects"}`;
 
   const pendingRemove = confirmRemove ? projectByName.get(confirmRemove) : undefined;
   const pendingRemoveParent = pendingRemove?.parentName
@@ -726,8 +738,19 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             y={contextMenu.y}
             count={selectedForDelete.size}
             busy={removingNames.size > 0}
+            groups={groups}
+            anyInGroup={[...selectedForDelete].some((n) => memberOf.has(n))}
             onDelete={() => {
               if (selectedForDelete.size > 0) setConfirmBatch(true);
+            }}
+            onMoveToGroup={(groupId) => {
+              const names = [...selectedForDelete];
+              if (names.length > 0) onMoveProjectsToGroup(names, groupId);
+              exitSelectMode();
+            }}
+            onCreateGroupWith={() => {
+              setCreateFolder({ initialMembers: [...selectedForDelete] });
+              exitSelectMode();
             }}
             onCancel={exitSelectMode}
             onClose={() => setContextMenu(null)}
@@ -760,7 +783,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             onGitSwitchBranch={() => openGitModal("switch")}
             onGitDiscardAll={() => openGitModal("discard")}
             onMoveToGroup={(groupId) => onMoveProjectToGroup(contextMenu.name, groupId)}
-            onCreateGroupWith={() => setCreateFolder({ initialMember: contextMenu.name })}
+            onCreateGroupWith={() => setCreateFolder({ initialMembers: [contextMenu.name] })}
             onRemove={() => setConfirmRemove(contextMenu.name)}
             onClose={() => setContextMenu(null)}
           />
@@ -790,16 +813,34 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       />
       <ConfirmDialog
         open={deletingGroup !== undefined}
-        title="Delete folder"
+        title={deleteFolderTitle}
+        variant={groupRemovalCount === 0 ? "default" : "destructive"}
         confirmLabel="Delete folder"
+        confirmText={groupConfirmNames.length > 0 ? groupConfirmNames : undefined}
         body={
-          <>
-            Delete the folder{" "}
-            <span className="font-medium text-[var(--text-primary)]">
-              {deletingGroup?.name}
-            </span>
-            ? Its projects move back out to the list — nothing is deleted from disk.
-          </>
+          groupRemovalCount === 0 ? (
+            <>
+              Delete the empty folder{" "}
+              <span className="font-medium text-[var(--text-primary)]">
+                {deletingGroup?.name}
+              </span>
+              ? Nothing else is removed.
+            </>
+          ) : (
+            <RemovalSummary
+              lead={
+                <>
+                  Deleting the folder{" "}
+                  <span className="font-medium text-[var(--text-primary)]">
+                    {deletingGroup?.name}
+                  </span>{" "}
+                  also deletes everything inside it:
+                </>
+              }
+              projects={groupRemovalProjects}
+              projectByName={projectByName}
+            />
+          )
         }
         onCancel={() => setDeletingGroupId(null)}
         onConfirm={() => {
@@ -818,33 +859,15 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         confirmLabel="Delete"
         confirmText={batchConfirmNames.length > 0 ? batchConfirmNames : undefined}
         body={
-          <>
-            {removalProjects.length === 1
-              ? "Delete this project?"
-              : `Delete these ${removalProjects.length} projects?`}
-            <ul className="mt-2 max-h-40 list-disc space-y-0.5 overflow-y-auto pl-5">
-              {removalProjects.map((p) => (
-                <li key={p.name} className="text-[var(--text-primary)]">
-                  {projectDisplayName(p, projectByName.get(p.parentName ?? ""))}
-                </li>
-              ))}
-            </ul>
-            {foldersDeleted.length > 0 && (
-              <span className="mt-2 block">
-                {foldersDeleted.length === 1
-                  ? "1 copy and everything inside is permanently deleted from disk."
-                  : `${foldersDeleted.length} copies and everything inside are permanently deleted from disk.`}{" "}
-                This can't be undone.
-              </span>
-            )}
-            {entriesRemoved.length > 0 && (
-              <span className="mt-2 block">
-                {entriesRemoved.length === 1
-                  ? "1 project is removed from lpm; its source folder stays on disk."
-                  : `${entriesRemoved.length} projects are removed from lpm; their source folders stay on disk.`}
-              </span>
-            )}
-          </>
+          <RemovalSummary
+            lead={
+              removalProjects.length === 1
+                ? "Delete this project?"
+                : `Delete these ${removalProjects.length} projects?`
+            }
+            projects={removalProjects}
+            projectByName={projectByName}
+          />
         }
         onCancel={() => setConfirmBatch(false)}
         onConfirm={() => {
@@ -891,7 +914,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         initialValue=""
         onClose={() => setCreateFolder(null)}
         onSubmit={(value) => {
-          onCreateGroup(value, createFolder?.initialMember ? { initialMember: createFolder.initialMember } : undefined);
+          onCreateGroup(
+            value,
+            createFolder?.initialMembers ? { initialMembers: createFolder.initialMembers } : undefined,
+          );
         }}
       />
       <ProjectGitModals target={gitModal} onClose={() => setGitModal(null)} />

@@ -1,8 +1,8 @@
-import { CheckSquareIcon, ChevronRightIcon, ClipboardIcon, CopyIcon, DetachIcon, FolderIcon, PencilIcon, TrashIcon } from "./icons";
+import { CheckSquareIcon, ChevronRightIcon, ClipboardIcon, CopyIcon, DetachIcon, PencilIcon, TrashIcon } from "./icons";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
-import { ContextMenuSubmenu } from "./ui/ContextMenuSubmenu";
+import { MoveToFolderSubmenu } from "./MoveToFolderSubmenu";
 import { ProjectGitSubmenu } from "./ProjectGitSubmenu";
 import { launchOpenInTarget, primaryOpenInTarget, useOpenInTargets } from "../hooks/useOpenInTargets";
 import type { ProjectGroup } from "../types";
@@ -133,24 +133,14 @@ export function ProjectContextMenu({
           onClick={close(onDetach)}
         />
       )}
-      <ContextMenuSubmenu label="Move to folder" icon={<FolderIcon />}>
-        <ContextMenuItem label="New folder…" icon={<FolderIcon />} onClick={close(onCreateGroupWith)} />
-        {(groups.length > 0 || currentGroupId) && <ContextMenuSeparator />}
-        {groups.map((g) => (
-          <ContextMenuItem
-            key={g.id}
-            label={g.name}
-            disabled={g.id === currentGroupId}
-            onClick={close(() => onMoveToGroup(g.id))}
-          />
-        ))}
-        {currentGroupId && (
-          <ContextMenuItem
-            label="Remove from folder"
-            onClick={close(() => onMoveToGroup(null))}
-          />
-        )}
-      </ContextMenuSubmenu>
+      <MoveToFolderSubmenu
+        groups={groups}
+        disabledGroupId={currentGroupId}
+        showRemove={Boolean(currentGroupId)}
+        onMoveToGroup={onMoveToGroup}
+        onCreateGroupWith={onCreateGroupWith}
+        onClose={onClose}
+      />
       {canSelect && (
         <ContextMenuItem
           label="Select"
