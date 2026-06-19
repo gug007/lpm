@@ -26,6 +26,7 @@ import {
   ListDetachedProjects,
   ListProjects,
   ListTemplates,
+  MoveProjectRoot,
   ReadConfig,
   RemoveProject,
   RemoveProjectCascade,
@@ -194,6 +195,7 @@ interface AppState {
   removeProjectCascade: (name: string) => Promise<void>;
   removeProjectsBatch: (names: string[]) => Promise<string[]>;
   renameProject: (name: string, label: string) => Promise<void>;
+  moveProjectRoot: (name: string, newRoot: string) => Promise<void>;
   createGroup: (name: string, opts?: { initialMembers?: string[] }) => Promise<void>;
   renameGroup: (id: string, name: string) => Promise<void>;
   deleteGroup: (id: string) => Promise<void>;
@@ -981,6 +983,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (err) {
       toast.error(`Failed to rename ${name}: ${err}`);
       await get().refreshProjects();
+    }
+  },
+
+  moveProjectRoot: async (name, newRoot) => {
+    try {
+      await MoveProjectRoot(name, newRoot);
+      await get().refreshProjects();
+    } catch (err) {
+      toast.error(`Failed to move ${name}: ${err}`);
+      throw err;
     }
   },
 

@@ -418,6 +418,9 @@ export function SearchBranches(cwd, query) {
 export function SetProjectLabel(name, label) {
   return invoke("set_project_label", { name, label });
 }
+export function MoveProjectRoot(name, newRoot) {
+  return invoke("set_project_root", { name, newRoot });
+}
 export function StartLogStreaming(projectName) {
   return invoke("start_log_streaming", { projectName });
 }

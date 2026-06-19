@@ -79,6 +79,17 @@ pub struct TerminalLaunch {
     pub resume_cmd: String,
 }
 
+/// True when the project still has at least one open terminal — used to refuse
+/// moving a project's folder out from under a live shell or agent.
+pub fn project_has_live_sessions(state: &PtyState, project_name: &str) -> bool {
+    state
+        .sessions
+        .lock()
+        .unwrap()
+        .values()
+        .any(|s| s.project_name == project_name && !*s.closed.read().unwrap())
+}
+
 fn lookup(state: &State<'_, PtyState>, id: &str) -> Result<Arc<PtySession>, String> {
     state
         .sessions

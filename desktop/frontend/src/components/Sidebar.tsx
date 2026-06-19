@@ -44,6 +44,7 @@ import { ProjectGitModals, type GitModalTarget } from "./ProjectGitModals";
 import { BulkDuplicateDialog, type BulkDuplicateOptions } from "./BulkDuplicateDialog";
 import { ProjectNameDisplay, projectDisplayName } from "./ProjectNameDisplay";
 import { RenameModal } from "./RenameModal";
+import { ProjectRenameModal } from "./ProjectRenameModal";
 import { SelectionContextMenu } from "./SelectionContextMenu";
 import { RemovalSummary } from "./RemovalSummary";
 import { CheckboxBox } from "./ChangedFilesTree";
@@ -73,6 +74,7 @@ interface SidebarProps {
   onRemoveProjectCascade: (name: string) => void;
   onRemoveProjectsBatch: (names: string[]) => void;
   onRenameProject: (name: string, label: string) => void;
+  onMoveProjectRoot: (name: string, newRoot: string) => Promise<void>;
   onApplySidebarLayout: (layout: SidebarLayout) => void;
   onCreateGroup: (name: string, opts?: { initialMembers?: string[] }) => void;
   onRenameGroup: (id: string, name: string) => void;
@@ -122,7 +124,7 @@ type TreeItem =
   | { kind: "project"; project: ProjectInfo; isChild: boolean }
   | { kind: "empty"; group: ProjectGroup };
 
-export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectsBatch, onRenameProject, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showSettings, duplicatingNames, removingNames }: SidebarProps) {
+export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectsBatch, onRenameProject, onMoveProjectRoot, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showSettings, duplicatingNames, removingNames }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -887,17 +889,23 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           setBulkDuplicateName(null);
         }}
       />
-      <RenameModal
+      <ProjectRenameModal
         open={renamingName !== null}
-        title="Rename project"
-        description="Sets a display label. The project folder isn't renamed."
-        initialValue={
+        displayName={
           renamingProject ? projectDisplayName(renamingProject, renamingParent) : ""
         }
+        currentRoot={renamingProject?.root ?? ""}
+        canRenameFolder={Boolean(renamingProject) && !renamingProject?.isRemote}
+        folderBusy={Boolean(renamingProject?.running)}
         onClose={() => setRenamingName(null)}
-        onSubmit={(value) => {
+        onRenameLabel={(value) => {
           if (renamingName) onRenameProject(renamingName, value);
         }}
+        onMoveFolder={(newRoot) =>
+          renamingName
+            ? onMoveProjectRoot(renamingName, newRoot)
+            : Promise.resolve()
+        }
       />
       <RenameModal
         open={renamingGroupId !== null}

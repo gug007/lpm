@@ -6,7 +6,7 @@ use serde::Deserialize;
 use serde_yaml::{Mapping, Value as Yaml};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -473,6 +473,145 @@ pub fn duplicate_projects(
         }
     }
     Ok(created)
+}
+
+// ---- move folder (rename the on-disk root) ----------------------------------
+
+/// Move a directory, falling back to a faithful copy+delete only when `rename`
+/// can't span volumes (EXDEV == errno 18 on macOS). Unlike `cp_clone`, this
+/// prunes nothing — a move must be byte-faithful. Leaves the source untouched
+/// when the copy fails.
+fn move_dir(from: &Path, to: &Path) -> Result<(), String> {
+    match std::fs::rename(from, to) {
+        Ok(()) => Ok(()),
+        Err(e) if e.raw_os_error() == Some(18) => {
+            if let Err(copy_err) = cp_c_r(from, to) {
+                let _ = std::fs::remove_dir_all(to);
+                return Err(copy_err);
+            }
+            config::remove_dir_all_retry(from)
+        }
+        Err(e) => Err(format!("could not move folder: {e}")),
+    }
+}
+
+fn strip_trailing_slash(p: &str) -> &str {
+    let trimmed = p.trim_end_matches('/');
+    if trimmed.is_empty() {
+        "/"
+    } else {
+        trimmed
+    }
+}
+
+/// Validate a user-supplied move destination and return the $HOME-expanded
+/// absolute path. `old_expanded` is the project's current root.
+fn resolve_destination(old_expanded: &str, new_root: &str) -> Result<String, String> {
+    let trimmed = new_root.trim();
+    if trimmed.is_empty() {
+        return Err("Enter a new folder location.".into());
+    }
+    let dest_expanded = config::expand_home(trimmed);
+    let dest_path = Path::new(&dest_expanded);
+    if !dest_path.is_absolute() {
+        return Err("Enter a full path starting with / or ~.".into());
+    }
+    if dest_path
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return Err("The path can't contain \"..\".".into());
+    }
+    if strip_trailing_slash(&dest_expanded) == strip_trailing_slash(old_expanded) {
+        return Err("The folder is already at that location.".into());
+    }
+
+    let old_canon = std::fs::canonicalize(old_expanded)
+        .map_err(|_| "This project's folder no longer exists on disk.".to_string())?;
+
+    if dest_path.exists() {
+        // On case-insensitive volumes a case-only change resolves to the source.
+        if std::fs::canonicalize(dest_path).ok().as_deref() == Some(old_canon.as_path()) {
+            return Err(
+                "Renaming only the capitalization isn't supported — choose a different name.".into(),
+            );
+        }
+        return Err("A folder already exists at that location.".into());
+    }
+
+    let parent = dest_path.parent().ok_or("That path has no parent folder.")?;
+    let parent_canon = std::fs::canonicalize(parent)
+        .map_err(|_| "The destination folder's parent doesn't exist.".to_string())?;
+    if !parent_canon.is_dir() {
+        return Err("The destination's parent isn't a folder.".into());
+    }
+    if parent_canon == old_canon || parent_canon.starts_with(&old_canon) {
+        return Err("You can't move a folder inside itself.".into());
+    }
+    check_writable(parent)?;
+    Ok(dest_expanded)
+}
+
+/// Rewrite only the `root` field of a project's config, preserving everything
+/// else (mirrors set_project_label's read-mutate-write at commands_real.rs).
+fn rewrite_project_root(name: &str, dest_expanded: &str) -> Result<(), String> {
+    let path = config::project_path(name);
+    let mut doc: Yaml = serde_yaml::from_slice(&std::fs::read(&path).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
+    if let Some(map) = doc.as_mapping_mut() {
+        map.insert(
+            Yaml::from("root"),
+            Yaml::from(config::collapse_home(dest_expanded).as_str()),
+        );
+    }
+    let out = serde_yaml::to_string(&doc).map_err(|e| e.to_string())?;
+    config::write_config_file(&path, &out)
+}
+
+/// Move/rename a local project's on-disk folder and repoint its config at the
+/// new location. Refuses remote projects and anything currently in use.
+#[tauri::command(async)]
+pub fn set_project_root(
+    app: AppHandle,
+    pty: State<'_, crate::pty::PtyState>,
+    name: String,
+    new_root: String,
+) -> Result<(), String> {
+    let (old_expanded, is_remote) = config::project_root(&name)?;
+    if is_remote || old_expanded.trim().is_empty() {
+        return Err("This project has no local folder to move.".into());
+    }
+    let old_path = Path::new(&old_expanded);
+
+    let meta = std::fs::symlink_metadata(old_path)
+        .map_err(|_| "This project's folder no longer exists on disk.".to_string())?;
+    if meta.file_type().is_symlink() {
+        return Err(
+            "This project's folder is a symbolic link and can't be moved automatically.".into(),
+        );
+    }
+
+    if crate::tmux::session_exists(&name) || crate::pty::project_has_live_sessions(pty.inner(), &name)
+    {
+        return Err("Stop this project and close its terminals before moving its folder.".into());
+    }
+
+    let dest_expanded = resolve_destination(&old_expanded, &new_root)?;
+    let dest_path = PathBuf::from(&dest_expanded);
+
+    move_dir(old_path, &dest_path)?;
+    if let Err(e) = rewrite_project_root(&name, &dest_expanded) {
+        // Keep disk and config in agreement: undo the move, or tell the user
+        // exactly where the folder ended up when even that fails.
+        if let Err(back) = move_dir(&dest_path, old_path) {
+            return Err(format!(
+                "{e} — the folder is now at {dest_expanded} but couldn't be moved back ({back}); update its location manually."
+            ));
+        }
+        return Err(e);
+    }
+    let _ = app.emit("projects-changed", ());
+    Ok(())
 }
 
 // ---- remove -----------------------------------------------------------------

@@ -76,6 +76,7 @@ export function ListTemplates(...args: any[]): Promise<any>;
 export function LoadGroups(...args: any[]): Promise<any>;
 export function LoadSettings(...args: any[]): Promise<any>;
 export function LoadTerminals(...args: any[]): Promise<any>;
+export function MoveProjectRoot(...args: any[]): Promise<any>;
 export function NotesAddMessage(...args: any[]): Promise<any>;
 export function NotesCreateChat(...args: any[]): Promise<any>;
 export function NotesDeleteChat(...args: any[]): Promise<any>;

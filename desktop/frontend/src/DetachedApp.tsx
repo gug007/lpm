@@ -39,6 +39,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
   const removeProjectCascade = useAppStore((s) => s.removeProjectCascade);
   const removeProjectsBatch = useAppStore((s) => s.removeProjectsBatch);
   const renameProject = useAppStore((s) => s.renameProject);
+  const moveProjectRoot = useAppStore((s) => s.moveProjectRoot);
   const applySidebarLayout = useAppStore((s) => s.applySidebarLayout);
   const createGroup = useAppStore((s) => s.createGroup);
   const renameGroup = useAppStore((s) => s.renameGroup);
@@ -112,6 +113,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
           onRemoveProjectCascade={removeProjectCascade}
           onRemoveProjectsBatch={removeProjectsBatch}
           onRenameProject={renameProject}
+          onMoveProjectRoot={moveProjectRoot}
           onApplySidebarLayout={applySidebarLayout}
           onCreateGroup={createGroup}
           onRenameGroup={renameGroup}
