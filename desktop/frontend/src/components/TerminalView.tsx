@@ -444,9 +444,9 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   }, [projectName, activeTerminalIdForComposer]);
 
   const submitComposerInput = useCallback(
-    (text: string): boolean => {
+    (input: string | string[]): boolean => {
       if (!composerTarget) return false;
-      const ok = terminalHandles.current.get(composerTarget.id)?.submitInput(text) ?? false;
+      const ok = terminalHandles.current.get(composerTarget.id)?.submitInput(input) ?? false;
       if (!ok) toast.error("This terminal isn't accepting input right now.");
       return ok;
     },

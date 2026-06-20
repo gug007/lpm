@@ -8,6 +8,7 @@ import { loadTerminals } from "./terminals";
 import { loadGroups } from "./store/groups";
 import { applyTheme } from "./theme";
 import { hydrateAppStore } from "./store/app";
+import { useComposerStore } from "./store/composer";
 import { initTTSEvents } from "./store/tts";
 import { queryClient } from "./queryClient";
 import "./styles/globals.css";
@@ -19,6 +20,7 @@ const detachedProject = new URLSearchParams(window.location.search).get(
 Promise.all([loadSettings(), loadTerminals(), loadGroups()]).then(([s, , g]) => {
   applyTheme(s.theme);
   hydrateAppStore(g);
+  useComposerStore.getState().hydrate(s.composerOpen ?? false);
   initTTSEvents();
   createRoot(document.getElementById("root")!).render(
     <StrictMode>

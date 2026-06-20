@@ -15,19 +15,20 @@ import { loadComposerDraft, saveComposerDraft } from "../store/composerDrafts";
 import { SendIcon } from "./icons";
 import { ImagePreviewPopover } from "./ImagePreviewPopover";
 import {
-  IMAGE_TOKEN_RE,
   caretEdges,
   chipAfterCaret,
   chipBeforeCaret,
   createImageChip,
   insertItemsAtCaret,
   isEditorEmpty,
+  normalizeStrayChars,
   placeCaretAtEnd,
   presentImageTokens,
   removeChip,
   selectChip,
   serializeEditor,
   setEditorContent,
+  splitByImageTokens,
 } from "./composerEditor";
 
 interface TerminalComposerProps {
@@ -39,8 +40,9 @@ interface TerminalComposerProps {
   // Label of the terminal that will receive the input.
   targetLabel: string;
   // Returns false when the input could not be delivered (e.g. a dead session),
-  // so the draft is kept rather than cleared.
-  onSubmit: (text: string) => boolean;
+  // so the draft is kept rather than cleared. An array carries ordered segments
+  // (text runs and image paths) to be delivered as separate pastes.
+  onSubmit: (input: string | string[]) => boolean;
   onClose: () => void;
   onFocusTerminal: () => void;
 }
@@ -63,6 +65,7 @@ export function TerminalComposer({ terminalId, shown, targetLabel, onSubmit, onC
   // [Image #N] index -> local file path, swapped back in when the draft is sent.
   const imagePaths = useRef<Map<number, string>>(new Map());
   const imgCounter = useRef(0);
+  const normalizePending = useRef(false);
 
   // Restore this terminal's saved draft on mount (the composer is remounted per
   // terminal), then focus it — so switching terminals brings back what you'd
@@ -139,6 +142,22 @@ export function TerminalComposer({ terminalId, shown, targetLabel, onSubmit, onC
       histIdx: histIdx.current,
     });
   }, [terminalId]);
+
+  // After a caret move, WebKit may have injected stray chars around a chip. Clean
+  // them in a rAF (before the next paint, so no flash; coalesced across repeats)
+  // rather than reacting to input — caret navigation fires no input event.
+  const scheduleNormalize = useCallback(() => {
+    if (normalizePending.current) return;
+    normalizePending.current = true;
+    requestAnimationFrame(() => {
+      normalizePending.current = false;
+      const editor = editorRef.current;
+      if (!editor) return;
+      const sel = window.getSelection();
+      if (!sel || !sel.isCollapsed) return;
+      if (normalizeStrayChars(editor)) syncState();
+    });
+  }, [syncState]);
 
   const registerImagePath = useCallback((path: string): HTMLSpanElement => {
     const n = (imgCounter.current += 1);
@@ -250,16 +269,24 @@ export function TerminalComposer({ terminalId, shown, targetLabel, onSubmit, onC
     if (!editor) return;
     const value = serializeEditor(editor);
     if (!value.trim()) return;
-    // Swap each [Image #N] chip for its file path so the terminal (e.g. Claude
-    // Code) receives the image just as a direct drop/paste would.
-    const resolved = value
-      .replace(IMAGE_TOKEN_RE, (m, n) => imagePaths.current.get(Number(n)) ?? m)
-      .trimEnd();
-    if (!onSubmit(resolved)) return;
+    // Split into ordered segments — text runs and resolved image paths — so each
+    // image can be delivered as its own paste at the cursor (keeping it in the
+    // order the user typed) rather than as a path glued into one big paste, which
+    // Claude Code front-loads. A plain string (no images) is sent as one paste.
+    const segments = splitByImageTokens(value);
+    const hasImages = segments.some((s) => s.image !== null);
+    const payload = hasImages
+      ? segments
+          // Pad each path so it stays a detectable, distinct token even if the
+          // receiver concatenates the separate pastes as plain text.
+          .map((s) => (s.image === null ? s.text : ` ${imagePaths.current.get(s.image) ?? s.text} `))
+          .filter((p) => p.length > 0)
+      : value;
+    if (!onSubmit(payload)) return;
     // Store the resolved text (real paths) so recalling a past message re-sends
     // the same images without depending on the cleared map. imgCounter stays
     // monotonic so a future chip can never collide with a past index.
-    history.current.unshift(resolved);
+    history.current.unshift(Array.isArray(payload) ? payload.join(" ") : payload.trimEnd());
     histIdx.current = -1;
     imagePaths.current.clear();
     setEditorContent(editor, "");
@@ -297,6 +324,10 @@ export function TerminalComposer({ terminalId, shown, targetLabel, onSubmit, onC
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() !== "i") {
       e.stopPropagation();
     }
+    // Any caret move can make WebKit inject stray chars around a chip — the
+    // explicit stepping below covers the common case, this cleans the rest
+    // (word/line jumps, vertical moves, boundaries) before the next paint.
+    if (e.key.startsWith("Arrow")) scheduleNormalize();
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       e.stopPropagation();
@@ -327,18 +358,37 @@ export function TerminalComposer({ terminalId, shown, targetLabel, onSubmit, onC
         return;
       }
     }
-    const edges = caretEdges(editor);
-    if (e.key === "ArrowUp" && edges.collapsed && edges.atStart) {
-      if (recall(1)) {
+    // Step the caret across an atomic chip ourselves; WebKit's native navigation
+    // around contenteditable=false inline elements can otherwise leave stray
+    // placeholder characters behind.
+    if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.shiftKey && !e.metaKey && !e.altKey) {
+      const chip = e.key === "ArrowLeft" ? chipBeforeCaret(editor) : chipAfterCaret(editor);
+      if (chip) {
         e.preventDefault();
-        e.stopPropagation();
+        const range = document.createRange();
+        if (e.key === "ArrowLeft") range.setStartBefore(chip);
+        else range.setStartAfter(chip);
+        range.collapse(true);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+        return;
       }
-      return;
     }
-    if (e.key === "ArrowDown" && edges.collapsed && edges.atEnd && histIdx.current !== -1) {
-      if (recall(-1)) {
-        e.preventDefault();
-        e.stopPropagation();
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      const edges = caretEdges(editor);
+      if (e.key === "ArrowUp" && edges.collapsed && edges.atStart) {
+        if (recall(1)) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        return;
+      }
+      if (e.key === "ArrowDown" && edges.collapsed && edges.atEnd && histIdx.current !== -1) {
+        if (recall(-1)) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
       }
     }
   };
@@ -412,6 +462,7 @@ export function TerminalComposer({ terminalId, shown, targetLabel, onSubmit, onC
           autoCapitalize="off"
           onInput={() => {
             histIdx.current = -1;
+            if (editorRef.current) normalizeStrayChars(editorRef.current);
             syncState();
           }}
           onKeyDown={handleKeyDown}

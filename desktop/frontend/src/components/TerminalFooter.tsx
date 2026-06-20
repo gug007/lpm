@@ -40,9 +40,15 @@ export function TerminalFooter({
       {activeTerminalId && (
         <Tooltip
           content={
-            <>
-              Terminal input <span className="ml-1 opacity-70">⌘I</span>
-            </>
+            <span className="flex items-center gap-2">
+              <span className="font-medium">Terminal input</span>
+              <span className="rounded-full border border-[var(--accent-blue)]/30 bg-[var(--accent-blue)]/15 px-1.5 py-px text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--accent-blue)]">
+                Beta
+              </span>
+              <kbd className="flex h-[18px] items-center rounded-md border border-[var(--border)] bg-[var(--bg-active)] px-1.5 font-mono text-[10px] leading-none text-[var(--text-secondary)]">
+                ⌘I
+              </kbd>
+            </span>
           }
           side="top"
           align="start"

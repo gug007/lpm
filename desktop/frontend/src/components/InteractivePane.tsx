@@ -35,8 +35,10 @@ export interface InteractivePaneHandle {
   scrollToBottom: () => void;
   focus: () => void;
   // Returns false when the target session is gone or its process has exited,
-  // so callers can warn instead of dropping the text into a dead PTY.
-  submitInput: (text: string) => boolean;
+  // so callers can warn instead of dropping the text into a dead PTY. Pass an
+  // array to deliver the parts as separate, sequential pastes (used so image
+  // paths land at the cursor in order rather than being front-loaded).
+  submitInput: (input: string | string[]) => boolean;
 }
 
 interface InteractivePaneProps {
@@ -52,6 +54,10 @@ interface InteractivePaneProps {
 
 // Flow control: ack in batches to reduce IPC calls (matches VS Code's approach)
 const ACK_SIZE = 5000;
+
+// Gap between sequential pastes in a multi-part submit, so the receiver
+// processes each as a discrete paste event rather than one coalesced buffer.
+const SEGMENT_PASTE_DELAY_MS = 30;
 
 function getTerminalRemote(id: string): Promise<boolean> {
   return interactiveSessions.get(id)?.remote ?? Promise.resolve(false);
@@ -519,21 +525,44 @@ export function InteractivePane({
     focus() {
       sessionRef.current?.term.focus();
     },
-    // Send composed text to the PTY as a single ordered write. Multi-line
-    // bodies are wrapped in bracketed-paste markers (when the running program
-    // enabled them) so receivers treat embedded newlines as pasted content
-    // rather than executing each line; the trailing CR submits it. One write
-    // guarantees the body lands before the submit, which two IPC calls can't.
-    submitInput(text: string) {
+    // Send composed text to the PTY. Multi-line bodies are wrapped in
+    // bracketed-paste markers (when the running program enabled them) so
+    // receivers treat embedded newlines as pasted content rather than executing
+    // each line; the trailing CR submits it.
+    //
+    // A single string is sent as one write (body+CR together) so the body lands
+    // before the submit. An array sends each part as its own paste, spaced out
+    // so the receiver processes them as discrete paste events — this lets a
+    // receiver that attaches image paths at the cursor (e.g. Claude Code) keep
+    // images in order instead of front-loading them.
+    submitInput(input: string | string[]) {
       const session = sessionRef.current;
       if (!session || session.sessionDead) return false;
-      const body = text.replace(/\r?\n/g, "\r");
       // Mirror xterm's bracketTextForPaste: neutralize ESC in the body so the
       // composed text can't smuggle a \x1b[201~ to break out of the paste.
-      const wrapped = session.term.modes.bracketedPasteMode
-        ? `\x1b[200~${body.replace(/\x1b/g, "␛")}\x1b[201~`
-        : body;
-      sendTerminalInput(terminalId, `${wrapped}\r`).catch(() => session.handleWriteError?.());
+      const wrap = (s: string) => {
+        const body = s.replace(/\r?\n/g, "\r");
+        return session.term.modes.bracketedPasteMode
+          ? `\x1b[200~${body.replace(/\x1b/g, "␛")}\x1b[201~`
+          : body;
+      };
+      const fail = () => session.handleWriteError?.();
+      if (!Array.isArray(input)) {
+        sendTerminalInput(terminalId, `${wrap(input)}\r`).catch(fail);
+        return true;
+      }
+      const parts = input.filter((p) => p.length > 0);
+      let i = 0;
+      const step = () => {
+        if (i >= parts.length) {
+          sendTerminalInput(terminalId, "\r").catch(fail);
+          return;
+        }
+        sendTerminalInput(terminalId, wrap(parts[i++]))
+          .then(() => setTimeout(step, SEGMENT_PASTE_DELAY_MS))
+          .catch(fail);
+      };
+      step();
       return true;
     },
   }));

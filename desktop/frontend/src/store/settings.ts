@@ -58,6 +58,7 @@ export interface Settings {
   searchFilterMode?: boolean;
   duplicateExcludeUncommitted?: boolean;
   duplicateReinstallDeps?: boolean;
+  composerOpen?: boolean;
 }
 
 const defaults: Settings = {
@@ -114,6 +115,7 @@ function normalize(s: main.Settings): Settings {
     searchFilterMode: s.searchFilterMode,
     duplicateExcludeUncommitted: s.duplicateExcludeUncommitted,
     duplicateReinstallDeps: s.duplicateReinstallDeps,
+    composerOpen: s.composerOpen,
     detachedWindows: s.detachedWindows
       ? Object.fromEntries(
           Object.entries(s.detachedWindows).map(([name, raw]) => {

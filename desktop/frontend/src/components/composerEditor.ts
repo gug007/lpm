@@ -3,7 +3,7 @@
 // removed as a whole — never split mid-text — and serialized back to the
 // `[Image #N]` placeholders the rest of the app expects.
 
-export const IMAGE_TOKEN_RE = /\[Image #(\d+)\]/g;
+const IMAGE_TOKEN_RE = /\[Image #(\d+)\]/g;
 
 const CHIP_CLASS =
   "group inline-flex select-none items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--bg-active)] py-0.5 pl-1 pr-1.5 align-middle text-[12px] leading-4 text-[var(--text-secondary)]";
@@ -61,17 +61,69 @@ export function isEditorEmpty(root: HTMLElement): boolean {
   return (root.textContent ?? "").length === 0 && !root.querySelector("[data-img]");
 }
 
-// Walk the editor and rebuild the plain-text value: text nodes verbatim, chips
-// as `[Image #N]`, line breaks as "\n". WebKit parks a placeholder <br> at the
-// end of the field for caret visibility — skip it so it doesn't add a phantom
-// trailing newline.
+// Zero-width/format characters, the object-replacement char, and C0/C1 control
+// codes (except tab and newline) that should never be part of composer text.
+// WebKit can leave these behind when the caret navigates around a chip.
+const STRAY_CHARS_RE =
+  /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u200B\u2060\uFEFF\uFFFC]/g;
+
+const STRAY_CHARS_TEST = new RegExp(STRAY_CHARS_RE.source);
+
+// Strip stray characters from the live editor DOM (not just at serialize time),
+// keeping the collapsed caret in place. WebKit injects these when the caret
+// moves around a contenteditable=false chip; this removes the visible "tofu"
+// boxes from the field itself. Returns true if anything changed.
+export function normalizeStrayChars(root: HTMLElement): boolean {
+  if (!STRAY_CHARS_TEST.test(root.textContent ?? "")) return false;
+  const sel = window.getSelection();
+  const anchorNode = sel && sel.rangeCount > 0 ? sel.anchorNode : null;
+  const anchorOffset = sel ? sel.anchorOffset : 0;
+  let newAnchorOffset = anchorOffset;
+  let changed = false;
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes: Text[] = [];
+  for (let t = walker.nextNode(); t; t = walker.nextNode()) nodes.push(t as Text);
+
+  for (const node of nodes) {
+    const val = node.nodeValue ?? "";
+    const cleaned = val.replace(STRAY_CHARS_RE, "");
+    if (cleaned === val) continue;
+    if (node === anchorNode) {
+      // Pull the caret back by however many stray chars sat before it.
+      newAnchorOffset = val.slice(0, anchorOffset).replace(STRAY_CHARS_RE, "").length;
+    }
+    node.nodeValue = cleaned;
+    changed = true;
+  }
+
+  if (changed && sel && anchorNode && root.contains(anchorNode)) {
+    const max =
+      anchorNode.nodeType === Node.TEXT_NODE
+        ? (anchorNode.nodeValue?.length ?? 0)
+        : anchorNode.childNodes.length;
+    try {
+      const range = document.createRange();
+      range.setStart(anchorNode, Math.min(newAnchorOffset, max));
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch {}
+  }
+  return changed;
+}
+
+// Walk the editor and rebuild the plain-text value: text nodes verbatim (minus
+// stray characters), chips as `[Image #N]`, line breaks as "\n". WebKit parks a
+// placeholder <br> at the end of the field for caret visibility — skip it so it
+// doesn't add a phantom trailing newline.
 export function serializeEditor(root: HTMLElement): string {
   let out = "";
   const visit = (parent: Node) => {
     const children = Array.from(parent.childNodes);
     children.forEach((node, idx) => {
       if (node.nodeType === Node.TEXT_NODE) {
-        out += node.nodeValue ?? "";
+        out += (node.nodeValue ?? "").replace(STRAY_CHARS_RE, "");
         return;
       }
       if (!(node instanceof HTMLElement)) return;
@@ -93,20 +145,35 @@ export function serializeEditor(root: HTMLElement): string {
   return out;
 }
 
+// Split a serialized value into ordered segments of plain text and image tokens
+// (image === the token's number, or null for a text run). Used to rebuild the
+// editor and to break a draft into parts for sending.
+export interface ValueSegment {
+  text: string;
+  image: number | null;
+}
+export function splitByImageTokens(value: string): ValueSegment[] {
+  const segments: ValueSegment[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  IMAGE_TOKEN_RE.lastIndex = 0;
+  while ((m = IMAGE_TOKEN_RE.exec(value))) {
+    if (m.index > last) segments.push({ text: value.slice(last, m.index), image: null });
+    segments.push({ text: m[0], image: Number(m[1]) });
+    last = m.index + m[0].length;
+  }
+  if (last < value.length) segments.push({ text: value.slice(last), image: null });
+  return segments;
+}
+
 // Rebuild the editor from a plain-text value, turning any `[Image #N]` tokens
 // back into chips (used when recalling history).
 export function setEditorContent(root: HTMLElement, value: string): void {
   root.replaceChildren();
   if (!value) return;
-  IMAGE_TOKEN_RE.lastIndex = 0;
-  let last = 0;
-  let m: RegExpExecArray | null;
-  while ((m = IMAGE_TOKEN_RE.exec(value))) {
-    if (m.index > last) root.appendChild(document.createTextNode(value.slice(last, m.index)));
-    root.appendChild(createImageChip(Number(m[1])));
-    last = m.index + m[0].length;
+  for (const seg of splitByImageTokens(value)) {
+    root.appendChild(seg.image === null ? document.createTextNode(seg.text) : createImageChip(seg.image));
   }
-  if (last < value.length) root.appendChild(document.createTextNode(value.slice(last)));
 }
 
 export function presentImageTokens(root: HTMLElement): Set<number> {
