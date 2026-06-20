@@ -9,7 +9,7 @@ use serde_json::Value;
 
 
 
-/// All 179 commands for tauri::generate_handler!.
+/// All 180 commands for tauri::generate_handler!.
 #[macro_export]
 macro_rules! all_command_handlers {
     () => {
@@ -100,6 +100,7 @@ macro_rules! all_command_handlers {
         message_history_add,
         message_history_clear,
         message_history_create_folder,
+        message_history_delete,
         message_history_delete_folder,
         message_history_folders,
         message_history_query,

@@ -264,6 +264,15 @@ pub fn message_history_add(
 }
 
 #[tauri::command(async)]
+pub fn message_history_delete(state: State<MessageHistoryState>, id: String) -> Result<(), String> {
+    state.with_conn(|conn| {
+        conn.execute("DELETE FROM message_history WHERE id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    })
+}
+
+#[tauri::command(async)]
 pub fn message_history_toggle_favorite(
     state: State<MessageHistoryState>,
     id: String,

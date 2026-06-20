@@ -2,6 +2,7 @@ import {
   MessageHistoryAdd,
   MessageHistoryClear,
   MessageHistoryCreateFolder,
+  MessageHistoryDelete,
   MessageHistoryDeleteFolder,
   MessageHistoryFolders,
   MessageHistoryQuery,
@@ -111,6 +112,16 @@ export function recordMessage(
 
 export function toggleFavorite(id: string): void {
   void MessageHistoryToggleFavorite(id).then(invalidateHistory).catch(() => {});
+}
+
+// Permanently removes a single message (regardless of favorite/folder).
+export function deleteMessage(id: string): void {
+  void MessageHistoryDelete(id)
+    .then(() => {
+      invalidateHistory();
+      invalidateFolders();
+    })
+    .catch(() => {});
 }
 
 export function clearHistory(filter: HistoryFilter): void {

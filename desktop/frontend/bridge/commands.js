@@ -235,6 +235,9 @@ export function MessageHistoryAdd(message) {
 export function MessageHistoryToggleFavorite(id) {
   return invoke("message_history_toggle_favorite", { id });
 }
+export function MessageHistoryDelete(id) {
+  return invoke("message_history_delete", { id });
+}
 export function MessageHistoryClear(scope, terminalId, projectName, terminalLabel) {
   return invoke("message_history_clear", { scope, terminalId, projectName, terminalLabel });
 }

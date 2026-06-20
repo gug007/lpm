@@ -77,6 +77,7 @@ export function LoadGroups(...args: any[]): Promise<any>;
 export function MessageHistoryQuery(...args: any[]): Promise<any>;
 export function MessageHistoryAdd(...args: any[]): Promise<any>;
 export function MessageHistoryToggleFavorite(...args: any[]): Promise<any>;
+export function MessageHistoryDelete(...args: any[]): Promise<any>;
 export function MessageHistoryClear(...args: any[]): Promise<any>;
 export function MessageHistoryFolders(...args: any[]): Promise<any>;
 export function MessageHistoryCreateFolder(...args: any[]): Promise<any>;

@@ -14,6 +14,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   clearHistory,
   deleteFolder,
+  deleteMessage,
   listFolders,
   queryHistory,
   toggleFavorite,
@@ -30,7 +31,7 @@ import {
 } from "../store/messageHistory";
 import { relativeTime } from "../relativeTime";
 import { splitByImageTokens } from "./composerEditor";
-import { FolderIcon, ImageIcon, PlusIcon, SearchIcon, StarIcon, XIcon } from "./icons";
+import { FolderIcon, ImageIcon, PlusIcon, SearchIcon, StarIcon, TrashIcon, XIcon } from "./icons";
 import { MessageFolderMenu } from "./MessageFolderMenu";
 import { NewFolderInput } from "./NewFolderInput";
 
@@ -469,6 +470,17 @@ const HistoryRow = memo(function HistoryRow({
         }`}
       >
         <StarIcon filled={message.favorite} size={13} />
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          deleteMessage(message.id);
+        }}
+        title="Delete message"
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] opacity-0 transition-all hover:text-[var(--accent-red)] group-hover:opacity-100"
+      >
+        <TrashIcon size={13} />
       </button>
     </div>
   );
