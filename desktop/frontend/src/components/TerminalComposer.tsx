@@ -16,6 +16,7 @@ import { recordMessage } from "../store/messageHistory";
 import { SendIcon } from "./icons";
 import { ImagePreviewPopover } from "./ImagePreviewPopover";
 import { TerminalHistoryButton } from "./TerminalHistoryButton";
+import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
 import {
   caretEdges,
   chipAfterCaret,
@@ -212,18 +213,49 @@ export function TerminalComposer({ terminalId, projectName, shown, focused, targ
     [insertItems, registerImagePath],
   );
 
+  const pointInComposer = useCallback((x: number, y: number): boolean => {
+    const r = containerRef.current?.getBoundingClientRect();
+    return !!r && x >= r.left && x < r.right && y >= r.top && y < r.bottom;
+  }, []);
+
   // OS file drops (from Finder) arrive as paths via the shared drop bridge.
   useEffect(() => {
     return registerFileDropHandler("terminal-composer", (x, y, paths) => {
-      const el = containerRef.current;
-      if (!el || paths.length === 0) return false;
-      const r = el.getBoundingClientRect();
-      if (x < r.left || x >= r.right || y < r.top || y >= r.bottom) return false;
+      if (paths.length === 0 || !pointInComposer(x, y)) return false;
       insertImagePaths(paths);
       setDragOver(false);
       return true;
     });
-  }, [insertImagePaths]);
+  }, [insertImagePaths, pointInComposer]);
+
+  // Native (Finder) drags don't raise DOM dragover in the webview — the runtime
+  // shim republishes them as app:* events instead — so drive the drop overlay
+  // off those, gating `over` behind `enter` to ignore a stale post-drop `over`.
+  useEffect(() => {
+    let inside = false;
+    const onEnter = () => {
+      inside = true;
+    };
+    const onOver = (e: Event) => {
+      if (!inside) return;
+      const detail = (e as CustomEvent<[number, number]>).detail;
+      setDragOver(!!detail && pointInComposer(detail[0], detail[1]));
+    };
+    const off = () => {
+      inside = false;
+      setDragOver(false);
+    };
+    window.addEventListener("app:handleDragEnter", onEnter);
+    window.addEventListener("app:handleDragOver", onOver);
+    window.addEventListener("app:handleDragLeave", off);
+    window.addEventListener("app:filesDropped", off);
+    return () => {
+      window.removeEventListener("app:handleDragEnter", onEnter);
+      window.removeEventListener("app:handleDragOver", onOver);
+      window.removeEventListener("app:handleDragLeave", off);
+      window.removeEventListener("app:filesDropped", off);
+    };
+  }, [pointInComposer]);
 
   const handlePaste = useCallback(
     (e: ClipboardEvent<HTMLDivElement>) => {
@@ -500,12 +532,9 @@ export function TerminalComposer({ terminalId, projectName, shown, focused, targ
           if (e.currentTarget === e.target) setDragOver(false);
         }}
         onDrop={handleDrop}
-        className={`relative rounded-xl border bg-[var(--bg-secondary)] transition-colors ${
-          dragOver
-            ? "border-[var(--accent-cyan)]"
-            : "border-[var(--border)] focus-within:border-[var(--text-muted)]"
-        }`}
+        className="relative rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] transition-colors focus-within:border-[var(--text-muted)]"
       >
+        {dragOver && <TerminalDropOverlay compact label="Drop image to add" />}
         <div
           ref={editorRef}
           contentEditable

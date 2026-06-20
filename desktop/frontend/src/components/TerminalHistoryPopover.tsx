@@ -31,8 +31,9 @@ import {
 } from "../store/messageHistory";
 import { relativeTime } from "../relativeTime";
 import { splitByImageTokens } from "./composerEditor";
-import { FolderIcon, ImageIcon, PlusIcon, SearchIcon, StarIcon, TrashIcon, XIcon } from "./icons";
+import { FolderIcon, PlusIcon, SearchIcon, StarIcon, TrashIcon, XIcon } from "./icons";
 import { MessageFolderMenu } from "./MessageFolderMenu";
+import { MessageImageChip } from "./MessageImageChip";
 import { NewFolderInput } from "./NewFolderInput";
 
 interface TerminalHistoryPopoverProps {
@@ -393,13 +394,7 @@ function MessageText({ text, images }: { text: string; images: Record<string, st
     <>
       {splitByImageTokens(text).map((seg, i) =>
         seg.image !== null && images[seg.image] ? (
-          <span
-            key={i}
-            className="mx-0.5 inline-flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--bg-active)] px-1 py-px align-middle text-[11px] text-[var(--text-secondary)]"
-          >
-            <ImageIcon size={12} />
-            Image {seg.image}
-          </span>
+          <MessageImageChip key={i} index={seg.image} path={images[seg.image]} />
         ) : (
           <span key={i}>{seg.text}</span>
         ),

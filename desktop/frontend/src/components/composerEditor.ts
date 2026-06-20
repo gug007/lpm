@@ -31,11 +31,12 @@ function isChip(node: Node | null): node is HTMLElement {
   return node instanceof HTMLElement && node.dataset.img !== undefined;
 }
 
-// WebKit can leave zero-length text nodes wedged against a chip after editing.
-// Skip only those (never a visible whitespace separator, which the user must
-// delete first) so chip lookup still finds the chip behind the residue.
+// Invisible residue wedged against a chip: zero-length text nodes WebKit leaves
+// after editing, plus the zero-width-space caret anchor we park after a trailing
+// chip (see ensureTrailingCaretAnchor). Skip both so chip lookup finds the chip
+// behind them — but never a visible whitespace separator, which stays.
 function skipEmptyText(node: Node | null, dir: "prev" | "next"): Node | null {
-  while (node && node.nodeType === Node.TEXT_NODE && (node.nodeValue ?? "").length === 0) {
+  while (isStrayOnlyText(node)) {
     node = dir === "prev" ? node.previousSibling : node.nextSibling;
   }
   return node;
@@ -46,7 +47,9 @@ function skipEmptyText(node: Node | null, dir: "prev" | "next"): Node | null {
 function chipBeforePoint(container: Node, offset: number): HTMLElement | null {
   let node: Node | null;
   if (container.nodeType === Node.TEXT_NODE) {
-    if (offset > 0) return null;
+    // Anything real before the caret means the chip isn't adjacent; a stray-only
+    // prefix (the caret anchor parked after a chip) is residue to look past.
+    if ((container.nodeValue ?? "").slice(0, offset).replace(STRAY_CHARS_RE, "").length > 0) return null;
     node = skipEmptyText(container.previousSibling, "prev");
   } else {
     node = skipEmptyText(container.childNodes[offset - 1] ?? null, "prev");
@@ -58,7 +61,10 @@ function chipBeforePoint(container: Node, offset: number): HTMLElement | null {
 // live DOM rather than serialize() so a WebKit leftover empty block (e.g.
 // `<div><br></div>` after clearing) still counts as empty.
 export function isEditorEmpty(root: HTMLElement): boolean {
-  return (root.textContent ?? "").length === 0 && !root.querySelector("[data-img]");
+  return (
+    (root.textContent ?? "").replace(STRAY_CHARS_RE, "").length === 0 &&
+    !root.querySelector("[data-img]")
+  );
 }
 
 // Zero-width/format characters, the object-replacement char, and C0/C1 control
@@ -68,6 +74,18 @@ const STRAY_CHARS_RE =
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u200B\u2060\uFEFF\uFFFC]/g;
 
 const STRAY_CHARS_TEST = new RegExp(STRAY_CHARS_RE.source);
+
+const ZWSP = "\u200B";
+
+// A text node holding nothing but stray/zero-width characters — invisible
+// residue, including the caret anchor we park after a trailing chip.
+function isStrayOnlyText(node: Node | null): node is Text {
+  return (
+    node != null &&
+    node.nodeType === Node.TEXT_NODE &&
+    (node.nodeValue ?? "").replace(STRAY_CHARS_RE, "").length === 0
+  );
+}
 
 // Strip stray characters from the live editor DOM (not just at serialize time),
 // keeping the collapsed caret in place. WebKit injects these when the caret
@@ -87,6 +105,10 @@ export function normalizeStrayChars(root: HTMLElement): boolean {
 
   for (const node of nodes) {
     const val = node.nodeValue ?? "";
+    // Keep the caret anchor parked after a trailing chip (a lone ZWSP as the
+    // last node): stripping it would re-expose the WebKit caret-paint bug and
+    // leave an empty residue node behind. serializeEditor strips it anyway.
+    if (node === root.lastChild && val === ZWSP && isChip(node.previousSibling)) continue;
     const cleaned = val.replace(STRAY_CHARS_RE, "");
     if (cleaned === val) continue;
     if (node === anchorNode) {
@@ -185,14 +207,32 @@ export function presentImageTokens(root: HTMLElement): Set<number> {
   return present;
 }
 
-// WebKit won't paint a caret immediately after a trailing contenteditable=false
-// chip unless an editable line follows it — the same padding <br> it adds itself
-// after typed text. A chip dropped/pasted/restored as the last node never gets
-// that pad until the user interacts, leaving the caret invisible; add it here so
-// the caret shows right away. serializeEditor already treats this trailing <br>
-// as a pad, so it never adds a phantom newline.
-function ensureTrailingBreak(root: HTMLElement): void {
-  if (isChip(root.lastChild)) root.appendChild(document.createElement("br"));
+// WebKit mispaints a caret placed immediately after a trailing
+// contenteditable=false chip (it parks it at the field start, before the image).
+// Parking the caret inside a zero-width-space text node after the chip gives it a
+// real inline text position WebKit paints correctly. serializeEditor strips the
+// ZWSP and chip lookups treat it as residue, so it never affects value or
+// Backspace. Returns the anchor node, or null when the last node isn't a chip.
+function ensureTrailingCaretAnchor(root: HTMLElement): Text | null {
+  const last = root.lastChild;
+  if (isStrayOnlyText(last) && isChip(last.previousSibling)) {
+    last.nodeValue = ZWSP;
+    return last;
+  }
+  if (!isChip(root.lastChild)) return null;
+  const anchor = document.createTextNode(ZWSP);
+  root.appendChild(anchor);
+  return anchor;
+}
+
+// Whether `node` is the last meaningful child — only stray/anchor residue (if
+// anything) follows it.
+function isTrailing(root: HTMLElement, node: Node): boolean {
+  if (!root.contains(node)) return false;
+  for (let n = node.nextSibling; n; n = n.nextSibling) {
+    if (!isStrayOnlyText(n)) return false;
+  }
+  return true;
 }
 
 // Insert chips and/or text at the caret (falling back to the end of the field
@@ -229,14 +269,17 @@ export function insertItemsAtCaret(root: HTMLElement, items: Array<HTMLElement |
 
   if (lastNode) {
     const tail = lastNode;
-    // A chip left as the last node needs a trailing line or the caret after it
-    // won't render at all.
-    ensureTrailingBreak(root);
-    // Focus first: after an unfocused drop, WebKit parks the caret at the field
-    // start (before the image) unless the element is focused when it's set.
     const placeCaret = () => {
       if (!root.contains(tail)) return;
+      // Focus first: after an unfocused OS drop WebKit ignores a programmatic
+      // selection until the field is focused.
       root.focus();
+      // A trailing chip needs the ZWSP anchor (placeCaretAtEnd) so the caret
+      // paints after the image; otherwise drop it right after the inserted run.
+      if (isChip(tail) && isTrailing(root, tail)) {
+        placeCaretAtEnd(root);
+        return;
+      }
       const after = document.createRange();
       after.setStartAfter(tail);
       after.collapse(true);
@@ -245,9 +288,8 @@ export function insertItemsAtCaret(root: HTMLElement, items: Array<HTMLElement |
       live?.addRange(after);
     };
     placeCaret();
-    // A drop focuses the field late, so WebKit renders the caret at the field
-    // start even though the selection sits after the chip (typing lands there
-    // correctly). Re-applying once layout settles makes the painted caret match.
+    // The drop focuses the field late; re-applying once layout settles makes the
+    // painted caret match the (already correct) selection.
     requestAnimationFrame(placeCaret);
   }
 }
@@ -268,7 +310,14 @@ export function removeChip(chip: HTMLElement): void {
   const parent = chip.parentNode;
   if (!parent) return;
   const idx = Array.prototype.indexOf.call(parent.childNodes, chip);
+  // A trailing ZWSP caret anchor that exists only for this chip is now orphaned;
+  // drop it so an empty field reads as empty (placeholder) and leaves no residue.
+  const orphanAnchor =
+    isStrayOnlyText(chip.nextSibling) && chip.nextSibling === parent.lastChild && !isChip(chip.previousSibling)
+      ? chip.nextSibling
+      : null;
   chip.remove();
+  orphanAnchor?.remove();
   const sel = window.getSelection();
   if (!sel) return;
   const range = document.createRange();
@@ -333,19 +382,16 @@ export function caretEdges(root: HTMLElement): CaretEdges {
 }
 
 export function placeCaretAtEnd(root: HTMLElement): void {
-  ensureTrailingBreak(root);
+  const anchor = ensureTrailingCaretAnchor(root);
   const sel = window.getSelection();
   if (!sel) return;
   const range = document.createRange();
-  range.selectNodeContents(root);
-  range.collapse(false);
-  // The padding <br> after a trailing chip is cosmetic: the editable end is
-  // right after the chip, not the empty line the <br> opens below it. Pull the
-  // caret up so typing continues on the chip's line instead of a new one.
-  const last = root.lastChild;
-  if (last && last.nodeName === "BR" && isChip(last.previousSibling)) {
-    range.setStartBefore(last);
+  if (anchor) {
+    range.setStart(anchor, anchor.nodeValue?.length ?? 0);
     range.collapse(true);
+  } else {
+    range.selectNodeContents(root);
+    range.collapse(false);
   }
   sel.removeAllRanges();
   sel.addRange(range);
