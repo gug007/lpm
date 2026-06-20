@@ -50,13 +50,12 @@ interface TerminalComposerProps {
   // so the draft is kept rather than cleared. An array carries ordered segments
   // (text runs and image paths) to be delivered as separate pastes.
   onSubmit: (input: string | string[]) => boolean;
-  onClose: () => void;
   onFocusTerminal: () => void;
 }
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif|svg)$/i;
 
-export function TerminalComposer({ terminalId, projectName, shown, targetLabel, fontSize, onSubmit, onClose, onFocusTerminal }: TerminalComposerProps) {
+export function TerminalComposer({ terminalId, projectName, shown, targetLabel, fontSize, onSubmit, onFocusTerminal }: TerminalComposerProps) {
   // `blank` drives the placeholder (no content at all); `disabled` drives the
   // send button (nothing but whitespace).
   const [blank, setBlank] = useState(true);
@@ -296,7 +295,15 @@ export function TerminalComposer({ terminalId, projectName, shown, targetLabel, 
     // monotonic so a future chip can never collide with a past index.
     const sent = Array.isArray(payload) ? payload.join(" ") : payload.trimEnd();
     history.current.unshift(sent);
-    recordMessage({ text: sent, projectName, terminalId, terminalLabel: targetLabel });
+    // History keeps the tokenized text + the token→path map (not the flattened
+    // paths) so re-selecting a past message rebuilds the image chips.
+    recordMessage({
+      text: value,
+      projectName,
+      terminalId,
+      terminalLabel: targetLabel,
+      images: Object.fromEntries(imagePaths.current),
+    });
     histIdx.current = -1;
     imagePaths.current.clear();
     setEditorContent(editor, "");
@@ -319,15 +326,26 @@ export function TerminalComposer({ terminalId, projectName, shown, targetLabel, 
   };
 
   // Load a message chosen from the history popover into the field, replacing the
-  // current draft. Inserted as plain text (not via setEditorContent) so any
-  // literal "[Image #N]" in the stored text can't be re-parsed into a phantom,
-  // path-less image chip.
-  const loadFromHistory = (text: string) => {
+  // current draft. Rebuilds image chips from the stored token→path map; an
+  // "[Image #N]" token with no mapped path (e.g. one the user typed literally)
+  // stays plain text rather than becoming a phantom, path-less chip.
+  const loadFromHistory = (text: string, images: Record<string, string>) => {
     const editor = editorRef.current;
     if (!editor) return;
     editor.replaceChildren();
-    if (text) editor.appendChild(document.createTextNode(text));
-    imagePaths.current.clear();
+    imagePaths.current = new Map();
+    let maxIdx = imgCounter.current;
+    for (const seg of splitByImageTokens(text)) {
+      const path = seg.image === null ? undefined : images[seg.image];
+      if (seg.image !== null && path) {
+        imagePaths.current.set(seg.image, path);
+        editor.appendChild(createImageChip(seg.image));
+        maxIdx = Math.max(maxIdx, seg.image);
+      } else if (seg.text) {
+        editor.appendChild(document.createTextNode(seg.text));
+      }
+    }
+    imgCounter.current = maxIdx;
     histIdx.current = -1;
     syncState();
     placeCaretAtEnd(editor);
@@ -367,9 +385,10 @@ export function TerminalComposer({ terminalId, projectName, shown, targetLabel, 
       return;
     }
     if (e.key === "Escape") {
+      // Escape returns focus to the terminal but keeps the input open — it must
+      // not dismiss the composer.
       e.preventDefault();
       e.stopPropagation();
-      onClose();
       onFocusTerminal();
       return;
     }

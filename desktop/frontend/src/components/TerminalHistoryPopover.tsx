@@ -1,19 +1,38 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from "react";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   clearHistory,
+  deleteFolder,
+  listFolders,
   queryHistory,
   toggleFavorite,
+  COLLECTION_ALL,
+  COLLECTION_FAVORITES,
+  FOLDERS_KEY,
   HISTORY_PAGE_SIZE,
   MESSAGE_HISTORY_KEY,
+  type Folder,
   type HistoryCursor,
   type HistoryFilter,
   type HistoryMessage,
   type HistoryScope,
 } from "../store/messageHistory";
 import { relativeTime } from "../relativeTime";
-import { SearchIcon, StarIcon } from "./icons";
+import { splitByImageTokens } from "./composerEditor";
+import { FolderIcon, ImageIcon, PlusIcon, SearchIcon, StarIcon, XIcon } from "./icons";
+import { MessageFolderMenu } from "./MessageFolderMenu";
+import { NewFolderInput } from "./NewFolderInput";
 
 interface TerminalHistoryPopoverProps {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -21,7 +40,7 @@ interface TerminalHistoryPopoverProps {
   terminalId: string;
   projectName: string;
   terminalLabel: string;
-  onPick: (text: string) => void;
+  onPick: (text: string, images: Record<string, string>) => void;
 }
 
 export function TerminalHistoryPopover({
@@ -33,11 +52,14 @@ export function TerminalHistoryPopover({
   onPick,
 }: TerminalHistoryPopoverProps) {
   const [scope, setScope] = useState<HistoryScope>("terminal");
-  const [favOnly, setFavOnly] = useState(false);
+  const [collection, setCollection] = useState(COLLECTION_ALL);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [confirmingClear, setConfirmingClear] = useState(false);
+  const [folderMenu, setFolderMenu] = useState<{ message: HistoryMessage; anchor: DOMRect } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const folders = useQuery({ queryKey: [FOLDERS_KEY], queryFn: listFolders }).data ?? [];
 
   // Debounce typing so we don't fire a query (and re-key the cache) per keystroke.
   useEffect(() => {
@@ -45,14 +67,10 @@ export function TerminalHistoryPopover({
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  const filter: HistoryFilter = {
-    scope,
-    terminalId,
-    projectName,
-    terminalLabel,
-    favoritesOnly: favOnly,
-    search: search.trim(),
-  };
+  const filter: HistoryFilter = useMemo(
+    () => ({ scope, terminalId, projectName, terminalLabel, collection, search: search.trim() }),
+    [scope, terminalId, projectName, terminalLabel, collection, search],
+  );
 
   const query = useInfiniteQuery({
     queryKey: [MESSAGE_HISTORY_KEY, filter],
@@ -89,25 +107,42 @@ export function TerminalHistoryPopover({
     setConfirmingClear(false);
   };
 
-  // Clear wipes the whole scope (favorites are kept by the backend). It's only
-  // offered on an unfiltered view, so it can't be misread as "clear these rows".
-  const canClear = !search.trim() && !favOnly && items.some((m) => !m.favorite);
+  const selectCollection = (next: string) => {
+    setCollection(next);
+    setConfirmingClear(false);
+  };
+
+  const openFolderMenu = useCallback(
+    (message: HistoryMessage, anchor: DOMRect) => setFolderMenu({ message, anchor }),
+    [],
+  );
+
+  // Clear only removes transient history — favorited and foldered messages are
+  // kept — so it's offered solely on the unfiltered "All" view.
+  const canClear =
+    !search.trim() &&
+    collection === COLLECTION_ALL &&
+    items.some((m) => !m.favorite && !m.folderId);
   const clear = () => {
     clearHistory(filter);
     setConfirmingClear(false);
   };
 
-  const emptyLabel = favOnly
-    ? "No favorites yet"
-    : search.trim()
-      ? "No matching messages"
-      : "Nothing sent yet";
+  const emptyLabel =
+    collection === COLLECTION_FAVORITES
+      ? "No favorites yet"
+      : collection !== COLLECTION_ALL
+        ? "Folder is empty"
+        : search.trim()
+          ? "No matching messages"
+          : "Nothing sent yet";
 
   return (
     <div
       ref={containerRef}
       role="dialog"
       aria-label="Message history"
+      data-history-overlay
       style={style}
       className="z-[9999] flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-[0_16px_48px_-12px_rgba(0,0,0,0.55)]"
     >
@@ -128,8 +163,8 @@ export function TerminalHistoryPopover({
         />
       </div>
 
-      <div className="flex items-center gap-1 px-2.5 pb-2">
-        <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-1.5 px-2.5 pb-2">
+        <div className="flex shrink-0 items-center gap-0.5">
           <ScopeTab active={scope === "terminal"} onClick={() => onScopeChange("terminal")}>
             This terminal
           </ScopeTab>
@@ -137,28 +172,21 @@ export function TerminalHistoryPopover({
             All terminals
           </ScopeTab>
         </div>
-        <div className="flex-1" />
-        <button
-          type="button"
-          onClick={() => {
-            setFavOnly((v) => !v);
-            setConfirmingClear(false);
+        <div className="min-w-0 flex-1" />
+        <CollectionBar
+          collection={collection}
+          folders={folders}
+          onSelect={selectCollection}
+          onDeleteFolder={(id) => {
+            deleteFolder(id);
+            if (collection === id) selectCollection(COLLECTION_ALL);
           }}
-          aria-pressed={favOnly}
-          title={favOnly ? "Show all" : "Show favorites"}
-          className={`flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
-            favOnly
-              ? "text-amber-400"
-              : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
-          }`}
-        >
-          <StarIcon filled={favOnly} size={13} />
-        </button>
+        />
         <button
           type="button"
           onClick={() => (confirmingClear ? clear() : setConfirmingClear(true))}
           disabled={!canClear}
-          className={`shrink-0 rounded-md px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-0 ${
+          className={`shrink-0 rounded-md px-1.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-0 ${
             confirmingClear
               ? "text-[var(--accent-red)]"
               : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
@@ -190,13 +218,144 @@ export function TerminalHistoryPopover({
                     transform: `translateY(${vi.start}px)`,
                   }}
                 >
-                  <HistoryRow message={message} showSource={scope === "all"} onPick={onPick} />
+                  <HistoryRow
+                    message={message}
+                    showSource={scope === "all"}
+                    onPick={onPick}
+                    onOpenFolderMenu={openFolderMenu}
+                  />
                 </div>
               );
             })}
           </div>
         )}
       </div>
+
+      {folderMenu && (
+        <MessageFolderMenu
+          anchor={folderMenu.anchor}
+          message={folderMenu.message}
+          folders={folders}
+          onClose={() => setFolderMenu(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function CollectionBar({
+  collection,
+  folders,
+  onSelect,
+  onDeleteFolder,
+}: {
+  collection: string;
+  folders: Folder[];
+  onSelect: (c: string) => void;
+  onDeleteFolder: (id: string) => void;
+}) {
+  const [creating, setCreating] = useState(false);
+
+  return (
+    <div className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]">
+      <Chip active={collection === COLLECTION_ALL} onClick={() => onSelect(COLLECTION_ALL)}>
+        All
+      </Chip>
+      <Chip
+        active={collection === COLLECTION_FAVORITES}
+        onClick={() => onSelect(COLLECTION_FAVORITES)}
+        icon={<StarIcon filled={collection === COLLECTION_FAVORITES} size={11} />}
+      >
+        Favorites
+      </Chip>
+      {folders.map((f) => (
+        <Chip
+          key={f.id}
+          active={collection === f.id}
+          onClick={() => onSelect(f.id)}
+          icon={<FolderIcon />}
+          count={f.count}
+          onDelete={() => onDeleteFolder(f.id)}
+        >
+          {f.name}
+        </Chip>
+      ))}
+      {creating ? (
+        <NewFolderInput
+          className="h-[26px] w-28 shrink-0 rounded-full border border-[var(--border)] bg-transparent px-2.5 text-[11px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+          onCreated={(folder) => {
+            setCreating(false);
+            onSelect(folder.id);
+          }}
+          onCancel={() => setCreating(false)}
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setCreating(true)}
+          title="New folder"
+          className="flex h-[26px] shrink-0 items-center justify-center rounded-full px-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        >
+          <PlusIcon />
+        </button>
+      )}
+    </div>
+  );
+}
+
+// A filter pill. With onDelete it gains a hover delete button + count badge
+// (folders); without, it's a plain pill (All / Favorites).
+function Chip({
+  active,
+  onClick,
+  icon,
+  count,
+  onDelete,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon?: ReactNode;
+  count?: number;
+  onDelete?: () => void;
+  children: ReactNode;
+}) {
+  const tone = active
+    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+    : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]";
+  const label = (
+    <>
+      {icon}
+      <span className="max-w-[140px] truncate">{children}</span>
+      {count !== undefined && count > 0 && <span className="opacity-60">{count}</span>}
+    </>
+  );
+  if (!onDelete) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={`flex h-[26px] shrink-0 items-center gap-1 rounded-full px-2.5 text-[11px] font-medium transition-colors ${tone}`}
+      >
+        {label}
+      </button>
+    );
+  }
+  return (
+    <div
+      className={`group flex h-[26px] shrink-0 items-center gap-1 rounded-full pl-2.5 pr-1.5 text-[11px] font-medium transition-colors ${tone}`}
+    >
+      <button type="button" onClick={onClick} className="flex items-center gap-1">
+        {label}
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        title="Delete folder"
+        className="flex h-4 w-4 items-center justify-center rounded opacity-0 transition-opacity hover:text-[var(--accent-red)] group-hover:opacity-100"
+      >
+        <XIcon />
+      </button>
     </div>
   );
 }
@@ -225,24 +384,51 @@ function ScopeTab({
   );
 }
 
-function HistoryRow({
+// Renders real "[Image #N]" tokens (those with a mapped path) as compact image
+// chips matching the composer; a token the user typed literally (no mapped path)
+// stays text, mirroring how loadFromHistory rebuilds the field.
+function MessageText({ text, images }: { text: string; images: Record<string, string> }) {
+  return (
+    <>
+      {splitByImageTokens(text).map((seg, i) =>
+        seg.image !== null && images[seg.image] ? (
+          <span
+            key={i}
+            className="mx-0.5 inline-flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--bg-active)] px-1 py-px align-middle text-[11px] text-[var(--text-secondary)]"
+          >
+            <ImageIcon size={12} />
+            Image {seg.image}
+          </span>
+        ) : (
+          <span key={i}>{seg.text}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+// Memoized so unrelated popover state (search, folder menu, confirm-clear)
+// doesn't re-render every visible row; props are stable per message.
+const HistoryRow = memo(function HistoryRow({
   message,
   showSource,
   onPick,
+  onOpenFolderMenu,
 }: {
   message: HistoryMessage;
   showSource: boolean;
-  onPick: (text: string) => void;
+  onPick: (text: string, images: Record<string, string>) => void;
+  onOpenFolderMenu: (message: HistoryMessage, anchor: DOMRect) => void;
 }) {
   return (
     <div className="group flex items-center gap-1 rounded-lg pl-2.5 pr-1.5 transition-colors hover:bg-[var(--bg-hover)]">
       <button
         type="button"
-        onClick={() => onPick(message.text)}
+        onClick={() => onPick(message.text, message.images)}
         className="flex min-w-0 flex-1 flex-col gap-0.5 py-2 text-left"
       >
         <span className="line-clamp-2 whitespace-pre-wrap break-words text-[13px] leading-snug text-[var(--text-primary)] [overflow-wrap:anywhere]">
-          {message.text}
+          <MessageText text={message.text} images={message.images} />
         </span>
         {showSource && (
           <span className="truncate text-[10px] text-[var(--text-muted)]">
@@ -253,6 +439,21 @@ function HistoryRow({
       <span className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]">
         {relativeTime(Math.floor(message.at / 1000))}
       </span>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpenFolderMenu(message, e.currentTarget.getBoundingClientRect());
+        }}
+        title="Move to folder"
+        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-all ${
+          message.folderId
+            ? "text-[var(--accent-blue)]"
+            : "text-[var(--text-muted)] opacity-0 hover:text-[var(--text-secondary)] group-hover:opacity-100"
+        }`}
+      >
+        <FolderIcon />
+      </button>
       <button
         type="button"
         onClick={(e) => {
@@ -271,4 +472,4 @@ function HistoryRow({
       </button>
     </div>
   );
-}
+});

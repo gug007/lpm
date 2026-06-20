@@ -43,13 +43,29 @@ fn open() -> Result<Connection, String> {
             terminal_id TEXT NOT NULL,
             terminal_label TEXT NOT NULL,
             at INTEGER NOT NULL,
-            favorite INTEGER NOT NULL DEFAULT 0
+            favorite INTEGER NOT NULL DEFAULT 0,
+            images TEXT NOT NULL DEFAULT '{}',
+            folder_id TEXT
+        );
+        CREATE TABLE IF NOT EXISTS message_folders (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            created_at INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_mh_order ON message_history(at DESC, seq DESC);
         CREATE INDEX IF NOT EXISTS idx_mh_terminal ON message_history(terminal_id);
         "#,
     )
     .map_err(|e| e.to_string())?;
+    // Migrate DBs created before these columns existed (each errors if already
+    // present, which is fine). The folder_id index is created AFTER the column
+    // so it doesn't reference a missing column on an older DB.
+    let _ = conn.execute_batch(
+        "ALTER TABLE message_history ADD COLUMN images TEXT NOT NULL DEFAULT '{}';",
+    );
+    let _ = conn.execute_batch("ALTER TABLE message_history ADD COLUMN folder_id TEXT;");
+    conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_mh_folder ON message_history(folder_id);")
+        .map_err(|e| e.to_string())?;
     Ok(conn)
 }
 
@@ -91,6 +107,10 @@ pub struct HistoryRow {
     pub terminal_label: String,
     pub at: i64,
     pub favorite: bool,
+    pub folder_id: Option<String>,
+    // Map of "[Image #N]" token index -> resolved file path, so recall can
+    // rebuild image chips instead of pasting the raw path.
+    pub images: serde_json::Value,
 }
 
 #[derive(Deserialize)]
@@ -100,6 +120,8 @@ pub struct AddInput {
     pub project_name: String,
     pub terminal_id: String,
     pub terminal_label: String,
+    #[serde(default)]
+    pub images: std::collections::HashMap<String, String>,
 }
 
 #[derive(Deserialize)]
@@ -109,11 +131,19 @@ pub struct QueryInput {
     pub terminal_id: String,
     pub project_name: String,
     pub terminal_label: String,
-    pub favorites_only: bool,
-    pub search: String, // "" = no filter
+    pub collection: String, // "" / "all" = none, "favorites", or a folder id
+    pub search: String,     // "" = no filter
     pub cursor_at: Option<i64>,
     pub cursor_seq: Option<i64>,
     pub limit: i64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Folder {
+    pub id: String,
+    pub name: String,
+    pub count: i64,
 }
 
 // Escape LIKE wildcards so a literal % or _ in the query matches itself.
@@ -128,7 +158,7 @@ pub fn message_history_query(
 ) -> Result<Vec<HistoryRow>, String> {
     state.with_conn(|conn| {
         let mut sql = String::from(
-            "SELECT seq, id, text, project_name, terminal_id, terminal_label, at, favorite \
+            "SELECT seq, id, text, project_name, terminal_id, terminal_label, at, favorite, folder_id, images \
              FROM message_history WHERE 1 = 1",
         );
         let mut args: Vec<SqlValue> = Vec::new();
@@ -140,8 +170,11 @@ pub fn message_history_query(
             &input.terminal_label,
             &mut args,
         ));
-        if input.favorites_only {
+        if input.collection == "favorites" {
             sql.push_str(" AND favorite = 1");
+        } else if !input.collection.is_empty() && input.collection != "all" {
+            sql.push_str(" AND folder_id = ?");
+            args.push(input.collection.clone().into());
         }
         let q = input.search.trim();
         if !q.is_empty() {
@@ -175,6 +208,9 @@ pub fn message_history_query(
                     terminal_label: r.get(5)?,
                     at: r.get(6)?,
                     favorite: r.get::<_, i64>(7)? != 0,
+                    folder_id: r.get(8)?,
+                    images: serde_json::from_str(&r.get::<_, String>(9)?)
+                        .unwrap_or_else(|_| serde_json::json!({})),
                 })
             })
             .map_err(|e| e.to_string())?;
@@ -207,10 +243,11 @@ pub fn message_history_add(
         if is_repeat {
             return Ok(());
         }
+        let images = serde_json::to_string(&message.images).unwrap_or_else(|_| "{}".into());
         conn.execute(
             "INSERT INTO message_history \
-             (id, text, project_name, terminal_id, terminal_label, at, favorite) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)",
+             (id, text, project_name, terminal_id, terminal_label, at, favorite, images) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7)",
             params![
                 uuid::Uuid::new_v4().to_string(),
                 message.text,
@@ -218,6 +255,7 @@ pub fn message_history_add(
                 message.terminal_id,
                 message.terminal_label,
                 now_millis(),
+                images,
             ],
         )
         .map_err(|e| e.to_string())?;
@@ -240,8 +278,8 @@ pub fn message_history_toggle_favorite(
     })
 }
 
-// Clear removes the matching messages but keeps favorites, so starred items
-// survive a "clear history".
+// Clear keeps favorited and foldered messages, so curated saves survive a
+// "clear history".
 #[tauri::command(async)]
 pub fn message_history_clear(
     state: State<MessageHistoryState>,
@@ -251,10 +289,89 @@ pub fn message_history_clear(
     terminal_label: String,
 ) -> Result<(), String> {
     state.with_conn(|conn| {
-        let mut sql = String::from("DELETE FROM message_history WHERE favorite = 0");
+        let mut sql =
+            String::from("DELETE FROM message_history WHERE favorite = 0 AND folder_id IS NULL");
         let mut args: Vec<SqlValue> = Vec::new();
         sql.push_str(scope_clause(&scope, &terminal_id, &project_name, &terminal_label, &mut args));
         conn.execute(&sql, params_from_iter(args)).map_err(|e| e.to_string())?;
+        Ok(())
+    })
+}
+
+#[tauri::command(async)]
+pub fn message_history_folders(state: State<MessageHistoryState>) -> Result<Vec<Folder>, String> {
+    state.with_conn(|conn| {
+        let mut stmt = conn
+            .prepare(
+                "SELECT f.id, f.name, COUNT(m.seq) \
+                 FROM message_folders f \
+                 LEFT JOIN message_history m ON m.folder_id = f.id \
+                 GROUP BY f.id, f.name \
+                 ORDER BY f.name COLLATE NOCASE",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(Folder { id: r.get(0)?, name: r.get(1)?, count: r.get(2)? })
+            })
+            .map_err(|e| e.to_string())?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row.map_err(|e| e.to_string())?);
+        }
+        Ok(out)
+    })
+}
+
+#[tauri::command(async)]
+pub fn message_history_create_folder(
+    state: State<MessageHistoryState>,
+    name: String,
+) -> Result<Folder, String> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err("Folder name cannot be empty".into());
+    }
+    state.with_conn(|conn| {
+        let id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO message_folders (id, name, created_at) VALUES (?1, ?2, ?3)",
+            params![id, name, now_millis()],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(Folder { id, name, count: 0 })
+    })
+}
+
+// Deleting a folder un-files its messages (they stay in history) rather than
+// deleting them.
+#[tauri::command(async)]
+pub fn message_history_delete_folder(
+    state: State<MessageHistoryState>,
+    id: String,
+) -> Result<(), String> {
+    state.with_conn(|conn| {
+        conn.execute("UPDATE message_history SET folder_id = NULL WHERE folder_id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM message_folders WHERE id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    })
+}
+
+// Move a message into a folder, or pass null to remove it from its folder.
+#[tauri::command(async)]
+pub fn message_history_set_folder(
+    state: State<MessageHistoryState>,
+    message_id: String,
+    folder_id: Option<String>,
+) -> Result<(), String> {
+    state.with_conn(|conn| {
+        conn.execute(
+            "UPDATE message_history SET folder_id = ?1 WHERE id = ?2",
+            params![folder_id, message_id],
+        )
+        .map_err(|e| e.to_string())?;
         Ok(())
     })
 }

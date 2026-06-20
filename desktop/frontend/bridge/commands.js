@@ -238,6 +238,18 @@ export function MessageHistoryToggleFavorite(id) {
 export function MessageHistoryClear(scope, terminalId, projectName, terminalLabel) {
   return invoke("message_history_clear", { scope, terminalId, projectName, terminalLabel });
 }
+export function MessageHistoryFolders() {
+  return invoke("message_history_folders");
+}
+export function MessageHistoryCreateFolder(name) {
+  return invoke("message_history_create_folder", { name });
+}
+export function MessageHistoryDeleteFolder(id) {
+  return invoke("message_history_delete_folder", { id });
+}
+export function MessageHistorySetFolder(messageId, folderId) {
+  return invoke("message_history_set_folder", { messageId, folderId });
+}
 export function LoadSettings() {
   return invoke("load_settings");
 }

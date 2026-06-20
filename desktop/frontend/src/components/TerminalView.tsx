@@ -540,7 +540,6 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             targetLabel={composerTarget?.label ?? ""}
             fontSize={fontSize}
             onSubmit={submitComposerInput}
-            onClose={() => useComposerStore.getState().setOpen(false)}
             onFocusTerminal={focusComposerTarget}
           />
         </div>

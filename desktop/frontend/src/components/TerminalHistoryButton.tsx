@@ -9,7 +9,7 @@ interface TerminalHistoryButtonProps {
   projectName: string;
   terminalLabel: string;
   // Loads the chosen message back into the composer for editing/resending.
-  onPick: (text: string) => void;
+  onPick: (text: string, images: Record<string, string>) => void;
 }
 
 const GAP = 10;
@@ -70,20 +70,25 @@ export function TerminalHistoryButton({
     };
   }, [open]);
 
-  // Outside-click (the button and the portaled popover both count as inside) and
-  // Escape close it. Escape is captured so it doesn't also close the composer.
+  // Outside-click and Escape close the popover. The trigger button and anything
+  // marked data-history-overlay (the popover and its portaled child menus, which
+  // live outside popRef's subtree) count as inside. Escape is captured so it
+  // doesn't also close the composer, but defers to an open child menu or an
+  // active folder-name input so it dismisses the topmost layer first.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (btnRef.current?.contains(t) || popRef.current?.contains(t)) return;
+      const t = e.target as Element;
+      if (btnRef.current?.contains(t) || t.closest?.("[data-history-overlay]")) return;
       close();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        close();
-      }
+      if (e.key !== "Escape") return;
+      if (document.querySelector("[data-history-menu]")) return;
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && active.dataset.folderInput !== undefined) return;
+      e.stopPropagation();
+      close();
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey, true);
@@ -131,8 +136,8 @@ export function TerminalHistoryButton({
             terminalId={terminalId}
             projectName={projectName}
             terminalLabel={terminalLabel}
-            onPick={(text) => {
-              onPick(text);
+            onPick={(text, images) => {
+              onPick(text, images);
               close();
             }}
           />,

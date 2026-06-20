@@ -1,7 +1,11 @@
 import {
   MessageHistoryAdd,
   MessageHistoryClear,
+  MessageHistoryCreateFolder,
+  MessageHistoryDeleteFolder,
+  MessageHistoryFolders,
   MessageHistoryQuery,
+  MessageHistorySetFolder,
   MessageHistoryToggleFavorite,
 } from "../../bridge/commands";
 import { queryClient } from "../queryClient";
@@ -15,22 +19,34 @@ import { queryClient } from "../queryClient";
 export interface HistoryMessage {
   seq: number; // monotonic row id; stable sort key and React key
   id: string;
-  text: string; // resolved text (real image paths inlined), as it was sent
+  text: string; // serialized with "[Image #N]" tokens, as in the composer
   projectName: string;
   terminalId: string;
   terminalLabel: string;
   at: number; // epoch ms
   favorite: boolean;
+  folderId: string | null;
+  images: Record<string, string>; // "[Image #N]" token index -> resolved file path
+}
+
+export interface Folder {
+  id: string;
+  name: string;
+  count: number;
 }
 
 export type HistoryScope = "terminal" | "all";
+
+// A collection filter: "all" = no filter, "favorites", or a folder id.
+export const COLLECTION_ALL = "all";
+export const COLLECTION_FAVORITES = "favorites";
 
 export interface HistoryFilter {
   scope: HistoryScope;
   terminalId: string;
   projectName: string;
   terminalLabel: string;
-  favoritesOnly: boolean;
+  collection: string;
   search: string;
 }
 
@@ -41,6 +57,7 @@ export interface HistoryCursor {
 
 export const HISTORY_PAGE_SIZE = 60;
 export const MESSAGE_HISTORY_KEY = "messageHistory";
+export const FOLDERS_KEY = "messageHistoryFolders";
 
 // Fetch one page newest-first; pass the last row's {at, seq} as the cursor to get
 // the next page.
@@ -57,12 +74,26 @@ export async function queryHistory(
   return Array.isArray(rows) ? (rows as HistoryMessage[]) : [];
 }
 
-function invalidate(): void {
+export async function listFolders(): Promise<Folder[]> {
+  const folders = await MessageHistoryFolders();
+  return Array.isArray(folders) ? (folders as Folder[]) : [];
+}
+
+// Messages and folder membership both affect folder counts and list contents, so
+// folder membership/counts.
+function invalidateHistory(): void {
   void queryClient.invalidateQueries({ queryKey: [MESSAGE_HISTORY_KEY] });
 }
 
+function invalidateFolders(): void {
+  void queryClient.invalidateQueries({ queryKey: [FOLDERS_KEY] });
+}
+
 export function recordMessage(
-  entry: Pick<HistoryMessage, "text" | "projectName" | "terminalId" | "terminalLabel">,
+  entry: Pick<
+    HistoryMessage,
+    "text" | "projectName" | "terminalId" | "terminalLabel" | "images"
+  >,
 ): void {
   const text = entry.text.trimEnd();
   if (!text.trim()) return;
@@ -72,15 +103,14 @@ export function recordMessage(
     projectName: entry.projectName,
     terminalId: entry.terminalId,
     terminalLabel: entry.terminalLabel,
+    images: entry.images,
   })
-    .then(invalidate)
+    .then(invalidateHistory)
     .catch(() => {});
 }
 
 export function toggleFavorite(id: string): void {
-  void MessageHistoryToggleFavorite(id)
-    .then(invalidate)
-    .catch(() => {});
+  void MessageHistoryToggleFavorite(id).then(invalidateHistory).catch(() => {});
 }
 
 export function clearHistory(filter: HistoryFilter): void {
@@ -90,6 +120,34 @@ export function clearHistory(filter: HistoryFilter): void {
     filter.projectName,
     filter.terminalLabel,
   )
-    .then(invalidate)
+    .then(invalidateHistory)
+    .catch(() => {});
+}
+
+export function setMessageFolder(messageId: string, folderId: string | null): void {
+  void MessageHistorySetFolder(messageId, folderId)
+    .then(() => {
+      invalidateHistory();
+      invalidateFolders();
+    })
+    .catch(() => {});
+}
+
+export async function createFolder(name: string): Promise<Folder | null> {
+  try {
+    const folder = (await MessageHistoryCreateFolder(name)) as Folder;
+    invalidateFolders();
+    return folder;
+  } catch {
+    return null;
+  }
+}
+
+export function deleteFolder(id: string): void {
+  void MessageHistoryDeleteFolder(id)
+    .then(() => {
+      invalidateHistory();
+      invalidateFolders();
+    })
     .catch(() => {});
 }
