@@ -70,6 +70,24 @@ export type SpawnTask =
   | { kind: "action"; actionName: string; prompt?: string }
   | { kind: "command"; command: string; prompt?: string };
 
+// What a duplicated copy runs once created: nothing, a project action, or an
+// ad-hoc command — the authoring side of SpawnTask in the "Bulk Duplicate" flow.
+export type RunMode = "none" | "action" | "command";
+
+// A copy's per-run override of the shared default. `null` at the call site means
+// the copy inherits the default; an override carries a text-only prompt — image
+// attachments stay a shared-default feature to keep each copy's editor light.
+export interface CopyOverride {
+  mode: RunMode;
+  actionName: string;
+  command: string;
+  prompt: string;
+}
+
+// A copy's run-mode choice in the duplicate UI, including the "default" sentinel
+// that means "inherit the shared default" rather than override it.
+export type CopyRunMode = RunMode | "default";
+
 export interface ProjectInfo {
   name: string;
   session: string;
