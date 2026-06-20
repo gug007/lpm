@@ -12,10 +12,12 @@ import type { ServiceTabInfo, StatusKind } from "./PaneView";
 import { type TerminalThemeName, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
 import { ansiColors } from "./terminal-utils";
 import { TerminalIcon } from "./icons";
+import { TerminalComposer } from "./TerminalComposer";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { useTerminals, type TerminalStartOpts } from "../hooks/useTerminals";
 import { type PersistedHistoryEntry } from "../terminals";
 import { getSettings, saveSettings } from "../store/settings";
+import { useComposerStore } from "../store/composer";
 import { useTTSHotkeys } from "../hooks/useTTSHotkeys";
 import { TTSControls } from "./TTSControls";
 import { joinAbs } from "../path";
@@ -172,7 +174,9 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     }
     if (sameAsPrev && next.size === prev.size) return;
     for (const id of prev) {
-      if (!next.has(id)) disposeInteractivePaneSession(id);
+      if (!next.has(id)) {
+        disposeInteractivePaneSession(id);
+      }
     }
     interactiveKeysRef.current = next;
   }, [tree]);
@@ -354,11 +358,16 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       { key: "w", meta: true },
       { key: "d", meta: true },
       { key: "f", meta: true },
+      { key: "i", meta: true },
       { key: "Escape", preventDefault: false },
     ],
     (event, matched) => {
       if (matched.key === "=" || matched.key === "+") return onZoomIn();
       if (matched.key === "-") return onZoomOut();
+      if (matched.key === "i") {
+        if (activeTerminalIdForComposer) useComposerStore.getState().toggle();
+        return;
+      }
       if (matched.key === "w") {
         const pane = getFocusedPane();
         if (!pane || pane.tabs.length === 0 || pane.activeServiceName) return;
@@ -394,13 +403,55 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   );
 
   const focusedPane = getFocusedPane();
-  const activeTerminalId = useMemo(() => {
+  // The focused pane's active tab (or null for a service log / empty pane). TTS
+  // and the composer both derive from this single resolution.
+  const activeTab = useMemo(() => {
     if (!focusedPane || focusedPane.activeServiceName || focusedPane.tabs.length === 0) return null;
     const idx = Math.min(focusedPane.activeTabIdx, focusedPane.tabs.length - 1);
-    return focusedPane.tabs[idx]?.id ?? null;
+    return focusedPane.tabs[idx] ?? null;
   }, [focusedPane]);
 
+  const activeTerminalId = activeTab?.id ?? null;
+
   useTTSHotkeys(activeTerminalId);
+
+  // The composer only feeds an interactive terminal — null for a browser tab,
+  // so it's shown for a real terminal view only.
+  const composerTarget = useMemo(
+    () => (activeTab && activeTab.kind !== "browser" ? { id: activeTab.id, label: activeTab.label } : null),
+    [activeTab],
+  );
+
+  const activeTerminalIdForComposer = composerTarget?.id ?? null;
+  // Keep the composer (and its draft) bound to the last real terminal so a
+  // glance at a service/browser tab doesn't swap it out — only a switch to a
+  // different terminal does.
+  const lastTerminalId = useRef<string | null>(null);
+  if (activeTerminalIdForComposer) lastTerminalId.current = activeTerminalIdForComposer;
+  const composerTerminalId = activeTerminalIdForComposer ?? lastTerminalId.current;
+
+  // The keyboard's open/close state is shared across all terminals.
+  const composerOpen = useComposerStore((s) => s.open);
+
+  // Tell this project's footer toggle which terminal it currently controls.
+  useEffect(() => {
+    useComposerStore.getState().setActive(projectName, activeTerminalIdForComposer);
+  }, [projectName, activeTerminalIdForComposer]);
+
+  const submitComposerInput = useCallback(
+    (text: string): boolean => {
+      if (!composerTarget) return false;
+      const ok = terminalHandles.current.get(composerTarget.id)?.submitInput(text) ?? false;
+      if (!ok) toast.error("This terminal isn't accepting input right now.");
+      return ok;
+    },
+    [composerTarget],
+  );
+
+  const focusComposerTarget = useCallback(() => {
+    if (!composerTarget) return;
+    terminalHandles.current.get(composerTarget.id)?.focus();
+  }, [composerTarget]);
 
   useImperativeHandle(
     ref,
@@ -410,9 +461,10 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
   return (
     <div
-      className="flex min-h-0 flex-1 overflow-hidden rounded-t-lg border-t border-x border-[var(--border)] bg-[var(--terminal-bg)]"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-lg border-t border-x border-[var(--border)] bg-[var(--terminal-bg)]"
       style={containerStyle}
     >
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
       {tree ? (
         <TerminalTabDnd tree={tree} onReorder={reorderTerminals} onMove={moveTerminal}>
           <PaneLayout
@@ -468,6 +520,21 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
         </div>
       )}
       <TTSControls />
+      </div>
+      {composerOpen && composerTerminalId && (
+        // One shared composer instance for every terminal — not keyed by id — so
+        // the draft survives switching tabs; it just retargets to the active
+        // terminal. Stays mounted (hidden) during a glance at a service/browser
+        // tab so the draft isn't lost there either.
+        <div className={composerTarget ? undefined : "hidden"}>
+          <TerminalComposer
+            targetLabel={composerTarget?.label ?? ""}
+            onSubmit={submitComposerInput}
+            onClose={() => useComposerStore.getState().setOpen(false)}
+            onFocusTerminal={focusComposerTarget}
+          />
+        </div>
+      )}
       </div>
   );
 }

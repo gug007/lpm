@@ -34,6 +34,9 @@ export interface InteractivePaneHandle {
   setFilter: (query: string | null, onCount?: (count: number) => void) => void;
   scrollToBottom: () => void;
   focus: () => void;
+  // Returns false when the target session is gone or its process has exited,
+  // so callers can warn instead of dropping the text into a dead PTY.
+  submitInput: (text: string) => boolean;
 }
 
 interface InteractivePaneProps {
@@ -122,6 +125,8 @@ interface InteractiveSession {
   onExit?: (exitCode: number) => void;
   themeOverride: ITheme | null;
 
+  // Marks the session disconnected (same path onData uses on a failed write).
+  handleWriteError?: () => void;
   destroy: () => void;
 }
 
@@ -350,6 +355,7 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   };
 
   const handleWriteError = () => markDead("[Session disconnected]", "91");
+  session.handleWriteError = handleWriteError;
 
   term.onData((data) => {
     sendTerminalInput(terminalId, data).catch(handleWriteError);
@@ -512,6 +518,23 @@ export function InteractivePane({
     },
     focus() {
       sessionRef.current?.term.focus();
+    },
+    // Send composed text to the PTY as a single ordered write. Multi-line
+    // bodies are wrapped in bracketed-paste markers (when the running program
+    // enabled them) so receivers treat embedded newlines as pasted content
+    // rather than executing each line; the trailing CR submits it. One write
+    // guarantees the body lands before the submit, which two IPC calls can't.
+    submitInput(text: string) {
+      const session = sessionRef.current;
+      if (!session || session.sessionDead) return false;
+      const body = text.replace(/\r?\n/g, "\r");
+      // Mirror xterm's bracketTextForPaste: neutralize ESC in the body so the
+      // composed text can't smuggle a \x1b[201~ to break out of the paste.
+      const wrapped = session.term.modes.bracketedPasteMode
+        ? `\x1b[200~${body.replace(/\x1b/g, "␛")}\x1b[201~`
+        : body;
+      sendTerminalInput(terminalId, `${wrapped}\r`).catch(() => session.handleWriteError?.());
+      return true;
     },
   }));
 
