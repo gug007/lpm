@@ -49,7 +49,7 @@ function chipBeforePoint(container: Node, offset: number): HTMLElement | null {
   if (container.nodeType === Node.TEXT_NODE) {
     // Anything real before the caret means the chip isn't adjacent; a stray-only
     // prefix (the caret anchor parked after a chip) is residue to look past.
-    if ((container.nodeValue ?? "").slice(0, offset).replace(STRAY_CHARS_RE, "").length > 0) return null;
+    if (!isStrayOnly((container.nodeValue ?? "").slice(0, offset))) return null;
     node = skipEmptyText(container.previousSibling, "prev");
   } else {
     node = skipEmptyText(container.childNodes[offset - 1] ?? null, "prev");
@@ -61,10 +61,7 @@ function chipBeforePoint(container: Node, offset: number): HTMLElement | null {
 // live DOM rather than serialize() so a WebKit leftover empty block (e.g.
 // `<div><br></div>` after clearing) still counts as empty.
 export function isEditorEmpty(root: HTMLElement): boolean {
-  return (
-    (root.textContent ?? "").replace(STRAY_CHARS_RE, "").length === 0 &&
-    !root.querySelector("[data-img]")
-  );
+  return isStrayOnly(root.textContent ?? "") && !root.querySelector("[data-img]");
 }
 
 // Zero-width/format characters, the object-replacement char, and C0/C1 control
@@ -77,13 +74,17 @@ const STRAY_CHARS_TEST = new RegExp(STRAY_CHARS_RE.source);
 
 const ZWSP = "\u200B";
 
+// True when `str` holds no visible content — empty once stray/zero-width
+// characters (WebKit's tofu residue and the caret-anchor ZWSP) are stripped.
+function isStrayOnly(str: string): boolean {
+  return str.replace(STRAY_CHARS_RE, "").length === 0;
+}
+
 // A text node holding nothing but stray/zero-width characters — invisible
 // residue, including the caret anchor we park after a trailing chip.
 function isStrayOnlyText(node: Node | null): node is Text {
   return (
-    node != null &&
-    node.nodeType === Node.TEXT_NODE &&
-    (node.nodeValue ?? "").replace(STRAY_CHARS_RE, "").length === 0
+    node != null && node.nodeType === Node.TEXT_NODE && isStrayOnly(node.nodeValue ?? "")
   );
 }
 
