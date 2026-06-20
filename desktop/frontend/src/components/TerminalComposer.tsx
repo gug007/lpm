@@ -12,8 +12,10 @@ import {
 import { ReadClipboardFiles, SaveClipboardImage } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
 import { loadComposerDraft, saveComposerDraft } from "../store/composerDrafts";
+import { recordMessage } from "../store/messageHistory";
 import { SendIcon } from "./icons";
 import { ImagePreviewPopover } from "./ImagePreviewPopover";
+import { TerminalHistoryButton } from "./TerminalHistoryButton";
 import {
   caretEdges,
   chipAfterCaret,
@@ -34,8 +36,11 @@ import {
 interface TerminalComposerProps {
   // Terminal whose draft this composer owns; its draft is persisted per id.
   terminalId: string;
-  // Whether the composer is actually visible (false while glancing at a
-  // service/browser tab). A hidden→shown transition refocuses the input.
+  // Project the target terminal belongs to; tags each sent message in history.
+  projectName: string;
+  // Whether the composer is actually on screen (false while glancing at a
+  // service/browser tab, or while another project is selected). A hidden→shown
+  // transition refocuses the input.
   shown: boolean;
   // Label of the terminal that will receive the input.
   targetLabel: string;
@@ -51,7 +56,7 @@ interface TerminalComposerProps {
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif|svg)$/i;
 
-export function TerminalComposer({ terminalId, shown, targetLabel, fontSize, onSubmit, onClose, onFocusTerminal }: TerminalComposerProps) {
+export function TerminalComposer({ terminalId, projectName, shown, targetLabel, fontSize, onSubmit, onClose, onFocusTerminal }: TerminalComposerProps) {
   // `blank` drives the placeholder (no content at all); `disabled` drives the
   // send button (nothing but whitespace).
   const [blank, setBlank] = useState(true);
@@ -92,8 +97,9 @@ export function TerminalComposer({ terminalId, shown, targetLabel, fontSize, onS
     // fresh mount; terminalId never changes within one instance.
   }, []);
 
-  // Re-show after a glance at a service/browser tab (no remount, since the
-  // composer stays pinned to the last terminal) should refocus the input too.
+  // Re-show after a glance at a service/browser tab or a switch to another
+  // project (no remount, since the composer stays pinned to the last terminal)
+  // should refocus the input too.
   const wasShown = useRef(shown);
   useLayoutEffect(() => {
     const editor = editorRef.current;
@@ -288,7 +294,9 @@ export function TerminalComposer({ terminalId, shown, targetLabel, fontSize, onS
     // Store the resolved text (real paths) so recalling a past message re-sends
     // the same images without depending on the cleared map. imgCounter stays
     // monotonic so a future chip can never collide with a past index.
-    history.current.unshift(Array.isArray(payload) ? payload.join(" ") : payload.trimEnd());
+    const sent = Array.isArray(payload) ? payload.join(" ") : payload.trimEnd();
+    history.current.unshift(sent);
+    recordMessage({ text: sent, projectName, terminalId, terminalLabel: targetLabel });
     histIdx.current = -1;
     imagePaths.current.clear();
     setEditorContent(editor, "");
@@ -308,6 +316,22 @@ export function TerminalComposer({ terminalId, shown, targetLabel, fontSize, onS
     syncState();
     placeCaretAtEnd(editor);
     return true;
+  };
+
+  // Load a message chosen from the history popover into the field, replacing the
+  // current draft. Inserted as plain text (not via setEditorContent) so any
+  // literal "[Image #N]" in the stored text can't be re-parsed into a phantom,
+  // path-less image chip.
+  const loadFromHistory = (text: string) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.replaceChildren();
+    if (text) editor.appendChild(document.createTextNode(text));
+    imagePaths.current.clear();
+    histIdx.current = -1;
+    syncState();
+    placeCaretAtEnd(editor);
+    editor.focus();
   };
 
   const deleteImageChip = (chip: HTMLElement) => {
@@ -438,6 +462,7 @@ export function TerminalComposer({ terminalId, shown, targetLabel, fontSize, onS
     <div className="border-t border-[var(--border)] bg-[var(--terminal-bg)] px-3 pb-1 pt-2">
       <div
         ref={containerRef}
+        data-composer-box
         onDragOver={(e) => {
           if (Array.from(e.dataTransfer?.types ?? []).includes("Files")) {
             e.preventDefault();
@@ -477,7 +502,7 @@ export function TerminalComposer({ terminalId, shown, targetLabel, fontSize, onS
           onMouseLeave={dismissPreview}
           onScroll={dismissPreview}
           style={textStyle}
-          className="block max-h-[200px] min-h-[60px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent py-2.5 pl-3.5 pr-12 text-[var(--text-primary)] outline-none [overflow-wrap:anywhere]"
+          className="block max-h-[200px] min-h-[60px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent py-2.5 pl-3.5 pr-[5.25rem] text-[var(--text-primary)] outline-none [overflow-wrap:anywhere]"
         />
         {blank && (
           <div
@@ -487,20 +512,33 @@ export function TerminalComposer({ terminalId, shown, targetLabel, fontSize, onS
             Send to {targetLabel}…
           </div>
         )}
-        <button
-          type="button"
-          onClick={send}
-          disabled={disabled}
-          title="Send  ·  ↵"
-          aria-label="Send"
-          className={`absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-lg transition-all ${
-            disabled
-              ? "text-[var(--text-muted)]"
-              : "bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-90 active:scale-95"
-          }`}
-        >
-          <SendIcon />
-        </button>
+        <div className="absolute bottom-2 right-2 flex items-center gap-1">
+          <TerminalHistoryButton
+            terminalId={terminalId}
+            projectName={projectName}
+            terminalLabel={targetLabel}
+            onPick={loadFromHistory}
+          />
+          <button
+            type="button"
+            onClick={send}
+            disabled={disabled}
+            title="Send  ·  ↵"
+            aria-label="Send"
+            style={
+              disabled
+                ? undefined
+                : { boxShadow: "0 2px 12px -2px color-mix(in srgb, var(--accent-blue) 60%, transparent)" }
+            }
+            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 ${
+              disabled
+                ? "text-[var(--text-muted)]"
+                : "bg-[var(--accent-blue)] text-[var(--bg-primary)] hover:brightness-110 active:scale-90"
+            }`}
+          >
+            <SendIcon />
+          </button>
+        </div>
       </div>
       {preview && <ImagePreviewPopover path={preview.path} anchor={preview.rect} />}
     </div>

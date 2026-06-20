@@ -15,6 +15,7 @@ mod hooks;
 mod log_streaming;
 mod mainwindow;
 mod menu;
+mod message_history;
 mod notes_blobs;
 mod notes_cmds;
 mod notes_store;
@@ -52,6 +53,7 @@ use files::*;
 use git::*;
 use hooks::*;
 use log_streaming::*;
+use message_history::*;
 use notes_cmds::*;
 use openin::*;
 use portforward::*;
@@ -86,6 +88,7 @@ pub fn run() {
         .manage(git::WatchState::default())
         .manage(detached::DetachedState::default())
         .manage(notes_cmds::NotesState::default())
+        .manage(message_history::MessageHistoryState::default())
         .manage(std::sync::Arc::new(status::StatusStore::new()))
         .manage(updates::UpdateState::default())
         .manage(tts::TtsState::default())

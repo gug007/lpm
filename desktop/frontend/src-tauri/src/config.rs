@@ -41,6 +41,10 @@ pub fn groups_path() -> PathBuf {
     lpm_dir().join("groups.json")
 }
 
+pub fn message_history_path() -> PathBuf {
+    lpm_dir().join("message-history.db")
+}
+
 const RESERVED_PROJECT_NAME: &str = "__global__";
 
 /// Mirrors config.EnsureDirs: create the projects + templates dirs.

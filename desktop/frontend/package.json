@@ -12,14 +12,15 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^5.2.2",
     "@monaco-editor/react": "^4.7.0",
     "@tanstack/react-query": "^5.99.0",
+    "@tanstack/react-virtual": "^3.14.3",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-opener": "^2",
     "@xterm/addon-fit": "^0.12.0-beta.220",
     "@xterm/addon-search": "^0.17.0-beta.220",
     "@xterm/addon-serialize": "^0.15.0-beta.220",
@@ -44,8 +45,8 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2",
     "@tailwindcss/vite": "^4.0.0",
+    "@tauri-apps/cli": "^2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",

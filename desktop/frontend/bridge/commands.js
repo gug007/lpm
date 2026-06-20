@@ -226,6 +226,18 @@ export function ListTemplates() {
 export function LoadGroups() {
   return invoke("load_groups");
 }
+export function MessageHistoryQuery(input) {
+  return invoke("message_history_query", { input });
+}
+export function MessageHistoryAdd(message) {
+  return invoke("message_history_add", { message });
+}
+export function MessageHistoryToggleFavorite(id) {
+  return invoke("message_history_toggle_favorite", { id });
+}
+export function MessageHistoryClear(scope, terminalId, projectName, terminalLabel) {
+  return invoke("message_history_clear", { scope, terminalId, projectName, terminalLabel });
+}
 export function LoadSettings() {
   return invoke("load_settings");
 }

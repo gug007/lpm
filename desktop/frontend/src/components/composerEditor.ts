@@ -217,7 +217,10 @@ export function insertItemsAtCaret(root: HTMLElement, items: Array<HTMLElement |
   });
   range.insertNode(frag);
 
+  // Focus first: after an unfocused drop, WebKit parks the caret at the field
+  // start (before the image) unless the element is focused when it's set.
   if (lastNode) {
+    root.focus();
     const after = document.createRange();
     after.setStartAfter(lastNode);
     after.collapse(true);

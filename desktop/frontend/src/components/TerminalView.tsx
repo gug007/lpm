@@ -535,7 +535,8 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
           <TerminalComposer
             key={composerTerminalId}
             terminalId={composerTerminalId}
-            shown={!!composerTarget}
+            projectName={projectName}
+            shown={visible && !!composerTarget}
             targetLabel={composerTarget?.label ?? ""}
             fontSize={fontSize}
             onSubmit={submitComposerInput}
