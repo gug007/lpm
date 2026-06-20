@@ -810,6 +810,7 @@ async function reifyTreeWithFreshPtys(
       ids.forEach((id) => startedIds.push(id));
       const tabs = ids.map((id, i) =>
         makeTerminal(id, persistedTabs[i].label ?? "Terminal", {
+          historyKey: persistedTabs[i].historyKey,
           startCmd: persistedTabs[i].startCmd,
           resumeCmd: persistedTabs[i].resumeCmd,
           actionName: persistedTabs[i].actionName,
@@ -855,6 +856,7 @@ function treeToPersisted(node: PaneNode): PersistedPaneNode {
         .filter((t) => t.kind !== "browser")
         .map((t) => ({
           label: t.label,
+          ...(t.historyKey ? { historyKey: t.historyKey } : {}),
           ...(t.startCmd ? { startCmd: t.startCmd } : {}),
           ...(t.resumeCmd ? { resumeCmd: t.resumeCmd } : {}),
           ...(t.actionName ? { actionName: t.actionName } : {}),

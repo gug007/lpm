@@ -491,6 +491,7 @@ function PaneViewImpl(props: PaneViewProps) {
         <TerminalComposer
           key={composerTab.id}
           terminalId={composerTab.id}
+          historyKey={composerTab.historyKey ?? composerTab.id}
           projectName={projectName}
           shown={visible}
           focused={focused}

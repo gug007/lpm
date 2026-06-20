@@ -8,6 +8,11 @@ export const ALL_SERVICES = "__lpm_all__";
 export interface TerminalInstance {
   id: string;
   label: string;
+  // Stable per-terminal identity for message-history scoping. Unlike `id` (a
+  // live PTY id regenerated on every restart), this is persisted, so a terminal
+  // keeps its own "This terminal" history across restarts without bleeding into
+  // other terminals that merely share a label. Absent on browser tabs.
+  historyKey?: string;
   startCmd?: string;
   resumeCmd?: string;
   actionName?: string;
@@ -54,11 +59,13 @@ export function makeTerminal(
     actionName?: string;
     pinned?: boolean;
     emoji?: string;
+    historyKey?: string;
   },
 ): TerminalInstance {
   return {
     id,
     label,
+    historyKey: opts?.historyKey ?? crypto.randomUUID(),
     ...(opts?.startCmd ? { startCmd: opts.startCmd } : {}),
     ...(opts?.resumeCmd ? { resumeCmd: opts.resumeCmd } : {}),
     ...(opts?.actionName ? { actionName: opts.actionName } : {}),

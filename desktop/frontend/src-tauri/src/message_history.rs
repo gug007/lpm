@@ -77,23 +77,23 @@ fn now_millis() -> i64 {
         .unwrap_or(0)
 }
 
-// The "this terminal" predicate — matched by live id OR the stable project+label
-// pair (the live id changes across restarts). Built once so the list query and
-// the clear DELETE can't drift. Pushes its bind params; "" for the "all" scope.
+// The "this terminal" predicate. terminal_id holds the frontend's stable
+// per-terminal history key (persisted across restarts), so matching it alone
+// scopes history to exactly one terminal — without bleeding into other terminals
+// that merely share a project + label. Built once so the list query and the
+// clear DELETE can't drift. Pushes its bind param; "" for the "all" scope.
 fn scope_clause(
     scope: &str,
     terminal_id: &str,
-    project_name: &str,
-    terminal_label: &str,
+    _project_name: &str,
+    _terminal_label: &str,
     args: &mut Vec<SqlValue>,
 ) -> &'static str {
     if scope != "terminal" {
         return "";
     }
     args.push(terminal_id.to_string().into());
-    args.push(project_name.to_string().into());
-    args.push(terminal_label.to_string().into());
-    " AND (terminal_id = ? OR (project_name = ? AND terminal_label = ?))"
+    " AND terminal_id = ?"
 }
 
 #[derive(Serialize)]

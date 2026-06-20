@@ -3,6 +3,8 @@ import { main } from "../bridge/models";
 
 export interface PersistedTab {
   label: string;
+  // Stable per-terminal id for message-history scoping; survives restart.
+  historyKey?: string;
   startCmd?: string;
   resumeCmd?: string;
   actionName?: string;

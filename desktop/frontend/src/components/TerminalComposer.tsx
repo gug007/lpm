@@ -37,6 +37,10 @@ import {
 interface TerminalComposerProps {
   // Terminal whose draft this composer owns; its draft is persisted per id.
   terminalId: string;
+  // Stable per-terminal id used to scope message history. The live terminalId
+  // changes across restarts, so history is keyed by this instead — otherwise it
+  // would fall back to matching by label and bleed across terminals.
+  historyKey: string;
   // Project the target terminal belongs to; tags each sent message in history.
   projectName: string;
   // Whether the composer is actually on screen (false while glancing at a
@@ -60,7 +64,7 @@ interface TerminalComposerProps {
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif|svg)$/i;
 
-export function TerminalComposer({ terminalId, projectName, shown, focused, targetLabel, fontSize, onSubmit, onFocusTerminal }: TerminalComposerProps) {
+export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, fontSize, onSubmit, onFocusTerminal }: TerminalComposerProps) {
   // `blank` drives the placeholder (no content at all); `disabled` drives the
   // send button (nothing but whitespace).
   const [blank, setBlank] = useState(true);
@@ -340,7 +344,7 @@ export function TerminalComposer({ terminalId, projectName, shown, focused, targ
     recordMessage({
       text: value,
       projectName,
-      terminalId,
+      terminalId: historyKey,
       terminalLabel: targetLabel,
       images: Object.fromEntries(imagePaths.current),
     });
@@ -570,7 +574,7 @@ export function TerminalComposer({ terminalId, projectName, shown, focused, targ
         )}
         <div className="absolute bottom-2 right-2 flex items-center gap-1">
           <TerminalHistoryButton
-            terminalId={terminalId}
+            terminalId={historyKey}
             projectName={projectName}
             terminalLabel={targetLabel}
             onPick={loadFromHistory}
