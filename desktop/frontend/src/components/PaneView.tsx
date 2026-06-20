@@ -19,6 +19,7 @@ import { TerminalSearchBar } from "./terminal/TerminalSearchBar";
 import { XIcon, GlobeIcon, TerminalIcon, ZapIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
 import { SortableTab, TabStrip } from "./TerminalTabDnd";
+import { TerminalComposer } from "./TerminalComposer";
 import { useScrollFade } from "../hooks/useScrollFade";
 import { computeScrollIntoViewLeft } from "../hooks/scrollIntoViewX";
 import { useTabScroll } from "../store/tabScroll";
@@ -68,12 +69,14 @@ export interface ServiceTabInfo {
 
 export interface PaneViewProps {
   pane: PaneLeaf;
+  projectName: string;
   visible: boolean;
   focused: boolean;
   fullscreen: boolean;
   searchActive: boolean;
   canClose: boolean;
   fontSize: number;
+  composerOpen: boolean;
   themeOverride: ITheme | null;
   runningPaneIDs?: Set<string>;
   donePaneIDs?: Set<string>;
@@ -109,6 +112,8 @@ export interface PaneViewProps {
     handle: PaneHandle | null,
   ) => void;
   onClearStatus: (terminalId: string, kind: StatusKind) => void;
+  onSubmitInput: (terminalId: string, input: string | string[]) => boolean;
+  onFocusTerminalInput: (terminalId: string) => void;
   onFindInPane: (paneId: string, query: string, direction: "next" | "prev") => boolean;
   filterMode: boolean;
   matchCount: number;
@@ -120,12 +125,14 @@ export interface PaneViewProps {
 function PaneViewImpl(props: PaneViewProps) {
   const {
     pane,
+    projectName,
     visible,
     focused,
     fullscreen,
     searchActive,
     canClose,
     fontSize,
+    composerOpen,
     themeOverride,
     runningPaneIDs,
     donePaneIDs,
@@ -148,6 +155,8 @@ function PaneViewImpl(props: PaneViewProps) {
     onRegisterTerminalHandle,
     onRegisterServiceHandle,
     onClearStatus,
+    onSubmitInput,
+    onFocusTerminalInput,
     onFindInPane,
     filterMode,
     matchCount,
@@ -180,6 +189,10 @@ function PaneViewImpl(props: PaneViewProps) {
       ? -1
       : Math.min(pane.activeTabIdx, pane.tabs.length - 1);
   const activeTerm = terminalIdx >= 0 ? pane.tabs[terminalIdx] : null;
+  const composerTab =
+    activeServiceName === null && activeTerm && activeTerm.kind !== "browser"
+      ? activeTerm
+      : null;
 
   useEffect(() => {
     if (!visible || !focused || activeServiceName !== null || !activeTerm)
@@ -472,6 +485,21 @@ function PaneViewImpl(props: PaneViewProps) {
           );
         })}
       </div>
+      {composerOpen && composerTab && (
+        // Keyed by terminal id so each terminal keeps its own draft and the
+        // input refocuses when the active terminal changes.
+        <TerminalComposer
+          key={composerTab.id}
+          terminalId={composerTab.id}
+          projectName={projectName}
+          shown={visible}
+          focused={focused}
+          targetLabel={composerTab.label}
+          fontSize={fontSize}
+          onSubmit={(input) => onSubmitInput(composerTab.id, input)}
+          onFocusTerminal={() => onFocusTerminalInput(composerTab.id)}
+        />
+      )}
       {tabMenu && (() => {
         const targetPane = pane.id === tabMenu.paneId ? pane : null;
         const tab = targetPane?.tabs[tabMenu.tabIdx];

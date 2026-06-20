@@ -42,6 +42,10 @@ interface TerminalComposerProps {
   // service/browser tab, or while another project is selected). A hidden→shown
   // transition refocuses the input.
   shown: boolean;
+  // Whether this composer's pane is the focused one. Only the focused pane's
+  // input grabs keyboard focus — otherwise every pane's composer would fight
+  // over focus on mount / project switch-back.
+  focused: boolean;
   // Label of the terminal that will receive the input.
   targetLabel: string;
   // Terminal font size; the composer text scales to match it.
@@ -55,7 +59,7 @@ interface TerminalComposerProps {
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif|svg)$/i;
 
-export function TerminalComposer({ terminalId, projectName, shown, targetLabel, fontSize, onSubmit, onFocusTerminal }: TerminalComposerProps) {
+export function TerminalComposer({ terminalId, projectName, shown, focused, targetLabel, fontSize, onSubmit, onFocusTerminal }: TerminalComposerProps) {
   // `blank` drives the placeholder (no content at all); `disabled` drives the
   // send button (nothing but whitespace).
   const [blank, setBlank] = useState(true);
@@ -72,6 +76,10 @@ export function TerminalComposer({ terminalId, projectName, shown, targetLabel, 
   const imagePaths = useRef<Map<number, string>>(new Map());
   const imgCounter = useRef(0);
   const normalizePending = useRef(false);
+  // Read by the show effect (keyed on `shown`) so it doesn't re-run on focus
+  // changes — clicking a pane's terminal must not steal focus into its input.
+  const focusedRef = useRef(focused);
+  focusedRef.current = focused;
 
   // Restore this terminal's saved draft on mount (the composer is remounted per
   // terminal), then focus it — so switching terminals brings back what you'd
@@ -91,7 +99,7 @@ export function TerminalComposer({ terminalId, projectName, shown, targetLabel, 
       setDisabled(serializeEditor(editor).trim() === "");
       placeCaretAtEnd(editor);
     }
-    editor.focus();
+    if (focused) editor.focus();
     // Mount-only: the composer is keyed by terminalId, so a new terminal == a
     // fresh mount; terminalId never changes within one instance.
   }, []);
@@ -102,7 +110,7 @@ export function TerminalComposer({ terminalId, projectName, shown, targetLabel, 
   const wasShown = useRef(shown);
   useLayoutEffect(() => {
     const editor = editorRef.current;
-    if (editor && shown && !wasShown.current) {
+    if (editor && shown && !wasShown.current && focusedRef.current) {
       editor.focus();
       placeCaretAtEnd(editor);
     }

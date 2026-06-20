@@ -12,7 +12,6 @@ import type { ServiceTabInfo, StatusKind } from "./PaneView";
 import { type TerminalThemeName, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
 import { ansiColors } from "./terminal-utils";
 import { TerminalIcon } from "./icons";
-import { TerminalComposer } from "./TerminalComposer";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { useTerminals, type TerminalStartOpts } from "../hooks/useTerminals";
 import { type PersistedHistoryEntry } from "../terminals";
@@ -370,7 +369,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       if (matched.key === "=" || matched.key === "+") return onZoomIn();
       if (matched.key === "-") return onZoomOut();
       if (matched.key === "i") {
-        if (activeTerminalIdForComposer) useComposerStore.getState().toggle();
+        if (focusedComposerTerminalId) useComposerStore.getState().toggle();
         return;
       }
       if (matched.key === "w") {
@@ -420,43 +419,30 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
   useTTSHotkeys(activeTerminalId);
 
-  // The composer only feeds an interactive terminal — null for a browser tab,
-  // so it's shown for a real terminal view only.
-  const composerTarget = useMemo(
-    () => (activeTab && activeTab.kind !== "browser" ? { id: activeTab.id, label: activeTab.label } : null),
-    [activeTab],
-  );
-
-  const activeTerminalIdForComposer = composerTarget?.id ?? null;
-  // Keep the composer (and its draft) bound to the last real terminal so a
-  // glance at a service/browser tab doesn't swap it out — only a switch to a
-  // different terminal does.
-  const lastTerminalId = useRef<string | null>(null);
-  if (activeTerminalIdForComposer) lastTerminalId.current = activeTerminalIdForComposer;
-  const composerTerminalId = activeTerminalIdForComposer ?? lastTerminalId.current;
-
-  // The keyboard's open/close state is shared across all terminals.
+  // Shared open/close flag; each pane renders its own input when this is on.
   const composerOpen = useComposerStore((s) => s.open);
 
-  // Tell this project's footer toggle which terminal it currently controls.
-  useEffect(() => {
-    useComposerStore.getState().setActive(projectName, activeTerminalIdForComposer);
-  }, [projectName, activeTerminalIdForComposer]);
+  // Gates the footer toggle and ⌘I on the focused pane's active terminal, so the
+  // toggle always shows/hides an input where the user is looking, never a dead
+  // toggle. null while that pane shows a browser, a service log, or has no tabs.
+  const focusedComposerTerminalId = activeTab && activeTab.kind !== "browser" ? activeTab.id : null;
 
-  const submitComposerInput = useCallback(
-    (input: string | string[]): boolean => {
-      if (!composerTarget) return false;
-      const ok = terminalHandles.current.get(composerTarget.id)?.submitInput(input) ?? false;
+  useEffect(() => {
+    useComposerStore.getState().setActive(projectName, focusedComposerTerminalId);
+  }, [projectName, focusedComposerTerminalId]);
+
+  const submitInputToTerminal = useCallback(
+    (terminalId: string, input: string | string[]): boolean => {
+      const ok = terminalHandles.current.get(terminalId)?.submitInput(input) ?? false;
       if (!ok) toast.error("This terminal isn't accepting input right now.");
       return ok;
     },
-    [composerTarget],
+    [],
   );
 
-  const focusComposerTarget = useCallback(() => {
-    if (!composerTarget) return;
-    terminalHandles.current.get(composerTarget.id)?.focus();
-  }, [composerTarget]);
+  const focusTerminalInput = useCallback((terminalId: string) => {
+    terminalHandles.current.get(terminalId)?.focus();
+  }, []);
 
   useImperativeHandle(
     ref,
@@ -474,6 +460,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
         <TerminalTabDnd tree={tree} onReorder={reorderTerminals} onMove={moveTerminal}>
           <PaneLayout
             node={tree}
+            projectName={projectName}
             visible={visible}
             focusedPaneId={focusedPaneId}
             fullscreenPaneId={fullscreenPaneId}
@@ -482,6 +469,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             matchCount={matchCount}
             canClose={tree.kind === "split"}
             fontSize={fontSize}
+            composerOpen={composerOpen}
             themeOverride={xtermTheme}
             services={serviceTabInfos}
             interactiveCwd={projectRoot}
@@ -504,6 +492,8 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onRegisterTerminalHandle={registerTerminalHandle}
             onRegisterServiceHandle={registerServiceHandle}
             onClearStatus={handleClearStatus}
+            onSubmitInput={submitInputToTerminal}
+            onFocusTerminalInput={focusTerminalInput}
             onRatioChange={setRatio}
             onFindInPane={findInPane}
             onFilterInPane={filterInPane}
@@ -526,24 +516,6 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       )}
       <TTSControls />
       </div>
-      {composerOpen && composerTerminalId && (
-        // Keyed by terminal id so each terminal owns its own draft (persisted in
-        // composerDrafts and restored on switch) and the input refocuses when you
-        // switch terminals. Stays mounted (hidden) during a glance at a
-        // service/browser tab so the draft isn't lost there either.
-        <div className={composerTarget ? undefined : "hidden"}>
-          <TerminalComposer
-            key={composerTerminalId}
-            terminalId={composerTerminalId}
-            projectName={projectName}
-            shown={visible && !!composerTarget}
-            targetLabel={composerTarget?.label ?? ""}
-            fontSize={fontSize}
-            onSubmit={submitComposerInput}
-            onFocusTerminal={focusComposerTarget}
-          />
-        </div>
-      )}
       </div>
   );
 }

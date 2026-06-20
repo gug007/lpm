@@ -185,6 +185,16 @@ export function presentImageTokens(root: HTMLElement): Set<number> {
   return present;
 }
 
+// WebKit won't paint a caret immediately after a trailing contenteditable=false
+// chip unless an editable line follows it — the same padding <br> it adds itself
+// after typed text. A chip dropped/pasted/restored as the last node never gets
+// that pad until the user interacts, leaving the caret invisible; add it here so
+// the caret shows right away. serializeEditor already treats this trailing <br>
+// as a pad, so it never adds a phantom newline.
+function ensureTrailingBreak(root: HTMLElement): void {
+  if (isChip(root.lastChild)) root.appendChild(document.createElement("br"));
+}
+
 // Insert chips and/or text at the caret (falling back to the end of the field
 // when the selection is elsewhere, e.g. an OS drop). Items are space-separated;
 // no trailing space is added, so a single Backspace right after a chip removes
@@ -217,15 +227,28 @@ export function insertItemsAtCaret(root: HTMLElement, items: Array<HTMLElement |
   });
   range.insertNode(frag);
 
-  // Focus first: after an unfocused drop, WebKit parks the caret at the field
-  // start (before the image) unless the element is focused when it's set.
   if (lastNode) {
-    root.focus();
-    const after = document.createRange();
-    after.setStartAfter(lastNode);
-    after.collapse(true);
-    sel?.removeAllRanges();
-    sel?.addRange(after);
+    const tail = lastNode;
+    // A chip left as the last node needs a trailing line or the caret after it
+    // won't render at all.
+    ensureTrailingBreak(root);
+    // Focus first: after an unfocused drop, WebKit parks the caret at the field
+    // start (before the image) unless the element is focused when it's set.
+    const placeCaret = () => {
+      if (!root.contains(tail)) return;
+      root.focus();
+      const after = document.createRange();
+      after.setStartAfter(tail);
+      after.collapse(true);
+      const live = window.getSelection();
+      live?.removeAllRanges();
+      live?.addRange(after);
+    };
+    placeCaret();
+    // A drop focuses the field late, so WebKit renders the caret at the field
+    // start even though the selection sits after the chip (typing lands there
+    // correctly). Re-applying once layout settles makes the painted caret match.
+    requestAnimationFrame(placeCaret);
   }
 }
 
@@ -310,11 +333,20 @@ export function caretEdges(root: HTMLElement): CaretEdges {
 }
 
 export function placeCaretAtEnd(root: HTMLElement): void {
+  ensureTrailingBreak(root);
   const sel = window.getSelection();
   if (!sel) return;
   const range = document.createRange();
   range.selectNodeContents(root);
   range.collapse(false);
+  // The padding <br> after a trailing chip is cosmetic: the editable end is
+  // right after the chip, not the empty line the <br> opens below it. Pull the
+  // caret up so typing continues on the chip's line instead of a new one.
+  const last = root.lastChild;
+  if (last && last.nodeName === "BR" && isChip(last.previousSibling)) {
+    range.setStartBefore(last);
+    range.collapse(true);
+  }
   sel.removeAllRanges();
   sel.addRange(range);
 }
