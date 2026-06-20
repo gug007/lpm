@@ -7,12 +7,35 @@ import {
   type ClipboardEvent,
   type DragEvent,
   type KeyboardEvent,
+  type MouseEvent,
 } from "react";
 import { ReadClipboardFiles, SaveClipboardImage } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
+import { loadComposerDraft, saveComposerDraft } from "../store/composerDrafts";
 import { SendIcon } from "./icons";
+import { ImagePreviewPopover } from "./ImagePreviewPopover";
+import {
+  IMAGE_TOKEN_RE,
+  caretEdges,
+  chipAfterCaret,
+  chipBeforeCaret,
+  createImageChip,
+  insertItemsAtCaret,
+  isEditorEmpty,
+  placeCaretAtEnd,
+  presentImageTokens,
+  removeChip,
+  selectChip,
+  serializeEditor,
+  setEditorContent,
+} from "./composerEditor";
 
 interface TerminalComposerProps {
+  // Terminal whose draft this composer owns; its draft is persisted per id.
+  terminalId: string;
+  // Whether the composer is actually visible (false while glancing at a
+  // service/browser tab). A hidden→shown transition refocuses the input.
+  shown: boolean;
   // Label of the terminal that will receive the input.
   targetLabel: string;
   // Returns false when the input could not be delivered (e.g. a dead session),
@@ -22,92 +45,140 @@ interface TerminalComposerProps {
   onFocusTerminal: () => void;
 }
 
-// Compact by default, grow with content up to a cap.
-const MIN_HEIGHT = 56;
-const MAX_HEIGHT = 200;
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif|svg)$/i;
-const IMAGE_TOKEN_RE = /\[Image #(\d+)\]/g;
 
-export function TerminalComposer({ targetLabel, onSubmit, onClose, onFocusTerminal }: TerminalComposerProps) {
-  const [text, setText] = useState("");
+export function TerminalComposer({ terminalId, shown, targetLabel, onSubmit, onClose, onFocusTerminal }: TerminalComposerProps) {
+  // `blank` drives the placeholder (no content at all); `disabled` drives the
+  // send button (nothing but whitespace).
+  const [blank, setBlank] = useState(true);
+  const [disabled, setDisabled] = useState(true);
   const [dragOver, setDragOver] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [preview, setPreview] = useState<{ path: string; rect: DOMRect } | null>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const hoverChip = useRef<HTMLElement | null>(null);
   const history = useRef<string[]>([]);
   // -1 means "the live draft"; 0..n-1 index into history, newest first.
   const histIdx = useRef(-1);
-  // [Image #N] placeholder index -> local file path pasted to the terminal on send.
+  // [Image #N] index -> local file path, swapped back in when the draft is sent.
   const imagePaths = useRef<Map<number, string>>(new Map());
   const imgCounter = useRef(0);
 
-  useEffect(() => {
-    textareaRef.current?.focus();
-  }, []);
-
+  // Restore this terminal's saved draft on mount (the composer is remounted per
+  // terminal), then focus it — so switching terminals brings back what you'd
+  // typed and puts the cursor in the input. useLayoutEffect so the restored text
+  // is painted in one frame (no empty-with-placeholder flash).
   useLayoutEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = "0px";
-    el.style.height = `${Math.min(Math.max(el.scrollHeight, MIN_HEIGHT), MAX_HEIGHT)}px`;
-  }, [text]);
-
-  // Reads the live caret + value so it stays correct even when called from a
-  // drop handler whose closure captured stale `text`.
-  const insertAtCaret = useCallback((insert: string) => {
-    const el = textareaRef.current;
-    const start = el ? el.selectionStart : null;
-    const end = el ? el.selectionEnd : null;
-    setText((prev) => {
-      const s = start ?? prev.length;
-      const e = end ?? prev.length;
-      return prev.slice(0, s) + insert + prev.slice(e);
-    });
-    histIdx.current = -1;
-    requestAnimationFrame(() => {
-      if (!el) return;
-      const pos = (start ?? el.value.length) + insert.length;
-      el.focus();
-      el.setSelectionRange(pos, pos);
-    });
+    const editor = editorRef.current;
+    if (!editor) return;
+    const draft = loadComposerDraft(terminalId);
+    if (draft) {
+      imagePaths.current = new Map(draft.imagePaths);
+      imgCounter.current = draft.imgCounter;
+      history.current = draft.history.slice();
+      histIdx.current = draft.histIdx;
+      setEditorContent(editor, draft.text);
+      setBlank(isEditorEmpty(editor));
+      setDisabled(serializeEditor(editor).trim() === "");
+      placeCaretAtEnd(editor);
+    }
+    editor.focus();
+    // Mount-only: the composer is keyed by terminalId, so a new terminal == a
+    // fresh mount; terminalId never changes within one instance.
   }, []);
 
-  const addImagePath = useCallback((path: string) => {
+  // Re-show after a glance at a service/browser tab (no remount, since the
+  // composer stays pinned to the last terminal) should refocus the input too.
+  const wasShown = useRef(shown);
+  useLayoutEffect(() => {
+    const editor = editorRef.current;
+    if (editor && shown && !wasShown.current) {
+      editor.focus();
+      placeCaretAtEnd(editor);
+    }
+    wasShown.current = shown;
+  }, [shown]);
+
+  const dismissPreview = useCallback(() => {
+    hoverChip.current = null;
+    setPreview(null);
+  }, []);
+
+  // The popover is anchored to a rect captured at hover time, so a window
+  // resize (the editor scroll is handled inline) would leave it floating.
+  useEffect(() => {
+    if (!preview) return;
+    window.addEventListener("resize", dismissPreview);
+    return () => window.removeEventListener("resize", dismissPreview);
+  }, [preview, dismissPreview]);
+
+  // Recompute the placeholder/disabled state and forget image paths whose chip
+  // has been deleted, so the map never outlives what's actually in the field.
+  const syncState = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const value = serializeEditor(editor);
+    setBlank(isEditorEmpty(editor));
+    setDisabled(value.trim() === "");
+    const present = presentImageTokens(editor);
+    for (const n of imagePaths.current.keys()) {
+      if (!present.has(n)) imagePaths.current.delete(n);
+    }
+    // Any deletion path (keyboard, select+delete, cut, send) ends here; if the
+    // hovered chip is gone, drop its now-orphaned preview.
+    if (hoverChip.current && !hoverChip.current.isConnected) {
+      hoverChip.current = null;
+      setPreview(null);
+    }
+    // Persist after every mutation so the draft survives a terminal switch.
+    saveComposerDraft(terminalId, {
+      text: value,
+      imagePaths: imagePaths.current,
+      imgCounter: imgCounter.current,
+      history: history.current,
+      histIdx: histIdx.current,
+    });
+  }, [terminalId]);
+
+  const registerImagePath = useCallback((path: string): HTMLSpanElement => {
     const n = (imgCounter.current += 1);
     imagePaths.current.set(n, path);
-    return `[Image #${n}]`;
+    return createImageChip(n);
   }, []);
 
   const addImageBlob = useCallback(
-    async (blob: Blob): Promise<string | null> => {
+    async (blob: Blob): Promise<HTMLSpanElement | null> => {
       const b64 = await blobToBase64(blob);
       if (!b64) return null;
       try {
         const path = await SaveClipboardImage(b64, blob.type || "image/png");
-        return typeof path === "string" && path ? addImagePath(path) : null;
+        return typeof path === "string" && path ? registerImagePath(path) : null;
       } catch {
         return null;
       }
     },
-    [addImagePath],
+    [registerImagePath],
   );
 
-  // Image file paths become [Image #N] tokens; other paths drop in as text.
+  const insertItems = useCallback(
+    (items: Array<HTMLElement | string>) => {
+      const editor = editorRef.current;
+      if (!editor || items.length === 0) return;
+      insertItemsAtCaret(editor, items);
+      histIdx.current = -1;
+      syncState();
+    },
+    [syncState],
+  );
+
+  // Image file paths become chips; other paths drop in as plain text.
   const insertImagePaths = useCallback(
     (paths: string[]) =>
-      insertAtCaret(paths.map((p) => (IMAGE_EXT_RE.test(p) ? addImagePath(p) : p)).join(" ")),
-    [addImagePath, insertAtCaret],
-  );
-
-  const insertTokens = useCallback(
-    (tokens: (string | null)[]) => {
-      const joined = tokens.filter(Boolean).join(" ");
-      if (joined) insertAtCaret(joined);
-    },
-    [insertAtCaret],
+      insertItems(paths.map((p) => (IMAGE_EXT_RE.test(p) ? registerImagePath(p) : p))),
+    [insertItems, registerImagePath],
   );
 
   // OS file drops (from Finder) arrive as paths via the shared drop bridge.
-  // Image files become [Image #N] tokens; other files drop in as path text.
   useEffect(() => {
     return registerFileDropHandler("terminal-composer", (x, y, paths) => {
       const el = containerRef.current;
@@ -121,7 +192,7 @@ export function TerminalComposer({ targetLabel, onSubmit, onClose, onFocusTermin
   }, [insertImagePaths]);
 
   const handlePaste = useCallback(
-    (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    (e: ClipboardEvent<HTMLDivElement>) => {
       const dt = e.clipboardData;
       if (!dt) return;
       // Raw image bytes (e.g. a screenshot) — the common case.
@@ -132,7 +203,7 @@ export function TerminalComposer({ targetLabel, onSubmit, onClose, onFocusTermin
         const blob = imageItem.getAsFile();
         if (blob) {
           e.preventDefault();
-          void addImageBlob(blob).then((token) => insertTokens([token]));
+          void addImageBlob(blob).then((chip) => chip && insertItems([chip]));
           return;
         }
       }
@@ -144,10 +215,19 @@ export function TerminalComposer({ targetLabel, onSubmit, onClose, onFocusTermin
             if (Array.isArray(paths) && paths.length > 0) insertImagePaths(paths);
           })
           .catch(() => {});
+        return;
       }
-      // else: plain text — let the textarea paste normally.
+      // Plain text — insert it verbatim so rich clipboard HTML can't leak markup
+      // (or styled chips) into the field.
+      e.preventDefault();
+      const text = dt.getData("text/plain");
+      if (text) {
+        document.execCommand("insertText", false, text);
+        histIdx.current = -1;
+        syncState();
+      }
     },
-    [addImageBlob, insertImagePaths, insertTokens],
+    [addImageBlob, insertImagePaths, insertItems, syncState],
   );
 
   // In-app / web drags deliver File objects through the DOM (OS file drops go
@@ -158,40 +238,58 @@ export function TerminalComposer({ targetLabel, onSubmit, onClose, onFocusTermin
       const files = Array.from(e.dataTransfer?.files ?? []).filter((f) => f.type.startsWith("image/"));
       if (files.length === 0) return;
       e.preventDefault();
-      void Promise.all(files.map((f) => addImageBlob(f))).then(insertTokens);
+      void Promise.all(files.map((f) => addImageBlob(f))).then((chips) =>
+        insertItems(chips.filter((c): c is HTMLSpanElement => c !== null)),
+      );
     },
-    [addImageBlob, insertTokens],
+    [addImageBlob, insertItems],
   );
 
   const send = () => {
-    const value = text;
+    const editor = editorRef.current;
+    if (!editor) return;
+    const value = serializeEditor(editor);
     if (!value.trim()) return;
-    // Swap each [Image #N] placeholder for its file path so the terminal (e.g.
-    // Claude Code) receives the image just as a direct drop/paste would.
-    const resolved = value.replace(IMAGE_TOKEN_RE, (m, n) => imagePaths.current.get(Number(n)) ?? m);
+    // Swap each [Image #N] chip for its file path so the terminal (e.g. Claude
+    // Code) receives the image just as a direct drop/paste would.
+    const resolved = value
+      .replace(IMAGE_TOKEN_RE, (m, n) => imagePaths.current.get(Number(n)) ?? m)
+      .trimEnd();
     if (!onSubmit(resolved)) return;
-    // Store the resolved text (real paths, not [Image #N]) so recalling a past
-    // message re-sends the same images without depending on the cleared map.
-    // imgCounter stays monotonic so a recalled token can never collide with a
-    // freshly-pasted image's index.
+    // Store the resolved text (real paths) so recalling a past message re-sends
+    // the same images without depending on the cleared map. imgCounter stays
+    // monotonic so a future chip can never collide with a past index.
     history.current.unshift(resolved);
     histIdx.current = -1;
     imagePaths.current.clear();
-    setText("");
-    textareaRef.current?.focus();
+    setEditorContent(editor, "");
+    setPreview(null);
+    syncState();
+    editor.focus();
   };
 
   const recall = (delta: 1 | -1): boolean => {
+    const editor = editorRef.current;
     const hist = history.current;
-    if (hist.length === 0) return false;
+    if (!editor || hist.length === 0) return false;
     const next = Math.min(hist.length - 1, Math.max(-1, histIdx.current + delta));
     if (next === histIdx.current) return false;
     histIdx.current = next;
-    setText(next === -1 ? "" : hist[next]);
+    setEditorContent(editor, next === -1 ? "" : hist[next]);
+    syncState();
+    placeCaretAtEnd(editor);
     return true;
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+  const deleteImageChip = (chip: HTMLElement) => {
+    imagePaths.current.delete(Number(chip.dataset.img));
+    removeChip(chip);
+    syncState();
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const editor = editorRef.current;
+    if (!editor) return;
     // Keep app-chrome shortcuts (⌘W close tab, ⌘D split, ⌘F find, ⌘1-9 switch
     // project) from firing while typing here. ⌘I still bubbles so it can toggle
     // the composer closed; native edit shortcuts (copy/paste/select-all) keep
@@ -205,6 +303,12 @@ export function TerminalComposer({ targetLabel, onSubmit, onClose, onFocusTermin
       send();
       return;
     }
+    if (e.key === "Enter" && e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      document.execCommand("insertText", false, "\n");
+      histIdx.current = -1;
+      return;
+    }
     if (e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation();
@@ -212,51 +316,68 @@ export function TerminalComposer({ targetLabel, onSubmit, onClose, onFocusTermin
       onFocusTerminal();
       return;
     }
-    const el = textareaRef.current;
-    if (!el) return;
-    const caretCollapsed = el.selectionStart === el.selectionEnd;
-    // Treat [Image #N] as one atomic chip: a single Backspace/Delete next to it
-    // removes the whole token (and forgets its image), like Claude Code.
-    if ((e.key === "Backspace" || e.key === "Delete") && caretCollapsed) {
-      const pos = el.selectionStart;
-      const value = el.value;
-      const m =
-        e.key === "Backspace"
-          ? value.slice(0, pos).match(/\[Image #(\d+)\]$/)
-          : value.slice(pos).match(/^\[Image #(\d+)\]/);
-      if (m) {
+    // A single Backspace/Delete next to a chip removes the whole image at once —
+    // the caret can never sit inside a chip, so partial deletion is impossible.
+    if (e.key === "Backspace" || e.key === "Delete") {
+      const chip = e.key === "Backspace" ? chipBeforeCaret(editor) : chipAfterCaret(editor);
+      if (chip) {
         e.preventDefault();
         e.stopPropagation();
-        const removeStart = e.key === "Backspace" ? pos - m[0].length : pos;
-        imagePaths.current.delete(Number(m[1]));
-        setText(value.slice(0, removeStart) + value.slice(removeStart + m[0].length));
-        histIdx.current = -1;
-        requestAnimationFrame(() => {
-          el.focus();
-          el.setSelectionRange(removeStart, removeStart);
-        });
+        deleteImageChip(chip);
         return;
       }
     }
-    if (e.key === "ArrowUp" && caretCollapsed && el.selectionStart === 0) {
+    const edges = caretEdges(editor);
+    if (e.key === "ArrowUp" && edges.collapsed && edges.atStart) {
       if (recall(1)) {
         e.preventDefault();
         e.stopPropagation();
       }
       return;
     }
-    if (
-      e.key === "ArrowDown" &&
-      caretCollapsed &&
-      el.selectionStart === el.value.length &&
-      histIdx.current !== -1
-    ) {
+    if (e.key === "ArrowDown" && edges.collapsed && edges.atEnd && histIdx.current !== -1) {
       if (recall(-1)) {
         e.preventDefault();
         e.stopPropagation();
       }
     }
   };
+
+  const handleClick = (e: MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    // Clicking the chip's remove button (the icon, shown as "×" on hover) drops
+    // the image outright — the easy way to get rid of it.
+    const removeBtn = target.closest<HTMLElement>("[data-img-remove]");
+    if (removeBtn) {
+      e.preventDefault();
+      const chip = removeBtn.closest<HTMLElement>("[data-img]");
+      if (chip) {
+        deleteImageChip(chip);
+        dismissPreview();
+        editorRef.current?.focus();
+      }
+      return;
+    }
+    // Clicking elsewhere on a chip selects the whole thing so it reads (and
+    // deletes) as a unit.
+    const chip = target.closest<HTMLElement>("[data-img]");
+    if (chip) selectChip(chip);
+  };
+
+  const handleHover = (e: MouseEvent<HTMLDivElement>) => {
+    // A held button means a drag/selection gesture, not a hover.
+    if (e.buttons !== 0) return;
+    const chip = (e.target as HTMLElement).closest<HTMLElement>("[data-img]");
+    if (chip === hoverChip.current) return;
+    hoverChip.current = chip;
+    if (!chip) {
+      setPreview(null);
+      return;
+    }
+    const path = imagePaths.current.get(Number(chip.dataset.img));
+    setPreview(path ? { path, rect: chip.getBoundingClientRect() } : null);
+  };
+
 
   return (
     <div className="border-t border-[var(--border)] bg-[var(--terminal-bg)] px-3 pb-1 pt-2">
@@ -278,38 +399,50 @@ export function TerminalComposer({ targetLabel, onSubmit, onClose, onFocusTermin
             : "border-[var(--border)] focus-within:border-[var(--text-muted)]"
         }`}
       >
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={(e) => {
-            setText(e.target.value);
+        <div
+          ref={editorRef}
+          contentEditable
+          suppressContentEditableWarning
+          data-terminal-composer
+          role="textbox"
+          aria-multiline="true"
+          aria-label={`Send to ${targetLabel}`}
+          spellCheck={false}
+          autoCorrect="off"
+          autoCapitalize="off"
+          onInput={() => {
             histIdx.current = -1;
+            syncState();
           }}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
-          rows={2}
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          placeholder={`Send to ${targetLabel}…`}
-          className="block w-full resize-none bg-transparent py-2.5 pl-3.5 pr-12 text-[13px] leading-5 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+          onClick={handleClick}
+          onMouseOver={handleHover}
+          onMouseLeave={dismissPreview}
+          onScroll={dismissPreview}
+          className="block max-h-[200px] min-h-[60px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent py-2.5 pl-3.5 pr-12 text-[13px] leading-5 text-[var(--text-primary)] outline-none [overflow-wrap:anywhere]"
         />
+        {blank && (
+          <div className="pointer-events-none absolute left-3.5 top-2.5 text-[13px] leading-5 text-[var(--text-muted)]">
+            Send to {targetLabel}…
+          </div>
+        )}
         <button
           type="button"
           onClick={send}
-          disabled={!text.trim()}
+          disabled={disabled}
           title="Send  ·  ↵"
           aria-label="Send"
           className={`absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-lg transition-all ${
-            text.trim()
-              ? "bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-90 active:scale-95"
-              : "text-[var(--text-muted)]"
+            disabled
+              ? "text-[var(--text-muted)]"
+              : "bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-90 active:scale-95"
           }`}
         >
           <SendIcon />
         </button>
       </div>
+      {preview && <ImagePreviewPopover path={preview.path} anchor={preview.rect} />}
     </div>
   );
 }

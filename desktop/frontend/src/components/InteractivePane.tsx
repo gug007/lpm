@@ -633,7 +633,11 @@ export function InteractivePane({
       try {
         term.refresh(0, term.rows - 1);
       } catch {}
-      term.focus();
+      // Don't yank focus out of an open terminal-input composer that just
+      // claimed it on a tab switch (it focuses synchronously, before this rAF).
+      if (!document.activeElement?.closest("[data-terminal-composer]")) {
+        term.focus();
+      }
     });
   }, [visible]);
 

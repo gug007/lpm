@@ -18,6 +18,7 @@ import { useTerminals, type TerminalStartOpts } from "../hooks/useTerminals";
 import { type PersistedHistoryEntry } from "../terminals";
 import { getSettings, saveSettings } from "../store/settings";
 import { useComposerStore } from "../store/composer";
+import { forgetComposerDraft } from "../store/composerDrafts";
 import { useTTSHotkeys } from "../hooks/useTTSHotkeys";
 import { TTSControls } from "./TTSControls";
 import { joinAbs } from "../path";
@@ -176,6 +177,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     for (const id of prev) {
       if (!next.has(id)) {
         disposeInteractivePaneSession(id);
+        forgetComposerDraft(id);
       }
     }
     interactiveKeysRef.current = next;
@@ -183,7 +185,10 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
   useEffect(() => {
     return () => {
-      for (const id of interactiveKeysRef.current) disposeInteractivePaneSession(id);
+      for (const id of interactiveKeysRef.current) {
+        disposeInteractivePaneSession(id);
+        forgetComposerDraft(id);
+      }
       interactiveKeysRef.current.clear();
     };
   }, []);
@@ -522,12 +527,15 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       <TTSControls />
       </div>
       {composerOpen && composerTerminalId && (
-        // One shared composer instance for every terminal — not keyed by id — so
-        // the draft survives switching tabs; it just retargets to the active
-        // terminal. Stays mounted (hidden) during a glance at a service/browser
-        // tab so the draft isn't lost there either.
+        // Keyed by terminal id so each terminal owns its own draft (persisted in
+        // composerDrafts and restored on switch) and the input refocuses when you
+        // switch terminals. Stays mounted (hidden) during a glance at a
+        // service/browser tab so the draft isn't lost there either.
         <div className={composerTarget ? undefined : "hidden"}>
           <TerminalComposer
+            key={composerTerminalId}
+            terminalId={composerTerminalId}
+            shown={!!composerTarget}
             targetLabel={composerTarget?.label ?? ""}
             onSubmit={submitComposerInput}
             onClose={() => useComposerStore.getState().setOpen(false)}
