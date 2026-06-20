@@ -186,7 +186,7 @@ interface AppState {
       excludeUncommitted?: boolean;
       reinstallDeps?: boolean;
       labels?: string[];
-      tasks?: SpawnTask[];
+      tasksPerCopy?: SpawnTask[][];
       groupName?: string;
     },
   ) => Promise<void>;
@@ -836,7 +836,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   bulkDuplicate: async (name, count, opts = {}) => {
     if (count < 1) return;
-    const tasks = opts.tasks ?? [];
+    const tasksPerCopy = opts.tasksPerCopy ?? [];
     set((s) => ({ duplicatingNames: [...s.duplicatingNames, name] }));
     const noun = (n: number) => (n === 1 ? "copy" : "copies");
     const toastId = toast.loading(`Creating ${count} ${noun(count)} of ${name}…`);
@@ -862,6 +862,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (!newName) break;
         const copyName = newName;
         created.push(copyName);
+        const tasks = tasksPerCopy[i] ?? [];
         if (tasks.length > 0) {
           set((s) => ({ spawnTasks: { ...s.spawnTasks, [copyName]: tasks } }));
         }
