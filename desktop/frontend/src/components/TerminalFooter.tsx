@@ -4,7 +4,7 @@ import { ActionsGroup } from "./ActionsDnd";
 import { ActionView } from "./ActionView";
 import { BranchSwitcher } from "./BranchSwitcher";
 import { ActionsSortableItem } from "./ActionsSortableItem";
-import { KeyboardIcon } from "./icons";
+import { ComposerIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
 import { useComposerStore } from "../store/composer";
 import type { ActionInfo } from "../types";
@@ -64,7 +64,7 @@ export function TerminalFooter({
                 : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
             }`}
           >
-            <KeyboardIcon />
+            <ComposerIcon />
           </button>
         </Tooltip>
       )}
