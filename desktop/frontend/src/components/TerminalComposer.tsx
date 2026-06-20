@@ -39,6 +39,8 @@ interface TerminalComposerProps {
   shown: boolean;
   // Label of the terminal that will receive the input.
   targetLabel: string;
+  // Terminal font size; the composer text scales to match it.
+  fontSize: number;
   // Returns false when the input could not be delivered (e.g. a dead session),
   // so the draft is kept rather than cleared. An array carries ordered segments
   // (text runs and image paths) to be delivered as separate pastes.
@@ -49,7 +51,7 @@ interface TerminalComposerProps {
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif|svg)$/i;
 
-export function TerminalComposer({ terminalId, shown, targetLabel, onSubmit, onClose, onFocusTerminal }: TerminalComposerProps) {
+export function TerminalComposer({ terminalId, shown, targetLabel, fontSize, onSubmit, onClose, onFocusTerminal }: TerminalComposerProps) {
   // `blank` drives the placeholder (no content at all); `disabled` drives the
   // send button (nothing but whitespace).
   const [blank, setBlank] = useState(true);
@@ -428,6 +430,9 @@ export function TerminalComposer({ terminalId, shown, targetLabel, onSubmit, onC
     setPreview(path ? { path, rect: chip.getBoundingClientRect() } : null);
   };
 
+  // The placeholder is absolutely positioned over the editor's first line, so
+  // both must share identical font metrics or the placeholder drifts.
+  const textStyle = { fontSize, lineHeight: 1.5 };
 
   return (
     <div className="border-t border-[var(--border)] bg-[var(--terminal-bg)] px-3 pb-1 pt-2">
@@ -471,10 +476,14 @@ export function TerminalComposer({ terminalId, shown, targetLabel, onSubmit, onC
           onMouseOver={handleHover}
           onMouseLeave={dismissPreview}
           onScroll={dismissPreview}
-          className="block max-h-[200px] min-h-[60px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent py-2.5 pl-3.5 pr-12 text-[13px] leading-5 text-[var(--text-primary)] outline-none [overflow-wrap:anywhere]"
+          style={textStyle}
+          className="block max-h-[200px] min-h-[60px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent py-2.5 pl-3.5 pr-12 text-[var(--text-primary)] outline-none [overflow-wrap:anywhere]"
         />
         {blank && (
-          <div className="pointer-events-none absolute left-3.5 top-2.5 text-[13px] leading-5 text-[var(--text-muted)]">
+          <div
+            style={textStyle}
+            className="pointer-events-none absolute left-3.5 top-2.5 text-[var(--text-muted)]"
+          >
             Send to {targetLabel}…
           </div>
         )}
