@@ -69,9 +69,13 @@ export function TerminalHistoryPopover({
     return () => clearTimeout(t);
   }, [searchInput]);
 
+  // Favorites and folders are cross-terminal collections, so they always span
+  // every terminal; the terminal/all scope only narrows the unfiltered "All" view.
+  const effectiveScope: HistoryScope = collection === COLLECTION_ALL ? scope : "all";
+
   const filter: HistoryFilter = useMemo(
-    () => ({ scope, terminalId, projectName, terminalLabel, collection, search: search.trim() }),
-    [scope, terminalId, projectName, terminalLabel, collection, search],
+    () => ({ scope: effectiveScope, terminalId, projectName, terminalLabel, collection, search: search.trim() }),
+    [effectiveScope, terminalId, projectName, terminalLabel, collection, search],
   );
 
   const query = useInfiniteQuery({
@@ -166,14 +170,16 @@ export function TerminalHistoryPopover({
       </div>
 
       <div className="flex items-center gap-1.5 px-2.5 pb-2">
-        <div className="flex shrink-0 items-center gap-0.5">
-          <ScopeTab active={scope === "terminal"} onClick={() => onScopeChange("terminal")}>
-            This terminal
-          </ScopeTab>
-          <ScopeTab active={scope === "all"} onClick={() => onScopeChange("all")}>
-            All terminals
-          </ScopeTab>
-        </div>
+        {collection === COLLECTION_ALL && (
+          <div className="flex shrink-0 items-center gap-0.5">
+            <ScopeTab active={scope === "terminal"} onClick={() => onScopeChange("terminal")}>
+              This terminal
+            </ScopeTab>
+            <ScopeTab active={scope === "all"} onClick={() => onScopeChange("all")}>
+              All terminals
+            </ScopeTab>
+          </div>
+        )}
         <div className="min-w-0 flex-1" />
         <CollectionBar
           collection={collection}
@@ -222,7 +228,7 @@ export function TerminalHistoryPopover({
                 >
                   <HistoryRow
                     message={message}
-                    showSource={scope === "all"}
+                    showSource={effectiveScope === "all"}
                     onPick={onPick}
                     onOpenFolderMenu={openFolderMenu}
                   />
