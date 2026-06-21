@@ -11,28 +11,60 @@ export interface ComposerHistoryEntry {
   images: Record<string, string>; // token index -> local file path
 }
 
-export interface ComposerDraft {
+// One prepared prompt ("input tab"). A composer can hold several at once so a
+// user drafts multiple prompts and sends them one at a time; each carries its
+// own text, pasted images and recall cursor.
+export interface ComposerInputTab {
+  id: string;
   text: string; // serialized with [Image #N] tokens
   imagePaths: Map<number, string>; // token index -> local file path
   imgCounter: number;
+  histIdx: number; // -1 == live draft; 0..n-1 indexes the shared history ring
+}
+
+export interface ComposerDraft {
+  tabs: ComposerInputTab[];
+  activeTabId: string;
+  // Sent-message recall ring, shared by every input tab of this terminal.
   history: ComposerHistoryEntry[];
-  histIdx: number;
 }
 
 const drafts = new Map<string, ComposerDraft>();
 
+function cloneTab(tab: ComposerInputTab): ComposerInputTab {
+  return {
+    id: tab.id,
+    text: tab.text,
+    imagePaths: new Map(tab.imagePaths),
+    imgCounter: tab.imgCounter,
+    histIdx: tab.histIdx,
+  };
+}
+
+function cloneDraft(draft: ComposerDraft): ComposerDraft {
+  return {
+    tabs: draft.tabs.map(cloneTab),
+    activeTabId: draft.activeTabId,
+    history: draft.history.map((h) => ({ text: h.text, images: { ...h.images } })),
+  };
+}
+
+export function createInputTab(): ComposerInputTab {
+  return { id: crypto.randomUUID(), text: "", imagePaths: new Map(), imgCounter: 0, histIdx: -1 };
+}
+
+// loadComposerDraft hands back a deep clone so each composer owns an isolated
+// working copy. saveComposerDraft parks that same copy by reference — the owning
+// composer is its only writer and the next load clones again — so typing, which
+// saves on every keystroke, never re-clones every tab's image map and the whole
+// history ring.
 export function loadComposerDraft(terminalId: string): ComposerDraft | undefined {
-  return drafts.get(terminalId);
+  const draft = drafts.get(terminalId);
+  return draft ? cloneDraft(draft) : undefined;
 }
 
 export function saveComposerDraft(terminalId: string, draft: ComposerDraft): void {
-  drafts.set(terminalId, {
-    text: draft.text,
-    imagePaths: new Map(draft.imagePaths),
-    imgCounter: draft.imgCounter,
-    history: draft.history.map((h) => ({ text: h.text, images: { ...h.images } })),
-    histIdx: draft.histIdx,
-  });
+  drafts.set(terminalId, draft);
 }
 
 export function forgetComposerDraft(terminalId: string): void {

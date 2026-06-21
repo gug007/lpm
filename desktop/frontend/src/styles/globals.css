@@ -234,6 +234,20 @@ body {
   will-change: transform;
 }
 
+/* Composer input tabs, a two-step elevation above the bar: idle tabs get a faint
+   surface so each fixed-width tab reads as a tab rather than floating text, and
+   the active one — the draft in the editor — is a brighter raised pill. */
+.composer-tab-idle {
+  background-color: color-mix(in srgb, var(--terminal-tab-active) 7%, transparent);
+}
+.composer-tab-idle:hover {
+  background-color: color-mix(in srgb, var(--terminal-tab-active) 13%, transparent);
+}
+.composer-tab-active {
+  background-color: var(--bg-active);
+  box-shadow: 0 1px 2px -1px rgba(0, 0, 0, 0.18);
+}
+
 /* The terminal tab strip scrolls horizontally but uses fade gradients as the
    affordance; the native bar would otherwise overlap the short tab row and
    swallow clicks on the tabs underneath it. */

@@ -12,9 +12,16 @@ import {
 import { toast } from "sonner";
 import { ReadClipboardFiles, SaveClipboardImage, UploadAndQuoteForTerminal } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
-import { loadComposerDraft, saveComposerDraft, type ComposerHistoryEntry } from "../store/composerDrafts";
+import {
+  createInputTab,
+  loadComposerDraft,
+  saveComposerDraft,
+  type ComposerHistoryEntry,
+  type ComposerInputTab,
+} from "../store/composerDrafts";
 import { recordMessage } from "../store/messageHistory";
-import { SendIcon } from "./icons";
+import { ComposerTabStrip, type ComposerTabView } from "./ComposerTabStrip";
+import { PlusIcon, SendIcon } from "./icons";
 import { ImagePreviewPopover } from "./ImagePreviewPopover";
 import { TerminalHistoryButton } from "./TerminalHistoryButton";
 import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
@@ -68,6 +75,25 @@ interface TerminalComposerProps {
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif|svg)$/i;
 
+// A short, single-line label for a prompt tab: its text with image tokens
+// dropped, collapsed whitespace. Empty when the draft holds nothing visible.
+function previewLabel(text: string): string {
+  const segments = splitByImageTokens(text);
+  const textOnly = segments
+    .filter((s) => s.image === null)
+    .map((s) => s.text)
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (textOnly) return textOnly;
+  return segments.some((s) => s.image !== null) ? "Image" : "";
+}
+
+function sameTabView(a: ComposerTabView[], b: ComposerTabView[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((t, i) => t.id === b[i].id && t.label === b[i].label);
+}
+
 export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, fontSize, onSubmit, onFocusTerminal }: TerminalComposerProps) {
   // `blank` drives the placeholder (no content at all); `disabled` drives the
   // send button (nothing but whitespace).
@@ -79,16 +105,56 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const containerRef = useRef<HTMLDivElement>(null);
   const hoverChip = useRef<HTMLElement | null>(null);
   const history = useRef<ComposerHistoryEntry[]>([]);
+  // Open prompt tabs and the id of the one currently in the editor. The active
+  // tab's editing state lives in the refs below (and the editor DOM); the others
+  // hold their serialized snapshot until switched to.
+  const tabs = useRef<ComposerInputTab[]>([]);
+  const activeId = useRef("");
+  // Reactive mirror of `tabs`/`activeId` that drives the tab strip. Labels are
+  // only filled while the strip is shown (2+ tabs) so single-tab typing — the
+  // common case — never re-renders this component (see refreshTabView).
+  const [tabView, setTabView] = useState<ComposerTabView[]>([]);
+  const [activeTabId, setActiveTabId] = useState("");
   // -1 means "the live draft"; 0..n-1 index into history, newest first.
   const histIdx = useRef(-1);
   // [Image #N] index -> local file path, swapped back in when the draft is sent.
   const imagePaths = useRef<Map<number, string>>(new Map());
   const imgCounter = useRef(0);
   const normalizePending = useRef(false);
+  // Prompt ids whose send is mid-flight (image upload). Guards send() against
+  // re-entry so a second Enter on the same tab can't double-deliver it, while
+  // still letting a different prepared prompt be sent in the meantime.
+  const sending = useRef<Set<string>>(new Set());
   // Read by the show effect (keyed on `shown`) so it doesn't re-run on focus
   // changes — clicking a pane's terminal must not steal focus into its input.
   const focusedRef = useRef(focused);
   focusedRef.current = focused;
+
+  // Push the current tab set into the reactive mirror. Labels are computed only
+  // when the strip is visible (2+ tabs); a lone tab carries an empty label so its
+  // per-keystroke text changes never produce a new view and never re-render.
+  const refreshTabView = useCallback(() => {
+    const list = tabs.current;
+    const multi = list.length > 1;
+    const next = list.map((t) => ({ id: t.id, label: multi ? previewLabel(t.text) : "" }));
+    setTabView((prev) => (sameTabView(prev, next) ? prev : next));
+    setActiveTabId(activeId.current);
+  }, []);
+
+  // Swap a stored tab into the live editor + refs, making it the active one.
+  const loadTab = useCallback((tab: ComposerInputTab) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    imagePaths.current = new Map(tab.imagePaths);
+    imgCounter.current = tab.imgCounter;
+    histIdx.current = tab.histIdx;
+    activeId.current = tab.id;
+    setEditorContent(editor, tab.text);
+    setBlank(isEditorEmpty(editor));
+    setDisabled(serializeEditor(editor).trim() === "");
+    setPreview(null);
+    placeCaretAtEnd(editor);
+  }, []);
 
   // Restore this terminal's saved draft on mount (the composer is remounted per
   // terminal), then focus it — so switching terminals brings back what you'd
@@ -98,16 +164,17 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     const editor = editorRef.current;
     if (!editor) return;
     const draft = loadComposerDraft(terminalId);
-    if (draft) {
-      imagePaths.current = new Map(draft.imagePaths);
-      imgCounter.current = draft.imgCounter;
+    if (draft && draft.tabs.length > 0) {
+      tabs.current = draft.tabs;
       history.current = draft.history.slice();
-      histIdx.current = draft.histIdx;
-      setEditorContent(editor, draft.text);
-      setBlank(isEditorEmpty(editor));
-      setDisabled(serializeEditor(editor).trim() === "");
-      placeCaretAtEnd(editor);
+      const active = draft.tabs.find((t) => t.id === draft.activeTabId) ?? draft.tabs[0];
+      loadTab(active);
+    } else {
+      const tab = createInputTab();
+      tabs.current = [tab];
+      activeId.current = tab.id;
     }
+    refreshTabView();
     if (focused) editor.focus();
     // Mount-only: the composer is keyed by terminalId, so a new terminal == a
     // fresh mount; terminalId never changes within one instance.
@@ -169,15 +236,22 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       hoverChip.current = null;
       setPreview(null);
     }
-    // Persist after every mutation so the draft survives a terminal switch.
+    // Mirror the live editor into the active tab, then persist the whole draft so
+    // every prepared prompt survives a terminal switch.
+    const active = tabs.current.find((t) => t.id === activeId.current);
+    if (active) {
+      active.text = value;
+      active.imagePaths = new Map(imagePaths.current);
+      active.imgCounter = imgCounter.current;
+      active.histIdx = histIdx.current;
+    }
     saveComposerDraft(terminalId, {
-      text: value,
-      imagePaths: imagePaths.current,
-      imgCounter: imgCounter.current,
+      tabs: tabs.current,
+      activeTabId: activeId.current,
       history: history.current,
-      histIdx: histIdx.current,
     });
-  }, [terminalId]);
+    refreshTabView();
+  }, [terminalId, refreshTabView]);
 
   // After a caret move, WebKit may have injected stray chars around a chip. Clean
   // them in a rAF (before the next paint, so no flash; coalesced across repeats)
@@ -194,6 +268,60 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       if (normalizeComposer(editor)) syncState();
     });
   }, [syncState]);
+
+  // Switch the editor to another prepared prompt. syncState() first commits the
+  // visible tab's edits so nothing typed is lost on the swap.
+  const switchTab = useCallback(
+    (id: string) => {
+      if (id === activeId.current) return;
+      syncState();
+      const target = tabs.current.find((t) => t.id === id);
+      if (!target) return;
+      loadTab(target);
+      editorRef.current?.focus();
+      syncState();
+    },
+    [syncState, loadTab],
+  );
+
+  // Open a fresh empty prompt and switch to it, parking the current draft in its
+  // own tab so the user can prepare several and send them one at a time.
+  const addTab = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    syncState();
+    const tab = createInputTab();
+    tabs.current.push(tab);
+    loadTab(tab);
+    editor.focus();
+    syncState();
+  }, [syncState, loadTab]);
+
+  // Drop the tab at `idx`; if it was the visible one, adopt its neighbor into the
+  // editor (the next tab, or the new last when the end was removed).
+  const removeTabAt = useCallback(
+    (idx: number, wasActive: boolean) => {
+      tabs.current.splice(idx, 1);
+      if (wasActive) loadTab(tabs.current[Math.min(idx, tabs.current.length - 1)]);
+    },
+    [loadTab],
+  );
+
+  // Discard a prepared prompt. The last tab can't be closed (the strip hides at
+  // one tab). Closing the active tab moves to its neighbor and pulls focus;
+  // closing a background tab leaves the editor (and whatever owns focus) untouched.
+  const closeTab = useCallback(
+    (id: string) => {
+      if (tabs.current.length <= 1) return;
+      const idx = tabs.current.findIndex((t) => t.id === id);
+      if (idx === -1) return;
+      const wasActive = id === activeId.current;
+      removeTabAt(idx, wasActive);
+      if (wasActive) editorRef.current?.focus();
+      syncState();
+    },
+    [syncState, removeTabAt],
+  );
 
   const registerImagePath = useCallback((path: string): HTMLSpanElement => {
     const n = (imgCounter.current += 1);
@@ -371,11 +499,35 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     [addImageBlob, insertImageChips, focusAtPoint],
   );
 
+  // Retire the just-sent prompt, resolved by id (a tab switch during an image
+  // upload can leave it no longer active — or already closed). With other prompts
+  // open the sent tab is dropped, and its neighbor takes over only if it was the
+  // one on screen; a lone tab is cleared in place and kept.
+  const finishSend = (sentId: string, editor: HTMLDivElement) => {
+    const idx = tabs.current.findIndex((t) => t.id === sentId);
+    if (idx !== -1 && tabs.current.length > 1) {
+      removeTabAt(idx, sentId === activeId.current);
+    } else if (idx !== -1) {
+      histIdx.current = -1;
+      imagePaths.current.clear();
+      setEditorContent(editor, "");
+      setPreview(null);
+    }
+    syncState();
+    editor.focus();
+  };
+
   const send = async () => {
     const editor = editorRef.current;
     if (!editor) return;
     const value = serializeEditor(editor);
     if (!value.trim()) return;
+    // The editor stays editable across the upload await, so pin which prompt is
+    // being sent now; a concurrent tab switch must not redirect the retire below.
+    const sentId = activeId.current;
+    // Re-entry guard scoped to this prompt: block a second Enter on the same tab
+    // mid-upload, while a different prepared prompt can still be sent.
+    if (sending.current.has(sentId)) return;
     // Snapshot the token→local-path map now (before it's cleared) for both the
     // recall ring and the durable history — local paths, so a re-send re-uploads.
     const paths = new Map(imagePaths.current);
@@ -386,39 +538,43 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     // from the local snapshot so a concurrent send clearing the map can't strip
     // paths mid-upload.
     const hasImages = segments.some((s) => s.image !== null && paths.has(s.image));
-    let payload: string | string[];
-    if (hasImages) {
-      // Resolve each image to a deliverable path — uploaded (scp'd) for a remote
-      // pane, passed through for a local one — keeping per-segment order. Each
-      // path is its own bracketed paste so a path-attaching agent keeps order;
-      // pad it so it stays a distinct token, and drop blank runs between chips.
-      const parts = await Promise.all(
-        segments.map(async (s) => {
-          const path = s.image === null ? undefined : paths.get(s.image);
-          if (path === undefined) return s.text;
-          const uploaded = await UploadAndQuoteForTerminal(terminalId, [path]).catch(() => "");
-          return ` ${uploaded || path} `;
-        }),
-      );
-      payload = parts.filter((p) => p.trim().length > 0);
-    } else {
-      payload = value;
+    sending.current.add(sentId);
+    try {
+      let payload: string | string[];
+      if (hasImages) {
+        // Resolve each image to a deliverable path — uploaded (scp'd) for a remote
+        // pane, passed through for a local one — keeping per-segment order. Each
+        // path is its own bracketed paste so a path-attaching agent keeps order;
+        // pad it so it stays a distinct token, and drop blank runs between chips.
+        const parts = await Promise.all(
+          segments.map(async (s) => {
+            const path = s.image === null ? undefined : paths.get(s.image);
+            if (path === undefined) return s.text;
+            const uploaded = await UploadAndQuoteForTerminal(terminalId, [path]).catch(() => "");
+            return ` ${uploaded || path} `;
+          }),
+        );
+        payload = parts.filter((p) => p.trim().length > 0);
+      } else {
+        payload = value;
+      }
+      if (!onSubmit(payload)) return;
+      history.current.unshift({ text: value, images });
+      // The prepend shifts every existing entry up by one; nudge each recall
+      // cursor (per-tab and the live one) so it stays anchored to its message.
+      for (const t of tabs.current) if (t.histIdx >= 0) t.histIdx += 1;
+      if (histIdx.current >= 0) histIdx.current += 1;
+      recordMessage({
+        text: value,
+        projectName,
+        terminalId: historyKey,
+        terminalLabel: targetLabel,
+        images,
+      });
+      finishSend(sentId, editor);
+    } finally {
+      sending.current.delete(sentId);
     }
-    if (!onSubmit(payload)) return;
-    history.current.unshift({ text: value, images });
-    recordMessage({
-      text: value,
-      projectName,
-      terminalId: historyKey,
-      terminalLabel: targetLabel,
-      images,
-    });
-    histIdx.current = -1;
-    imagePaths.current.clear();
-    setEditorContent(editor, "");
-    setPreview(null);
-    syncState();
-    editor.focus();
   };
 
   // Rebuild the field from a recalled/saved message: a chip for each token with
@@ -629,6 +785,15 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
 
   return (
     <div className="border-t border-[var(--border)] bg-[var(--terminal-bg)] px-3 pb-1 pt-2">
+      {tabView.length > 1 && (
+        <ComposerTabStrip
+          tabs={tabView}
+          activeId={activeTabId}
+          onSelect={switchTab}
+          onClose={closeTab}
+          onAdd={addTab}
+        />
+      )}
       <div
         ref={containerRef}
         data-composer-box
@@ -672,7 +837,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           onMouseLeave={dismissPreview}
           onScroll={dismissPreview}
           style={textStyle}
-          className="block max-h-[200px] min-h-[60px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent py-2.5 pl-3.5 pr-[5.25rem] text-[var(--text-primary)] outline-none [overflow-wrap:anywhere]"
+          className={`block max-h-[200px] min-h-[60px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent py-2.5 pl-3.5 text-[var(--text-primary)] outline-none [overflow-wrap:anywhere] ${
+            tabView.length > 1 ? "pr-[5.25rem]" : "pr-[7.25rem]"
+          }`}
         />
         {blank && (
           <div
@@ -683,6 +850,19 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           </div>
         )}
         <div className="absolute bottom-2 right-2 flex items-center gap-1">
+          {tabView.length <= 1 && (
+            // With the tab strip hidden (a single input), the strip's own "+" is
+            // gone, so this is the only way to open another prepared input.
+            <button
+              type="button"
+              onClick={addTab}
+              aria-label="New input"
+              title="New input"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              <PlusIcon />
+            </button>
+          )}
           <TerminalHistoryButton
             terminalId={historyKey}
             projectName={projectName}
