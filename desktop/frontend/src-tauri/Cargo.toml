@@ -17,7 +17,7 @@ tauri-build = { version = "2", features = [] }
 cc = "1"
 
 [dependencies]
-tauri = { version = "2", features = ["unstable"] }  # unstable = multiwebview (in-pane browser)
+tauri = { version = "2", features = ["unstable", "macos-private-api"] }  # unstable = multiwebview (in-pane browser); macos-private-api = transparent window
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -65,6 +65,7 @@ reqwest = { version = "0.13", default-features = false, features = ["blocking", 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSString"] }
+window-vibrancy = "0.6" # NSVisualEffectView frosted-glass backdrop for Transparency mode
 
 # thin LTO + parallel codegen roughly halves CI link time; the runtime
 # difference is imperceptible for a GUI app. opt-level = "s" keeps DMG size down.

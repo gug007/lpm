@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useSettingsStore } from "../store/settings";
+import { applyGlass, applyGlassDom, DEFAULT_INTERFACE_TRANSPARENCY } from "../glass";
 import { applyTheme, type Theme } from "../theme";
 import { useEventListener } from "../hooks/useEventListener";
 import {
@@ -105,7 +106,28 @@ export function Settings({
     (s) => s.terminalOpenInDefaultApp ?? false,
   );
   const experimentalTTS = useSettingsStore((s) => s.experimentalTTS);
+  const transparency = useSettingsStore((s) => s.transparency ?? false);
+  const interfaceTransparency = useSettingsStore(
+    (s) => s.interfaceTransparency ?? DEFAULT_INTERFACE_TRANSPARENCY,
+  );
+  const panelTransparency = useSettingsStore((s) => s.panelTransparency ?? 0);
   const updateSettings = useSettingsStore((s) => s.update);
+
+  // Terminal transparency was removed: xterm's WebGL renderer can't make the
+  // canvas see-through without breaking rendering (empty/black terminal), so
+  // glass applies to the interface (sidebar/tabs) and the content/panel zone.
+  const setTransparency = (on: boolean) => {
+    applyGlass(on, interfaceTransparency, panelTransparency);
+    void updateSettings({ transparency: on });
+  };
+  const setInterfaceTransparency = (level: number) => {
+    applyGlassDom(transparency, level, panelTransparency);
+    void updateSettings({ interfaceTransparency: level });
+  };
+  const setPanelTransparency = (level: number) => {
+    applyGlassDom(transparency, interfaceTransparency, level);
+    void updateSettings({ panelTransparency: level });
+  };
 
   const setTheme = (next: Theme) => {
     applyTheme(next);
@@ -324,7 +346,7 @@ export function Settings({
     <div className="-mx-6 flex flex-1 overflow-hidden">
       {updateStatus === "installing" && <InstallingOverlay phase={installPhase} progress={installProgress} />}
 
-      <nav className="flex w-42 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--bg-sidebar)] px-3 pt-6">
+      <nav className="flex w-42 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--bg-secondary)] px-3 pt-6">
         <h1 className="mb-4 px-2 text-lg font-semibold tracking-tight text-[var(--text-primary)]">Settings</h1>
         {navItems.map(([key, label]) => (
           <button
@@ -356,6 +378,45 @@ export function Settings({
               <SettingsRow label="Double-click to start/stop" description="Double-click a project in sidebar to toggle it">
                 <Toggle enabled={dblClick} onChange={(v) => updateSettings({ doubleClickToToggle: v })} />
               </SettingsRow>
+              <SettingsRow label="Transparency (Experimental)" description="Liquid Glass translucency. Heavier on the GPU.">
+                <Toggle enabled={transparency} onChange={setTransparency} />
+              </SettingsRow>
+              {transparency && (
+                <SettingsRow label="Sidebar transparency" description="How frosted the sidebar (and Settings menu) is.">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={5}
+                      value={interfaceTransparency}
+                      onChange={(e) => setInterfaceTransparency(Number(e.target.value))}
+                      className="w-32 accent-[var(--accent-green)]"
+                    />
+                    <span className="min-w-[2.5rem] text-right font-mono text-xs tabular-nums text-[var(--text-muted)]">
+                      {interfaceTransparency}%
+                    </span>
+                  </div>
+                </SettingsRow>
+              )}
+              {transparency && (
+                <SettingsRow label="Panel transparency" description="How see-through the content area is — projects, settings, forms.">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={5}
+                      value={panelTransparency}
+                      onChange={(e) => setPanelTransparency(Number(e.target.value))}
+                      className="w-32 accent-[var(--accent-green)]"
+                    />
+                    <span className="min-w-[2.5rem] text-right font-mono text-xs tabular-nums text-[var(--text-muted)]">
+                      {panelTransparency}%
+                    </span>
+                  </div>
+                </SettingsRow>
+              )}
             </SettingsSection>
 
             <SettingsSection title="About">

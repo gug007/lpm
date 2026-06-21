@@ -4,7 +4,40 @@
 // avoid two writers using different coordinate spaces for the same keys.
 use crate::bounds::{read_logical_bounds, valid_bounds};
 use crate::config;
-use tauri::{LogicalPosition, LogicalSize, WebviewWindow, WindowEvent};
+use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewWindow, WindowEvent};
+use window_vibrancy::{apply_vibrancy, clear_vibrancy, NSVisualEffectMaterial};
+
+/// Apply or remove the native frosted-glass NSVisualEffectView backdrop. The
+/// window is created `transparent: true`; the frontend keeps the body opaque
+/// until glass mode is on, so clearing vibrancy returns to the normal look.
+pub fn apply_transparency(win: &WebviewWindow, enabled: bool) {
+    if enabled {
+        let _ = apply_vibrancy(win, NSVisualEffectMaterial::Sidebar, None, None);
+    } else {
+        let _ = clear_vibrancy(win);
+    }
+}
+
+/// Re-apply the persisted Transparency setting on startup so the look survives
+/// restarts. Off by default — does nothing unless the user opted in.
+pub fn restore_transparency(win: &WebviewWindow) {
+    let on = config::load_settings()
+        .get("transparency")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if on {
+        apply_transparency(win, true);
+    }
+}
+
+#[tauri::command]
+pub fn set_transparency(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let win = app
+        .get_webview_window("main")
+        .ok_or("main window not found")?;
+    apply_transparency(&win, enabled);
+    Ok(())
+}
 
 pub fn attach(win: &WebviewWindow) {
     let w = win.clone();

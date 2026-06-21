@@ -170,6 +170,7 @@ macro_rules! all_command_handlers {
         save_window_size,
         search_branches,
         set_project_label,
+        set_transparency,
         start_log_streaming,
         start_project,
         start_project_with_services,

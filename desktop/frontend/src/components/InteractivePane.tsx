@@ -257,6 +257,7 @@ function writeTerminalError(terminalId: string, err: unknown): void {
   term.write(`\r\n\x1b[31mlpm upload failed: ${msg}\x1b[0m\r\n`);
 }
 
+
 function createInteractiveSession(terminalId: string, cwd: string): InteractiveSession {
   const host = document.createElement("div");
   host.className = "absolute inset-0 overflow-hidden";

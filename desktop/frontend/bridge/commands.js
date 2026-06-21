@@ -445,6 +445,9 @@ export function SearchBranches(cwd, query) {
 export function SetProjectLabel(name, label) {
   return invoke("set_project_label", { name, label });
 }
+export function SetTransparency(enabled) {
+  return invoke("set_transparency", { enabled });
+}
 export function MoveProjectRoot(name, newRoot) {
   return invoke("move_project_root", { name, newRoot });
 }

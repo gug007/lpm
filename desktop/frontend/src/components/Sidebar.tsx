@@ -672,7 +672,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
 
   return (
     <aside
-      className={`relative flex shrink-0 flex-col bg-[var(--bg-sidebar)] transition-[width] duration-200 ${collapsed ? "" : "border-r border-[var(--border)]"}`}
+      className={`glass-chrome relative flex shrink-0 flex-col bg-[var(--bg-sidebar)] transition-[width] duration-200 ${collapsed ? "" : "border-r border-[var(--border)]"}`}
       style={{ width: collapsed ? 0 : width, overflow: collapsed ? "hidden" : undefined }}
     >
       <div

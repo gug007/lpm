@@ -54,6 +54,7 @@ use files::*;
 use git::*;
 use hooks::*;
 use log_streaming::*;
+use mainwindow::set_transparency;
 use message_history::*;
 use notes_cmds::*;
 use openin::*;
@@ -122,6 +123,7 @@ pub fn run() {
             if let Some(win) = handle.get_webview_window("main") {
                 mainwindow::restore(&win);
                 mainwindow::attach(&win);
+                mainwindow::restore_transparency(&win);
             }
             // Reopen any windows that were detached when the app last closed.
             let state = app.state::<detached::DetachedState>();

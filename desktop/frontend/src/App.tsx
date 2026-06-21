@@ -150,7 +150,7 @@ export default function App() {
 
   if (tmuxReady === null) {
     return (
-      <div className="flex h-screen bg-[var(--bg-primary)]">
+      <div className="flex h-full bg-[var(--bg-primary)]">
         <div className="app-drag absolute inset-x-0 top-0 h-10" />
       </div>
     );
@@ -166,7 +166,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-full">
       <Toaster
         position="top-right"
         theme="system"

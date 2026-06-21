@@ -61,6 +61,15 @@
   --terminal-tab-active: #e5e5e5;
 }
 
+/* Fill the real window via the element chain, not 100vh — on a transparent
+   overlay-titlebar window 100vh can fall short of the window, leaving an
+   unpainted strip at the bottom that shows the desktop through. */
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -68,6 +77,40 @@ body {
   color: var(--text-primary);
   overflow: hidden;
   user-select: none;
+}
+
+/* ---- Liquid Glass (Transparency, Experimental) ----------------------------
+   The window is created transparent and a native NSVisualEffectView vibrancy
+   sits behind the webview (toggled from Rust). We make the body transparent so
+   that frosted backdrop shows through, then turn the app chrome (sidebar +
+   terminal header) and panels translucent via the slider-driven alphas. The
+   terminal canvas itself stays opaque — xterm's WebGL renderer can't render a
+   transparent canvas without breaking. */
+[data-glass="on"] {
+  --glass-blur: 20px;
+}
+[data-glass="on"] body {
+  background: transparent;
+}
+/* The main content area's background comes from --bg-primary (Tailwind
+   bg-[var(--bg-primary)] on <main>), which the Panel slider drives below —
+   so panel transparency regulates the whole content/settings window. */
+[data-glass="on"][data-theme="dark"] {
+  /* Sidebar (app sidebar + Settings nav) — the "Sidebar transparency" slider. */
+  --bg-sidebar: rgba(30, 30, 36, var(--glass-chrome-alpha, 0.55));
+  /* Content surfaces (projects, settings, forms) — the "Panel transparency"
+     slider. Translucent only when moved (alpha defaults to 1 = unchanged). */
+  --bg-primary: rgba(26, 26, 26, var(--glass-panel-alpha, 1));
+  --bg-secondary: rgba(36, 36, 36, var(--glass-panel-alpha, 1));
+}
+[data-glass="on"][data-theme="light"] {
+  --bg-sidebar: rgba(250, 250, 252, var(--glass-chrome-alpha, 0.6));
+  --bg-primary: rgba(255, 255, 255, var(--glass-panel-alpha, 1));
+  --bg-secondary: rgba(245, 245, 245, var(--glass-panel-alpha, 1));
+}
+[data-glass="on"] .glass-chrome {
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
 }
 
 .app-drag {

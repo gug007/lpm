@@ -26,6 +26,9 @@ export interface Settings {
   browserTheme?: "light" | "dark"; // unset = follow the app theme
 
   doubleClickToToggle: boolean;
+  transparency?: boolean;
+  interfaceTransparency?: number;
+  panelTransparency?: number;
   soundNotifications?: boolean;
   doneSound?: string;
   waitingSound?: string;
@@ -81,6 +84,15 @@ function normalize(s: main.Settings): Settings {
     browserTheme:
       s.browserTheme === "light" || s.browserTheme === "dark" ? s.browserTheme : undefined,
     doubleClickToToggle: s.doubleClickToToggle ?? defaults.doubleClickToToggle,
+    transparency: s.transparency ?? undefined,
+    interfaceTransparency:
+      typeof s.interfaceTransparency === "number"
+        ? Math.min(100, Math.max(0, s.interfaceTransparency))
+        : undefined,
+    panelTransparency:
+      typeof s.panelTransparency === "number"
+        ? Math.min(100, Math.max(0, s.panelTransparency))
+        : undefined,
     soundNotifications: s.soundNotifications,
     doneSound: s.doneSound || undefined,
     waitingSound: s.waitingSound || undefined,

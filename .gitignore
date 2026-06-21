@@ -18,3 +18,5 @@ node_modules
 .DS_Store
 secrets
 prompts
+# Brainstorming visual-companion scratch
+.superpowers/
