@@ -32,6 +32,7 @@ mod sshsync;
 mod status;
 mod sys;
 mod templates;
+mod textinput;
 mod tmux;
 mod transfer;
 mod tts;
@@ -78,6 +79,10 @@ pub fn run() {
     // Finder-launched apps have a minimal PATH; restore Homebrew locations so
     // tmux/ssh/git/gh lookups work (matches the Go app's tmux.init()).
     sys::ensure_path();
+
+    // Turn off macOS smart substitutions before any webview is created so the
+    // composer never rewrites typed text (e.g. double space -> ". ").
+    textinput::disable_smart_substitutions();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())

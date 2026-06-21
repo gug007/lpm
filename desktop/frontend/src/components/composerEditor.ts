@@ -88,6 +88,13 @@ function isStrayOnlyText(node: Node | null): node is Text {
   );
 }
 
+// A WebKit filler <br>: invisible residue left after a chip when the text in
+// front of it is deleted. Carries no value (serializeEditor treats a trailing
+// <br> as padding) but blocks the caret from anchoring after the chip.
+function isFillerBr(node: Node | null): node is HTMLElement {
+  return node instanceof HTMLElement && node.tagName === "BR";
+}
+
 // Strip stray characters from the live editor DOM (not just at serialize time),
 // keeping the collapsed caret in place. WebKit injects these when the caret
 // moves around a contenteditable=false chip; this removes the visible "tofu"
@@ -215,6 +222,12 @@ export function presentImageTokens(root: HTMLElement): Set<number> {
 // ZWSP and chip lookups treat it as residue, so it never affects value or
 // Backspace. Returns the anchor node, or null when the last node isn't a chip.
 function ensureTrailingCaretAnchor(root: HTMLElement): Text | null {
+  // Deleting the last text in front of a trailing chip can leave WebKit's bogus
+  // filler <br> after it ([chip]<br>); drop it so the chip is the real last node.
+  const tail = root.lastChild;
+  if (isFillerBr(tail) && isChip(tail.previousSibling)) {
+    tail.remove();
+  }
   const last = root.lastChild;
   if (isStrayOnlyText(last) && isChip(last.previousSibling)) {
     last.nodeValue = ZWSP;
@@ -242,6 +255,10 @@ function isTrailing(root: HTMLElement, node: Node): boolean {
 // the whole chip instead of first eating a phantom space.
 export function insertItemsAtCaret(root: HTMLElement, items: Array<HTMLElement | string>): void {
   if (items.length === 0) return;
+  // Whether the field owns focus. A paste/drop whose image save resolved after
+  // the user moved focus away must not yank it back.
+  const focused = () => root === document.activeElement || root.contains(document.activeElement);
+  const hadFocus = focused();
   const sel = window.getSelection();
   let range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
   if (!range || !root.contains(range.startContainer)) {
@@ -272,6 +289,9 @@ export function insertItemsAtCaret(root: HTMLElement, items: Array<HTMLElement |
     const tail = lastNode;
     const placeCaret = () => {
       if (!root.contains(tail)) return;
+      // Don't pull focus back to a field the user has since left (a late async
+      // image save); callers that own the drop focus it before inserting.
+      if (!hadFocus && !focused()) return;
       // Focus first: after an unfocused OS drop WebKit ignores a programmatic
       // selection until the field is focused.
       root.focus();
@@ -291,7 +311,7 @@ export function insertItemsAtCaret(root: HTMLElement, items: Array<HTMLElement |
     placeCaret();
     // The drop focuses the field late; re-applying once layout settles makes the
     // painted caret match the (already correct) selection.
-    requestAnimationFrame(placeCaret);
+    if (hadFocus) requestAnimationFrame(placeCaret);
   }
 }
 
@@ -304,6 +324,27 @@ export function selectChip(chip: HTMLElement): void {
   range.selectNode(chip);
   sel.removeAllRanges();
   sel.addRange(range);
+}
+
+// The chip when the selection spans exactly one chip and nothing else (the
+// state selectChip leaves behind on a body click). WebKit collapses such a
+// selection on the first Backspace/Delete instead of removing the atomic chip,
+// so the composer deletes it explicitly. A selection mixing real text with a
+// chip returns null and keeps native deletion.
+export function selectedChip(root: HTMLElement): HTMLElement | null {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
+  const range = sel.getRangeAt(0);
+  if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) return null;
+  const frag = range.cloneContents();
+  let chips = 0;
+  for (const node of Array.from(frag.childNodes)) {
+    if (isChip(node)) chips += 1;
+    else if (!isStrayOnlyText(node)) return null;
+  }
+  if (chips !== 1) return null;
+  const n = frag.querySelector<HTMLElement>("[data-img]")?.dataset.img;
+  return n != null ? root.querySelector<HTMLElement>(`[data-img="${n}"]`) : null;
 }
 
 // Remove a chip and leave a collapsed caret where it was.
@@ -326,6 +367,10 @@ export function removeChip(chip: HTMLElement): void {
   range.collapse(true);
   sel.removeAllRanges();
   sel.addRange(range);
+  // Programmatic removal fires no input event, so re-anchor here too: deleting
+  // the last text/chip in front of another trailing chip would otherwise strand
+  // the caret before it (the WebKit mispaint). No-ops unless a chip is trailing.
+  if (parent instanceof HTMLElement) restoreTrailingChipCaret(parent);
 }
 
 // The chip immediately before a collapsed caret, if any (for Backspace).
@@ -345,8 +390,19 @@ export function chipAfterCaret(root: HTMLElement): HTMLElement | null {
   if (!root.contains(r.startContainer)) return null;
   let node: Node | null;
   if (r.startContainer.nodeType === Node.TEXT_NODE) {
-    if (r.startOffset < (r.startContainer.nodeValue?.length ?? 0)) return null;
-    node = skipEmptyText(r.startContainer.nextSibling, "next");
+    const text = r.startContainer.nodeValue ?? "";
+    // Caret parked in the trailing stray anchor after a chip: nothing real lies
+    // ahead, so forward-Delete targets the chip behind the anchor — symmetric
+    // with Backspace, which chipBeforeCaret already resolves from this spot.
+    if (isStrayOnly(text.slice(r.startOffset)) && skipEmptyText(r.startContainer.nextSibling, "next") === null) {
+      node = isStrayOnly(text.slice(0, r.startOffset))
+        ? skipEmptyText(r.startContainer.previousSibling, "prev")
+        : null;
+    } else if (r.startOffset < text.length) {
+      return null;
+    } else {
+      node = skipEmptyText(r.startContainer.nextSibling, "next");
+    }
   } else {
     node = skipEmptyText(r.startContainer.childNodes[r.startOffset] ?? null, "next");
   }
@@ -396,4 +452,61 @@ export function placeCaretAtEnd(root: HTMLElement): void {
   }
   sel.removeAllRanges();
   sel.addRange(range);
+}
+
+// True when the field holds visible text outside any chip. Lets a caret that
+// legitimately sits before a trailing chip (real text precedes it) be told apart
+// from a chips-only field, where the caret can only belong after the chip.
+function hasTextOutsideChips(root: HTMLElement): boolean {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let t = walker.nextNode(); t; t = walker.nextNode()) {
+    if ((t as Text).parentElement?.closest("[data-img]")) continue;
+    if (!isStrayOnly(t.nodeValue ?? "")) return true;
+  }
+  return false;
+}
+
+// After an edit deletes the text in front of a trailing chip, WebKit strands the
+// caret before the chip — the same mispaint ensureTrailingCaretAnchor hides,
+// re-exposed because the ZWSP anchor was deleted along with the text. Re-anchor
+// (restoring the ZWSP) when the caret belongs after the trailing chip: either it
+// already sits at the end, or the field is chips-only so there is nothing else
+// it could edit (WebKit moves the real caret to the field start here, not just
+// the paint). Editing text *before* a trailing chip is left untouched. Returns
+// true if it re-anchored.
+export function restoreTrailingChipCaret(root: HTMLElement): boolean {
+  const sel = window.getSelection();
+  if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return false;
+  if (!root.contains(sel.getRangeAt(0).startContainer)) return false;
+  let last: Node | null = root.lastChild;
+  while (last && (isStrayOnlyText(last) || isFillerBr(last))) {
+    last = last.previousSibling;
+  }
+  if (!isChip(last)) return false;
+  if (!caretEdges(root).atEnd && hasTextOutsideChips(root)) return false;
+  placeCaretAtEnd(root);
+  return true;
+}
+
+// Post-mutation caret hygiene in one call: strip WebKit's stray characters and
+// re-anchor the caret after a trailing chip. Returns whether either moved the
+// DOM/selection, so callers persist the draft only when something changed.
+export function normalizeComposer(root: HTMLElement): boolean {
+  const normalized = normalizeStrayChars(root);
+  const reanchored = restoreTrailingChipCaret(root);
+  return normalized || reanchored;
+}
+
+// Seat a collapsed caret at the drop coordinates so a dropped image lands where
+// the pointer is, not at a stale caret or the field end. Returns false (leaving
+// the caller's end-of-field fallback) when the point misses the editor.
+export function placeCaretFromPoint(root: HTMLElement, x: number, y: number): boolean {
+  const range = document.caretRangeFromPoint(x, y);
+  if (!range || !root.contains(range.startContainer)) return false;
+  range.collapse(true);
+  const sel = window.getSelection();
+  if (!sel) return false;
+  sel.removeAllRanges();
+  sel.addRange(range);
+  return true;
 }

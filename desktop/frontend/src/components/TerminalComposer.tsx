@@ -24,11 +24,14 @@ import {
   createImageChip,
   insertItemsAtCaret,
   isEditorEmpty,
-  normalizeStrayChars,
+  normalizeComposer,
   placeCaretAtEnd,
+  placeCaretFromPoint,
   presentImageTokens,
   removeChip,
+  restoreTrailingChipCaret,
   selectChip,
+  selectedChip,
   serializeEditor,
   setEditorContent,
   splitByImageTokens,
@@ -175,7 +178,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       if (!editor) return;
       const sel = window.getSelection();
       if (!sel || !sel.isCollapsed) return;
-      if (normalizeStrayChars(editor)) syncState();
+      if (normalizeComposer(editor)) syncState();
     });
   }, [syncState]);
 
@@ -222,15 +225,26 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     return !!r && x >= r.left && x < r.right && y >= r.top && y < r.bottom;
   }, []);
 
+  // Focus the field and seat the caret at the drop point so a dropped image
+  // lands where the pointer is. Focus must precede the caret seat — WebKit
+  // ignores a programmatic selection on an unfocused field.
+  const focusAtPoint = useCallback((x: number, y: number) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.focus();
+    placeCaretFromPoint(editor, x, y);
+  }, []);
+
   // OS file drops (from Finder) arrive as paths via the shared drop bridge.
   useEffect(() => {
     return registerFileDropHandler("terminal-composer", (x, y, paths) => {
       if (paths.length === 0 || !pointInComposer(x, y)) return false;
+      focusAtPoint(x, y);
       insertImagePaths(paths);
       setDragOver(false);
       return true;
     });
-  }, [insertImagePaths, pointInComposer]);
+  }, [insertImagePaths, pointInComposer, focusAtPoint]);
 
   // Native (Finder) drags don't raise DOM dragover in the webview — the runtime
   // shim republishes them as app:* events instead — so drive the drop overlay
@@ -253,11 +267,17 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     window.addEventListener("app:handleDragOver", onOver);
     window.addEventListener("app:handleDragLeave", off);
     window.addEventListener("app:filesDropped", off);
+    // Backstop the DOM-drag overlay (handleDrop/onDragLeave) against a drag that
+    // ends or drops outside the composer without a matching leave event.
+    window.addEventListener("dragend", off);
+    window.addEventListener("drop", off);
     return () => {
       window.removeEventListener("app:handleDragEnter", onEnter);
       window.removeEventListener("app:handleDragOver", onOver);
       window.removeEventListener("app:handleDragLeave", off);
       window.removeEventListener("app:filesDropped", off);
+      window.removeEventListener("dragend", off);
+      window.removeEventListener("drop", off);
     };
   }, [pointInComposer]);
 
@@ -265,17 +285,17 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     (e: ClipboardEvent<HTMLDivElement>) => {
       const dt = e.clipboardData;
       if (!dt) return;
-      // Raw image bytes (e.g. a screenshot) — the common case.
-      const imageItem = Array.from(dt.items).find(
-        (it) => it.kind === "file" && it.type.startsWith("image/"),
-      );
-      if (imageItem) {
-        const blob = imageItem.getAsFile();
-        if (blob) {
-          e.preventDefault();
-          void addImageBlob(blob).then((chip) => chip && insertItems([chip]));
-          return;
-        }
+      // Raw image bytes (e.g. one or more screenshots) — the common case.
+      const imageBlobs = Array.from(dt.items)
+        .filter((it) => it.kind === "file" && it.type.startsWith("image/"))
+        .map((it) => it.getAsFile())
+        .filter((b): b is File => b !== null);
+      if (imageBlobs.length > 0) {
+        e.preventDefault();
+        void Promise.all(imageBlobs.map((b) => addImageBlob(b))).then((chips) =>
+          insertItems(chips.filter((c): c is HTMLSpanElement => c !== null)),
+        );
+        return;
       }
       // Copied image files (WebKit often omits the MIME) — resolve real paths.
       if (dt.types.includes("Files") || dt.files.length > 0) {
@@ -308,11 +328,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       const files = Array.from(e.dataTransfer?.files ?? []).filter((f) => f.type.startsWith("image/"));
       if (files.length === 0) return;
       e.preventDefault();
-      void Promise.all(files.map((f) => addImageBlob(f))).then((chips) =>
-        insertItems(chips.filter((c): c is HTMLSpanElement => c !== null)),
-      );
+      const { clientX, clientY } = e;
+      void Promise.all(files.map((f) => addImageBlob(f))).then((chips) => {
+        focusAtPoint(clientX, clientY);
+        insertItems(chips.filter((c): c is HTMLSpanElement => c !== null));
+      });
     },
-    [addImageBlob, insertItems],
+    [addImageBlob, insertItems, focusAtPoint],
   );
 
   const send = () => {
@@ -438,8 +460,11 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     }
     // A single Backspace/Delete next to a chip removes the whole image at once —
     // the caret can never sit inside a chip, so partial deletion is impossible.
+    // A whole-chip selection (left behind by a body click) is removed too, since
+    // WebKit only collapses such a selection on the first press.
     if (e.key === "Backspace" || e.key === "Delete") {
-      const chip = e.key === "Backspace" ? chipBeforeCaret(editor) : chipAfterCaret(editor);
+      const chip =
+        selectedChip(editor) ?? (e.key === "Backspace" ? chipBeforeCaret(editor) : chipAfterCaret(editor));
       if (chip) {
         e.preventDefault();
         e.stopPropagation();
@@ -500,7 +525,16 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     // Clicking elsewhere on a chip selects the whole thing so it reads (and
     // deletes) as a unit.
     const chip = target.closest<HTMLElement>("[data-img]");
-    if (chip) selectChip(chip);
+    if (chip) {
+      selectChip(chip);
+      return;
+    }
+    // A plain click landing after a trailing chip mispaints the caret at the
+    // field start; re-anchor it once the click's selection settles.
+    requestAnimationFrame(() => {
+      const editor = editorRef.current;
+      if (editor && restoreTrailingChipCaret(editor)) syncState();
+    });
   };
 
   const handleHover = (e: MouseEvent<HTMLDivElement>) => {
@@ -533,7 +567,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           }
         }}
         onDragLeave={(e) => {
-          if (e.currentTarget === e.target) setDragOver(false);
+          const next = e.relatedTarget as Node | null;
+          if (!next || !e.currentTarget.contains(next)) setDragOver(false);
         }}
         onDrop={handleDrop}
         className="relative rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] transition-colors focus-within:border-[var(--text-muted)]"
@@ -552,7 +587,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           autoCapitalize="off"
           onInput={() => {
             histIdx.current = -1;
-            if (editorRef.current) normalizeStrayChars(editorRef.current);
+            const editor = editorRef.current;
+            if (editor) normalizeComposer(editor);
             syncState();
           }}
           onKeyDown={handleKeyDown}
