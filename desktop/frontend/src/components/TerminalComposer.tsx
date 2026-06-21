@@ -9,9 +9,10 @@ import {
   type KeyboardEvent,
   type MouseEvent,
 } from "react";
-import { ReadClipboardFiles, SaveClipboardImage } from "../../bridge/commands";
+import { toast } from "sonner";
+import { ReadClipboardFiles, SaveClipboardImage, UploadAndQuoteForTerminal } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
-import { loadComposerDraft, saveComposerDraft } from "../store/composerDrafts";
+import { loadComposerDraft, saveComposerDraft, type ComposerHistoryEntry } from "../store/composerDrafts";
 import { recordMessage } from "../store/messageHistory";
 import { SendIcon } from "./icons";
 import { ImagePreviewPopover } from "./ImagePreviewPopover";
@@ -77,7 +78,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const editorRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hoverChip = useRef<HTMLElement | null>(null);
-  const history = useRef<string[]>([]);
+  const history = useRef<ComposerHistoryEntry[]>([]);
   // -1 means "the live draft"; 0..n-1 index into history, newest first.
   const histIdx = useRef(-1);
   // [Image #N] index -> local file path, swapped back in when the draft is sent.
@@ -130,25 +131,37 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     setPreview(null);
   }, []);
 
-  // The popover is anchored to a rect captured at hover time, so a window
-  // resize (the editor scroll is handled inline) would leave it floating.
+  // The popover is anchored to a rect captured at hover time, so anything that
+  // moves the chip without a re-hover (window resize, or a composer relayout
+  // from a pane-splitter drag / field growth that a ResizeObserver catches but
+  // a window resize event does not) would leave it floating. Dismiss on both.
   useEffect(() => {
     if (!preview) return;
     window.addEventListener("resize", dismissPreview);
-    return () => window.removeEventListener("resize", dismissPreview);
+    let primed = false;
+    const ro = new ResizeObserver(() => (primed ? dismissPreview() : (primed = true)));
+    if (containerRef.current) ro.observe(containerRef.current);
+    return () => {
+      window.removeEventListener("resize", dismissPreview);
+      ro.disconnect();
+    };
   }, [preview, dismissPreview]);
 
   // Recompute the placeholder/disabled state and forget image paths whose chip
   // has been deleted, so the map never outlives what's actually in the field.
-  const syncState = useCallback(() => {
+  // `prunePaths` is false only for a cut, whose removed chip must keep its path
+  // alive so pasting its "[Image #N]" token back rebuilds the image.
+  const syncState = useCallback((prunePaths = true) => {
     const editor = editorRef.current;
     if (!editor) return;
     const value = serializeEditor(editor);
     setBlank(isEditorEmpty(editor));
     setDisabled(value.trim() === "");
-    const present = presentImageTokens(editor);
-    for (const n of imagePaths.current.keys()) {
-      if (!present.has(n)) imagePaths.current.delete(n);
+    if (prunePaths) {
+      const present = presentImageTokens(editor);
+      for (const n of imagePaths.current.keys()) {
+        if (!present.has(n)) imagePaths.current.delete(n);
+      }
     }
     // Any deletion path (keyboard, select+delete, cut, send) ends here; if the
     // hovered chip is gone, drop its now-orphaned preview.
@@ -213,10 +226,22 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     [syncState],
   );
 
-  // Image file paths become chips; other paths drop in as plain text.
+  // Insert the chips that resolved and warn about any that didn't, so a failed
+  // image save (decode/temp-write error) never vanishes without feedback.
+  const insertImageChips = useCallback(
+    (chips: Array<HTMLSpanElement | null>, attempted: number) => {
+      const ok = chips.filter((c): c is HTMLSpanElement => c !== null);
+      insertItems(ok);
+      const failed = attempted - ok.length;
+      if (failed > 0) toast.error(failed === 1 ? "Couldn't add image" : `Couldn't add ${failed} images`);
+    },
+    [insertItems],
+  );
+
+  // Only image paths become chips; non-image paths are dropped (this is an
+  // image-only field — inserting an absolute file path as text would leak it).
   const insertImagePaths = useCallback(
-    (paths: string[]) =>
-      insertItems(paths.map((p) => (IMAGE_EXT_RE.test(p) ? registerImagePath(p) : p))),
+    (paths: string[]) => insertItems(paths.filter((p) => IMAGE_EXT_RE.test(p)).map(registerImagePath)),
     [insertItems, registerImagePath],
   );
 
@@ -293,7 +318,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       if (imageBlobs.length > 0) {
         e.preventDefault();
         void Promise.all(imageBlobs.map((b) => addImageBlob(b))).then((chips) =>
-          insertItems(chips.filter((c): c is HTMLSpanElement => c !== null)),
+          insertImageChips(chips, imageBlobs.length),
         );
         return;
       }
@@ -308,16 +333,25 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         return;
       }
       // Plain text — insert it verbatim so rich clipboard HTML can't leak markup
-      // (or styled chips) into the field.
+      // (or styled chips) into the field. A pasted "[Image #N]" token whose path
+      // is still mapped (a cut/copied chip) is rebuilt as the image chip.
       e.preventDefault();
       const text = dt.getData("text/plain");
-      if (text) {
-        document.execCommand("insertText", false, text);
-        histIdx.current = -1;
-        syncState();
+      if (!text) return;
+      const segments = splitByImageTokens(text);
+      if (segments.some((s) => s.image !== null && imagePaths.current.has(s.image))) {
+        insertItems(
+          segments
+            .map((s) => (s.image !== null && imagePaths.current.has(s.image) ? createImageChip(s.image) : s.text))
+            .filter((it) => typeof it !== "string" || it.length > 0),
+        );
+        return;
       }
+      document.execCommand("insertText", false, text);
+      histIdx.current = -1;
+      syncState();
     },
-    [addImageBlob, insertImagePaths, insertItems, syncState],
+    [addImageBlob, insertImagePaths, insertImageChips, insertItems, syncState],
   );
 
   // In-app / web drags deliver File objects through the DOM (OS file drops go
@@ -331,44 +365,53 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       const { clientX, clientY } = e;
       void Promise.all(files.map((f) => addImageBlob(f))).then((chips) => {
         focusAtPoint(clientX, clientY);
-        insertItems(chips.filter((c): c is HTMLSpanElement => c !== null));
+        insertImageChips(chips, files.length);
       });
     },
-    [addImageBlob, insertItems, focusAtPoint],
+    [addImageBlob, insertImageChips, focusAtPoint],
   );
 
-  const send = () => {
+  const send = async () => {
     const editor = editorRef.current;
     if (!editor) return;
     const value = serializeEditor(editor);
     if (!value.trim()) return;
-    // Split into ordered segments — text runs and resolved image paths — so each
-    // image can be delivered as its own paste at the cursor (keeping it in the
-    // order the user typed) rather than as a path glued into one big paste, which
-    // Claude Code front-loads. A plain string (no images) is sent as one paste.
+    // Snapshot the token→local-path map now (before it's cleared) for both the
+    // recall ring and the durable history — local paths, so a re-send re-uploads.
+    const paths = new Map(imagePaths.current);
+    const images = Object.fromEntries(paths);
     const segments = splitByImageTokens(value);
-    const hasImages = segments.some((s) => s.image !== null);
-    const payload = hasImages
-      ? segments
-          // Pad each path so it stays a detectable, distinct token even if the
-          // receiver concatenates the separate pastes as plain text.
-          .map((s) => (s.image === null ? s.text : ` ${imagePaths.current.get(s.image) ?? s.text} `))
-          .filter((p) => p.length > 0)
-      : value;
+    // Only segments whose token resolves to a real path are images; a literal
+    // "[Image #N]" the user typed rides along as plain text in one paste. Read
+    // from the local snapshot so a concurrent send clearing the map can't strip
+    // paths mid-upload.
+    const hasImages = segments.some((s) => s.image !== null && paths.has(s.image));
+    let payload: string | string[];
+    if (hasImages) {
+      // Resolve each image to a deliverable path — uploaded (scp'd) for a remote
+      // pane, passed through for a local one — keeping per-segment order. Each
+      // path is its own bracketed paste so a path-attaching agent keeps order;
+      // pad it so it stays a distinct token, and drop blank runs between chips.
+      const parts = await Promise.all(
+        segments.map(async (s) => {
+          const path = s.image === null ? undefined : paths.get(s.image);
+          if (path === undefined) return s.text;
+          const uploaded = await UploadAndQuoteForTerminal(terminalId, [path]).catch(() => "");
+          return ` ${uploaded || path} `;
+        }),
+      );
+      payload = parts.filter((p) => p.trim().length > 0);
+    } else {
+      payload = value;
+    }
     if (!onSubmit(payload)) return;
-    // Store the resolved text (real paths) so recalling a past message re-sends
-    // the same images without depending on the cleared map. imgCounter stays
-    // monotonic so a future chip can never collide with a past index.
-    const sent = Array.isArray(payload) ? payload.join(" ") : payload.trimEnd();
-    history.current.unshift(sent);
-    // History keeps the tokenized text + the token→path map (not the flattened
-    // paths) so re-selecting a past message rebuilds the image chips.
+    history.current.unshift({ text: value, images });
     recordMessage({
       text: value,
       projectName,
       terminalId: historyKey,
       terminalLabel: targetLabel,
-      images: Object.fromEntries(imagePaths.current),
+      images,
     });
     histIdx.current = -1;
     imagePaths.current.clear();
@@ -378,31 +421,17 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     editor.focus();
   };
 
-  const recall = (delta: 1 | -1): boolean => {
-    const editor = editorRef.current;
-    const hist = history.current;
-    if (!editor || hist.length === 0) return false;
-    const next = Math.min(hist.length - 1, Math.max(-1, histIdx.current + delta));
-    if (next === histIdx.current) return false;
-    histIdx.current = next;
-    setEditorContent(editor, next === -1 ? "" : hist[next]);
-    syncState();
-    placeCaretAtEnd(editor);
-    return true;
-  };
-
-  // Load a message chosen from the history popover into the field, replacing the
-  // current draft. Rebuilds image chips from the stored token→path map; an
-  // "[Image #N]" token with no mapped path (e.g. one the user typed literally)
-  // stays plain text rather than becoming a phantom, path-less chip.
-  const loadFromHistory = (text: string, images: Record<string, string>) => {
-    const editor = editorRef.current;
-    if (!editor) return;
+  // Rebuild the field from a recalled/saved message: a chip for each token with
+  // a mapped path, plain text otherwise (a literally-typed "[Image #N]" with no
+  // path stays text rather than becoming a phantom, path-less chip). Leaves
+  // histIdx to the caller; advances imgCounter past any recalled index so a
+  // later paste can't collide.
+  const applyHistoryEntry = (editor: HTMLDivElement, entry: ComposerHistoryEntry) => {
     editor.replaceChildren();
     imagePaths.current = new Map();
     let maxIdx = imgCounter.current;
-    for (const seg of splitByImageTokens(text)) {
-      const path = seg.image === null ? undefined : images[seg.image];
+    for (const seg of splitByImageTokens(entry.text)) {
+      const path = seg.image === null ? undefined : entry.images[seg.image];
       if (seg.image !== null && path) {
         imagePaths.current.set(seg.image, path);
         editor.appendChild(createImageChip(seg.image));
@@ -412,9 +441,34 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       }
     }
     imgCounter.current = maxIdx;
-    histIdx.current = -1;
     syncState();
     placeCaretAtEnd(editor);
+  };
+
+  const recall = (delta: 1 | -1): boolean => {
+    const editor = editorRef.current;
+    const hist = history.current;
+    if (!editor || hist.length === 0) return false;
+    const next = Math.min(hist.length - 1, Math.max(-1, histIdx.current + delta));
+    if (next === histIdx.current) return false;
+    if (next === -1) {
+      imagePaths.current = new Map();
+      setEditorContent(editor, "");
+      syncState();
+      placeCaretAtEnd(editor);
+    } else {
+      applyHistoryEntry(editor, hist[next]);
+    }
+    histIdx.current = next;
+    return true;
+  };
+
+  // Load a message chosen from the history popover, replacing the current draft.
+  const loadFromHistory = (text: string, images: Record<string, string>) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    applyHistoryEntry(editor, { text, images });
+    histIdx.current = -1;
     editor.focus();
   };
 
@@ -422,6 +476,24 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     imagePaths.current.delete(Number(chip.dataset.img));
     removeChip(chip);
     syncState();
+  };
+
+  // Cut/Copy of a selected image chip writes its "[Image #N]" token (not the
+  // visible "Image N" label) to the clipboard so it can be pasted back as the
+  // image. Cut keeps the path alive (syncState(false)) for that paste-back;
+  // any other selection falls through to native copy/cut.
+  const handleCopyCut = (e: ClipboardEvent<HTMLDivElement>, cut: boolean) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const chip = selectedChip(editor);
+    if (!chip) return;
+    e.preventDefault();
+    e.clipboardData.setData("text/plain", `[Image #${chip.dataset.img}]`);
+    if (cut) {
+      removeChip(chip);
+      histIdx.current = -1;
+      syncState(false);
+    }
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -441,7 +513,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       e.stopPropagation();
-      send();
+      void send();
       return;
     }
     if (e.key === "Enter" && e.shiftKey && !e.nativeEvent.isComposing) {
@@ -593,6 +665,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           }}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
+          onCopy={(e) => handleCopyCut(e, false)}
+          onCut={(e) => handleCopyCut(e, true)}
           onClick={handleClick}
           onMouseOver={handleHover}
           onMouseLeave={dismissPreview}
@@ -617,7 +691,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           />
           <button
             type="button"
-            onClick={send}
+            onClick={() => void send()}
             disabled={disabled}
             title="Send  ·  ↵"
             aria-label="Send"

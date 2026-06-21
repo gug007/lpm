@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ImageIcon } from "./icons";
 import { ImagePreviewPopover } from "./ImagePreviewPopover";
 
@@ -10,6 +10,20 @@ interface MessageImageChipProps {
 export function MessageImageChip({ index, path }: MessageImageChipProps) {
   const ref = useRef<HTMLSpanElement>(null);
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
+
+  // The preview is pinned to the hover-time rect, so scrolling the (virtualized)
+  // history list or resizing the window would leave it floating — dismiss on both.
+  useEffect(() => {
+    if (!anchor) return;
+    const clear = () => setAnchor(null);
+    const scroller = ref.current?.closest("[data-history-scroll]");
+    scroller?.addEventListener("scroll", clear);
+    window.addEventListener("resize", clear);
+    return () => {
+      scroller?.removeEventListener("scroll", clear);
+      window.removeEventListener("resize", clear);
+    };
+  }, [anchor]);
 
   return (
     <>

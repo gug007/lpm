@@ -48,7 +48,40 @@ fn ext_for_mime(mime: &str) -> &'static str {
         "image/gif" => ".gif",
         "image/webp" => ".webp",
         "image/bmp" => ".bmp",
+        "image/heic" => ".heic",
+        "image/heif" => ".heif",
+        "image/svg+xml" => ".svg",
+        "image/tiff" => ".tif",
         _ => ".png", // default incl. image/png and unknown
+    }
+}
+
+// Best-effort removal of clipboard image temp files older than 24h. save_clip-
+// board_image leaves each pasted image on disk (the agent reads the pasted path
+// asynchronously), so they accumulate; the OS only sweeps $TMPDIR after days.
+// Only our "clipboard-" prefixed files are touched — Finder/OS-drop paths point
+// at real user files and are never written here. The 24h grace covers an in-
+// flight paste the receiver hasn't read yet and same-day history recalls.
+pub fn reap_stale_clipboard_images() {
+    const MAX_AGE: std::time::Duration = std::time::Duration::from_secs(24 * 60 * 60);
+    let now = std::time::SystemTime::now();
+    let entries = match std::fs::read_dir(std::env::temp_dir()) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        if !entry.file_name().to_string_lossy().starts_with("clipboard-") {
+            continue;
+        }
+        let stale = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|m| now.duration_since(m).ok())
+            .is_some_and(|age| age > MAX_AGE);
+        if stale {
+            let _ = std::fs::remove_file(entry.path());
+        }
     }
 }
 

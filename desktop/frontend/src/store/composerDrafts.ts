@@ -4,11 +4,18 @@
 // deliberately a plain module Map (not a reactive store): drafts change on every
 // keystroke and must not trigger React re-renders.
 
+// One recalled (already-sent) message: the tokenized text plus the token→path
+// map, so Arrow-Up recall rebuilds image chips exactly like the history popover.
+export interface ComposerHistoryEntry {
+  text: string; // serialized with [Image #N] tokens
+  images: Record<string, string>; // token index -> local file path
+}
+
 export interface ComposerDraft {
   text: string; // serialized with [Image #N] tokens
   imagePaths: Map<number, string>; // token index -> local file path
   imgCounter: number;
-  history: string[];
+  history: ComposerHistoryEntry[];
   histIdx: number;
 }
 
@@ -23,7 +30,7 @@ export function saveComposerDraft(terminalId: string, draft: ComposerDraft): voi
     text: draft.text,
     imagePaths: new Map(draft.imagePaths),
     imgCounter: draft.imgCounter,
-    history: draft.history.slice(),
+    history: draft.history.map((h) => ({ text: h.text, images: { ...h.images } })),
     histIdx: draft.histIdx,
   });
 }

@@ -142,11 +142,13 @@ pub fn run() {
             // launch notification never depends on the startup emit's timing.
             updates::start_auto_check(handle.clone());
 
-            // Backgrounded startup chores: drop sync caches for deleted projects
-            // and resume port pollers for remote projects whose tmux session is
-            // still alive. Both read configs/tmux, so off the main thread.
+            // Backgrounded startup chores: reap stale clipboard image temp files,
+            // drop sync caches for deleted projects, and resume port pollers for
+            // remote projects whose tmux session is still alive. All touch the
+            // filesystem/tmux, so off the main thread.
             let h2 = handle.clone();
             std::thread::spawn(move || {
+                clipboard::reap_stale_clipboard_images();
                 sshsync::prune_orphan_sync_dirs(&config::project_names().into_iter().collect());
                 portforward::resume_port_pollers(&h2);
             });

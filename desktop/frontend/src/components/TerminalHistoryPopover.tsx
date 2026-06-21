@@ -198,7 +198,7 @@ export function TerminalHistoryPopover({
         </button>
       </div>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto border-t border-[var(--border)] p-1.5">
+      <div ref={scrollRef} data-history-scroll className="min-h-0 flex-1 overflow-y-auto border-t border-[var(--border)] p-1.5">
         {items.length === 0 ? (
           <div className="px-3 py-10 text-center text-xs text-[var(--text-muted)]">
             {query.isLoading ? "Loading…" : emptyLabel}
