@@ -55,9 +55,14 @@ interface InteractivePaneProps {
 // Flow control: ack in batches to reduce IPC calls (matches VS Code's approach)
 const ACK_SIZE = 5000;
 
-// Gap between sequential pastes in a multi-part submit, so the receiver
-// processes each as a discrete paste event rather than one coalesced buffer.
-const SEGMENT_PASTE_DELAY_MS = 30;
+// A multi-part submit gates each paste on the receiver going quiet rather than on
+// a fixed delay: Claude Code resolves a pasted image path into an attachment
+// asynchronously (reading the file, redrawing its line) with no ack, and pasting
+// the next part or the closing CR mid-redraw makes it submit a partial line and
+// re-echo the rest. Output going idle is the implicit ack; the ceiling bounds it.
+const PASTE_QUIET_MS = 100;
+const PASTE_CEILING_MS = 1500;
+const QUIET_POLL_MS = 20;
 
 function getTerminalRemote(id: string): Promise<boolean> {
   return interactiveSessions.get(id)?.remote ?? Promise.resolve(false);
@@ -121,6 +126,9 @@ interface InteractiveSession {
 
   sessionDead: boolean;
   remote: Promise<boolean>;
+
+  lastOutputAt: number;
+  delivering: boolean;
 
   cwd: string;
   pathLinkDisposable: IDisposable | null;
@@ -322,6 +330,8 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     host,
     remote: IsTerminalRemote(terminalId).catch(() => false),
     sessionDead: false,
+    lastOutputAt: 0,
+    delivering: false,
     themeOverride: null,
     cwd,
     pathLinkDisposable: null,
@@ -434,6 +444,7 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   textarea?.addEventListener("paste", handlePaste, true);
 
   const cleanupOutput = EventsOn("pty-output-" + terminalId, (data: string) => {
+    session.lastOutputAt = performance.now();
     writeData(data);
   });
 
@@ -531,8 +542,7 @@ export function InteractivePane({
     // each line; the trailing CR submits it.
     //
     // A single string is sent as one write (body+CR together) so the body lands
-    // before the submit. An array sends each part as its own paste, spaced out
-    // so the receiver processes them as discrete paste events — this lets a
+    // before the submit. An array sends each part as its own paste — this lets a
     // receiver that attaches image paths at the cursor (e.g. Claude Code) keep
     // images in order instead of front-loading them.
     submitInput(input: string | string[]) {
@@ -552,17 +562,40 @@ export function InteractivePane({
         return true;
       }
       const parts = input.filter((p) => p.length > 0);
-      let i = 0;
-      const step = () => {
-        if (i >= parts.length) {
-          sendTerminalInput(terminalId, "\r").catch(fail);
-          return;
+      if (parts.length === 0) return false;
+      // lpm clears the composer once this returns true, so a re-entrant submit
+      // would interleave its pastes into this one; refuse it (the draft is kept).
+      if (session.delivering) return false;
+      session.delivering = true;
+
+      // sentAt is sampled AFTER the write resolves (see deliver), so output already
+      // in flight at submit time can't satisfy sawEcho ahead of this paste's echo.
+      const waitForQuiet = (sentAt: number) =>
+        new Promise<void>((resolve) => {
+          const check = () => {
+            const now = performance.now();
+            const sawEcho = session.lastOutputAt >= sentAt;
+            const quiet = now - session.lastOutputAt >= PASTE_QUIET_MS;
+            if ((sawEcho && quiet) || now - sentAt >= PASTE_CEILING_MS) resolve();
+            else setTimeout(check, QUIET_POLL_MS);
+          };
+          setTimeout(check, QUIET_POLL_MS);
+        });
+
+      const deliver = async () => {
+        for (const part of parts) {
+          if (session.sessionDead) return;
+          await sendTerminalInput(terminalId, wrap(part));
+          await waitForQuiet(performance.now());
         }
-        sendTerminalInput(terminalId, wrap(parts[i++]))
-          .then(() => setTimeout(step, SEGMENT_PASTE_DELAY_MS))
-          .catch(fail);
+        if (session.sessionDead) return;
+        await sendTerminalInput(terminalId, "\r");
       };
-      step();
+      deliver()
+        .catch(fail)
+        .finally(() => {
+          session.delivering = false;
+        });
       return true;
     },
   }));

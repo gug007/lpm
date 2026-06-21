@@ -4,7 +4,7 @@ import { EventsOn } from "../../bridge/runtime";
 import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus } from "../../bridge/commands";
 import type { ITheme } from "@xterm/xterm";
 import { disposePaneSession, type PaneHandle } from "./Pane";
-import { disposeInteractivePaneSession, type InteractivePaneHandle } from "./InteractivePane";
+import { disposeInteractivePaneSession, isInteractivePaneSessionDead, type InteractivePaneHandle } from "./InteractivePane";
 import { collectTerminals, isTabPinned } from "../paneTree";
 import { PaneLayout } from "./PaneLayout";
 import { TerminalTabDnd } from "./TerminalTabDnd";
@@ -433,8 +433,13 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
   const submitInputToTerminal = useCallback(
     (terminalId: string, input: string | string[]): boolean => {
-      const ok = terminalHandles.current.get(terminalId)?.submitInput(input) ?? false;
-      if (!ok) toast.error("This terminal isn't accepting input right now.");
+      const handle = terminalHandles.current.get(terminalId);
+      const ok = handle?.submitInput(input) ?? false;
+      // A live session also returns false transiently while a prior submit is
+      // still delivering, so only warn for a genuinely dead/missing session.
+      if (!ok && (!handle || isInteractivePaneSessionDead(terminalId))) {
+        toast.error("This terminal isn't accepting input right now.");
+      }
       return ok;
     },
     [],

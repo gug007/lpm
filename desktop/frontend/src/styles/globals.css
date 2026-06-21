@@ -146,6 +146,26 @@ body {
   .field-reveal { animation: none; }
 }
 
+@keyframes image-preview-pop {
+  from { opacity: 0; transform: translateY(4px) scale(0.94); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes image-preview-pop-below {
+  from { opacity: 0; transform: translateY(-4px) scale(0.94); }
+  to   { opacity: 1; transform: none; }
+}
+.image-preview-pop {
+  animation: image-preview-pop 160ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+.image-preview-pop-below {
+  animation-name: image-preview-pop-below;
+}
+@media (prefers-reduced-motion: reduce) {
+  .image-preview-pop,
+  .image-preview-pop-below { animation: none; }
+}
+
 @keyframes terminal-drop-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
