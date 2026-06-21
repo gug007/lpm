@@ -26,6 +26,7 @@ export interface Settings {
   browserTheme?: "light" | "dark"; // unset = follow the app theme
 
   doubleClickToToggle: boolean;
+  defaultProjectDirectory?: string;
   soundNotifications?: boolean;
   doneSound?: string;
   waitingSound?: string;
@@ -81,6 +82,7 @@ function normalize(s: main.Settings): Settings {
     browserTheme:
       s.browserTheme === "light" || s.browserTheme === "dark" ? s.browserTheme : undefined,
     doubleClickToToggle: s.doubleClickToToggle ?? defaults.doubleClickToToggle,
+    defaultProjectDirectory: s.defaultProjectDirectory || undefined,
     soundNotifications: s.soundNotifications,
     doneSound: s.doneSound || undefined,
     waitingSound: s.waitingSound || undefined,

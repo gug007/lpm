@@ -767,7 +767,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
     try {
-      const dir = await BrowseFolder();
+      const dir = await BrowseFolder(getSettings().defaultProjectDirectory);
       if (!dir) return;
       const name = dir.split("/").pop() || "new-project";
       await CreateProject(name, dir);

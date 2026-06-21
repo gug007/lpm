@@ -16,8 +16,8 @@ export function AddPortForward(project, remotePort, localPort) {
 export function AttachProject(projectName) {
   return invoke("attach_project", { projectName });
 }
-export function BrowseFolder() {
-  return invoke("browse_folder");
+export function BrowseFolder(defaultDir) {
+  return invoke("browse_folder", { defaultDir });
 }
 export function CheckActionPortConflict(projectName, actionName) {
   return invoke("check_action_port_conflict", { projectName, actionName });

@@ -7,6 +7,7 @@ import { XIcon } from "./icons";
 import { slugify } from "../slugify";
 import { useAppStore } from "../store/app";
 import { BrowseFolder } from "../../bridge/commands";
+import { getSettings } from "../store/settings";
 import { gitUrlSchema, projectNameSchema } from "../forms/schemas";
 import {
   modalErrorInputClass,
@@ -67,6 +68,12 @@ export function AddCloneRepoModal() {
     setSubmitError("");
   }, [open, reset]);
 
+  useEffect(() => {
+    if (!open) return;
+    const dir = getSettings().defaultProjectDirectory;
+    if (dir) setValue("destParent", dir, { shouldDirty: false, shouldValidate: true });
+  }, [open, setValue]);
+
   const url = watch("url");
   const nameDirty = !!dirtyFields.name;
   useEffect(() => {
@@ -77,7 +84,7 @@ export function AddCloneRepoModal() {
   const pickDest = async () => {
     if (busy) return;
     try {
-      const dir = await BrowseFolder();
+      const dir = await BrowseFolder(getSettings().defaultProjectDirectory);
       if (dir) {
         setValue("destParent", dir, {
           shouldDirty: true,

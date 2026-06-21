@@ -1496,7 +1496,14 @@ pub fn get_project(name: &str, run: &HashMap<String, RunState>) -> Result<Option
 /// reading from disk (a disk read would fail and break new-terminal + the
 /// Global Actions row in the Terminals view).
 fn global_root() -> String {
-    dirs::home_dir().unwrap_or_default().to_string_lossy().into_owned()
+    let home = dirs::home_dir().unwrap_or_default().to_string_lossy().into_owned();
+    if let Some(dir) = load_settings().get("defaultProjectDirectory").and_then(Value::as_str) {
+        let expanded = expand_home(dir);
+        if !expanded.is_empty() && std::path::Path::new(&expanded).is_dir() {
+            return expanded;
+        }
+    }
+    home
 }
 
 fn global_project_info() -> Value {
