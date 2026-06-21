@@ -31,6 +31,7 @@ import {
   VaultExportKey,
   VaultImportKey,
   ListSystemSounds,
+  BrowseFolder,
 } from "../../bridge/commands";
 import { SoundPicker } from "./SoundPicker";
 import type { main } from "../../bridge/models";
@@ -94,6 +95,7 @@ export function Settings({
 }: SettingsProps) {
   const theme = useSettingsStore((s) => s.theme);
   const dblClick = useSettingsStore((s) => s.doubleClickToToggle);
+  const defaultProjectDirectory = useSettingsStore((s) => s.defaultProjectDirectory);
   const soundEnabled = useSettingsStore((s) => s.soundNotifications ?? false);
   const doneSound = useSettingsStore((s) => s.doneSound ?? "chime");
   const waitingSound = useSettingsStore((s) => s.waitingSound ?? "chime");
@@ -110,6 +112,15 @@ export function Settings({
   const setTheme = (next: Theme) => {
     applyTheme(next);
     void updateSettings({ theme: next });
+  };
+
+  const chooseDefaultProjectDir = async () => {
+    try {
+      const dir = await BrowseFolder(defaultProjectDirectory);
+      if (dir) void updateSettings({ defaultProjectDirectory: dir });
+    } catch {
+      // User's own picker; cancellations are normal.
+    }
   };
 
   const [kokoroStatus, setKokoroStatus] = useState<KokoroStatus>("idle");
@@ -355,6 +366,27 @@ export function Settings({
               </SettingsRow>
               <SettingsRow label="Double-click to start/stop" description="Double-click a project in sidebar to toggle it">
                 <Toggle enabled={dblClick} onChange={(v) => updateSettings({ doubleClickToToggle: v })} />
+              </SettingsRow>
+              <SettingsRow label="Default project directory" description="Add project, clone destination, and global terminals open here">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="max-w-[180px] truncate font-mono text-xs text-[var(--text-muted)]"
+                    title={defaultProjectDirectory || undefined}
+                  >
+                    {defaultProjectDirectory || "Not set"}
+                  </span>
+                  {defaultProjectDirectory && (
+                    <button
+                      onClick={() => void updateSettings({ defaultProjectDirectory: undefined })}
+                      className={BTN_SECONDARY}
+                    >
+                      Clear
+                    </button>
+                  )}
+                  <button onClick={chooseDefaultProjectDir} className={BTN_SECONDARY}>
+                    Choose
+                  </button>
+                </div>
               </SettingsRow>
             </SettingsSection>
 

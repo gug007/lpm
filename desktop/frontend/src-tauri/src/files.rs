@@ -35,12 +35,19 @@ fn resolve_existing(abs: &str) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn browse_folder(app: AppHandle) -> Result<String, String> {
-    let picked = pick_path(app, |app| {
-        app.dialog()
-            .file()
-            .set_title("Select project folder")
-            .blocking_pick_folder()
+pub async fn browse_folder(
+    app: AppHandle,
+    default_dir: Option<String>,
+) -> Result<String, String> {
+    let start = default_dir
+        .map(|d| expand_home(&d))
+        .filter(|d| !d.is_empty() && std::path::Path::new(d).is_dir());
+    let picked = pick_path(app, move |app| {
+        let mut builder = app.dialog().file().set_title("Select project folder");
+        if let Some(dir) = start {
+            builder = builder.set_directory(dir);
+        }
+        builder.blocking_pick_folder()
     })
     .await?;
     match picked {
