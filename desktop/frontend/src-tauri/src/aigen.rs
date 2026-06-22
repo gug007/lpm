@@ -76,6 +76,7 @@ const CLAUDE_BUILTINS: &[(&str, &str, &str)] = &[
     ("cost", "Show token cost and usage", ""),
     ("diff", "Open the diff viewer", ""),
     ("doctor", "Diagnose the install and settings", ""),
+    ("effort", "Set the model effort level", "[low|medium|high|xhigh|max|auto]"),
     ("exit", "Exit the CLI", ""),
     ("help", "Show help and available commands", ""),
     ("init", "Initialize the project with a CLAUDE.md guide", ""),

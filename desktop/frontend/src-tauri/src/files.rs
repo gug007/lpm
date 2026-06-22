@@ -95,6 +95,93 @@ pub fn file_exists(abs_path: String) -> bool {
         .unwrap_or(false)
 }
 
+/// One entry under a project's working dir, for the composer's `@`-mention
+/// picker. `path` is relative to the listed root.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirFileEntry {
+    pub path: String,
+    pub is_dir: bool,
+}
+
+/// Directory names never worth surfacing in the picker — large, generated, or
+/// VCS-internal. Skipped wholesale, contents and all.
+const MENTION_SKIP_DIRS: &[&str] = &[
+    ".git",
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    ".next",
+    ".nuxt",
+    ".turbo",
+    ".cache",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "vendor",
+    "Pods",
+    ".idea",
+    ".gradle",
+    "DerivedData",
+    ".svelte-kit",
+    "coverage",
+];
+
+/// Cap on entries so a giant tree can't stall the picker or balloon the IPC
+/// payload; the client filters this list as the user types.
+const MENTION_FILE_CAP: usize = 20_000;
+
+/// List files and folders under `root` (a terminal's working dir) for the
+/// composer's `@`-mention autocomplete, as paths relative to `root`. Walks
+/// recursively, skipping MENTION_SKIP_DIRS and following no symlinks (read_dir's
+/// file_type doesn't), so cycles can't trap it. Runs off the UI thread — a deep
+/// tree walk must never block the main loop.
+#[tauri::command(async)]
+pub fn list_dir_files(root: String) -> Result<Vec<DirFileEntry>, String> {
+    if root.is_empty() {
+        return Ok(Vec::new());
+    }
+    let base = expand_home(&root);
+    let base_path = std::path::Path::new(&base);
+    if !base_path.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut out: Vec<DirFileEntry> = Vec::new();
+    let mut stack = vec![base_path.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        if out.len() >= MENTION_FILE_CAP {
+            break;
+        }
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.filter_map(|e| e.ok()) {
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            let is_dir = file_type.is_dir();
+            let name = entry.file_name();
+            if is_dir && MENTION_SKIP_DIRS.contains(&name.to_string_lossy().as_ref()) {
+                continue;
+            }
+            let path = entry.path();
+            let Ok(rel) = path.strip_prefix(base_path) else {
+                continue;
+            };
+            out.push(DirFileEntry {
+                path: rel.to_string_lossy().into_owned(),
+                is_dir,
+            });
+            if is_dir {
+                stack.push(path);
+            }
+        }
+    }
+    out.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(out)
+}
+
 #[tauri::command(async)]
 pub fn read_file(abs_path: String) -> Result<String, String> {
     if abs_path.is_empty() {

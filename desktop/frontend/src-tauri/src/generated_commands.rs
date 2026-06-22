@@ -88,6 +88,7 @@ macro_rules! all_command_handlers {
         install_update,
         is_terminal_remote,
         list_branches,
+        list_dir_files,
         list_detached_projects,
         list_open_in_targets,
         list_port_forwards,

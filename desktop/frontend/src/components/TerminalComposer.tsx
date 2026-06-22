@@ -37,6 +37,7 @@ import { recordMessage } from "../store/messageHistory";
 import { ComposerTabStrip, type ComposerTabView } from "./ComposerTabStrip";
 import { PlusIcon, SendIcon } from "./icons";
 import { ImagePreviewPopover } from "./ImagePreviewPopover";
+import { ImageLightbox } from "./ImageLightbox";
 import { TerminalHistoryButton } from "./TerminalHistoryButton";
 import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
 import {
@@ -53,6 +54,7 @@ import {
   placeCaretFromPoint,
   presentImageTokens,
   removeChip,
+  replaceMentionFragment,
   replaceSlashFragment,
   restoreTrailingChipCaret,
   selectChip,
@@ -64,6 +66,9 @@ import {
 import { SlashCommandMenu } from "./SlashCommandMenu";
 import { useSlashCommands } from "../hooks/useSlashCommands";
 import { detectAICLI, type SlashCommand } from "../slashCommands";
+import { MentionMenu } from "./MentionMenu";
+import { useMentions } from "../hooks/useMentions";
+import { MENTION_TRIGGER, type MentionItem } from "../mentions";
 
 interface TerminalComposerProps {
   // Terminal whose draft this composer owns; its draft is persisted per id.
@@ -105,6 +110,11 @@ const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif|svg)$/i;
 // the slash menu; ":" is allowed for namespaced names like "prompts:draftpr".
 const SLASH_TRIGGER = /^\s*\/([a-z0-9:_-]*)$/i;
 
+// A completed command followed by exactly one space (and nothing after) — shows
+// the command's argument-hint as ghost text, the way the CLIs do. A second space
+// or any typed argument ends this state and hides the hint.
+const HINT_TRIGGER = /^\s*\/([a-z0-9:_-]+) $/i;
+
 // A short, single-line label for a prompt tab: its text with image tokens
 // dropped, collapsed whitespace. Empty when the draft holds nothing visible.
 function previewLabel(text: string): string {
@@ -131,6 +141,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const [disabled, setDisabled] = useState(true);
   const [dragOver, setDragOver] = useState(false);
   const [preview, setPreview] = useState<{ path: string; rect: DOMRect } | null>(null);
+  // Local path of the image shown full-window in the lightbox, or null when closed.
+  const [lightboxPath, setLightboxPath] = useState<string | null>(null);
   // The composer action currently being applied (drives the busy UI), or null.
   const [transformingId, setTransformingId] = useState<string | null>(null);
   const [actionsModalOpen, setActionsModalOpen] = useState(false);
@@ -140,6 +152,17 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const [slashIndex, setSlashIndex] = useState(0);
   const [slashItems, setSlashItems] = useState<SlashCommand[]>([]);
   const [slashRect, setSlashRect] = useState<DOMRect | null>(null);
+  // "@" mention autocomplete (projects, duplicates, and files under the
+  // terminal's cwd): open state, highlighted row, the filtered list, and the
+  // caret rect the popover anchors to.
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [mentionItems, setMentionItems] = useState<MentionItem[]>([]);
+  const [mentionRect, setMentionRect] = useState<DOMRect | null>(null);
+  // Ghost argument-hint shown after a completed "/command "; positioned at the
+  // caret (and sized to the caret's line height so it sits on the text baseline),
+  // relative to the composer box.
+  const [hint, setHint] = useState<{ text: string; left: number; top: number; height: number } | null>(null);
   // Guards runAction/send against re-entry across the AI await without waiting
   // for the transformingId state to settle.
   const transforming = useRef(false);
@@ -149,7 +172,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // slash menu only appears when this resolves (a terminal actually running an
   // agent); plain shells get no menu. Commands load lazily on focus.
   const slashCli = detectAICLI(launchCmd);
-  const { filter: filterSlash, isCommand: isSlashCommand } = useSlashCommands(slashCli, cwd, focused);
+  const { filter: filterSlash, isCommand: isSlashCommand, argumentHintFor } = useSlashCommands(slashCli, cwd, focused);
+  // Mentions share the slash menu's gating — only an agent terminal (slashCli)
+  // that's focused loads them, so a plain shell never pays for a tree walk.
+  const { filter: filterMentions } = useMentions(cwd, focused && slashCli !== null);
   const editorRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hoverChip = useRef<HTMLElement | null>(null);
@@ -711,6 +737,67 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     setSlashOpen(true);
   };
 
+  // Re-evaluate the "@" mention menu after every edit. It opens only for an agent
+  // terminal when the caret sits in an "@<frag>" run (after whitespace, no
+  // spaces), and closes the moment that run ends or matches nothing.
+  const updateMentionMenu = () => {
+    const editor = editorRef.current;
+    if (!editor || transforming.current || !slashCli) {
+      setMentionOpen(false);
+      return;
+    }
+    const line = lineBeforeCaret(editor);
+    const match = line !== null ? MENTION_TRIGGER.exec(line) : null;
+    if (!match) {
+      setMentionOpen(false);
+      return;
+    }
+    const items = filterMentions(match[1]);
+    if (items.length === 0) {
+      setMentionOpen(false);
+      return;
+    }
+    // Anchor to the caret, falling back to the editor box on a zero-size rect.
+    let rect = editor.getBoundingClientRect();
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const caret = sel.getRangeAt(0).getBoundingClientRect();
+      if (caret.height > 0) rect = caret;
+    }
+    setMentionItems(items);
+    setMentionIndex(0);
+    setMentionRect(rect);
+    setMentionOpen(true);
+  };
+
+  // Show the active command's argument-hint as ghost text once the line is a
+  // completed "/command " with the caret at the very end (no args typed yet),
+  // anchored just past the caret like the CLIs' own inline hint.
+  const updateHint = () => {
+    const editor = editorRef.current;
+    const box = containerRef.current;
+    if (!editor || !box || !slashCli) {
+      setHint(null);
+      return;
+    }
+    const line = lineBeforeCaret(editor);
+    const match = line !== null ? HINT_TRIGGER.exec(line) : null;
+    const text = match ? argumentHintFor(match[1]) : "";
+    const sel = window.getSelection();
+    if (!match || !text || !caretEdges(editor).atEnd || !sel || sel.rangeCount === 0) {
+      setHint(null);
+      return;
+    }
+    const caret = sel.getRangeAt(0).getBoundingClientRect();
+    const rect = box.getBoundingClientRect();
+    setHint({
+      text,
+      left: caret.left - rect.left,
+      top: caret.top - rect.top,
+      height: caret.height || fontSize * 1.5,
+    });
+  };
+
   // Swap the typed "/<frag>" for the chosen "/<command> " and keep editing so the
   // user can add arguments before sending.
   const insertSlashCommand = (cmd: SlashCommand) => {
@@ -722,6 +809,21 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       normalizeComposer(editor);
       syncState();
       highlightCommand(editor, isSlashCommand);
+      editor.focus();
+      updateHint();
+    }
+  };
+
+  // Swap the typed "@<frag>" for the chosen "@<insert> " and keep editing so the
+  // user can continue the prompt right after the reference.
+  const insertMention = (item: MentionItem) => {
+    const editor = editorRef.current;
+    setMentionOpen(false);
+    if (!editor) return;
+    if (replaceMentionFragment(editor, item.insert)) {
+      histIdx.current = -1;
+      normalizeComposer(editor);
+      syncState();
       editor.focus();
     }
   };
@@ -810,6 +912,15 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const editor = editorRef.current;
     if (!editor) return;
+    // While the lightbox is open the editor keeps focus, so swallow its keys
+    // (the field below must not type/send) and close the preview on Escape — the
+    // editor's own stopPropagation would otherwise keep Escape from the modal.
+    if (lightboxPath !== null) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === "Escape") setLightboxPath(null);
+      return;
+    }
     // The field is locked while an action transform runs; swallow keys so a
     // stray Enter/Arrow can't send or recall over the in-flight result.
     if (transforming.current) {
@@ -843,6 +954,35 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         e.preventDefault();
         e.stopPropagation();
         setSlashOpen(false);
+        return;
+      }
+    }
+    // The mention menu owns the same keys while open (the slash and mention
+    // triggers are mutually exclusive, so at most one is ever open).
+    if (mentionOpen) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        e.stopPropagation();
+        setMentionIndex((i) => Math.min(mentionItems.length - 1, i + 1));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        e.stopPropagation();
+        setMentionIndex((i) => Math.max(0, i - 1));
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        e.stopPropagation();
+        const item = mentionItems[mentionIndex];
+        if (item) insertMention(item);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        setMentionOpen(false);
         return;
       }
     }
@@ -941,11 +1081,19 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       }
       return;
     }
-    // Clicking elsewhere on a chip selects the whole thing so it reads (and
-    // deletes) as a unit.
+    // Clicking elsewhere on a chip opens its image full-window. A chip with no
+    // mapped path (shouldn't happen) falls back to selecting it as a unit so it
+    // can still be deleted with Backspace.
     const chip = target.closest<HTMLElement>("[data-img]");
     if (chip) {
-      selectChip(chip);
+      e.preventDefault();
+      const path = imagePaths.current.get(Number(chip.dataset.img));
+      if (path) {
+        dismissPreview();
+        setLightboxPath(path);
+      } else {
+        selectChip(chip);
+      }
       return;
     }
     // A plain click landing after a trailing chip mispaints the caret at the
@@ -1038,8 +1186,14 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
             syncState();
             if (editor) highlightCommand(editor, isSlashCommand);
             updateSlashMenu();
+            updateMentionMenu();
+            updateHint();
           }}
-          onBlur={() => setSlashOpen(false)}
+          onBlur={() => {
+            setSlashOpen(false);
+            setMentionOpen(false);
+            setHint(null);
+          }}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           onCopy={(e) => handleCopyCut(e, false)}
@@ -1057,6 +1211,15 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
             className="pointer-events-none absolute left-3.5 top-2.5 text-[var(--text-muted)]"
           >
             Send to {targetLabel}…
+          </div>
+        )}
+        {hint && (
+          <div
+            aria-hidden
+            style={{ fontSize, left: hint.left, top: hint.top, height: hint.height, lineHeight: `${hint.height}px` }}
+            className="pointer-events-none absolute whitespace-pre text-[var(--text-muted)]"
+          >
+            {hint.text}
           </div>
         )}
         <div className="absolute bottom-2 right-2 flex items-center gap-1">
@@ -1112,6 +1275,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       </div>
       </div>
       {preview && <ImagePreviewPopover path={preview.path} anchor={preview.rect} />}
+      {lightboxPath && (
+        <ImageLightbox path={lightboxPath} onClose={() => setLightboxPath(null)} />
+      )}
       {slashOpen && (
         <SlashCommandMenu
           commands={slashItems}
@@ -1119,6 +1285,15 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           anchorRect={slashRect}
           onSelect={insertSlashCommand}
           onHoverIndex={setSlashIndex}
+        />
+      )}
+      {mentionOpen && (
+        <MentionMenu
+          items={mentionItems}
+          selectedIndex={mentionIndex}
+          anchorRect={mentionRect}
+          onSelect={insertMention}
+          onHoverIndex={setMentionIndex}
         />
       )}
       <ComposerActionsModal open={actionsModalOpen} onClose={() => setActionsModalOpen(false)} />

@@ -100,6 +100,9 @@ export function ExportConfig() {
 export function FileExists(absPath) {
   return invoke("file_exists", { absPath });
 }
+export function ListDirFiles(root) {
+  return invoke("list_dir_files", { root });
+}
 export function FocusDetachedWindow(projectName) {
   return invoke("focus_detached_window", { projectName });
 }

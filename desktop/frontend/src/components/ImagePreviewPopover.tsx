@@ -1,34 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { NotesReadFileAsInput } from "../../bridge/commands";
+import { useImageDataUrl } from "./imageDataUrl";
 
 const GAP = 8;
 const EDGE_MARGIN = 8;
-
-// Data URLs are reused across hovers so re-previewing the same image doesn't
-// re-read it from disk. Bounded LRU: base64 data URLs are large, and the
-// composer is a long-lived singleton, so an unbounded cache would leak.
-const MAX_CACHE_ENTRIES = 12;
-const urlCache = new Map<string, string>();
-
-function cacheGet(path: string): string | undefined {
-  const url = urlCache.get(path);
-  if (url !== undefined) {
-    urlCache.delete(path);
-    urlCache.set(path, url);
-  }
-  return url;
-}
-
-function cacheSet(path: string, url: string) {
-  urlCache.delete(path);
-  urlCache.set(path, url);
-  while (urlCache.size > MAX_CACHE_ENTRIES) {
-    const oldest = urlCache.keys().next().value;
-    if (oldest === undefined) break;
-    urlCache.delete(oldest);
-  }
-}
 
 interface ImagePreviewPopoverProps {
   path: string;
@@ -38,32 +13,9 @@ interface ImagePreviewPopoverProps {
 type Pos = { top: number; left: number; placement: "top" | "bottom" };
 
 export function ImagePreviewPopover({ path, anchor }: ImagePreviewPopoverProps) {
-  const [url, setUrl] = useState<string | null>(() => cacheGet(path) ?? null);
-  const [failed, setFailed] = useState(false);
+  const { url, failed } = useImageDataUrl(path);
   const [pos, setPos] = useState<Pos | null>(null);
   const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const cached = cacheGet(path);
-    if (cached) {
-      setUrl(cached);
-      return;
-    }
-    let cancelled = false;
-    setFailed(false);
-    NotesReadFileAsInput(path)
-      .then((input: { mimeType?: string; data: string }) => {
-        const dataUrl = `data:${input.mimeType || "image/png"};base64,${input.data}`;
-        cacheSet(path, dataUrl);
-        if (!cancelled) setUrl(dataUrl);
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [path]);
 
   // Measure with offsetWidth/Height (not getBoundingClientRect): those ignore
   // CSS transforms, so the entrance animation's scale can't corrupt the layout

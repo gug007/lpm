@@ -12,7 +12,7 @@ export const COMMAND_COLOR = ansiColors.brightBlue;
 const IMAGE_TOKEN_RE = /\[Image #(\d+)\]/g;
 
 const CHIP_CLASS =
-  "group inline-flex select-none items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--bg-active)] py-0.5 pl-1 pr-1.5 align-middle text-[12px] leading-4 text-[var(--text-secondary)]";
+  "group inline-flex cursor-zoom-in select-none items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--bg-active)] py-0.5 pl-1 pr-1.5 align-middle text-[12px] leading-4 text-[var(--text-secondary)]";
 
 const SVG_OPEN =
   '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"';
@@ -29,7 +29,7 @@ export function createImageChip(n: number): HTMLSpanElement {
   chip.className = CHIP_CLASS;
   chip.innerHTML =
     `<span data-img-remove="${n}" role="button" aria-label="Remove image" title="Remove image" class="flex h-4 w-4 cursor-pointer items-center justify-center rounded hover:text-[var(--accent-red)]">${IMAGE_ICON}${REMOVE_ICON}</span>` +
-    `<span class="cursor-default">Image ${n}</span>`;
+    `<span>Image ${n}</span>`;
   return chip;
 }
 
@@ -549,6 +549,24 @@ export function replaceSlashFragment(root: HTMLElement, name: string): boolean {
   const fragLen = line.length - slash; // "/" plus the typed fragment
   for (let i = 0; i < fragLen; i++) sel.modify("extend", "backward", "character");
   document.execCommand("insertText", false, `/${name} `);
+  return true;
+}
+
+// Replace the "@<frag>" preceding the caret on the current line with "@<value> ",
+// leaving the caret after the trailing space ready to keep typing. Mirrors
+// replaceSlashFragment, but the "@" can sit mid-line (the fragment is everything
+// from the last "@" to the caret) and <value> may hold path separators. Returns
+// false when no "@" fragment is found.
+export function replaceMentionFragment(root: HTMLElement, value: string): boolean {
+  const line = lineBeforeCaret(root);
+  if (line === null) return false;
+  const at = line.lastIndexOf("@");
+  if (at === -1) return false;
+  const sel = window.getSelection();
+  if (!sel || !sel.isCollapsed) return false;
+  const fragLen = line.length - at; // "@" plus the typed fragment
+  for (let i = 0; i < fragLen; i++) sel.modify("extend", "backward", "character");
+  document.execCommand("insertText", false, `@${value} `);
   return true;
 }
 
