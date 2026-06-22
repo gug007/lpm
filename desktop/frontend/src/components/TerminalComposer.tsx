@@ -397,12 +397,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     syncState();
   }, [syncState, loadTab]);
 
-  // Drop the tab at `idx`; if it was the visible one, adopt its neighbor into the
-  // editor (the next tab, or the new last when the end was removed).
+  // Drop the tab at `idx`; if it was the visible one, adopt the tab to its left
+  // (or the new first tab when the leftmost was closed) so closing walks toward
+  // the start of the strip, not the end.
   const removeTabAt = useCallback(
     (idx: number, wasActive: boolean) => {
       tabs.current.splice(idx, 1);
-      if (wasActive) loadTab(tabs.current[Math.min(idx, tabs.current.length - 1)]);
+      if (wasActive) loadTab(tabs.current[Math.max(0, idx - 1)]);
     },
     [loadTab],
   );
@@ -421,6 +422,20 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       syncState();
     },
     [syncState, removeTabAt],
+  );
+
+  // Apply a drag-reorder from the strip: rebuild `tabs.current` in the given id
+  // order, then persist. The active tab is tracked by id, so reordering never
+  // changes which prompt is in the editor — only the row order moves.
+  const reorderTabs = useCallback(
+    (ids: string[]) => {
+      const byId = new Map(tabs.current.map((t) => [t.id, t]));
+      const next = ids.map((id) => byId.get(id)).filter((t): t is ComposerInputTab => !!t);
+      if (next.length !== tabs.current.length) return;
+      tabs.current = next;
+      syncState();
+    },
+    [syncState],
   );
 
   const registerImagePath = useCallback((path: string): HTMLSpanElement => {
@@ -599,19 +614,27 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     [addImageBlob, insertImageChips, focusAtPoint],
   );
 
-  // Retire the just-sent prompt, resolved by id (a tab switch during an image
-  // upload can leave it no longer active — or already closed). With other prompts
-  // open the sent tab is dropped, and its neighbor takes over only if it was the
-  // one on screen; a lone tab is cleared in place and kept.
+  // Retire the just-sent prompt by clearing it in place — the tab always stays,
+  // regardless of how many are open, so a send never pulls a prepared input out
+  // from under the user. Resolved by id because a tab switch during an image
+  // upload can leave the sent prompt no longer the active one: when it's still
+  // active we empty the live editor (syncState mirrors it back into the tab);
+  // when it isn't, we clear that tab's stored snapshot and leave the editor be.
   const finishSend = (sentId: string, editor: HTMLDivElement) => {
     const idx = tabs.current.findIndex((t) => t.id === sentId);
-    if (idx !== -1 && tabs.current.length > 1) {
-      removeTabAt(idx, sentId === activeId.current);
-    } else if (idx !== -1) {
-      histIdx.current = -1;
-      imagePaths.current.clear();
-      setEditorContent(editor, "");
-      setPreview(null);
+    if (idx !== -1) {
+      if (sentId === activeId.current) {
+        histIdx.current = -1;
+        imagePaths.current.clear();
+        setEditorContent(editor, "");
+        setPreview(null);
+      } else {
+        const tab = tabs.current[idx];
+        tab.text = "";
+        tab.imagePaths = new Map();
+        tab.imgCounter = 0;
+        tab.histIdx = -1;
+      }
     }
     syncState();
     editor.focus();
@@ -1011,6 +1034,28 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         return;
       }
     }
+    // ⌘T / ⌘W act on the composer's own tabs while the input is focused,
+    // shadowing the global new-terminal / close-terminal shortcuts. addTab
+    // already creates and jumps to the new tab; closeTab no-ops on the last tab
+    // (so ⌘W there does nothing) and otherwise adopts the left neighbour. Gated
+    // to ⌘ only — Ctrl+T/Ctrl+W are native macOS field edits (transpose / delete
+    // word) that must keep working; the generic guard below still stops their
+    // global terminal shortcut from firing.
+    if (e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+      const k = e.key.toLowerCase();
+      if (k === "t") {
+        e.preventDefault();
+        e.stopPropagation();
+        addTab();
+        return;
+      }
+      if (k === "w") {
+        e.preventDefault();
+        e.stopPropagation();
+        closeTab(activeId.current);
+        return;
+      }
+    }
     // Keep app-chrome shortcuts (⌘W close tab, ⌘D split, ⌘F find, ⌘1-9 switch
     // project) from firing while typing here. ⌘I still bubbles so it can toggle
     // the composer closed; native edit shortcuts (copy/paste/select-all) keep
@@ -1163,6 +1208,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           onSelect={switchTab}
           onClose={closeTab}
           onAdd={addTab}
+          onReorder={reorderTabs}
         />
       )}
       <div
