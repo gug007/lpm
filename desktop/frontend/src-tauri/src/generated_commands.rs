@@ -9,7 +9,7 @@ use serde_json::Value;
 
 
 
-/// All 180 commands for tauri::generate_handler!.
+/// All 183 commands for tauri::generate_handler!.
 #[macro_export]
 macro_rules! all_command_handlers {
     () => {
@@ -94,6 +94,7 @@ macro_rules! all_command_handlers {
         list_ssh_hosts,
         list_system_sounds,
         list_templates,
+        load_composer_actions,
         load_groups,
         load_settings,
         load_terminals,
@@ -158,6 +159,7 @@ macro_rules! all_command_handlers {
         save_commit_instructions,
         save_config,
         save_global_config,
+        save_composer_actions,
         save_groups,
         save_pr_description_instructions,
         save_pr_title_instructions,
@@ -190,6 +192,7 @@ macro_rules! all_command_handlers {
         sync_branch,
         tmux_installed,
         toggle_project_service,
+        transform_text,
         uninstall_kokoro,
         upload_and_quote_for_terminal,
         upload_clipboard_image_for_terminal,

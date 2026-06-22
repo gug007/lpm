@@ -660,7 +660,12 @@ export function InteractivePane({
     });
     ro.observe(session.host);
 
-    session.term.focus();
+    // A new terminal's composer claims focus in its mount layout-effect, which
+    // runs before this passive effect; don't yank focus back to the terminal
+    // when the open terminal-input already holds it.
+    if (!document.activeElement?.closest("[data-terminal-composer]")) {
+      session.term.focus();
+    }
 
     return () => {
       if (resizeTimer) clearTimeout(resizeTimer);

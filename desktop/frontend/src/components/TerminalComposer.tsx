@@ -10,8 +10,22 @@ import {
   type MouseEvent,
 } from "react";
 import { toast } from "sonner";
-import { ReadClipboardFiles, SaveClipboardImage, UploadAndQuoteForTerminal } from "../../bridge/commands";
+import {
+  ReadClipboardFiles,
+  SaveClipboardImage,
+  TransformText,
+  UploadAndQuoteForTerminal,
+} from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
+import { useAIPicker } from "../hooks/useAIPicker";
+import { aiEffectiveFast, type AICLI } from "../types";
+import { getSettings } from "../store/settings";
+import {
+  useEnabledComposerActions,
+  type ComposerAction,
+} from "../store/composerActions";
+import { ComposerActionsButton } from "./ComposerActionsButton";
+import { ComposerActionsModal } from "./ComposerActionsModal";
 import {
   createInputTab,
   loadComposerDraft,
@@ -64,6 +78,8 @@ interface TerminalComposerProps {
   focused: boolean;
   // Label of the terminal that will receive the input.
   targetLabel: string;
+  // Working directory the AI CLI runs in when applying a composer action.
+  cwd: string;
   // Terminal font size; the composer text scales to match it.
   fontSize: number;
   // Returns false when the input could not be delivered (e.g. a dead session),
@@ -94,13 +110,21 @@ function sameTabView(a: ComposerTabView[], b: ComposerTabView[]): boolean {
   return a.every((t, i) => t.id === b[i].id && t.label === b[i].label);
 }
 
-export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, fontSize, onSubmit, onFocusTerminal }: TerminalComposerProps) {
+export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, cwd, fontSize, onSubmit, onFocusTerminal }: TerminalComposerProps) {
   // `blank` drives the placeholder (no content at all); `disabled` drives the
   // send button (nothing but whitespace).
   const [blank, setBlank] = useState(true);
   const [disabled, setDisabled] = useState(true);
   const [dragOver, setDragOver] = useState(false);
   const [preview, setPreview] = useState<{ path: string; rect: DOMRect } | null>(null);
+  // The composer action currently being applied (drives the busy UI), or null.
+  const [transformingId, setTransformingId] = useState<string | null>(null);
+  const [actionsModalOpen, setActionsModalOpen] = useState(false);
+  // Guards runAction/send against re-entry across the AI await without waiting
+  // for the transformingId state to settle.
+  const transforming = useRef(false);
+  const ai = useAIPicker(shown);
+  const enabledActions = useEnabledComposerActions();
   const editorRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hoverChip = useRef<HTMLElement | null>(null);
@@ -273,7 +297,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // visible tab's edits so nothing typed is lost on the swap.
   const switchTab = useCallback(
     (id: string) => {
-      if (id === activeId.current) return;
+      if (id === activeId.current || transforming.current) return;
       syncState();
       const target = tabs.current.find((t) => t.id === id);
       if (!target) return;
@@ -288,7 +312,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // own tab so the user can prepare several and send them one at a time.
   const addTab = useCallback(() => {
     const editor = editorRef.current;
-    if (!editor) return;
+    if (!editor || transforming.current) return;
     syncState();
     const tab = createInputTab();
     tabs.current.push(tab);
@@ -312,7 +336,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // closing a background tab leaves the editor (and whatever owns focus) untouched.
   const closeTab = useCallback(
     (id: string) => {
-      if (tabs.current.length <= 1) return;
+      if (tabs.current.length <= 1 || transforming.current) return;
       const idx = tabs.current.findIndex((t) => t.id === id);
       if (idx === -1) return;
       const wasActive = id === activeId.current;
@@ -519,7 +543,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
 
   const send = async () => {
     const editor = editorRef.current;
-    if (!editor) return;
+    if (!editor || transforming.current) return;
     const value = serializeEditor(editor);
     if (!value.trim()) return;
     // The editor stays editable across the upload await, so pin which prompt is
@@ -622,10 +646,67 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // Load a message chosen from the history popover, replacing the current draft.
   const loadFromHistory = (text: string, images: Record<string, string>) => {
     const editor = editorRef.current;
-    if (!editor) return;
+    if (!editor || transforming.current) return;
     applyHistoryEntry(editor, { text, images });
     histIdx.current = -1;
     editor.focus();
+  };
+
+  // Apply a composer action: send the current text through the user's AI CLI
+  // with the action's instruction, then rebuild the field from the result —
+  // reusing the history-entry path so any preserved image tokens become chips.
+  const runAction = async (action: ComposerAction) => {
+    const editor = editorRef.current;
+    if (!editor || transforming.current) return;
+    const value = serializeEditor(editor);
+    if (!value.trim()) return;
+    // Snapshot text, the image map, and the originating tab before the await.
+    // The field is locked and tab switching is blocked while a transform runs
+    // (see `transforming`), so nothing can race the result back in — pinning the
+    // snapshot just keeps the rebuilt field faithful to exactly what was sent.
+    const images = Object.fromEntries(imagePaths.current);
+    const startedId = activeId.current;
+    transforming.current = true;
+    setTransformingId(action.id);
+    try {
+      // Read the live AI selection at run time — the picker in the manage modal
+      // (or any other AI flow) may have changed it since this composer mounted.
+      const s = getSettings();
+      const cli = (s.aiCli as AICLI) || ai.selectedCLI;
+      const model = s.aiModel ?? ai.selectedModel;
+      const effort = s.aiEffort ?? ai.selectedEffort;
+      const fast = s.aiFast ?? ai.selectedFast;
+      const out = await TransformText(
+        cwd,
+        cli,
+        model,
+        effort,
+        aiEffectiveFast(cli, model, fast),
+        action.instruction,
+        value,
+      );
+      const text = typeof out === "string" ? out.trim() : "";
+      if (!text) {
+        toast.error("AI returned an empty response");
+        return;
+      }
+      if (activeId.current !== startedId) return;
+      applyHistoryEntry(editor, { text, images });
+      histIdx.current = -1;
+    } catch (err) {
+      toast.error(`Action failed: ${err}`);
+    } finally {
+      transforming.current = false;
+      setTransformingId(null);
+      // Re-seat focus/caret once the field flips back to editable next render.
+      requestAnimationFrame(() => {
+        const ed = editorRef.current;
+        if (ed) {
+          ed.focus();
+          placeCaretAtEnd(ed);
+        }
+      });
+    }
   };
 
   const deleteImageChip = (chip: HTMLElement) => {
@@ -655,6 +736,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const editor = editorRef.current;
     if (!editor) return;
+    // The field is locked while an action transform runs; swallow keys so a
+    // stray Enter/Arrow can't send or recall over the in-flight result.
+    if (transforming.current) {
+      e.preventDefault();
+      return;
+    }
     // Keep app-chrome shortcuts (⌘W close tab, ⌘D split, ⌘F find, ⌘1-9 switch
     // project) from firing while typing here. ⌘I still bubbles so it can toggle
     // the composer closed; native edit shortcuts (copy/paste/select-all) keep
@@ -783,6 +870,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // both must share identical font metrics or the placeholder drifts.
   const textStyle = { fontSize, lineHeight: 1.5 };
 
+  const busy = transformingId !== null;
+  const showActions = ai.anyAvailable;
+  // Reserve room on the right for the floating button cluster so text never
+  // slides under it; each button is 28px wide with a 4px gap.
+  const footerButtons = (showActions ? 1 : 0) + (tabView.length <= 1 ? 1 : 0) + 2;
+  const editorPadRight = 8 + footerButtons * 28 + (footerButtons - 1) * 4 + 12;
+
   return (
     <div className="border-t border-[var(--border)] bg-[var(--terminal-bg)] px-3 pb-1 pt-2">
       {tabView.length > 1 && (
@@ -794,6 +888,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           onAdd={addTab}
         />
       )}
+      <div
+        className={`rounded-xl p-px ${
+          busy
+            ? "[background:conic-gradient(from_var(--gradient-angle),#6366f1,#a855f7,#ec4899,#06b6d4,#6366f1)] animate-[gradient-spin_3s_linear_infinite]"
+            : ""
+        }`}
+      >
       <div
         ref={containerRef}
         data-composer-box
@@ -808,12 +909,16 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           if (!next || !e.currentTarget.contains(next)) setDragOver(false);
         }}
         onDrop={handleDrop}
-        className="relative rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] transition-colors focus-within:border-[var(--text-muted)]"
+        className={`relative rounded-xl bg-[var(--bg-secondary)] transition-colors ${
+          busy
+            ? "border border-transparent"
+            : "border border-[var(--border)] focus-within:border-[var(--text-muted)]"
+        }`}
       >
         {dragOver && <TerminalDropOverlay compact label="Drop image to add" />}
         <div
           ref={editorRef}
-          contentEditable
+          contentEditable={!busy}
           suppressContentEditableWarning
           data-terminal-composer
           role="textbox"
@@ -836,10 +941,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           onMouseOver={handleHover}
           onMouseLeave={dismissPreview}
           onScroll={dismissPreview}
-          style={textStyle}
-          className={`block max-h-[200px] min-h-[60px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent py-2.5 pl-3.5 text-[var(--text-primary)] outline-none [overflow-wrap:anywhere] ${
-            tabView.length > 1 ? "pr-[5.25rem]" : "pr-[7.25rem]"
-          }`}
+          style={{ ...textStyle, paddingRight: editorPadRight }}
+          className="block max-h-[200px] min-h-[60px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent py-2.5 pl-3.5 text-[var(--text-primary)] outline-none [overflow-wrap:anywhere]"
         />
         {blank && (
           <div
@@ -850,6 +953,16 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           </div>
         )}
         <div className="absolute bottom-2 right-2 flex items-center gap-1">
+          {showActions && (
+            <ComposerActionsButton
+              enabledActions={enabledActions}
+              busy={busy}
+              canRun={!disabled}
+              cliLabel={ai.cliLabel}
+              onRun={runAction}
+              onManage={() => setActionsModalOpen(true)}
+            />
+          )}
           {tabView.length <= 1 && (
             // With the tab strip hidden (a single input), the strip's own "+" is
             // gone, so this is the only way to open another prepared input.
@@ -872,16 +985,16 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           <button
             type="button"
             onClick={() => void send()}
-            disabled={disabled}
+            disabled={disabled || busy}
             title="Send  ·  ↵"
             aria-label="Send"
             style={
-              disabled
+              disabled || busy
                 ? undefined
                 : { boxShadow: "0 2px 12px -2px color-mix(in srgb, var(--accent-blue) 60%, transparent)" }
             }
             className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 ${
-              disabled
+              disabled || busy
                 ? "text-[var(--text-muted)]"
                 : "bg-[var(--accent-blue)] text-[var(--bg-primary)] hover:brightness-110 active:scale-90"
             }`}
@@ -890,7 +1003,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           </button>
         </div>
       </div>
+      </div>
       {preview && <ImagePreviewPopover path={preview.path} anchor={preview.rect} />}
+      <ComposerActionsModal open={actionsModalOpen} onClose={() => setActionsModalOpen(false)} />
     </div>
   );
 }

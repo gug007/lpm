@@ -6,6 +6,7 @@ import { DetachedApp } from "./DetachedApp";
 import { loadSettings } from "./store/settings";
 import { loadTerminals } from "./terminals";
 import { loadGroups } from "./store/groups";
+import { hydrateComposerActions } from "./store/composerActions";
 import { applyTheme } from "./theme";
 import { hydrateAppStore } from "./store/app";
 import { useComposerStore } from "./store/composer";
@@ -17,7 +18,7 @@ const detachedProject = new URLSearchParams(window.location.search).get(
   "detached",
 );
 
-Promise.all([loadSettings(), loadTerminals(), loadGroups()]).then(([s, , g]) => {
+Promise.all([loadSettings(), loadTerminals(), loadGroups(), hydrateComposerActions()]).then(([s, , g]) => {
   applyTheme(s.theme);
   hydrateAppStore(g);
   useComposerStore.getState().hydrate(s.composerOpen ?? false);

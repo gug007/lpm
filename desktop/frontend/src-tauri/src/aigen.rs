@@ -587,6 +587,41 @@ pub fn generate_action_yaml(
     run_ai(&app, &cli, &cwd, &prompt, ropts(model, effort, fast, false), "action-yaml-progress")
 }
 
+const TRANSFORM_OUTPUT_RULES: &str = r#"
+
+Apply the instruction above to the text below.
+Output ONLY the resulting text — no preamble, no explanation, no surrounding quotes, no code fences.
+Preserve any "[Image #N]" tokens exactly as they appear, keeping them in their original positions.
+
+Text:
+"#;
+
+/// Run a user-defined composer action: apply its instruction to the composer's
+/// current text and return the transformed text. A pure text transform — no file
+/// writes — sharing the same CLI runner as the other generators.
+#[tauri::command(async)]
+pub fn transform_text(
+    app: AppHandle,
+    cwd: String,
+    cli: String,
+    model: String,
+    effort: String,
+    fast: bool,
+    instruction: String,
+    text: String,
+) -> Result<String, String> {
+    let instruction = instruction.trim();
+    if instruction.is_empty() {
+        return Err("this action has no instruction".into());
+    }
+    if text.trim().is_empty() {
+        return Err("nothing to transform".into());
+    }
+    let prompt = format!("{instruction}{TRANSFORM_OUTPUT_RULES}{text}");
+    let dir = if cwd.trim().is_empty() { ".".to_string() } else { cwd };
+    run_ai(&app, &cli, &dir, &prompt, ropts(model, effort, fast, false), "composer-transform-progress")
+}
+
 #[tauri::command(async)]
 pub fn generate_project_config(
     app: AppHandle,

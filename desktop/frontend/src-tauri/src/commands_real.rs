@@ -116,6 +116,24 @@ pub fn save_groups(groups: Value) -> Result<(), String> {
     std::fs::write(config::groups_path(), data).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub fn load_composer_actions() -> Value {
+    // Composer actions (~/.lpm/composer-actions.json). Opaque JSON the frontend
+    // owns; returns Null when the file is absent so the frontend can seed its
+    // defaults (distinct from a saved-but-empty list).
+    match std::fs::read(config::composer_actions_path()) {
+        Ok(b) => serde_json::from_slice(&b).unwrap_or(Value::Null),
+        Err(_) => Value::Null,
+    }
+}
+
+#[tauri::command]
+pub fn save_composer_actions(actions: Value) -> Result<(), String> {
+    config::ensure_dirs()?;
+    let data = serde_json::to_vec_pretty(&actions).map_err(|e| e.to_string())?;
+    std::fs::write(config::composer_actions_path(), data).map_err(|e| e.to_string())
+}
+
 // (async): config::list_projects shells out to `tmux list-sessions` (blocking),
 // and this runs on a hot path (mount + 10s poll + every projects/status event),
 // so it must stay off the main thread or the UI beachballs on each refresh.

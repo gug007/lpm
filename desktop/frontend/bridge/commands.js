@@ -226,6 +226,12 @@ export function ListTemplates() {
 export function LoadGroups() {
   return invoke("load_groups");
 }
+export function LoadComposerActions() {
+  return invoke("load_composer_actions");
+}
+export function SaveComposerActions(actions) {
+  return invoke("save_composer_actions", { actions });
+}
 export function MessageHistoryQuery(input) {
   return invoke("message_history_query", { input });
 }
@@ -507,6 +513,9 @@ export function TmuxInstalled() {
 }
 export function ToggleProjectService(name, serviceName) {
   return invoke("toggle_project_service", { name, serviceName });
+}
+export function TransformText(cwd, cli, model, effort, fast, instruction, text) {
+  return invoke("transform_text", { cwd, cli, model, effort, fast, instruction, text });
 }
 export function UninstallKokoro() {
   return invoke("uninstall_kokoro");

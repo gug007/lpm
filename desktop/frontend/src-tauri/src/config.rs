@@ -41,6 +41,10 @@ pub fn groups_path() -> PathBuf {
     lpm_dir().join("groups.json")
 }
 
+pub fn composer_actions_path() -> PathBuf {
+    lpm_dir().join("composer-actions.json")
+}
+
 pub fn message_history_path() -> PathBuf {
     lpm_dir().join("message-history.db")
 }
