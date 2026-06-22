@@ -44,13 +44,16 @@ import {
   chipAfterCaret,
   chipBeforeCaret,
   createImageChip,
+  highlightCommand,
   insertItemsAtCaret,
   isEditorEmpty,
+  lineBeforeCaret,
   normalizeComposer,
   placeCaretAtEnd,
   placeCaretFromPoint,
   presentImageTokens,
   removeChip,
+  replaceSlashFragment,
   restoreTrailingChipCaret,
   selectChip,
   selectedChip,
@@ -58,6 +61,9 @@ import {
   setEditorContent,
   splitByImageTokens,
 } from "./composerEditor";
+import { SlashCommandMenu } from "./SlashCommandMenu";
+import { useSlashCommands } from "../hooks/useSlashCommands";
+import { detectAICLI, type SlashCommand } from "../slashCommands";
 
 interface TerminalComposerProps {
   // Terminal whose draft this composer owns; its draft is persisted per id.
@@ -80,6 +86,10 @@ interface TerminalComposerProps {
   targetLabel: string;
   // Working directory the AI CLI runs in when applying a composer action.
   cwd: string;
+  // The target terminal's launch command, if any. Its leading binary tells us
+  // which AI CLI is running there (e.g. "claude …" / "codex …"), which scopes the
+  // "/" slash-command autocomplete. Absent / unrecognized keeps the menu off.
+  launchCmd?: string;
   // Terminal font size; the composer text scales to match it.
   fontSize: number;
   // Returns false when the input could not be delivered (e.g. a dead session),
@@ -90,6 +100,10 @@ interface TerminalComposerProps {
 }
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif|svg)$/i;
+
+// The caret's line must be only "/<frag>" (after optional indentation) to open
+// the slash menu; ":" is allowed for namespaced names like "prompts:draftpr".
+const SLASH_TRIGGER = /^\s*\/([a-z0-9:_-]*)$/i;
 
 // A short, single-line label for a prompt tab: its text with image tokens
 // dropped, collapsed whitespace. Empty when the draft holds nothing visible.
@@ -110,7 +124,7 @@ function sameTabView(a: ComposerTabView[], b: ComposerTabView[]): boolean {
   return a.every((t, i) => t.id === b[i].id && t.label === b[i].label);
 }
 
-export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, cwd, fontSize, onSubmit, onFocusTerminal }: TerminalComposerProps) {
+export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, cwd, launchCmd, fontSize, onSubmit, onFocusTerminal }: TerminalComposerProps) {
   // `blank` drives the placeholder (no content at all); `disabled` drives the
   // send button (nothing but whitespace).
   const [blank, setBlank] = useState(true);
@@ -120,11 +134,22 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // The composer action currently being applied (drives the busy UI), or null.
   const [transformingId, setTransformingId] = useState<string | null>(null);
   const [actionsModalOpen, setActionsModalOpen] = useState(false);
+  // Slash-command autocomplete: open state, highlighted row, the filtered list,
+  // and the caret rect the popover anchors to.
+  const [slashOpen, setSlashOpen] = useState(false);
+  const [slashIndex, setSlashIndex] = useState(0);
+  const [slashItems, setSlashItems] = useState<SlashCommand[]>([]);
+  const [slashRect, setSlashRect] = useState<DOMRect | null>(null);
   // Guards runAction/send against re-entry across the AI await without waiting
   // for the transformingId state to settle.
   const transforming = useRef(false);
   const ai = useAIPicker(shown);
   const enabledActions = useEnabledComposerActions();
+  // The CLI running in the target terminal, derived from its launch command. The
+  // slash menu only appears when this resolves (a terminal actually running an
+  // agent); plain shells get no menu. Commands load lazily on focus.
+  const slashCli = detectAICLI(launchCmd);
+  const { filter: filterSlash, isCommand: isSlashCommand } = useSlashCommands(slashCli, cwd, focused);
   const editorRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hoverChip = useRef<HTMLElement | null>(null);
@@ -652,6 +677,55 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     editor.focus();
   };
 
+  // Re-evaluate the slash menu after every edit. It opens only when the target
+  // terminal runs a known CLI and the caret's line is exactly "/<frag>" (no
+  // spaces yet), so typing args or any other text closes it.
+  const updateSlashMenu = () => {
+    const editor = editorRef.current;
+    if (!editor || transforming.current || !slashCli) {
+      setSlashOpen(false);
+      return;
+    }
+    const line = lineBeforeCaret(editor);
+    const match = line !== null ? SLASH_TRIGGER.exec(line) : null;
+    if (!match) {
+      setSlashOpen(false);
+      return;
+    }
+    const items = filterSlash(match[1]);
+    if (items.length === 0) {
+      setSlashOpen(false);
+      return;
+    }
+    // Anchor to the caret; a collapsed caret at line start can report a zero-size
+    // rect in WebKit, so fall back to the editor box then.
+    let rect = editor.getBoundingClientRect();
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const caret = sel.getRangeAt(0).getBoundingClientRect();
+      if (caret.height > 0) rect = caret;
+    }
+    setSlashItems(items);
+    setSlashIndex(0);
+    setSlashRect(rect);
+    setSlashOpen(true);
+  };
+
+  // Swap the typed "/<frag>" for the chosen "/<command> " and keep editing so the
+  // user can add arguments before sending.
+  const insertSlashCommand = (cmd: SlashCommand) => {
+    const editor = editorRef.current;
+    setSlashOpen(false);
+    if (!editor) return;
+    if (replaceSlashFragment(editor, cmd.name)) {
+      histIdx.current = -1;
+      normalizeComposer(editor);
+      syncState();
+      highlightCommand(editor, isSlashCommand);
+      editor.focus();
+    }
+  };
+
   // Apply a composer action: send the current text through the user's AI CLI
   // with the action's instruction, then rebuild the field from the result —
   // reusing the history-entry path so any preserved image tokens become chips.
@@ -741,6 +815,36 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     if (transforming.current) {
       e.preventDefault();
       return;
+    }
+    // While the slash menu is open it owns navigation/accept/dismiss, ahead of
+    // the Enter-to-send, history-recall, and Escape handlers below. Other keys
+    // fall through to normal editing and re-evaluate the menu via onInput.
+    if (slashOpen) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        e.stopPropagation();
+        setSlashIndex((i) => Math.min(slashItems.length - 1, i + 1));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        e.stopPropagation();
+        setSlashIndex((i) => Math.max(0, i - 1));
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        e.stopPropagation();
+        const cmd = slashItems[slashIndex];
+        if (cmd) insertSlashCommand(cmd);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        setSlashOpen(false);
+        return;
+      }
     }
     // Keep app-chrome shortcuts (⌘W close tab, ⌘D split, ⌘F find, ⌘1-9 switch
     // project) from firing while typing here. ⌘I still bubbles so it can toggle
@@ -932,7 +1036,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
             const editor = editorRef.current;
             if (editor) normalizeComposer(editor);
             syncState();
+            if (editor) highlightCommand(editor, isSlashCommand);
+            updateSlashMenu();
           }}
+          onBlur={() => setSlashOpen(false)}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           onCopy={(e) => handleCopyCut(e, false)}
@@ -1005,6 +1112,15 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       </div>
       </div>
       {preview && <ImagePreviewPopover path={preview.path} anchor={preview.rect} />}
+      {slashOpen && (
+        <SlashCommandMenu
+          commands={slashItems}
+          selectedIndex={slashIndex}
+          anchorRect={slashRect}
+          onSelect={insertSlashCommand}
+          onHoverIndex={setSlashIndex}
+        />
+      )}
       <ComposerActionsModal open={actionsModalOpen} onClose={() => setActionsModalOpen(false)} />
     </div>
   );

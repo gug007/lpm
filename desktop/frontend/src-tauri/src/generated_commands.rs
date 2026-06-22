@@ -59,6 +59,7 @@ macro_rules! all_command_handlers {
         generate_commit_message,
         generate_pr_description,
         generate_project_config,
+        list_agent_commands,
         generate_pr_title,
         get_platform,
         get_project,

@@ -25,6 +25,9 @@ export function CheckActionPortConflict(projectName, actionName) {
 export function CheckAICLIs() {
   return invoke("check_aicl_is");
 }
+export function ListAgentCommands(cli, cwd) {
+  return invoke("list_agent_commands", { cli, cwd });
+}
 export function CheckClaudeHooks() {
   return invoke("check_claude_hooks");
 }

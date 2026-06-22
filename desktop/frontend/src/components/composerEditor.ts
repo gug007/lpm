@@ -3,6 +3,12 @@
 // removed as a whole — never split mid-text — and serialized back to the
 // `[Image #N]` placeholders the rest of the app expects.
 
+import { ansiColors } from "./terminal-utils";
+
+// The same blue the terminal renders a recognized slash command in (xterm's
+// bright-blue), so the composer's highlight matches what the CLI shows.
+export const COMMAND_COLOR = ansiColors.brightBlue;
+
 const IMAGE_TOKEN_RE = /\[Image #(\d+)\]/g;
 
 const CHIP_CLASS =
@@ -164,6 +170,12 @@ export function serializeEditor(root: HTMLElement): string {
       if (node.tagName === "BR") {
         const isTrailingPad = parent === root && idx === children.length - 1;
         if (!isTrailingPad) out += "\n";
+        return;
+      }
+      // The slash-command highlight is an inline wrapper, not a block: emit its
+      // text in place so the serialized value is identical to the unwrapped text.
+      if (node.dataset.cmd !== undefined) {
+        visit(node);
         return;
       }
       // A block wrapper WebKit may introduce represents a new visual line.
@@ -495,6 +507,148 @@ export function normalizeComposer(root: HTMLElement): boolean {
   const normalized = normalizeStrayChars(root);
   const reanchored = restoreTrailingChipCaret(root);
   return normalized || reanchored;
+}
+
+// The text of the current line from its start up to a collapsed caret — what a
+// "/" slash-command trigger inspects. Returns null when the selection isn't a
+// collapsed caret inside the field. Chips on the line contribute their visible
+// label text, which is fine: the slash trigger only fires on a line that is
+// purely "/<frag>", so a chip's presence simply suppresses it.
+// Visible text from the field start to a collapsed caret, or null when the
+// selection isn't a collapsed caret inside the field. Shared by lineBeforeCaret
+// (slices the current line) and caretCharOffset (takes its length).
+function caretPrefixText(root: HTMLElement): string | null {
+  const sel = window.getSelection();
+  if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return null;
+  const r = sel.getRangeAt(0);
+  if (!root.contains(r.endContainer)) return null;
+  const pre = document.createRange();
+  pre.selectNodeContents(root);
+  pre.setEnd(r.endContainer, r.endOffset);
+  return pre.toString();
+}
+
+export function lineBeforeCaret(root: HTMLElement): string | null {
+  const text = caretPrefixText(root);
+  return text === null ? null : text.slice(text.lastIndexOf("\n") + 1);
+}
+
+// Replace the "/<frag>" preceding the caret on the current line with "/<name> ",
+// leaving the caret after the trailing space ready for arguments. Uses
+// Selection.modify to extend the selection backward character-by-character — so
+// it works even when WebKit has split the typed fragment across text nodes — then
+// execCommand("insertText") so the result flows through the same normalize path
+// as ordinary typing. Returns false when no "/" fragment is found.
+export function replaceSlashFragment(root: HTMLElement, name: string): boolean {
+  const line = lineBeforeCaret(root);
+  if (line === null) return false;
+  const slash = line.lastIndexOf("/");
+  if (slash === -1) return false;
+  const sel = window.getSelection();
+  if (!sel || !sel.isCollapsed) return false;
+  const fragLen = line.length - slash; // "/" plus the typed fragment
+  for (let i = 0; i < fragLen; i++) sel.modify("extend", "backward", "character");
+  document.execCommand("insertText", false, `/${name} `);
+  return true;
+}
+
+// A leading slash command on the first line: optional indent, "/name", then a
+// space or end — so a path like "/usr/bin" (slash inside) never matches.
+const COMMAND_TOKEN_RE = /^(\s*)(\/[a-z0-9:_-]+)(?=\s|$)/i;
+
+function firstTextNode(root: HTMLElement): Text | null {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  return walker.nextNode() as Text | null;
+}
+
+// The editor's leading run of plain text (text nodes + any current highlight
+// span), stopping at the first chip or line break — what the command regex tests
+// regardless of whether the command is currently wrapped.
+function leadingPlainText(root: HTMLElement): string {
+  let out = "";
+  for (const node of Array.from(root.childNodes)) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      out += node.nodeValue ?? "";
+      continue;
+    }
+    if (!(node instanceof HTMLElement)) continue;
+    if (node.dataset.img !== undefined || node.tagName === "BR") break;
+    out += node.textContent ?? "";
+    if (node.dataset.cmd === undefined) break;
+  }
+  return out;
+}
+
+// Caret position as a count of visible characters from the field start, stable
+// across the unwrap/rewrap below since that only re-nests text, never edits it.
+function caretCharOffset(root: HTMLElement): number | null {
+  const text = caretPrefixText(root);
+  return text === null ? null : text.length;
+}
+
+function placeCaretAtCharOffset(root: HTMLElement, offset: number): void {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let acc = 0;
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const len = (n.nodeValue ?? "").length;
+    if (acc + len >= offset) {
+      const sel = window.getSelection();
+      if (!sel) return;
+      const range = document.createRange();
+      range.setStart(n, Math.max(0, Math.min(len, offset - acc)));
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return;
+    }
+    acc += len;
+  }
+  placeCaretAtEnd(root);
+}
+
+function unwrapCmdSpans(root: HTMLElement): void {
+  root.querySelectorAll<HTMLElement>("[data-cmd]").forEach((span) => {
+    const parent = span.parentNode;
+    if (!parent) return;
+    while (span.firstChild) parent.insertBefore(span.firstChild, span);
+    parent.removeChild(span);
+  });
+  root.normalize();
+}
+
+// Color a recognized leading "/command" in the composer the way the CLIs do. The
+// command is wrapped in an inline span (serialized away by serializeEditor) only
+// when `isCommand` recognizes it, so partial/unknown tokens stay plain. Idempotent
+// and caret-preserving: when the wrap is already correct it does nothing, so steady
+// typing of arguments never restructures the DOM.
+export function highlightCommand(root: HTMLElement, isCommand: (name: string) => boolean): void {
+  const match = COMMAND_TOKEN_RE.exec(leadingPlainText(root));
+  const want = match !== null && isCommand(match[2].slice(1));
+  const spans = root.querySelectorAll<HTMLElement>("[data-cmd]");
+  if (want && spans.length === 1 && spans[0].textContent === match![2]) return;
+  if (!want && spans.length === 0) return;
+
+  const offset = caretCharOffset(root);
+  unwrapCmdSpans(root);
+  if (want) {
+    const node = firstTextNode(root);
+    const m = node ? COMMAND_TOKEN_RE.exec(node.nodeValue ?? "") : null;
+    if (node && m) {
+      const start = m[1].length;
+      const range = document.createRange();
+      range.setStart(node, start);
+      range.setEnd(node, start + m[2].length);
+      const span = document.createElement("span");
+      span.dataset.cmd = "";
+      span.style.color = COMMAND_COLOR;
+      try {
+        range.surroundContents(span);
+      } catch {
+        // A boundary we can't cleanly wrap — leave the text plain.
+      }
+    }
+  }
+  if (offset !== null) placeCaretAtCharOffset(root, offset);
 }
 
 // Seat a collapsed caret at the drop coordinates so a dropped image lands where

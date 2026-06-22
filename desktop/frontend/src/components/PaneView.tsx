@@ -497,6 +497,7 @@ function PaneViewImpl(props: PaneViewProps) {
           focused={focused}
           targetLabel={composerTab.label}
           cwd={interactiveCwd}
+          launchCmd={composerTab.startCmd ?? composerTab.resumeCmd}
           fontSize={fontSize}
           onSubmit={(input) => onSubmitInput(composerTab.id, input)}
           onFocusTerminal={() => onFocusTerminalInput(composerTab.id)}

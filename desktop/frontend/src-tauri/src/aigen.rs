@@ -36,14 +36,292 @@ pub fn check_aicl_is() -> AiCliAvailability {
     }
 }
 
+fn is_supported_cli(cli: &str) -> bool {
+    matches!(cli, "claude" | "codex" | "gemini" | "opencode")
+}
+
 fn detect(cli: &str) -> Result<(), String> {
-    if matches!(cli, "claude" | "codex" | "gemini" | "opencode") && crate::sys::which(cli) {
+    if is_supported_cli(cli) && crate::sys::which(cli) {
         Ok(())
-    } else if matches!(cli, "claude" | "codex" | "gemini" | "opencode") {
+    } else if is_supported_cli(cli) {
         Err(format!("{cli} CLI not found in PATH. Install it or pick another"))
     } else {
         Err(format!("unsupported AI CLI {cli:?}"))
     }
+}
+
+// ---- slash-command enumeration ----------------------------------------------
+
+// One slash command offered by the composer's autocomplete: a CLI built-in or a
+// user/project command discovered on disk.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentCommand {
+    pub name: String,          // no leading "/", e.g. "review" or "prompts:draftpr"
+    pub description: String,
+    pub argument_hint: String, // frontmatter argument-hint, "" when absent
+    pub source: String,        // "builtin" | "project" | "user"
+}
+
+// Conservative, high-confidence built-in sets. Both CLIs ship more (and filter
+// by plan/platform at runtime), so we seed only the stable core and lean on the
+// disk scan for the long tail.
+const CLAUDE_BUILTINS: &[(&str, &str, &str)] = &[
+    ("add-dir", "Add a working directory for file access", "<path>"),
+    ("agents", "Manage subagent configurations", ""),
+    ("clear", "Start a new conversation with empty context", ""),
+    ("compact", "Summarize the conversation to free context", "[instructions]"),
+    ("config", "Open settings", ""),
+    ("context", "Visualize context usage", ""),
+    ("cost", "Show token cost and usage", ""),
+    ("diff", "Open the diff viewer", ""),
+    ("doctor", "Diagnose the install and settings", ""),
+    ("exit", "Exit the CLI", ""),
+    ("help", "Show help and available commands", ""),
+    ("init", "Initialize the project with a CLAUDE.md guide", ""),
+    ("mcp", "Manage MCP server connections", ""),
+    ("memory", "Edit CLAUDE.md memory files", ""),
+    ("model", "Switch the AI model", "[model]"),
+    ("permissions", "Manage tool permission rules", ""),
+    ("resume", "Resume a previous conversation", "[session]"),
+    ("review", "Review a pull request", "[PR]"),
+    ("status", "Show version, model, and account", ""),
+    ("usage", "Show usage limits and stats", ""),
+    // Skills bundled with Claude Code (embedded in the binary, not on disk, so
+    // they can't be discovered by the filesystem scan). Seeded so the menu
+    // matches the CLI's own /-menu for the common everyday ones.
+    ("claude-api", "Reference for the Claude API and Anthropic SDK", ""),
+    ("code-review", "Review the current diff for bugs and cleanups", "[level] [PR]"),
+    ("fewer-permission-prompts", "Reduce permission prompts via an allowlist", ""),
+    ("keybindings-help", "Customize keyboard shortcuts", ""),
+    ("loop", "Run a prompt or command on a recurring interval", "[interval] [prompt]"),
+    ("run", "Launch and drive the app to see a change", ""),
+    ("schedule", "Create or manage scheduled cloud agents", "[description]"),
+    ("security-review", "Security-review the pending changes", ""),
+    ("simplify", "Clean up changed code for reuse and simplicity, then apply fixes", "[target]"),
+    ("update-config", "Configure the Claude Code harness via settings.json", ""),
+    ("verify", "Run the app to confirm a change works", ""),
+];
+
+const CODEX_BUILTINS: &[(&str, &str, &str)] = &[
+    ("init", "Generate an AGENTS.md scaffold", ""),
+    ("compact", "Summarize the conversation to free context", ""),
+    ("clear", "Clear the screen and start fresh", ""),
+    ("new", "Start a new conversation", ""),
+    ("diff", "Show the git diff", ""),
+    ("mention", "Attach files to the conversation", ""),
+    ("status", "Show session config and token counts", ""),
+    ("model", "Choose the active model", ""),
+    ("review", "Review the working tree", ""),
+    ("resume", "Resume a saved conversation", ""),
+    ("fork", "Fork the conversation", ""),
+    ("plan", "Switch to plan mode", ""),
+    ("mcp", "List configured MCP tools", ""),
+    ("skills", "Browse and use skills", ""),
+    ("ide", "Include open editor context", ""),
+    ("usage", "View token usage", ""),
+    ("quit", "Exit the CLI", ""),
+];
+
+fn builtins(cli: &str) -> Vec<AgentCommand> {
+    let table: &[(&str, &str, &str)] = match cli {
+        "claude" => CLAUDE_BUILTINS,
+        "codex" => CODEX_BUILTINS,
+        _ => &[],
+    };
+    table
+        .iter()
+        .map(|(n, d, a)| AgentCommand {
+            name: (*n).to_string(),
+            description: (*d).to_string(),
+            argument_hint: (*a).to_string(),
+            source: "builtin".to_string(),
+        })
+        .collect()
+}
+
+fn yaml_str(v: &serde_yaml::Value, k: &str) -> String {
+    v.get(k).and_then(|x| x.as_str()).unwrap_or("").trim().to_string()
+}
+
+// Split a markdown file into (frontmatter yaml head, body). Recognizes a leading
+// `---` fence closed by a `---` at the start of a later line.
+fn split_frontmatter(content: &str) -> (Option<&str>, &str) {
+    let trimmed = content.trim_start_matches('\u{feff}');
+    let rest = match trimmed.strip_prefix("---\n").or_else(|| trimmed.strip_prefix("---\r\n")) {
+        Some(r) => r,
+        None => return (None, content),
+    };
+    let mut from = 0;
+    while let Some(pos) = rest[from..].find("---") {
+        let abs = from + pos;
+        if abs == 0 || rest.as_bytes()[abs - 1] == b'\n' {
+            let head = &rest[..abs];
+            let body = rest[abs + 3..].trim_start_matches(['\r', '\n']);
+            return (Some(head), body);
+        }
+        from = abs + 3;
+    }
+    (None, content)
+}
+
+// (description, argument_hint, user_invocable) for a command/skill file. A
+// missing description falls back to the first non-blank body line.
+fn parse_frontmatter(content: &str) -> (String, String, bool) {
+    let (head, body) = split_frontmatter(content);
+    let mut description = String::new();
+    let mut argument_hint = String::new();
+    let mut user_invocable = true;
+    if let Some(head) = head {
+        if let Ok(val) = serde_yaml::from_str::<serde_yaml::Value>(head) {
+            description = yaml_str(&val, "description");
+            argument_hint = yaml_str(&val, "argument-hint");
+            if let Some(b) = val.get("user-invocable").and_then(|v| v.as_bool()) {
+                user_invocable = b;
+            }
+        }
+    }
+    if description.is_empty() {
+        description = body
+            .lines()
+            .map(|l| l.trim())
+            .find(|l| !l.is_empty() && !l.starts_with("```") && !l.starts_with('#'))
+            .unwrap_or("")
+            .chars()
+            .take(200)
+            .collect();
+    }
+    (description, argument_hint, user_invocable)
+}
+
+fn glob_md(dir: &std::path::Path, recursive: bool) -> Vec<std::path::PathBuf> {
+    let pattern = dir.join(if recursive { "**/*.md" } else { "*.md" });
+    match glob::glob(&pattern.to_string_lossy()) {
+        Ok(paths) => paths.filter_map(|p| p.ok()).collect(),
+        Err(_) => Vec::new(),
+    }
+}
+
+fn read_to_string(path: &std::path::Path) -> String {
+    std::fs::read_to_string(path).unwrap_or_default()
+}
+
+// Claude `.claude/commands/**/*.md` — command name is the filename stem.
+fn scan_claude_commands(dir: &std::path::Path, source: &str, out: &mut Vec<AgentCommand>) {
+    for path in glob_md(dir, true) {
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else { continue };
+        let (description, argument_hint, _) = parse_frontmatter(&read_to_string(&path));
+        out.push(AgentCommand {
+            name: stem.to_string(),
+            description,
+            argument_hint,
+            source: source.to_string(),
+        });
+    }
+}
+
+// Claude `.claude/skills/<name>/SKILL.md` — command name is the directory name.
+// Skills flagged `user-invocable: false` are background-only and skipped.
+fn scan_claude_skills(skills_dir: &std::path::Path, source: &str, out: &mut Vec<AgentCommand>) {
+    let Ok(entries) = std::fs::read_dir(skills_dir) else { return };
+    for entry in entries.filter_map(|e| e.ok()) {
+        let dir = entry.path();
+        let skill_md = dir.join("SKILL.md");
+        if !skill_md.is_file() {
+            continue;
+        }
+        let Some(name) = dir.file_name().and_then(|s| s.to_str()) else { continue };
+        let (description, argument_hint, user_invocable) = parse_frontmatter(&read_to_string(&skill_md));
+        if !user_invocable {
+            continue;
+        }
+        out.push(AgentCommand {
+            name: name.to_string(),
+            description,
+            argument_hint,
+            source: source.to_string(),
+        });
+    }
+}
+
+// Codex `${CODEX_HOME:-~/.codex}/prompts/*.md` (top-level only). Surfaced as
+// `prompts:<name>`, the current canonical invocation form.
+fn scan_codex_prompts(prompts_dir: &std::path::Path, out: &mut Vec<AgentCommand>) {
+    for path in glob_md(prompts_dir, false) {
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else { continue };
+        let (description, argument_hint, _) = parse_frontmatter(&read_to_string(&path));
+        out.push(AgentCommand {
+            name: format!("prompts:{stem}"),
+            description,
+            argument_hint,
+            source: "user".to_string(),
+        });
+    }
+}
+
+// Custom commands discovered on disk, user scope before project scope so a
+// later first-wins dedup keeps the user copy when names clash.
+fn scan_custom(cli: &str, cwd: &str) -> Vec<AgentCommand> {
+    let home = dirs::home_dir().unwrap_or_default();
+    let mut user: Vec<AgentCommand> = Vec::new();
+    let mut project: Vec<AgentCommand> = Vec::new();
+    match cli {
+        "claude" => {
+            scan_claude_commands(&home.join(".claude/commands"), "user", &mut user);
+            scan_claude_skills(&home.join(".claude/skills"), "user", &mut user);
+            if !cwd.trim().is_empty() {
+                let root = std::path::Path::new(cwd);
+                scan_claude_commands(&root.join(".claude/commands"), "project", &mut project);
+                scan_claude_skills(&root.join(".claude/skills"), "project", &mut project);
+            }
+        }
+        "codex" => {
+            let base = std::env::var("CODEX_HOME")
+                .ok()
+                .filter(|s| !s.is_empty())
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|| home.join(".codex"));
+            scan_codex_prompts(&base.join("prompts"), &mut user);
+        }
+        _ => {}
+    }
+    user.extend(project);
+    user
+}
+
+// Drop duplicate names (first-wins, custom before builtin), then order for the
+// menu: project, then user, then builtin — alphabetical within each group.
+fn dedup_and_sort(items: Vec<AgentCommand>) -> Vec<AgentCommand> {
+    use std::collections::HashSet;
+    let mut seen = HashSet::new();
+    let mut out: Vec<AgentCommand> = Vec::new();
+    for it in items {
+        if seen.insert(it.name.clone()) {
+            out.push(it);
+        }
+    }
+    fn rank(source: &str) -> u8 {
+        match source {
+            "project" => 0,
+            "user" => 1,
+            _ => 2,
+        }
+    }
+    out.sort_by(|a, b| rank(&a.source).cmp(&rank(&b.source)).then_with(|| a.name.cmp(&b.name)));
+    out
+}
+
+/// Enumerate the slash commands available for `cli` (built-ins + custom commands
+/// discovered under `cwd` and the user's home), for the composer's autocomplete.
+/// Pure, stateless filesystem query — the frontend caches per (cli, cwd).
+#[tauri::command(async)]
+pub fn list_agent_commands(cli: String, cwd: String) -> Result<Vec<AgentCommand>, String> {
+    if !is_supported_cli(&cli) {
+        return Err(format!("unsupported AI CLI {cli:?}"));
+    }
+    let mut items = scan_custom(&cli, &cwd);
+    items.extend(builtins(&cli));
+    Ok(dedup_and_sort(items))
 }
 
 // ---- shared streaming run ---------------------------------------------------
