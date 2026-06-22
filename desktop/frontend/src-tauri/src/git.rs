@@ -104,7 +104,7 @@ fn parse_ahead_behind(tail: &str) -> (i64, i64) {
 fn pull_args(strategy: &str) -> Vec<&'static str> {
     match strategy {
         "rebase" => vec!["pull", "--rebase"],
-        "merge" => vec!["pull", "--no-rebase"],
+        "ff" => vec!["pull"],
         _ => vec!["pull", "--ff-only"],
     }
 }
@@ -632,13 +632,20 @@ pub fn git_commit(cwd: String, message: String, files: Vec<String>) -> Result<()
 }
 
 #[tauri::command(async)]
-pub fn git_push(cwd: String) -> Result<(), String> {
-    git_out(&cwd, &["push", "-u", "origin", "HEAD"]).map(|_| ())
+pub fn git_push(cwd: String, flags: Vec<String>) -> Result<(), String> {
+    let mut args: Vec<String> = vec!["push".into()];
+    args.extend(flags);
+    args.extend(["-u", "origin", "HEAD"].iter().map(|s| s.to_string()));
+    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    git_out(&cwd, &refs).map(|_| ())
 }
 
 #[tauri::command(async)]
-pub fn git_fetch_all(cwd: String) -> Result<(), String> {
-    git_out(&cwd, &["fetch", "--all", "--prune"]).map(|_| ())
+pub fn git_fetch_all(cwd: String, flags: Vec<String>) -> Result<(), String> {
+    let mut args: Vec<String> = vec!["fetch".into()];
+    args.extend(flags);
+    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    git_out(&cwd, &refs).map(|_| ())
 }
 
 #[tauri::command(async)]
@@ -669,19 +676,11 @@ pub fn git_abort_merge(cwd: String) -> Result<(), String> {
 }
 
 #[tauri::command(async)]
-pub fn pull_branch(cwd: String, strategy: String) -> Result<(), String> {
-    git_out(&cwd, &pull_args(&strategy)).map(|_| ())
-}
-
-#[tauri::command(async)]
-pub fn sync_branch(cwd: String) -> Result<(), String> {
-    let strat = crate::config::load_settings()
-        .get("gitPullStrategy")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-    pull_branch(cwd.clone(), strat)?;
-    git_out(&cwd, &["push"]).map(|_| ())
+pub fn pull_branch(cwd: String, strategy: String, flags: Vec<String>) -> Result<(), String> {
+    let mut args: Vec<String> = pull_args(&strategy).into_iter().map(String::from).collect();
+    args.extend(flags);
+    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    git_out(&cwd, &refs).map(|_| ())
 }
 
 // ---- gh / PR ----------------------------------------------------------------

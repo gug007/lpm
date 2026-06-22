@@ -20,6 +20,15 @@ import {
   PullBranch,
 } from "../../bridge/commands";
 import { main } from "../../bridge/models";
+import { getSettings } from "../store/settings";
+import {
+  DEFAULT_PULL_CONFIG,
+  DEFAULT_PUSH_CONFIG,
+  DEFAULT_FETCH_CONFIG,
+  pullFlags,
+  pushFlags,
+  fetchFlags,
+} from "../gitOptions";
 
 interface ProjectGitSubmenuProps {
   projectPath: string | null;
@@ -138,22 +147,32 @@ function GitSubmenuItems({
       <ContextMenuItem
         label="Pull"
         icon={<DownloadIcon />}
-        onClick={() => runOp("Pulling…", "Pulled", "Pull", () => PullBranch(projectPath, "ff-only"))}
-      />
-      <ContextMenuItem
-        label="Pull (Rebase)"
-        icon={<DownloadIcon />}
-        onClick={() => runOp("Pulling…", "Pulled", "Pull", () => PullBranch(projectPath, "rebase"))}
+        onClick={() =>
+          runOp("Pulling…", "Pulled", "Pull", () => {
+            const cfg = getSettings().gitPull ?? DEFAULT_PULL_CONFIG;
+            return PullBranch(projectPath, cfg.strategy, pullFlags(cfg));
+          })
+        }
       />
       <ContextMenuItem
         label="Push"
         icon={<UploadIcon />}
-        onClick={() => runOp("Pushing…", "Pushed", "Push", () => GitPush(projectPath))}
+        onClick={() =>
+          runOp("Pushing…", "Pushed", "Push", () => {
+            const cfg = getSettings().gitPush ?? DEFAULT_PUSH_CONFIG;
+            return GitPush(projectPath, pushFlags(cfg));
+          })
+        }
       />
       <ContextMenuItem
         label="Fetch"
         icon={<RefreshIcon />}
-        onClick={() => runOp("Fetching…", "Fetched", "Fetch", () => GitFetchAll(projectPath))}
+        onClick={() =>
+          runOp("Fetching…", "Fetched", "Fetch", () => {
+            const cfg = getSettings().gitFetch ?? DEFAULT_FETCH_CONFIG;
+            return GitFetchAll(projectPath, fetchFlags(cfg));
+          })
+        }
       />
       <ContextMenuSeparator />
       <ContextMenuItem label="Switch branch…" icon={<BranchIcon size={14} />} onClick={close(onSwitchBranch)} />

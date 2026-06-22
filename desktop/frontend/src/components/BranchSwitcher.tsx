@@ -5,12 +5,27 @@ import {
   CreateBranch,
   DeleteBranch,
   GitDiscardAll,
+  GitFetchAll,
   GitPush,
   PullBranch,
   RenameBranch,
-  SyncBranch,
 } from "../../bridge/commands";
-import { getSettings, saveSettings, DEFAULT_PULL_STRATEGY, type GitPullStrategy } from "../store/settings";
+import { getSettings } from "../store/settings";
+import {
+  DEFAULT_PULL_CONFIG,
+  DEFAULT_PUSH_CONFIG,
+  DEFAULT_FETCH_CONFIG,
+  pullFlags,
+  pushFlags,
+  fetchFlags,
+  type GitPullConfig,
+  type GitPushConfig,
+  type GitFetchConfig,
+} from "../gitOptions";
+import { DrillMenu } from "./DrillMenu";
+import { PullSplitRow, pullConfigScreen } from "./pullMenu";
+import { PushSplitRow, pushConfigScreen } from "./pushMenu";
+import { FetchSplitRow, fetchConfigScreen } from "./fetchMenu";
 import { main } from "../../bridge/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useEventListener } from "../hooks/useEventListener";
@@ -21,14 +36,10 @@ import { CommitModal } from "./CommitModal";
 import { MergeBranchDialog } from "./MergeBranchDialog";
 import { PRModal } from "./PRModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
-import { BranchIcon, ChevronLeftIcon, CloudBranchIcon, CopyIcon, PencilIcon, TrashIcon, UndoIcon } from "./icons";
+import { BranchIcon, CloudBranchIcon, CopyIcon, PencilIcon, TrashIcon, UndoIcon } from "./icons";
 import { branchKey, orderBranches, RemoteBadge } from "./branchUtils";
 import { relativeTime } from "../relativeTime";
 
-const PULL_STRATEGIES: { value: GitPullStrategy; label: string }[] = [
-  { value: "ff-only", label: "Pull" },
-  { value: "rebase", label: "Pull (Rebase)" },
-];
 
 export function BranchSwitcher({ projectName, projectPath, gitState }: {
   projectName: string;
@@ -45,31 +56,13 @@ export function BranchSwitcher({ projectName, projectPath, gitState }: {
   const [creatingPR, setCreatingPR] = useState(false);
   const [merging, setMerging] = useState(false);
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
-  const [pullMenuOpen, setPullMenuOpen] = useState(false);
   const [confirmDiscardAllOpen, setConfirmDiscardAllOpen] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [renamingKey, setRenamingKey] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deletingBranch, setDeletingBranch] = useState<main.Branch | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const pullCloseTimer = useRef<number | null>(null);
 
-  useEffect(() => () => {
-    if (pullCloseTimer.current) window.clearTimeout(pullCloseTimer.current);
-  }, []);
-
-  const openPullMenu = () => {
-    if (pullCloseTimer.current) {
-      window.clearTimeout(pullCloseTimer.current);
-      pullCloseTimer.current = null;
-    }
-    setPullMenuOpen(true);
-  };
-
-  const schedulePullClose = () => {
-    if (pullCloseTimer.current) window.clearTimeout(pullCloseTimer.current);
-    pullCloseTimer.current = window.setTimeout(() => setPullMenuOpen(false), 120);
-  };
   const commitMenuRef = useOutsideClick<HTMLDivElement>(
     () => setCommitMenuOpen(false),
     commitMenuOpen,
@@ -136,29 +129,12 @@ export function BranchSwitcher({ projectName, projectPath, gitState }: {
     setOpen(!open);
   };
 
-  const sync = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await SyncBranch(projectPath);
-      await refresh();
-    } catch (err) {
-      toast.error(`Sync: ${err}`);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const pull = async (strategy: GitPullStrategy) => {
+  const runPull = async (cfg: GitPullConfig) => {
     if (busy) return;
     setCommitMenuOpen(false);
-    setPullMenuOpen(false);
-    if (strategy !== (getSettings().gitPullStrategy ?? DEFAULT_PULL_STRATEGY)) {
-      void saveSettings({ gitPullStrategy: strategy });
-    }
     setBusy(true);
     try {
-      await PullBranch(projectPath, strategy);
+      await PullBranch(projectPath, cfg.strategy, pullFlags(cfg));
       await refresh();
     } catch (err) {
       toast.error(`Pull: ${err}`);
@@ -167,12 +143,14 @@ export function BranchSwitcher({ projectName, projectPath, gitState }: {
     }
   };
 
-  const push = async () => {
+  const runPullDefault = () => runPull(getSettings().gitPull ?? DEFAULT_PULL_CONFIG);
+
+  const runPush = async (cfg: GitPushConfig) => {
     if (busy) return;
     setCommitMenuOpen(false);
     setBusy(true);
     try {
-      await GitPush(projectPath);
+      await GitPush(projectPath, pushFlags(cfg));
       await refresh();
       toast.success("Pushed");
     } catch (err) {
@@ -180,6 +158,47 @@ export function BranchSwitcher({ projectName, projectPath, gitState }: {
     } finally {
       setBusy(false);
     }
+  };
+
+  const runPushDefault = () => runPush(getSettings().gitPush ?? DEFAULT_PUSH_CONFIG);
+
+  const runFetch = async (cfg: GitFetchConfig) => {
+    if (busy) return;
+    setCommitMenuOpen(false);
+    setBusy(true);
+    try {
+      await GitFetchAll(projectPath, fetchFlags(cfg));
+      await refresh();
+      toast.success("Fetched");
+    } catch (err) {
+      toast.error(`Fetch: ${err}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runFetchDefault = () => runFetch(getSettings().gitFetch ?? DEFAULT_FETCH_CONFIG);
+
+  const runSync = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const pull = getSettings().gitPull ?? DEFAULT_PULL_CONFIG;
+      const push = getSettings().gitPush ?? DEFAULT_PUSH_CONFIG;
+      await PullBranch(projectPath, pull.strategy, pullFlags(pull));
+      await GitPush(projectPath, pushFlags(push));
+      await refresh();
+    } catch (err) {
+      toast.error(`Sync: ${err}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const syncToolbarAction = () => {
+    if (status.behind > 0 && status.ahead > 0) return runSync();
+    if (status.behind > 0) return runPullDefault();
+    return runPushDefault();
   };
 
   const handleDiscardAll = async () => {
@@ -249,7 +268,7 @@ export function BranchSwitcher({ projectName, projectPath, gitState }: {
     <div className="flex items-center gap-1">
       {needsSync && (
         <button
-          onClick={sync}
+          onClick={syncToolbarAction}
           disabled={busy}
           title={busy ? "Syncing…" : `Pull ${status.behind}, push ${status.ahead}`}
           className="flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
@@ -425,55 +444,63 @@ export function BranchSwitcher({ projectName, projectPath, gitState }: {
           <ChevronDown />
         </button>
         {commitMenuOpen && (
-          <div className="absolute bottom-full right-0 z-10 mb-2 w-72 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl">
-            <button
-              onClick={() => { setCommitMenuOpen(false); setCommitting(true); }}
-              disabled={status.uncommitted === 0}
-              className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
-            >
-              <CommitIcon size={14} />
-              Commit
-            </button>
-            <PullMenu
-              busy={busy}
-              currentStrategy={getSettings().gitPullStrategy ?? DEFAULT_PULL_STRATEGY}
-              open={pullMenuOpen}
-              onOpen={openPullMenu}
-              onScheduleClose={schedulePullClose}
-              onPull={pull}
+          <div className="absolute bottom-full right-0 z-10 mb-2">
+            <DrillMenu
+              root={{
+                render: (api) => (
+                  <>
+                    <button
+                      onClick={() => { setCommitMenuOpen(false); setCommitting(true); }}
+                      disabled={status.uncommitted === 0}
+                      className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+                    >
+                      <CommitIcon size={14} />
+                      Commit
+                    </button>
+                    <PullSplitRow
+                      busy={busy}
+                      onRun={runPullDefault}
+                      onConfigure={() => api.push(pullConfigScreen({ busy, onRun: runPullDefault }))}
+                    />
+                    <PushSplitRow
+                      busy={busy}
+                      onRun={runPushDefault}
+                      onConfigure={() => api.push(pushConfigScreen({ busy, onRun: runPushDefault }))}
+                    />
+                    <FetchSplitRow
+                      busy={busy}
+                      onRun={runFetchDefault}
+                      onConfigure={() => api.push(fetchConfigScreen({ busy, onRun: runFetchDefault }))}
+                    />
+                    <button
+                      onClick={() => { setCommitMenuOpen(false); setCreatingPR(true); }}
+                      className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                    >
+                      <PRMenuIcon />
+                      Create PR
+                    </button>
+                    <button
+                      onClick={() => { setCommitMenuOpen(false); setMerging(true); }}
+                      disabled={busy}
+                      className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <MergeMenuIcon />
+                      Merge
+                    </button>
+                    <div className="my-1.5 border-t border-[var(--border)]" />
+                    <button
+                      onClick={() => { setCommitMenuOpen(false); setConfirmDiscardAllOpen(true); }}
+                      disabled={status.uncommitted === 0}
+                      className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--accent-red)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <UndoIcon />
+                      Discard all changes
+                    </button>
+                  </>
+                ),
+              }}
+              onClose={() => setCommitMenuOpen(false)}
             />
-            <button
-              onClick={push}
-              disabled={busy}
-              className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
-            >
-              <PushIcon />
-              Push
-            </button>
-            <button
-              onClick={() => { setCommitMenuOpen(false); setCreatingPR(true); }}
-              className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              <PRMenuIcon />
-              Create PR
-            </button>
-            <button
-              onClick={() => { setCommitMenuOpen(false); setMerging(true); }}
-              disabled={busy}
-              className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <MergeMenuIcon />
-              Merge
-            </button>
-            <div className="my-1.5 border-t border-[var(--border)]" />
-            <button
-              onClick={() => { setCommitMenuOpen(false); setConfirmDiscardAllOpen(true); }}
-              disabled={status.uncommitted === 0}
-              className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--accent-red)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <UndoIcon />
-              Discard all changes
-            </button>
           </div>
         )}
       </div>
@@ -596,13 +623,6 @@ function ChevronDown() {
   );
 }
 
-function CheckIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0 text-[var(--text-primary)]">
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}
 
 function CommitIcon({ size = 12 }: { size?: number } = {}) {
   return (
@@ -646,76 +666,3 @@ function PlusIcon() {
   );
 }
 
-function PullIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 4v11" />
-      <polyline points="7 10 12 15 17 10" />
-      <line x1="5" y1="20" x2="19" y2="20" />
-    </svg>
-  );
-}
-
-function PushIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="5" y1="4" x2="19" y2="4" />
-      <path d="M12 9v11" />
-      <polyline points="7 14 12 9 17 14" />
-    </svg>
-  );
-}
-
-function PullMenu({
-  busy,
-  currentStrategy,
-  open,
-  onOpen,
-  onScheduleClose,
-  onPull,
-}: {
-  busy: boolean;
-  currentStrategy: GitPullStrategy;
-  open: boolean;
-  onOpen: () => void;
-  onScheduleClose: () => void;
-  onPull: (strategy: GitPullStrategy) => void;
-}) {
-  const currentLabel =
-    PULL_STRATEGIES.find((s) => s.value === currentStrategy)?.label ?? "Pull";
-  return (
-    <div className="relative" onMouseEnter={onOpen} onMouseLeave={onScheduleClose}>
-      <button
-        onClick={() => onPull(currentStrategy)}
-        disabled={busy}
-        className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
-      >
-        <PullIcon />
-        {currentLabel}
-        <span className="ml-auto flex text-[var(--text-muted)]"><ChevronLeftIcon /></span>
-      </button>
-      {open && (
-        <div
-          onMouseEnter={onOpen}
-          onMouseLeave={onScheduleClose}
-          className="absolute right-full bottom-0 mr-1 w-56 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl"
-        >
-          {PULL_STRATEGIES.map((opt) => {
-            const active = currentStrategy === opt.value;
-            return (
-              <button
-                key={opt.value}
-                onClick={() => onPull(opt.value)}
-                disabled={busy}
-                className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
-              >
-                <span className="flex w-3.5 shrink-0">{active && <CheckIcon />}</span>
-                <span className={active ? "text-[var(--text-primary)]" : ""}>{opt.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}

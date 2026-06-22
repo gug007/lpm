@@ -172,8 +172,8 @@ export function GitDiscardAll(cwd) {
 export function GitDiscardFiles(cwd, files) {
   return invoke("git_discard_files", { cwd, files });
 }
-export function GitFetchAll(cwd) {
-  return invoke("git_fetch_all", { cwd });
+export function GitFetchAll(cwd, flags) {
+  return invoke("git_fetch_all", { cwd, flags });
 }
 export function GitLogBranch(cwd, base) {
   return invoke("git_log_branch", { cwd, base });
@@ -184,8 +184,8 @@ export function GitMerge(cwd, branch) {
 export function GitMergeConflicts(cwd) {
   return invoke("git_merge_conflicts", { cwd });
 }
-export function GitPush(cwd) {
-  return invoke("git_push", { cwd });
+export function GitPush(cwd, flags) {
+  return invoke("git_push", { cwd, flags });
 }
 export function GitStatus(cwd) {
   return invoke("git_status", { cwd });
@@ -325,8 +325,8 @@ export function PlaySoundPreview(name, event) {
 export function PickAudioFile() {
   return invoke("pick_audio_file");
 }
-export function PullBranch(cwd, strategy) {
-  return invoke("pull_branch", { cwd, strategy });
+export function PullBranch(cwd, strategy, flags) {
+  return invoke("pull_branch", { cwd, strategy, flags });
 }
 export function ReadBranchNameInstructions() {
   return invoke("read_branch_name_instructions");
@@ -510,9 +510,6 @@ export function StopTTS() {
 }
 export function StopWatchingProject() {
   return invoke("stop_watching_project");
-}
-export function SyncBranch(cwd) {
-  return invoke("sync_branch", { cwd });
 }
 export function TmuxInstalled() {
   return invoke("tmux_installed");
