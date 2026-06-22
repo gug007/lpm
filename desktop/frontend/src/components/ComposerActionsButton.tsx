@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { Loader2, Settings2, Sparkles } from "lucide-react";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { composerActionIcon, type ComposerAction } from "../store/composerActions";
@@ -51,10 +51,14 @@ export function ComposerActionsButton({
     onManage();
   };
 
+  // Keep clicks from pulling focus off the composer editor; the caret stays put.
+  const keepEditorFocus = (e: MouseEvent) => e.preventDefault();
+
   return (
     <div ref={ref} className="relative">
       <button
         type="button"
+        onMouseDown={keepEditorFocus}
         onClick={() => setOpen((v) => !v)}
         disabled={busy}
         aria-label="AI actions"
@@ -83,6 +87,7 @@ export function ComposerActionsButton({
                   <li key={action.id}>
                     <button
                       type="button"
+                      onMouseDown={keepEditorFocus}
                       onClick={() => run(action)}
                       disabled={!canRun}
                       title={canRun ? `${action.label} · runs with ${cliLabel}` : "Type something first"}
@@ -100,6 +105,7 @@ export function ComposerActionsButton({
           )}
           <button
             type="button"
+            onMouseDown={keepEditorFocus}
             onClick={manage}
             className="flex w-full items-center gap-2.5 border-t border-[var(--border)] px-3.5 py-2.5 text-left text-[12px] font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           >
