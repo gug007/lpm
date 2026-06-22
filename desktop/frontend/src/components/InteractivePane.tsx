@@ -63,6 +63,9 @@ const ACK_SIZE = 5000;
 const PASTE_QUIET_MS = 100;
 const PASTE_CEILING_MS = 1500;
 const QUIET_POLL_MS = 20;
+// The image gate waits for the rendered placeholder, not for quiet, so it needs a
+// larger ceiling to cover a slow/large file read.
+const PASTE_IMAGE_CEILING_MS = 4000;
 
 function getTerminalRemote(id: string): Promise<boolean> {
   return interactiveSessions.get(id)?.remote ?? Promise.resolve(false);
@@ -233,6 +236,11 @@ function saveImageBlob(terminalId: string, blob: File, mimeType: string) {
 }
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif)$/i;
+
+// Permissive match so a label change ("[Image #1]" → "[Image:" …) still counts.
+function countImageMarkers(text: string): number {
+  return (text.match(/\[image/gi) ?? []).length;
+}
 
 // Single image paths go in unquoted so a path-detecting receiver can stat
 // them; everything else is shell-quoted for shell users.
@@ -536,15 +544,14 @@ export function InteractivePane({
     focus() {
       sessionRef.current?.term.focus();
     },
-    // Send composed text to the PTY. Multi-line bodies are wrapped in
-    // bracketed-paste markers (when the running program enabled them) so
-    // receivers treat embedded newlines as pasted content rather than executing
-    // each line; the trailing CR submits it.
+    // Send composed text to the PTY. A multi-line body is wrapped in bracketed-
+    // paste markers (when the program enabled them) so its newlines are pasted
+    // content, not executed; the trailing CR submits.
     //
-    // A single string is sent as one write (body+CR together) so the body lands
-    // before the submit. An array sends each part as its own paste — this lets a
-    // receiver that attaches image paths at the cursor (e.g. Claude Code) keep
-    // images in order instead of front-loading them.
+    // A single-line body goes in one write (body+CR). A multi-line body or an array
+    // is delivered part-by-part with the CR gated on the receiver settling — a CR
+    // sent into Claude Code's async "[Pasted text]" redraw is swallowed and never
+    // submits. An array also preserves multi-part image order.
     submitInput(input: string | string[]) {
       const session = sessionRef.current;
       if (!session || session.sessionDead) return false;
@@ -557,36 +564,52 @@ export function InteractivePane({
           : body;
       };
       const fail = () => session.handleWriteError?.();
-      if (!Array.isArray(input)) {
+      if (typeof input === "string" && !/[\r\n]/.test(input)) {
         sendTerminalInput(terminalId, `${wrap(input)}\r`).catch(fail);
         return true;
       }
-      const parts = input.filter((p) => p.length > 0);
+      const parts = (Array.isArray(input) ? input : [input]).filter((p) => p.length > 0);
       if (parts.length === 0) return false;
       // lpm clears the composer once this returns true, so a re-entrant submit
       // would interleave its pastes into this one; refuse it (the draft is kept).
       if (session.delivering) return false;
       session.delivering = true;
 
-      // sentAt is sampled AFTER the write resolves (see deliver), so output already
-      // in flight at submit time can't satisfy sawEcho ahead of this paste's echo.
-      const waitForQuiet = (sentAt: number) =>
+      const waitUntil = (ready: () => boolean, ceiling: number, sentAt: number) =>
         new Promise<void>((resolve) => {
           const check = () => {
-            const now = performance.now();
-            const sawEcho = session.lastOutputAt >= sentAt;
-            const quiet = now - session.lastOutputAt >= PASTE_QUIET_MS;
-            if ((sawEcho && quiet) || now - sentAt >= PASTE_CEILING_MS) resolve();
+            if (ready() || performance.now() - sentAt >= ceiling) resolve();
             else setTimeout(check, QUIET_POLL_MS);
           };
           setTimeout(check, QUIET_POLL_MS);
         });
+      const settled = () => performance.now() - session.lastOutputAt >= PASTE_QUIET_MS;
 
+      // baseY..length is the viewport; the count climbs once Claude Code lifts a
+      // pasted path into an image placeholder.
+      const visibleImageMarks = () => {
+        const buf = session.term.buffer.active;
+        let marks = 0;
+        for (let i = buf.baseY; i < buf.length; i++) {
+          marks += countImageMarkers(buf.getLine(i)?.translateToString(true) ?? "");
+        }
+        return marks;
+      };
+
+      const bracketed = session.term.modes.bracketedPasteMode;
       const deliver = async () => {
         for (const part of parts) {
           if (session.sessionDead) return;
+          // An image path resolves async and silently, so gate it on its placeholder
+          // appearing rather than on quiet, else the next part overtakes its cursor
+          // slot. sentAt is sampled after the write so in-flight output can't satisfy
+          // the gate early.
+          const isImage = bracketed && !/[\r\n]/.test(part) && IMAGE_EXT_RE.test(part.trim());
+          const before = isImage ? visibleImageMarks() : 0;
           await sendTerminalInput(terminalId, wrap(part));
-          await waitForQuiet(performance.now());
+          const sentAt = performance.now();
+          if (isImage) await waitUntil(() => visibleImageMarks() > before && settled(), PASTE_IMAGE_CEILING_MS, sentAt);
+          else await waitUntil(() => session.lastOutputAt >= sentAt && settled(), PASTE_CEILING_MS, sentAt);
         }
         if (session.sessionDead) return;
         await sendTerminalInput(terminalId, "\r");
