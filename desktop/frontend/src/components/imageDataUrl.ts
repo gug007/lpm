@@ -26,10 +26,23 @@ function cacheSet(path: string, url: string) {
   }
 }
 
-// Read a local image as a base64 data URL, served from a shared LRU cache so a
-// hover preview and a click-to-open lightbox of the same file each read disk at
-// most once. `url` holds the previous value until a new (uncached) path resolves
-// — no blank flash between previews; `failed` flips when the read errors.
+// Read a local image as a base64 data URL, served from the shared LRU cache so a
+// thumbnail chip, its hover preview, and the click-to-open lightbox of the same
+// file each read disk at most once. Imperative form, for the chip thumbnails
+// rendered into the contenteditable outside React.
+export function loadImageDataUrl(path: string): Promise<string> {
+  const cached = cacheGet(path);
+  if (cached) return Promise.resolve(cached);
+  return NotesReadFileAsInput(path).then((input: { mimeType?: string; data: string }) => {
+    const dataUrl = `data:${input.mimeType || "image/png"};base64,${input.data}`;
+    cacheSet(path, dataUrl);
+    return dataUrl;
+  });
+}
+
+// Hook form of the same loader. `url` holds the previous value until a new
+// (uncached) path resolves — no blank flash between previews; `failed` flips
+// when the read errors.
 export function useImageDataUrl(path: string): { url: string | null; failed: boolean } {
   const [url, setUrl] = useState<string | null>(() => cacheGet(path) ?? null);
   const [failed, setFailed] = useState(false);
@@ -43,10 +56,8 @@ export function useImageDataUrl(path: string): { url: string | null; failed: boo
     }
     let cancelled = false;
     setFailed(false);
-    NotesReadFileAsInput(path)
-      .then((input: { mimeType?: string; data: string }) => {
-        const dataUrl = `data:${input.mimeType || "image/png"};base64,${input.data}`;
-        cacheSet(path, dataUrl);
+    loadImageDataUrl(path)
+      .then((dataUrl) => {
         if (!cancelled) setUrl(dataUrl);
       })
       .catch(() => {

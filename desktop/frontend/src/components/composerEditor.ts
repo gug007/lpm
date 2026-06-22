@@ -11,16 +11,31 @@ export const COMMAND_COLOR = ansiColors.brightBlue;
 
 const IMAGE_TOKEN_RE = /\[Image #(\d+)\]/g;
 
-const CHIP_CLASS =
-  "group inline-flex cursor-zoom-in select-none items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--bg-active)] py-0.5 pl-1 pr-1.5 align-middle text-[12px] leading-4 text-[var(--text-secondary)]";
+// Shared visual base for an image chip, so the editable composer chip and the
+// read-only history chip (MessageImageChip) can't drift apart. Each site layers
+// its own interaction classes (group/cursor/hover) on top.
+export const IMAGE_CHIP_CLASS =
+  "inline-flex select-none items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-active)] py-0.5 pl-0.5 pr-2 align-middle text-[12px] leading-4 text-[var(--text-secondary)]";
+export const IMAGE_CHIP_THUMB_CLASS =
+  "relative h-[18px] w-[18px] shrink-0 overflow-hidden rounded-md bg-[var(--bg-secondary)]";
 
-const SVG_OPEN =
-  '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"';
+// A labeled image token, like the CLIs' inline "[Image #N]" — kept as an "Image
+// N" pill, modernized: a real thumbnail avatar leads (a muted glyph until it
+// loads via setChipThumbnail). Hovering the chip swaps the avatar for a remove
+// "×" overlay — click it to drop the image; click the label to open the lightbox.
+const CHIP_CLASS = `group ${IMAGE_CHIP_CLASS} cursor-zoom-in transition-colors hover:border-[var(--text-muted)]`;
 
-// The leading icon doubles as the remove button: it shows an image glyph by
-// default and a "×" while the chip is hovered, so a single click drops the image.
-const IMAGE_ICON = `${SVG_OPEN} stroke-width="1.6" class="block group-hover:hidden"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="1.6"/><path d="m21 15-5-5L7 21"/></svg>`;
-const REMOVE_ICON = `${SVG_OPEN} stroke-width="2" class="hidden group-hover:block"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`;
+const THUMB_CLASS = `${IMAGE_CHIP_THUMB_CLASS} cursor-pointer text-[var(--text-secondary)] transition-colors hover:text-[var(--accent-red)]`;
+
+// The image (and the loading glyph) fade out on hover so the "×" shows in their
+// place over the avatar's plain background.
+const REMOVE_OVERLAY_CLASS =
+  "absolute inset-0 hidden items-center justify-center group-hover:flex";
+
+const PLACEHOLDER_ICON =
+  '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="transition-opacity group-hover:opacity-0"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="1.6"/><path d="m21 15-5-5L7 21"/></svg>';
+const REMOVE_ICON =
+  '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
 
 export function createImageChip(n: number): HTMLSpanElement {
   const chip = document.createElement("span");
@@ -28,9 +43,28 @@ export function createImageChip(n: number): HTMLSpanElement {
   chip.contentEditable = "false";
   chip.className = CHIP_CLASS;
   chip.innerHTML =
-    `<span data-img-remove="${n}" role="button" aria-label="Remove image" title="Remove image" class="flex h-4 w-4 cursor-pointer items-center justify-center rounded hover:text-[var(--accent-red)]">${IMAGE_ICON}${REMOVE_ICON}</span>` +
+    `<span data-img-remove="${n}" data-img-thumb role="button" aria-label="Remove image" title="Remove image" class="${THUMB_CLASS}">` +
+    `<span data-img-ph class="absolute inset-0 flex items-center justify-center text-[var(--text-muted)]">${PLACEHOLDER_ICON}</span>` +
+    `<span class="${REMOVE_OVERLAY_CLASS}">${REMOVE_ICON}</span>` +
+    `</span>` +
     `<span>Image ${n}</span>`;
   return chip;
+}
+
+// Fill a chip's thumbnail avatar with its loaded image, dropping the placeholder
+// glyph. The <img> sits under the hover "×" overlay and ignores pointer events,
+// so a click resolves to the avatar (remove). No-op if already set.
+export function setChipThumbnail(chip: HTMLElement, dataUrl: string): void {
+  const slot = chip.querySelector<HTMLElement>("[data-img-thumb]");
+  if (!slot || slot.querySelector("img")) return;
+  const img = document.createElement("img");
+  img.src = dataUrl;
+  img.alt = "";
+  img.draggable = false;
+  img.className =
+    "pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity group-hover:opacity-0";
+  slot.insertBefore(img, slot.firstChild);
+  slot.querySelector("[data-img-ph]")?.remove();
 }
 
 function isChip(node: Node | null): node is HTMLElement {

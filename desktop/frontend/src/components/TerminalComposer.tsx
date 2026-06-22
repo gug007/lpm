@@ -38,6 +38,7 @@ import { ComposerTabStrip, type ComposerTabView } from "./ComposerTabStrip";
 import { PlusIcon, SendIcon } from "./icons";
 import { ImagePreviewPopover } from "./ImagePreviewPopover";
 import { ImageLightbox } from "./ImageLightbox";
+import { loadImageDataUrl } from "./imageDataUrl";
 import { TerminalHistoryButton } from "./TerminalHistoryButton";
 import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
 import {
@@ -60,6 +61,7 @@ import {
   selectChip,
   selectedChip,
   serializeEditor,
+  setChipThumbnail,
   setEditorContent,
   splitByImageTokens,
 } from "./composerEditor";
@@ -205,6 +207,27 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const focusedRef = useRef(focused);
   focusedRef.current = focused;
 
+  // Fill each image chip with its thumbnail (lazily, from the shared cache). A
+  // chip is marked once loading starts (`thumb`) so repeated syncState calls are
+  // cheap; a load that fails leaves the placeholder glyph and isn't retried.
+  const hydrateThumbnails = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.querySelectorAll<HTMLElement>("[data-img]").forEach((chip) => {
+      if (chip.dataset.thumb) return;
+      const path = imagePaths.current.get(Number(chip.dataset.img));
+      if (!path) return;
+      chip.dataset.thumb = "pending";
+      loadImageDataUrl(path)
+        .then((url) => {
+          if (chip.isConnected) setChipThumbnail(chip, url);
+        })
+        .catch(() => {
+          chip.dataset.thumb = "failed";
+        });
+    });
+  }, []);
+
   // Push the current tab set into the reactive mirror. Labels are computed only
   // when the strip is visible (2+ tabs); a lone tab carries an empty label so its
   // per-keystroke text changes never produce a new view and never re-render.
@@ -229,7 +252,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     setDisabled(serializeEditor(editor).trim() === "");
     setPreview(null);
     placeCaretAtEnd(editor);
-  }, []);
+    hydrateThumbnails();
+  }, [hydrateThumbnails]);
 
   // Restore this terminal's saved draft on mount (the composer is remounted per
   // terminal), then focus it — so switching terminals brings back what you'd
@@ -326,7 +350,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       history: history.current,
     });
     refreshTabView();
-  }, [terminalId, refreshTabView]);
+    hydrateThumbnails();
+  }, [terminalId, refreshTabView, hydrateThumbnails]);
 
   // After a caret move, WebKit may have injected stray chars around a chip. Clean
   // them in a rAF (before the next paint, so no flash; coalesced across repeats)
