@@ -60,11 +60,13 @@ export interface Settings {
   duplicateExcludeUncommitted?: boolean;
   duplicateReinstallDeps?: boolean;
   composerOpen?: boolean;
+  autoCloseComposerOnSend?: boolean;
 }
 
 const defaults: Settings = {
   theme: "dark",
   doubleClickToToggle: false,
+  autoCloseComposerOnSend: true,
 };
 
 interface SettingsActions {
@@ -118,6 +120,7 @@ function normalize(s: main.Settings): Settings {
     duplicateExcludeUncommitted: s.duplicateExcludeUncommitted,
     duplicateReinstallDeps: s.duplicateReinstallDeps,
     composerOpen: s.composerOpen,
+    autoCloseComposerOnSend: s.autoCloseComposerOnSend ?? defaults.autoCloseComposerOnSend,
     detachedWindows: s.detachedWindows
       ? Object.fromEntries(
           Object.entries(s.detachedWindows).map(([name, raw]) => {

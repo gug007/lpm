@@ -614,15 +614,19 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     [addImageBlob, insertImageChips, focusAtPoint],
   );
 
-  // Retire the just-sent prompt by clearing it in place — the tab always stays,
-  // regardless of how many are open, so a send never pulls a prepared input out
-  // from under the user. Resolved by id because a tab switch during an image
-  // upload can leave the sent prompt no longer the active one: when it's still
-  // active we empty the live editor (syncState mirrors it back into the tab);
-  // when it isn't, we clear that tab's stored snapshot and leave the editor be.
+  // Retire the just-sent prompt, resolved by id because a tab switch during an
+  // image upload can leave it no longer the active one. With "auto close on send"
+  // on (the default) a sent prompt drops its tab when others are open — its
+  // neighbour takes over — and a lone tab is cleared in place. With it off the
+  // tab always stays and is only cleared, so a send never pulls a prepared input
+  // out from under the user. Clearing the active prompt empties the live editor
+  // (syncState mirrors it back into the tab); an inactive one clears its snapshot.
   const finishSend = (sentId: string, editor: HTMLDivElement) => {
     const idx = tabs.current.findIndex((t) => t.id === sentId);
-    if (idx !== -1) {
+    const autoClose = getSettings().autoCloseComposerOnSend !== false;
+    if (idx !== -1 && autoClose && tabs.current.length > 1) {
+      removeTabAt(idx, sentId === activeId.current);
+    } else if (idx !== -1) {
       if (sentId === activeId.current) {
         histIdx.current = -1;
         imagePaths.current.clear();
@@ -1034,14 +1038,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         return;
       }
     }
-    // ⌘T / ⌘W act on the composer's own tabs while the input is focused,
-    // shadowing the global new-terminal / close-terminal shortcuts. addTab
+    // ⌘⇧T / ⌘⇧W act on the composer's own tabs while the input is focused. addTab
     // already creates and jumps to the new tab; closeTab no-ops on the last tab
-    // (so ⌘W there does nothing) and otherwise adopts the left neighbour. Gated
-    // to ⌘ only — Ctrl+T/Ctrl+W are native macOS field edits (transpose / delete
-    // word) that must keep working; the generic guard below still stops their
-    // global terminal shortcut from firing.
-    if (e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+    // (so ⌘⇧W there does nothing) and otherwise adopts the left neighbour. Plain
+    // ⌘T is let through to the global new-terminal shortcut (see the guard below);
+    // plain ⌘W stays swallowed so it never closes the terminal while typing.
+    if (e.metaKey && e.shiftKey && !e.ctrlKey && !e.altKey) {
       const k = e.key.toLowerCase();
       if (k === "t") {
         e.preventDefault();
@@ -1058,9 +1060,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     }
     // Keep app-chrome shortcuts (⌘W close tab, ⌘D split, ⌘F find, ⌘1-9 switch
     // project) from firing while typing here. ⌘I still bubbles so it can toggle
-    // the composer closed; native edit shortcuts (copy/paste/select-all) keep
+    // the composer closed, and plain ⌘T bubbles so it opens a new terminal even
+    // with the input focused; native edit shortcuts (copy/paste/select-all) keep
     // working since we never preventDefault them.
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() !== "i") {
+    const guardKey = e.key.toLowerCase();
+    const passesThrough = guardKey === "i" || (e.metaKey && !e.shiftKey && guardKey === "t");
+    if ((e.metaKey || e.ctrlKey) && !passesThrough) {
       e.stopPropagation();
     }
     // Any caret move can make WebKit inject stray chars around a chip — the
