@@ -1040,9 +1040,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     }
     // ⌘⇧T / ⌘⇧W act on the composer's own tabs while the input is focused. addTab
     // already creates and jumps to the new tab; closeTab no-ops on the last tab
-    // (so ⌘⇧W there does nothing) and otherwise adopts the left neighbour. Plain
-    // ⌘T is let through to the global new-terminal shortcut (see the guard below);
-    // plain ⌘W stays swallowed so it never closes the terminal while typing.
+    // (so ⌘⇧W there does nothing) and otherwise adopts the left neighbour. The
+    // plain (un-shifted) chords fall through to the app chrome — see the guard below.
     if (e.metaKey && e.shiftKey && !e.ctrlKey && !e.altKey) {
       const k = e.key.toLowerCase();
       if (k === "t") {
@@ -1058,13 +1057,15 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         return;
       }
     }
-    // Keep app-chrome shortcuts (⌘W close tab, ⌘D split, ⌘F find, ⌘1-9 switch
-    // project) from firing while typing here. ⌘I still bubbles so it can toggle
-    // the composer closed, and plain ⌘T bubbles so it opens a new terminal even
-    // with the input focused; native edit shortcuts (copy/paste/select-all) keep
-    // working since we never preventDefault them.
+    // Keep app-chrome shortcuts (⌘D split, ⌘F find, ⌘1-9 switch project) from
+    // firing while typing here. ⌘I still bubbles so it can toggle the composer
+    // closed, and plain ⌘T / ⌘W bubble so they open / close the terminal even with
+    // the input focused (⌘⇧W above already handled the composer's own tabs); native
+    // edit shortcuts (copy/paste/select-all) keep working since we never
+    // preventDefault them.
     const guardKey = e.key.toLowerCase();
-    const passesThrough = guardKey === "i" || (e.metaKey && !e.shiftKey && guardKey === "t");
+    const passesThrough =
+      guardKey === "i" || (e.metaKey && !e.shiftKey && (guardKey === "t" || guardKey === "w"));
     if ((e.metaKey || e.ctrlKey) && !passesThrough) {
       e.stopPropagation();
     }
@@ -1201,7 +1202,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const showActions = ai.anyAvailable;
   // Reserve room on the right for the floating button cluster so text never
   // slides under it; each button is 28px wide with a 4px gap.
-  const footerButtons = (showActions ? 1 : 0) + (tabView.length <= 1 ? 1 : 0) + 2;
+  const footerButtons = (showActions ? 1 : 0) + 3;
   const editorPadRight = 8 + footerButtons * 28 + (footerButtons - 1) * 4 + 12;
 
   return (
@@ -1309,19 +1310,15 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
               onManage={() => setActionsModalOpen(true)}
             />
           )}
-          {tabView.length <= 1 && (
-            // With the tab strip hidden (a single input), the strip's own "+" is
-            // gone, so this is the only way to open another prepared input.
-            <button
-              type="button"
-              onClick={addTab}
-              aria-label="New input"
-              title="New input"
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              <PlusIcon />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={addTab}
+            aria-label="New input"
+            title="New input"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            <PlusIcon />
+          </button>
           <TerminalHistoryButton
             terminalId={historyKey}
             projectName={projectName}
