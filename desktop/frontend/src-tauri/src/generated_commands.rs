@@ -191,7 +191,6 @@ macro_rules! all_command_handlers {
         stop_terminal,
         stop_tts,
         stop_watching_project,
-        sync_branch,
         tmux_installed,
         toggle_project_service,
         transform_text,

@@ -168,7 +168,6 @@ export function StopService(...args: any[]): Promise<any>;
 export function StopTTS(...args: any[]): Promise<any>;
 export function StopTerminal(...args: any[]): Promise<any>;
 export function StopWatchingProject(...args: any[]): Promise<any>;
-export function SyncBranch(...args: any[]): Promise<any>;
 export function TmuxInstalled(...args: any[]): Promise<any>;
 export function ToggleProjectService(...args: any[]): Promise<any>;
 export function TransformText(...args: any[]): Promise<any>;

@@ -2,16 +2,14 @@ import { create } from "zustand";
 import { LoadSettings, SaveSettings } from "../../bridge/commands";
 import type { main } from "../../bridge/models";
 import type { Theme } from "../theme";
-
-export const GIT_PULL_STRATEGIES = ["ff-only", "merge", "rebase"] as const;
-
-export type GitPullStrategy = (typeof GIT_PULL_STRATEGIES)[number];
-
-export const DEFAULT_PULL_STRATEGY: GitPullStrategy = "ff-only";
-
-function isGitPullStrategy(value: string | undefined): value is GitPullStrategy {
-  return !!value && (GIT_PULL_STRATEGIES as readonly string[]).includes(value);
-}
+import {
+  normalizeGitPull,
+  normalizeGitPush,
+  normalizeGitFetch,
+  type GitPullConfig,
+  type GitPushConfig,
+  type GitFetchConfig,
+} from "../gitOptions";
 
 export interface DetachedWindowState {
   detached: boolean;
@@ -49,7 +47,9 @@ export interface Settings {
   configEditorMode?: "form" | "yaml";
   showProjectName?: boolean;
   lastSelectedProject?: string;
-  gitPullStrategy?: GitPullStrategy;
+  gitPull?: GitPullConfig;
+  gitPush?: GitPushConfig;
+  gitFetch?: GitFetchConfig;
   experimentalTTS?: boolean;
   ttsEnabled?: boolean;
   ttsVoice?: string;
@@ -108,7 +108,9 @@ function normalize(s: main.Settings): Settings {
         : undefined,
     showProjectName: s.showProjectName,
     lastSelectedProject: s.lastSelectedProject,
-    gitPullStrategy: isGitPullStrategy(s.gitPullStrategy) ? s.gitPullStrategy : undefined,
+    gitPull: normalizeGitPull(s.gitPull, s.gitPullStrategy),
+    gitPush: normalizeGitPush(s.gitPush),
+    gitFetch: normalizeGitFetch(s.gitFetch),
     experimentalTTS: s.experimentalTTS,
     ttsEnabled: s.ttsEnabled,
     ttsVoice: s.ttsVoice || undefined,
