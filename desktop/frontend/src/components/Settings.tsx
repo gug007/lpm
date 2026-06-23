@@ -106,6 +106,9 @@ export function Settings({
   const openFilesInDefaultApp = useSettingsStore(
     (s) => s.terminalOpenInDefaultApp ?? false,
   );
+  const autoCloseComposerOnSend = useSettingsStore(
+    (s) => s.autoCloseComposerOnSend ?? true,
+  );
   const experimentalTTS = useSettingsStore((s) => s.experimentalTTS);
   const updateSettings = useSettingsStore((s) => s.update);
 
@@ -488,6 +491,15 @@ export function Settings({
                 <Toggle
                   enabled={openFilesInDefaultApp}
                   onChange={(v) => updateSettings({ terminalOpenInDefaultApp: v })}
+                />
+              </SettingsRow>
+              <SettingsRow
+                label="Auto close composer on send"
+                description="Sending a prepared input clears it and closes its tab when more than one is open, instead of keeping the tab"
+              >
+                <Toggle
+                  enabled={autoCloseComposerOnSend}
+                  onChange={(v) => updateSettings({ autoCloseComposerOnSend: v })}
                 />
               </SettingsRow>
             </SettingsSection>

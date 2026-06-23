@@ -397,12 +397,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     syncState();
   }, [syncState, loadTab]);
 
-  // Drop the tab at `idx`; if it was the visible one, adopt its neighbor into the
-  // editor (the next tab, or the new last when the end was removed).
+  // Drop the tab at `idx`; if it was the visible one, adopt the tab to its left
+  // (or the new first tab when the leftmost was closed) so closing walks toward
+  // the start of the strip, not the end.
   const removeTabAt = useCallback(
     (idx: number, wasActive: boolean) => {
       tabs.current.splice(idx, 1);
-      if (wasActive) loadTab(tabs.current[Math.min(idx, tabs.current.length - 1)]);
+      if (wasActive) loadTab(tabs.current[Math.max(0, idx - 1)]);
     },
     [loadTab],
   );
@@ -421,6 +422,20 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       syncState();
     },
     [syncState, removeTabAt],
+  );
+
+  // Apply a drag-reorder from the strip: rebuild `tabs.current` in the given id
+  // order, then persist. The active tab is tracked by id, so reordering never
+  // changes which prompt is in the editor — only the row order moves.
+  const reorderTabs = useCallback(
+    (ids: string[]) => {
+      const byId = new Map(tabs.current.map((t) => [t.id, t]));
+      const next = ids.map((id) => byId.get(id)).filter((t): t is ComposerInputTab => !!t);
+      if (next.length !== tabs.current.length) return;
+      tabs.current = next;
+      syncState();
+    },
+    [syncState],
   );
 
   const registerImagePath = useCallback((path: string): HTMLSpanElement => {
@@ -599,19 +614,31 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     [addImageBlob, insertImageChips, focusAtPoint],
   );
 
-  // Retire the just-sent prompt, resolved by id (a tab switch during an image
-  // upload can leave it no longer active — or already closed). With other prompts
-  // open the sent tab is dropped, and its neighbor takes over only if it was the
-  // one on screen; a lone tab is cleared in place and kept.
+  // Retire the just-sent prompt, resolved by id because a tab switch during an
+  // image upload can leave it no longer the active one. With "auto close on send"
+  // on (the default) a sent prompt drops its tab when others are open — its
+  // neighbour takes over — and a lone tab is cleared in place. With it off the
+  // tab always stays and is only cleared, so a send never pulls a prepared input
+  // out from under the user. Clearing the active prompt empties the live editor
+  // (syncState mirrors it back into the tab); an inactive one clears its snapshot.
   const finishSend = (sentId: string, editor: HTMLDivElement) => {
     const idx = tabs.current.findIndex((t) => t.id === sentId);
-    if (idx !== -1 && tabs.current.length > 1) {
+    const autoClose = getSettings().autoCloseComposerOnSend !== false;
+    if (idx !== -1 && autoClose && tabs.current.length > 1) {
       removeTabAt(idx, sentId === activeId.current);
     } else if (idx !== -1) {
-      histIdx.current = -1;
-      imagePaths.current.clear();
-      setEditorContent(editor, "");
-      setPreview(null);
+      if (sentId === activeId.current) {
+        histIdx.current = -1;
+        imagePaths.current.clear();
+        setEditorContent(editor, "");
+        setPreview(null);
+      } else {
+        const tab = tabs.current[idx];
+        tab.text = "";
+        tab.imagePaths = new Map();
+        tab.imgCounter = 0;
+        tab.histIdx = -1;
+      }
     }
     syncState();
     editor.focus();
@@ -1011,11 +1038,35 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         return;
       }
     }
-    // Keep app-chrome shortcuts (⌘W close tab, ⌘D split, ⌘F find, ⌘1-9 switch
-    // project) from firing while typing here. ⌘I still bubbles so it can toggle
-    // the composer closed; native edit shortcuts (copy/paste/select-all) keep
-    // working since we never preventDefault them.
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() !== "i") {
+    // ⌘⇧T / ⌘⇧W act on the composer's own tabs while the input is focused. addTab
+    // already creates and jumps to the new tab; closeTab no-ops on the last tab
+    // (so ⌘⇧W there does nothing) and otherwise adopts the left neighbour. The
+    // plain (un-shifted) chords fall through to the app chrome — see the guard below.
+    if (e.metaKey && e.shiftKey && !e.ctrlKey && !e.altKey) {
+      const k = e.key.toLowerCase();
+      if (k === "t") {
+        e.preventDefault();
+        e.stopPropagation();
+        addTab();
+        return;
+      }
+      if (k === "w") {
+        e.preventDefault();
+        e.stopPropagation();
+        closeTab(activeId.current);
+        return;
+      }
+    }
+    // Keep app-chrome shortcuts (⌘D split, ⌘F find, ⌘1-9 switch project) from
+    // firing while typing here. ⌘I still bubbles so it can toggle the composer
+    // closed, and plain ⌘T / ⌘W bubble so they open / close the terminal even with
+    // the input focused (⌘⇧W above already handled the composer's own tabs); native
+    // edit shortcuts (copy/paste/select-all) keep working since we never
+    // preventDefault them.
+    const guardKey = e.key.toLowerCase();
+    const passesThrough =
+      guardKey === "i" || (e.metaKey && !e.shiftKey && (guardKey === "t" || guardKey === "w"));
+    if ((e.metaKey || e.ctrlKey) && !passesThrough) {
       e.stopPropagation();
     }
     // Any caret move can make WebKit inject stray chars around a chip — the
@@ -1151,7 +1202,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const showActions = ai.anyAvailable;
   // Reserve room on the right for the floating button cluster so text never
   // slides under it; each button is 28px wide with a 4px gap.
-  const footerButtons = (showActions ? 1 : 0) + (tabView.length <= 1 ? 1 : 0) + 2;
+  const footerButtons = (showActions ? 1 : 0) + 3;
   const editorPadRight = 8 + footerButtons * 28 + (footerButtons - 1) * 4 + 12;
 
   return (
@@ -1163,6 +1214,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           onSelect={switchTab}
           onClose={closeTab}
           onAdd={addTab}
+          onReorder={reorderTabs}
         />
       )}
       <div
@@ -1258,19 +1310,15 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
               onManage={() => setActionsModalOpen(true)}
             />
           )}
-          {tabView.length <= 1 && (
-            // With the tab strip hidden (a single input), the strip's own "+" is
-            // gone, so this is the only way to open another prepared input.
-            <button
-              type="button"
-              onClick={addTab}
-              aria-label="New input"
-              title="New input"
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              <PlusIcon />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={addTab}
+            aria-label="New input"
+            title="New input"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            <PlusIcon />
+          </button>
           <TerminalHistoryButton
             terminalId={historyKey}
             projectName={projectName}
