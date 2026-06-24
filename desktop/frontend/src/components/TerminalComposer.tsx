@@ -321,8 +321,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     const editor = editorRef.current;
     if (!editor) return;
     const value = serializeEditor(editor);
-    setBlank(isEditorEmpty(editor));
+    const blankNow = isEditorEmpty(editor);
+    setBlank(blankNow);
     setDisabled(value.trim() === "");
+    // An empty field can't be a completed "/command " line, so drop any lingering
+    // ghost argument-hint. Without this a programmatic clear (send, recall-to-empty)
+    // leaves the hint painted over the reappearing placeholder.
+    if (blankNow) setHint(null);
     if (prunePaths) {
       const present = presentImageTokens(editor);
       for (const n of imagePaths.current.keys()) {
