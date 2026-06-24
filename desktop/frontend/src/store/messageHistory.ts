@@ -36,7 +36,7 @@ export interface Folder {
   count: number;
 }
 
-export type HistoryScope = "terminal" | "all";
+export type HistoryScope = "project" | "all";
 
 // A collection filter: "all" = no filter, "favorites", or a folder id.
 export const COLLECTION_ALL = "all";

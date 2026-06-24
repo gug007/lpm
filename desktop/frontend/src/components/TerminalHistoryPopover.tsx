@@ -53,7 +53,7 @@ export function TerminalHistoryPopover({
   terminalLabel,
   onPick,
 }: TerminalHistoryPopoverProps) {
-  const [scope, setScope] = useState<HistoryScope>("terminal");
+  const [scope, setScope] = useState<HistoryScope>("project");
   const [collection, setCollection] = useState(COLLECTION_ALL);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -69,8 +69,8 @@ export function TerminalHistoryPopover({
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  // Favorites and folders are cross-terminal collections, so they always span
-  // every terminal; the terminal/all scope only narrows the unfiltered "All" view.
+  // Favorites and folders are cross-project collections, so they always span
+  // every project; the project/all scope only narrows the unfiltered "All" view.
   const effectiveScope: HistoryScope = collection === COLLECTION_ALL ? scope : "all";
 
   const filter: HistoryFilter = useMemo(
@@ -172,11 +172,11 @@ export function TerminalHistoryPopover({
       <div className="flex items-center gap-1.5 px-2.5 pb-2">
         {collection === COLLECTION_ALL && (
           <div className="flex shrink-0 items-center gap-0.5">
-            <ScopeTab active={scope === "terminal"} onClick={() => onScopeChange("terminal")}>
-              This terminal
+            <ScopeTab active={scope === "project"} onClick={() => onScopeChange("project")}>
+              This project
             </ScopeTab>
             <ScopeTab active={scope === "all"} onClick={() => onScopeChange("all")}>
-              All terminals
+              All projects
             </ScopeTab>
           </div>
         )}
@@ -228,7 +228,7 @@ export function TerminalHistoryPopover({
                 >
                   <HistoryRow
                     message={message}
-                    showSource={effectiveScope === "all"}
+                    source={effectiveScope === "all" ? "full" : "terminal"}
                     onPick={onPick}
                     onOpenFolderMenu={openFolderMenu}
                   />
@@ -413,12 +413,12 @@ function MessageText({ text, images }: { text: string; images: Record<string, st
 // doesn't re-render every visible row; props are stable per message.
 const HistoryRow = memo(function HistoryRow({
   message,
-  showSource,
+  source,
   onPick,
   onOpenFolderMenu,
 }: {
   message: HistoryMessage;
-  showSource: boolean;
+  source: "terminal" | "full";
   onPick: (text: string, images: Record<string, string>) => void;
   onOpenFolderMenu: (message: HistoryMessage, anchor: DOMRect) => void;
 }) {
@@ -432,11 +432,9 @@ const HistoryRow = memo(function HistoryRow({
         <span className="line-clamp-2 whitespace-pre-wrap break-words text-[13px] leading-snug text-[var(--text-primary)] [overflow-wrap:anywhere]">
           <MessageText text={message.text} images={message.images} />
         </span>
-        {showSource && (
-          <span className="truncate text-[10px] text-[var(--text-muted)]">
-            {message.projectName} · {message.terminalLabel}
-          </span>
-        )}
+        <span className="truncate text-[10px] text-[var(--text-muted)]">
+          {source === "full" ? `${message.projectName} · ${message.terminalLabel}` : message.terminalLabel}
+        </span>
       </button>
       <span className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]">
         {relativeTime(Math.floor(message.at / 1000))}

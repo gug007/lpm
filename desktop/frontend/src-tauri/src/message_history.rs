@@ -53,7 +53,7 @@ fn open() -> Result<Connection, String> {
             created_at INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_mh_order ON message_history(at DESC, seq DESC);
-        CREATE INDEX IF NOT EXISTS idx_mh_terminal ON message_history(terminal_id);
+        CREATE INDEX IF NOT EXISTS idx_mh_project ON message_history(project_name);
         "#,
     )
     .map_err(|e| e.to_string())?;
@@ -64,6 +64,9 @@ fn open() -> Result<Connection, String> {
         "ALTER TABLE message_history ADD COLUMN images TEXT NOT NULL DEFAULT '{}';",
     );
     let _ = conn.execute_batch("ALTER TABLE message_history ADD COLUMN folder_id TEXT;");
+    // The "this project" scope filters by project_name, so the old per-terminal
+    // index is dead weight; drop it on DBs that still carry it.
+    let _ = conn.execute_batch("DROP INDEX IF EXISTS idx_mh_terminal;");
     conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_mh_folder ON message_history(folder_id);")
         .map_err(|e| e.to_string())?;
     Ok(conn)
@@ -77,23 +80,22 @@ fn now_millis() -> i64 {
         .unwrap_or(0)
 }
 
-// The "this terminal" predicate. terminal_id holds the frontend's stable
-// per-terminal history key (persisted across restarts), so matching it alone
-// scopes history to exactly one terminal — without bleeding into other terminals
-// that merely share a project + label. Built once so the list query and the
-// clear DELETE can't drift. Pushes its bind param; "" for the "all" scope.
+// The "this project" predicate. Matching project_name scopes history to every
+// terminal that belongs to the current project, while leaving other projects
+// out. Built once so the list query and the clear DELETE can't drift. Pushes
+// its bind param; "" for the "all" scope.
 fn scope_clause(
     scope: &str,
-    terminal_id: &str,
-    _project_name: &str,
+    _terminal_id: &str,
+    project_name: &str,
     _terminal_label: &str,
     args: &mut Vec<SqlValue>,
 ) -> &'static str {
-    if scope != "terminal" {
+    if scope != "project" {
         return "";
     }
-    args.push(terminal_id.to_string().into());
-    " AND terminal_id = ?"
+    args.push(project_name.to_string().into());
+    " AND project_name = ?"
 }
 
 #[derive(Serialize)]
@@ -127,7 +129,7 @@ pub struct AddInput {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryInput {
-    pub scope: String, // "terminal" | "all"
+    pub scope: String, // "project" | "all"
     pub terminal_id: String,
     pub project_name: String,
     pub terminal_label: String,
