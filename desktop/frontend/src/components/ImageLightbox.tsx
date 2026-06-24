@@ -23,7 +23,11 @@ export function ImageLightbox({ path, onClose }: ImageLightboxProps) {
       contentClassName="flex max-h-full max-w-full items-center justify-center"
     >
       {url ? (
-        <img src={url} alt="" className="max-h-[90vh] max-w-[90vw] rounded object-contain" />
+        <img
+          src={url}
+          alt=""
+          className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl ring-1 ring-white/10"
+        />
       ) : (
         <div className="flex h-32 w-48 items-center justify-center rounded-lg bg-[var(--bg-secondary)] px-3 text-center text-sm text-[var(--text-muted)]">
           {failed ? "Preview unavailable" : "Loading…"}

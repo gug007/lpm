@@ -17,7 +17,7 @@ const IMAGE_TOKEN_RE = /\[Image #(\d+)\]/g;
 export const IMAGE_CHIP_CLASS =
   "inline-flex select-none items-center gap-1.5 rounded-lg bg-[#38bdf8]/20 py-0.5 pl-0.5 pr-2 align-middle text-[12px] font-medium leading-4 text-[#38bdf8]";
 export const IMAGE_CHIP_THUMB_CLASS =
-  "relative h-[18px] w-[18px] shrink-0 overflow-hidden rounded-md bg-[var(--bg-secondary)]";
+  "relative h-[18px] w-[18px] shrink-0 overflow-hidden rounded-md bg-[var(--bg-secondary)] ring-1 ring-inset ring-black/15";
 
 // A labeled image token, like the CLIs' inline "[Image #N]" — kept as an "Image
 // N" pill, modernized: a real thumbnail avatar leads (a muted glyph until it
@@ -28,9 +28,10 @@ const CHIP_CLASS = `group ${IMAGE_CHIP_CLASS} cursor-zoom-in transition-colors h
 const THUMB_CLASS = `${IMAGE_CHIP_THUMB_CLASS} cursor-pointer text-[var(--text-secondary)] transition-colors hover:text-[var(--accent-red)]`;
 
 // The image (and the loading glyph) fade out on hover so the "×" shows in their
-// place over the avatar's plain background.
+// place over the avatar's plain background. The overlay stays mounted and
+// cross-fades on opacity so the swap is smooth, in step with the image's fade.
 const REMOVE_OVERLAY_CLASS =
-  "absolute inset-0 hidden items-center justify-center group-hover:flex";
+  "absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100";
 
 const PLACEHOLDER_ICON =
   '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="transition-opacity group-hover:opacity-0"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="1.6"/><path d="m21 15-5-5L7 21"/></svg>';
