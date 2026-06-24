@@ -15,7 +15,7 @@ const IMAGE_TOKEN_RE = /\[Image #(\d+)\]/g;
 // read-only history chip (MessageImageChip) can't drift apart. Each site layers
 // its own interaction classes (group/cursor/hover) on top.
 export const IMAGE_CHIP_CLASS =
-  "inline-flex select-none items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-active)] py-0.5 pl-0.5 pr-2 align-middle text-[12px] leading-4 text-[var(--text-secondary)]";
+  "inline-flex select-none items-center gap-1.5 rounded-lg bg-[var(--accent-blue)]/20 py-0.5 pl-0.5 pr-2 align-middle text-[12px] font-medium leading-4 text-[var(--accent-blue)]";
 export const IMAGE_CHIP_THUMB_CLASS =
   "relative h-[18px] w-[18px] shrink-0 overflow-hidden rounded-md bg-[var(--bg-secondary)]";
 
@@ -23,7 +23,7 @@ export const IMAGE_CHIP_THUMB_CLASS =
 // N" pill, modernized: a real thumbnail avatar leads (a muted glyph until it
 // loads via setChipThumbnail). Hovering the chip swaps the avatar for a remove
 // "×" overlay — click it to drop the image; click the label to open the lightbox.
-const CHIP_CLASS = `group ${IMAGE_CHIP_CLASS} cursor-zoom-in transition-colors hover:border-[var(--text-muted)]`;
+const CHIP_CLASS = `group ${IMAGE_CHIP_CLASS} cursor-zoom-in transition-colors hover:bg-[var(--accent-blue)]/30`;
 
 const THUMB_CLASS = `${IMAGE_CHIP_THUMB_CLASS} cursor-pointer text-[var(--text-secondary)] transition-colors hover:text-[var(--accent-red)]`;
 
