@@ -202,6 +202,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // re-entry so a second Enter on the same tab can't double-deliver it, while
   // still letting a different prepared prompt be sent in the meantime.
   const sending = useRef<Set<string>>(new Set());
+  // The text + image map as they were just before the last AI composer action
+  // rewrote the field, kept so ⌘Z can put them back. `after` is the rebuilt
+  // result captured at apply time; the undo only fires while the field still
+  // equals it (any edit clears this), so once you type past a transform ⌘Z
+  // falls through to native undo.
+  const preTransform = useRef<(ComposerHistoryEntry & { after: string }) | null>(null);
   // Read by the show effect (keyed on `shown`) so it doesn't re-run on focus
   // changes — clicking a pane's terminal must not steal focus into its input.
   const focusedRef = useRef(focused);
@@ -733,6 +739,41 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     placeCaretAtEnd(editor);
   };
 
+  // Restore the snapshot captured just before the last AI composer action, but
+  // only while the field still holds that action's exact result (see the
+  // `preTransform` ref). Returns whether it restored, so a caller can decide
+  // whether to swallow the triggering event.
+  const restorePreTransform = (): boolean => {
+    const editor = editorRef.current;
+    const snap = preTransform.current;
+    if (!editor || !snap || serializeEditor(editor) !== snap.after) return false;
+    preTransform.current = null;
+    applyHistoryEntry(editor, { text: snap.text, images: snap.images });
+    histIdx.current = -1;
+    return true;
+  };
+  // Latest restore fn for the beforeinput listener below, which subscribes once.
+  const restoreRef = useRef(restorePreTransform);
+  restoreRef.current = restorePreTransform;
+
+  // The native Edit-menu Undo (⌘Z) reaches the field as a `historyUndo`
+  // beforeinput, not a keydown — an enabled menu key-equivalent is consumed
+  // before keydown fires, the same reason the menu's cut/copy/paste arrive as
+  // native editing events. Catch it here so a just-run AI action can be undone,
+  // cancelling WebKit's own undo (which never saw the programmatic rebuild and
+  // would otherwise clobber the field). The keydown branch still covers the case
+  // where the native undo stack is empty, so the menu item is disabled and ⌘Z
+  // falls through to the webview.
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const onBeforeInput = (e: InputEvent) => {
+      if (e.inputType === "historyUndo" && restoreRef.current()) e.preventDefault();
+    };
+    editor.addEventListener("beforeinput", onBeforeInput);
+    return () => editor.removeEventListener("beforeinput", onBeforeInput);
+  }, []);
+
   const recall = (delta: 1 | -1): boolean => {
     const editor = editorRef.current;
     const hist = history.current;
@@ -926,6 +967,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       if (activeId.current !== startedId) return;
       applyHistoryEntry(editor, { text, images });
       histIdx.current = -1;
+      preTransform.current = { text: value, images, after: serializeEditor(editor) };
     } catch (err) {
       toast.error(`Action failed: ${err}`);
     } finally {
@@ -1042,6 +1084,14 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         setMentionOpen(false);
         return;
       }
+    }
+    // ⌘Z restores the pre-action snapshot when the native undo stack is empty —
+    // the Edit-menu Undo is then disabled, so the key reaches the webview rather
+    // than the beforeinput listener above. See restorePreTransform.
+    if (e.metaKey && !e.shiftKey && !e.altKey && !e.ctrlKey && e.key.toLowerCase() === "z" && restorePreTransform()) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
     }
     // ⌘⇧T / ⌘⇧W act on the composer's own tabs while the input is focused. addTab
     // already creates and jumps to the new tab; closeTab no-ops on the last tab
@@ -1263,6 +1313,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           autoCapitalize="off"
           onInput={() => {
             histIdx.current = -1;
+            preTransform.current = null;
             const editor = editorRef.current;
             if (editor) normalizeComposer(editor);
             syncState();
