@@ -42,6 +42,7 @@ import { loadImageDataUrl } from "./imageDataUrl";
 import { TerminalHistoryButton } from "./TerminalHistoryButton";
 import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
 import {
+  caretCharOffset,
   caretEdges,
   chipAfterCaret,
   chipBeforeCaret,
@@ -51,6 +52,7 @@ import {
   isEditorEmpty,
   lineBeforeCaret,
   normalizeComposer,
+  placeCaretAtCharOffset,
   placeCaretAtEnd,
   placeCaretFromPoint,
   presentImageTokens,
@@ -107,6 +109,15 @@ interface TerminalComposerProps {
 }
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif|svg)$/i;
+
+const UNDO_COALESCE_MS = 350;
+const UNDO_LIMIT = 200;
+
+interface UndoSnapshot {
+  text: string;
+  images: Record<string, string>;
+  caret: number | null;
+}
 
 // The caret's line must be only "/<frag>" (after optional indentation) to open
 // the slash menu; ":" is allowed for namespaced names like "prompts:draftpr".
@@ -202,12 +213,14 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // re-entry so a second Enter on the same tab can't double-deliver it, while
   // still letting a different prepared prompt be sent in the meantime.
   const sending = useRef<Set<string>>(new Set());
-  // The text + image map as they were just before the last AI composer action
-  // rewrote the field, kept so ⌘Z can put them back. `after` is the rebuilt
-  // result captured at apply time; the undo only fires while the field still
-  // equals it (any edit clears this), so once you type past a transform ⌘Z
-  // falls through to native undo.
-  const preTransform = useRef<(ComposerHistoryEntry & { after: string }) | null>(null);
+  // Native undo is unreliable here — every keystroke also runs normalizeComposer/
+  // highlightCommand, mutating the DOM outside WebKit's undo stack — so undo runs
+  // on these snapshot stacks instead. undoBase is the state the live edits diverge
+  // from; the stacks hold the committed steps on either side of it.
+  const undoStack = useRef<UndoSnapshot[]>([]);
+  const redoStack = useRef<UndoSnapshot[]>([]);
+  const undoBase = useRef<UndoSnapshot | null>(null);
+  const commitTimer = useRef<number | null>(null);
   // Read by the show effect (keyed on `shown`) so it doesn't re-run on focus
   // changes — clicking a pane's terminal must not steal focus into its input.
   const focusedRef = useRef(focused);
@@ -652,6 +665,11 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       }
     }
     syncState();
+    // Only a send that cleared the active tab in place resets undo here; a tab
+    // switch (autoclose, or a background send finishing while the user edits
+    // another tab) is covered by the activeTabId effect and must not wipe the
+    // undo history of the tab being edited now.
+    if (sentId === activeId.current) resetUndo();
     editor.focus();
   };
 
@@ -739,40 +757,157 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     placeCaretAtEnd(editor);
   };
 
-  // Restore the snapshot captured just before the last AI composer action, but
-  // only while the field still holds that action's exact result (see the
-  // `preTransform` ref). Returns whether it restored, so a caller can decide
-  // whether to swallow the triggering event.
-  const restorePreTransform = (): boolean => {
+  const undoSnapshot = (): UndoSnapshot | null => {
     const editor = editorRef.current;
-    const snap = preTransform.current;
-    if (!editor || !snap || serializeEditor(editor) !== snap.after) return false;
-    preTransform.current = null;
+    if (!editor) return null;
+    return {
+      text: serializeEditor(editor),
+      images: Object.fromEntries(imagePaths.current),
+      caret: caretCharOffset(editor),
+    };
+  };
+
+  const sameUndoState = (a: UndoSnapshot, b: UndoSnapshot): boolean => {
+    if (a.text !== b.text) return false;
+    const keys = Object.keys(a.images);
+    return keys.length === Object.keys(b.images).length && keys.every((k) => a.images[k] === b.images[k]);
+  };
+
+  const resetUndo = () => {
+    if (commitTimer.current !== null) {
+      clearTimeout(commitTimer.current);
+      commitTimer.current = null;
+    }
+    undoStack.current = [];
+    redoStack.current = [];
+    undoBase.current = undoSnapshot();
+  };
+
+  const commitUndo = () => {
+    if (commitTimer.current !== null) {
+      clearTimeout(commitTimer.current);
+      commitTimer.current = null;
+    }
+    const live = undoSnapshot();
+    if (!live) return;
+    const base = undoBase.current;
+    if (base) {
+      if (sameUndoState(live, base)) return;
+      undoStack.current.push(base);
+      if (undoStack.current.length > UNDO_LIMIT) undoStack.current.shift();
+    }
+    undoBase.current = live;
+    redoStack.current = [];
+  };
+
+  const scheduleCommit = () => {
+    if (commitTimer.current !== null) clearTimeout(commitTimer.current);
+    commitTimer.current = window.setTimeout(() => {
+      commitTimer.current = null;
+      commitUndo();
+    }, UNDO_COALESCE_MS);
+  };
+
+  // Closing a step at each word boundary (a typed space or line break) is what
+  // makes ⌘Z walk back word by word rather than clearing a whole burst at once.
+  const noteEditForUndo = (input: InputEvent) => {
+    if (input.isComposing) return; // a settled IME word is captured on the next edit / undo flush
+    const type = input.inputType || "";
+    const wordBoundary =
+      type === "insertLineBreak" ||
+      type === "insertParagraph" ||
+      (type === "insertText" && input.data !== null && /\s/.test(input.data));
+    if (wordBoundary) commitUndo();
+    else scheduleCommit();
+  };
+
+  const applyUndoSnapshot = (snap: UndoSnapshot) => {
+    const editor = editorRef.current;
+    if (!editor) return;
     applyHistoryEntry(editor, { text: snap.text, images: snap.images });
+    if (snap.caret !== null) {
+      placeCaretAtCharOffset(editor, snap.caret);
+      // The offset counts a chip's label, so it can land the caret inside the
+      // non-editable chip; step it out to the chip's trailing edge.
+      const sel = window.getSelection();
+      const node = sel?.anchorNode ?? null;
+      const host = node?.nodeType === Node.TEXT_NODE ? node.parentElement : (node as Element | null);
+      const chip = host?.closest<HTMLElement>("[data-img]");
+      if (sel && chip) {
+        const range = document.createRange();
+        range.setStartAfter(chip);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    }
+    highlightCommand(editor, isSlashCommand);
+    setSlashOpen(false);
+    setMentionOpen(false);
+    setHint(null);
     histIdx.current = -1;
+  };
+
+  const undo = (): boolean => {
+    commitUndo(); // finalize any pending burst so it stays redoable
+    if (undoStack.current.length === 0) return false;
+    if (undoBase.current) redoStack.current.push(undoBase.current);
+    const prev = undoStack.current.pop()!;
+    undoBase.current = prev;
+    applyUndoSnapshot(prev);
     return true;
   };
-  // Latest restore fn for the beforeinput listener below, which subscribes once.
-  const restoreRef = useRef(restorePreTransform);
-  restoreRef.current = restorePreTransform;
 
-  // The native Edit-menu Undo (⌘Z) reaches the field as a `historyUndo`
-  // beforeinput, not a keydown — an enabled menu key-equivalent is consumed
-  // before keydown fires, the same reason the menu's cut/copy/paste arrive as
-  // native editing events. Catch it here so a just-run AI action can be undone,
-  // cancelling WebKit's own undo (which never saw the programmatic rebuild and
-  // would otherwise clobber the field). The keydown branch still covers the case
-  // where the native undo stack is empty, so the menu item is disabled and ⌘Z
-  // falls through to the webview.
+  const redo = (): boolean => {
+    commitUndo(); // a pending edit branches history: keep the typed text, abandon redo
+    if (redoStack.current.length === 0) return false;
+    if (undoBase.current) undoStack.current.push(undoBase.current);
+    const next = redoStack.current.pop()!;
+    undoBase.current = next;
+    applyUndoSnapshot(next);
+    return true;
+  };
+
+  // Latest undo/redo for the beforeinput listener below, which subscribes once.
+  const historyRef = useRef({ undo, redo });
+  historyRef.current = { undo, redo };
+
+  // ⌘Z / ⌘⇧Z reach the field as `historyUndo` / `historyRedo` beforeinput events,
+  // not keydown — an enabled Edit-menu key-equivalent is consumed before keydown
+  // fires (the same reason the menu's cut/copy/paste arrive as native editing
+  // events). Drive our own stacks and cancel WebKit's native undo, which never
+  // saw the programmatic mutations and would corrupt the field. The keydown
+  // branch covers the case where the native stack is empty, so the menu item is
+  // disabled and the key falls through to the webview.
   useEffect(() => {
     const editor = editorRef.current;
     if (!editor) return;
     const onBeforeInput = (e: InputEvent) => {
-      if (e.inputType === "historyUndo" && restoreRef.current()) e.preventDefault();
+      if (e.inputType === "historyUndo") {
+        e.preventDefault();
+        historyRef.current.undo();
+      } else if (e.inputType === "historyRedo") {
+        e.preventDefault();
+        historyRef.current.redo();
+      }
     };
     editor.addEventListener("beforeinput", onBeforeInput);
     return () => editor.removeEventListener("beforeinput", onBeforeInput);
   }, []);
+
+  // Reset on tab switch (and the mount that seeds the first tab). resetUndo is
+  // intentionally not a dep — it changes every render and would wipe history.
+  useEffect(() => {
+    resetUndo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTabId]);
+
+  useEffect(
+    () => () => {
+      if (commitTimer.current !== null) clearTimeout(commitTimer.current);
+    },
+    [],
+  );
 
   const recall = (delta: 1 | -1): boolean => {
     const editor = editorRef.current;
@@ -788,6 +923,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     } else {
       applyHistoryEntry(editor, hist[next]);
     }
+    resetUndo();
     histIdx.current = next;
     return true;
   };
@@ -797,6 +933,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     const editor = editorRef.current;
     if (!editor || transforming.current) return;
     applyHistoryEntry(editor, { text, images });
+    resetUndo();
     histIdx.current = -1;
     editor.focus();
   };
@@ -965,9 +1102,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         return;
       }
       if (activeId.current !== startedId) return;
+      commitUndo(); // finalize the pre-action text as its own undo step…
       applyHistoryEntry(editor, { text, images });
       histIdx.current = -1;
-      preTransform.current = { text: value, images, after: serializeEditor(editor) };
+      commitUndo(); // …and the rewrite as the next, so ⌘Z reverts it
     } catch (err) {
       toast.error(`Action failed: ${err}`);
     } finally {
@@ -1085,12 +1223,15 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         return;
       }
     }
-    // ⌘Z restores the pre-action snapshot when the native undo stack is empty —
-    // the Edit-menu Undo is then disabled, so the key reaches the webview rather
-    // than the beforeinput listener above. See restorePreTransform.
-    if (e.metaKey && !e.shiftKey && !e.altKey && !e.ctrlKey && e.key.toLowerCase() === "z" && restorePreTransform()) {
+    // Handles ⌘Z/⌘⇧Z only when it reaches keydown (native stack empty, so the
+    // Edit-menu item is disabled); the enabled-menu case goes through the
+    // beforeinput listener above. We always own ⌘Z — native undo corrupts this
+    // field — so it never falls through.
+    if (e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === "z") {
       e.preventDefault();
       e.stopPropagation();
+      if (e.shiftKey) redo();
+      else undo();
       return;
     }
     // ⌘⇧T / ⌘⇧W act on the composer's own tabs while the input is focused. addTab
@@ -1311,11 +1452,11 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           spellCheck={false}
           autoCorrect="off"
           autoCapitalize="off"
-          onInput={() => {
+          onInput={(e) => {
             histIdx.current = -1;
-            preTransform.current = null;
             const editor = editorRef.current;
             if (editor) normalizeComposer(editor);
+            noteEditForUndo(e.nativeEvent as InputEvent);
             syncState();
             if (editor) highlightCommand(editor, isSlashCommand);
             updateSlashMenu();

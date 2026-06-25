@@ -634,12 +634,12 @@ function leadingPlainText(root: HTMLElement): string {
 
 // Caret position as a count of visible characters from the field start, stable
 // across the unwrap/rewrap below since that only re-nests text, never edits it.
-function caretCharOffset(root: HTMLElement): number | null {
+export function caretCharOffset(root: HTMLElement): number | null {
   const text = caretPrefixText(root);
   return text === null ? null : text.length;
 }
 
-function placeCaretAtCharOffset(root: HTMLElement, offset: number): void {
+export function placeCaretAtCharOffset(root: HTMLElement, offset: number): void {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let acc = 0;
   for (let n = walker.nextNode(); n; n = walker.nextNode()) {
