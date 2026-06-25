@@ -231,7 +231,37 @@ actions:
         confirm: true
 ```
 
-Sub-actions inherit `cwd` and `env` from the parent; child values win on conflict.
+**Nested trees (drill menus)** — a sub-action can itself have `actions`, to **any depth**. Each level renders as a drill menu — the same push/pop + breadcrumb navigation as the git Pull/Push/Fetch buttons: clicking a row that has its own `actions` drills into it, and a back arrow / breadcrumb walks back out.
+
+```yaml
+actions:
+  build:
+    cmd: yarn build            # cmd + children → split: the label runs, the chevron drills in
+    label: 🛠️ Build
+    type: terminal
+    reuse: true
+    actions:
+      ios:
+        cmd: yarn build:ios    # also has children → a split row inside the menu
+        label: 📱 iOS
+        actions:
+          clean:   { cmd: yarn build:ios --clean,   label: 🧹 Clean }
+          release: { cmd: yarn build:ios --release, label: 🚀 Release }
+      android: { cmd: yarn build:android, label: 🤖 Android }   # leaf → runs on click
+      tools:                   # children, no cmd → the whole row opens its submenu
+        label: 🧰 Tools
+        actions:
+          doctor: { cmd: npx expo-doctor,  label: 🩺 Doctor }
+          cache:  { cmd: yarn cache clean, label: 🗑️ Cache }
+```
+
+**The default-on-the-button rule applies at every level:**
+
+- `cmd` **and** `actions` → **split** button/row: the label runs the `cmd`, the chevron drills into the submenu.
+- `actions` but **no** `cmd` → the whole row opens the submenu (there is no default to run).
+- `cmd`, **no** `actions` → a **leaf** that runs on click.
+
+Sub-actions inherit `cwd`, `env`, and `mode` from their parent, and inheritance **chains down the full path** (a grandchild picks up values from any ancestor that set them). Child values win on conflict. Use `position` to order siblings within each level. In the app the whole tree is editable by drag-and-drop — reorder, nest one item into another, or move an item out a level — and lpm rewrites this `actions:` structure for you.
 
 ### Fields
 
@@ -250,7 +280,7 @@ Sub-actions inherit `cwd` and `env` from the parent; child values win on conflic
 | `portConflict` | string | no | `ask` | What to do when a declared port is busy: `ask` (prompt before freeing), `free` (free automatically), `fail` (refuse to run). |
 | `position` | number | no | — | Sort key in the UI. Lower renders first. Floats allowed for easy insertion between existing entries. Default is alphabetical order. |
 | `inputs` | map[string]InputField | no | — | Named inputs prompted before running. Values substitute `{{key}}` in `cmd`. |
-| `actions` | map[string]Action | no | — | Nested sub-actions. Makes this an action group. See [Action Groups](#action-groups-nested-actions). Children inherit `cwd`, `env`, and `mode` from the parent. |
+| `actions` | map[string]Action | no | — | Nested sub-actions — **nests to any depth** (deep trees render as drill menus). Makes this an action group. See [Action Groups](#action-groups-nested-actions). Children inherit `cwd`, `env`, and `mode` from the parent, chained down the full path. |
 
 ### `display` Values
 
