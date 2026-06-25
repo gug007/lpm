@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { Copy, File, Folder, FolderGit2, type LucideIcon } from "lucide-react";
+import { Copy, File, FileDiff, Folder, FolderGit2, GitBranch, ScrollText, SquareTerminal, type LucideIcon } from "lucide-react";
 import type { MentionItem, MentionKind } from "../mentions";
 
 const GAP = 6;
@@ -13,6 +13,10 @@ const KIND_LABEL: Record<MentionKind, string> = {
   dir: "folder",
   project: "project",
   duplicate: "duplicate",
+  changed: "changed",
+  branch: "branch",
+  "service-log": "logs",
+  "terminal-log": "logs",
 };
 
 const KIND_ICON: Record<MentionKind, LucideIcon> = {
@@ -20,6 +24,10 @@ const KIND_ICON: Record<MentionKind, LucideIcon> = {
   dir: Folder,
   project: FolderGit2,
   duplicate: Copy,
+  changed: FileDiff,
+  branch: GitBranch,
+  "service-log": ScrollText,
+  "terminal-log": SquareTerminal,
 };
 
 interface MentionMenuProps {

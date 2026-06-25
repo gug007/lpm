@@ -30,9 +30,10 @@ import {
   type HistoryScope,
 } from "../store/messageHistory";
 import { relativeTime } from "../relativeTime";
-import { splitByImageTokens } from "./composerEditor";
+import { isImagePath, splitByImageTokens } from "./composerEditor";
 import { FolderIcon, PlusIcon, SearchIcon, StarIcon, TrashIcon, XIcon } from "./icons";
 import { MessageFolderMenu } from "./MessageFolderMenu";
+import { MessageFileChip } from "./MessageFileChip";
 import { MessageImageChip } from "./MessageImageChip";
 import { NewFolderInput } from "./NewFolderInput";
 
@@ -392,19 +393,22 @@ function ScopeTab({
   );
 }
 
-// Renders real "[Image #N]" tokens (those with a mapped path) as compact image
-// chips matching the composer; a token the user typed literally (no mapped path)
+// Renders real "[Image #N]" tokens (those with a mapped path) as compact chips
+// matching the composer — an image avatar for an image, a file glyph + basename
+// for any other attachment; a token the user typed literally (no mapped path)
 // stays text, mirroring how loadFromHistory rebuilds the field.
 function MessageText({ text, images }: { text: string; images: Record<string, string> }) {
   return (
     <>
-      {splitByImageTokens(text).map((seg, i) =>
-        seg.image !== null && images[seg.image] ? (
-          <MessageImageChip key={i} index={seg.image} path={images[seg.image]} />
+      {splitByImageTokens(text).map((seg, i) => {
+        if (seg.image === null || !images[seg.image]) return <span key={i}>{seg.text}</span>;
+        const path = images[seg.image];
+        return isImagePath(path) ? (
+          <MessageImageChip key={i} index={seg.image} path={path} />
         ) : (
-          <span key={i}>{seg.text}</span>
-        ),
-      )}
+          <MessageFileChip key={i} path={path} />
+        );
+      })}
     </>
   );
 }

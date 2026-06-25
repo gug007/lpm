@@ -83,6 +83,9 @@ export interface PaneViewProps {
   waitingPaneIDs?: Set<string>;
   errorPaneIDs?: Set<string>;
   services?: ServiceTabInfo[];
+  // Every terminal tab in the whole project ({id,label}), forwarded to the
+  // composer's "@" mention so it can reference any terminal's logs.
+  allTerminals: { id: string; label: string }[];
   // Absolute working directory used to resolve relative paths printed in
   // interactive shells (typically the project root).
   interactiveCwd: string;
@@ -139,6 +142,7 @@ function PaneViewImpl(props: PaneViewProps) {
     waitingPaneIDs,
     errorPaneIDs,
     services = [],
+    allTerminals,
     interactiveCwd,
     onFocusPane,
     onFocusTab,
@@ -496,6 +500,7 @@ function PaneViewImpl(props: PaneViewProps) {
           shown={visible}
           focused={focused}
           targetLabel={composerTab.label}
+          terminals={allTerminals}
           cwd={interactiveCwd}
           launchCmd={composerTab.startCmd ?? composerTab.resumeCmd}
           fontSize={fontSize}

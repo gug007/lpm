@@ -182,6 +182,25 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     interactiveKeysRef.current = next;
   }, [tree]);
 
+  // Project-wide terminal list ({id,label}) for the composer's "@" mention. The
+  // tree gets a fresh reference every drag frame, which would churn each
+  // composer's mention memos, so reuse the prior array while the id/label set is
+  // unchanged. Browser tabs have no xterm session, so they're left out.
+  const allTerminalsRef = useRef<{ id: string; label: string }[]>([]);
+  const allTerminals = useMemo(() => {
+    const next = tree
+      ? collectTerminals(tree)
+          .filter((t) => t.kind !== "browser")
+          .map((t) => ({ id: t.id, label: t.label }))
+      : [];
+    const prev = allTerminalsRef.current;
+    if (prev.length === next.length && prev.every((p, i) => p.id === next[i].id && p.label === next[i].label)) {
+      return prev;
+    }
+    allTerminalsRef.current = next;
+    return next;
+  }, [tree]);
+
   useEffect(() => {
     return () => {
       for (const id of interactiveKeysRef.current) {
@@ -477,6 +496,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             composerOpen={composerOpen}
             themeOverride={xtermTheme}
             services={serviceTabInfos}
+            allTerminals={allTerminals}
             interactiveCwd={projectRoot}
             runningPaneIDs={runningPaneIDs}
             donePaneIDs={donePaneIDs}

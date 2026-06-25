@@ -3,6 +3,7 @@
 // removed as a whole — never split mid-text — and serialized back to the
 // `[Image #N]` placeholders the rest of the app expects.
 
+import { basename } from "../path";
 import { ansiColors } from "./terminal-utils";
 
 // The same blue the terminal renders a recognized slash command in (xterm's
@@ -18,6 +19,11 @@ export const IMAGE_CHIP_CLASS =
   "inline-flex select-none items-center gap-1.5 rounded-lg bg-[#38bdf8]/20 py-0.5 pl-0.5 pr-2 align-middle text-[12px] font-medium leading-4 text-[#38bdf8]";
 export const IMAGE_CHIP_THUMB_CLASS =
   "relative h-[18px] w-[18px] shrink-0 overflow-hidden rounded-md bg-[var(--bg-secondary)] ring-1 ring-inset ring-black/15";
+// A file chip's label is the dropped file's basename, which can run long; cap its
+// width and ellipsize so one long name never stretches the pill across the
+// composer. Shared with the read-only history mirror (MessageFileChip) so the
+// editable and rendered chips truncate identically.
+export const FILE_CHIP_LABEL_CLASS = "max-w-[160px] truncate";
 
 // A labeled image token, like the CLIs' inline "[Image #N]" — kept as an "Image
 // N" pill, modernized: a real thumbnail avatar leads (a muted glyph until it
@@ -35,6 +41,31 @@ const REMOVE_OVERLAY_CLASS =
 
 const PLACEHOLDER_ICON =
   '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="transition-opacity group-hover:opacity-0"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="1.6"/><path d="m21 15-5-5L7 21"/></svg>';
+// Resting avatar glyphs for a non-image attachment chip, by file category. Same
+// stroke style and hover-fade as PLACEHOLDER_ICON so the "×" overlay reads over them.
+const DOC_ICON =
+  '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="transition-opacity group-hover:opacity-0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
+const VIDEO_ICON =
+  '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="transition-opacity group-hover:opacity-0"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>';
+const AUDIO_ICON =
+  '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="transition-opacity group-hover:opacity-0"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
+const VIDEO_EXT_RE = /\.(mp4|mov|webm|mkv|avi|m4v|flv|wmv|mpe?g)$/i;
+const AUDIO_EXT_RE = /\.(mp3|wav|m4a|aac|flac|ogg|oga|opus|aiff?)$/i;
+// A path the composer renders as an image chip (thumbnail + lightbox); every
+// other dropped/pasted file becomes a named file chip. Shared by the editor, the
+// drop/paste handlers, and the read-only history chips so they stay in agreement.
+const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif|svg)$/i;
+
+export function isImagePath(path: string): boolean {
+  return IMAGE_EXT_RE.test(path);
+}
+
+function fileIconSvg(path: string): string {
+  if (VIDEO_EXT_RE.test(path)) return VIDEO_ICON;
+  if (AUDIO_EXT_RE.test(path)) return AUDIO_ICON;
+  return DOC_ICON;
+}
+
 const REMOVE_ICON =
   '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
 
@@ -48,8 +79,33 @@ export function createImageChip(n: number): HTMLSpanElement {
     `<span data-img-ph class="absolute inset-0 flex items-center justify-center text-[var(--text-muted)]">${PLACEHOLDER_ICON}</span>` +
     `<span class="${REMOVE_OVERLAY_CLASS}">${REMOVE_ICON}</span>` +
     `</span>` +
-    `<span>Image ${n}</span>`;
+    `<span data-img-label>Image ${n}</span>`;
   return chip;
+}
+
+// Re-skin an image chip (createImageChip) as a generic file attachment: a
+// file-type glyph and the file's basename replace the thumbnail avatar and the
+// "Image N" label. The `[Image #N]` token, the path map, and the remove/cut
+// behavior are shared with image chips — only the resting look differs, so a
+// dropped .txt/.mp4 still resolves to its path on send. Idempotent.
+export function renderFileChip(chip: HTMLElement, path: string): void {
+  if (chip.dataset.file === "1") return;
+  chip.dataset.file = "1";
+  chip.classList.remove("cursor-zoom-in");
+  chip.classList.add("cursor-default");
+  const label = chip.querySelector<HTMLElement>("[data-img-label]");
+  if (label) {
+    label.textContent = basename(path);
+    label.title = path;
+    label.classList.add(...FILE_CHIP_LABEL_CLASS.split(" "));
+  }
+  const ph = chip.querySelector<HTMLElement>("[data-img-ph]");
+  if (ph) ph.innerHTML = fileIconSvg(path);
+  const remove = chip.querySelector<HTMLElement>("[data-img-remove]");
+  if (remove) {
+    remove.setAttribute("aria-label", "Remove file");
+    remove.setAttribute("title", "Remove file");
+  }
 }
 
 // Fill a chip's thumbnail avatar with its loaded image, dropping the placeholder
@@ -154,10 +210,11 @@ export function normalizeStrayChars(root: HTMLElement): boolean {
 
   for (const node of nodes) {
     const val = node.nodeValue ?? "";
-    // Keep the caret anchor parked after a trailing chip (a lone ZWSP as the
-    // last node): stripping it would re-expose the WebKit caret-paint bug and
-    // leave an empty residue node behind. serializeEditor strips it anyway.
-    if (node === root.lastChild && val === ZWSP && isChip(node.previousSibling)) continue;
+    // Keep the caret anchor parked after a chip that ends its line block (a lone
+    // ZWSP as the block's last node): stripping it would re-expose the WebKit
+    // caret-paint bug and leave an empty residue node behind. serializeEditor
+    // strips it anyway.
+    if (val === ZWSP && node === node.parentNode?.lastChild && isChip(node.previousSibling)) continue;
     const cleaned = val.replace(STRAY_CHARS_RE, "");
     if (cleaned === val) continue;
     if (node === anchorNode) {
@@ -262,38 +319,60 @@ export function presentImageTokens(root: HTMLElement): Set<number> {
   return present;
 }
 
-// WebKit mispaints a caret placed immediately after a trailing
-// contenteditable=false chip (it parks it at the field start, before the image).
+// WebKit mispaints a caret placed immediately after a contenteditable=false chip
+// that ends its line block (it strands it at the line start, before the image).
 // Parking the caret inside a zero-width-space text node after the chip gives it a
 // real inline text position WebKit paints correctly. serializeEditor strips the
 // ZWSP and chip lookups treat it as residue, so it never affects value or
-// Backspace. Returns the anchor node, or null when the last node isn't a chip.
-function ensureTrailingCaretAnchor(root: HTMLElement): Text | null {
+// Backspace. `block` is the field itself for a first-line chip, or the wrapped
+// <div> for a later line. Returns the anchor node, or null when the block's last
+// node isn't a chip.
+function ensureTrailingCaretAnchor(block: HTMLElement): Text | null {
   // Deleting the last text in front of a trailing chip can leave WebKit's bogus
   // filler <br> after it ([chip]<br>); drop it so the chip is the real last node.
-  const tail = root.lastChild;
+  const tail = block.lastChild;
   if (isFillerBr(tail) && isChip(tail.previousSibling)) {
     tail.remove();
   }
-  const last = root.lastChild;
+  const last = block.lastChild;
   if (isStrayOnlyText(last) && isChip(last.previousSibling)) {
     last.nodeValue = ZWSP;
     return last;
   }
-  if (!isChip(root.lastChild)) return null;
+  if (!isChip(block.lastChild)) return null;
   const anchor = document.createTextNode(ZWSP);
-  root.appendChild(anchor);
+  block.appendChild(anchor);
   return anchor;
 }
 
-// Whether `node` is the last meaningful child — only stray/anchor residue (if
-// anything) follows it.
-function isTrailing(root: HTMLElement, node: Node): boolean {
-  if (!root.contains(node)) return false;
+// Whether the chip ends its own line — only a WebKit filler <br> or stray/anchor
+// residue follows it within its block. This is the caret-after-chip position
+// WebKit mispaints (stranding the caret at the line start, before the image), so
+// it needs the ZWSP anchor (placeCaretAfterChip).
+function isLineEndChip(node: Node): boolean {
   for (let n = node.nextSibling; n; n = n.nextSibling) {
-    if (!isStrayOnlyText(n)) return false;
+    if (!isStrayOnlyText(n) && !isFillerBr(n)) return false;
   }
   return true;
+}
+
+// Seat the caret immediately after a chip, within the chip's own line block (the
+// whole field for a first-line chip, or the wrapped <div> WebKit creates for a
+// later line). A chip that ends its line triggers WebKit's caret mispaint, so
+// park a ZWSP after it (ensureTrailingCaretAnchor) and seat the caret in that
+// anchor — a real text position WebKit paints correctly. Falls back to
+// setStartAfter if the chip somehow isn't its block's last node.
+function placeCaretAfterChip(root: HTMLElement, chip: HTMLElement): void {
+  const block = chip.parentElement && chip.parentElement !== root ? chip.parentElement : root;
+  const anchor = ensureTrailingCaretAnchor(block);
+  const sel = window.getSelection();
+  if (!sel) return;
+  const range = document.createRange();
+  if (anchor) range.setStart(anchor, anchor.nodeValue?.length ?? 0);
+  else range.setStartAfter(chip);
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
 }
 
 // Insert chips and/or text at the caret (falling back to the end of the field
@@ -342,10 +421,12 @@ export function insertItemsAtCaret(root: HTMLElement, items: Array<HTMLElement |
       // Focus first: after an unfocused OS drop WebKit ignores a programmatic
       // selection until the field is focused.
       root.focus();
-      // A trailing chip needs the ZWSP anchor (placeCaretAtEnd) so the caret
-      // paints after the image; otherwise drop it right after the inserted run.
-      if (isChip(tail) && isTrailing(root, tail)) {
-        placeCaretAtEnd(root);
+      // A chip that ends its line needs the ZWSP anchor so the caret paints
+      // after the image instead of stranding at the line start (the bug when an
+      // image is dropped onto its own line); other runs take the caret right
+      // after the inserted content.
+      if (isChip(tail) && isLineEndChip(tail)) {
+        placeCaretAfterChip(root, tail);
         return;
       }
       const after = document.createRange();
@@ -593,6 +674,15 @@ export function replaceSlashFragment(root: HTMLElement, name: string): boolean {
 // from the last "@" to the caret) and <value> may hold path separators. Returns
 // false when no "@" fragment is found.
 export function replaceMentionFragment(root: HTMLElement, value: string): boolean {
+  return replaceMentionFragmentWith(root, `@${value} `);
+}
+
+// Replace the "@<frag>" preceding the caret with arbitrary `text` (no leading
+// "@"), used when a mention expands to injected content — e.g. a service's
+// captured logs — instead of a literal token the agent resolves. `text` may hold
+// newlines; execCommand inserts them as the same break structure ordinary typing
+// would, so serializeEditor round-trips it. Returns false when no "@" is found.
+export function replaceMentionFragmentWith(root: HTMLElement, text: string): boolean {
   const line = lineBeforeCaret(root);
   if (line === null) return false;
   const at = line.lastIndexOf("@");
@@ -601,7 +691,7 @@ export function replaceMentionFragment(root: HTMLElement, value: string): boolea
   if (!sel || !sel.isCollapsed) return false;
   const fragLen = line.length - at; // "@" plus the typed fragment
   for (let i = 0; i < fragLen; i++) sel.modify("extend", "backward", "character");
-  document.execCommand("insertText", false, `@${value} `);
+  document.execCommand("insertText", false, text);
   return true;
 }
 

@@ -11,6 +11,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import {
+  GetServiceLogs,
   ReadClipboardFiles,
   SaveClipboardImage,
   TransformText,
@@ -41,6 +42,7 @@ import { ImageLightbox } from "./ImageLightbox";
 import { loadImageDataUrl } from "./imageDataUrl";
 import { TerminalHistoryButton } from "./TerminalHistoryButton";
 import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
+import { basename } from "../path";
 import {
   caretCharOffset,
   caretEdges,
@@ -50,6 +52,7 @@ import {
   highlightCommand,
   insertItemsAtCaret,
   isEditorEmpty,
+  isImagePath,
   lineBeforeCaret,
   normalizeComposer,
   placeCaretAtCharOffset,
@@ -57,7 +60,9 @@ import {
   placeCaretFromPoint,
   presentImageTokens,
   removeChip,
+  renderFileChip,
   replaceMentionFragment,
+  replaceMentionFragmentWith,
   replaceSlashFragment,
   restoreTrailingChipCaret,
   selectChip,
@@ -71,6 +76,7 @@ import { SlashCommandMenu } from "./SlashCommandMenu";
 import { useSlashCommands } from "../hooks/useSlashCommands";
 import { detectAICLI, type SlashCommand } from "../slashCommands";
 import { MentionMenu } from "./MentionMenu";
+import { captureInteractivePaneLog } from "./InteractivePane";
 import { useMentions } from "../hooks/useMentions";
 import { MENTION_TRIGGER, type MentionItem } from "../mentions";
 
@@ -93,6 +99,9 @@ interface TerminalComposerProps {
   focused: boolean;
   // Label of the terminal that will receive the input.
   targetLabel: string;
+  // Every terminal tab in the project ({id,label}), so the "@" menu can offer
+  // any one's logs — not just this composer's own terminal.
+  terminals: { id: string; label: string }[];
   // Working directory the AI CLI runs in when applying a composer action.
   cwd: string;
   // The target terminal's launch command, if any. Its leading binary tells us
@@ -108,7 +117,10 @@ interface TerminalComposerProps {
   onFocusTerminal: () => void;
 }
 
-const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif|svg)$/i;
+// How many trailing lines of a service's pane to pull into the draft when its
+// "@" mention is picked — enough to carry a stack trace, capped so a chatty
+// service can't bury the prompt (or the agent's context).
+const MENTION_LOG_LINES = 200;
 
 const UNDO_COALESCE_MS = 350;
 const UNDO_LIMIT = 200;
@@ -128,9 +140,11 @@ const SLASH_TRIGGER = /^\s*\/([a-z0-9:_-]*)$/i;
 // or any typed argument ends this state and hides the hint.
 const HINT_TRIGGER = /^\s*\/([a-z0-9:_-]+) $/i;
 
-// A short, single-line label for a prompt tab: its text with image tokens
-// dropped, collapsed whitespace. Empty when the draft holds nothing visible.
-function previewLabel(text: string): string {
+// A short, single-line label for a prompt tab: its text with attachment tokens
+// dropped, collapsed whitespace. With no text, name the draft by its attachment —
+// a file's basename, or "Image" for an image (the token alone can't tell them
+// apart, so the path map decides). Empty when the draft holds nothing visible.
+function previewLabel(text: string, attachments: Map<number, string>): string {
   const segments = splitByImageTokens(text);
   const textOnly = segments
     .filter((s) => s.image === null)
@@ -139,6 +153,11 @@ function previewLabel(text: string): string {
     .replace(/\s+/g, " ")
     .trim();
   if (textOnly) return textOnly;
+  for (const s of segments) {
+    if (s.image === null) continue;
+    const path = attachments.get(s.image);
+    if (path && !isImagePath(path)) return basename(path);
+  }
   return segments.some((s) => s.image !== null) ? "Image" : "";
 }
 
@@ -147,7 +166,7 @@ function sameTabView(a: ComposerTabView[], b: ComposerTabView[]): boolean {
   return a.every((t, i) => t.id === b[i].id && t.label === b[i].label);
 }
 
-export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, cwd, launchCmd, fontSize, onSubmit, onFocusTerminal }: TerminalComposerProps) {
+export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, fontSize, onSubmit, onFocusTerminal }: TerminalComposerProps) {
   // `blank` drives the placeholder (no content at all); `disabled` drives the
   // send button (nothing but whitespace).
   const [blank, setBlank] = useState(true);
@@ -186,9 +205,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // agent); plain shells get no menu. Commands load lazily on focus.
   const slashCli = detectAICLI(launchCmd);
   const { filter: filterSlash, isCommand: isSlashCommand, argumentHintFor } = useSlashCommands(slashCli, cwd, focused);
-  // Mentions share the slash menu's gating — only an agent terminal (slashCli)
-  // that's focused loads them, so a plain shell never pays for a tree walk.
-  const { filter: filterMentions } = useMentions(cwd, focused && slashCli !== null);
+  // "@" mentions work in every terminal composer, not just agent terminals — the
+  // referenced text is useful to any CLI. They load only while the composer is
+  // focused, so a background tab still pays nothing for the tree walk / git call.
+  const { filter: filterMentions } = useMentions(cwd, projectName, terminals, terminalId, focused);
   const editorRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hoverChip = useRef<HTMLElement | null>(null);
@@ -226,16 +246,24 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const focusedRef = useRef(focused);
   focusedRef.current = focused;
 
-  // Fill each image chip with its thumbnail (lazily, from the shared cache). A
-  // chip is marked once loading starts (`thumb`) so repeated syncState calls are
-  // cheap; a load that fails leaves the placeholder glyph and isn't retried.
-  const hydrateThumbnails = useCallback(() => {
+  // Give each attachment chip its resting look (lazily). An image chip loads its
+  // thumbnail from the shared cache; any other file is re-skinned to a filename +
+  // type glyph. A chip is marked once handled (`thumb`) so repeated syncState
+  // calls are cheap; a thumbnail load that fails leaves the placeholder glyph and
+  // isn't retried. Fresh drops are styled at registerImagePath; this covers chips
+  // rebuilt from a draft/history token, which only carry their path here.
+  const hydrateChips = useCallback(() => {
     const editor = editorRef.current;
     if (!editor) return;
     editor.querySelectorAll<HTMLElement>("[data-img]").forEach((chip) => {
       if (chip.dataset.thumb) return;
       const path = imagePaths.current.get(Number(chip.dataset.img));
       if (!path) return;
+      if (!isImagePath(path)) {
+        chip.dataset.thumb = "file";
+        renderFileChip(chip, path);
+        return;
+      }
       chip.dataset.thumb = "pending";
       loadImageDataUrl(path)
         .then((url) => {
@@ -253,7 +281,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const refreshTabView = useCallback(() => {
     const list = tabs.current;
     const multi = list.length > 1;
-    const next = list.map((t) => ({ id: t.id, label: multi ? previewLabel(t.text) : "" }));
+    const next = list.map((t) => ({ id: t.id, label: multi ? previewLabel(t.text, t.imagePaths) : "" }));
     setTabView((prev) => (sameTabView(prev, next) ? prev : next));
     setActiveTabId(activeId.current);
   }, []);
@@ -271,8 +299,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     setDisabled(serializeEditor(editor).trim() === "");
     setPreview(null);
     placeCaretAtEnd(editor);
-    hydrateThumbnails();
-  }, [hydrateThumbnails]);
+    hydrateChips();
+  }, [hydrateChips]);
 
   // Restore this terminal's saved draft on mount (the composer is remounted per
   // terminal), then focus it — so switching terminals brings back what you'd
@@ -374,8 +402,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       history: history.current,
     });
     refreshTabView();
-    hydrateThumbnails();
-  }, [terminalId, refreshTabView, hydrateThumbnails]);
+    hydrateChips();
+  }, [terminalId, refreshTabView, hydrateChips]);
 
   // After a caret move, WebKit may have injected stray chars around a chip. Clean
   // them in a rAF (before the next paint, so no flash; coalesced across repeats)
@@ -465,7 +493,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const registerImagePath = useCallback((path: string): HTMLSpanElement => {
     const n = (imgCounter.current += 1);
     imagePaths.current.set(n, path);
-    return createImageChip(n);
+    const chip = createImageChip(n);
+    if (!isImagePath(path)) renderFileChip(chip, path);
+    return chip;
   }, []);
 
   const addImageBlob = useCallback(
@@ -505,10 +535,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     [insertItems],
   );
 
-  // Only image paths become chips; non-image paths are dropped (this is an
-  // image-only field — inserting an absolute file path as text would leak it).
-  const insertImagePaths = useCallback(
-    (paths: string[]) => insertItems(paths.filter((p) => IMAGE_EXT_RE.test(p)).map(registerImagePath)),
+  // Every dropped/pasted file becomes a chip — an image shows a thumbnail, any
+  // other file its name + a type glyph. On send each chip resolves to its path
+  // (shell-quoted, and scp-uploaded for a remote pane) via UploadAndQuoteForTerminal,
+  // so the path is never pasted in as raw, leakable text.
+  const insertFilePaths = useCallback(
+    (paths: string[]) => insertItems(paths.map(registerImagePath)),
     [insertItems, registerImagePath],
   );
 
@@ -532,11 +564,11 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     return registerFileDropHandler("terminal-composer", (x, y, paths) => {
       if (paths.length === 0 || !pointInComposer(x, y)) return false;
       focusAtPoint(x, y);
-      insertImagePaths(paths);
+      insertFilePaths(paths);
       setDragOver(false);
       return true;
     });
-  }, [insertImagePaths, pointInComposer, focusAtPoint]);
+  }, [insertFilePaths, pointInComposer, focusAtPoint]);
 
   // Native (Finder) drags don't raise DOM dragover in the webview — the runtime
   // shim republishes them as app:* events instead — so drive the drop overlay
@@ -589,12 +621,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         );
         return;
       }
-      // Copied image files (WebKit often omits the MIME) — resolve real paths.
+      // Copied files (WebKit often omits the MIME) — resolve real paths. Any file
+      // type is accepted; non-image files become named chips like dropped ones.
       if (dt.types.includes("Files") || dt.files.length > 0) {
         e.preventDefault();
         void ReadClipboardFiles()
           .then((paths) => {
-            if (Array.isArray(paths) && paths.length > 0) insertImagePaths(paths);
+            if (Array.isArray(paths) && paths.length > 0) insertFilePaths(paths);
           })
           .catch(() => {});
         return;
@@ -618,7 +651,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       histIdx.current = -1;
       syncState();
     },
-    [addImageBlob, insertImagePaths, insertImageChips, insertItems, syncState],
+    [addImageBlob, insertFilePaths, insertImageChips, insertItems, syncState],
   );
 
   // In-app / web drags deliver File objects through the DOM (OS file drops go
@@ -972,12 +1005,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     setSlashOpen(true);
   };
 
-  // Re-evaluate the "@" mention menu after every edit. It opens only for an agent
-  // terminal when the caret sits in an "@<frag>" run (after whitespace, no
-  // spaces), and closes the moment that run ends or matches nothing.
+  // Re-evaluate the "@" mention menu after every edit. It opens whenever the caret
+  // sits in an "@<frag>" run (after whitespace, no spaces) in any terminal's
+  // composer, and closes the moment that run ends or matches nothing.
   const updateMentionMenu = () => {
     const editor = editorRef.current;
-    if (!editor || transforming.current || !slashCli) {
+    if (!editor || transforming.current) {
       setMentionOpen(false);
       return;
     }
@@ -1050,17 +1083,58 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   };
 
   // Swap the typed "@<frag>" for the chosen "@<insert> " and keep editing so the
-  // user can continue the prompt right after the reference.
+  // user can continue the prompt right after the reference. A service-log is
+  // resolved by lpm (the agent can't read the in-memory pane buffer) — capture
+  // and inject its output inline instead of a literal token.
   const insertMention = (item: MentionItem) => {
     const editor = editorRef.current;
     setMentionOpen(false);
     if (!editor) return;
+    if (item.kind === "service-log") {
+      void insertServiceLog(editor, item);
+      return;
+    }
+    if (item.kind === "terminal-log") {
+      const body = trimLogBody(captureInteractivePaneLog(item.terminalId ?? terminalId, MENTION_LOG_LINES));
+      injectLog(editor, item.label, "terminal output", body);
+      return;
+    }
     if (replaceMentionFragment(editor, item.insert)) {
-      histIdx.current = -1;
-      normalizeComposer(editor);
-      syncState();
+      afterMentionEdit(editor);
       editor.focus();
     }
+  };
+
+  // Shared tail after a mention rewrites the field: reset history navigation,
+  // fold stray nodes, and resync the send/preview state.
+  const afterMentionEdit = (editor: HTMLDivElement) => {
+    histIdx.current = -1;
+    normalizeComposer(editor);
+    syncState();
+  };
+
+  // Capture the service's current pane output (an async tmux grab) and inject it.
+  const insertServiceLog = async (editor: HTMLDivElement, item: MentionItem) => {
+    let body = "";
+    try {
+      const out = await GetServiceLogs(projectName, item.paneIndex ?? 0, MENTION_LOG_LINES);
+      body = typeof out === "string" ? trimLogBody(out) : "";
+    } catch {
+      body = "";
+    }
+    if (!editor.isConnected) return;
+    injectLog(editor, item.label, `${item.label} service logs`, body);
+  };
+
+  // Drop captured output into the draft where the "@<frag>" was, as a labeled
+  // fenced block — point-in-time, whatever the source shows now, not a live tail.
+  // On an empty capture the typed "@<frag>" is removed and a toast explains why,
+  // so nothing dangles. Shared by the service- and terminal-log mentions.
+  const injectLog = (editor: HTMLDivElement, label: string, heading: string, body: string) => {
+    if (!body) toast.error(`No logs for ${label}`);
+    const text = body ? formatLogBlock(heading, body) : "";
+    if (replaceMentionFragmentWith(editor, text)) afterMentionEdit(editor);
+    editor.focus();
   };
 
   // Apply a composer action: send the current text through the user's AI CLI
@@ -1353,17 +1427,18 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       }
       return;
     }
-    // Clicking elsewhere on a chip opens its image full-window. A chip with no
-    // mapped path (shouldn't happen) falls back to selecting it as a unit so it
-    // can still be deleted with Backspace.
+    // Clicking elsewhere on an image chip opens it full-window; a non-image file
+    // chip has no preview, so its body click does nothing (remove via the "×").
+    // A chip with no mapped path (shouldn't happen) falls back to selecting it as
+    // a unit so it can still be deleted with Backspace.
     const chip = target.closest<HTMLElement>("[data-img]");
     if (chip) {
       e.preventDefault();
       const path = imagePaths.current.get(Number(chip.dataset.img));
-      if (path) {
+      if (path && isImagePath(path)) {
         dismissPreview();
         setLightboxPath(path);
-      } else {
+      } else if (!path) {
         selectChip(chip);
       }
       return;
@@ -1387,7 +1462,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       return;
     }
     const path = imagePaths.current.get(Number(chip.dataset.img));
-    setPreview(path ? { path, rect: chip.getBoundingClientRect() } : null);
+    setPreview(path && isImagePath(path) ? { path, rect: chip.getBoundingClientRect() } : null);
   };
 
   // The placeholder is absolutely positioned over the editor's first line, so
@@ -1440,7 +1515,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
             : "border border-[var(--border)] focus-within:border-[var(--text-muted)]"
         }`}
       >
-        {dragOver && <TerminalDropOverlay compact label="Drop image to add" />}
+        {dragOver && <TerminalDropOverlay compact label="Drop files to add" />}
         <div
           ref={editorRef}
           contentEditable={!busy}
@@ -1581,4 +1656,17 @@ function blobToBase64(blob: Blob): Promise<string | null> {
     reader.onerror = () => resolve(null);
     reader.readAsDataURL(blob);
   });
+}
+
+// Tidy a raw tmux pane capture for the prompt: drop trailing spaces each line
+// keeps, then strip blank lines that bookend the grab (a full-height pane pads
+// the bottom), leaving the meaningful run intact.
+function trimLogBody(raw: string): string {
+  return raw.replace(/[ \t]+$/gm, "").replace(/^\n+/, "").replace(/\n+$/, "");
+}
+
+// Render captured output under a heading as a labeled, fenced block. A trailing
+// newline leaves the caret on a fresh line so the user keeps typing below it.
+function formatLogBlock(heading: string, body: string): string {
+  return `${heading}:\n\`\`\`\n${body}\n\`\`\`\n`;
 }

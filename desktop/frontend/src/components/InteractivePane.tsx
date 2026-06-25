@@ -22,6 +22,7 @@ import { getTerminalTheme, openTerminalLink, TERMINAL_FONT_FAMILY } from "./term
 import { handleCopyShortcut, handleSelectAllShortcut, handleClearShortcut } from "./terminal/copySelection";
 import { ConsoleContextMenu } from "./terminal/ConsoleContextMenu";
 import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
+import { stripAnsi } from "./terminal/filterLines";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { registerFileDropHandler } from "../fileDrop";
 import "@xterm/xterm/css/xterm.css";
@@ -159,6 +160,21 @@ function disposeSession(s: InteractiveSession) {
 
 export function isInteractivePaneSessionDead(terminalId: string): boolean {
   return interactiveSessions.get(terminalId)?.sessionDead ?? false;
+}
+
+// Plain-text snapshot of a terminal's recent scrollback + screen, for the
+// composer's "@<terminal>" mention. xterm's SerializeAddon replays the buffer
+// with ANSI intact, so strip it; bounded to the last `maxLines` scrollback rows
+// so a long-lived session can't dump its whole history into a prompt. Returns ""
+// when there's no live session (or the addon failed to load).
+export function captureInteractivePaneLog(terminalId: string, maxLines: number): string {
+  const serialize = interactiveSessions.get(terminalId)?.serialize;
+  if (!serialize) return "";
+  try {
+    return stripAnsi(serialize.serialize({ scrollback: maxLines }));
+  } catch {
+    return "";
+  }
 }
 
 // One MutationObserver and one getComputedStyle per theme flip. Per-host
