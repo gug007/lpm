@@ -46,7 +46,7 @@ import {
 import { useAppStore } from "../store/app";
 import { loadLevelMap, levelOf as levelOfMap, type LevelMap } from "../actionLevels";
 import { type StructuralOp, structuralSubject } from "../actionsGesture";
-import { splitChild } from "../actionIds";
+import { findActionByPath } from "../actionTree";
 import { findParentProject, projectDisplayName } from "./ProjectNameDisplay";
 import {
   isFooterDisplay,
@@ -214,12 +214,7 @@ export function ProjectDetail({
   const renderActionOverlay = useCallback(
     (id: string, overGroup: ActionGroup | null) => {
       const all = actionsRef.current ?? [];
-      let action = all.find((a) => a.name === id);
-      const childRef = action ? null : splitChild(id);
-      if (childRef) {
-        const parent = all.find((a) => a.name === childRef.parent);
-        action = parent?.children?.find((c) => c.name === id);
-      }
+      const action = findActionByPath(all, id);
       if (!action) return null;
       // Mirror the destination form factor while hovering, so the user
       // sees how the action will look in the zone they're aiming for —
@@ -605,6 +600,8 @@ export function ProjectDetail({
             onMoveLeft={actionMenuMove.left}
             onMoveRight={actionMenuMove.right}
             onEdit={() => setEditingAction(actionMenu.action)}
+            canUngroup={!!actionMenu.action.children?.length}
+            onUngroup={() => handleStructural({ kind: "ungroup", path: actionMenu.action.name })}
             onDelete={() => setActionToDelete(actionMenu.action)}
             onClose={() => setActionMenu(null)}
           />

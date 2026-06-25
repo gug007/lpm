@@ -64,7 +64,7 @@ import { activeChatStorageKey } from "../components/NotesView";
 import { ACTION_SECTIONS, type ActionSection } from "../actionConfig";
 import { editGlobalDoc, editProjectDoc, editRepoDoc } from "../yamlQueue";
 import { applyOpToDoc } from "../actionsStructural";
-import { splitChild } from "../actionIds";
+import { menuChildOrderFor } from "../actionTree";
 import { applyMove } from "../components/actionsDndLayout";
 import type { StructuralOp } from "../actionsGesture";
 import type { ActionLevel } from "../actionLevels";
@@ -420,8 +420,7 @@ async function persistActionsLayoutOrRecover(
 // span config layers, so the resolver output is the only authoritative order.
 function menuChildOrder(get: AppGet, projectName: string, parent: string): string[] {
   const project = get().projects.find((p) => p.name === projectName);
-  const menu = project?.actions?.find((a) => a.name === parent);
-  return (menu?.children ?? []).map((c) => splitChild(c.name)?.child ?? c.name);
+  return project ? menuChildOrderFor(project.actions, parent) : [];
 }
 
 // Held outside zustand state because functions don't belong in store

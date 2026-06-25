@@ -9,6 +9,17 @@ export interface ExtractIndicator {
   index: number;
 }
 
+// While dragging a row inside an open drill menu, the pointer's third within
+// the hovered sibling decides the action: reorder before/after it, or nest
+// into it. Computed by collision detection, read by the drop handler, and
+// surfaced to rows so they can draw the insertion line / nest highlight.
+export type MenuDropMode = "before" | "after" | "nest";
+
+export interface MenuDrop {
+  target: string;
+  mode: MenuDropMode;
+}
+
 // Prefixed so it can't collide with action names (slugify excludes colons).
 export const ZONE_ID_PREFIX = "actions-zone:";
 
@@ -32,6 +43,19 @@ export function isNestId(id: string): boolean {
 }
 export function nestTargetOf(id: string): string {
   return id.slice(NEST_ID_PREFIX.length);
+}
+
+// Breadcrumb droppables of an open drill menu. The path after the prefix is
+// the ancestor action a dragged child extracts out onto ("" = the toolbar).
+export const CRUMB_ID_PREFIX = "crumb:";
+export function crumbId(path: string): string {
+  return `${CRUMB_ID_PREFIX}${path}`;
+}
+export function isCrumbId(id: string): boolean {
+  return id.startsWith(CRUMB_ID_PREFIX);
+}
+export function crumbTargetOf(id: string): string {
+  return id.slice(CRUMB_ID_PREFIX.length);
 }
 
 export function groupOf(layout: ActionsLayout, id: string): ActionGroup | null {

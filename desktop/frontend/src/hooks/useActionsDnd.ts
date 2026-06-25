@@ -15,8 +15,11 @@ import { isChildId } from "../actionIds";
 import {
   type ActionGroup,
   type ExtractIndicator,
+  type MenuDrop,
   applyMove,
+  crumbTargetOf,
   groupOf,
+  isCrumbId,
   isNestId,
   isZoneId,
   nestTargetOf,
@@ -30,7 +33,7 @@ export interface UseActionsDndOptions {
   onPreview: (next: ActionsLayout) => void;
   // Persists — fired once on drop.
   onMove: (next: ActionsLayout) => void;
-  // Fired on a drop classified as a structural gesture (nest/merge/extract/
+  // Fired on a drop classified as a structural gesture (nest/extract/
   // reorder); the caller then skips the flat reorder.
   onStructural: (op: StructuralOp) => void;
   // True when both actions live in the same config layer — nesting across
@@ -40,6 +43,10 @@ export interface UseActionsDndOptions {
   // Where a dragged-out menu item would land, kept current by ActionsDnd's
   // collision detection so the drop can extract to that exact position.
   indicatorRef: { current: ExtractIndicator | null };
+  // Inside an open drill menu, which sibling row the pointer is over and the
+  // action (before/after/nest) from its third. Kept current by collision
+  // detection; read at drop to commit the reorder or nest.
+  menuDropRef: { current: MenuDrop | null };
 }
 
 export interface UseActionsDndResult {
@@ -72,6 +79,7 @@ export function useActionsDnd({
   canNest,
   isMenu,
   indicatorRef,
+  menuDropRef,
 }: UseActionsDndOptions): UseActionsDndResult {
   const sensors = useSensors(useSensor(PointerSensor, POINTER_OPTS));
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -98,7 +106,8 @@ export function useActionsDnd({
     setActiveId(String(event.active.id));
     setOverGroup(null);
     baselineRef.current = layoutRef.current;
-  }, []);
+    menuDropRef.current = null;
+  }, [menuDropRef]);
 
   const revertToBaseline = useCallback((baseline: ActionsLayout) => {
     if (!sameLayout(layoutRef.current, baseline)) onPreviewRef.current(baseline);
@@ -134,10 +143,11 @@ export function useActionsDnd({
   const onDragCancel = useCallback(() => {
     setActiveId(null);
     setOverGroup(null);
+    menuDropRef.current = null;
     const baseline = baselineRef.current;
     baselineRef.current = null;
     if (baseline) revertToBaseline(baseline);
-  }, [revertToBaseline]);
+  }, [revertToBaseline, menuDropRef]);
 
   const onDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
@@ -145,6 +155,11 @@ export function useActionsDnd({
     setOverGroup(null);
     const baseline = baselineRef.current;
     baselineRef.current = null;
+    // Inside an open drill menu the drop-indicator model decides the gesture:
+    // its third within the hovered sibling is nest (extractOnto) or a reorder
+    // before/after. Read-and-clear so no stale target survives.
+    const menuDrop = menuDropRef.current;
+    menuDropRef.current = null;
     if (!baseline) return;
     const current = layoutRef.current;
     // Classify before the no-target early-return: extractToTop fires when a
@@ -152,8 +167,22 @@ export function useActionsDnd({
     // target id (parent:child) is an item; only zone ids are not.
     const draggedId = String(active.id);
     const overId = over ? String(over.id) : "";
-    const overNestTarget = isNestId(overId) ? nestTargetOf(overId) : null;
-    const overItemId = over && !isZoneId(overId) && !isNestId(overId) ? overId : null;
+    // A breadcrumb drop moves the child out one level; it takes precedence, so
+    // the nest/item targets are suppressed and detectGesture keys off crumbTarget.
+    const crumbTarget = isCrumbId(overId) ? crumbTargetOf(overId) : undefined;
+    const onCrumb = crumbTarget !== undefined;
+    const menuNest = menuDrop && !onCrumb && menuDrop.mode === "nest" ? menuDrop.target : null;
+    const menuReorderOver = menuDrop && !onCrumb && menuDrop.mode !== "nest" ? menuDrop.target : null;
+    const reorderPosition =
+      menuDrop && menuReorderOver ? (menuDrop.mode as "before" | "after") : undefined;
+    // A menu nest overrides the raw over target: feed it as the nest target and
+    // suppress the over-derived item so reorder can't win. A menu reorder routes
+    // through overItemId carrying the before/after side.
+    const overNestTarget =
+      menuNest ?? (!onCrumb && isNestId(overId) ? nestTargetOf(overId) : null);
+    const overItemId =
+      menuReorderOver ??
+      (menuDrop || onCrumb || !over || isZoneId(overId) || isNestId(overId) ? null : overId);
     const op = detectGesture({
       draggedId,
       draggedIsMenu: isMenuRef.current(draggedId),
@@ -161,6 +190,8 @@ export function useActionsDnd({
       overItemId,
       sameLevel: overNestTarget !== null && canNestRef.current(draggedId, overNestTarget),
       extractTarget: indicatorRef.current,
+      crumbTarget,
+      reorderPosition,
     });
     if (op) {
       onStructuralRef.current(op);
@@ -181,7 +212,7 @@ export function useActionsDnd({
     const final = applyMove(baseline, draggedId, target);
     if (sameLayout(baseline, final)) return revertToBaseline(baseline);
     onMoveRef.current(final);
-  }, [revertToBaseline]);
+  }, [revertToBaseline, indicatorRef, menuDropRef]);
 
   return { sensors, activeId, overGroup, onDragStart, onDragOver, onDragCancel, onDragEnd };
 }

@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useAnchoredPanel } from "../hooks/useAnchoredPanel";
 import type { ActionInfo } from "../types";
 import { ChevronDownIcon } from "./icons";
 import { withEmoji } from "../withEmoji";
 import { useActionsDragActive } from "./ActionsDnd";
-import { SplitButtonMenuItem } from "./SplitButtonMenuItem";
+import { ActionMenu } from "./ActionMenu";
+import { SPRING_LOAD_MS, useSpringOver } from "./springLoad";
 
 const SIZE_CLASSES = {
   default: {
@@ -37,9 +37,7 @@ const SIZE_CLASSES = {
   },
 } as const;
 
-const PANEL_WIDTH = 256;
-
-const dropdownPanelClass = "z-50 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl";
+const PANEL_WIDTH = 288;
 
 interface SplitButtonProps {
   action: ActionInfo;
@@ -52,15 +50,34 @@ interface SplitButtonProps {
 export function SplitButton({ action, disabled, onRunAction, onContextMenu, compact = false }: SplitButtonProps) {
   const [open, setOpen] = useState(false);
   const dragActive = useActionsDragActive();
+  const springOver = useSpringOver();
   // Keep this menu open through a drag only if it was already open when the
   // drag started (so its items stay draggable), rather than popping every
   // menu open on any drag.
   const keepOpenRef = useRef(false);
   const prevDragActiveRef = useRef(false);
+  // Set when a drag spring-opens this menu, so it closes again when the drag
+  // ends rather than getting stuck open.
+  const springOpenedRef = useRef(false);
   useEffect(() => {
     if (dragActive && !prevDragActiveRef.current) keepOpenRef.current = open;
+    if (!dragActive && prevDragActiveRef.current && springOpenedRef.current) {
+      springOpenedRef.current = false;
+      setOpen(false);
+    }
     prevDragActiveRef.current = dragActive;
   }, [dragActive, open]);
+
+  // Dwelling a dragged item over this button opens its dropdown so the user can
+  // move the item inside (spring-load), mirroring the breadcrumb spring-out.
+  useEffect(() => {
+    if (!dragActive || !springOver || keepOpenRef.current) return;
+    const timer = setTimeout(() => {
+      springOpenedRef.current = true;
+      setOpen(true);
+    }, SPRING_LOAD_MS);
+    return () => clearTimeout(timer);
+  }, [dragActive, springOver]);
   const panelOpen = open || (dragActive && keepOpenRef.current);
   const s = compact ? SIZE_CLASSES.compact : SIZE_CLASSES.default;
   const { triggerRef, panelRef, style } = useAnchoredPanel<HTMLDivElement, HTMLDivElement>({
@@ -70,7 +87,6 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
     side: s.side,
   });
 
-  const children = action.children ?? [];
   const isSplit = !!action.cmd;
 
   const handleSelectChild = (child: ActionInfo) => {
@@ -79,12 +95,8 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
   };
 
   const dropdown = panelOpen && style && createPortal(
-    <div ref={panelRef} style={style} className={dropdownPanelClass}>
-      <SortableContext items={children.map((c) => c.name)} strategy={verticalListSortingStrategy}>
-        {children.map((child) => (
-          <SplitButtonMenuItem key={child.name} child={child} onSelect={handleSelectChild} />
-        ))}
-      </SortableContext>
+    <div ref={panelRef} style={style} className="z-50">
+      <ActionMenu action={action} onRun={handleSelectChild} onClose={() => setOpen(false)} />
     </div>,
     document.body,
   );

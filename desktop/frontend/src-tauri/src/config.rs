@@ -769,24 +769,25 @@ pub fn resolve_terminal_action(
         }))
 }
 
-/// Look up an action by name in an already-resolved map, handling the
-/// `parent:child` composite form (a nested action, with parent inheritance
-/// applied). Shared by every action consumer so they treat names identically.
+/// Look up an action by name in an already-resolved map, handling arbitrarily
+/// deep colon-separated paths like `Build:iOS:Release` (parent inheritance is
+/// applied at each level). Shared by every action consumer so they treat names
+/// identically.
 fn lookup_action(map: &BTreeMap<String, ActionFull>, name: &str) -> Option<ActionFull> {
-    match name.split_once(':') {
-        Some((parent, child)) => {
-            let p = map.get(parent)?;
-            let c = p.actions.get(child)?.clone().into_full();
-            Some(resolved_child(p, &c))
-        }
-        None => map.get(name).cloned(),
+    let mut segments = name.split(':');
+    let first = segments.next()?;
+    let mut current = map.get(first)?.clone();
+    for seg in segments {
+        let child = current.actions.get(seg)?.clone().into_full();
+        current = resolved_child(&current, &child);
     }
+    Some(current)
 }
 
 // ---- action resolution engine (config.ResolvedActions / toProjectInfo) ------
 // Bounded port: project actions+terminals (+ one extends-template flatten),
 // duplicate->parent inheritance, the repo .lpm.yml merge, and the global.yml
-// merge. DEFERRED: recursive template extends, grandchild actions, repo-level
+// merge. DEFERRED: recursive template extends, repo-level
 // extends resolved relative to the repo dir.
 
 #[derive(serde::Serialize, Clone)]
@@ -1199,33 +1200,33 @@ fn action_to_info(id: &str, name: &str, act: &ActionFull) -> ActionInfo {
     }
 }
 
-/// Sorted ActionInfo list (one level of children) as JSON values.
+fn build_action_info(path: &str, key: &str, act: &ActionFull) -> ActionInfo {
+    let mut info = action_to_info(path, key, act);
+    if !act.actions.is_empty() {
+        let children: BTreeMap<String, ActionFull> = act
+            .actions
+            .iter()
+            .map(|(k, d)| (k.clone(), resolved_child(act, &d.clone().into_full())))
+            .collect();
+        let mut cnames: Vec<String> = children.keys().cloned().collect();
+        sort_action_names(&mut cnames, |cn| children.get(cn).and_then(|a| a.position));
+        info.children = cnames
+            .iter()
+            .map(|cn| build_action_info(&format!("{path}:{cn}"), cn, &children[cn]))
+            .collect();
+    }
+    info
+}
+
+/// Sorted ActionInfo list (full recursive children) as JSON values.
 pub fn resolve_actions(file_name: &str) -> Vec<Value> {
     let resolved = resolve_action_map(file_name);
     let mut names: Vec<String> = resolved.keys().cloned().collect();
     sort_action_names(&mut names, |n| resolved.get(n).and_then(|a| a.position));
-
-    let mut out: Vec<ActionInfo> = Vec::with_capacity(names.len());
-    for name in &names {
-        let act = &resolved[name];
-        let mut info = action_to_info(name, name, act);
-        if !act.actions.is_empty() {
-            let children: BTreeMap<String, ActionFull> = act
-                .actions
-                .iter()
-                .map(|(k, d)| (k.clone(), resolved_child(act, &d.clone().into_full())))
-                .collect();
-            let mut cnames: Vec<String> = children.keys().cloned().collect();
-            sort_action_names(&mut cnames, |cn| children.get(cn).and_then(|a| a.position));
-            info.children = cnames
-                .iter()
-                .map(|cn| action_to_info(&format!("{name}:{cn}"), cn, &children[cn]))
-                .collect();
-        }
-        out.push(info);
-    }
-    out.into_iter()
-        .map(|a| serde_json::to_value(a).unwrap_or(Value::Null))
+    names
+        .iter()
+        .map(|name| build_action_info(name, name, &resolved[name]))
+        .map(|info| serde_json::to_value(info).unwrap_or(Value::Null))
         .collect()
 }
 
@@ -1765,5 +1766,70 @@ mod action_lookup_tests {
         let mut map = BTreeMap::new();
         map.insert("build".to_string(), terminal_action("make"));
         assert_eq!(lookup_action(&map, "build").unwrap().cmd, "make");
+    }
+
+    #[test]
+    fn resolves_three_levels_with_inheritance_chain() {
+        let release = ActionFull { cmd: "build:ios:release".into(), ..Default::default() };
+        let mut ios = ActionFull { kind: "terminal".into(), cwd: "ios".into(), ..Default::default() };
+        ios.actions.insert("Release".into(), ActionDef::Full(release));
+        let mut build = ActionFull { kind: "terminal".into(), cwd: "app".into(), ..Default::default() };
+        build.actions.insert("iOS".into(), ActionDef::Full(ios));
+        let mut map = BTreeMap::new();
+        map.insert("Build".to_string(), build);
+
+        let got = lookup_action(&map, "Build:iOS:Release").expect("grandchild resolves");
+        assert_eq!(got.cmd, "build:ios:release");
+        assert_eq!(got.kind, "terminal");
+        assert_eq!(got.cwd, "ios", "nearest ancestor cwd wins");
+    }
+
+    #[test]
+    fn grandchild_inherits_through_empty_middle() {
+        let release = ActionFull { cmd: "r".into(), ..Default::default() };
+        let mut ios = ActionFull::default(); // no cwd, no kind
+        ios.actions.insert("Release".into(), ActionDef::Full(release));
+        let mut build = ActionFull { kind: "terminal".into(), cwd: "app".into(), ..Default::default() };
+        build.actions.insert("iOS".into(), ActionDef::Full(ios));
+        let mut map = BTreeMap::new();
+        map.insert("Build".to_string(), build);
+
+        let got = lookup_action(&map, "Build:iOS:Release").expect("resolves");
+        assert_eq!(got.cwd, "app", "cwd chains down through the empty middle level");
+        assert_eq!(got.kind, "terminal", "kind chains down too");
+    }
+
+    #[test]
+    fn unknown_deep_segment_returns_none() {
+        let release = ActionFull { cmd: "r".into(), ..Default::default() };
+        let mut ios = ActionFull::default();
+        ios.actions.insert("Release".into(), ActionDef::Full(release));
+        let mut build = ActionFull::default();
+        build.actions.insert("iOS".into(), ActionDef::Full(ios));
+        let mut map = BTreeMap::new();
+        map.insert("Build".to_string(), build);
+        assert!(lookup_action(&map, "Build:iOS:Ghost").is_none());
+    }
+}
+
+#[cfg(test)]
+mod resolve_actions_tests {
+    use super::*;
+
+    #[test]
+    fn build_action_info_nests_grandchildren_with_full_path_ids() {
+        let release = ActionFull { cmd: "r".into(), ..Default::default() };
+        let mut ios = ActionFull { cmd: "i".into(), ..Default::default() };
+        ios.actions.insert("Release".into(), ActionDef::Full(release));
+        let mut build = ActionFull { cmd: "b".into(), ..Default::default() };
+        build.actions.insert("iOS".into(), ActionDef::Full(ios));
+
+        let info = build_action_info("Build", "Build", &build);
+        assert_eq!(info.children.len(), 1);
+        let ios_info = &info.children[0];
+        assert_eq!(ios_info.name, "Build:iOS");
+        assert_eq!(ios_info.children.len(), 1);
+        assert_eq!(ios_info.children[0].name, "Build:iOS:Release");
+        assert_eq!(ios_info.children[0].cmd, "r");
     }
 }

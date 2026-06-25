@@ -17,9 +17,9 @@ describe("detectGesture", () => {
     });
   });
 
-  it("menu onto a nest target -> merge", () => {
+  it("menu onto a nest target -> nest (preserve structure)", () => {
     expect(detectGesture({ ...base, draggedId: "m", draggedIsMenu: true, overNestTarget: "build" })).toEqual({
-      kind: "merge", source: "m", target: "build",
+      kind: "nest", source: "m", target: "build",
     });
   });
 
@@ -46,9 +46,62 @@ describe("detectGesture", () => {
     });
   });
 
-  it("child onto a sibling in the same menu -> reorderMenu", () => {
+  it("child onto a sibling in the same menu -> reorderMenu (no position = swap-style)", () => {
     expect(detectGesture({ ...base, draggedId: "menu:a", overItemId: "menu:b" })).toEqual({
       kind: "reorderMenu", parent: "menu", child: "a", over: "b",
+    });
+  });
+
+  it("child onto a sibling's top third -> reorderMenu before", () => {
+    expect(
+      detectGesture({ ...base, draggedId: "menu:a", overItemId: "menu:b", reorderPosition: "before" }),
+    ).toEqual({
+      kind: "reorderMenu", parent: "menu", child: "a", over: "b", position: "before",
+    });
+  });
+
+  it("child onto a sibling's bottom third -> reorderMenu after", () => {
+    expect(
+      detectGesture({ ...base, draggedId: "menu:a", overItemId: "menu:b", reorderPosition: "after" }),
+    ).toEqual({
+      kind: "reorderMenu", parent: "menu", child: "a", over: "b", position: "after",
+    });
+  });
+
+  it("cross-level before/after drop -> extractOnto carrying over + position", () => {
+    // Spring-navigated up mid-drag: the over row's parent differs from the
+    // dragged child's parent, so the before/after drop moves it into that
+    // level at the indicated side rather than extracting to the toolbar.
+    expect(
+      detectGesture({
+        ...base,
+        draggedId: "Build:iOS:Release",
+        overItemId: "Build:Tools",
+        reorderPosition: "before",
+      }),
+    ).toEqual({
+      kind: "extractOnto",
+      parent: "Build:iOS",
+      child: "Release",
+      target: "Build",
+      over: "Tools",
+      position: "before",
+    });
+  });
+
+  it("cross-level drop without a before/after position -> extractToTop (drag to toolbar)", () => {
+    expect(
+      detectGesture({ ...base, draggedId: "Build:iOS:Release", overItemId: "Build:Tools" }),
+    ).toEqual({
+      kind: "extractToTop", parent: "Build:iOS", child: "Release",
+    });
+  });
+
+  it("child onto a sibling's middle (nest) is routed via overNestTarget -> extractOnto", () => {
+    // The drop handler maps a middle-third 'nest' to overNestTarget, not
+    // overItemId, so detectGesture produces an extractOnto onto the sibling.
+    expect(detectGesture({ ...base, draggedId: "menu:a", overNestTarget: "menu:b" })).toEqual({
+      kind: "extractOnto", parent: "menu", child: "a", target: "menu:b",
     });
   });
 
@@ -70,5 +123,72 @@ describe("detectGesture", () => {
 
   it("child onto its own parent nest target -> null", () => {
     expect(detectGesture({ ...base, draggedId: "menu:a", overNestTarget: "menu" })).toBe(null);
+  });
+
+  it("child onto a sibling's nest target -> extractOnto sibling", () => {
+    expect(detectGesture({ ...base, draggedId: "menu:a", overNestTarget: "menu:b" })).toEqual({
+      kind: "extractOnto", parent: "menu", child: "a", target: "menu:b",
+    });
+  });
+
+  it("deep child onto a sibling's nest target -> extractOnto sibling", () => {
+    expect(
+      detectGesture({ ...base, draggedId: "Build:iOS:Debug", overNestTarget: "Build:iOS:Release" }),
+    ).toEqual({
+      kind: "extractOnto", parent: "Build:iOS", child: "Debug", target: "Build:iOS:Release",
+    });
+  });
+});
+
+describe("gesture: nest-preserve + cross-level", () => {
+  it("dropping a menu onto a button NESTS (no merge/flatten)", () => {
+    const op = detectGesture({
+      draggedId: "Tools",
+      draggedIsMenu: true,
+      overNestTarget: "Build",
+      overItemId: null,
+      sameLevel: true,
+      extractTarget: null,
+    });
+    expect(op).toEqual({ kind: "nest", source: "Tools", target: "Build" });
+  });
+
+  it("dropping a deep child on an ancestor crumb extracts onto it", () => {
+    const op = detectGesture({
+      draggedId: "Build:iOS:Release",
+      draggedIsMenu: false,
+      overNestTarget: null,
+      overItemId: null,
+      sameLevel: true,
+      extractTarget: null,
+      crumbTarget: "Build",
+    });
+    expect(op).toEqual({ kind: "extractOnto", parent: "Build:iOS", child: "Release", target: "Build" });
+  });
+
+  it("dropping a deep child on the toolbar crumb extracts to top", () => {
+    const op = detectGesture({
+      draggedId: "Build:iOS:Release",
+      draggedIsMenu: false,
+      overNestTarget: null,
+      overItemId: null,
+      sameLevel: true,
+      extractTarget: { group: "header", index: 2 },
+      crumbTarget: "",
+    });
+    expect(op).toEqual({ kind: "extractToTop", parent: "Build:iOS", child: "Release", group: "header", index: 2 });
+  });
+
+  it("dropping a deep child on its own level crumb is a no-op", () => {
+    const op = detectGesture({
+      draggedId: "Build:iOS:Release",
+      draggedIsMenu: false,
+      overNestTarget: null,
+      overItemId: null,
+      sameLevel: true,
+      extractTarget: null,
+      crumbTarget: "Build:iOS",
+    });
+    expect(op).toBeNull();
   });
 });
