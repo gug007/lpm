@@ -92,26 +92,40 @@ export function BulkDuplicateDialog({
   const base = project?.parentName || project?.name;
   const genLabel = () => (base ? `${base}-${randomId6()}` : "");
 
-  useEffect(() => {
-    if (!open) return;
-    setCopies([{ label: genLabel(), override: null }]);
-    setMode("none");
-    setActionName("");
-    setCommand("");
-    setPrompt("");
-    setPromptImages([]);
-    setEditing(null);
-    setExcludeUncommitted(getSettings().duplicateExcludeUncommitted ?? false);
-    setReinstallDeps(getSettings().duplicateReinstallDeps ?? false);
-    setPullLatest(getSettings().duplicatePullLatest ?? true);
-    setGroupName("");
-  }, [open, project?.name]);
-
   // Only offer actions that run unattended on every copy: leaf actions (no
   // children) that don't pause for per-run input or confirmation.
   const runnableActions = (project?.actions ?? []).filter(
     (a) => !a.children?.length && !a.inputs?.length && !a.confirm,
   );
+
+  useEffect(() => {
+    if (!open) return;
+    const s = getSettings();
+    // Restore the last "run on the copy" choice, but only land on Action when
+    // this project has runnable actions, and only keep a saved action that's
+    // still offered — otherwise fall back to the first one.
+    const savedAction =
+      runnableActions.find((a) => a.name === s.duplicateActionName)?.name ??
+      runnableActions[0]?.name ??
+      "";
+    const savedMode: RunMode =
+      s.duplicateRunMode === "action" && runnableActions.length > 0
+        ? "action"
+        : s.duplicateRunMode === "command"
+          ? "command"
+          : "none";
+    setCopies([{ label: genLabel(), override: null }]);
+    setMode(savedMode);
+    setActionName(savedAction);
+    setCommand(s.duplicateCommand ?? "");
+    setPrompt("");
+    setPromptImages([]);
+    setEditing(null);
+    setExcludeUncommitted(s.duplicateExcludeUncommitted ?? false);
+    setReinstallDeps(s.duplicateReinstallDeps ?? false);
+    setPullLatest(s.duplicatePullLatest ?? true);
+    setGroupName("");
+  }, [open, project?.name]);
 
   const clamp = (n: number) => Math.min(MAX_COUNT, Math.max(MIN_COUNT, n));
 
@@ -254,6 +268,9 @@ export function BulkDuplicateDialog({
       duplicateExcludeUncommitted: excludeUncommitted,
       duplicateReinstallDeps: reinstallDeps,
       duplicatePullLatest: pullLatest,
+      duplicateRunMode: mode,
+      duplicateActionName: actionName || undefined,
+      duplicateCommand: command || undefined,
     });
     onConfirm(count, {
       excludeUncommitted,

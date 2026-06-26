@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { LoadSettings, SaveSettings } from "../../bridge/commands";
 import type { main } from "../../bridge/models";
 import type { Theme } from "../theme";
+import type { RunMode } from "../types";
 import {
   normalizeGitPull,
   normalizeGitPush,
@@ -60,6 +61,9 @@ export interface Settings {
   duplicateExcludeUncommitted?: boolean;
   duplicateReinstallDeps?: boolean;
   duplicatePullLatest?: boolean;
+  duplicateRunMode?: RunMode;
+  duplicateActionName?: string;
+  duplicateCommand?: string;
   composerOpen?: boolean;
   autoCloseComposerOnSend?: boolean;
 }
@@ -123,6 +127,12 @@ function normalize(s: main.Settings): Settings {
     duplicateExcludeUncommitted: s.duplicateExcludeUncommitted,
     duplicateReinstallDeps: s.duplicateReinstallDeps,
     duplicatePullLatest: s.duplicatePullLatest,
+    duplicateRunMode:
+      s.duplicateRunMode === "action" || s.duplicateRunMode === "command"
+        ? s.duplicateRunMode
+        : undefined,
+    duplicateActionName: s.duplicateActionName || undefined,
+    duplicateCommand: s.duplicateCommand || undefined,
     composerOpen: s.composerOpen,
     autoCloseComposerOnSend: s.autoCloseComposerOnSend ?? defaults.autoCloseComposerOnSend,
     detachedWindows: s.detachedWindows
