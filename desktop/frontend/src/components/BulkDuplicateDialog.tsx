@@ -21,6 +21,7 @@ import {
 import { getSettings, saveSettings } from "../store/settings";
 import { shellQuote } from "../terminal-io";
 import { detectAICLI } from "../slashCommands";
+import { findActionByPath, flattenRunnableActions } from "../actionTree";
 import type {
   CopyOverride,
   CopyRunMode,
@@ -102,11 +103,11 @@ export function BulkDuplicateDialog({
   const base = project?.parentName || project?.name;
   const genLabel = () => (base ? `${base}-${randomId6()}` : "");
 
-  // Only offer actions that run unattended on every copy: leaf actions (no
-  // children) that don't pause for per-run input or confirmation.
-  const runnableActions = (project?.actions ?? []).filter(
-    (a) => !a.children?.length && !a.inputs?.length && !a.confirm,
-  );
+  // The full action tree drives the picker (it drills into menus / split
+  // buttons); the flattened runnable set is for "is anything runnable?" checks,
+  // default seeding, and resolving the selected action by name.
+  const actionTree = project?.actions ?? [];
+  const runnableActions = flattenRunnableActions(actionTree);
 
   useEffect(() => {
     if (!open) return;
@@ -280,7 +281,7 @@ export function BulkDuplicateDialog({
     if (!override) return "Default";
     if (override.mode === "none") return "Nothing";
     if (override.mode === "command") return "Command";
-    const a = runnableActions.find((x) => x.name === override.actionName);
+    const a = findActionByPath(actionTree, override.actionName);
     return `Action: ${a?.label || a?.name || override.actionName || "—"}`;
   };
 
@@ -488,7 +489,7 @@ export function BulkDuplicateDialog({
                       onToggleExpand={() =>
                         setEditing(editing === i ? null : i)
                       }
-                      actions={runnableActions}
+                      actions={actionTree}
                       onChangeMode={(m) => pickCopyMode(i, m)}
                       onPatchOverride={(patch) => patchOverrideAt(i, patch)}
                       autoFocus={i === 0}
@@ -523,7 +524,7 @@ export function BulkDuplicateDialog({
           {mode === "action" && (
             <div className="field-reveal">
               <ActionPicker
-                actions={runnableActions}
+                actions={actionTree}
                 value={actionName}
                 onChange={setActionName}
               />

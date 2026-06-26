@@ -2,6 +2,7 @@ import { ActionPicker } from "./ActionPicker";
 import { ShellCommandInput } from "./ShellCommandInput";
 import { SegmentedControl } from "./ui/SegmentedControl";
 import { FIELD_CLASS, HELPER_TEXT } from "./ui/fields";
+import { flattenRunnableActions } from "../actionTree";
 import type { ActionInfo, CopyOverride, CopyRunMode } from "../types";
 
 const OPTIONS: { value: CopyRunMode; label: string }[] = [
@@ -25,7 +26,7 @@ export function CopyRunConfig({
   onPatchOverride,
 }: CopyRunConfigProps) {
   const active: CopyRunMode = override ? override.mode : "default";
-  const noActions = actions.length === 0;
+  const noActions = flattenRunnableActions(actions).length === 0;
   const options = OPTIONS.map((o) =>
     o.value === "action" ? { ...o, disabled: noActions } : o,
   );
@@ -58,7 +59,9 @@ export function CopyRunConfig({
       )}
 
       {!override ? (
-        <p className={`mt-2 ${HELPER_TEXT}`}>Inherits the shared default above.</p>
+        <p className={`mt-2 ${HELPER_TEXT}`}>
+          Inherits the shared default above.
+        </p>
       ) : override.mode === "none" ? (
         <p className={`mt-2 ${HELPER_TEXT}`}>Nothing runs on this copy.</p>
       ) : (

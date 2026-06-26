@@ -186,7 +186,7 @@ export function ProjectDetail({
           { prompt: task.prompt },
         );
       } else {
-        const action = actions.find((a) => a.name === task.actionName);
+        const action = findActionByPath(actions, task.actionName);
         if (action) handleRunAction(action, { prompt: task.prompt });
       }
     }
