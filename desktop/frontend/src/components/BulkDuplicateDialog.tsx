@@ -20,6 +20,7 @@ import {
 } from "./ui/fields";
 import { getSettings, saveSettings } from "../store/settings";
 import { shellQuote } from "../terminal-io";
+import { detectAICLI } from "../slashCommands";
 import type {
   CopyOverride,
   CopyRunMode,
@@ -206,6 +207,17 @@ export function BulkDuplicateDialog({
   const hasGroup = !single && trimmedGroup.length > 0;
   const imagesPending = composer.pending;
 
+  // The prompt is a task for an AI agent, so only show it when the run target
+  // actually launches one (claude / codex / …) — a non-agent action or command
+  // has nothing to type a prompt into.
+  const promptTargetCmd =
+    mode === "action"
+      ? runnableActions.find((a) => a.name === actionName)?.cmd
+      : mode === "command"
+        ? command
+        : undefined;
+  const showPrompt = detectAICLI(promptTargetCmd) !== null;
+
   const pickMode = (next: RunMode) => {
     setMode(next);
     if (next === "action" && !actionName && runnableActions.length > 0) {
@@ -250,7 +262,7 @@ export function BulkDuplicateDialog({
       mode,
       actionName,
       command,
-      composerSeed(composer),
+      showPrompt ? composerSeed(composer) : undefined,
     );
     return copies.map((c) =>
       c.override
@@ -536,28 +548,30 @@ export function BulkDuplicateDialog({
                   : `Starts on ${copyRef} in the background as soon as it's created.`}
               </p>
 
-              <div className="mt-3 field-reveal">
-                <span className={SECTION_LABEL}>Prompt</span>
-                <InputComposer
-                  onChange={setComposer}
-                  placeholder="Type a task for an AI agent, and paste or attach images…"
-                  history={
-                    project
-                      ? {
-                          terminalId: project.name,
-                          projectName: project.name,
-                          terminalLabel: project.name,
-                        }
-                      : undefined
-                  }
-                  aiCwd={project?.root || undefined}
-                />
-                <p className={`mt-1.5 ${HELPER_TEXT}`}>
-                  Sent to {copyRef}'s terminal once it's ready — e.g. a task for
-                  the agent, with any attached images. Leave blank to send
-                  nothing.
-                </p>
-              </div>
+              {showPrompt && (
+                <div className="mt-3 field-reveal">
+                  <span className={SECTION_LABEL}>Prompt</span>
+                  <InputComposer
+                    onChange={setComposer}
+                    placeholder="Type a task for an AI agent, and paste or attach images…"
+                    history={
+                      project
+                        ? {
+                            terminalId: project.name,
+                            projectName: project.name,
+                            terminalLabel: project.name,
+                          }
+                        : undefined
+                    }
+                    aiCwd={project?.root || undefined}
+                  />
+                  <p className={`mt-1.5 ${HELPER_TEXT}`}>
+                    Sent to {copyRef}'s terminal once it's ready — e.g. a task
+                    for the agent, with any attached images. Leave blank to send
+                    nothing.
+                  </p>
+                </div>
+              )}
             </>
           )}
         </div>
