@@ -3,12 +3,21 @@ import { Folder, GitBranch, Package, RefreshCw } from "lucide-react";
 import { useEventListener } from "../hooks/useEventListener";
 import { Modal } from "./ui/Modal";
 import { ActionPicker } from "./ActionPicker";
-import { PromptComposer, type PromptImage } from "./PromptComposer";
+import {
+  InputComposer,
+  EMPTY_COMPOSER,
+  type ComposerValue,
+} from "./InputComposer";
 import { CopyRow } from "./CopyRow";
 import { ShellCommandInput } from "./ShellCommandInput";
 import { SwitchRow } from "./SwitchRow";
 import { SegmentedControl } from "./ui/SegmentedControl";
-import { CARD_CLASS, FIELD_CLASS, HELPER_TEXT, SECTION_LABEL } from "./ui/fields";
+import {
+  CARD_CLASS,
+  FIELD_CLASS,
+  HELPER_TEXT,
+  SECTION_LABEL,
+} from "./ui/fields";
 import { getSettings, saveSettings } from "../store/settings";
 import { shellQuote } from "../terminal-io";
 import type {
@@ -24,7 +33,8 @@ const MAX_COUNT = 50;
 
 // Mirror the backend's id alphabet so the default label matches the name a
 // copy would otherwise be given.
-const NAME_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const NAME_ALPHABET =
+  "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
 function randomId6(): string {
   const bytes = new Uint8Array(6);
@@ -77,8 +87,7 @@ export function BulkDuplicateDialog({
   const [mode, setMode] = useState<RunMode>("none");
   const [actionName, setActionName] = useState("");
   const [command, setCommand] = useState("");
-  const [prompt, setPrompt] = useState("");
-  const [promptImages, setPromptImages] = useState<PromptImage[]>([]);
+  const [composer, setComposer] = useState<ComposerValue>(EMPTY_COMPOSER);
   // Which copy's override editor is expanded (`null` = none).
   const [editing, setEditing] = useState<number | null>(null);
   const [excludeUncommitted, setExcludeUncommitted] = useState(false);
@@ -118,8 +127,7 @@ export function BulkDuplicateDialog({
     setMode(savedMode);
     setActionName(savedAction);
     setCommand(s.duplicateCommand ?? "");
-    setPrompt("");
-    setPromptImages([]);
+    setComposer(EMPTY_COMPOSER);
     setEditing(null);
     setExcludeUncommitted(s.duplicateExcludeUncommitted ?? false);
     setReinstallDeps(s.duplicateReinstallDeps ?? false);
@@ -196,30 +204,32 @@ export function BulkDuplicateDialog({
   );
   const trimmedGroup = groupName.trim();
   const hasGroup = !single && trimmedGroup.length > 0;
-  const imagesPending = promptImages.some((im) => !im.path && !im.error);
+  const imagesPending = composer.pending;
 
   const pickMode = (next: RunMode) => {
     setMode(next);
-    if (next === "none") {
-      setPromptImages((prev) => {
-        prev.forEach((im) => URL.revokeObjectURL(im.url));
-        return [];
-      });
-    }
     if (next === "action" && !actionName && runnableActions.length > 0) {
       setActionName(runnableActions[0].name);
     }
   };
 
   // The seed is typed into the terminal as one line then submitted, so flatten
-  // newlines and append the saved image paths for the agent to pick up.
-  const flattenSeed = (
-    text: string,
-    images: PromptImage[],
-  ): string | undefined => {
-    const t = text.replace(/\s*\n\s*/g, " ").trim();
-    const paths = images.map((im) => im.path).filter(Boolean).map(shellQuote);
-    return [t, ...paths].filter(Boolean).join(" ") || undefined;
+  // its newlines to spaces.
+  const flatten = (text: string): string =>
+    text
+      .replace(/\s*\n\s*/g, " ")
+      .replace(/[ \t]{2,}/g, " ")
+      .trim();
+
+  // Resolve the composer's `[Image #N]` tokens to shell-quoted paths in place,
+  // then flatten — so a pasted image lands where the user put it in the prompt.
+  const composerSeed = (value: ComposerValue): string | undefined => {
+    const byToken = new Map(value.images.map((im) => [im.token, im.path]));
+    const resolved = value.text.replace(/\[Image #(\d+)\]/g, (_, n) => {
+      const path = byToken.get(Number(n));
+      return path ? ` ${shellQuote(path)} ` : "";
+    });
+    return flatten(resolved) || undefined;
   };
 
   const taskFrom = (
@@ -240,7 +250,7 @@ export function BulkDuplicateDialog({
       mode,
       actionName,
       command,
-      flattenSeed(prompt, promptImages),
+      composerSeed(composer),
     );
     return copies.map((c) =>
       c.override
@@ -248,7 +258,7 @@ export function BulkDuplicateDialog({
             c.override.mode,
             c.override.actionName,
             c.override.command,
-            flattenSeed(c.override.prompt, []),
+            flatten(c.override.prompt) || undefined,
           )
         : defaultTask,
     );
@@ -290,7 +300,11 @@ export function BulkDuplicateDialog({
     (e) => {
       if (e.key !== "Enter" || e.isComposing) return;
       if (document.activeElement instanceof HTMLButtonElement) return;
-      if (e.shiftKey && document.activeElement instanceof HTMLTextAreaElement)
+      const active = document.activeElement as HTMLElement | null;
+      if (
+        e.shiftKey &&
+        (active instanceof HTMLTextAreaElement || active?.isContentEditable)
+      )
         return;
       e.preventDefault();
       if (imagesPending) return;
@@ -302,7 +316,11 @@ export function BulkDuplicateDialog({
 
   const runOptions: { value: RunMode; label: string; disabled?: boolean }[] = [
     { value: "none", label: "Nothing" },
-    { value: "action", label: "Action", disabled: runnableActions.length === 0 },
+    {
+      value: "action",
+      label: "Action",
+      disabled: runnableActions.length === 0,
+    },
     { value: "command", label: "Command" },
   ];
 
@@ -455,7 +473,9 @@ export function BulkDuplicateDialog({
                       override={copy.override}
                       summary={overrideSummary(copy.override)}
                       expanded={editing === i}
-                      onToggleExpand={() => setEditing(editing === i ? null : i)}
+                      onToggleExpand={() =>
+                        setEditing(editing === i ? null : i)
+                      }
                       actions={runnableActions}
                       onChangeMode={(m) => pickCopyMode(i, m)}
                       onPatchOverride={(patch) => patchOverrideAt(i, patch)}
@@ -468,8 +488,8 @@ export function BulkDuplicateDialog({
                   {hasGroup
                     ? `The copies are grouped under “${trimmedGroup}” in the sidebar.`
                     : "Name a folder above to keep the copies together in the sidebar, or leave it blank."}{" "}
-                  Use the menu beside a copy to run a different action or command
-                  on it.
+                  Use the menu beside a copy to run a different action or
+                  command on it.
                 </p>
               </div>
             )}
@@ -500,7 +520,11 @@ export function BulkDuplicateDialog({
 
           {mode === "command" && (
             <div className="mt-2 field-reveal">
-              <ShellCommandInput value={command} onChange={setCommand} autoFocus />
+              <ShellCommandInput
+                value={command}
+                onChange={setCommand}
+                autoFocus
+              />
             </div>
           )}
 
@@ -514,12 +538,19 @@ export function BulkDuplicateDialog({
 
               <div className="mt-3 field-reveal">
                 <span className={SECTION_LABEL}>Prompt</span>
-                <PromptComposer
-                  value={prompt}
-                  onChange={setPrompt}
-                  images={promptImages}
-                  onImagesChange={setPromptImages}
+                <InputComposer
+                  onChange={setComposer}
                   placeholder="Type a task for an AI agent, and paste or attach images…"
+                  history={
+                    project
+                      ? {
+                          terminalId: project.name,
+                          projectName: project.name,
+                          terminalLabel: project.name,
+                        }
+                      : undefined
+                  }
+                  aiCwd={project?.root || undefined}
                 />
                 <p className={`mt-1.5 ${HELPER_TEXT}`}>
                   Sent to {copyRef}'s terminal once it's ready — e.g. a task for
