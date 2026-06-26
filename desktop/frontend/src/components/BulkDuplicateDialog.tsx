@@ -551,7 +551,6 @@ export function BulkDuplicateDialog({
 
               {showPrompt && (
                 <div className="mt-3 field-reveal">
-                  <span className={SECTION_LABEL}>Prompt</span>
                   <InputComposer
                     onChange={setComposer}
                     placeholder="Type a task for an AI agent, and paste or attach images…"
