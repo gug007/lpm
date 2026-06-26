@@ -1,5 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import { CopyRunConfig } from "./CopyRunConfig";
+import type { ComposerHistory } from "./InputComposer";
 import { FIELD_CLASS } from "./ui/fields";
 import type { ActionInfo, CopyOverride, CopyRunMode } from "../types";
 
@@ -14,6 +15,8 @@ interface CopyRowProps {
   actions: ActionInfo[];
   onChangeMode: (mode: CopyRunMode) => void;
   onPatchOverride: (patch: Partial<CopyOverride>) => void;
+  history?: ComposerHistory;
+  aiCwd?: string;
   autoFocus?: boolean;
 }
 
@@ -28,6 +31,8 @@ export function CopyRow({
   actions,
   onChangeMode,
   onPatchOverride,
+  history,
+  aiCwd,
   autoFocus,
 }: CopyRowProps) {
   return (
@@ -69,6 +74,8 @@ export function CopyRow({
             override={override}
             onChangeMode={onChangeMode}
             onPatchOverride={onPatchOverride}
+            history={history}
+            aiCwd={aiCwd}
           />
         </div>
       )}

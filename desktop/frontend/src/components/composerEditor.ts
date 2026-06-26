@@ -12,6 +12,29 @@ export const COMMAND_COLOR = ansiColors.brightBlue;
 
 const IMAGE_TOKEN_RE = /\[Image #(\d+)\]/g;
 
+// A single attachment: the `[Image #N]` token in the serialized text and the
+// local file path it resolves to. The path is read in place by whoever consumes
+// the value, so there's no separate upload step here (unlike the terminal).
+export interface ComposerImage {
+  token: number;
+  path: string;
+}
+
+// The composer's serialized value: text with inline `[Image #N]` tokens, the
+// token→path map for those tokens, and whether an image is still being saved
+// (so the consumer can hold a submit until attachments are on disk).
+export interface ComposerValue {
+  text: string;
+  images: ComposerImage[];
+  pending: boolean;
+}
+
+export const EMPTY_COMPOSER: ComposerValue = {
+  text: "",
+  images: [],
+  pending: false,
+};
+
 // Shared visual base for an image chip, so the editable composer chip and the
 // read-only history chip (MessageImageChip) can't drift apart. Each site layers
 // its own interaction classes (group/cursor/hover) on top.
@@ -158,7 +181,9 @@ function chipBeforePoint(container: Node, offset: number): HTMLElement | null {
 // live DOM rather than serialize() so a WebKit leftover empty block (e.g.
 // `<div><br></div>` after clearing) still counts as empty.
 export function isEditorEmpty(root: HTMLElement): boolean {
-  return isStrayOnly(root.textContent ?? "") && !root.querySelector("[data-img]");
+  return (
+    isStrayOnly(root.textContent ?? "") && !root.querySelector("[data-img]")
+  );
 }
 
 // Zero-width/format characters, the object-replacement char, and C0/C1 control
@@ -181,7 +206,9 @@ function isStrayOnly(str: string): boolean {
 // residue, including the caret anchor we park after a trailing chip.
 function isStrayOnlyText(node: Node | null): node is Text {
   return (
-    node != null && node.nodeType === Node.TEXT_NODE && isStrayOnly(node.nodeValue ?? "")
+    node != null &&
+    node.nodeType === Node.TEXT_NODE &&
+    isStrayOnly(node.nodeValue ?? "")
   );
 }
 
@@ -206,7 +233,8 @@ export function normalizeStrayChars(root: HTMLElement): boolean {
 
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
-  for (let t = walker.nextNode(); t; t = walker.nextNode()) nodes.push(t as Text);
+  for (let t = walker.nextNode(); t; t = walker.nextNode())
+    nodes.push(t as Text);
 
   for (const node of nodes) {
     const val = node.nodeValue ?? "";
@@ -214,12 +242,19 @@ export function normalizeStrayChars(root: HTMLElement): boolean {
     // ZWSP as the block's last node): stripping it would re-expose the WebKit
     // caret-paint bug and leave an empty residue node behind. serializeEditor
     // strips it anyway.
-    if (val === ZWSP && node === node.parentNode?.lastChild && isChip(node.previousSibling)) continue;
+    if (
+      val === ZWSP &&
+      node === node.parentNode?.lastChild &&
+      isChip(node.previousSibling)
+    )
+      continue;
     const cleaned = val.replace(STRAY_CHARS_RE, "");
     if (cleaned === val) continue;
     if (node === anchorNode) {
       // Pull the caret back by however many stray chars sat before it.
-      newAnchorOffset = val.slice(0, anchorOffset).replace(STRAY_CHARS_RE, "").length;
+      newAnchorOffset = val
+        .slice(0, anchorOffset)
+        .replace(STRAY_CHARS_RE, "").length;
     }
     node.nodeValue = cleaned;
     changed = true;
@@ -292,11 +327,13 @@ export function splitByImageTokens(value: string): ValueSegment[] {
   let m: RegExpExecArray | null;
   IMAGE_TOKEN_RE.lastIndex = 0;
   while ((m = IMAGE_TOKEN_RE.exec(value))) {
-    if (m.index > last) segments.push({ text: value.slice(last, m.index), image: null });
+    if (m.index > last)
+      segments.push({ text: value.slice(last, m.index), image: null });
     segments.push({ text: m[0], image: Number(m[1]) });
     last = m.index + m[0].length;
   }
-  if (last < value.length) segments.push({ text: value.slice(last), image: null });
+  if (last < value.length)
+    segments.push({ text: value.slice(last), image: null });
   return segments;
 }
 
@@ -306,7 +343,11 @@ export function setEditorContent(root: HTMLElement, value: string): void {
   root.replaceChildren();
   if (!value) return;
   for (const seg of splitByImageTokens(value)) {
-    root.appendChild(seg.image === null ? document.createTextNode(seg.text) : createImageChip(seg.image));
+    root.appendChild(
+      seg.image === null
+        ? document.createTextNode(seg.text)
+        : createImageChip(seg.image),
+    );
   }
 }
 
@@ -363,7 +404,10 @@ function isLineEndChip(node: Node): boolean {
 // anchor — a real text position WebKit paints correctly. Falls back to
 // setStartAfter if the chip somehow isn't its block's last node.
 function placeCaretAfterChip(root: HTMLElement, chip: HTMLElement): void {
-  const block = chip.parentElement && chip.parentElement !== root ? chip.parentElement : root;
+  const block =
+    chip.parentElement && chip.parentElement !== root
+      ? chip.parentElement
+      : root;
   const anchor = ensureTrailingCaretAnchor(block);
   const sel = window.getSelection();
   if (!sel) return;
@@ -379,11 +423,15 @@ function placeCaretAfterChip(root: HTMLElement, chip: HTMLElement): void {
 // when the selection is elsewhere, e.g. an OS drop). Items are space-separated;
 // no trailing space is added, so a single Backspace right after a chip removes
 // the whole chip instead of first eating a phantom space.
-export function insertItemsAtCaret(root: HTMLElement, items: Array<HTMLElement | string>): void {
+export function insertItemsAtCaret(
+  root: HTMLElement,
+  items: Array<HTMLElement | string>,
+): void {
   if (items.length === 0) return;
   // Whether the field owns focus. A paste/drop whose image save resolved after
   // the user moved focus away must not yank it back.
-  const focused = () => root === document.activeElement || root.contains(document.activeElement);
+  const focused = () =>
+    root === document.activeElement || root.contains(document.activeElement);
   const hadFocus = focused();
   const sel = window.getSelection();
   let range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
@@ -397,9 +445,11 @@ export function insertItemsAtCaret(root: HTMLElement, items: Array<HTMLElement |
   // If we're dropping a chip right after an existing chip, separate them so they
   // don't serialize as touching [Image #N][Image #M] (whose resolved file paths
   // would concatenate on send). Plain text adjacent to a chip is left untouched.
-  const firstIsChip = items[0] instanceof HTMLElement && items[0].dataset.img !== undefined;
+  const firstIsChip =
+    items[0] instanceof HTMLElement && items[0].dataset.img !== undefined;
   const needsLeadingSpace =
-    firstIsChip && chipBeforePoint(range.startContainer, range.startOffset) !== null;
+    firstIsChip &&
+    chipBeforePoint(range.startContainer, range.startOffset) !== null;
 
   const frag = document.createDocumentFragment();
   let lastNode: Node | null = null;
@@ -463,7 +513,11 @@ export function selectedChip(root: HTMLElement): HTMLElement | null {
   const sel = window.getSelection();
   if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
   const range = sel.getRangeAt(0);
-  if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) return null;
+  if (
+    !root.contains(range.startContainer) ||
+    !root.contains(range.endContainer)
+  )
+    return null;
   const frag = range.cloneContents();
   let chips = 0;
   for (const node of Array.from(frag.childNodes)) {
@@ -472,7 +526,9 @@ export function selectedChip(root: HTMLElement): HTMLElement | null {
   }
   if (chips !== 1) return null;
   const n = frag.querySelector<HTMLElement>("[data-img]")?.dataset.img;
-  return n != null ? root.querySelector<HTMLElement>(`[data-img="${n}"]`) : null;
+  return n != null
+    ? root.querySelector<HTMLElement>(`[data-img="${n}"]`)
+    : null;
 }
 
 // Remove a chip and leave a collapsed caret where it was.
@@ -483,7 +539,9 @@ export function removeChip(chip: HTMLElement): void {
   // A trailing ZWSP caret anchor that exists only for this chip is now orphaned;
   // drop it so an empty field reads as empty (placeholder) and leaves no residue.
   const orphanAnchor =
-    isStrayOnlyText(chip.nextSibling) && chip.nextSibling === parent.lastChild && !isChip(chip.previousSibling)
+    isStrayOnlyText(chip.nextSibling) &&
+    chip.nextSibling === parent.lastChild &&
+    !isChip(chip.previousSibling)
       ? chip.nextSibling
       : null;
   chip.remove();
@@ -522,7 +580,10 @@ export function chipAfterCaret(root: HTMLElement): HTMLElement | null {
     // Caret parked in the trailing stray anchor after a chip: nothing real lies
     // ahead, so forward-Delete targets the chip behind the anchor — symmetric
     // with Backspace, which chipBeforeCaret already resolves from this spot.
-    if (isStrayOnly(text.slice(r.startOffset)) && skipEmptyText(r.startContainer.nextSibling, "next") === null) {
+    if (
+      isStrayOnly(text.slice(r.startOffset)) &&
+      skipEmptyText(r.startContainer.nextSibling, "next") === null
+    ) {
       node = isStrayOnly(text.slice(0, r.startOffset))
         ? skipEmptyText(r.startContainer.previousSibling, "prev")
         : null;
@@ -532,7 +593,10 @@ export function chipAfterCaret(root: HTMLElement): HTMLElement | null {
       node = skipEmptyText(r.startContainer.nextSibling, "next");
     }
   } else {
-    node = skipEmptyText(r.startContainer.childNodes[r.startOffset] ?? null, "next");
+    node = skipEmptyText(
+      r.startContainer.childNodes[r.startOffset] ?? null,
+      "next",
+    );
   }
   return isChip(node) ? node : null;
 }
@@ -547,9 +611,13 @@ export interface CaretEdges {
 // when Arrow Up/Down should recall history instead of moving the caret.
 export function caretEdges(root: HTMLElement): CaretEdges {
   const sel = window.getSelection();
-  if (!sel || sel.rangeCount === 0) return { collapsed: false, atStart: false, atEnd: false };
+  if (!sel || sel.rangeCount === 0)
+    return { collapsed: false, atStart: false, atEnd: false };
   const range = sel.getRangeAt(0);
-  if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) {
+  if (
+    !root.contains(range.startContainer) ||
+    !root.contains(range.endContainer)
+  ) {
     return { collapsed: false, atStart: false, atEnd: false };
   }
   const isEmptyRange = (configure: (r: Range) => void) => {
@@ -557,11 +625,15 @@ export function caretEdges(root: HTMLElement): CaretEdges {
     r.selectNodeContents(root);
     configure(r);
     const frag = r.cloneContents();
-    return (frag.textContent ?? "").length === 0 && !frag.querySelector("[data-img]");
+    return (
+      (frag.textContent ?? "").length === 0 && !frag.querySelector("[data-img]")
+    );
   };
   return {
     collapsed: sel.isCollapsed,
-    atStart: isEmptyRange((r) => r.setEnd(range.startContainer, range.startOffset)),
+    atStart: isEmptyRange((r) =>
+      r.setEnd(range.startContainer, range.startOffset),
+    ),
     atEnd: isEmptyRange((r) => r.setStart(range.endContainer, range.endOffset)),
   };
 }
@@ -663,7 +735,8 @@ export function replaceSlashFragment(root: HTMLElement, name: string): boolean {
   const sel = window.getSelection();
   if (!sel || !sel.isCollapsed) return false;
   const fragLen = line.length - slash; // "/" plus the typed fragment
-  for (let i = 0; i < fragLen; i++) sel.modify("extend", "backward", "character");
+  for (let i = 0; i < fragLen; i++)
+    sel.modify("extend", "backward", "character");
   document.execCommand("insertText", false, `/${name} `);
   return true;
 }
@@ -673,7 +746,10 @@ export function replaceSlashFragment(root: HTMLElement, name: string): boolean {
 // replaceSlashFragment, but the "@" can sit mid-line (the fragment is everything
 // from the last "@" to the caret) and <value> may hold path separators. Returns
 // false when no "@" fragment is found.
-export function replaceMentionFragment(root: HTMLElement, value: string): boolean {
+export function replaceMentionFragment(
+  root: HTMLElement,
+  value: string,
+): boolean {
   return replaceMentionFragmentWith(root, `@${value} `);
 }
 
@@ -682,7 +758,10 @@ export function replaceMentionFragment(root: HTMLElement, value: string): boolea
 // captured logs — instead of a literal token the agent resolves. `text` may hold
 // newlines; execCommand inserts them as the same break structure ordinary typing
 // would, so serializeEditor round-trips it. Returns false when no "@" is found.
-export function replaceMentionFragmentWith(root: HTMLElement, text: string): boolean {
+export function replaceMentionFragmentWith(
+  root: HTMLElement,
+  text: string,
+): boolean {
   const line = lineBeforeCaret(root);
   if (line === null) return false;
   const at = line.lastIndexOf("@");
@@ -690,7 +769,8 @@ export function replaceMentionFragmentWith(root: HTMLElement, text: string): boo
   const sel = window.getSelection();
   if (!sel || !sel.isCollapsed) return false;
   const fragLen = line.length - at; // "@" plus the typed fragment
-  for (let i = 0; i < fragLen; i++) sel.modify("extend", "backward", "character");
+  for (let i = 0; i < fragLen; i++)
+    sel.modify("extend", "backward", "character");
   document.execCommand("insertText", false, text);
   return true;
 }
@@ -729,7 +809,10 @@ export function caretCharOffset(root: HTMLElement): number | null {
   return text === null ? null : text.length;
 }
 
-export function placeCaretAtCharOffset(root: HTMLElement, offset: number): void {
+export function placeCaretAtCharOffset(
+  root: HTMLElement,
+  offset: number,
+): void {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let acc = 0;
   for (let n = walker.nextNode(); n; n = walker.nextNode()) {
@@ -764,7 +847,10 @@ function unwrapCmdSpans(root: HTMLElement): void {
 // when `isCommand` recognizes it, so partial/unknown tokens stay plain. Idempotent
 // and caret-preserving: when the wrap is already correct it does nothing, so steady
 // typing of arguments never restructures the DOM.
-export function highlightCommand(root: HTMLElement, isCommand: (name: string) => boolean): void {
+export function highlightCommand(
+  root: HTMLElement,
+  isCommand: (name: string) => boolean,
+): void {
   const match = COMMAND_TOKEN_RE.exec(leadingPlainText(root));
   const want = match !== null && isCommand(match[2].slice(1));
   const spans = root.querySelectorAll<HTMLElement>("[data-cmd]");
@@ -797,7 +883,11 @@ export function highlightCommand(root: HTMLElement, isCommand: (name: string) =>
 // Seat a collapsed caret at the drop coordinates so a dropped image lands where
 // the pointer is, not at a stale caret or the field end. Returns false (leaving
 // the caller's end-of-field fallback) when the point misses the editor.
-export function placeCaretFromPoint(root: HTMLElement, x: number, y: number): boolean {
+export function placeCaretFromPoint(
+  root: HTMLElement,
+  x: number,
+  y: number,
+): boolean {
   const range = document.caretRangeFromPoint(x, y);
   if (!range || !root.contains(range.startContainer)) return false;
   range.collapse(true);

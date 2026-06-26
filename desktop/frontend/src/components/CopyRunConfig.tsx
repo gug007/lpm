@@ -1,7 +1,8 @@
 import { ActionPicker } from "./ActionPicker";
 import { ShellCommandInput } from "./ShellCommandInput";
+import { InputComposer, type ComposerHistory } from "./InputComposer";
 import { SegmentedControl } from "./ui/SegmentedControl";
-import { FIELD_CLASS, HELPER_TEXT } from "./ui/fields";
+import { HELPER_TEXT } from "./ui/fields";
 import { flattenRunnableActions } from "../actionTree";
 import type { ActionInfo, CopyOverride, CopyRunMode } from "../types";
 
@@ -17,6 +18,10 @@ interface CopyRunConfigProps {
   override: CopyOverride | null;
   onChangeMode: (mode: CopyRunMode) => void;
   onPatchOverride: (patch: Partial<CopyOverride>) => void;
+  // Same prompt affordances as the shared default's composer (history recall,
+  // AI-edit), wired to this project.
+  history?: ComposerHistory;
+  aiCwd?: string;
 }
 
 export function CopyRunConfig({
@@ -24,6 +29,8 @@ export function CopyRunConfig({
   override,
   onChangeMode,
   onPatchOverride,
+  history,
+  aiCwd,
 }: CopyRunConfigProps) {
   const active: CopyRunMode = override ? override.mode : "default";
   const noActions = flattenRunnableActions(actions).length === 0;
@@ -65,12 +72,12 @@ export function CopyRunConfig({
       ) : override.mode === "none" ? (
         <p className={`mt-2 ${HELPER_TEXT}`}>Nothing runs on this copy.</p>
       ) : (
-        <textarea
-          value={override.prompt}
-          onChange={(e) => onPatchOverride({ prompt: e.target.value })}
-          spellCheck={false}
+        <InputComposer
+          defaultValue={override.prompt}
+          onChange={(value) => onPatchOverride({ prompt: value })}
           placeholder="Prompt for an AI agent (optional)…"
-          className={`mt-2 ${FIELD_CLASS} block max-h-[160px] min-h-[52px] resize-none px-3 py-2 leading-snug`}
+          history={history}
+          aiCwd={aiCwd}
         />
       )}
     </div>

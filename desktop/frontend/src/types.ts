@@ -1,3 +1,5 @@
+import type { ComposerValue } from "./components/composerEditor";
+
 export interface ServiceInfo {
   name: string;
   cmd: string;
@@ -75,13 +77,13 @@ export type SpawnTask =
 export type RunMode = "none" | "action" | "command";
 
 // A copy's per-run override of the shared default. `null` at the call site means
-// the copy inherits the default; an override carries a text-only prompt — image
-// attachments stay a shared-default feature to keep each copy's editor light.
+// the copy inherits the default; an override carries its own prompt — the same
+// composer value as the shared default, including any attached images.
 export interface CopyOverride {
   mode: RunMode;
   actionName: string;
   command: string;
-  prompt: string;
+  prompt: ComposerValue;
 }
 
 // A copy's run-mode choice in the duplicate UI, including the "default" sentinel
@@ -230,7 +232,11 @@ export function aiSupportsFast(cli: AICLI, model: string): boolean {
 // effectiveFast collapses the saved toggle to false whenever the current
 // CLI/model wouldn't accept it, so call sites can pass the result straight
 // into the backend binding without re-checking eligibility.
-export function aiEffectiveFast(cli: AICLI, model: string, fast: boolean): boolean {
+export function aiEffectiveFast(
+  cli: AICLI,
+  model: string,
+  fast: boolean,
+): boolean {
   return fast && aiSupportsFast(cli, model);
 }
 
@@ -243,7 +249,9 @@ export function resolveAIPick(
     const opt = AI_CLI_OPTIONS.find((o) => o.value === savedCli);
     if (opt) {
       const m = savedModel ?? "";
-      const valid = opt.models ? opt.models.some((x) => x.value === m) : m === "";
+      const valid = opt.models
+        ? opt.models.some((x) => x.value === m)
+        : m === "";
       return { cli: opt.value, model: valid ? m : aiDefaultModel(opt.value) };
     }
   }

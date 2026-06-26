@@ -32,6 +32,7 @@ import {
   chipAfterCaret,
   chipBeforeCaret,
   createImageChip,
+  EMPTY_COMPOSER,
   insertItemsAtCaret,
   isEditorEmpty,
   isImagePath,
@@ -47,30 +48,20 @@ import {
   setChipThumbnail,
   setEditorContent,
   splitByImageTokens,
+  type ComposerImage,
+  type ComposerValue,
 } from "./composerEditor";
 
-// A single attachment: the `[Image #N]` token in the serialized text and the
-// local file path it resolves to. The path is read in place by whoever consumes
-// the value, so there's no separate upload step here (unlike the terminal).
-export interface ComposerImage {
-  token: number;
-  path: string;
-}
+export { EMPTY_COMPOSER };
+export type { ComposerImage, ComposerValue };
 
-// The composer's serialized value: text with inline `[Image #N]` tokens, the
-// token→path map for those tokens, and whether an image is still being saved
-// (so the consumer can hold a submit until attachments are on disk).
-export interface ComposerValue {
-  text: string;
-  images: ComposerImage[];
-  pending: boolean;
+// Recalls past prompts for a project; when set the composer shows a history
+// button that loads an entry back into the field.
+export interface ComposerHistory {
+  terminalId: string;
+  projectName: string;
+  terminalLabel: string;
 }
-
-export const EMPTY_COMPOSER: ComposerValue = {
-  text: "",
-  images: [],
-  pending: false,
-};
 
 interface InputComposerProps {
   // Seed applied once on mount — restores text + chips when the composer is
@@ -81,7 +72,7 @@ interface InputComposerProps {
   placeholder?: string;
   autoFocus?: boolean;
   // When set, a message-history button recalls past prompts for this project.
-  history?: { terminalId: string; projectName: string; terminalLabel: string };
+  history?: ComposerHistory;
   // Working directory AI-edit transforms run in (the project root). When set, an
   // AI-actions button transforms the prompt in place.
   aiCwd?: string;
@@ -99,11 +90,12 @@ function blobToBase64(blob: Blob): Promise<string | null> {
   });
 }
 
-// A drop landing inside this composer (vs. elsewhere on the page) — the shared
-// native file-drop bridge reports a point, and only the composer under it claims
-// the drop.
-function overComposer(x: number, y: number): boolean {
-  return !!document.elementFromPoint(x, y)?.closest("[data-input-composer]");
+// A drop landing inside *this* composer's box (vs. elsewhere on the page, or a
+// sibling composer) — the shared native file-drop bridge reports a point, and
+// only the composer the point actually falls in claims the drop.
+function pointInBox(box: HTMLElement | null, x: number, y: number): boolean {
+  const target = document.elementFromPoint(x, y);
+  return !!box && !!target && box.contains(target);
 }
 
 export function InputComposer({
@@ -115,6 +107,7 @@ export function InputComposer({
   aiCwd,
 }: InputComposerProps) {
   const editorRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
   // [Image #N] token -> local file path, mirrored out in the value.
   const imagePaths = useRef<Map<number, string>>(new Map());
   const imgCounter = useRef(0);
@@ -393,7 +386,8 @@ export function InputComposer({
   useEffect(
     () =>
       registerFileDropHandler(dropId, (x, y, paths) => {
-        if (paths.length === 0 || !overComposer(x, y)) return false;
+        if (paths.length === 0 || !pointInBox(boxRef.current, x, y))
+          return false;
         const editor = editorRef.current;
         if (editor) {
           editor.focus();
@@ -417,7 +411,7 @@ export function InputComposer({
     const onOver = (e: Event) => {
       if (!inside) return;
       const detail = (e as CustomEvent<[number, number]>).detail;
-      setDragOver(!!detail && overComposer(detail[0], detail[1]));
+      setDragOver(!!detail && pointInBox(boxRef.current, detail[0], detail[1]));
     };
     const off = () => {
       inside = false;
@@ -563,6 +557,7 @@ export function InputComposer({
   return (
     <>
       <div
+        ref={boxRef}
         data-input-composer
         data-composer-box
         onDrop={handleDrop}

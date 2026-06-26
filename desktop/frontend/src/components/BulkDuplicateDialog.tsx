@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Folder, GitBranch, Package, RefreshCw } from "lucide-react";
+import { Folder, GitBranch, Package, RefreshCw, X } from "lucide-react";
 import { useEventListener } from "../hooks/useEventListener";
 import { Modal } from "./ui/Modal";
 import { ActionPicker } from "./ActionPicker";
@@ -208,7 +208,7 @@ export function BulkDuplicateDialog({
         if (idx !== i) return c;
         const seeded: CopyOverride = c.override
           ? { ...c.override, mode: next }
-          : { mode: next, actionName, command, prompt: "" };
+          : { mode: next, actionName, command, prompt: EMPTY_COMPOSER };
         // Switching to "action" needs a concrete action — fall back to the
         // first runnable when neither the default nor a prior override set one.
         if (next === "action" && !seeded.actionName)
@@ -226,7 +226,21 @@ export function BulkDuplicateDialog({
   );
   const trimmedGroup = groupName.trim();
   const hasGroup = !single && trimmedGroup.length > 0;
-  const imagesPending = composer.pending;
+  // Hold submit while any prompt — the shared default or a per-copy override —
+  // still has an image saving to disk.
+  const imagesPending =
+    composer.pending || copies.some((c) => c.override?.prompt.pending);
+
+  // The same history recall + AI-edit wiring is shared by the default composer
+  // and every per-copy override composer.
+  const composerHistory = project
+    ? {
+        terminalId: project.name,
+        projectName: project.name,
+        terminalLabel: project.name,
+      }
+    : undefined;
+  const aiCwd = project?.root || undefined;
 
   // Existing folders that match what's typed (all of them when blank), minus an
   // exact match so the list disappears once a name is fully entered.
@@ -316,7 +330,7 @@ export function BulkDuplicateDialog({
             c.override.mode,
             c.override.actionName,
             c.override.command,
-            flatten(c.override.prompt) || undefined,
+            composerSeed(c.override.prompt),
           )
         : defaultTask,
     );
@@ -418,6 +432,14 @@ export function BulkDuplicateDialog({
             to run agents or services in parallel.
           </p>
         </div>
+        <button
+          type="button"
+          onClick={onCancel}
+          aria-label="Close"
+          className="-mr-1 -mt-1 ml-auto shrink-0 rounded-md p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        >
+          <X size={16} />
+        </button>
       </div>
 
       <div className="mt-5 space-y-3">
@@ -550,6 +572,8 @@ export function BulkDuplicateDialog({
                       actions={actionTree}
                       onChangeMode={(m) => pickCopyMode(i, m)}
                       onPatchOverride={(patch) => patchOverrideAt(i, patch)}
+                      history={composerHistory}
+                      aiCwd={aiCwd}
                       autoFocus={i === 0}
                     />
                   ))}
@@ -614,16 +638,8 @@ export function BulkDuplicateDialog({
                     <InputComposer
                       onChange={setComposer}
                       placeholder="Type a task for an AI agent, and paste or attach images…"
-                      history={
-                        project
-                          ? {
-                              terminalId: project.name,
-                              projectName: project.name,
-                              terminalLabel: project.name,
-                            }
-                          : undefined
-                      }
-                      aiCwd={project?.root || undefined}
+                      history={composerHistory}
+                      aiCwd={aiCwd}
                     />
                     <p className={`mt-1.5 ${HELPER_TEXT}`}>
                       Sent to {copyRef}'s terminal once it's ready — e.g. a task
