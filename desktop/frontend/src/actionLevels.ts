@@ -4,7 +4,7 @@ import {
   ACTION_SECTIONS,
   hasActionBody,
 } from "./actionConfig";
-import { splitChild } from "./actionIds";
+import { parsePath } from "./actionIds";
 import { globalLayer, projectLayer, repoLayer } from "./yamlQueue";
 
 export type ActionLevel = ActionConfigLayer; // "project" | "repo" | "global"
@@ -45,8 +45,10 @@ export function buildLevelMap(docs: LayerDocs): LevelMap {
   return map;
 }
 
+// The level map only carries top-level keys, so any id — top-level, a child, or
+// a deep path like "Build:iOS" — resolves through its root ancestor segment.
 export function levelOf(map: LevelMap, id: string): ActionLevel | null {
-  return map.get(splitChild(id)?.parent ?? id) ?? null;
+  return map.get(parsePath(id)[0]) ?? null;
 }
 
 export async function loadLevelMap(projectName: string): Promise<LevelMap> {

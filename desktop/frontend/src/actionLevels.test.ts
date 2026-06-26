@@ -54,6 +54,10 @@ describe("levelOf", () => {
     expect(levelOf(map, "repo_menu:child_a")).toBe("repo");
   });
 
+  it("resolves a deep path via its root ancestor segment", () => {
+    expect(levelOf(map, "repo_menu:iOS:child_a")).toBe("repo");
+  });
+
   it("returns null for an unknown id", () => {
     expect(levelOf(map, "nope")).toBe(null);
   });

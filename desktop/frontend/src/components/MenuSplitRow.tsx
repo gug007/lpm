@@ -7,13 +7,30 @@ export function MenuSplitRow({
   onRun,
   onConfigure,
   disabled = false,
+  hasDefault = true,
 }: {
   icon: ReactNode;
   label: ReactNode;
   onRun: () => void;
   onConfigure: () => void;
   disabled?: boolean;
+  hasDefault?: boolean;
 }) {
+  if (!hasDefault) {
+    return (
+      <button
+        onClick={onConfigure}
+        disabled={disabled}
+        className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+      >
+        {icon}
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <span className="flex shrink-0 text-[var(--text-muted)]">
+          <ChevronRightIcon />
+        </span>
+      </button>
+    );
+  }
   return (
     <div className="flex items-center">
       <button

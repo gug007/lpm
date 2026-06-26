@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import YAML from "yaml";
 import { nestEntry } from "./actionsStructural";
-import { mergeMenu } from "./actionsStructural";
 import { extractToTop } from "./actionsStructural";
 import { extractOnto } from "./actionsStructural";
 import { reorderMenu } from "./actionsStructural";
+import { ungroupMenu } from "./actionsStructural";
 import { applyOpToDoc } from "./actionsStructural";
 
 function parse(s: string) {
@@ -64,55 +64,6 @@ actions:
   });
 });
 
-describe("mergeMenu: split menu into a leaf", () => {
-  it("default becomes a regular item alongside the children", () => {
-    const doc = YAML.parseDocument(`
-actions:
-  target:
-    cmd: echo target
-  src:
-    cmd: echo srcdefault
-    actions:
-      a:
-        cmd: echo a
-      b:
-        cmd: echo b
-`);
-    mergeMenu(doc, "src", "target");
-    const r = YAML.parse(String(doc));
-    expect(r.actions.src).toBeUndefined();
-    expect(r.actions.target.cmd).toBe("echo target");
-    expect(r.actions.target.actions.src.cmd).toBe("echo srcdefault");
-    expect(r.actions.target.actions.a.cmd).toBe("echo a");
-    expect(r.actions.target.actions.b.cmd).toBe("echo b");
-  });
-});
-
-describe("mergeMenu: pure dropdown into a menu", () => {
-  it("moves only its children, no self-leaf", () => {
-    const doc = YAML.parseDocument(`
-actions:
-  target:
-    actions:
-      keep:
-        cmd: echo keep
-  src:
-    actions:
-      a:
-        cmd: echo a
-      b:
-        cmd: echo b
-`);
-    mergeMenu(doc, "src", "target");
-    const r = YAML.parse(String(doc));
-    expect(r.actions.src).toBeUndefined();
-    expect(r.actions.target.actions.keep.cmd).toBe("echo keep");
-    expect(r.actions.target.actions.a.cmd).toBe("echo a");
-    expect(r.actions.target.actions.b.cmd).toBe("echo b");
-    expect(r.actions.target.actions.src).toBeUndefined();
-  });
-});
-
 describe("extractToTop: from split menu, no collapse (default + child remain)", () => {
   it("promotes child to top level, parent stays a menu", () => {
     const doc = YAML.parseDocument(`
@@ -152,8 +103,8 @@ actions:
   });
 });
 
-describe("extractToTop: pure dropdown collapses to its single survivor", () => {
-  it("replaces the parent with the remaining child at top level", () => {
+describe("extractToTop: pure dropdown keeps its sole surviving child", () => {
+  it("parent menu stays intact with the remaining child, no auto-promote", () => {
     const doc = YAML.parseDocument(`
 actions:
   menu:
@@ -166,13 +117,13 @@ actions:
     extractToTop(doc, "menu", "a");
     const r = YAML.parse(String(doc));
     expect(r.actions.a.cmd).toBe("echo a");
-    expect(r.actions.menu).toBeUndefined();
-    expect(r.actions.b.cmd).toBe("echo b");
+    expect(r.actions.menu.actions.b.cmd).toBe("echo b");
+    expect(r.actions.b).toBeUndefined();
   });
 });
 
 describe("extractOnto: child onto a plain leaf -> new split menu", () => {
-  it("moves the child under the target and collapses the source", () => {
+  it("moves the child under the target and keeps source menu with its survivor", () => {
     const doc = YAML.parseDocument(`
 actions:
   src:
@@ -188,9 +139,115 @@ actions:
     const r = YAML.parse(String(doc));
     expect(r.actions.dest.cmd).toBe("echo dest");
     expect(r.actions.dest.actions.a.cmd).toBe("echo a");
-    // src had 2 children, now 1 -> collapses to its survivor b
-    expect(r.actions.src).toBeUndefined();
-    expect(r.actions.b.cmd).toBe("echo b");
+    expect(r.actions.src.actions.b.cmd).toBe("echo b");
+    expect(r.actions.b).toBeUndefined();
+  });
+});
+
+describe("extractOnto: position-aware cross-level move", () => {
+  const deepDoc = () =>
+    YAML.parseDocument(`actions:
+  Build:
+    cmd: b
+    actions:
+      iOS:
+        cmd: i
+        actions:
+          Clean: { cmd: c }
+          Release: { cmd: r }
+      Tools: { cmd: t }
+      Deploy: { cmd: d }
+`);
+
+  function buildPositions(doc: ReturnType<typeof parse>) {
+    const r = YAML.parse(String(doc));
+    return Object.fromEntries(
+      Object.entries(r.actions.Build.actions).map(([k, v]) => [
+        k,
+        (v as { position?: number }).position,
+      ]),
+    );
+  }
+
+  it("lands the moved child before a specific sibling at the target level", () => {
+    const doc = deepDoc();
+    extractOnto(doc, "Build:iOS", "Release", "Build", "Tools", "before");
+    const r = YAML.parse(String(doc));
+    expect(r.actions.Build.actions.Release.cmd).toBe("r");
+    expect(r.actions.Build.actions.iOS.actions.Release).toBeUndefined();
+    expect(buildPositions(doc)).toEqual({ iOS: 1, Release: 2, Tools: 3, Deploy: 4 });
+  });
+
+  it("lands the moved child after a specific sibling at the target level", () => {
+    const doc = deepDoc();
+    extractOnto(doc, "Build:iOS", "Release", "Build", "Tools", "after");
+    expect(buildPositions(doc)).toEqual({ iOS: 1, Tools: 2, Release: 3, Deploy: 4 });
+  });
+
+  it("lands the moved child at the front (before the first sibling)", () => {
+    const doc = deepDoc();
+    extractOnto(doc, "Build:iOS", "Release", "Build", "iOS", "before");
+    expect(buildPositions(doc)).toEqual({ Release: 1, iOS: 2, Tools: 3, Deploy: 4 });
+  });
+
+  it("lands the moved child at the end (after the last sibling)", () => {
+    const doc = deepDoc();
+    extractOnto(doc, "Build:iOS", "Release", "Build", "Deploy", "after");
+    expect(buildPositions(doc)).toEqual({ iOS: 1, Tools: 2, Deploy: 3, Release: 4 });
+  });
+
+  it("leaves the source menu intact with its surviving child", () => {
+    const doc = deepDoc();
+    extractOnto(doc, "Build:iOS", "Release", "Build", "Tools", "before");
+    const r = YAML.parse(String(doc));
+    expect(r.actions.Build.actions.iOS.cmd).toBe("i");
+    expect(r.actions.Build.actions.iOS.actions.Clean.cmd).toBe("c");
+  });
+
+  it("still throws on a name collision at the destination", () => {
+    const doc = YAML.parseDocument(`actions:
+  Build:
+    cmd: b
+    actions:
+      iOS:
+        actions:
+          Tools: { cmd: nested }
+      Tools: { cmd: top }
+`);
+    const before = String(doc);
+    expect(() => extractOnto(doc, "Build:iOS", "Tools", "Build", "Tools", "before")).toThrow(
+      /already exists/,
+    );
+    expect(String(doc)).toBe(before);
+  });
+});
+
+describe("applyOpToDoc: routes a position-aware extractOnto", () => {
+  it("threads over + position through to extractOnto", () => {
+    const doc = YAML.parseDocument(`actions:
+  Build:
+    cmd: b
+    actions:
+      iOS:
+        cmd: i
+        actions:
+          Release: { cmd: r }
+          Clean: { cmd: c }
+      Tools: { cmd: t }
+      Deploy: { cmd: d }
+`);
+    applyOpToDoc(doc, {
+      kind: "extractOnto",
+      parent: "Build:iOS",
+      child: "Release",
+      target: "Build",
+      over: "Deploy",
+      position: "after",
+    });
+    const r = YAML.parse(String(doc));
+    expect(r.actions.Build.actions.Release.cmd).toBe("r");
+    expect(r.actions.Build.actions.iOS.actions.Release).toBeUndefined();
+    expect(r.actions.Build.actions.Release.position).toBe(4);
   });
 });
 
@@ -310,6 +367,48 @@ actions:
   });
 });
 
+describe("applyOpToDoc: position-aware reorderMenu (drop-indicator model)", () => {
+  it("inserts the dragged child before the over child (top third)", () => {
+    const doc = parse(MENU_ABC);
+    applyOpToDoc(
+      doc,
+      { kind: "reorderMenu", parent: "menu", child: "c", over: "b", position: "before" },
+      ["a", "b", "c"],
+    );
+    expect(reorderedPositions(doc)).toEqual({ a: 1, c: 2, b: 3 });
+  });
+
+  it("inserts the dragged child after the over child (bottom third)", () => {
+    const doc = parse(MENU_ABC);
+    applyOpToDoc(
+      doc,
+      { kind: "reorderMenu", parent: "menu", child: "a", over: "b", position: "after" },
+      ["a", "b", "c"],
+    );
+    expect(reorderedPositions(doc)).toEqual({ b: 1, a: 2, c: 3 });
+  });
+
+  it("before its own immediate predecessor's neighbor lands it at the front", () => {
+    const doc = parse(MENU_ABC);
+    applyOpToDoc(
+      doc,
+      { kind: "reorderMenu", parent: "menu", child: "c", over: "a", position: "before" },
+      ["a", "b", "c"],
+    );
+    expect(reorderedPositions(doc)).toEqual({ c: 1, a: 2, b: 3 });
+  });
+
+  it("after the last child lands it at the end", () => {
+    const doc = parse(MENU_ABC);
+    applyOpToDoc(
+      doc,
+      { kind: "reorderMenu", parent: "menu", child: "a", over: "c", position: "after" },
+      ["a", "b", "c"],
+    );
+    expect(reorderedPositions(doc)).toEqual({ b: 1, c: 2, a: 3 });
+  });
+});
+
 describe("name collisions abort instead of overwriting", () => {
   it("nestEntry: target menu already has a child with the source name", () => {
     const doc = parse(`
@@ -324,27 +423,6 @@ actions:
 `);
     const before = String(doc);
     expect(() => nestEntry(doc, "build", "menu")).toThrow(/already exists/);
-    expect(String(doc)).toBe(before);
-  });
-
-  it("mergeMenu: a source child collides with a target child", () => {
-    const doc = parse(`
-actions:
-  target:
-    actions:
-      deploy:
-        cmd: echo target deploy
-      keep:
-        cmd: echo keep
-  src:
-    actions:
-      deploy:
-        cmd: echo src deploy
-      other:
-        cmd: echo other
-`);
-    const before = String(doc);
-    expect(() => mergeMenu(doc, "src", "target")).toThrow(/already exists/);
     expect(String(doc)).toBe(before);
   });
 
@@ -402,8 +480,8 @@ actions:
     const r = YAML.parse(String(doc));
     expect(r.actions.deploy.cmd).toBe("echo top deploy");
     expect(r.actions.deploy.actions.deploy.cmd).toBe("echo tools deploy");
-    expect(r.actions.tools).toBeUndefined();
-    expect(r.actions.other.cmd).toBe("echo other");
+    expect(r.actions.tools.actions.other.cmd).toBe("echo other");
+    expect(r.actions.other).toBeUndefined();
   });
 
   it("collapseMenu: keeps a one-item menu when promoting would clobber a top-level entry", () => {
@@ -423,5 +501,153 @@ actions:
     expect(r.actions.b.cmd).toBe("echo b");
     expect(r.actions.a.cmd).toBe("echo top a");
     expect(r.actions.menu.actions.a.cmd).toBe("echo nested a");
+  });
+});
+
+const doc3 = () =>
+  YAML.parseDocument(`actions:
+  Build:
+    cmd: b
+    actions:
+      iOS:
+        cmd: i
+        actions:
+          Clean: { cmd: c }
+          Release: { cmd: r }
+      Tools:
+        actions:
+          Doctor: { cmd: d }
+`);
+
+describe("path-aware structural ops (depth >= 3)", () => {
+  it("extractToTop lifts a leaf out of a deep menu to top level", () => {
+    const doc = doc3();
+    extractToTop(doc, "Build:iOS", "Clean");
+    expect(String(doc)).toMatch(/^ {2}Clean:/m);
+  });
+
+  it("extractToTop of a menu node keeps its nested actions intact", () => {
+    const doc = doc3();
+    extractToTop(doc, "Build", "iOS");
+    const root = doc.getIn(["actions", "iOS", "actions"]);
+    expect(YAML.isMap(root)).toBe(true);
+    expect((root as YAML.YAMLMap).has("Clean")).toBe(true);
+    expect((root as YAML.YAMLMap).has("Release")).toBe(true);
+  });
+
+  it("nestEntry moves a whole subtree under a deep target (preserve)", () => {
+    const doc = doc3();
+    nestEntry(doc, "Build:Tools", "Build:iOS");
+    const tools = doc.getIn(["actions", "Build", "actions", "iOS", "actions", "Tools", "actions"]);
+    expect(YAML.isMap(tools)).toBe(true);
+    expect((tools as YAML.YAMLMap).has("Doctor")).toBe(true);
+  });
+
+  it("extractOnto moves a deep child out one level to its grandparent", () => {
+    const doc = doc3();
+    extractOnto(doc, "Build:iOS", "Release", "Build");
+    const buildActions = doc.getIn(["actions", "Build", "actions"]) as YAML.YAMLMap;
+    expect(buildActions.has("Release")).toBe(true);
+    const iosActions = doc.getIn(["actions", "Build", "actions", "iOS", "actions"]) as YAML.YAMLMap;
+    expect(iosActions.has("Release")).toBe(false);
+  });
+});
+
+describe("collapseMenu: no auto-promote for one-child pure menus", () => {
+  it("collapseMenu keeps a one-child pure menu (no auto-promote)", () => {
+    const doc = YAML.parseDocument(`actions:
+  Menu:
+    actions:
+      Only: { cmd: x }
+      Other: { cmd: y }
+`);
+    extractToTop(doc, "Menu", "Other"); // leaves Menu with one child, no cmd
+    const menu = doc.getIn(["actions", "Menu"]);
+    expect(YAML.isMap(menu)).toBe(true);                 // Menu still exists as a menu
+    expect((doc.getIn(["actions", "Only"]) as unknown) ?? null).toBeNull(); // NOT promoted to top
+  });
+
+  it("collapseMenu still demotes a cmd-only menu to a plain button", () => {
+    const doc = YAML.parseDocument(`actions:
+  Menu:
+    cmd: run
+    actions:
+      Only: { cmd: x }
+`);
+    extractToTop(doc, "Menu", "Only");
+    const menu = doc.getIn(["actions", "Menu"]) as YAML.YAMLMap;
+    expect(menu.has("actions")).toBe(false);             // collapsed to plain button
+  });
+
+  it("collapseMenu removes a no-cmd menu left with zero children", () => {
+    const doc = YAML.parseDocument(`actions:
+  Menu:
+    actions:
+      Only: { cmd: x }
+`);
+    extractToTop(doc, "Menu", "Only");           // Menu now has no cmd and 0 children
+    expect(doc.getIn(["actions", "Menu"]) ?? null).toBeNull();   // removed
+    expect(YAML.isMap(doc.getIn(["actions"]))).toBe(true);
+  });
+
+  it("collapseMenu keeps a no-cmd menu that still has children", () => {
+    const doc = YAML.parseDocument(`actions:
+  Menu:
+    actions:
+      A: { cmd: a }
+      B: { cmd: b }
+`);
+    extractToTop(doc, "Menu", "A");              // one child remains
+    expect(YAML.isMap(doc.getIn(["actions", "Menu"]))).toBe(true); // kept
+  });
+});
+
+describe("ungroupMenu", () => {
+  it("dissolves a pure menu into its parent level (node removed)", () => {
+    const doc = YAML.parseDocument(`actions:
+  Build:
+    cmd: b
+    actions:
+      Tools:
+        actions:
+          Doctor: { cmd: d }
+          Cache: { cmd: c }
+      iOS: { cmd: i }
+`);
+    ungroupMenu(doc, "Build:Tools");
+    const ba = doc.getIn(["actions", "Build", "actions"]) as YAML.YAMLMap;
+    expect(ba.has("Doctor")).toBe(true);
+    expect(ba.has("Cache")).toBe(true);
+    expect(ba.has("iOS")).toBe(true);
+    expect(ba.has("Tools")).toBe(false);
+  });
+
+  it("keeps a node with a cmd as a leaf (its actions removed)", () => {
+    const doc = YAML.parseDocument(`actions:
+  Build:
+    actions:
+      iOS:
+        cmd: i
+        actions:
+          Clean: { cmd: c }
+`);
+    ungroupMenu(doc, "Build:iOS");
+    const ba = doc.getIn(["actions", "Build", "actions"]) as YAML.YAMLMap;
+    expect(ba.has("Clean")).toBe(true);
+    const ios = ba.get("iOS", true) as unknown as YAML.YAMLMap;
+    expect(YAML.isMap(ios)).toBe(true);
+    expect(ios.has("actions")).toBe(false);
+  });
+
+  it("throws on a name collision in the destination", () => {
+    const doc = YAML.parseDocument(`actions:
+  Build:
+    actions:
+      Clean: { cmd: top }
+      iOS:
+        actions:
+          Clean: { cmd: nested }
+`);
+    expect(() => ungroupMenu(doc, "Build:iOS")).toThrow();
   });
 });

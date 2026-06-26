@@ -56,6 +56,7 @@ sudo apt install tmux
 | "make it run in background", "notify when done", "run silently" | **Modify** — add action with `type: background` |
 | "button with a default and alternatives" | **Modify** — split-button action group (parent `cmd` + nested `actions`) |
 | "dropdown of related commands", "menu of sub-actions" | **Modify** — dropdown-only action group (nested `actions`, no parent `cmd`) |
+| "nested menus", "submenu inside a button", "a tree of actions", "multi-level menu" | **Modify** — nest `actions` recursively (any depth → drill menu); split at each level when the node has its own `cmd` |
 | "pin this to the terminal footer", "tiny button next to the branch switcher" | **Modify** — set `display: footer` on the action/terminal |
 | "set up a remote project over ssh", "lpm for this server", "manage services on a remote host" | **Create** — SSH project (use `ssh:` block, omit `root`) |
 | "run this action locally against the remote files", "rsync the remote dir and run it locally", "let my local Claude Code touch the remote repo" | **Modify** — set `mode: sync` on the action (SSH projects only) |
@@ -205,6 +206,10 @@ services:
 **"Dropdown of related commands" (dropdown-only)**
 
 → Action group with nested `actions` but no parent `cmd`. The whole button opens the menu. Example: a `database` button that expands into migrate / seed / reset.
+
+**"Nested menus" / "a submenu inside a button" / "a tree of actions" (deep nesting)**
+
+→ Nest `actions` **recursively** — a child action can itself have `actions`, to any depth. Each level renders as a drill menu (push/pop + breadcrumb, like the git Pull/Push/Fetch buttons): a row that has its own `actions` drills in; a back arrow walks out. The default-on-the-button rule holds at every level — `cmd` + children → split (label runs, chevron drills in); children with no `cmd` → the row opens the submenu; `cmd` with no children → a leaf that runs. Inheritance (`cwd`/`env`/`mode`) chains down the full path; set `position` per level to order siblings. Users can also rearrange the tree by drag-and-drop in the app, and lpm rewrites this structure.
 
 **"Add a terminal / shell / console"**
 
@@ -399,7 +404,7 @@ profiles: {}            # optional
 - Omit `display` (or set `display: header`) for the main button row — that is the default. Use `display: footer` for compact controls in the terminal footer (next to the branch switcher). `display: menu` is legacy/no longer suggested.
 - Use `type: terminal` + `reuse: true` for commands that should stay in one persistent pane (log tailers, watchers).
 - Use `type: background` for slow commands you want to fire and forget — lpm shows a toast when they finish.
-- Action groups: parent `cmd` + nested `actions` renders as a split button; nested `actions` alone renders as a dropdown. Children inherit `cwd`, `env`, and `mode`.
+- Action groups: parent `cmd` + nested `actions` renders as a split button; nested `actions` alone renders as a dropdown. **Nesting is recursive** — a child can itself have `actions`, to any depth, rendering as a **drill menu** (push/pop + breadcrumb, like the git Pull/Push/Fetch buttons). The default-on-the-button rule applies at every level: `cmd` + children → split (label runs, chevron drills in); children with no `cmd` → the row opens the submenu; `cmd` with no children → a leaf that runs. Children inherit `cwd`, `env`, and `mode`, chained down the full path.
 - A project is **either** local (set `root`) **or** remote (set `ssh:`, omit `root`) — never both.
 - On SSH projects, `mode: sync` makes an action run locally against an rsync mirror of `ssh.dir`; `mode: remote` (default) runs on the host. `mode: sync` is rejected on local projects.
 - Use `parent_name` to duplicate a project config for a different root directory.
@@ -786,6 +791,37 @@ extends:
 actions:
   logs:
     position: 1        # sparse override — only change ordering, inherit cmd/type/reuse/label
+```
+
+**Example 17: Nested action tree (multi-level drill menu)**
+```
+User: Make a Build button with iOS / Android / Tools submenus, and put Clean and Release under iOS
+Agent: [adds a recursively nested action group]
+
+       Added to ~/.lpm/projects/myapp.yml:
+       actions.build (split) → ios (split) → clean, release; android (leaf); tools (menu) → doctor, cache
+```
+
+```yaml
+actions:
+  build:
+    cmd: yarn build            # split: click runs build, chevron opens the submenu
+    label: 🛠️ Build
+    type: terminal
+    reuse: true
+    actions:
+      ios:
+        cmd: yarn build:ios    # has its own children → split row that drills in
+        label: 📱 iOS
+        actions:
+          clean:   { cmd: yarn build:ios --clean,   label: 🧹 Clean }
+          release: { cmd: yarn build:ios --release, label: 🚀 Release }
+      android: { cmd: yarn build:android, label: 🤖 Android }   # leaf → runs on click
+      tools:                   # no cmd → the row opens its submenu directly
+        label: 🧰 Tools
+        actions:
+          doctor: { cmd: npx expo-doctor,  label: 🩺 Doctor }
+          cache:  { cmd: yarn cache clean, label: 🗑️ Cache }
 ```
 
 ## Limitations

@@ -3,6 +3,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ChevronUpIcon,
+  LayersIcon,
   MoveIcon,
   PencilIcon,
   TrashIcon,
@@ -23,6 +24,8 @@ interface ActionContextMenuProps {
   onMoveLeft: () => void;
   onMoveRight: () => void;
   onEdit: () => void;
+  canUngroup: boolean;
+  onUngroup: () => void;
   onDelete: () => void;
   onClose: () => void;
 }
@@ -37,6 +40,8 @@ export function ActionContextMenu({
   onMoveLeft,
   onMoveRight,
   onEdit,
+  canUngroup,
+  onUngroup,
   onDelete,
   onClose,
 }: ActionContextMenuProps) {
@@ -74,6 +79,9 @@ export function ActionContextMenu({
           onClick={close(onMoveRight)}
         />
       </ContextMenuSubmenu>
+      {canUngroup && (
+        <ContextMenuItem label="Ungroup" icon={<LayersIcon />} onClick={close(onUngroup)} />
+      )}
       <ContextMenuItem
         destructive
         label="Delete action"

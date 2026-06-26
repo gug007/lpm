@@ -28,9 +28,11 @@ import { useActionsDropZone } from "../hooks/useActionsDropZone";
 import {
   type ActionGroup,
   type ExtractIndicator,
+  type MenuDrop,
   ZONE_ID,
   isZoneId,
   isNestId,
+  isCrumbId,
   nestId,
 } from "./actionsDndLayout";
 import { ExtractPlaceholder } from "./ExtractPlaceholder";
@@ -43,6 +45,23 @@ const ExtractIndicatorContext = createContext<ExtractIndicator | null>(null);
 
 export function useExtractIndicator(): ExtractIndicator | null {
   return useContext(ExtractIndicatorContext);
+}
+
+// While dragging a row within an open drill menu, this reports which sibling
+// the pointer is over and the action (before/after/nest). Rows read it to draw
+// the insertion line or nest highlight. null when not over a sibling row.
+const MenuDropContext = createContext<MenuDrop | null>(null);
+
+export function useMenuDrop(): MenuDrop | null {
+  return useContext(MenuDropContext);
+}
+
+// The id of the row currently being dragged, so menu rows can ghost themselves
+// in place (they're plain droppables now, not sortables that move out of view).
+const ActiveIdContext = createContext<string | null>(null);
+
+export function useActionsActiveId(): string | null {
+  return useContext(ActiveIdContext);
 }
 
 // Which row the pointer is in and the gap index between its buttons. Uses
@@ -179,13 +198,26 @@ export function ActionsDnd({
     setIndicator(next);
   }, []);
 
+  const [menuDrop, setMenuDrop] = useState<MenuDrop | null>(null);
+  const menuDropRef = useRef<MenuDrop | null>(null);
+  const updateMenuDrop = useCallback((next: MenuDrop | null) => {
+    const prev = menuDropRef.current;
+    if (prev?.target === next?.target && prev?.mode === next?.mode) return;
+    menuDropRef.current = next;
+    setMenuDrop(next);
+  }, []);
+
   const { sensors, activeId, overGroup, onDragStart, onDragOver, onDragCancel, onDragEnd } =
-    useActionsDnd({ layout, onMove, onPreview, onStructural, canNest, isMenu, indicatorRef });
+    useActionsDnd({ layout, onMove, onPreview, onStructural, canNest, isMenu, indicatorRef, menuDropRef });
   const reduceMotion = usePrefersReducedMotion();
   useDragBodyAttribute(activeId !== null);
 
   useEffect(() => {
-    if (activeId === null) updateIndicator(null);
+    if (activeId === null) {
+      updateIndicator(null);
+      menuDropRef.current = null;
+      setMenuDrop(null);
+    }
   }, [activeId, updateIndicator]);
 
   // pointerWithin reports the item, its full-size nest zone, and the
@@ -197,6 +229,7 @@ export function ActionsDnd({
     () => (args) => {
       const pointer = pointerWithin(args);
       if (pointer.length === 0) {
+        updateMenuDrop(null);
         // Hidden zones (footer under the config/notes view) register 0x0
         // rects that closestCenter would pick, committing invisible drops.
         const measurable = args.droppableContainers.filter((c) => {
@@ -220,10 +253,28 @@ export function ActionsDnd({
       const movingRight = args.collisionRect.left - initialLeft >= 0;
 
       if (activeRef) {
+        // A breadcrumb under the pointer wins over the extract-to-toolbar
+        // insertion: dropping there moves the child out one level.
+        const crumbHit = pointer.find((c) => isCrumbId(String(c.id)));
+        if (crumbHit) {
+          updateIndicator(null);
+          updateMenuDrop(null);
+          return [{ id: crumbHit.id }];
+        }
         const overItem = items[0] ? String(items[0].id) : null;
-        // A child over a sibling reorders within the open menu.
+        // A child over a sibling row stays put (no shuffle). The pointer's
+        // third within the row decides the action: top → reorder before,
+        // bottom → reorder after, middle → nest into it. Recorded in menuDrop
+        // for the drop handler and the row's insertion-line / nest highlight.
         if (overItem && isChildId(overItem)) {
           updateIndicator(null);
+          const rect = args.droppableRects.get(items[0].id);
+          let mode: MenuDrop["mode"] = "nest";
+          if (rect && py != null && rect.height > 0) {
+            const rel = (py - rect.top) / rect.height;
+            mode = rel < 1 / 3 ? "before" : rel > 2 / 3 ? "after" : "nest";
+          }
+          updateMenuDrop({ target: overItem, mode });
           return [items[0]];
         }
         // Dropping back onto its own menu is a no-op revert — still highlight
@@ -231,6 +282,7 @@ export function ActionsDnd({
         // for this, which the drop handler treats as a revert).
         if (overItem === activeRef.parent) {
           updateIndicator(null);
+          updateMenuDrop(null);
           return nestHit(activeRef.parent);
         }
         // Over a same-level button's leading region it nests onto it.
@@ -238,6 +290,7 @@ export function ActionsDnd({
           const rect = args.droppableRects.get(items[0].id);
           if (rect && inNestRegion(rect, px, movingRight)) {
             updateIndicator(null);
+            updateMenuDrop(null);
             return nestHit(overItem);
           }
         }
@@ -246,16 +299,19 @@ export function ActionsDnd({
           const ins = computeInsertion(args, layout, px, py);
           if (ins) {
             updateIndicator(ins);
+            updateMenuDrop(null);
             const ids = ins.group === "header" ? layout.header : layout.footer;
             const anchor = ids[Math.min(ins.index, ids.length - 1)];
             return anchor ? [{ id: anchor }] : [{ id: ZONE_ID[ins.group] }];
           }
         }
         updateIndicator(null);
+        updateMenuDrop(null);
         return nonNest;
       }
 
       updateIndicator(null);
+      updateMenuDrop(null);
       const targetCollision = items[0];
       if (!targetCollision) return nonNest;
       const target = String(targetCollision.id);
@@ -266,7 +322,7 @@ export function ActionsDnd({
       }
       return [targetCollision];
     },
-    [canNest, layout, updateIndicator],
+    [canNest, layout, updateIndicator, updateMenuDrop],
   );
 
   return (
@@ -281,7 +337,9 @@ export function ActionsDnd({
       autoScroll={autoScrollOptions}
     >
       <DragActiveContext.Provider value={activeId !== null}>
+       <ActiveIdContext.Provider value={activeId}>
        <ExtractIndicatorContext.Provider value={indicator}>
+       <MenuDropContext.Provider value={menuDrop}>
         {children}
         {/* pointer-events-none must sit on DragOverlay itself: it lands on
             the position:fixed wrapper dnd-kit hit-tests, so the overlay can
@@ -300,7 +358,9 @@ export function ActionsDnd({
             </div>
           ) : null}
         </DragOverlay>
+       </MenuDropContext.Provider>
        </ExtractIndicatorContext.Provider>
+       </ActiveIdContext.Provider>
       </DragActiveContext.Provider>
     </DndContext>
   );
