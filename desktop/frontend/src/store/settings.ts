@@ -64,6 +64,8 @@ export interface Settings {
   duplicateRunMode?: RunMode;
   duplicateActionName?: string;
   duplicateCommand?: string;
+  duplicateRunSectionOpen?: boolean;
+  duplicateOptionsSectionOpen?: boolean;
   composerOpen?: boolean;
   autoCloseComposerOnSend?: boolean;
 }
@@ -87,7 +89,9 @@ function normalize(s: main.Settings): Settings {
   return {
     theme: (s.theme as Theme) || defaults.theme,
     browserTheme:
-      s.browserTheme === "light" || s.browserTheme === "dark" ? s.browserTheme : undefined,
+      s.browserTheme === "light" || s.browserTheme === "dark"
+        ? s.browserTheme
+        : undefined,
     doubleClickToToggle: s.doubleClickToToggle ?? defaults.doubleClickToToggle,
     defaultProjectDirectory: s.defaultProjectDirectory || undefined,
     soundNotifications: s.soundNotifications,
@@ -133,8 +137,11 @@ function normalize(s: main.Settings): Settings {
         : undefined,
     duplicateActionName: s.duplicateActionName || undefined,
     duplicateCommand: s.duplicateCommand || undefined,
+    duplicateRunSectionOpen: s.duplicateRunSectionOpen,
+    duplicateOptionsSectionOpen: s.duplicateOptionsSectionOpen,
     composerOpen: s.composerOpen,
-    autoCloseComposerOnSend: s.autoCloseComposerOnSend ?? defaults.autoCloseComposerOnSend,
+    autoCloseComposerOnSend:
+      s.autoCloseComposerOnSend ?? defaults.autoCloseComposerOnSend,
     detachedWindows: s.detachedWindows
       ? Object.fromEntries(
           Object.entries(s.detachedWindows).map(([name, raw]) => {
@@ -178,7 +185,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     );
     if (!dirty) return;
     const fresh = await LoadSettings();
-    const merged: Settings = { ...fresh, ...defaults, ...normalize(fresh), ...partial };
+    const merged: Settings = {
+      ...fresh,
+      ...defaults,
+      ...normalize(fresh),
+      ...partial,
+    };
     await SaveSettings(merged);
     set(merged);
   },

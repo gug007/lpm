@@ -11,6 +11,7 @@ import {
 import { CopyRow } from "./CopyRow";
 import { ShellCommandInput } from "./ShellCommandInput";
 import { SwitchRow } from "./SwitchRow";
+import { CollapsibleSection } from "./CollapsibleSection";
 import { SegmentedControl } from "./ui/SegmentedControl";
 import {
   CARD_CLASS,
@@ -98,6 +99,9 @@ export function BulkDuplicateDialog({
   const [groupName, setGroupName] = useState("");
   // Whether the folder-name autocomplete suggestions are showing.
   const [folderOpen, setFolderOpen] = useState(false);
+  // Persisted open/closed state of the collapsible cards (collapsed by default).
+  const [runOpen, setRunOpen] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
 
   // Default each label to the copy's would-be name (`<original>-<id>`), the
   // same scheme the backend uses for the folder, so the field shows the copy's
@@ -138,7 +142,20 @@ export function BulkDuplicateDialog({
     setPullLatest(s.duplicatePullLatest ?? true);
     setGroupName("");
     setFolderOpen(false);
+    setRunOpen(s.duplicateRunSectionOpen ?? false);
+    setOptionsOpen(s.duplicateOptionsSectionOpen ?? false);
   }, [open, project?.name]);
+
+  const toggleRunOpen = () => {
+    const next = !runOpen;
+    setRunOpen(next);
+    saveSettings({ duplicateRunSectionOpen: next });
+  };
+  const toggleOptionsOpen = () => {
+    const next = !optionsOpen;
+    setOptionsOpen(next);
+    saveSettings({ duplicateOptionsSectionOpen: next });
+  };
 
   const clamp = (n: number) => Math.min(MAX_COUNT, Math.max(MIN_COUNT, n));
 
@@ -229,6 +246,23 @@ export function BulkDuplicateDialog({
         ? command
         : undefined;
   const showPrompt = detectAICLI(promptTargetCmd) !== null;
+
+  // Recaps shown in each collapsed section's header.
+  const selectedAction = findActionByPath(actionTree, actionName);
+  const runSummary =
+    mode === "none"
+      ? "Nothing"
+      : mode === "command"
+        ? "Command"
+        : selectedAction?.label || selectedAction?.name || "Action";
+  const optionsSummary =
+    [
+      excludeUncommitted && "Committed only",
+      pullLatest && "Pull latest",
+      reinstallDeps && "Reinstall",
+    ]
+      .filter(Boolean)
+      .join(" · ") || "None";
 
   const pickMode = (next: RunMode) => {
     setMode(next);
@@ -532,98 +566,106 @@ export function BulkDuplicateDialog({
           </div>
         </div>
 
-        <div className={`${CARD_CLASS} px-4 py-3`}>
-          <div className="flex items-center justify-between gap-3">
-            <span className={SECTION_LABEL}>
-              {single ? "Run on the copy" : "Run on each copy"}
-            </span>
+        <CollapsibleSection
+          title={single ? "Run on the copy" : "Run on each copy"}
+          open={runOpen}
+          onToggle={toggleRunOpen}
+          summary={runSummary}
+        >
+          <div className="px-4 py-3">
             <SegmentedControl
               value={mode}
               options={runOptions}
               onChange={pickMode}
+              fullWidth
+            />
+
+            {mode === "action" && (
+              <div className="field-reveal">
+                <ActionPicker
+                  actions={actionTree}
+                  value={actionName}
+                  onChange={setActionName}
+                />
+              </div>
+            )}
+
+            {mode === "command" && (
+              <div className="mt-2 field-reveal">
+                <ShellCommandInput
+                  value={command}
+                  onChange={setCommand}
+                  autoFocus
+                />
+              </div>
+            )}
+
+            {mode !== "none" && (
+              <>
+                <p className={`mt-1.5 ${HELPER_TEXT}`}>
+                  {mode === "command"
+                    ? `Runs in a terminal on ${copyRef} as soon as it's created.`
+                    : `Starts on ${copyRef} in the background as soon as it's created.`}
+                </p>
+
+                {showPrompt && (
+                  <div className="mt-3 field-reveal">
+                    <InputComposer
+                      onChange={setComposer}
+                      placeholder="Type a task for an AI agent, and paste or attach images…"
+                      history={
+                        project
+                          ? {
+                              terminalId: project.name,
+                              projectName: project.name,
+                              terminalLabel: project.name,
+                            }
+                          : undefined
+                      }
+                      aiCwd={project?.root || undefined}
+                    />
+                    <p className={`mt-1.5 ${HELPER_TEXT}`}>
+                      Sent to {copyRef}'s terminal once it's ready — e.g. a task
+                      for the agent, with any attached images. Leave blank to
+                      send nothing.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Options"
+          open={optionsOpen}
+          onToggle={toggleOptionsOpen}
+          summary={optionsSummary}
+        >
+          <div className="divide-y divide-[var(--border)]">
+            <SwitchRow
+              checked={excludeUncommitted}
+              onChange={setExcludeUncommitted}
+              icon={<GitBranch size={18} />}
+              title="Committed work only"
+              description={`Reset ${copyRef} to the last commit, dropping uncommitted changes.`}
+            />
+            <SwitchRow
+              checked={pullLatest}
+              onChange={setPullLatest}
+              icon={<RefreshCw size={18} />}
+              title="Pull latest changes"
+              description={`Bring ${copyRef} up to the newest commits on its branch.`}
+            />
+            <SwitchRow
+              checked={reinstallDeps}
+              onChange={setReinstallDeps}
+              icon={<Package size={18} />}
+              title="Reinstall dependencies"
+              description={`Copy without dependencies, then install them fresh in ${copyRef}.`}
             />
           </div>
-
-          {mode === "action" && (
-            <div className="field-reveal">
-              <ActionPicker
-                actions={actionTree}
-                value={actionName}
-                onChange={setActionName}
-              />
-            </div>
-          )}
-
-          {mode === "command" && (
-            <div className="mt-2 field-reveal">
-              <ShellCommandInput
-                value={command}
-                onChange={setCommand}
-                autoFocus
-              />
-            </div>
-          )}
-
-          {mode !== "none" && (
-            <>
-              <p className={`mt-1.5 ${HELPER_TEXT}`}>
-                {mode === "command"
-                  ? `Runs in a terminal on ${copyRef} as soon as it's created.`
-                  : `Starts on ${copyRef} in the background as soon as it's created.`}
-              </p>
-
-              {showPrompt && (
-                <div className="mt-3 field-reveal">
-                  <InputComposer
-                    onChange={setComposer}
-                    placeholder="Type a task for an AI agent, and paste or attach images…"
-                    history={
-                      project
-                        ? {
-                            terminalId: project.name,
-                            projectName: project.name,
-                            terminalLabel: project.name,
-                          }
-                        : undefined
-                    }
-                    aiCwd={project?.root || undefined}
-                  />
-                  <p className={`mt-1.5 ${HELPER_TEXT}`}>
-                    Sent to {copyRef}'s terminal once it's ready — e.g. a task
-                    for the agent, with any attached images. Leave blank to send
-                    nothing.
-                  </p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        <div
-          className={`${CARD_CLASS} divide-y divide-[var(--border)] overflow-hidden`}
-        >
-          <SwitchRow
-            checked={excludeUncommitted}
-            onChange={setExcludeUncommitted}
-            icon={<GitBranch size={18} />}
-            title="Committed work only"
-            description={`Reset ${copyRef} to the last commit, dropping uncommitted changes.`}
-          />
-          <SwitchRow
-            checked={pullLatest}
-            onChange={setPullLatest}
-            icon={<RefreshCw size={18} />}
-            title="Pull latest changes"
-            description={`Bring ${copyRef} up to the newest commits on its branch.`}
-          />
-          <SwitchRow
-            checked={reinstallDeps}
-            onChange={setReinstallDeps}
-            icon={<Package size={18} />}
-            title="Reinstall dependencies"
-            description={`Copy without dependencies, then install them fresh in ${copyRef}.`}
-          />
-        </div>
+        </CollapsibleSection>
       </div>
 
       <div className="mt-6 flex justify-end gap-2 border-t border-[var(--border)] pt-4">
