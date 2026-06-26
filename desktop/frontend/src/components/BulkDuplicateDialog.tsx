@@ -96,6 +96,8 @@ export function BulkDuplicateDialog({
   const [reinstallDeps, setReinstallDeps] = useState(false);
   const [pullLatest, setPullLatest] = useState(true);
   const [groupName, setGroupName] = useState("");
+  // Whether the folder-name autocomplete suggestions are showing.
+  const [folderOpen, setFolderOpen] = useState(false);
 
   // Default each label to the copy's would-be name (`<original>-<id>`), the
   // same scheme the backend uses for the folder, so the field shows the copy's
@@ -135,6 +137,7 @@ export function BulkDuplicateDialog({
     setReinstallDeps(s.duplicateReinstallDeps ?? false);
     setPullLatest(s.duplicatePullLatest ?? true);
     setGroupName("");
+    setFolderOpen(false);
   }, [open, project?.name]);
 
   const clamp = (n: number) => Math.min(MAX_COUNT, Math.max(MIN_COUNT, n));
@@ -207,6 +210,14 @@ export function BulkDuplicateDialog({
   const trimmedGroup = groupName.trim();
   const hasGroup = !single && trimmedGroup.length > 0;
   const imagesPending = composer.pending;
+
+  // Existing folders that match what's typed (all of them when blank), minus an
+  // exact match so the list disappears once a name is fully entered.
+  const folderQuery = trimmedGroup.toLowerCase();
+  const folderSuggestions = folderOptions.filter((n) => {
+    const ln = n.toLowerCase();
+    return ln.includes(folderQuery) && ln !== folderQuery;
+  });
 
   // The prompt is a task for an AI agent, so only show it when the run target
   // actually launches one (claude / codex / …) — a non-agent action or command
@@ -443,38 +454,50 @@ export function BulkDuplicateDialog({
                   />
                   <input
                     value={groupName}
-                    onChange={(e) => setGroupName(e.target.value)}
+                    onChange={(e) => {
+                      setGroupName(e.target.value);
+                      setFolderOpen(true);
+                    }}
+                    onFocus={() => setFolderOpen(true)}
+                    onBlur={() => setFolderOpen(false)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape" && folderOpen) {
+                        e.stopPropagation();
+                        setFolderOpen(false);
+                      }
+                    }}
                     spellCheck={false}
                     autoCapitalize="off"
                     autoCorrect="off"
                     placeholder="Folder name (optional)"
                     className={`${FIELD_CLASS} h-9 pl-9 pr-3`}
                   />
-                </div>
 
-                {folderOptions.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {folderOptions.map((n) => {
-                      const active =
-                        trimmedGroup.toLowerCase() === n.toLowerCase();
-                      return (
+                  {folderOpen && folderSuggestions.length > 0 && (
+                    <div className="absolute inset-x-0 top-full z-20 mt-1 max-h-44 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] p-1 shadow-2xl">
+                      {folderSuggestions.map((n) => (
                         <button
                           key={n}
                           type="button"
-                          onClick={() => setGroupName(active ? "" : n)}
+                          // Keep the input focused so the click lands before blur.
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setGroupName(n);
+                            setFolderOpen(false);
+                          }}
                           title={n}
-                          className={`max-w-[160px] truncate rounded-md bg-[var(--bg-secondary)] px-2 py-1 text-[12px] transition-colors ${
-                            active
-                              ? "font-medium text-[var(--accent-cyan)]"
-                              : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                          }`}
+                          className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                         >
-                          {n}
+                          <Folder
+                            size={13}
+                            className="shrink-0 text-[var(--text-muted)]"
+                          />
+                          <span className="min-w-0 flex-1 truncate">{n}</span>
                         </button>
-                      );
-                    })}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 <div className="mt-3 space-y-1.5">
                   {copies.map((copy, i) => (
