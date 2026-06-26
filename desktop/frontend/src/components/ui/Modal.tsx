@@ -13,6 +13,9 @@ interface ModalProps {
   zIndexClassName?: string;
   closeOnBackdrop?: boolean;
   closeOnEscape?: boolean;
+  // When false the modal floats without dimming or capturing pointer events on
+  // the page behind it, so the rest of the app stays interactive.
+  backdrop?: boolean;
   ref?: Ref<HTMLDivElement>;
 }
 
@@ -26,15 +29,18 @@ export function Modal({
   zIndexClassName = "z-50",
   closeOnBackdrop = true,
   closeOnEscape = true,
+  backdrop = true,
   ref,
 }: ModalProps) {
+  // A blocking modal owns Escape globally; a non-blocking one must not hijack
+  // it from the rest of the app, so it handles Escape only when focused (below).
   useEventListener(
     "keydown",
     (e) => {
       if (e.key === "Escape") onClose();
     },
     document,
-    open && closeOnEscape,
+    open && closeOnEscape && backdrop,
   );
 
   useOverlay(open); // park the in-pane browser webview while open (it floats above the DOM)
@@ -44,13 +50,27 @@ export function Modal({
   return createPortal(
     <div
       data-modal-overlay
-      className={`fixed inset-0 ${zIndexClassName} flex items-center justify-center ${containerClassName}`}
+      className={`fixed inset-0 ${zIndexClassName} flex items-center justify-center ${
+        backdrop ? "" : "pointer-events-none"
+      } ${containerClassName}`}
     >
+      {backdrop && (
+        <div
+          className={`absolute inset-0 ${backdropClassName}`}
+          onClick={closeOnBackdrop ? onClose : undefined}
+        />
+      )}
       <div
-        className={`absolute inset-0 ${backdropClassName}`}
-        onClick={closeOnBackdrop ? onClose : undefined}
-      />
-      <div ref={ref} className={`relative ${contentClassName}`}>
+        ref={ref}
+        onKeyDown={
+          !backdrop && closeOnEscape
+            ? (e) => {
+                if (e.key === "Escape") onClose();
+              }
+            : undefined
+        }
+        className={`relative ${backdrop ? "" : "pointer-events-auto"} ${contentClassName}`}
+      >
         {children}
       </div>
     </div>,

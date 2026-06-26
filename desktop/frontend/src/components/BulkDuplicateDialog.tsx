@@ -386,6 +386,7 @@ export function BulkDuplicateDialog({
     <Modal
       open={open}
       onClose={onCancel}
+      backdrop={false}
       zIndexClassName="z-[60]"
       contentClassName="max-h-[85vh] w-[min(540px,92vw)] overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] p-6 shadow-2xl"
     >
