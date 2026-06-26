@@ -293,6 +293,16 @@ fn strip_uncommitted(root: &Path) -> Result<(), String> {
     Ok(())
 }
 
+// Fast-forward the copy's current branch to the newest commits on its upstream.
+// Best-effort: a branch with no upstream, a diverged history, or an offline
+// remote just leaves the copy on the commit it was cloned at.
+fn pull_latest_branch(root: &Path) -> Result<(), String> {
+    if !root.join(".git").exists() {
+        return Ok(());
+    }
+    git_in(root, &["pull", "--ff-only"])
+}
+
 #[derive(Clone, Copy)]
 enum PackageManager {
     Pnpm,
@@ -377,6 +387,7 @@ fn duplicate_one(
     label: Option<&str>,
     exclude_uncommitted: bool,
     reinstall_deps: bool,
+    pull_latest: bool,
 ) -> Result<String, String> {
     let src = load_root_and_parent(name)?;
     if src.root.trim().is_empty() {
@@ -405,6 +416,10 @@ fn duplicate_one(
             let _ = std::fs::remove_dir_all(&new_root);
             return Err(e);
         }
+    }
+
+    if pull_latest {
+        let _ = pull_latest_branch(&new_root);
     }
 
     let write = write_project_yaml(&new_name, |m| {
@@ -436,6 +451,7 @@ pub fn duplicate_project(
     label: Option<String>,
     exclude_uncommitted: bool,
     reinstall_deps: bool,
+    pull_latest: bool,
 ) -> Result<String, String> {
     duplicate_one(
         &app,
@@ -443,6 +459,7 @@ pub fn duplicate_project(
         label.as_deref(),
         exclude_uncommitted,
         reinstall_deps,
+        pull_latest,
     )
 }
 
@@ -459,10 +476,18 @@ pub fn duplicate_projects(
     count: u32,
     exclude_uncommitted: bool,
     reinstall_deps: bool,
+    pull_latest: bool,
 ) -> Result<Vec<String>, String> {
     let mut created = Vec::new();
     for _ in 0..count {
-        match duplicate_one(&app, &name, None, exclude_uncommitted, reinstall_deps) {
+        match duplicate_one(
+            &app,
+            &name,
+            None,
+            exclude_uncommitted,
+            reinstall_deps,
+            pull_latest,
+        ) {
             Ok(new_name) => created.push(new_name),
             Err(e) => {
                 if created.is_empty() {

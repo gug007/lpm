@@ -185,6 +185,7 @@ interface AppState {
     opts?: {
       excludeUncommitted?: boolean;
       reinstallDeps?: boolean;
+      pullLatest?: boolean;
       labels?: string[];
       tasksPerCopy?: SpawnTask[][];
       groupName?: string;
@@ -853,6 +854,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             (opts.labels?.[i] ?? "").trim(),
             opts.excludeUncommitted ?? false,
             opts.reinstallDeps ?? false,
+            opts.pullLatest ?? true,
           );
         } catch (err) {
           if (created.length === 0) throw err;

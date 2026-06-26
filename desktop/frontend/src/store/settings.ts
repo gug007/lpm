@@ -59,6 +59,7 @@ export interface Settings {
   searchFilterMode?: boolean;
   duplicateExcludeUncommitted?: boolean;
   duplicateReinstallDeps?: boolean;
+  duplicatePullLatest?: boolean;
   composerOpen?: boolean;
   autoCloseComposerOnSend?: boolean;
 }
@@ -121,6 +122,7 @@ function normalize(s: main.Settings): Settings {
     searchFilterMode: s.searchFilterMode,
     duplicateExcludeUncommitted: s.duplicateExcludeUncommitted,
     duplicateReinstallDeps: s.duplicateReinstallDeps,
+    duplicatePullLatest: s.duplicatePullLatest,
     composerOpen: s.composerOpen,
     autoCloseComposerOnSend: s.autoCloseComposerOnSend ?? defaults.autoCloseComposerOnSend,
     detachedWindows: s.detachedWindows

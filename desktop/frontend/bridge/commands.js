@@ -88,11 +88,11 @@ export function DetachProject(projectName) {
 export function DismissPortSuggestion(project, port) {
   return invoke("dismiss_port_suggestion", { project, port });
 }
-export function DuplicateProject(name, label, excludeUncommitted, reinstallDeps) {
-  return invoke("duplicate_project", { name, label, excludeUncommitted, reinstallDeps });
+export function DuplicateProject(name, label, excludeUncommitted, reinstallDeps, pullLatest) {
+  return invoke("duplicate_project", { name, label, excludeUncommitted, reinstallDeps, pullLatest });
 }
-export function DuplicateProjects(name, count, excludeUncommitted, reinstallDeps) {
-  return invoke("duplicate_projects", { name, count, excludeUncommitted, reinstallDeps });
+export function DuplicateProjects(name, count, excludeUncommitted, reinstallDeps, pullLatest) {
+  return invoke("duplicate_projects", { name, count, excludeUncommitted, reinstallDeps, pullLatest });
 }
 export function ExportConfig() {
   return invoke("export_config");

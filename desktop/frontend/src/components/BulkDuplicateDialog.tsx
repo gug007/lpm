@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Folder, GitBranch, Package } from "lucide-react";
+import { Folder, GitBranch, Package, RefreshCw } from "lucide-react";
 import { useEventListener } from "../hooks/useEventListener";
 import { Modal } from "./ui/Modal";
 import { ActionPicker } from "./ActionPicker";
@@ -46,6 +46,7 @@ interface CopyDraft {
 export interface BulkDuplicateOptions {
   excludeUncommitted: boolean;
   reinstallDeps: boolean;
+  pullLatest: boolean;
   labels: string[];
   // One entry per copy (index-aligned with `labels`): the tasks to run on that
   // copy, resolved from either its override or the shared default.
@@ -82,6 +83,7 @@ export function BulkDuplicateDialog({
   const [editing, setEditing] = useState<number | null>(null);
   const [excludeUncommitted, setExcludeUncommitted] = useState(false);
   const [reinstallDeps, setReinstallDeps] = useState(false);
+  const [pullLatest, setPullLatest] = useState(true);
   const [groupName, setGroupName] = useState("");
 
   // Default each label to the copy's would-be name (`<original>-<id>`), the
@@ -101,6 +103,7 @@ export function BulkDuplicateDialog({
     setEditing(null);
     setExcludeUncommitted(getSettings().duplicateExcludeUncommitted ?? false);
     setReinstallDeps(getSettings().duplicateReinstallDeps ?? false);
+    setPullLatest(getSettings().duplicatePullLatest ?? true);
     setGroupName("");
   }, [open, project?.name]);
 
@@ -250,10 +253,12 @@ export function BulkDuplicateDialog({
     saveSettings({
       duplicateExcludeUncommitted: excludeUncommitted,
       duplicateReinstallDeps: reinstallDeps,
+      duplicatePullLatest: pullLatest,
     });
     onConfirm(count, {
       excludeUncommitted,
       reinstallDeps,
+      pullLatest,
       labels: copies.map((c) => c.label.trim()),
       tasksPerCopy: buildTasksPerCopy(),
       groupName: single ? "" : trimmedGroup,
@@ -518,6 +523,13 @@ export function BulkDuplicateDialog({
             icon={<GitBranch size={18} />}
             title="Committed work only"
             description={`Reset ${copyRef} to the last commit, dropping uncommitted changes.`}
+          />
+          <SwitchRow
+            checked={pullLatest}
+            onChange={setPullLatest}
+            icon={<RefreshCw size={18} />}
+            title="Pull latest changes"
+            description={`Bring ${copyRef} up to the newest commits on its branch.`}
           />
           <SwitchRow
             checked={reinstallDeps}
