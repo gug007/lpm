@@ -401,10 +401,14 @@ export function BulkDuplicateDialog({
       open={open}
       onClose={onCancel}
       backdrop={false}
+      draggable
       zIndexClassName="z-[60]"
-      contentClassName="max-h-[85vh] w-[min(540px,92vw)] overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] p-6 shadow-2xl"
+      contentClassName="flex max-h-[85vh] w-[min(680px,92vw)] flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >
-      <div className="flex items-start gap-3">
+      <div
+        data-modal-drag-handle
+        className="flex shrink-0 items-start gap-3 px-6 pb-1 pt-6"
+      >
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)] ring-1 ring-inset ring-[var(--accent-cyan)]/20">
           <svg
             width="18"
@@ -442,7 +446,7 @@ export function BulkDuplicateDialog({
         </button>
       </div>
 
-      <div className="mt-5 space-y-3">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 pb-6 pt-5">
         <div className={CARD_CLASS}>
           <div className="flex items-center justify-between gap-3 px-4 py-3">
             <span className={SECTION_LABEL}>Copies</span>
@@ -685,7 +689,7 @@ export function BulkDuplicateDialog({
         </CollapsibleSection>
       </div>
 
-      <div className="mt-6 flex justify-end gap-2 border-t border-[var(--border)] pt-4">
+      <div className="flex shrink-0 justify-end gap-2 border-t border-[var(--border)] px-6 pb-6 pt-4">
         <button
           type="button"
           onClick={onCancel}

@@ -291,12 +291,16 @@ export function CommitModal({
         open={open}
         onClose={onClose}
         backdrop={false}
+        draggable
         closeOnEscape={!busy && !generating}
         zIndexClassName="z-[60]"
         contentClassName="w-[640px] max-h-[80vh] flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
       >
         <div className="flex flex-col gap-4 p-5">
-          <div className="flex items-center justify-between">
+          <div
+            data-modal-drag-handle
+            className="-mx-5 -mt-5 flex items-center justify-between px-5 pb-1 pt-5"
+          >
             <h3 className="text-base font-semibold text-[var(--text-primary)]">
               Commit
             </h3>

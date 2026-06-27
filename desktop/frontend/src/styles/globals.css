@@ -63,7 +63,8 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
   overflow: hidden;
@@ -75,23 +76,44 @@ body {
 }
 
 .sidebar-shimmer {
-  background: linear-gradient(90deg, var(--accent-blue), #8b5cf6, #ec4899, #06b6d4, #6366f1, var(--accent-blue));
+  background: linear-gradient(
+    90deg,
+    var(--accent-blue),
+    #8b5cf6,
+    #ec4899,
+    #06b6d4,
+    #6366f1,
+    var(--accent-blue)
+  );
   background-size: 300% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: shimmer 4s ease-in-out infinite, shimmer-glow 2s ease-in-out infinite;
+  animation:
+    shimmer 4s ease-in-out infinite,
+    shimmer-glow 2s ease-in-out infinite;
 }
 
 @keyframes shimmer {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 150% 50%; }
-  100% { background-position: 300% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 150% 50%;
+  }
+  100% {
+    background-position: 300% 50%;
+  }
 }
 
 @keyframes shimmer-glow {
-  0%, 100% { filter: brightness(1); }
-  50% { filter: brightness(1.3); }
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.3);
+  }
 }
 
 .sidebar-waiting {
@@ -100,13 +122,22 @@ body {
 }
 
 @keyframes waiting-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 @keyframes gradient-spin {
-  0% { --gradient-angle: 0deg; }
-  100% { --gradient-angle: 360deg; }
+  0% {
+    --gradient-angle: 0deg;
+  }
+  100% {
+    --gradient-angle: 360deg;
+  }
 }
 
 @property --gradient-angle {
@@ -122,37 +153,112 @@ body {
 }
 
 @keyframes check-draw {
-  to { stroke-dashoffset: 0; }
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 
-@keyframes run-dim-in   { from { opacity: 0; } to { opacity: 1; } }
-@keyframes run-modal-in { from { opacity: 0; transform: translate(-50%, calc(-50% + 6px)) scale(0.92); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
-@keyframes run-term-in  { from { transform: translateX(100%); } to { transform: none; } }
-@keyframes run-toast-in { from { opacity: 0; transform: translateY(-6px) scale(0.92); } to { opacity: 1; transform: none; } }
-@keyframes term-cursor  { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes run-dim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes run-modal-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 6px)) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+@keyframes run-term-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes run-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes term-cursor {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
 
-.demo-dim      { animation: run-dim-in    180ms ease-out both; }
-.demo-modal    { animation: run-modal-in  260ms cubic-bezier(0.2, 0.9, 0.3, 1) 80ms both; }
-.demo-terminal { animation: run-term-in   320ms cubic-bezier(0.2, 0.9, 0.3, 1) both; }
-.demo-toast    { animation: run-toast-in  300ms cubic-bezier(0.2, 0.9, 0.3, 1) both; }
-.demo-cursor   { animation: term-cursor   1s steps(1) infinite; }
+.demo-dim {
+  animation: run-dim-in 180ms ease-out both;
+}
+.demo-modal {
+  animation: run-modal-in 260ms cubic-bezier(0.2, 0.9, 0.3, 1) 80ms both;
+}
+.demo-terminal {
+  animation: run-term-in 320ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+.demo-toast {
+  animation: run-toast-in 300ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+.demo-cursor {
+  animation: term-cursor 1s steps(1) infinite;
+}
 
 @keyframes field-reveal {
-  from { opacity: 0; transform: translateY(-6px); }
-  to   { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
-.field-reveal { animation: field-reveal 220ms cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+.field-reveal {
+  animation: field-reveal 220ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
 @media (prefers-reduced-motion: reduce) {
-  .field-reveal { animation: none; }
+  .field-reveal {
+    animation: none;
+  }
 }
 
 @keyframes image-preview-pop {
-  from { opacity: 0; transform: translateY(4px) scale(0.94); }
-  to   { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 @keyframes image-preview-pop-below {
-  from { opacity: 0; transform: translateY(-4px) scale(0.94); }
-  to   { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 .image-preview-pop {
   animation: image-preview-pop 160ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
@@ -163,17 +269,29 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .image-preview-pop,
-  .image-preview-pop-below { animation: none; }
+  .image-preview-pop-below {
+    animation: none;
+  }
 }
 
 @keyframes terminal-drop-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes terminal-drop-content-in {
-  from { opacity: 0; transform: scale(0.94); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .terminal-drop-overlay {
@@ -199,7 +317,7 @@ body {
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
-          mask-composite: exclude;
+  mask-composite: exclude;
   padding: 1.5px;
   animation: gradient-spin 4s linear infinite;
 }
@@ -210,13 +328,20 @@ body {
 }
 
 .terminal-drop-content > svg {
-  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent-blue) 35%, transparent));
+  filter: drop-shadow(
+    0 0 8px color-mix(in srgb, var(--accent-blue) 35%, transparent)
+  );
   animation: terminal-drop-breath 2s ease-in-out infinite;
 }
 
 @keyframes terminal-drop-breath {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.06); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
 }
 
 .diff-empty-hatch {
@@ -224,8 +349,8 @@ body {
     -45deg,
     transparent 0,
     transparent 5px,
-    rgba(127, 127, 127, 0.10) 5px,
-    rgba(127, 127, 127, 0.10) 6px
+    rgba(127, 127, 127, 0.1) 5px,
+    rgba(127, 127, 127, 0.1) 6px
   );
 }
 
@@ -238,10 +363,18 @@ body {
    surface so each fixed-width tab reads as a tab rather than floating text, and
    the active one — the draft in the editor — is a brighter raised pill. */
 .composer-tab-idle {
-  background-color: color-mix(in srgb, var(--terminal-tab-active) 7%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--terminal-tab-active) 7%,
+    transparent
+  );
 }
 .composer-tab-idle:hover {
-  background-color: color-mix(in srgb, var(--terminal-tab-active) 13%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--terminal-tab-active) 13%,
+    transparent
+  );
 }
 .composer-tab-active {
   background-color: var(--bg-active);
@@ -263,6 +396,14 @@ body {
   .lpm-actions-overlay {
     will-change: auto;
   }
+}
+
+/* A modal's drag handle (e.g. its header) — intrinsic to being grabbable, so
+   it lives here rather than being repeated as classes on every draggable modal.
+   The grabbing cursor while a drag is live comes from the rule below. */
+[data-modal-drag-handle] {
+  cursor: grab;
+  user-select: none;
 }
 
 /* Set by useDragBodyAttribute while a drag is live. The cursor under
