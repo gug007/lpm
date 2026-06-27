@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { ArrowRight, GitPullRequest } from "lucide-react";
 import { Modal } from "./ui/Modal";
 import {
   XIcon,
@@ -272,16 +273,24 @@ export function PRModal({
     >
       <div
         data-modal-drag-handle
-        className="flex shrink-0 items-center justify-between px-5 pb-3 pt-5"
+        className="flex shrink-0 items-start gap-3 px-5 pb-3 pt-5"
       >
-        <h3 className="text-base font-semibold text-[var(--text-primary)]">
-          Create Pull Request
-        </h3>
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)] ring-1 ring-inset ring-[var(--accent-cyan)]/20">
+          <GitPullRequest size={18} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-[15px] font-semibold leading-tight text-[var(--text-primary)]">
+            Create Pull Request
+          </h3>
+          <p className="mt-1 text-[12px] leading-snug text-[var(--text-muted)]">
+            Open a pull request to merge your changes on GitHub.
+          </p>
+        </div>
         <button
           onClick={onClose}
           disabled={busy}
           aria-label="Close"
-          className="rounded-md p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+          className="-mr-1 -mt-1 shrink-0 rounded-md p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
         >
           <XIcon />
         </button>
@@ -332,18 +341,23 @@ export function PRModal({
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="inline-flex items-center gap-1 text-[var(--text-muted)]">
-                <BranchIcon size={10} /> {currentBranch}
+            <div className="flex items-center gap-2">
+              <span className="inline-flex min-w-0 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-secondary)]">
+                <BranchIcon size={11} />
+                <span className="max-w-[180px] truncate">{currentBranch}</span>
               </span>
-              <span className="text-[var(--text-muted)]">&rarr;</span>
+              <ArrowRight
+                size={14}
+                className="shrink-0 text-[var(--text-muted)]"
+              />
               <div ref={baseRef} className="relative">
                 <button
                   onClick={() => setBaseMenuOpen(!baseMenuOpen)}
                   disabled={busy}
-                  className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--text-muted)]/50 hover:bg-[var(--bg-hover)] disabled:opacity-50"
                 >
-                  <BranchIcon size={10} /> {base || "..."}
+                  <BranchIcon size={11} />
+                  <span className="max-w-[180px] truncate">{base || "…"}</span>
                   <ChevronDownIcon />
                 </button>
                 {baseMenuOpen && (
@@ -489,12 +503,14 @@ export function PRModal({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-[var(--text-muted)]">
-                Commits
-                <span className="ml-1 text-[var(--text-muted)]">
+              <div className="flex items-center gap-2">
+                <span className="text-[12px] font-medium text-[var(--text-muted)]">
+                  Commits
+                </span>
+                <span className="rounded-full bg-[var(--bg-active)] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[var(--text-secondary)]">
                   {commits.length}
                 </span>
-              </span>
+              </div>
               <div className="max-h-[200px] min-h-0 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
                 {loading && (
                   <div className="py-5 text-center text-xs text-[var(--text-muted)]">
