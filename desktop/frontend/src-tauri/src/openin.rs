@@ -52,7 +52,7 @@ fn app_candidates(path: &str) -> Vec<String> {
     }
 }
 
-fn detect_by_paths(paths: &[&str]) -> Option<String> {
+pub(crate) fn detect_by_paths(paths: &[&str]) -> Option<String> {
     for p in paths {
         for cand in app_candidates(p) {
             if std::fs::metadata(&cand).is_ok() {

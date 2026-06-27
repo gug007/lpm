@@ -571,3 +571,9 @@ export function CloseBrowser(id) {
 export function SetBrowserTheme(id, dark) {
   return invoke("set_browser_theme", { id, dark });
 }
+export function VoiceToTextAvailable() {
+  return invoke("voice_to_text_available");
+}
+export function VoiceToTextToggle() {
+  return invoke("voice_to_text_toggle");
+}

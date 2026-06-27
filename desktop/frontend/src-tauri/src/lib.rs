@@ -39,6 +39,7 @@ mod tts;
 mod updates;
 mod upload;
 mod vault;
+mod voicetotext;
 
 // Bring every command fn into scope so the generated `all_command_handlers!`
 // macro (which lists them unqualified) resolves the hand-written real
@@ -71,6 +72,7 @@ use tts::*;
 use updates::*;
 use upload::*;
 use templates::*;
+use voicetotext::*;
 #[allow(unused_imports)]
 use generated_commands::*;
 

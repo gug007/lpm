@@ -187,3 +187,5 @@ export function BrowserReload(...args: any[]): Promise<any>;
 export function HideBrowser(...args: any[]): Promise<any>;
 export function CloseBrowser(...args: any[]): Promise<any>;
 export function SetBrowserTheme(...args: any[]): Promise<any>;
+export function VoiceToTextAvailable(...args: any[]): Promise<boolean>;
+export function VoiceToTextToggle(...args: any[]): Promise<void>;

@@ -27,6 +27,7 @@ import {
 } from "../store/composerActions";
 import { ComposerActionsButton } from "./ComposerActionsButton";
 import { ComposerActionsModal } from "./ComposerActionsModal";
+import { ComposerMicButton } from "./ComposerMicButton";
 import {
   createInputTab,
   loadComposerDraft,
@@ -1472,8 +1473,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const busy = transformingId !== null;
   const showActions = ai.anyAvailable;
   // Reserve room on the right for the floating button cluster so text never
-  // slides under it; each button is 28px wide with a 4px gap.
-  const footerButtons = (showActions ? 1 : 0) + 3;
+  // slides under it; each button is 28px wide with a 4px gap. Four are always
+  // shown (mic, new-input, history, send); the AI actions button is conditional.
+  const footerButtons = (showActions ? 1 : 0) + 4;
   const editorPadRight = 8 + footerButtons * 28 + (footerButtons - 1) * 4 + 12;
 
   return (
@@ -1572,6 +1574,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           </div>
         )}
         <div className="absolute bottom-2 right-2 flex items-center gap-1">
+          <ComposerMicButton />
           {showActions && (
             <ComposerActionsButton
               enabledActions={enabledActions}

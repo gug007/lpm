@@ -199,6 +199,8 @@ macro_rules! all_command_handlers {
         upload_clipboard_image_for_terminal,
         vault_export_key,
         vault_import_key,
+        voice_to_text_available,
+        voice_to_text_toggle,
         write_file,
         write_terminal
         ]
