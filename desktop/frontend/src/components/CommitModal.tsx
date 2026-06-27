@@ -82,10 +82,12 @@ export function CommitModal({
   const [diffContent, setDiffContent] = useState("");
   const [diffLoading, setDiffLoading] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const loadedForOpen = useRef(false);
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
+    loadedForOpen.current = false;
     setMessage("");
     setFiles([]);
     setSelected(new Set());
@@ -101,6 +103,7 @@ export function CommitModal({
         const list = f || [];
         setFiles(list);
         setSelected(new Set(list.map((x: any) => x.path)));
+        loadedForOpen.current = true;
       })
       .catch(() => {
         if (!cancelled) setFiles([]);
@@ -123,7 +126,7 @@ export function CommitModal({
       return;
     }
     if (autoGenTriggered.current || !autoGenerate) return;
-    if (loading || files.length === 0) return;
+    if (!loadedForOpen.current || loading || files.length === 0) return;
     if (!ai.anyAvailable) return;
     autoGenTriggered.current = true;
     generateMessage();
