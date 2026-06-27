@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
-import { XIcon, ChevronDownIcon, BranchIcon, CloudBranchIcon, CheckIcon } from "./icons";
+import {
+  XIcon,
+  ChevronDownIcon,
+  BranchIcon,
+  CloudBranchIcon,
+  CheckIcon,
+} from "./icons";
 import { branchKey, branchMatches, RemoteBadge } from "./branchUtils";
 import { AIPickerButton } from "./ui/AIPickerButton";
 import {
@@ -62,7 +68,12 @@ export function PRModal({
     (b: Branch) => b.name !== currentBranch,
     [currentBranch],
   );
-  const baseSearchResults = useBranchSearch(projectPath, baseQuery, baseMenuOpen, excludeCurrent);
+  const baseSearchResults = useBranchSearch(
+    projectPath,
+    baseQuery,
+    baseMenuOpen,
+    excludeCurrent,
+  );
   const [autoGenerate, setAutoGenerate] = useState(
     () => getSettings().autoGeneratePRDescription ?? false,
   );
@@ -71,10 +82,10 @@ export function PRModal({
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
   const baseSearchRef = useRef<HTMLInputElement>(null);
-  const baseRef = useOutsideClick<HTMLDivElement>(
-    () => { setBaseMenuOpen(false); setBaseQuery(""); },
-    baseMenuOpen,
-  );
+  const baseRef = useOutsideClick<HTMLDivElement>(() => {
+    setBaseMenuOpen(false);
+    setBaseQuery("");
+  }, baseMenuOpen);
 
   useEffect(() => {
     if (baseMenuOpen) baseSearchRef.current?.focus();
@@ -223,7 +234,12 @@ export function PRModal({
   };
 
   const canCreate =
-    !busy && !loading && !generating && title.trim().length > 0 && ghAvailable && commits.length > 0;
+    !busy &&
+    !loading &&
+    !generating &&
+    title.trim().length > 0 &&
+    ghAvailable &&
+    commits.length > 0;
 
   const submit = async () => {
     if (!canCreate) return;
@@ -248,31 +264,37 @@ export function PRModal({
     <Modal
       open={open}
       onClose={onClose}
-      closeOnBackdrop={!busy && !generating}
+      backdrop={false}
+      draggable
       closeOnEscape={!busy && !generating}
       zIndexClassName="z-[60]"
       contentClassName="w-[640px] max-h-[80vh] flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-[var(--text-primary)]">
-            Create Pull Request
-          </h3>
-          <button
-            onClick={onClose}
-            disabled={busy}
-            aria-label="Close"
-            className="rounded-md p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
-          >
-            <XIcon />
-          </button>
-        </div>
+      <div
+        data-modal-drag-handle
+        className="flex shrink-0 items-center justify-between px-5 pb-3 pt-5"
+      >
+        <h3 className="text-base font-semibold text-[var(--text-primary)]">
+          Create Pull Request
+        </h3>
+        <button
+          onClick={onClose}
+          disabled={busy}
+          aria-label="Close"
+          className="rounded-md p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+        >
+          <XIcon />
+        </button>
+      </div>
 
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 pb-5">
         {!ghAvailable && (
           <div className="rounded-lg border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/5 px-3 py-2 text-xs text-[var(--accent-red-text)]">
             GitHub CLI (gh) not found. Install it from{" "}
             <span className="font-medium">https://cli.github.com</span> and run{" "}
-            <code className="rounded bg-[var(--bg-hover)] px-1">gh auth login</code>
+            <code className="rounded bg-[var(--bg-hover)] px-1">
+              gh auth login
+            </code>
           </div>
         )}
 
@@ -352,15 +374,23 @@ export function PRModal({
                                 : "text-[var(--text-secondary)]"
                             }`}
                           >
-                            {b.remote ? <CloudBranchIcon size={10} /> : <BranchIcon size={10} />}
-                            <span className="min-w-0 flex-1 truncate">{b.name}</span>
+                            {b.remote ? (
+                              <CloudBranchIcon size={10} />
+                            ) : (
+                              <BranchIcon size={10} />
+                            )}
+                            <span className="min-w-0 flex-1 truncate">
+                              {b.name}
+                            </span>
                             {b.remote && <RemoteBadge remote={b.remote} />}
                             {selected && <CheckIcon />}
                           </button>
                         );
                       })}
                       {filteredBranches.length === 0 && (
-                        <div className="px-3 py-2 text-xs text-[var(--text-muted)]">No matches</div>
+                        <div className="px-3 py-2 text-xs text-[var(--text-muted)]">
+                          No matches
+                        </div>
                       )}
                     </div>
                   </div>
@@ -412,7 +442,9 @@ export function PRModal({
                     <AIPickerButton
                       onGenerate={generateTitle}
                       generating={generatingTitle}
-                      disabled={generatingTitle || busy || !base || commits.length === 0}
+                      disabled={
+                        generatingTitle || busy || !base || commits.length === 0
+                      }
                       title={
                         commits.length === 0
                           ? `No commits ahead of ${base || "base"}`
@@ -432,7 +464,9 @@ export function PRModal({
                     <AIPickerButton
                       onGenerate={generateDesc}
                       generating={generatingDesc}
-                      disabled={generatingDesc || busy || !base || commits.length === 0}
+                      disabled={
+                        generatingDesc || busy || !base || commits.length === 0
+                      }
                       title={
                         commits.length === 0
                           ? `No commits ahead of ${base || "base"}`
@@ -521,7 +555,10 @@ export function PRModal({
           )}
           {!prURL && (
             <button
-              onClick={() => { EventsEmit("navigate-pr-instructions"); onClose(); }}
+              onClick={() => {
+                EventsEmit("navigate-pr-instructions");
+                onClose();
+              }}
               className="text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
             >
               Edit AI Instructions
@@ -550,4 +587,3 @@ export function PRModal({
     </Modal>
   );
 }
-
