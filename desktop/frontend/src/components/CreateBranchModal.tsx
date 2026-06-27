@@ -99,13 +99,17 @@ export function CreateBranchModal({
     <Modal
       open={open}
       onClose={onClose}
-      closeOnBackdrop={!busy && !generating}
+      backdrop={false}
+      draggable
       closeOnEscape={!busy && !generating}
       zIndexClassName="z-[60]"
       contentClassName="w-[440px] rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-5 shadow-xl"
     >
       <form onSubmit={onSubmit} noValidate>
-        <div className="flex items-start justify-between">
+        <div
+          data-modal-drag-handle
+          className="-mx-5 -mt-5 flex items-start justify-between px-5 pb-1 pt-5"
+        >
           <h3 className="text-base font-semibold text-[var(--text-primary)]">
             Create and checkout branch
           </h3>
