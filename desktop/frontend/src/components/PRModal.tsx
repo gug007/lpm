@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ArrowRight, GitPullRequest, Info } from "lucide-react";
+import { ArrowRight, GitPullRequest, AlertCircle } from "lucide-react";
 import { Modal } from "./ui/Modal";
 import {
   XIcon,
@@ -561,8 +561,8 @@ export function PRModal({
 
       <div className="flex flex-col gap-2.5 border-t border-[var(--border)] px-5 py-3">
         {!prURL && createDisabledReason && (
-          <div className="flex items-center gap-1.5 text-[11px] leading-snug text-[var(--text-muted)]">
-            <Info size={13} className="shrink-0" />
+          <div className="flex items-center gap-2 rounded-lg border border-[var(--accent-amber)]/30 bg-[var(--accent-amber)]/10 px-3 py-2 text-[12px] font-medium leading-snug text-[var(--accent-amber-text)]">
+            <AlertCircle size={15} className="shrink-0 text-[var(--accent-amber)]" />
             <span>{createDisabledReason}</span>
           </div>
         )}
