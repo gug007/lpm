@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ArrowRight, GitPullRequest } from "lucide-react";
+import { ArrowRight, GitPullRequest, Info } from "lucide-react";
 import { Modal } from "./ui/Modal";
 import {
   XIcon,
@@ -242,6 +242,23 @@ export function PRModal({
     ghAvailable &&
     commits.length > 0;
 
+  const sameBranch = !!base && base === currentBranch;
+
+  const noChangesReason =
+    commits.length > 0
+      ? null
+      : sameBranch
+        ? `Comparing ${base} with itself — pick a different base branch.`
+        : `No commits ahead of ${base || "base"} to include.`;
+
+  const createDisabledReason = (() => {
+    if (busy || loading || !ghAvailable) return null;
+    if (noChangesReason) return noChangesReason;
+    if (generating) return null;
+    if (title.trim().length === 0) return "Add a title to create the PR.";
+    return null;
+  })();
+
   const submit = async () => {
     if (!canCreate) return;
     setBusy(true);
@@ -460,9 +477,7 @@ export function PRModal({
                         generatingTitle || busy || !base || commits.length === 0
                       }
                       title={
-                        commits.length === 0
-                          ? `No commits ahead of ${base || "base"}`
-                          : `Generate title with ${ai.cliLabel}`
+                        noChangesReason ?? `Generate title with ${ai.cliLabel}`
                       }
                       label="Generate Title"
                       generatingLabel="Generating title..."
@@ -482,9 +497,8 @@ export function PRModal({
                         generatingDesc || busy || !base || commits.length === 0
                       }
                       title={
-                        commits.length === 0
-                          ? `No commits ahead of ${base || "base"}`
-                          : `Generate description with ${ai.cliLabel}`
+                        noChangesReason ??
+                        `Generate description with ${ai.cliLabel}`
                       }
                       label="Generate Description"
                       generatingLabel="Generating description..."
@@ -545,59 +559,67 @@ export function PRModal({
         )}
       </div>
 
-      <div className="flex items-center justify-between border-t border-[var(--border)] px-5 py-3">
-        <span className="flex items-center gap-3 text-[11px] text-[var(--text-muted)]">
-          {canCreate && !prURL && (
-            <kbd className="rounded bg-[var(--bg-hover)] px-1 py-0.5 text-[11px] font-medium text-[var(--text-secondary)]">
-              &#8984;&#9166;
-            </kbd>
-          )}
-          {ai.anyAvailable && !prURL && (
-            <Tooltip
-              content="Auto-generate PR description on open"
-              side="top"
-              align="start"
-            >
-              <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]">
-                <input
-                  type="checkbox"
-                  checked={autoGenerate}
-                  onChange={toggleAutoGenerate}
-                  className="h-3 w-3 accent-[var(--accent-blue)]"
-                />
-                Auto-generate
-              </label>
-            </Tooltip>
-          )}
-          {!prURL && (
+      <div className="flex flex-col gap-2.5 border-t border-[var(--border)] px-5 py-3">
+        {!prURL && createDisabledReason && (
+          <div className="flex items-center gap-1.5 text-[11px] leading-snug text-[var(--text-muted)]">
+            <Info size={13} className="shrink-0" />
+            <span>{createDisabledReason}</span>
+          </div>
+        )}
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-3 text-[11px] text-[var(--text-muted)]">
+            {canCreate && !prURL && (
+              <kbd className="rounded bg-[var(--bg-hover)] px-1 py-0.5 text-[11px] font-medium text-[var(--text-secondary)]">
+                &#8984;&#9166;
+              </kbd>
+            )}
+            {ai.anyAvailable && !prURL && (
+              <Tooltip
+                content="Auto-generate PR description on open"
+                side="top"
+                align="start"
+              >
+                <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]">
+                  <input
+                    type="checkbox"
+                    checked={autoGenerate}
+                    onChange={toggleAutoGenerate}
+                    className="h-3 w-3 accent-[var(--accent-blue)]"
+                  />
+                  Auto-generate
+                </label>
+              </Tooltip>
+            )}
+            {!prURL && (
+              <button
+                onClick={() => {
+                  EventsEmit("navigate-pr-instructions");
+                  onClose();
+                }}
+                className="text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+              >
+                Edit AI Instructions
+              </button>
+            )}
+          </span>
+          <div className="flex gap-2">
             <button
-              onClick={() => {
-                EventsEmit("navigate-pr-instructions");
-                onClose();
-              }}
-              className="text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+              onClick={onClose}
+              disabled={busy}
+              className="rounded-lg px-3.5 py-1.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
             >
-              Edit AI Instructions
+              {prURL ? "Close" : "Cancel"}
             </button>
-          )}
-        </span>
-        <div className="flex gap-2">
-          <button
-            onClick={onClose}
-            disabled={busy}
-            className="rounded-lg px-3.5 py-1.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
-          >
-            {prURL ? "Close" : "Cancel"}
-          </button>
-          {!prURL && (
-            <button
-              onClick={submit}
-              disabled={!canCreate}
-              className="rounded-lg bg-[var(--text-primary)] px-4 py-1.5 text-sm font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-30"
-            >
-              {busy ? "Creating..." : "Create PR"}
-            </button>
-          )}
+            {!prURL && (
+              <button
+                onClick={submit}
+                disabled={!canCreate}
+                className="rounded-lg bg-[var(--text-primary)] px-4 py-1.5 text-sm font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-30"
+              >
+                {busy ? "Creating..." : "Create PR"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </Modal>
