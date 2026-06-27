@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { GitBranch } from "lucide-react";
 import { Modal } from "./ui/Modal";
 import { XIcon } from "./icons";
 import { AIPickerButton } from "./ui/AIPickerButton";
@@ -108,17 +109,25 @@ export function CreateBranchModal({
       <form onSubmit={onSubmit} noValidate>
         <div
           data-modal-drag-handle
-          className="-mx-5 -mt-5 flex items-start justify-between px-5 pb-1 pt-5"
+          className="-mx-5 -mt-5 flex items-start gap-3 px-5 pb-1 pt-5"
         >
-          <h3 className="text-base font-semibold text-[var(--text-primary)]">
-            Create and checkout branch
-          </h3>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)] ring-1 ring-inset ring-[var(--accent-cyan)]/20">
+            <GitBranch size={18} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-[15px] font-semibold leading-tight text-[var(--text-primary)]">
+              Create and checkout branch
+            </h3>
+            <p className="mt-1 text-[12px] leading-snug text-[var(--text-muted)]">
+              Start a new branch and switch to it.
+            </p>
+          </div>
           <button
             type="button"
             onClick={onClose}
             disabled={busy || generating}
             aria-label="Close"
-            className="-mr-1 -mt-1 rounded p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+            className="-mr-1 -mt-1 shrink-0 rounded p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
           >
             <XIcon />
           </button>
@@ -191,7 +200,7 @@ export function CreateBranchModal({
               type="button"
               onClick={onClose}
               disabled={busy || generating}
-              className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
+              className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
             >
               Close
             </button>
