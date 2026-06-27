@@ -410,7 +410,10 @@ export function BranchSwitcher({ projectName, projectPath, gitState }: {
           </div>
           <div className="border-t border-[var(--border)]">
             <button
-              onClick={() => setCreating(true)}
+              onClick={() => {
+                setOpen(false);
+                setCreating(true);
+              }}
               disabled={busy}
               className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
             >
