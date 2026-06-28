@@ -6,6 +6,7 @@ import { ActionView } from "./ActionView";
 import { ConfigEditor } from "./ConfigEditor";
 import { NotesView } from "./NotesView";
 import { ProjectAIInstructions } from "./ProjectAIInstructions";
+import { DiffReviewPane } from "./review/DiffReviewPane";
 import { type TerminalViewHandle } from "./TerminalView";
 import { ConfigErrorView } from "./project-detail/ConfigErrorView";
 import { Controls } from "./project-detail/Controls";
@@ -444,6 +445,7 @@ export function ProjectDetail({
       onEditConfig={() => switchDetailView("config")}
       onOpenNotes={() => switchDetailView("notes")}
       onOpenAI={() => switchDetailView("ai")}
+      onOpenReview={() => switchDetailView("review")}
       onRestart={() => withLoading(() => onRestart(project.name, activeProfile))}
       onRequestRemove={() => setConfirmRemove(true)}
       onAddService={() => {
@@ -550,6 +552,14 @@ export function ProjectDetail({
           <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden">
             <ProjectAIInstructions
               projectName={project.name}
+              onBack={() => switchDetailView("terminal")}
+            />
+          </div>
+        )}
+        {detailView === "review" && (
+          <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden">
+            <DiffReviewPane
+              projectRoot={project.root}
               onBack={() => switchDetailView("terminal")}
             />
           </div>

@@ -212,6 +212,58 @@ pub fn write_file(abs_path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, content).map_err(|e| e.to_string())
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WriteResult {
+    pub written: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_content: Option<String>,
+}
+
+/// Compare-and-swap write: overwrite only when the file's on-disk content still
+/// matches `expected_content` (what the caller loaded). The read, compare, and
+/// write happen in one call so a concurrent writer — e.g. a coding agent
+/// rewriting the same file in the terminal — can't silently clobber newer
+/// changes through a check/write gap. On mismatch the write is skipped and the
+/// current on-disk content is returned so the caller can resolve the conflict.
+#[tauri::command(async)]
+pub fn write_file_if_unchanged(
+    abs_path: String,
+    expected_content: String,
+    content: String,
+) -> Result<WriteResult, String> {
+    if abs_path.is_empty() {
+        return Err("empty file path".into());
+    }
+    if content.len() > READ_FILE_MAX_BYTES {
+        return Err(format!("content too large ({} bytes)", content.len()));
+    }
+    let path = expand_home(&abs_path);
+    if let Ok(meta) = std::fs::metadata(&path) {
+        if meta.is_dir() {
+            return Err(format!("not a file: {abs_path}"));
+        }
+    }
+    let current = match std::fs::read(&path) {
+        Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+        // A freshly-created file the caller loaded as empty may not be on disk
+        // yet; treat a missing file as an empty baseline.
+        Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(e.to_string()),
+    };
+    if current != expected_content {
+        return Ok(WriteResult {
+            written: false,
+            current_content: Some(current),
+        });
+    }
+    std::fs::write(&path, content).map_err(|e| e.to_string())?;
+    Ok(WriteResult {
+        written: true,
+        current_content: None,
+    })
+}
+
 #[tauri::command(async)]
 pub fn open_path_in_default_app(abs_path: String) -> Result<(), String> {
     let resolved = resolve_existing(&abs_path)?;

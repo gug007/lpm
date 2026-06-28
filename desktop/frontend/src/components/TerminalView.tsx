@@ -5,7 +5,7 @@ import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus } from
 import type { ITheme } from "@xterm/xterm";
 import { disposePaneSession, type PaneHandle } from "./Pane";
 import { disposeInteractivePaneSession, isInteractivePaneSessionDead, type InteractivePaneHandle } from "./InteractivePane";
-import { collectTerminals, isTabPinned } from "../paneTree";
+import { collectTerminals, isTabPinned, isTerminalTab } from "../paneTree";
 import { PaneLayout } from "./PaneLayout";
 import { TerminalTabDnd } from "./TerminalTabDnd";
 import type { ServiceTabInfo, StatusKind } from "./PaneView";
@@ -69,6 +69,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     resumeFromHistory,
     addTerminalToPane,
     addBrowserToPane,
+    addReviewToPane,
     closeTerminal,
     focusTerminal,
     focusService,
@@ -188,12 +189,13 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   // Project-wide terminal list ({id,label}) for the composer's "@" mention. The
   // tree gets a fresh reference every drag frame, which would churn each
   // composer's mention memos, so reuse the prior array while the id/label set is
-  // unchanged. Browser tabs have no xterm session, so they're left out.
+  // unchanged. Non-PTY tabs (browser, review) have no xterm session, so they're
+  // left out.
   const allTerminalsRef = useRef<{ id: string; label: string }[]>([]);
   const allTerminals = useMemo(() => {
     const next = tree
       ? collectTerminals(tree)
-          .filter((t) => t.kind !== "browser")
+          .filter(isTerminalTab)
           .map((t) => ({ id: t.id, label: t.label }))
       : [];
     const prev = allTerminalsRef.current;
@@ -446,8 +448,10 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
   // Gates the footer toggle and ⌘I on the focused pane's active terminal, so the
   // toggle always shows/hides an input where the user is looking, never a dead
-  // toggle. null while that pane shows a browser, a service log, or has no tabs.
-  const focusedComposerTerminalId = activeTab && activeTab.kind !== "browser" ? activeTab.id : null;
+  // toggle. null while that pane shows a browser/review tab, a service log, or
+  // has no tabs.
+  const focusedComposerTerminalId =
+    activeTab && isTerminalTab(activeTab) ? activeTab.id : null;
 
   useEffect(() => {
     useComposerStore.getState().setActive(projectName, focusedComposerTerminalId);
@@ -510,6 +514,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onFocusService={focusService}
             onAddTerminal={addTerminalToPane}
             onAddBrowser={addBrowserToPane}
+            onAddReview={addReviewToPane}
             onCloseTerminal={closeTerminal}
             onRenameTerminal={renameTerminal}
             onTogglePinTab={toggleTabPinned}

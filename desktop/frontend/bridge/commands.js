@@ -151,6 +151,12 @@ export function GitAbortMerge(cwd) {
 export function GitChangedFiles(cwd) {
   return invoke("git_changed_files", { cwd });
 }
+export function GitChangedFilesRef(cwd, base) {
+  return invoke("git_changed_files_ref", { cwd, base });
+}
+export function GitChangedFilesStaged(cwd) {
+  return invoke("git_changed_files_staged", { cwd });
+}
 export function GitCommit(cwd, message, files) {
   return invoke("git_commit", { cwd, message, files });
 }
@@ -166,8 +172,17 @@ export function GitDiff(cwd, files) {
 export function GitDiffBranch(cwd, base) {
   return invoke("git_diff_branch", { cwd, base });
 }
+export function GitDiffStaged(cwd) {
+  return invoke("git_diff_staged", { cwd });
+}
 export function GitFileDiff(cwd, path) {
   return invoke("git_file_diff", { cwd, path });
+}
+export function GitFileDiffRef(cwd, path, base) {
+  return invoke("git_file_diff_ref", { cwd, path, base });
+}
+export function GitFileDiffStaged(cwd, path) {
+  return invoke("git_file_diff_staged", { cwd, path });
 }
 export function GitDiscardAll(cwd) {
   return invoke("git_discard_all", { cwd });
@@ -540,6 +555,9 @@ export function VaultImportKey(passphrase) {
 }
 export function WriteFile(absPath, content) {
   return invoke("write_file", { absPath, content });
+}
+export function WriteFileIfUnchanged(absPath, expectedContent, content) {
+  return invoke("write_file_if_unchanged", { absPath, expectedContent, content });
 }
 export function WriteTerminal(id, data) {
   return invoke("write_terminal", { id, data });

@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { ITheme } from "@xterm/xterm";
 import { InteractivePane, type InteractivePaneHandle } from "./InteractivePane";
 import { BrowserPane } from "./BrowserPane";
+import { DiffReviewPane } from "./review/DiffReviewPane";
 import { Pane, type PaneHandle } from "./Pane";
 import { HeaderTab } from "./terminal/HeaderTab";
 import { RenameModal } from "./RenameModal";
@@ -16,14 +17,20 @@ import {
 } from "./terminal/icons";
 import { AddTabSplitButton } from "./terminal/AddTabSplitButton";
 import { TerminalSearchBar } from "./terminal/TerminalSearchBar";
-import { XIcon, GlobeIcon, TerminalIcon, ZapIcon } from "./icons";
+import { XIcon, GlobeIcon, TerminalIcon, ZapIcon, CodeIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
 import { SortableTab, TabStrip } from "./TerminalTabDnd";
 import { TerminalComposer } from "./TerminalComposer";
 import { useScrollFade } from "../hooks/useScrollFade";
 import { computeScrollIntoViewLeft } from "../hooks/scrollIntoViewX";
 import { useTabScroll } from "../store/tabScroll";
-import { ALL_SERVICES, type PaneLeaf, type SplitDirection } from "../paneTree";
+import {
+  ALL_SERVICES,
+  isTerminalTab,
+  type PaneLeaf,
+  type SplitDirection,
+  type TerminalInstance,
+} from "../paneTree";
 import { useBrowserUrls } from "../store/browserUrls";
 
 export type StatusKind = "Done" | "Waiting" | "Error";
@@ -57,6 +64,18 @@ function BrowserTabIcon({ id }: { id: string }) {
       className="h-3.5 w-3.5 rounded-sm"
     />
   );
+}
+
+function TabIcon({ tab }: { tab: TerminalInstance }) {
+  if (tab.kind === "browser") return <BrowserTabIcon id={tab.id} />;
+  if (tab.kind === "review") return <CodeIcon />;
+  if (tab.emoji)
+    return (
+      <span className="flex h-3.5 w-3.5 items-center justify-center text-[12px] leading-none">
+        {tab.emoji}
+      </span>
+    );
+  return <TerminalIcon />;
 }
 
 /** A running service that the primary pane renders as an additional tab. */
@@ -97,6 +116,7 @@ export interface PaneViewProps {
   onFocusService: (paneId: string, serviceName: string) => void;
   onAddTerminal: (paneId: string) => void;
   onAddBrowser: (paneId: string) => void;
+  onAddReview: (paneId: string) => void;
   onCloseTerminal: (paneId: string, tabIdx: number) => void;
   onRenameTerminal: (
     paneId: string,
@@ -152,6 +172,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onFocusService,
     onAddTerminal,
     onAddBrowser,
+    onAddReview,
     onCloseTerminal,
     onRenameTerminal,
     onTogglePinTab,
@@ -197,7 +218,7 @@ function PaneViewImpl(props: PaneViewProps) {
       : Math.min(pane.activeTabIdx, pane.tabs.length - 1);
   const activeTerm = terminalIdx >= 0 ? pane.tabs[terminalIdx] : null;
   const composerTab =
-    activeServiceName === null && activeTerm && activeTerm.kind !== "browser"
+    activeServiceName === null && activeTerm && isTerminalTab(activeTerm)
       ? activeTerm
       : null;
 
@@ -325,17 +346,7 @@ function PaneViewImpl(props: PaneViewProps) {
                 <SortableTab key={t.id} id={t.id} paneId={pane.id} index={i}>
                   <HeaderTab
                     label={t.label}
-                    icon={
-                      t.kind === "browser" ? (
-                        <BrowserTabIcon id={t.id} />
-                      ) : t.emoji ? (
-                        <span className="flex h-3.5 w-3.5 items-center justify-center text-[12px] leading-none">
-                          {t.emoji}
-                        </span>
-                      ) : (
-                        <TerminalIcon />
-                      )
-                    }
+                    icon={<TabIcon tab={t} />}
                     active={isActive}
                     pinned={t.pinned}
                     shimmer={runningPaneIDs?.has(t.id) ?? false}
@@ -361,6 +372,7 @@ function PaneViewImpl(props: PaneViewProps) {
           <AddTabSplitButton
             onAddTerminal={() => onAddTerminal(pane.id)}
             onAddBrowser={() => onAddBrowser(pane.id)}
+            onAddReview={() => onAddReview(pane.id)}
           />
           </div>
           {canScrollLeft && (
@@ -486,6 +498,11 @@ function PaneViewImpl(props: PaneViewProps) {
             >
               {t.kind === "browser" ? (
                 <BrowserPane id={t.id} active={visible && isActive} />
+              ) : t.kind === "review" ? (
+                <DiffReviewPane
+                  projectRoot={interactiveCwd}
+                  active={visible && isActive}
+                />
               ) : (
                 <InteractivePane
                   ref={(el) => onRegisterTerminalHandle(t.id, el)}
@@ -540,7 +557,8 @@ function PaneViewImpl(props: PaneViewProps) {
         title="Rename tab"
         withEmoji={
           renamingTabIdx !== null &&
-          pane.tabs[renamingTabIdx]?.kind !== "browser"
+          !!pane.tabs[renamingTabIdx] &&
+          isTerminalTab(pane.tabs[renamingTabIdx])
         }
         initialValue={
           renamingTabIdx !== null

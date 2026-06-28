@@ -30,6 +30,7 @@ interface ControlsProps {
   onEditConfig: () => void;
   onOpenNotes: () => void;
   onOpenAI: () => void;
+  onOpenReview: () => void;
   onRestart: () => void;
   onRequestRemove: () => void;
   onAddService: () => void;
@@ -63,6 +64,7 @@ export function Controls({
   onEditConfig,
   onOpenNotes,
   onOpenAI,
+  onOpenReview,
   onRestart,
   onRequestRemove,
   onAddService,
@@ -102,6 +104,7 @@ export function Controls({
             onEditConfig={onEditConfig}
             onOpenNotes={onOpenNotes}
             onOpenAI={onOpenAI}
+            onOpenReview={onOpenReview}
             onRestart={onRestart}
             onRemove={onRequestRemove}
           />

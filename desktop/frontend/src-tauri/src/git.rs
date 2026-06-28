@@ -86,6 +86,28 @@ fn resolve_branch_ref(cwd: &str, name: &str) -> String {
     name.to_string()
 }
 
+/// Resolve and validate a base branch for the `_ref` (base...HEAD) commands.
+fn resolve_base(cwd: &str, base: &str) -> Result<String, String> {
+    if base.is_empty() {
+        return Err("base branch required".into());
+    }
+    Ok(resolve_branch_ref(cwd, base))
+}
+
+/// Shared prefix for read-only porcelain status queries. --no-optional-locks
+/// keeps these frequently-polled reads from contending on the index lock.
+const STATUS_PORCELAIN: &[&str] = &["--no-optional-locks", "status", "--porcelain=v1", "-z"];
+
+/// Map a porcelain/diff status code byte to its display status.
+fn status_label(code: u8) -> &'static str {
+    match code {
+        b'A' => "added",
+        b'D' => "deleted",
+        b'R' | b'C' => "renamed",
+        _ => "modified",
+    }
+}
+
 fn parse_ahead_behind(tail: &str) -> (i64, i64) {
     let (mut ahead, mut behind) = (0i64, 0i64);
     if let (Some(s), Some(e)) = (tail.find('['), tail.find(']')) {
@@ -175,7 +197,9 @@ fn parse_status_header(header: &str, st: &mut GitStatus, cwd: &str) {
 
 #[tauri::command(async)]
 pub fn git_status(cwd: String) -> GitStatus {
-    let out = match git_out(&cwd, &["status", "--branch", "--porcelain=v1", "-z"]) {
+    // Note: default (collapsed) untracked counting — a wholly-untracked dir
+    // counts as one entry here; the file list (git_changed_files) expands it.
+    let out = match git_out(&cwd, &[STATUS_PORCELAIN, &["--branch"]].concat()) {
         Ok(o) => o,
         Err(_) => return GitStatus::default(),
     };
@@ -226,7 +250,10 @@ pub fn git_status(cwd: String) -> GitStatus {
 
 #[tauri::command(async)]
 pub fn git_changed_files(cwd: String) -> Vec<ChangedFile> {
-    let raw = git_raw(&cwd, &["status", "--porcelain=v1", "-z"]);
+    // --untracked-files=all lists each untracked file individually; without it
+    // git collapses a wholly-untracked directory into one `dir/` entry, which
+    // renders as a blank (no filename) row.
+    let raw = git_raw(&cwd, &[STATUS_PORCELAIN, &["--untracked-files=all"]].concat());
     let entries: Vec<&str> = raw.split('\u{0}').collect();
     let mut files = Vec::new();
     let mut i = 0;
@@ -238,7 +265,9 @@ pub fn git_changed_files(cwd: String) -> Vec<ChangedFile> {
         }
         let b = entry.as_bytes();
         let (x, y) = (b[0], b[1]);
-        let path = entry[3..].to_string();
+        // Trailing slash can survive for an untracked nested repo even with
+        // --untracked-files=all; trim it so the path never renders blank.
+        let path = entry[3..].trim_end_matches('/').to_string();
         let consumes_two = matches!(x, b'R' | b'C') || matches!(y, b'R' | b'C');
         if x == b'?' && y == b'?' {
             files.push(ChangedFile {
@@ -251,12 +280,7 @@ pub fn git_changed_files(cwd: String) -> Vec<ChangedFile> {
             let mut staged = false;
             if x != b' ' && x != b'?' {
                 staged = true;
-                status = match x {
-                    b'A' => "added",
-                    b'D' => "deleted",
-                    b'R' | b'C' => "renamed",
-                    _ => "modified",
-                };
+                status = status_label(x);
             } else if y == b'D' {
                 status = "deleted";
             }
@@ -308,11 +332,14 @@ pub fn git_diff(cwd: String, files: Vec<String>) -> Result<String, String> {
 
 #[tauri::command(async)]
 pub fn git_diff_branch(cwd: String, base: String) -> Result<String, String> {
-    if base.is_empty() {
-        return Err("base branch required".into());
-    }
-    let base = resolve_branch_ref(&cwd, &base);
+    let base = resolve_base(&cwd, &base)?;
     git_out(&cwd, &["diff", &format!("{base}...HEAD")])
+}
+
+/// Unified diff of the staged index versus HEAD (the whole staged changeset).
+#[tauri::command(async)]
+pub fn git_diff_staged(cwd: String) -> Result<String, String> {
+    git_out(&cwd, &["diff", "--cached"])
 }
 
 #[derive(Serialize)]
@@ -330,7 +357,7 @@ fn is_binary(bytes: &[u8]) -> bool {
 /// Path a renamed file had at HEAD, so the original side resolves to the right
 /// blob. porcelain v1 -z emits a rename as `R.. <dest>` then a `<src>` chunk.
 fn rename_source(cwd: &str, new_path: &str) -> Option<String> {
-    let raw = git_raw(cwd, &["status", "--porcelain=v1", "-z", "--", new_path]);
+    let raw = git_raw(cwd, &[STATUS_PORCELAIN, &["--", new_path]].concat());
     let entries: Vec<&str> = raw.split('\u{0}').filter(|e| !e.is_empty()).collect();
     for (i, e) in entries.iter().enumerate() {
         let b = e.as_bytes();
@@ -355,18 +382,79 @@ pub fn git_file_diff(cwd: String, path: String) -> Result<FileDiff, String> {
         }
     }
 
-    if is_binary(&orig_bytes) || is_binary(&mod_bytes) {
-        return Ok(FileDiff {
+    Ok(file_diff_from_blobs(orig_bytes, mod_bytes))
+}
+
+/// Parse `git diff --name-status -z` output into changed files. A rename/copy
+/// emits `<code>\0<old>\0<new>\0`; the new path is the one shown.
+fn parse_name_status_z(raw: &str, staged: bool) -> Vec<ChangedFile> {
+    let parts: Vec<&str> = raw.split('\u{0}').filter(|e| !e.is_empty()).collect();
+    let mut files = Vec::new();
+    let mut i = 0;
+    while i < parts.len() {
+        let code = parts[i].as_bytes().first().copied().unwrap_or(b'M');
+        let is_rename = matches!(code, b'R' | b'C');
+        let path_idx = if is_rename { i + 2 } else { i + 1 };
+        let Some(path) = parts.get(path_idx) else { break };
+        files.push(ChangedFile {
+            path: (*path).to_string(),
+            status: status_label(code).into(),
+            staged,
+        });
+        i = path_idx + 1;
+    }
+    files
+}
+
+fn file_diff_from_blobs(orig: Vec<u8>, modi: Vec<u8>) -> FileDiff {
+    if is_binary(&orig) || is_binary(&modi) {
+        return FileDiff {
             original: String::new(),
             modified: String::new(),
             binary: true,
-        });
+        };
     }
-    Ok(FileDiff {
-        original: String::from_utf8_lossy(&orig_bytes).into_owned(),
-        modified: String::from_utf8_lossy(&mod_bytes).into_owned(),
+    FileDiff {
+        original: String::from_utf8_lossy(&orig).into_owned(),
+        modified: String::from_utf8_lossy(&modi).into_owned(),
         binary: false,
-    })
+    }
+}
+
+/// Files changed on this branch versus `base` (the `base...HEAD` range), for a
+/// read-only branch review.
+#[tauri::command(async)]
+pub fn git_changed_files_ref(cwd: String, base: String) -> Result<Vec<ChangedFile>, String> {
+    let base = resolve_base(&cwd, &base)?;
+    let raw = git_raw(
+        &cwd,
+        &["diff", "--name-status", "-z", "-M", &format!("{base}...HEAD")],
+    );
+    Ok(parse_name_status_z(&raw, false))
+}
+
+/// Files staged in the index (`git diff --cached`), for a read-only staged review.
+#[tauri::command(async)]
+pub fn git_changed_files_staged(cwd: String) -> Vec<ChangedFile> {
+    let raw = git_raw(&cwd, &["diff", "--cached", "--name-status", "-z", "-M"]);
+    parse_name_status_z(&raw, true)
+}
+
+/// `base:path` vs `HEAD:path` blobs, for a read-only branch review of one file.
+#[tauri::command(async)]
+pub fn git_file_diff_ref(cwd: String, path: String, base: String) -> Result<FileDiff, String> {
+    let base = resolve_base(&cwd, &base)?;
+    let orig = git_bytes(&cwd, &["show", &format!("{base}:{path}")]);
+    let modi = git_bytes(&cwd, &["show", &format!("HEAD:{path}")]);
+    Ok(file_diff_from_blobs(orig, modi))
+}
+
+/// `HEAD:path` vs index (`:path`) blobs, for a read-only staged review of one file.
+#[tauri::command(async)]
+pub fn git_file_diff_staged(cwd: String, path: String) -> Result<FileDiff, String> {
+    let orig = git_bytes(&cwd, &["show", &format!("HEAD:{path}")]);
+    let modi = git_bytes(&cwd, &["show", &format!(":{path}")]);
+    Ok(file_diff_from_blobs(orig, modi))
 }
 
 #[tauri::command(async)]
@@ -574,10 +662,7 @@ pub fn git_default_branch(cwd: String) -> String {
 
 #[tauri::command(async)]
 pub fn git_log_branch(cwd: String, base: String) -> Result<Vec<BranchCommit>, String> {
-    if base.is_empty() {
-        return Err("base branch required".into());
-    }
-    let base = resolve_branch_ref(&cwd, &base);
+    let base = resolve_base(&cwd, &base)?;
     let out = git_out(
         &cwd,
         &["log", "--format=%h%x00%s%x00%an%x00%ar", &format!("{base}..HEAD")],
