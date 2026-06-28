@@ -28,6 +28,10 @@ export function useOpenInTargets() {
 }
 
 export async function launchOpenInTarget(t: OpenInTarget, projectPath: string) {
+  // Launching an app makes it the last-used one, so every entry point (sidebar
+  // "Open with", the toolbar dropdown) surfaces it as the default next time —
+  // primaryOpenInTarget reads this key.
+  localStorage.setItem(OPEN_IN_SELECTED_KEY, t.id);
   try {
     await OpenIn(t.id, projectPath);
   } catch (err) {

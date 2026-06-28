@@ -22,9 +22,8 @@ export function OpenInDropdown({ projectPath }: {
 
   const pick = (t: OpenInTarget) => {
     setSelectedId(t.id);
-    localStorage.setItem(OPEN_IN_SELECTED_KEY, t.id);
     setOpen(false);
-    launch(t);
+    launch(t); // also persists the selection (see launchOpenInTarget)
   };
 
   return (
