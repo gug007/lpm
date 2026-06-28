@@ -16,6 +16,7 @@ export function HeaderTab({
   done,
   waiting,
   error,
+  trailing,
 }: {
   label: string;
   icon?: ReactNode;
@@ -28,6 +29,7 @@ export function HeaderTab({
   done?: boolean;
   waiting?: boolean;
   error?: boolean;
+  trailing?: ReactNode;
 }) {
   const closable = !!onClose && !pinned;
   const hasHoverIcon = closable || !!pinned;
@@ -95,6 +97,7 @@ export function HeaderTab({
       ) : (
         labelNode
       )}
+      {trailing}
     </button>
   );
 }

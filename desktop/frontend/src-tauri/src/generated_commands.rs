@@ -9,7 +9,7 @@ use serde_json::Value;
 
 
 
-/// All 183 commands for tauri::generate_handler!.
+/// Every command for tauri::generate_handler!.
 #[macro_export]
 macro_rules! all_command_handlers {
     () => {
@@ -48,6 +48,7 @@ macro_rules! all_command_handlers {
         delete_branch,
         delete_template,
         detach_project,
+        detect_service_ports,
         dismiss_port_suggestion,
         duplicate_project,
         duplicate_projects,

@@ -769,6 +769,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             isDuplicate={Boolean(contextProject?.parentName)}
             isDetached={detached.has(contextMenu.name)}
             canSelect={projects.length > 1}
+            projectName={contextMenu.name}
+            running={contextProject?.running ?? false}
+            services={contextProject?.services ?? []}
             projectPath={contextProject?.root ?? null}
             groups={groups}
             currentGroupId={memberOf.get(contextMenu.name) ?? null}

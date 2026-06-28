@@ -65,6 +65,9 @@ export interface ServiceTabInfo {
   output: string;
   sessionKey: string;
   cwd: string;
+  // Live TCP-listen ports the service's process tree owns, shown on its tab.
+  // Empty until the service binds (or always, for remote projects).
+  ports?: number[];
 }
 
 export interface PaneViewProps {
@@ -286,12 +289,20 @@ function PaneViewImpl(props: PaneViewProps) {
           )}
           {services.map((svc) => {
             const isActive = activeServiceName === svc.name;
+            const ports = svc.ports ?? [];
             return (
               <HeaderTab
                 key={`svc:${svc.name}`}
                 label={svc.name}
                 icon={<ZapIcon />}
                 active={isActive}
+                trailing={
+                  ports.length > 0 && (
+                    <span className="shrink-0 font-mono text-[10px] tabular-nums opacity-60">
+                      {ports.map((p) => `:${p}`).join(" ")}
+                    </span>
+                  )
+                }
                 onClick={(e) => {
                   onFocusService(pane.id, svc.name);
                   scrollTabIntoView(e.currentTarget);

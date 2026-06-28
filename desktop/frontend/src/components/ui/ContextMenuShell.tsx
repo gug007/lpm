@@ -1,6 +1,7 @@
 import { useLayoutEffect, useState, type ReactNode } from "react";
 import { useEventListener } from "../../hooks/useEventListener";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
+import { SubmenuCoordinator } from "./submenuCoordinator";
 
 interface ContextMenuShellProps {
   x: number;
@@ -13,7 +14,7 @@ interface ContextMenuShellProps {
 const VIEWPORT_MARGIN = 8;
 
 export const MENU_PANEL_CLASS =
-  "rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg";
+  "menu-pop rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg";
 
 export function ContextMenuShell({ x, y, minWidth = 160, onClose, children }: ContextMenuShellProps) {
   const ref = useOutsideClick<HTMLDivElement>(onClose);
@@ -39,7 +40,7 @@ export function ContextMenuShell({ x, y, minWidth = 160, onClose, children }: Co
       className={`fixed z-50 ${MENU_PANEL_CLASS}`}
       style={{ left: pos.left, top: pos.top, minWidth }}
     >
-      {children}
+      <SubmenuCoordinator>{children}</SubmenuCoordinator>
     </div>
   );
 }

@@ -47,9 +47,10 @@ pub fn session_exists(name: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Pane ids for a session in creation order (`%0`, `%1`, …). Empty on error.
-pub fn list_pane_ids(session: &str) -> Vec<String> {
-    match run(&["list-panes", "-t", session, "-F", "#{pane_id}"]) {
+/// One field per pane for a session in creation order. Empty lines and errors
+/// drop out, so callers get a clean list aligned to pane order. Empty on error.
+fn list_pane_field(session: &str, field: &str) -> Vec<String> {
+    match run(&["list-panes", "-t", session, "-F", field]) {
         Ok(out) => out
             .lines()
             .map(|l| l.trim().to_string())
@@ -57,6 +58,20 @@ pub fn list_pane_ids(session: &str) -> Vec<String> {
             .collect(),
         Err(_) => Vec::new(),
     }
+}
+
+/// Pane ids for a session in creation order (`%0`, `%1`, …). Empty on error.
+pub fn list_pane_ids(session: &str) -> Vec<String> {
+    list_pane_field(session, "#{pane_id}")
+}
+
+/// Pane shell pids for a session in creation order — aligned with list_pane_ids
+/// so the Nth entry is the Nth service's pane. Empty on error.
+pub fn list_pane_pids(session: &str) -> Vec<i64> {
+    list_pane_field(session, "#{pane_pid}")
+        .iter()
+        .filter_map(|s| s.parse().ok())
+        .collect()
 }
 
 pub fn capture_pane(pane_id: &str, lines: i64) -> Result<String, String> {

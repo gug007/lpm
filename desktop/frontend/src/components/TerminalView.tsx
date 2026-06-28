@@ -13,6 +13,7 @@ import { type TerminalThemeName, getTerminalThemeColors, terminalThemeCssVars } 
 import { ansiColors } from "./terminal-utils";
 import { TerminalIcon } from "./icons";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
+import { useServicePorts } from "../hooks/useServicePorts";
 import { useTerminals, type TerminalStartOpts } from "../hooks/useTerminals";
 import { type PersistedHistoryEntry } from "../terminals";
 import { getSettings, saveSettings } from "../store/settings";
@@ -86,6 +87,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
   const servicesKey = services.map((s) => s.name).join(",");
   const stableServices = useMemo(() => services, [servicesKey]);
+  const servicePorts = useServicePorts(projectName, visible && services.length > 0, servicesKey);
 
   // Ensure a root pane exists whenever there's something to host — either
   // a running service (so its tab has somewhere to live) or after the
@@ -130,8 +132,9 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
         output: outputs[idx] ?? "",
         sessionKey: `${projectName}:${svc.name}`,
         cwd: projectRoot ? joinAbs(projectRoot, svc.cwd ?? "") : "",
+        ports: servicePorts[svc.name] ?? [],
       })),
-    [stableServices, outputs, projectName, projectRoot],
+    [stableServices, outputs, projectName, projectRoot, servicePorts],
   );
 
   // Session keys for all service Panes owned by this TerminalView.

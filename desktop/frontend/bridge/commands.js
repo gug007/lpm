@@ -85,6 +85,9 @@ export function DeleteTemplate(name) {
 export function DetachProject(projectName) {
   return invoke("detach_project", { projectName });
 }
+export function DetectServicePorts(name) {
+  return invoke("detect_service_ports", { name });
+}
 export function DismissPortSuggestion(project, port) {
   return invoke("dismiss_port_suggestion", { project, port });
 }

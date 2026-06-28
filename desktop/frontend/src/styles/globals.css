@@ -278,6 +278,26 @@ body {
   }
 }
 
+/* Opacity-only: a context menu opens under the cursor, so any transform that
+   shifts its rows would slide them under the pointer and fire spurious
+   mouseenter — flickering a submenu open. A plain fade keeps it still. */
+@keyframes menu-pop {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.menu-pop {
+  animation: menu-pop 120ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .menu-pop {
+    animation: none;
+  }
+}
+
 @keyframes terminal-drop-fade-in {
   from {
     opacity: 0;

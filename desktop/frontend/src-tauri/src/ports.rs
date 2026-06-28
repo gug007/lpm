@@ -33,6 +33,14 @@ struct Holder {
     command: String,
 }
 
+/// Ports a running service's process tree is currently listening on, keyed by
+/// service name. `ports` is empty while a service hasn't bound anything yet.
+#[derive(Serialize, Clone)]
+pub struct ServicePorts {
+    pub service: String,
+    pub ports: Vec<i64>,
+}
+
 fn holder_phrase(h: &Holder, lpm_project: &str) -> String {
     if !lpm_project.is_empty() {
         format!("lpm project {lpm_project:?}")
@@ -77,6 +85,42 @@ fn parse_lsof(s: &str) -> HashMap<i64, Holder> {
         }
     }
     result
+}
+
+/// All (pid, port) pairs currently in TCP LISTEN, regardless of which port —
+/// one lsof call we then attribute to panes by process ancestry. A process may
+/// listen on several ports, so the same pid can appear more than once.
+fn parse_listeners(s: &str) -> Vec<(i64, i64)> {
+    let mut out = Vec::new();
+    let mut pid = 0i64;
+    for line in s.split('\n') {
+        if line.len() < 2 {
+            continue;
+        }
+        let (tag, rest) = (line.as_bytes()[0], &line[1..]);
+        match tag {
+            b'p' => pid = rest.parse().unwrap_or(0),
+            b'n' => {
+                if pid > 0 {
+                    if let Some(port) = port_from_addr(rest) {
+                        out.push((pid, port));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+fn listening_ports() -> Vec<(i64, i64)> {
+    match Command::new("lsof")
+        .args(["-nP", "-iTCP", "-sTCP:LISTEN", "-Fpn"])
+        .output()
+    {
+        Ok(o) if !o.stdout.is_empty() => parse_listeners(&String::from_utf8_lossy(&o.stdout)),
+        _ => Vec::new(),
+    }
 }
 
 fn lookup_holders(ports: &[i64]) -> HashMap<i64, Holder> {
@@ -155,24 +199,32 @@ fn process_parents() -> HashMap<i64, i64> {
     parents
 }
 
-fn walk_to_project(pid: i64, pane_idx: &HashMap<i64, String>, parents: &HashMap<i64, i64>) -> String {
-    if pid <= 1 || pane_idx.is_empty() {
-        return String::new();
+/// Walk a holder pid up its ancestry until it lands on a known pane pid, and
+/// return that pane's mapped value (a project name or a service name, depending
+/// on the index passed). Bounded to 32 hops to stay cheap and loop-proof.
+fn walk_to_owner<T: Clone>(
+    pid: i64,
+    pane_map: &HashMap<i64, T>,
+    parents: &HashMap<i64, i64>,
+) -> Option<T> {
+    if pane_map.is_empty() {
+        return None;
     }
     let mut cur = pid;
     for _ in 0..32 {
         if cur <= 1 {
-            break;
+            return None;
         }
-        if let Some(p) = pane_idx.get(&cur) {
-            return p.clone();
+        if let Some(v) = pane_map.get(&cur) {
+            return Some(v.clone());
         }
-        match parents.get(&cur) {
-            Some(&ppid) => cur = ppid,
-            None => return String::new(),
-        }
+        cur = *parents.get(&cur)?;
     }
-    String::new()
+    None
+}
+
+fn walk_to_project(pid: i64, pane_idx: &HashMap<i64, String>, parents: &HashMap<i64, i64>) -> String {
+    walk_to_owner(pid, pane_idx, parents).unwrap_or_default()
 }
 
 fn to_info(service: &str, port: i64, h: &Holder, project: &str, policy: &str) -> PortConflictInfo {
@@ -314,6 +366,47 @@ pub fn check_action_port_conflict(
     let (ports, policy) = config::action_ports_and_conflict(&project_name, &action_name)
         .ok_or_else(|| format!("action {action_name:?} not found in project {project_name:?}"))?;
     Ok(check_action_port(&action_name, &ports, &policy))
+}
+
+/// Live ports each running service is listening on, in running-service order.
+/// Local-only: remote services listen on the remote host where this lsof can't
+/// see them, so remote projects report no ports. Attribution walks each
+/// listening pid up to the tmux pane that owns it (pane N == service N).
+#[tauri::command(async)]
+pub fn detect_service_ports(
+    state: State<'_, ServiceState>,
+    name: String,
+) -> Result<Vec<ServicePorts>, String> {
+    let info = config::spawn_info(&name)?;
+    let running = config::resolve_running_services(&info, &state.get(&name));
+
+    // Remote ports listen on the remote host where this lsof can't reach, so
+    // those services just fall through with no detected ports.
+    let mut by_service: HashMap<String, Vec<i64>> = HashMap::new();
+    if !info.is_remote && !running.is_empty() {
+        let pane_pids = crate::tmux::list_pane_pids(&info.session);
+        let pane_map: HashMap<i64, String> = running
+            .iter()
+            .enumerate()
+            .filter_map(|(i, svc)| pane_pids.get(i).map(|&pid| (pid, svc.clone())))
+            .collect();
+        let parents = process_parents();
+        for (pid, port) in listening_ports() {
+            if let Some(svc) = walk_to_owner(pid, &pane_map, &parents) {
+                by_service.entry(svc).or_default().push(port);
+            }
+        }
+    }
+
+    Ok(running
+        .into_iter()
+        .map(|service| {
+            let mut ports = by_service.remove(&service).unwrap_or_default();
+            ports.sort_unstable();
+            ports.dedup();
+            ServicePorts { service, ports }
+        })
+        .collect())
 }
 
 #[tauri::command(async)]

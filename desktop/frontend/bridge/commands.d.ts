@@ -27,6 +27,7 @@ export function CreateTemplate(...args: any[]): Promise<any>;
 export function DeleteBranch(...args: any[]): Promise<any>;
 export function DeleteTemplate(...args: any[]): Promise<any>;
 export function DetachProject(...args: any[]): Promise<any>;
+export function DetectServicePorts(...args: any[]): Promise<any>;
 export function DismissPortSuggestion(...args: any[]): Promise<any>;
 export function DuplicateProject(...args: any[]): Promise<any>;
 export function DuplicateProjects(...args: any[]): Promise<any>;

@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronRightIcon } from "../icons";
 import { ContextMenuItem } from "./ContextMenuItem";
 import { MENU_PANEL_CLASS } from "./ContextMenuShell";
+import { SubmenuCoordinator, useSubmenuDisclosure } from "./submenuCoordinator";
 
 interface ContextMenuSubmenuProps {
   label: ReactNode;
   icon?: ReactNode;
   disabled?: boolean;
+  // When set, clicking the row runs this instead of opening the submenu (the
+  // submenu still opens on hover) — e.g. "Open with" launches the default app.
+  onActivate?: () => void;
   children: ReactNode;
 }
 
@@ -16,14 +20,11 @@ const PANEL_PADDING_OFFSET = -4;
 
 // The panel is a child of the row wrapper: one mouseleave governs both
 // and their adjacent edges leave no hover gap.
-export function ContextMenuSubmenu({ label, icon, disabled, children }: ContextMenuSubmenuProps) {
-  const [open, setOpen] = useState(false);
+export function ContextMenuSubmenu({ label, icon, disabled, onActivate, children }: ContextMenuSubmenuProps) {
+  const { open, openNow, scheduleClose } = useSubmenuDisclosure(disabled);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const closeTimer = useRef<number | undefined>(undefined);
   const [placement, setPlacement] = useState({ side: "right" as "right" | "left", shiftY: PANEL_PADDING_OFFSET });
-
-  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
 
   // Position the panel beside its row, flipping to the left and shifting up
   // when it would otherwise spill past the viewport edges. The panel never
@@ -64,22 +65,15 @@ export function ContextMenuSubmenu({ label, icon, disabled, children }: ContextM
     <div
       ref={wrapperRef}
       className="relative"
-      onMouseEnter={() => {
-        window.clearTimeout(closeTimer.current);
-        if (!disabled) setOpen(true);
-      }}
-      onMouseLeave={() => {
-        // A diagonal path to a far panel item briefly crosses sibling
-        // rows; closing instantly would kill the submenu mid-gesture.
-        closeTimer.current = window.setTimeout(() => setOpen(false), 150);
-      }}
+      onMouseEnter={openNow}
+      onMouseLeave={scheduleClose}
     >
       <ContextMenuItem
         label={label}
         icon={icon}
         trailing={<ChevronRightIcon />}
         disabled={disabled}
-        onClick={() => setOpen(true)}
+        onClick={onActivate ?? openNow}
       />
       {open && (
         <div
@@ -91,7 +85,7 @@ export function ContextMenuSubmenu({ label, icon, disabled, children }: ContextM
             ...(placement.side === "right" ? { left: "100%" } : { right: "100%" }),
           }}
         >
-          {children}
+          <SubmenuCoordinator>{children}</SubmenuCoordinator>
         </div>
       )}
     </div>

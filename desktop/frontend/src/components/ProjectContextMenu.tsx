@@ -1,8 +1,10 @@
-import { CheckSquareIcon, ChevronRightIcon, ClipboardIcon, CopyIcon, DetachIcon, PencilIcon, TrashIcon } from "./icons";
+import { CheckSquareIcon, ClipboardIcon, CopyIcon, DetachIcon, PencilIcon, TrashIcon } from "./icons";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
+import { ContextMenuSubmenu } from "./ui/ContextMenuSubmenu";
 import { MoveToFolderSubmenu } from "./MoveToFolderSubmenu";
+import { OpenInBrowserSubmenu } from "./OpenInBrowserSubmenu";
 import { ProjectGitSubmenu } from "./ProjectGitSubmenu";
 import { launchOpenInTarget, primaryOpenInTarget, useOpenInTargets } from "../hooks/useOpenInTargets";
 import type { ProjectGroup } from "../types";
@@ -15,6 +17,9 @@ interface ProjectContextMenuProps {
   isDuplicate: boolean;
   isDetached: boolean;
   canSelect: boolean;
+  projectName: string;
+  running: boolean;
+  services: { name: string; port: number }[];
   projectPath: string | null;
   groups: ProjectGroup[];
   currentGroupId: string | null;
@@ -42,6 +47,9 @@ export function ProjectContextMenu({
   isDuplicate,
   isDetached,
   canSelect,
+  projectName,
+  running,
+  services,
   projectPath,
   groups,
   currentGroupId,
@@ -70,39 +78,30 @@ export function ProjectContextMenu({
   return (
     <ContextMenuShell x={x} y={y} minWidth={180} onClose={onClose}>
       {projectPath && openInTargets.length > 0 && (
-        <div className="group relative">
-          <button
-            onClick={() => {
-              if (primaryTarget) {
-                launchOpenInTarget(primaryTarget, projectPath);
-                onClose();
-              }
-            }}
-            title={primaryTarget ? `Open in ${primaryTarget.label}` : undefined}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors group-hover:bg-[var(--bg-hover)] group-hover:text-[var(--text-primary)]"
-          >
-            {primaryTarget && (
-              <img src={primaryTarget.icon} alt="" className="h-4 w-4 shrink-0" />
-            )}
-            <span className="flex-1 truncate">Open with</span>
-            <ChevronRightIcon />
-          </button>
-          <div className="absolute left-full top-0 -ml-px hidden min-w-[180px] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg group-hover:block">
-            {openInTargets.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => {
-                  launchOpenInTarget(t, projectPath);
+        <ContextMenuSubmenu
+          label="Open with"
+          icon={primaryTarget ? <img src={primaryTarget.icon} alt="" className="h-4 w-4 shrink-0" /> : undefined}
+          onActivate={
+            primaryTarget
+              ? () => {
+                  launchOpenInTarget(primaryTarget, projectPath);
                   onClose();
-                }}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-              >
-                <img src={t.icon} alt="" className="h-4 w-4 shrink-0" />
-                <span className="flex-1 truncate">{t.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+                }
+              : undefined
+          }
+        >
+          {openInTargets.map((t) => (
+            <ContextMenuItem
+              key={t.id}
+              label={t.label}
+              icon={<img src={t.icon} alt="" className="h-4 w-4 shrink-0" />}
+              onClick={() => {
+                launchOpenInTarget(t, projectPath);
+                onClose();
+              }}
+            />
+          ))}
+        </ContextMenuSubmenu>
       )}
       <ProjectGitSubmenu
         projectPath={projectPath}
@@ -117,6 +116,12 @@ export function ProjectContextMenu({
         icon={<CopyIcon />}
         onClick={close(onBulkDuplicate)}
         disabled={duplicateDisabled}
+      />
+      <OpenInBrowserSubmenu
+        projectName={projectName}
+        running={running}
+        services={services}
+        onClose={onClose}
       />
       <ContextMenuItem label="Rename" icon={<PencilIcon />} onClick={close(onRename)} />
       <ContextMenuItem label="Copy path" icon={<ClipboardIcon />} onClick={close(onCopyPath)} />
