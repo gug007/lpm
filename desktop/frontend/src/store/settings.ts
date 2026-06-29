@@ -68,6 +68,7 @@ export interface Settings {
   duplicateOptionsSectionOpen?: boolean;
   composerOpen?: boolean;
   autoCloseComposerOnSend?: boolean;
+  appTipsDismissed?: boolean;
 }
 
 const defaults: Settings = {
@@ -142,6 +143,7 @@ function normalize(s: main.Settings): Settings {
     composerOpen: s.composerOpen,
     autoCloseComposerOnSend:
       s.autoCloseComposerOnSend ?? defaults.autoCloseComposerOnSend,
+    appTipsDismissed: s.appTipsDismissed,
     detachedWindows: s.detachedWindows
       ? Object.fromEntries(
           Object.entries(s.detachedWindows).map(([name, raw]) => {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useSettingsStore } from "../store/settings";
+import { useComposerStore } from "../store/composer";
 import { applyTheme, type Theme } from "../theme";
 import { useEventListener } from "../hooks/useEventListener";
 import {
@@ -109,6 +110,10 @@ export function Settings({
   const autoCloseComposerOnSend = useSettingsStore(
     (s) => s.autoCloseComposerOnSend ?? true,
   );
+  const appTipsEnabled = useSettingsStore(
+    (s) => !(s.appTipsDismissed ?? false),
+  );
+  const terminalInputOpen = useComposerStore((s) => s.open);
   const experimentalTTS = useSettingsStore((s) => s.experimentalTTS);
   const updateSettings = useSettingsStore((s) => s.update);
 
@@ -494,12 +499,30 @@ export function Settings({
                 />
               </SettingsRow>
               <SettingsRow
+                label="Terminal input"
+                description="Show the message input below each terminal. Toggle anytime with ⌘I"
+              >
+                <Toggle
+                  enabled={terminalInputOpen}
+                  onChange={(v) => useComposerStore.getState().setOpen(v)}
+                />
+              </SettingsRow>
+              <SettingsRow
                 label="Auto close composer on send"
                 description="Sending a prepared input clears it and closes its tab when more than one is open, instead of keeping the tab"
               >
                 <Toggle
                   enabled={autoCloseComposerOnSend}
                   onChange={(v) => updateSettings({ autoCloseComposerOnSend: v })}
+                />
+              </SettingsRow>
+              <SettingsRow
+                label="App tips"
+                description="Show a rotating tip with shortcuts in the terminal footer"
+              >
+                <Toggle
+                  enabled={appTipsEnabled}
+                  onChange={(v) => updateSettings({ appTipsDismissed: !v })}
                 />
               </SettingsRow>
             </SettingsSection>

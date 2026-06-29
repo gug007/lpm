@@ -21,7 +21,7 @@ const detachedProject = new URLSearchParams(window.location.search).get(
 Promise.all([loadSettings(), loadTerminals(), loadGroups(), hydrateComposerActions()]).then(([s, , g]) => {
   applyTheme(s.theme);
   hydrateAppStore(g);
-  useComposerStore.getState().hydrate(s.composerOpen ?? false);
+  useComposerStore.getState().hydrate(s.composerOpen ?? true);
   initTTSEvents();
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
