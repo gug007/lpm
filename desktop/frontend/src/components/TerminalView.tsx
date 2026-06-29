@@ -255,6 +255,19 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     setFullscreenPaneId((current) => (current === paneId ? null : paneId));
   }, []);
 
+  // Open the review tab in a pane, or focus it if one already exists, so the
+  // dropdown never spawns duplicate review tabs (⌘⇧R adds the close half).
+  const openReviewInPane = useCallback(
+    (paneId: string) => {
+      const pane = getPane(paneId);
+      if (!pane) return;
+      const reviewIdx = pane.tabs.findIndex((t) => t.kind === "review");
+      if (reviewIdx < 0) addReviewToPane(paneId);
+      else focusTerminal(paneId, reviewIdx);
+    },
+    [getPane, addReviewToPane, focusTerminal],
+  );
+
   const findInPane = useCallback(
     (paneId: string, query: string, direction: "next" | "prev"): boolean => {
       const handle = resolveActiveHandle(paneId);
@@ -387,11 +400,23 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       { key: "d", meta: true },
       { key: "f", meta: true },
       { key: "i", meta: true },
+      { key: "r", meta: true, shift: true },
       { key: "Escape", preventDefault: false },
     ],
     (event, matched) => {
       if (matched.key === "=" || matched.key === "+") return onZoomIn();
       if (matched.key === "-") return onZoomOut();
+      if (matched.key === "r") {
+        const pane = getFocusedPane();
+        if (!pane) return;
+        const reviewIdx = pane.tabs.findIndex((t) => t.kind === "review");
+        if (reviewIdx >= 0 && !pane.activeServiceName && pane.activeTabIdx === reviewIdx) {
+          closeTerminal(pane.id, reviewIdx);
+        } else {
+          openReviewInPane(pane.id);
+        }
+        return;
+      }
       if (matched.key === "i") {
         if (focusedComposerTerminalId) useComposerStore.getState().toggle();
         return;
@@ -514,7 +539,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onFocusService={focusService}
             onAddTerminal={addTerminalToPane}
             onAddBrowser={addBrowserToPane}
-            onAddReview={addReviewToPane}
+            onAddReview={openReviewInPane}
             onCloseTerminal={closeTerminal}
             onRenameTerminal={renameTerminal}
             onTogglePinTab={toggleTabPinned}

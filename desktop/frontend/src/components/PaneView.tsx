@@ -3,6 +3,7 @@ import type { ITheme } from "@xterm/xterm";
 import { InteractivePane, type InteractivePaneHandle } from "./InteractivePane";
 import { BrowserPane } from "./BrowserPane";
 import { DiffReviewPane } from "./review/DiffReviewPane";
+import { ErrorBoundary } from "./ui/ErrorBoundary";
 import { Pane, type PaneHandle } from "./Pane";
 import { HeaderTab } from "./terminal/HeaderTab";
 import { RenameModal } from "./RenameModal";
@@ -499,10 +500,12 @@ function PaneViewImpl(props: PaneViewProps) {
               {t.kind === "browser" ? (
                 <BrowserPane id={t.id} active={visible && isActive} />
               ) : t.kind === "review" ? (
-                <DiffReviewPane
-                  projectRoot={interactiveCwd}
-                  active={visible && isActive}
-                />
+                <ErrorBoundary resetKey={t.id}>
+                  <DiffReviewPane
+                    projectRoot={interactiveCwd}
+                    active={visible && isActive}
+                  />
+                </ErrorBoundary>
               ) : (
                 <InteractivePane
                   ref={(el) => onRegisterTerminalHandle(t.id, el)}

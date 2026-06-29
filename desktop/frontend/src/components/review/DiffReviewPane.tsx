@@ -525,10 +525,21 @@ export function DiffReviewPane({
     return () => {
       disposeTheme();
       changeSub.dispose();
-      editor.dispose();
+      try {
+        // Detach the diff model before dispose so hideUnchangedRegions tears down
+        // its autoruns first (else they fire against a disposed editor).
+        editor.setModel(null);
+        editor.dispose();
+      } catch {
+        // Monaco can throw mid-teardown of its diff observables; ignore.
+      }
       for (const entry of cache.values()) {
-        entry.models?.original.dispose();
-        entry.models?.modified.dispose();
+        try {
+          entry.models?.original.dispose();
+          entry.models?.modified.dispose();
+        } catch {
+          // already disposed
+        }
       }
       cache.clear();
       editorRef.current = null;

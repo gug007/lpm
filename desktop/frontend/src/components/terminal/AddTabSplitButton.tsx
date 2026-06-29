@@ -60,20 +60,21 @@ export function AddTabSplitButton({
         <ChevronDownIcon />
       </button>
       {menu && (
-        <ContextMenuShell x={menu.x} y={menu.y} minWidth={150} onClose={() => setMenu(null)}>
+        <ContextMenuShell x={menu.x} y={menu.y} minWidth={180} onClose={() => setMenu(null)}>
+          <ContextMenuItem
+            label="Review changes"
+            icon={<CodeIcon />}
+            shortcut="⌘⇧R"
+            onClick={() => {
+              onAddReview();
+              setMenu(null);
+            }}
+          />
           <ContextMenuItem
             label="Open browser"
             icon={<GlobeIcon />}
             onClick={() => {
               onAddBrowser();
-              setMenu(null);
-            }}
-          />
-          <ContextMenuItem
-            label="Review changes"
-            icon={<CodeIcon />}
-            onClick={() => {
-              onAddReview();
               setMenu(null);
             }}
           />

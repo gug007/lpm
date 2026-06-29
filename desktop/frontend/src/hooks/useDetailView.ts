@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getProjectTerminals, saveProjectTerminals } from "../terminals";
 import { useKeyboardShortcut } from "./useKeyboardShortcut";
 
-export type DetailView = "terminal" | "config" | "notes" | "ai" | "review";
+export type DetailView = "terminal" | "config" | "notes" | "ai";
 
 export interface UseDetailViewOptions {
   projectName: string;
@@ -41,12 +41,6 @@ export function useDetailView({ projectName, visible }: UseDetailViewOptions): U
   useKeyboardShortcut(
     { key: "n", meta: true, shift: true },
     () => switchDetailView(detailView === "notes" ? "terminal" : "notes"),
-    visible,
-  );
-
-  useKeyboardShortcut(
-    { key: "r", meta: true, shift: true },
-    () => switchDetailView(detailView === "review" ? "terminal" : "review"),
     visible,
   );
 
