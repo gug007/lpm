@@ -17,8 +17,9 @@ import { useReviewFiles } from "../../hooks/useReviewFiles";
 import { useGitChanged } from "../../hooks/useGitChanged";
 import { useResizableWidth } from "../../hooks/useResizableWidth";
 import { SegmentedControl } from "../ui/SegmentedControl";
-import { MonacoDiffStack, type MonacoDiffStackHandle } from "./MonacoDiffStack";
-import { ChevronLeftIcon, RefreshIcon } from "../icons";
+import { MonacoDiffPool, type MonacoDiffPoolHandle } from "./MonacoDiffPool";
+import { ChevronLeftIcon, RefreshIcon, FileIcon } from "../icons";
+import { Tooltip } from "../ui/Tooltip";
 import { BinaryFilePlaceholder } from "./BinaryFilePlaceholder";
 import { DiffConflictBanner } from "./DiffConflictBanner";
 import { DiffFileTree } from "./DiffFileTree";
@@ -140,7 +141,7 @@ export function DiffReviewPane({
   const baseRef = useRef("");
   const modeRef = useRef<ReviewMode>(mode);
   const activeRef = useRef(active);
-  const stackRef = useRef<MonacoDiffStackHandle>(null);
+  const stackRef = useRef<MonacoDiffPoolHandle>(null);
   const saveRef = useRef<() => void>(() => {});
   filesRef.current = files;
   baseRef.current = baseBranch;
@@ -539,35 +540,21 @@ export function DiffReviewPane({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[var(--bg-primary)]">
-      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--border)] px-3 py-2">
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-[var(--border)] px-2.5">
         {onBack && (
-          <button
-            onClick={onBack}
-            aria-label="Back to terminal"
-            className="flex items-center justify-center rounded-md p-1 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          >
-            <ChevronLeftIcon />
-          </button>
+          <Tooltip content="Back to terminal" side="bottom">
+            <button
+              onClick={onBack}
+              aria-label="Back to terminal"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              <ChevronLeftIcon />
+            </button>
+          </Tooltip>
         )}
         <DiffSourceModeToggle mode={mode} onChange={setMode} />
-        <SegmentedControl
-          value={viewMode}
-          options={PANE_VIEW_OPTIONS}
-          onChange={(v) => setViewMode(v as PaneViewMode)}
-        />
-        <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-secondary)]">
+        <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-muted)]">
           {viewMode === "all" ? "All files" : selectedPath ?? "Review"}
-        </span>
-        {viewMode === "single" && activeEditable && activeDirty && (
-          <button
-            onClick={() => saveActiveFile()}
-            className="shrink-0 rounded-md bg-[var(--text-primary)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-85"
-          >
-            Save
-          </button>
-        )}
-        <span className="shrink-0 text-[11px] text-[var(--text-muted)]">
-          {files.length} {files.length === 1 ? "file" : "files"}
         </span>
         {viewMode === "single" && (
           <SegmentedControl
@@ -576,13 +563,28 @@ export function DiffReviewPane({
             onChange={(v) => setSideBySide(v === "split")}
           />
         )}
-        <button
-          onClick={() => refresh()}
-          aria-label="Refresh changes"
-          className="flex shrink-0 items-center justify-center rounded-md p-1 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-        >
-          <RefreshIcon />
-        </button>
+        <SegmentedControl
+          value={viewMode}
+          options={PANE_VIEW_OPTIONS}
+          onChange={(v) => setViewMode(v as PaneViewMode)}
+        />
+        {viewMode === "single" && activeEditable && activeDirty && (
+          <button
+            onClick={() => saveActiveFile()}
+            className="shrink-0 rounded-md bg-[var(--text-primary)] px-3 py-1 text-[11px] font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90"
+          >
+            Save
+          </button>
+        )}
+        <Tooltip content="Refresh changes" side="bottom">
+          <button
+            onClick={() => refresh()}
+            aria-label="Refresh changes"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            <RefreshIcon />
+          </button>
+        </Tooltip>
       </div>
 
       {conflict && mode === "working" && conflict.path === selectedPath && (
@@ -596,13 +598,31 @@ export function DiffReviewPane({
 
       <div className="flex min-h-0 flex-1">
         <div
-          className="relative shrink-0 border-r border-[var(--border)]"
+          className="relative flex shrink-0 flex-col border-r border-[var(--border)]"
           style={{ width: treeWidth }}
         >
-          <div className="h-full overflow-y-auto">
+          <div className="flex h-9 shrink-0 items-center justify-between px-3">
+            <span className="text-[11px] font-medium text-[var(--text-secondary)]">
+              Changes
+            </span>
+            <span className="text-[11px] tabular-nums text-[var(--text-muted)]">
+              {files.length}
+            </span>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto">
             {files.length === 0 ? (
-              <div className="px-3 py-4 text-xs text-[var(--text-muted)]">
-                No changes
+              <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-secondary)] text-[var(--text-muted)]">
+                  <FileIcon size={18} />
+                </div>
+                <div className="space-y-0.5">
+                  <p className="text-xs font-medium text-[var(--text-secondary)]">
+                    No changes
+                  </p>
+                  <p className="text-[11px] text-[var(--text-muted)]">
+                    Edits show up here as you work.
+                  </p>
+                </div>
               </div>
             ) : (
               <DiffFileTree
@@ -614,7 +634,7 @@ export function DiffReviewPane({
                 onSelect={(path) => {
                   setSelectedPath(path);
                   // In the all-files overview, scroll the stack to the file.
-                  if (viewMode === "all") stackRef.current?.scrollToPath(path);
+                  if (viewMode === "all") stackRef.current?.scrollToFile(path);
                 }}
               />
             )}
@@ -639,20 +659,33 @@ export function DiffReviewPane({
             </div>
           )}
           {!selectedPath && (
-            <div className="absolute inset-0 flex items-center justify-center text-xs text-[var(--text-muted)]">
-              {files.length === 0 ? "Nothing to review" : "Select a file"}
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-secondary)] text-[var(--text-muted)]">
+                <FileIcon size={18} />
+              </div>
+              <div className="space-y-0.5">
+                <p className="text-xs font-medium text-[var(--text-secondary)]">
+                  {files.length === 0 ? "Nothing to review" : "Select a file"}
+                </p>
+                <p className="text-[11px] text-[var(--text-muted)]">
+                  {files.length === 0
+                    ? "Your working tree is clean."
+                    : "Pick a file to see its diff."}
+                </p>
+              </div>
             </div>
           )}
         </div>
         {/* The stack stays mounted (hidden in single mode) so in-progress edits
             in its per-file editors survive a view toggle. */}
         <div className={viewMode === "single" ? "hidden" : "min-w-0 flex-1"}>
-          <MonacoDiffStack
+          <MonacoDiffPool
             ref={stackRef}
             projectRoot={projectRoot}
             files={files}
             mode={mode}
             baseBranch={baseBranch}
+            fontSize={getSettings().editorFontSize || DEFAULT_MONACO_FONT_SIZE}
             active={active && viewMode === "all"}
           />
         </div>

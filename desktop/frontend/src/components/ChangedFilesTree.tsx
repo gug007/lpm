@@ -5,12 +5,15 @@ import { DiffViewer } from "./DiffViewer";
 
 type ChangedFile = main.ChangedFile;
 
-export const STATUS_DISPLAY: Record<string, { label: string; color: string }> = {
-  added: { label: "A", color: "text-[var(--accent-green-text)]" },
-  untracked: { label: "U", color: "text-[var(--accent-green-text)]" },
-  deleted: { label: "D", color: "text-[var(--accent-red-text)]" },
-  renamed: { label: "R", color: "text-[var(--accent-cyan-text)]" },
-  modified: { label: "M", color: "text-[var(--accent-blue-text)]" },
+export const STATUS_DISPLAY: Record<
+  string,
+  { label: string; color: string; dot: string }
+> = {
+  added: { label: "A", color: "text-[var(--accent-green-text)]", dot: "bg-[var(--accent-green)]" },
+  untracked: { label: "U", color: "text-[var(--accent-green-text)]", dot: "bg-[var(--accent-green)]" },
+  deleted: { label: "D", color: "text-[var(--accent-red-text)]", dot: "bg-[var(--accent-red)]" },
+  renamed: { label: "R", color: "text-[var(--accent-cyan-text)]", dot: "bg-[var(--accent-cyan)]" },
+  modified: { label: "M", color: "text-[var(--accent-blue-text)]", dot: "bg-[var(--accent-blue)]" },
 };
 export const DEFAULT_STATUS = STATUS_DISPLAY.modified;
 export const INDENT_PX = 14;

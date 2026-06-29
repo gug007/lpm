@@ -91,7 +91,7 @@ function FolderRow({
       >
         &#9654;
       </span>
-      <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-primary)]">
+      <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-secondary)]">
         {node.name}
       </span>
       <span className="shrink-0 text-[11px] text-[var(--text-muted)]">
@@ -114,8 +114,7 @@ function FileRow({
   dirty: boolean;
   onSelect: (path: string) => void;
 }) {
-  const { label: statusLabel, color: statusClr } =
-    STATUS_DISPLAY[node.file.status] ?? DEFAULT_STATUS;
+  const { dot: statusDot } = STATUS_DISPLAY[node.file.status] ?? DEFAULT_STATUS;
   return (
     <div
       onClick={() => onSelect(node.path)}
@@ -126,12 +125,15 @@ function FileRow({
     >
       <span className="w-3 shrink-0" />
       <span
-        className={`w-3 shrink-0 text-center text-[11px] font-bold ${statusClr}`}
+        className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDot}`}
         title={node.file.status}
+        aria-label={node.file.status}
+      />
+      <span
+        className={`min-w-0 flex-1 truncate text-xs ${
+          active ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
+        }`}
       >
-        {statusLabel}
-      </span>
-      <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-primary)]">
         {node.name}
       </span>
       {dirty && (
