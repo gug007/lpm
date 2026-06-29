@@ -90,11 +90,14 @@ interface MonacoDiffPoolProps {
   baseBranch: string;
   fontSize: number;
   active: boolean;
+  // Reports the file occupying the top of the viewport as the user scrolls, so
+  // the changes tree can highlight whatever they're reading.
+  onActiveFileChange?: (path: string) => void;
 }
 
 export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolProps>(
   function MonacoDiffPool(
-    { projectRoot, files, mode, baseBranch, fontSize, active },
+    { projectRoot, files, mode, baseBranch, fontSize, active, onActiveFileChange },
     ref,
   ) {
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -113,6 +116,8 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
     const layoutRafRef = useRef<number | null>(null);
     const suppressAnchorRef = useRef(false);
     const scrollSuppressTimerRef = useRef<number | null>(null);
+    const spyRafRef = useRef<number | null>(null);
+    const lastActiveRef = useRef<string | null>(null);
     const activeRef = useRef(active);
     const filesRef = useRef<ChangedFile[]>(files);
     const statusRef = useRef<Map<string, string>>(new Map());
@@ -260,6 +265,22 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       const top = c.getBoundingClientRect().top;
       const delta = el.getBoundingClientRect().top - top - anchor.offset;
       if (delta) c.scrollTop += delta;
+    }, []);
+
+    // The file occupying the top of the viewport: the last one (document order)
+    // whose frame top has scrolled to or above the container's top edge.
+    const activePath = useCallback((): string | null => {
+      const c = scrollRef.current;
+      if (!c) return null;
+      const top = c.getBoundingClientRect().top + 4;
+      let candidate: string | null = null;
+      for (const f of filesRef.current) {
+        const el = frameRef.current.get(f.path);
+        if (!el) continue;
+        if (el.getBoundingClientRect().top <= top) candidate = f.path;
+        else break;
+      }
+      return candidate ?? filesRef.current[0]?.path ?? null;
     }, []);
 
     // Coalesce a burst of settles into one reflow: capture before, apply all, then
@@ -740,9 +761,33 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         if (scrollSuppressTimerRef.current != null)
           clearTimeout(scrollSuppressTimerRef.current);
         scrollSuppressTimerRef.current = null;
+        if (spyRafRef.current != null) cancelAnimationFrame(spyRafRef.current);
+        spyRafRef.current = null;
       },
       [],
     );
+
+    // Scroll-spy: highlight the file under the viewport top in the changes tree.
+    // Skipped while a programmatic scrollToFile animates (suppressAnchorRef) so the
+    // tree doesn't strobe through every file the smooth scroll passes.
+    useEffect(() => {
+      const c = scrollRef.current;
+      if (!c || !onActiveFileChange) return;
+      const onScroll = () => {
+        if (spyRafRef.current != null) return;
+        spyRafRef.current = requestAnimationFrame(() => {
+          spyRafRef.current = null;
+          if (suppressAnchorRef.current) return;
+          const p = activePath();
+          if (p && p !== lastActiveRef.current) {
+            lastActiveRef.current = p;
+            onActiveFileChange(p);
+          }
+        });
+      };
+      c.addEventListener("scroll", onScroll, { passive: true });
+      return () => c.removeEventListener("scroll", onScroll);
+    }, [onActiveFileChange, activePath]);
 
     useImperativeHandle(
       ref,

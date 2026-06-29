@@ -547,9 +547,11 @@ export function DiffReviewPane({
     };
   }, [setDirty]);
 
+  // Only the single view loads its editor; in all-files mode selectedPath is
+  // driven by scroll-spy and must not refetch/build a hidden editor per scroll.
   useEffect(() => {
-    if (ready) selectFile(selectedPath);
-  }, [selectedPath, mode, ready, selectFile]);
+    if (ready && viewMode === "single") selectFile(selectedPath);
+  }, [selectedPath, mode, ready, viewMode, selectFile]);
 
   useEffect(() => {
     editorRef.current?.updateOptions({ renderSideBySide: sideBySide });
@@ -779,6 +781,7 @@ export function DiffReviewPane({
             baseBranch={baseBranch}
             fontSize={fontSize}
             active={active && viewMode === "all"}
+            onActiveFileChange={setSelectedPath}
           />
         </div>
       </div>
