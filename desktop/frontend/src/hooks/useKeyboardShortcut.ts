@@ -29,6 +29,9 @@ export function useKeyboardShortcut(
   shortcut: KeyboardShortcut | KeyboardShortcut[],
   handler: (event: KeyboardEvent, matched: KeyboardShortcut) => void,
   enabled: boolean = true,
+  // Listen in the capture phase so the shortcut fires ahead of focus-context
+  // handlers that stop keydown propagation (e.g. the composer input).
+  capture: boolean = false,
 ) {
   const shortcutsRef = useRef<KeyboardShortcut[]>([]);
   shortcutsRef.current = Array.isArray(shortcut) ? shortcut : [shortcut];
@@ -46,5 +49,6 @@ export function useKeyboardShortcut(
     },
     window,
     enabled,
+    capture,
   );
 }

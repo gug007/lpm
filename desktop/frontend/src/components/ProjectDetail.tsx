@@ -164,7 +164,12 @@ export function ProjectDetail({
   });
   const { runningAction, handleRunAction, modals: actionModals } = projectActions;
 
-  useActionShortcuts(project.actions, handleRunAction, visible);
+  const actionWizardOpen = showCreateAction || editingAction !== null;
+  useActionShortcuts(
+    project.actions,
+    handleRunAction,
+    visible && !actionWizardOpen,
+  );
 
   // "Bulk Duplicate" queues tasks (actions or ad-hoc commands) to run on each
   // fresh copy; this detail stays mounted (App keeps every visited project

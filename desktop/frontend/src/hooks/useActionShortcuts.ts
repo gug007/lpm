@@ -36,5 +36,6 @@ export function useActionShortcuts(
       if (action) run(action);
     },
     enabled && shortcuts.length > 0,
+    true,
   );
 }
