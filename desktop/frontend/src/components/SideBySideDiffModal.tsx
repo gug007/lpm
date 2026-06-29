@@ -6,6 +6,7 @@ import { main } from "../../bridge/models";
 import { MonacoDiffPool, type MonacoDiffPoolHandle } from "./review/MonacoDiffPool";
 import {
   buildTree,
+  flattenTree,
   fileDescendants,
   folderState,
   CheckboxBox,
@@ -66,14 +67,16 @@ export function SideBySideDiffModal({
   const zoomReset = () => setZoom(BASE_ZOOM);
 
   const tree = useMemo(() => buildTree(files), [files]);
+  // Render the diff stack in the same order the tree lists files.
+  const orderedFiles = useMemo(() => flattenTree(files), [files]);
 
   useEffect(() => {
     if (!open) return;
     setCollapsed(new Set());
-    setActiveFile(files[0]?.path ?? null);
+    setActiveFile(orderedFiles[0]?.path ?? null);
     setConfirmDiscard(false);
     setDirtyCount(0);
-  }, [open, files]);
+  }, [open, orderedFiles]);
 
   useEffect(() => {
     if (!open) return;
@@ -207,7 +210,7 @@ export function SideBySideDiffModal({
           <MonacoDiffPool
             ref={stackRef}
             projectRoot={projectPath}
-            files={files}
+            files={orderedFiles}
             mode="working"
             baseBranch=""
             fontSize={BASE_DIFF_FONT_PX * zoom}

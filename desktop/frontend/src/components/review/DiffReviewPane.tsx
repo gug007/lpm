@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type * as monacoNs from "monaco-editor";
 import { toast } from "sonner";
 import { GitDefaultBranch, WriteFileIfUnchanged } from "../../../bridge/commands";
@@ -23,6 +23,7 @@ import { Tooltip } from "../ui/Tooltip";
 import { BinaryFilePlaceholder } from "./BinaryFilePlaceholder";
 import { DiffConflictBanner } from "./DiffConflictBanner";
 import { DiffFileTree } from "./DiffFileTree";
+import { flattenTree } from "../ChangedFilesTree";
 import { DiffSourceModeToggle } from "./DiffSourceModeToggle";
 import { DiffZoomControl } from "./DiffZoomControl";
 import {
@@ -91,6 +92,9 @@ export function DiffReviewPane({
   const [mode, setMode] = useState<ReviewMode>("working");
   const [baseBranch, setBaseBranch] = useState("");
   const { files, refresh } = useReviewFiles(projectRoot, mode, baseBranch, active);
+  // Order files as the tree shows them (folders first, alphabetical) so the diff
+  // stack reads top-to-bottom in the same order as the changes list.
+  const orderedFiles = useMemo(() => flattenTree(files), [files]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [binaryPath, setBinaryPath] = useState<string | null>(null);
   const [sideBySide, setSideBySide] = useState(true);
@@ -442,16 +446,17 @@ export function DiffReviewPane({
     };
   }, [projectRoot]);
 
-  // Keep selection valid as the changed-files list updates underneath us.
+  // Keep selection valid as the changed-files list updates underneath us, and
+  // default to the first file in tree order (the top of the diff stack).
   useEffect(() => {
-    if (files.length === 0) {
+    if (orderedFiles.length === 0) {
       setSelectedPath(null);
       return;
     }
     setSelectedPath((prev) =>
-      prev && files.some((f) => f.path === prev) ? prev : files[0].path,
+      prev && orderedFiles.some((f) => f.path === prev) ? prev : orderedFiles[0].path,
     );
-  }, [files]);
+  }, [orderedFiles]);
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -685,7 +690,7 @@ export function DiffReviewPane({
               </div>
             ) : (
               <DiffFileTree
-                files={files}
+                files={orderedFiles}
                 selectedPath={selectedPath}
                 dirtyPaths={
                   mode === "working" && viewMode === "single" ? dirtyPaths : EMPTY_DIRTY
@@ -741,7 +746,7 @@ export function DiffReviewPane({
           <MonacoDiffPool
             ref={stackRef}
             projectRoot={projectRoot}
-            files={files}
+            files={orderedFiles}
             mode={mode}
             baseBranch={baseBranch}
             fontSize={fontSize}

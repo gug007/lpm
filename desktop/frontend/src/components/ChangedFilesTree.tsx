@@ -78,6 +78,20 @@ export function buildTree(files: ChangedFile[]): TreeNode[] {
   return root.children.map(collapseAndSort);
 }
 
+// Files in the exact order the tree renders them (folders first, then files,
+// alphabetically), so a flat list like the diff stack matches the tree view.
+export function flattenTree(files: ChangedFile[]): ChangedFile[] {
+  const out: ChangedFile[] = [];
+  const walk = (nodes: TreeNode[]) => {
+    for (const node of nodes) {
+      if (node.kind === "file") out.push(node.file);
+      else walk(node.children);
+    }
+  };
+  walk(buildTree(files));
+  return out;
+}
+
 function collapseAndSort(node: TreeNode): TreeNode {
   if (node.kind === "file") return node;
 
