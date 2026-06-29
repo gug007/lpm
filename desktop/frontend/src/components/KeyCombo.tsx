@@ -23,18 +23,9 @@ function splitKeys(label: string): string[] {
   return keys;
 }
 
-// A raised, pressable-looking cap. Depth comes from a top inner highlight, a
-// bottom inner edge, and a soft drop shadow — all rgba so it reads in both
-// light and dark themes without hardcoding surface colors.
-const KEYCAP_SHADOW =
-  "0 1px 1.5px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.10), inset 0 -1px 0 rgba(0,0,0,0.12)";
-
 function Keycap({ label }: { label: string }) {
   return (
-    <kbd
-      style={{ boxShadow: KEYCAP_SHADOW }}
-      className="inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-[6px] border border-[var(--border)] bg-[var(--bg-active)] px-1.5 text-[11px] font-medium leading-none text-[var(--text-primary)]"
-    >
+    <kbd className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[5px] bg-[var(--bg-active)] px-1.5 text-[11px] font-medium leading-none text-[var(--text-secondary)]">
       {label}
     </kbd>
   );
@@ -46,9 +37,7 @@ export function Combo({ label }: { label: string }) {
       {splitKeys(label).map((key, i) => (
         <Fragment key={i}>
           {i > 0 && (
-            <span className="text-[9px] font-medium text-[var(--text-muted)]">
-              +
-            </span>
+            <span className="text-[9px] text-[var(--text-muted)]">+</span>
           )}
           <Keycap label={key} />
         </Fragment>
