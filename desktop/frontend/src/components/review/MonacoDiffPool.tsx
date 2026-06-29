@@ -372,13 +372,33 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         slot.host.style.height = `${DEFAULT_SLOT_HEIGHT}px`;
         body.appendChild(slot.host);
         editor.setModel({ original: entry.models.original, modified: entry.models.modified });
-        // A pure add (empty original) or delete (empty modified) has nothing to
-        // compare against, so render it full-width inline rather than wasting
-        // half the pane on an empty side.
-        const oneSided =
-          entry.models.original.getValueLength() === 0 ||
-          entry.models.modified.getValueLength() === 0;
-        editor.updateOptions({ readOnly: !entry.editable, renderSideBySide: !oneSided });
+        // A new file has nothing to compare against, so render it full-width
+        // inline instead of wasting half the pane on an empty original. With an
+        // empty original the diff would otherwise paint the deleted-side gutter
+        // and a phantom removed line down the edge; renderIndicators off drops
+        // that gutter and showEmptyDecorations + useTrueInlineView drop the
+        // phantom line. The slot is recycled across files, so both modes are set
+        // explicitly every attach. Deleted files keep side-by-side (inline would
+        // paint the mirror-image inserted-side artifacts).
+        const added =
+          entry.models.original.getValueLength() === 0 &&
+          entry.models.modified.getValueLength() > 0;
+        editor.updateOptions({
+          readOnly: !entry.editable,
+          renderSideBySide: !added,
+          renderIndicators: !added,
+          experimental: { useTrueInlineView: added, showEmptyDecorations: !added },
+        });
+        // The empty original can still leave a stray deleted-gutter cell painted
+        // (it varies with hideUnchangedRegions' async passes); a new file has
+        // nothing removed, so scope away the delete tint via this host class.
+        slot.host.classList.toggle("lpm-diff-added", added);
+        // Inline view still renders the empty original's line-number gutter (a lone
+        // "1"); a new file has no original lines to number, so collapse that column.
+        editor.getOriginalEditor().updateOptions({
+          lineNumbers: added ? "off" : "on",
+          lineDecorationsWidth: added ? 0 : 10,
+        });
         if (entry.viewState) editor.restoreViewState(entry.viewState);
         editor.layout({ width: body.clientWidth, height: DEFAULT_SLOT_HEIGHT });
 

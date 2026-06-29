@@ -454,6 +454,15 @@ body {
   color: var(--text-muted);
 }
 
+/* New files render full-width inline (renderSideBySide off). Diffing against an
+   empty original still tints the deleted-side gutter/line, but a new file has
+   nothing removed — drop that red within the marked editor only. */
+.lpm-diff-added .gutter-delete,
+.lpm-diff-added .line-delete,
+.lpm-diff-added .char-delete {
+  background: transparent !important;
+}
+
 .lpm-actions-overlay {
   box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.45);
   will-change: transform;

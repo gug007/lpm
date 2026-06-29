@@ -36,7 +36,6 @@ export const APP_TIPS: AppTip[] = [
   { id: "sound-alerts", segments: ["Turn on sound alerts for when agents finish or need approval"] },
   { id: "ai-config", segments: ["Let AI scaffold a project's config in the editor"] },
   { id: "config-templates", segments: ["Share setups across projects with config templates"] },
-  { id: "tts-pause", segments: ["Press ", { kbd: "⌘⇧P" }, " to pause or resume reading aloud"] },
   { id: "mic-dictate", segments: ["Tap the mic to dictate a message instead of typing"] },
 ];
 
