@@ -21,6 +21,8 @@ import {
   makePaneLeaf,
   makeTerminal,
   makeBrowser,
+  makeReview,
+  isTerminalTab,
   walkPanes,
   collectPanes,
   collectTerminals,
@@ -70,6 +72,7 @@ export interface UseTerminalsResult {
   resumeFromHistory: (entry: PersistedHistoryEntry) => Promise<void>;
   addTerminalToPane: (paneId: string) => Promise<void>;
   addBrowserToPane: (paneId?: string) => void;
+  addReviewToPane: (paneId?: string) => void;
   closeTerminal: (paneId: string, tabIdx: number) => void;
   focusTerminal: (paneId: string, tabIdx: number) => void;
   focusService: (paneId: string, serviceName: string) => void;
@@ -426,6 +429,14 @@ export function useTerminals(
     [addTerminal],
   );
 
+  // Review tabs have no PTY — they render the git diff review pane keyed by id.
+  const addReviewToPane = useCallback(
+    (paneId?: string) => {
+      addTerminal(makeReview(nextId("review")), paneId);
+    },
+    [addTerminal],
+  );
+
   // Drop a pane from the tree, moving focus to its visual neighbor (or the
   // first remaining pane when the closed pane was the root).
   const collapsePane = useCallback(
@@ -468,7 +479,7 @@ export function useTerminals(
       if (isTabPinned(pane, tabIdx)) return;
       const closingTab = pane.tabs[tabIdx];
       StopTerminal(closingTab.id).catch(() => {});
-      if (closingTab.kind !== "browser") {
+      if (isTerminalTab(closingTab)) {
         ClearPaneStatus(projectName, closingTab.id).catch(() => {});
       }
       recordClosingTabs([closingTab]);
@@ -675,7 +686,7 @@ export function useTerminals(
       if (!pane) return;
       pane.tabs.forEach((t) => {
         StopTerminal(t.id).catch(() => {});
-        if (t.kind !== "browser") {
+        if (isTerminalTab(t)) {
           ClearPaneStatus(projectName, t.id).catch(() => {});
         }
       });
@@ -753,6 +764,7 @@ export function useTerminals(
     resumeFromHistory,
     addTerminalToPane,
     addBrowserToPane,
+    addReviewToPane,
     closeTerminal,
     focusTerminal,
     focusService,
@@ -851,9 +863,10 @@ function treeToPersisted(node: PaneNode): PersistedPaneNode {
       kind: "leaf",
       activeTabIdx: node.activeTabIdx,
       ...(node.activeServiceName ? { activeServiceName: node.activeServiceName } : {}),
-      // Browser tabs are ephemeral (native webviews don't survive restart) — don't persist them.
+      // Only terminal tabs persist; non-PTY tabs (browser webviews, review
+      // diffs) are ephemeral and don't survive restart.
       tabs: node.tabs
-        .filter((t) => t.kind !== "browser")
+        .filter(isTerminalTab)
         .map((t) => ({
           label: t.label,
           ...(t.historyKey ? { historyKey: t.historyKey } : {}),

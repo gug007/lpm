@@ -5,7 +5,7 @@ import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus } from
 import type { ITheme } from "@xterm/xterm";
 import { disposePaneSession, type PaneHandle } from "./Pane";
 import { disposeInteractivePaneSession, isInteractivePaneSessionDead, type InteractivePaneHandle } from "./InteractivePane";
-import { collectTerminals, isTabPinned } from "../paneTree";
+import { collectTerminals, isTabPinned, isTerminalTab } from "../paneTree";
 import { PaneLayout } from "./PaneLayout";
 import { TerminalTabDnd } from "./TerminalTabDnd";
 import type { ServiceTabInfo, StatusKind } from "./PaneView";
@@ -17,6 +17,7 @@ import { useServicePorts } from "../hooks/useServicePorts";
 import { useTerminals, type TerminalStartOpts } from "../hooks/useTerminals";
 import { type PersistedHistoryEntry } from "../terminals";
 import { getSettings, saveSettings } from "../store/settings";
+import { useAppStore } from "../store/app";
 import { useComposerStore } from "../store/composer";
 import { forgetComposerDraft } from "../store/composerDrafts";
 import { useTTSHotkeys } from "../hooks/useTTSHotkeys";
@@ -69,6 +70,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     resumeFromHistory,
     addTerminalToPane,
     addBrowserToPane,
+    addReviewToPane,
     closeTerminal,
     focusTerminal,
     focusService,
@@ -188,12 +190,13 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   // Project-wide terminal list ({id,label}) for the composer's "@" mention. The
   // tree gets a fresh reference every drag frame, which would churn each
   // composer's mention memos, so reuse the prior array while the id/label set is
-  // unchanged. Browser tabs have no xterm session, so they're left out.
+  // unchanged. Non-PTY tabs (browser, review) have no xterm session, so they're
+  // left out.
   const allTerminalsRef = useRef<{ id: string; label: string }[]>([]);
   const allTerminals = useMemo(() => {
     const next = tree
       ? collectTerminals(tree)
-          .filter((t) => t.kind !== "browser")
+          .filter(isTerminalTab)
           .map((t) => ({ id: t.id, label: t.label }))
       : [];
     const prev = allTerminalsRef.current;
@@ -252,6 +255,19 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   const handleToggleFullscreen = useCallback((paneId: string) => {
     setFullscreenPaneId((current) => (current === paneId ? null : paneId));
   }, []);
+
+  // Open the review tab in a pane, or focus it if one already exists, so the
+  // dropdown never spawns duplicate review tabs (⌘⇧R adds the close half).
+  const openReviewInPane = useCallback(
+    (paneId: string) => {
+      const pane = getPane(paneId);
+      if (!pane) return;
+      const reviewIdx = pane.tabs.findIndex((t) => t.kind === "review");
+      if (reviewIdx < 0) addReviewToPane(paneId);
+      else focusTerminal(paneId, reviewIdx);
+    },
+    [getPane, addReviewToPane, focusTerminal],
+  );
 
   const findInPane = useCallback(
     (paneId: string, query: string, direction: "next" | "prev"): boolean => {
@@ -385,11 +401,23 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       { key: "d", meta: true },
       { key: "f", meta: true },
       { key: "i", meta: true },
+      { key: "r", meta: true, shift: true },
       { key: "Escape", preventDefault: false },
     ],
     (event, matched) => {
       if (matched.key === "=" || matched.key === "+") return onZoomIn();
       if (matched.key === "-") return onZoomOut();
+      if (matched.key === "r") {
+        const pane = getFocusedPane();
+        if (!pane) return;
+        const reviewIdx = pane.tabs.findIndex((t) => t.kind === "review");
+        if (reviewIdx >= 0 && !pane.activeServiceName && pane.activeTabIdx === reviewIdx) {
+          closeTerminal(pane.id, reviewIdx);
+        } else {
+          openReviewInPane(pane.id);
+        }
+        return;
+      }
       if (matched.key === "i") {
         if (focusedComposerTerminalId) useComposerStore.getState().toggle();
         return;
@@ -446,8 +474,10 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
   // Gates the footer toggle and ⌘I on the focused pane's active terminal, so the
   // toggle always shows/hides an input where the user is looking, never a dead
-  // toggle. null while that pane shows a browser, a service log, or has no tabs.
-  const focusedComposerTerminalId = activeTab && activeTab.kind !== "browser" ? activeTab.id : null;
+  // toggle. null while that pane shows a browser/review tab, a service log, or
+  // has no tabs.
+  const focusedComposerTerminalId =
+    activeTab && isTerminalTab(activeTab) ? activeTab.id : null;
 
   useEffect(() => {
     useComposerStore.getState().setActive(projectName, focusedComposerTerminalId);
@@ -470,6 +500,16 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   const focusTerminalInput = useCallback((terminalId: string) => {
     terminalHandles.current.get(terminalId)?.focus();
   }, []);
+
+  // Stopping a running service is a toggle — the service tab only exists while
+  // the service runs, so toggling it from that tab always stops it.
+  const toggleService = useAppStore((s) => s.toggleService);
+  const stopService = useCallback(
+    (serviceName: string) => {
+      void toggleService(projectName, serviceName);
+    },
+    [toggleService, projectName],
+  );
 
   useImperativeHandle(
     ref,
@@ -508,8 +548,10 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onFocusPane={focusPane}
             onFocusTab={focusTerminal}
             onFocusService={focusService}
+            onStopService={stopService}
             onAddTerminal={addTerminalToPane}
             onAddBrowser={addBrowserToPane}
+            onAddReview={openReviewInPane}
             onCloseTerminal={closeTerminal}
             onRenameTerminal={renameTerminal}
             onTogglePinTab={toggleTabPinned}

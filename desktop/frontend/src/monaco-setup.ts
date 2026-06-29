@@ -1,5 +1,6 @@
 import * as monaco from "monaco-editor";
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
+import TsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker";
 import YamlWorker from "./yaml.worker?worker";
 import { configureMonacoYaml } from "monaco-yaml";
 
@@ -32,9 +33,22 @@ export function setupMonaco(): typeof monaco {
   window.MonacoEnvironment = {
     getWorker(_workerId: string, label: WorkerLabel) {
       if (label === "yaml") return new YamlWorker();
+      if (label === "typescript" || label === "javascript") return new TsWorker();
       return new EditorWorker();
     },
   };
+
+  // The diff review models get .ts/.tsx URIs, so Monaco spins up the TypeScript
+  // language worker for validation — but only the editor + yaml workers are wired
+  // up here, so that worker throws (moduleIdToUrl.toUrl). We only need
+  // colorization, not IntelliSense/diagnostics, so turn validation off.
+  const tsDiagnostics = {
+    noSemanticValidation: true,
+    noSyntaxValidation: true,
+    noSuggestionDiagnostics: true,
+  };
+  monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions(tsDiagnostics);
+  monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions(tsDiagnostics);
 
   configureMonacoYaml(monaco, {
     enableSchemaRequest: false,

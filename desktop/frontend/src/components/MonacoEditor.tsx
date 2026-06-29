@@ -2,6 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import type * as monacoNs from "monaco-editor";
 import { parseDocument } from "yaml";
 import { setupMonaco } from "../monaco-setup";
+import {
+  MONACO_FONT_FAMILY,
+  currentMonacoTheme,
+  defineMonacoThemes,
+  observeMonacoTheme,
+} from "../monaco-theme";
 import { getSettings, saveSettings } from "../store/settings";
 
 const DEFAULT_EDITOR_FONT_SIZE = 13;
@@ -17,39 +23,6 @@ interface MonacoEditorProps {
   modelUri: string;
   onSave?: () => void;
   onToggleView?: () => void;
-}
-
-function currentTheme(): "lpm-dark" | "lpm-light" {
-  return document.documentElement.getAttribute("data-theme") === "dark"
-    ? "lpm-dark"
-    : "lpm-light";
-}
-
-let themesDefined = false;
-function defineThemes(monaco: Monaco) {
-  if (themesDefined) return;
-  themesDefined = true;
-  const colors = {
-    "editor.background": "#00000000",
-    "editorGutter.background": "#00000000",
-    "minimap.background": "#00000000",
-    "scrollbarSlider.background": "#80808033",
-    "scrollbarSlider.hoverBackground": "#80808055",
-    "scrollbarSlider.activeBackground": "#80808077",
-    focusBorder: "#00000000",
-  };
-  monaco.editor.defineTheme("lpm-dark", {
-    base: "vs-dark",
-    inherit: true,
-    rules: [],
-    colors,
-  });
-  monaco.editor.defineTheme("lpm-light", {
-    base: "vs",
-    inherit: true,
-    rules: [],
-    colors,
-  });
 }
 
 export function MonacoEditor({
@@ -80,7 +53,7 @@ export function MonacoEditor({
     if (!hostRef.current) return;
     const monaco = setupMonaco();
     monacoRef.current = monaco;
-    defineThemes(monaco);
+    defineMonacoThemes(monaco);
 
     const modelLang = language || "plaintext";
     const uri = monaco.Uri.parse(modelUri);
@@ -98,12 +71,11 @@ export function MonacoEditor({
 
     const editor = monaco.editor.create(hostRef.current, {
       model,
-      theme: currentTheme(),
+      theme: currentMonacoTheme(),
       automaticLayout: true,
       minimap: { enabled: false },
       fontSize: fontSizeRef.current,
-      fontFamily:
-        "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+      fontFamily: MONACO_FONT_FAMILY,
       lineNumbers: "on",
       scrollBeyondLastLine: false,
       tabSize: 2,
@@ -202,17 +174,11 @@ export function MonacoEditor({
 
     setReady(true);
 
-    const themeObserver = new MutationObserver(() => {
-      monaco.editor.setTheme(currentTheme());
-    });
-    themeObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
+    const disposeTheme = observeMonacoTheme(monaco);
 
     const host = hostRef.current;
     return () => {
-      themeObserver.disconnect();
+      disposeTheme();
       host?.removeEventListener("wheel", wheelHandler);
       sub.dispose();
       editor.dispose();

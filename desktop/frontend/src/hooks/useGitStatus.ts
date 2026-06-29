@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { GitStatus as ApiGitStatus, ListBranches } from "../../bridge/commands";
-import { EventsOn } from "../../bridge/runtime";
 import { main } from "../../bridge/models";
-import { GIT_CHANGED_EVENT } from "../types";
 import { useEventListener } from "./useEventListener";
+import { useGitChanged } from "./useGitChanged";
 
 type GitStatus = main.GitStatus;
 type Branch = main.Branch;
@@ -30,14 +29,7 @@ export function useGitStatus(projectPath: string) {
 
   useEventListener("focus", refresh);
 
-  useEffect(() => {
-    const cancel = EventsOn(GIT_CHANGED_EVENT, (path: string) => {
-      if (path === projectPath) refresh();
-    });
-    return () => {
-      if (typeof cancel === "function") cancel();
-    };
-  }, [projectPath, refresh]);
+  useGitChanged(projectPath, refresh);
 
   return { status, branches, refresh };
 }

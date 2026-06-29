@@ -14,6 +14,8 @@ interface ConfirmDialogProps {
   // A single string requires one typed confirmation; an array requires a
   // separate input matching each entry (e.g. one per project in a batch).
   confirmText?: string | string[];
+  // Raise above a taller host modal (default sits above the standard z-50).
+  zIndexClassName?: string;
   onCancel: () => void;
   onConfirm: () => void;
 }
@@ -27,6 +29,7 @@ export function ConfirmDialog({
   variant = "default",
   disabled = false,
   confirmText,
+  zIndexClassName = "z-[60]",
   onCancel,
   onConfirm,
 }: ConfirmDialogProps) {
@@ -51,7 +54,7 @@ export function ConfirmDialog({
     <Modal
       open={open}
       onClose={onCancel}
-      zIndexClassName="z-[60]"
+      zIndexClassName={zIndexClassName}
       contentClassName={`${width} rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] ${padding} shadow-xl`}
     >
       {title && (

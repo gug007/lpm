@@ -378,6 +378,63 @@ body {
   );
 }
 
+/* Modern "N hidden lines" band for the review diff editors — retones Monaco's
+   default collapsed hideUnchangedRegions widget (heavy inset band + busy "unfold"
+   snowflake glyph) into a clean, clickable divider bar on the app's theme tokens.
+   Height stays at Monaco's default 24px and the framing hairlines are drawn with
+   an inset shadow so the band never drifts from its view-zone slot. */
+.monaco-editor .diff-hidden-lines .center {
+  height: 24px;
+  background: var(--bg-secondary);
+  box-shadow: inset 0 1px 0 var(--border), inset 0 -1px 0 var(--border);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background-color 0.12s ease-out, color 0.12s ease-out;
+}
+
+.monaco-editor .diff-hidden-lines .center:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.monaco-editor .diff-hidden-lines .center .codicon-unfold::before {
+  content: "\ea7c"; /* ellipsis — replaces the busy "unfold" glyph */
+}
+
+.monaco-editor .diff-hidden-lines .center a .codicon {
+  color: var(--text-muted);
+  font-size: 13px;
+  transition: color 0.12s ease-out;
+}
+
+.monaco-editor .diff-hidden-lines .center:hover a .codicon,
+.monaco-editor .diff-hidden-lines .center a:hover .codicon {
+  color: var(--accent-cyan) !important;
+}
+
+/* Drag-to-reveal handles: focusBorder is transparent in our theme, so give the
+   hover/drag affordance its own subtle accent. */
+.monaco-editor .diff-hidden-lines:not(.dragging) .top:hover,
+.monaco-editor .diff-hidden-lines:not(.dragging) .bottom:hover,
+.monaco-editor .diff-hidden-lines .top.dragging,
+.monaco-editor .diff-hidden-lines .bottom.dragging {
+  background-color: color-mix(in srgb, var(--accent-cyan) 45%, transparent);
+}
+
+/* Compact (left-side) variant: a hairline divider with quiet centered text. */
+.monaco-diff-editor .diff-hidden-lines-compact .line-left,
+.monaco-diff-editor .diff-hidden-lines-compact .line-right {
+  border-color: var(--border);
+  opacity: 1;
+}
+
+.monaco-diff-editor .diff-hidden-lines-compact .text {
+  color: var(--text-muted);
+}
+
 .lpm-actions-overlay {
   box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.45);
   will-change: transform;

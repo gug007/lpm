@@ -1,17 +1,19 @@
 import { useRef, useState } from "react";
 import { PlusIcon } from "./icons";
-import { ChevronDownIcon, GlobeIcon } from "../icons";
+import { ChevronDownIcon, GlobeIcon, CodeIcon } from "../icons";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 
 interface AddTabSplitButtonProps {
   onAddTerminal: () => void;
   onAddBrowser: () => void;
+  onAddReview: () => void;
 }
 
 export function AddTabSplitButton({
   onAddTerminal,
   onAddBrowser,
+  onAddReview,
 }: AddTabSplitButtonProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -58,7 +60,16 @@ export function AddTabSplitButton({
         <ChevronDownIcon />
       </button>
       {menu && (
-        <ContextMenuShell x={menu.x} y={menu.y} minWidth={150} onClose={() => setMenu(null)}>
+        <ContextMenuShell x={menu.x} y={menu.y} minWidth={180} onClose={() => setMenu(null)}>
+          <ContextMenuItem
+            label="Review changes"
+            icon={<CodeIcon />}
+            shortcut="⌘⇧R"
+            onClick={() => {
+              onAddReview();
+              setMenu(null);
+            }}
+          />
           <ContextMenuItem
             label="Open browser"
             icon={<GlobeIcon />}

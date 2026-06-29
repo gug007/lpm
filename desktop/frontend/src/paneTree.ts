@@ -11,7 +11,8 @@ export interface TerminalInstance {
   // Stable per-terminal identity for message-history scoping. Unlike `id` (a
   // live PTY id regenerated on every restart), this is persisted, so a terminal
   // keeps its own "This terminal" history across restarts without bleeding into
-  // other terminals that merely share a label. Absent on browser tabs.
+  // other terminals that merely share a label. Absent on non-terminal
+  // (browser/review) tabs.
   historyKey?: string;
   startCmd?: string;
   resumeCmd?: string;
@@ -20,8 +21,15 @@ export interface TerminalInstance {
   // Custom emoji shown as the tab icon (in place of the terminal icon).
   // Inherited from the action that launched the terminal.
   emoji?: string;
-  // Absent == terminal; "browser" tabs render an in-pane web browser instead.
-  kind?: "terminal" | "browser";
+  // Absent == terminal; "browser" tabs render an in-pane web browser, "review"
+  // tabs render the git diff review pane. Neither has a PTY.
+  kind?: "terminal" | "browser" | "review";
+}
+
+// True for real PTY-backed terminal tabs (the default kind). Browser and review
+// tabs have no terminal, so they skip PTY status handling and persistence.
+export function isTerminalTab(t: TerminalInstance): boolean {
+  return t.kind === undefined || t.kind === "terminal";
 }
 
 export interface PaneLeaf {
@@ -76,6 +84,10 @@ export function makeTerminal(
 
 export function makeBrowser(id: string, label = "Browser"): TerminalInstance {
   return { id, label, kind: "browser" };
+}
+
+export function makeReview(id: string, label = "Review"): TerminalInstance {
+  return { id, label, kind: "review" };
 }
 
 export function walkPanes(node: PaneNode, fn: (pane: PaneLeaf) => void): void {

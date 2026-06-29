@@ -5,12 +5,15 @@ import { DiffViewer } from "./DiffViewer";
 
 type ChangedFile = main.ChangedFile;
 
-export const STATUS_DISPLAY: Record<string, { label: string; color: string }> = {
-  added: { label: "A", color: "text-[var(--accent-green-text)]" },
-  untracked: { label: "U", color: "text-[var(--accent-green-text)]" },
-  deleted: { label: "D", color: "text-[var(--accent-red-text)]" },
-  renamed: { label: "R", color: "text-[var(--accent-cyan-text)]" },
-  modified: { label: "M", color: "text-[var(--accent-blue-text)]" },
+export const STATUS_DISPLAY: Record<
+  string,
+  { label: string; color: string; dot: string }
+> = {
+  added: { label: "A", color: "text-[var(--accent-green-text)]", dot: "bg-[var(--accent-green)]" },
+  untracked: { label: "U", color: "text-[var(--accent-green-text)]", dot: "bg-[var(--accent-green)]" },
+  deleted: { label: "D", color: "text-[var(--accent-red-text)]", dot: "bg-[var(--accent-red)]" },
+  renamed: { label: "R", color: "text-[var(--accent-cyan-text)]", dot: "bg-[var(--accent-cyan)]" },
+  modified: { label: "M", color: "text-[var(--accent-blue-text)]", dot: "bg-[var(--accent-blue)]" },
 };
 export const DEFAULT_STATUS = STATUS_DISPLAY.modified;
 export const INDENT_PX = 14;
@@ -73,6 +76,26 @@ export function buildTree(files: ChangedFile[]): TreeNode[] {
   }
 
   return root.children.map(collapseAndSort);
+}
+
+// Files in the exact order an already-built tree renders them (folders first,
+// then files, alphabetically), so a flat list like the diff stack matches the
+// tree view. Takes prebuilt nodes so a caller that also renders the tree does
+// not pay for buildTree twice.
+export function flattenNodes(nodes: TreeNode[]): ChangedFile[] {
+  const out: ChangedFile[] = [];
+  const walk = (ns: TreeNode[]) => {
+    for (const node of ns) {
+      if (node.kind === "file") out.push(node.file);
+      else walk(node.children);
+    }
+  };
+  walk(nodes);
+  return out;
+}
+
+export function flattenTree(files: ChangedFile[]): ChangedFile[] {
+  return flattenNodes(buildTree(files));
 }
 
 function collapseAndSort(node: TreeNode): TreeNode {

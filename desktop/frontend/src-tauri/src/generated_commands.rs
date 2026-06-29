@@ -69,12 +69,16 @@ macro_rules! all_command_handlers {
         get_version,
         git_abort_merge,
         git_changed_files,
+        git_changed_files_ref,
+        git_changed_files_staged,
         git_commit,
         git_commit_count,
         git_default_branch,
         git_diff,
         git_diff_branch,
         git_file_diff,
+        git_file_diff_ref,
+        git_file_diff_staged,
         git_discard_all,
         git_discard_files,
         git_fetch_all,
@@ -203,6 +207,7 @@ macro_rules! all_command_handlers {
         voice_to_text_available,
         voice_to_text_toggle,
         write_file,
+        write_file_if_unchanged,
         write_terminal
         ]
     };
