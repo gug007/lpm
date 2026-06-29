@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
@@ -21,6 +22,15 @@ import { slugify } from "../../slugify";
 import { uniqueKey } from "../../uniqueKey";
 import { withEmoji } from "../../withEmoji";
 import type { ActionInfo } from "../../types";
+import { forEachAction } from "../../actionTree";
+import { useEventListener } from "../../hooks/useEventListener";
+import type { KeyboardShortcut } from "../../hooks/useKeyboardShortcut";
+import {
+  canonicalShortcut,
+  formatShortcut,
+  isReservedShortcut,
+  parseShortcut,
+} from "../../shortcutParse";
 import { AIActionModal } from "./AIActionModal";
 import { ModeButton } from "./ModeButton";
 import {
@@ -225,6 +235,9 @@ interface ActionWizardProps {
   // When set, the wizard runs in edit mode: prefill from this action and
   // submit a patch to its YAML key instead of appending a new entry.
   editing?: ActionInfo | null;
+  // The project's full action tree, used to warn when a keyboard shortcut is
+  // already claimed by another action.
+  actions?: ActionInfo[];
   // Create-only: collision avoidance for the new YAML key.
   existingActionKeys?: string[];
   // Create-only: position assigned to the new entry.
@@ -333,6 +346,7 @@ interface FormDraft {
   shape: Shape;
   name: string;
   emoji: string;
+  shortcut: string;
   cmd: string;
   cwd: string;
   port: string;
@@ -415,6 +429,7 @@ function buildActionPatch({
   shape,
   name,
   emoji,
+  shortcut,
   cmd,
   cwd,
   port,
@@ -429,6 +444,11 @@ function buildActionPatch({
 
   if (emoji.trim()) set.emoji = emoji.trim();
   else remove.push("emoji");
+
+  // A shortcut runs the action's own command, so it only applies to the
+  // command-bearing shapes; dropdowns have no command to fire.
+  if (shape !== "dropdown" && shortcut.trim()) set.shortcut = shortcut.trim();
+  else remove.push("shortcut");
 
   if (shape === "dropdown") {
     remove.push("cmd", "cwd", "type", "reuse", "confirm", "port", "portConflict");
@@ -526,6 +546,7 @@ function yamlToActionInfo(yaml: string): ActionInfo {
     name: "",
     label: typeof obj.label === "string" ? obj.label : "",
     emoji: typeof obj.emoji === "string" ? obj.emoji : undefined,
+    shortcut: typeof obj.shortcut === "string" ? obj.shortcut : undefined,
     cmd: typeof obj.cmd === "string" ? obj.cmd : "",
     cwd: typeof obj.cwd === "string" ? obj.cwd : undefined,
     confirm: Boolean(obj.confirm),
@@ -572,6 +593,7 @@ function actionToDraft(action: ActionInfo): FormDraft {
     shape: inferShape(action),
     name: action.label,
     emoji: action.emoji ?? "",
+    shortcut: action.shortcut ?? "",
     cmd: action.cmd,
     cwd: action.cwd ?? "",
     port: (action.port ?? []).join(", "),
@@ -589,6 +611,7 @@ function defaultDraft(): FormDraft {
     shape: "button",
     name: "",
     emoji: "",
+    shortcut: "",
     cmd: "",
     cwd: "",
     port: "",
@@ -601,10 +624,27 @@ function defaultDraft(): FormDraft {
   };
 }
 
+// Canonical shortcuts already bound by other actions in the tree (the action
+// being edited is excluded so re-saving it doesn't flag itself), used to warn
+// about duplicates in the wizard.
+function collectTakenShortcuts(
+  actions: ActionInfo[],
+  editingName: string | undefined,
+): Set<string> {
+  const taken = new Set<string>();
+  forEachAction(actions, (action) => {
+    if (!action.shortcut || action.name === editingName) return;
+    const parsed = parseShortcut(action.shortcut);
+    if (parsed) taken.add(canonicalShortcut(parsed));
+  });
+  return taken;
+}
+
 export function ActionWizard({
   open,
   projectName,
   editing,
+  actions = [],
   existingActionKeys = [],
   nextPosition = 1,
   onClose,
@@ -663,6 +703,7 @@ export function ActionWizard({
     shape,
     name,
     emoji,
+    shortcut,
     cmd,
     cwd,
     port,
@@ -673,6 +714,10 @@ export function ActionWizard({
     reuse,
     confirm,
   } = draft;
+  const takenShortcuts = useMemo(
+    () => collectTakenShortcuts(actions, editing?.name),
+    [actions, editing?.name],
+  );
   const nameFilled = Boolean(name.trim());
   const cmdFilled = Boolean(cmd.trim());
   const hasMenuOption = children.some((child) => child.cmd.trim());
@@ -1029,6 +1074,11 @@ export function ActionWizard({
                         onPort={(value) => updateField("port", value)}
                         onPortConflict={(value) => updateField("portConflict", value)}
                       />
+                      <ShortcutField
+                        value={shortcut}
+                        taken={takenShortcuts}
+                        onChange={(value) => updateField("shortcut", value)}
+                      />
                     </div>
                   </Reveal>
                 )}
@@ -1282,6 +1332,120 @@ function FieldSection({
       </div>
       {children}
     </div>
+  );
+}
+
+function ShortcutField({
+  value,
+  taken,
+  onChange,
+}: {
+  value: string;
+  taken: Set<string>;
+  onChange: (next: string) => void;
+}) {
+  const [recording, setRecording] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
+
+  const parsed = value ? parseShortcut(value) : null;
+  const reserved = parsed ? isReservedShortcut(parsed) : false;
+  const duplicate = parsed ? taken.has(canonicalShortcut(parsed)) : false;
+
+  // WKWebView doesn't focus a <button> on click, so a button-level onKeyDown
+  // never fires. While recording we listen on window in the capture phase
+  // instead — this also blocks the combo from reaching lpm's global shortcuts.
+  useEventListener(
+    "keydown",
+    (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (event.key === "Escape") {
+        setRecording(false);
+        setHint(null);
+        return;
+      }
+      if (["Meta", "Shift", "Alt", "Control"].includes(event.key)) return;
+      const shortcut: KeyboardShortcut = {
+        key: event.key.length === 1 ? event.key.toLowerCase() : event.key,
+        meta: event.metaKey || event.ctrlKey,
+        shift: event.shiftKey,
+        alt: event.altKey,
+      };
+      if (!shortcut.meta && !shortcut.alt) {
+        setHint("Add ⌘ or ⌥ to make a shortcut");
+        return;
+      }
+      if (isReservedShortcut(shortcut)) {
+        setHint(`${formatShortcut(shortcut)} is reserved by lpm`);
+        return;
+      }
+      onChange(canonicalShortcut(shortcut));
+      setRecording(false);
+      setHint(null);
+    },
+    window,
+    recording,
+    true,
+  );
+
+  const warning =
+    parsed && reserved
+      ? `${formatShortcut(parsed)} is reserved by lpm`
+      : parsed && duplicate
+        ? `${formatShortcut(parsed)} is already used by another action`
+        : null;
+  const borderClass = recording
+    ? "border-[var(--text-primary)] bg-[var(--bg-primary)]"
+    : warning
+      ? "border-[var(--text-error,#e15252)] bg-[var(--bg-secondary)]"
+      : "border-[var(--border)] bg-[var(--bg-secondary)]";
+
+  return (
+    <FieldSection label="Keyboard shortcut">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setHint(null);
+            setRecording((on) => !on);
+          }}
+          className={`flex-1 rounded-xl border px-4 py-3 text-left text-[14px] outline-none transition ${borderClass} ${
+            parsed
+              ? "text-[var(--text-primary)]"
+              : "text-[var(--text-muted)]"
+          }`}
+        >
+          {recording
+            ? "Press your keys…"
+            : parsed
+              ? formatShortcut(parsed)
+              : "Click, then press your keys"}
+        </button>
+        {value && !recording && (
+          <button
+            type="button"
+            onClick={() => {
+              setHint(null);
+              onChange("");
+            }}
+            className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      <p
+        className={`text-[12px] ${
+          hint || warning
+            ? "text-[var(--text-error,#e15252)]"
+            : "text-[var(--text-muted)]"
+        }`}
+      >
+        {hint ??
+          warning ??
+          "Press this shortcut to run the action. Requires ⌘ or ⌥."}
+      </p>
+    </FieldSection>
   );
 }
 

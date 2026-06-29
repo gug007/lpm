@@ -69,6 +69,7 @@
             "cmd": { "type": "string" },
             "label": { "type": "string" },
             "emoji": { "type": "string", "description": "Optional emoji shown as the action's icon and on the terminal tab it launches." },
+            "shortcut": { "type": "string", "description": "Optional keyboard shortcut that runs the action while the project is open, e.g. \"cmd+shift+b\". Must include cmd or alt." },
             "cwd": { "type": "string" },
             "port": {
               "oneOf": [

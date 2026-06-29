@@ -50,6 +50,7 @@ export interface ActionInfo {
   name: string;
   label: string;
   emoji?: string;
+  shortcut?: string;
   cmd: string;
   cwd?: string;
   port?: number[];

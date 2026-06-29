@@ -17,6 +17,17 @@ export function hasRunnableDescendant(a: ActionInfo): boolean {
   );
 }
 
+// Visit every action in the tree depth-first (parents before their children).
+export function forEachAction(
+  actions: ActionInfo[],
+  visit: (action: ActionInfo) => void,
+): void {
+  for (const action of actions) {
+    visit(action);
+    if (action.children?.length) forEachAction(action.children, visit);
+  }
+}
+
 // Every runnable action in the tree, depth-first (parents before their
 // children), for "is anything runnable?" checks and default seeding.
 export function flattenRunnableActions(actions: ActionInfo[]): ActionInfo[] {

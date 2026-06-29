@@ -29,6 +29,7 @@ import { useActionsByDisplay } from "../hooks/useActionsByDisplay";
 import { useDetailView } from "../hooks/useDetailView";
 import { useEntityEditor } from "../hooks/useEntityEditor";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
+import { useActionShortcuts } from "../hooks/useActionShortcuts";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useOverflowWrap } from "../hooks/useOverflowWrap";
 import { usePaneStatus } from "../hooks/usePaneStatus";
@@ -162,6 +163,8 @@ export function ProjectDetail({
     onCloseRunning: () => setShowQuickMenu(false),
   });
   const { runningAction, handleRunAction, modals: actionModals } = projectActions;
+
+  useActionShortcuts(project.actions, handleRunAction, visible);
 
   // "Bulk Duplicate" queues tasks (actions or ad-hoc commands) to run on each
   // fresh copy; this detail stays mounted (App keeps every visited project
@@ -570,6 +573,7 @@ export function ProjectDetail({
         <ActionWizard
           open={showCreateAction || editingAction !== null}
           projectName={project.name}
+          actions={project.actions}
           existingActionKeys={existingActionKeys}
           nextPosition={nextHeaderActionPosition}
           editing={editingAction}
