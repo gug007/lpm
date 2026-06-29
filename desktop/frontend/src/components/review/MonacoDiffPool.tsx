@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -22,16 +23,18 @@ import { useGitChanged } from "../../hooks/useGitChanged";
 import { STATUS_DISPLAY, DEFAULT_STATUS } from "../ChangedFilesTree";
 import { LayersIcon } from "../icons";
 import { READ_HEAVY_DIFF_OPTIONS } from "./diffEditorOptions";
-import { REVIEW_SOURCES, type ReviewMode } from "./reviewSource";
+import {
+  REVIEW_SOURCES,
+  isPathEditable,
+  makeDiffModels,
+  type DiffModels,
+  type ReviewMode,
+} from "./reviewSource";
 import { DiffConflictBanner } from "./DiffConflictBanner";
 import { BinaryFilePlaceholder } from "./BinaryFilePlaceholder";
 
 type Monaco = typeof monacoNs;
 type ChangedFile = main.ChangedFile;
-type DiffModels = {
-  original: monacoNs.editor.ITextModel;
-  modified: monacoNs.editor.ITextModel;
-};
 
 // One persistent entry per changed file. Models outlive the editor that renders
 // them — recycling an editor away from a file leaves its buffer (and any unsaved
@@ -109,7 +112,6 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
     const slotsRef = useRef<Slot[]>([]);
     const entriesRef = useRef<Map<string, Entry>>(new Map());
     const visibleRef = useRef<Set<string>>(new Set());
-    const binaryKnownRef = useRef<Set<string>>(new Set());
     const suppressRef = useRef(false);
     const savingRef = useRef<Set<string>>(new Set());
     const pendingLayoutRef = useRef<Set<Slot>>(new Set());
@@ -124,7 +126,13 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
     const saveRef = useRef<(path: string) => void>(() => {});
     activeRef.current = active;
     filesRef.current = files;
-    statusRef.current = new Map(files.map((f) => [f.path, f.status]));
+    // Rebuild the path→status lookup only when the file list changes, not on
+    // every render; statusRef keeps the stable-identity callbacks ref-reading.
+    const statusMap = useMemo(
+      () => new Map(files.map((f) => [f.path, f.status])),
+      [files],
+    );
+    statusRef.current = statusMap;
 
     const [ready, setReady] = useState(false);
     const [heights, setHeights] = useState<Map<string, number>>(new Map());
@@ -157,26 +165,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
 
     const isEditable = useCallback(
       (path: string, binary: boolean) =>
-        REVIEW_SOURCES[mode].editable &&
-        !binary &&
-        statusRef.current.get(path) !== "deleted",
-      [mode],
-    );
-
-    const makeModels = useCallback(
-      (monaco: Monaco, path: string, original: string, modified: string): DiffModels => {
-        const make = (side: string, value: string) => {
-          const uri = monaco.Uri.from({
-            scheme: "lpm-diff",
-            authority: "pool",
-            path: `/${path}`,
-            query: `mode=${mode}&side=${side}`,
-          });
-          monaco.editor.getModel(uri)?.dispose();
-          return monaco.editor.createModel(value, undefined, uri);
-        };
-        return { original: make("original", original), modified: make("modified", modified) };
-      },
+        isPathEditable(mode, statusRef.current.get(path), binary),
       [mode],
     );
 
@@ -197,7 +186,9 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         const binary = !!diff.binary;
         const original = binary ? "" : diff.original ?? "";
         const modified = binary ? "" : diff.modified ?? "";
-        const models = binary ? null : makeModels(monaco, path, original, modified);
+        const models = binary
+          ? null
+          : makeDiffModels(monaco, "pool", mode, path, original, modified);
         const entry: Entry = {
           models,
           fetched: true,
@@ -210,12 +201,11 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         };
         entriesRef.current.set(path, entry);
         if (binary) {
-          binaryKnownRef.current.add(path);
           setBinaryPaths((prev) => (prev.has(path) ? prev : new Set(prev).add(path)));
         }
         return entry;
       },
-      [projectRoot, mode, baseBranch, makeModels, isEditable],
+      [projectRoot, mode, baseBranch, isEditable],
     );
 
     // Size a slot's editor to its content and cache the height for the placeholder
@@ -441,7 +431,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       if (slots.length === 0) return;
       const targets = filesRef.current
         .map((f) => f.path)
-        .filter((p) => visibleRef.current.has(p) && !binaryKnownRef.current.has(p))
+        .filter((p) => visibleRef.current.has(p) && !entriesRef.current.get(p)?.binary)
         .slice(0, POOL_SIZE);
       const targetSet = new Set(targets);
       const held = new Set(
@@ -549,17 +539,30 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       if (!activeRef.current) return;
       const paths = slotsRef.current
         .map((s) => s.path)
-        .filter((p): p is string => !!p);
-      for (const path of paths) {
+        .filter((p): p is string => !!p)
+        .filter((p) => !savingRef.current.has(p))
+        .filter((p) => {
+          const e = entriesRef.current.get(p);
+          return !!e?.models && !e.binary;
+        });
+      // Fetch every visible file's diff in parallel (each spawns git
+      // subprocesses), then apply the results to the models sequentially.
+      const fetched = await Promise.all(
+        paths.map(async (path) => {
+          try {
+            const diff = await REVIEW_SOURCES[mode].fetchDiff(projectRoot, path, baseBranch);
+            return { path, diff };
+          } catch {
+            return null;
+          }
+        }),
+      );
+      for (const result of fetched) {
+        if (!result) continue;
+        const { path, diff } = result;
         if (savingRef.current.has(path)) continue;
         const entry = entriesRef.current.get(path);
         if (!entry?.models || entry.binary) continue;
-        let diff: { original?: string; modified?: string; binary?: boolean };
-        try {
-          diff = await REVIEW_SOURCES[mode].fetchDiff(projectRoot, path, baseBranch);
-        } catch {
-          continue;
-        }
         if (diff.binary) continue;
         const disk = diff.modified ?? "";
         const original = diff.original ?? "";
@@ -732,8 +735,10 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         entry?.models?.original.dispose();
         entry?.models?.modified.dispose();
         entriesRef.current.delete(path);
-        binaryKnownRef.current.delete(path);
         visibleRef.current.delete(path);
+      }
+      for (const path of [...frameRefCbs.current.keys()]) {
+        if (!valid.has(path)) frameRefCbs.current.delete(path);
       }
       if (ready) syncAssignments();
     }, [files, ready, parkSlot, syncAssignments]);
@@ -814,6 +819,34 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       [syncAssignments],
     );
 
+    // Stable per-path frame ref callbacks. An inline `ref={(el) => ...}` is a new
+    // function each render, so React runs it with null then the node on every
+    // commit — re-observing every frame (and re-delivering IntersectionObserver
+    // entries) on unrelated state changes. Memoizing per path makes React invoke
+    // the ref only on real mount/unmount.
+    const frameRefCbs = useRef<Map<string, (el: HTMLDivElement | null) => void>>(
+      new Map(),
+    );
+    const frameRefFor = useCallback((path: string) => {
+      let cb = frameRefCbs.current.get(path);
+      if (!cb) {
+        cb = (el: HTMLDivElement | null) => {
+          if (el) {
+            const prev = frameRef.current.get(path);
+            if (prev && prev !== el) observerRef.current?.unobserve(prev);
+            frameRef.current.set(path, el);
+            observerRef.current?.observe(el);
+          } else {
+            const prev = frameRef.current.get(path);
+            if (prev) observerRef.current?.unobserve(prev);
+            frameRef.current.delete(path);
+          }
+        };
+        frameRefCbs.current.set(path, cb);
+      }
+      return cb;
+    }, []);
+
     return (
       <div
         ref={scrollRef}
@@ -843,18 +876,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
               <div
                 key={`${mode}-${path}`}
                 data-path={path}
-                ref={(el) => {
-                  if (el) {
-                    const prev = frameRef.current.get(path);
-                    if (prev && prev !== el) observerRef.current?.unobserve(prev);
-                    frameRef.current.set(path, el);
-                    observerRef.current?.observe(el);
-                  } else {
-                    const prev = frameRef.current.get(path);
-                    if (prev) observerRef.current?.unobserve(prev);
-                    frameRef.current.delete(path);
-                  }
-                }}
+                ref={frameRefFor(path)}
                 className="border-b border-[var(--border)] last:border-b-0"
               >
                 <div className="sticky top-0 z-10 flex items-center gap-2.5 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-2">

@@ -245,8 +245,6 @@ interface StackedDiffViewProps {
   fontSize: number;
   // When given, files not in the set dim and show "(excluded)" (commit flow).
   selected?: Set<string>;
-  // When given, the file header becomes a button (e.g. to open the file editable).
-  onFileClick?: (path: string) => void;
 }
 
 // The VS Code "all changes" stacked diff: every file's side-by-side diff in one
@@ -254,7 +252,7 @@ interface StackedDiffViewProps {
 // doesn't pay to render every row up front.
 export const StackedDiffView = forwardRef<StackedDiffHandle, StackedDiffViewProps>(
   function StackedDiffView(
-    { diffText, loading = false, fontSize, selected, onFileClick },
+    { diffText, loading = false, fontSize, selected },
     ref,
   ) {
     const [fileDiffs, setFileDiffs] = useState<FileDiff[]>([]);
@@ -264,6 +262,9 @@ export const StackedDiffView = forwardRef<StackedDiffHandle, StackedDiffViewProp
     const observerRef = useRef<IntersectionObserver | null>(null);
 
     useEffect(() => {
+      // Re-lazy-mount from scratch when the input diff changes (the async
+      // highlight pass below only swaps tokens into already-mounted files).
+      setMounted(new Set());
       if (!diffText) {
         setFileDiffs([]);
         return;
@@ -279,12 +280,6 @@ export const StackedDiffView = forwardRef<StackedDiffHandle, StackedDiffViewProp
       return () => {
         cancelled = true;
       };
-    }, [diffText]);
-
-    // Re-lazy-mount from scratch when the input diff changes (not on the async
-    // highlight pass, which only swaps tokens into already-mounted files).
-    useEffect(() => {
-      setMounted(new Set());
     }, [diffText]);
 
     useEffect(() => {
@@ -377,10 +372,7 @@ export const StackedDiffView = forwardRef<StackedDiffHandle, StackedDiffViewProp
                 }`}
               >
                 <div
-                  onClick={onFileClick ? () => onFileClick(file.path) : undefined}
-                  className={`sticky top-0 z-10 flex items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-2 text-[11px] font-medium text-[var(--text-primary)] ${
-                    onFileClick ? "cursor-pointer hover:bg-[var(--bg-hover)]" : ""
-                  }`}
+                  className="sticky top-0 z-10 flex items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-2 text-[11px] font-medium text-[var(--text-primary)]"
                 >
                   {file.status === "renamed" && file.oldPath && (
                     <span className="text-[var(--text-muted)]">{file.oldPath} →</span>

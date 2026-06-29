@@ -56,7 +56,6 @@ export function GitCommitCount(...args: any[]): Promise<any>;
 export function GitDefaultBranch(...args: any[]): Promise<any>;
 export function GitDiff(...args: any[]): Promise<any>;
 export function GitDiffBranch(...args: any[]): Promise<any>;
-export function GitDiffStaged(...args: any[]): Promise<any>;
 export function GitFileDiff(...args: any[]): Promise<any>;
 export function GitFileDiffRef(...args: any[]): Promise<any>;
 export function GitFileDiffStaged(...args: any[]): Promise<any>;

@@ -18,21 +18,24 @@ import { useGitChanged } from "../../hooks/useGitChanged";
 import { useResizableWidth } from "../../hooks/useResizableWidth";
 import { SegmentedControl } from "../ui/SegmentedControl";
 import { MonacoDiffPool, type MonacoDiffPoolHandle } from "./MonacoDiffPool";
-import { ChevronLeftIcon, RefreshIcon, FileIcon } from "../icons";
+import { RefreshIcon, FileIcon } from "../icons";
 import { Tooltip } from "../ui/Tooltip";
 import { BinaryFilePlaceholder } from "./BinaryFilePlaceholder";
 import { DiffConflictBanner } from "./DiffConflictBanner";
 import { DiffFileTree } from "./DiffFileTree";
 import { DiffSourceModeToggle } from "./DiffSourceModeToggle";
 import { DiffZoomControl } from "./DiffZoomControl";
-import { REVIEW_SOURCES, type FileDiffResult, type ReviewMode } from "./reviewSource";
+import {
+  REVIEW_SOURCES,
+  isPathEditable,
+  makeDiffModels,
+  type DiffModels,
+  type FileDiffResult,
+  type ReviewMode,
+} from "./reviewSource";
 
 type Monaco = typeof monacoNs;
 type ChangedFile = main.ChangedFile;
-type DiffModels = {
-  original: monacoNs.editor.ITextModel;
-  modified: monacoNs.editor.ITextModel;
-};
 type FileEntry = {
   models: DiffModels | null;
   mode: ReviewMode;
@@ -76,37 +79,13 @@ const keyOf = (mode: ReviewMode, path: string) => `${mode} ${path}`;
 
 interface DiffReviewPaneProps {
   projectRoot: string;
-  // When the pane is a DetailView, this returns to the terminal. As a pane tab
-  // it is omitted — the tab's own close control handles dismissal.
-  onBack?: () => void;
   // False while the pane tab is open but not visible — pauses git polling so a
   // hidden review tab does no background work. Defaults to active.
   active?: boolean;
 }
 
-function makeModels(
-  monaco: Monaco,
-  mode: ReviewMode,
-  path: string,
-  original: string,
-  modified: string,
-): DiffModels {
-  const make = (side: string, value: string) => {
-    const uri = monaco.Uri.from({
-      scheme: "lpm-diff",
-      authority: "review",
-      path: `/${path}`,
-      query: `mode=${mode}&side=${side}`,
-    });
-    monaco.editor.getModel(uri)?.dispose();
-    return monaco.editor.createModel(value, undefined, uri);
-  };
-  return { original: make("original", original), modified: make("modified", modified) };
-}
-
 export function DiffReviewPane({
   projectRoot,
-  onBack,
   active = true,
 }: DiffReviewPaneProps) {
   const [mode, setMode] = useState<ReviewMode>("working");
@@ -175,7 +154,7 @@ export function DiffReviewPane({
   // render alike. Only the working tree is ever writable.
   const isEditable = useCallback(
     (m: ReviewMode, path: string, binary: boolean) =>
-      REVIEW_SOURCES[m].editable && !binary && statusOf(path) !== "deleted",
+      isPathEditable(m, statusOf(path), binary),
     [statusOf],
   );
 
@@ -306,7 +285,9 @@ export function DiffReviewPane({
       const binary = !!diff.binary;
       const original = binary ? "" : diff.original ?? "";
       const modified = binary ? "" : diff.modified ?? "";
-      const models = binary ? null : makeModels(monaco, m, path, original, modified);
+      const models = binary
+        ? null
+        : makeDiffModels(monaco, "review", m, path, original, modified);
       const entry: FileEntry = {
         models,
         mode: m,
@@ -615,29 +596,13 @@ export function DiffReviewPane({
     if (active) reconcileActive();
   }, [active, reconcileActive]);
 
-  const sourceEditable = REVIEW_SOURCES[mode].editable;
-  const activeStatus = selectedPath ? statusOf(selectedPath) : undefined;
   const activeEditable =
-    sourceEditable &&
-    !!selectedPath &&
-    binaryPath !== selectedPath &&
-    activeStatus !== "deleted";
+    !!selectedPath && isEditable(mode, selectedPath, binaryPath === selectedPath);
   const activeDirty = !!selectedPath && dirtyPaths.has(selectedPath);
 
   return (
     <div ref={rootRef} className="flex h-full min-h-0 flex-col bg-[var(--bg-primary)]">
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-[var(--border)] px-2.5">
-        {onBack && (
-          <Tooltip content="Back to terminal" side="bottom">
-            <button
-              onClick={onBack}
-              aria-label="Back to terminal"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              <ChevronLeftIcon />
-            </button>
-          </Tooltip>
-        )}
         <DiffSourceModeToggle mode={mode} onChange={setMode} />
         <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-muted)]">
           {viewMode === "all" ? "All files" : selectedPath ?? "Review"}

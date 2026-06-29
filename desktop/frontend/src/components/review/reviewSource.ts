@@ -1,10 +1,8 @@
+import type * as monacoNs from "monaco-editor";
 import {
   GitChangedFiles,
   GitChangedFilesRef,
   GitChangedFilesStaged,
-  GitDiff,
-  GitDiffBranch,
-  GitDiffStaged,
   GitFileDiff,
   GitFileDiffRef,
   GitFileDiffStaged,
@@ -13,6 +11,10 @@ import { main } from "../../../bridge/models";
 
 export type ReviewMode = "working" | "base" | "staged";
 type ChangedFile = main.ChangedFile;
+export type DiffModels = {
+  original: monacoNs.editor.ITextModel;
+  modified: monacoNs.editor.ITextModel;
+};
 export type FileDiffResult = {
   original?: string;
   modified?: string;
@@ -27,13 +29,6 @@ export interface ReviewSource {
   editable: boolean;
   listChanged: (root: string, base: string) => Promise<ChangedFile[]>;
   fetchDiff: (root: string, path: string, base: string) => Promise<FileDiffResult>;
-  // One unified diff covering every changed file in this source, for the
-  // stacked "All files" overview.
-  fetchAllDiff: (
-    root: string,
-    files: ChangedFile[],
-    base: string,
-  ) => Promise<string>;
 }
 
 export const REVIEW_SOURCES: Record<ReviewMode, ReviewSource> = {
@@ -42,8 +37,6 @@ export const REVIEW_SOURCES: Record<ReviewMode, ReviewSource> = {
     editable: true,
     listChanged: (root) => GitChangedFiles(root),
     fetchDiff: (root, path) => GitFileDiff(root, path),
-    fetchAllDiff: (root, files) =>
-      files.length ? GitDiff(root, files.map((f) => f.path)) : Promise.resolve(""),
   },
   base: {
     label: "vs Base",
@@ -51,16 +44,45 @@ export const REVIEW_SOURCES: Record<ReviewMode, ReviewSource> = {
     listChanged: (root, base) =>
       base ? GitChangedFilesRef(root, base) : Promise.resolve([]),
     fetchDiff: (root, path, base) => GitFileDiffRef(root, path, base),
-    fetchAllDiff: (root, _files, base) =>
-      base ? GitDiffBranch(root, base) : Promise.resolve(""),
   },
   staged: {
     label: "Staged",
     editable: false,
     listChanged: (root) => GitChangedFilesStaged(root),
     fetchDiff: (root, path) => GitFileDiffStaged(root, path),
-    fetchAllDiff: (root) => GitDiffStaged(root),
   },
 };
 
 export const REVIEW_MODES = Object.keys(REVIEW_SOURCES) as ReviewMode[];
+
+// Build a file's original/modified diff models. `authority` namespaces the model
+// URI so the single-file pane and the all-files pool can each hold independent
+// models for the same (mode, path) without colliding.
+export function makeDiffModels(
+  monaco: typeof monacoNs,
+  authority: string,
+  mode: ReviewMode,
+  path: string,
+  original: string,
+  modified: string,
+): DiffModels {
+  const make = (side: string, value: string) => {
+    const uri = monaco.Uri.from({
+      scheme: "lpm-diff",
+      authority,
+      path: `/${path}`,
+      query: `mode=${mode}&side=${side}`,
+    });
+    monaco.editor.getModel(uri)?.dispose();
+    return monaco.editor.createModel(value, undefined, uri);
+  };
+  return { original: make("original", original), modified: make("modified", modified) };
+}
+
+// The single editability rule, shared by selection, reconcile, save, and render:
+// only a non-binary, non-deleted file of an editable source can be written.
+export const isPathEditable = (
+  mode: ReviewMode,
+  status: string | undefined,
+  binary: boolean,
+) => REVIEW_SOURCES[mode].editable && !binary && status !== "deleted";

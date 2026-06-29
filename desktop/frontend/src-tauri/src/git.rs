@@ -336,12 +336,6 @@ pub fn git_diff_branch(cwd: String, base: String) -> Result<String, String> {
     git_out(&cwd, &["diff", &format!("{base}...HEAD")])
 }
 
-/// Unified diff of the staged index versus HEAD (the whole staged changeset).
-#[tauri::command(async)]
-pub fn git_diff_staged(cwd: String) -> Result<String, String> {
-    git_out(&cwd, &["diff", "--cached"])
-}
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileDiff {
