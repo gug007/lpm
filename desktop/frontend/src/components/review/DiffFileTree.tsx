@@ -1,5 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { main } from "../../../bridge/models";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   BASE_LEFT_PX,
   DEFAULT_STATUS,
@@ -8,25 +7,21 @@ import {
   INDENT_PX,
   STATUS_DISPLAY,
   TreeNode,
-  buildTree,
 } from "../ChangedFilesTree";
 
-type ChangedFile = main.ChangedFile;
-
 interface DiffFileTreeProps {
-  files: ChangedFile[];
+  tree: TreeNode[];
   selectedPath: string | null;
   dirtyPaths: Set<string>;
   onSelect: (path: string) => void;
 }
 
 export function DiffFileTree({
-  files,
+  tree,
   selectedPath,
   dirtyPaths,
   onSelect,
 }: DiffFileTreeProps) {
-  const tree = useMemo(() => buildTree(files), [files]);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const toggleCollapse = (path: string) =>

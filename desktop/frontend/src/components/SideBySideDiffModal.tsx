@@ -6,7 +6,7 @@ import { main } from "../../bridge/models";
 import { MonacoDiffPool, type MonacoDiffPoolHandle } from "./review/MonacoDiffPool";
 import {
   buildTree,
-  flattenTree,
+  flattenNodes,
   fileDescendants,
   folderState,
   CheckboxBox,
@@ -68,7 +68,7 @@ export function SideBySideDiffModal({
 
   const tree = useMemo(() => buildTree(files), [files]);
   // Render the diff stack in the same order the tree lists files.
-  const orderedFiles = useMemo(() => flattenTree(files), [files]);
+  const orderedFiles = useMemo(() => flattenNodes(tree), [tree]);
 
   useEffect(() => {
     if (!open) return;

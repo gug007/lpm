@@ -78,18 +78,24 @@ export function buildTree(files: ChangedFile[]): TreeNode[] {
   return root.children.map(collapseAndSort);
 }
 
-// Files in the exact order the tree renders them (folders first, then files,
-// alphabetically), so a flat list like the diff stack matches the tree view.
-export function flattenTree(files: ChangedFile[]): ChangedFile[] {
+// Files in the exact order an already-built tree renders them (folders first,
+// then files, alphabetically), so a flat list like the diff stack matches the
+// tree view. Takes prebuilt nodes so a caller that also renders the tree does
+// not pay for buildTree twice.
+export function flattenNodes(nodes: TreeNode[]): ChangedFile[] {
   const out: ChangedFile[] = [];
-  const walk = (nodes: TreeNode[]) => {
-    for (const node of nodes) {
+  const walk = (ns: TreeNode[]) => {
+    for (const node of ns) {
       if (node.kind === "file") out.push(node.file);
       else walk(node.children);
     }
   };
-  walk(buildTree(files));
+  walk(nodes);
   return out;
+}
+
+export function flattenTree(files: ChangedFile[]): ChangedFile[] {
+  return flattenNodes(buildTree(files));
 }
 
 function collapseAndSort(node: TreeNode): TreeNode {

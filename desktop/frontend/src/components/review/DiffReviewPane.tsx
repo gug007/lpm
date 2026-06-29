@@ -12,7 +12,7 @@ import {
   defineMonacoThemes,
   observeMonacoTheme,
 } from "../../monaco-theme";
-import { getSettings } from "../../store/settings";
+import { useSettingsStore } from "../../store/settings";
 import { useReviewFiles } from "../../hooks/useReviewFiles";
 import { useGitChanged } from "../../hooks/useGitChanged";
 import { useResizableWidth } from "../../hooks/useResizableWidth";
@@ -23,7 +23,7 @@ import { Tooltip } from "../ui/Tooltip";
 import { BinaryFilePlaceholder } from "./BinaryFilePlaceholder";
 import { DiffConflictBanner } from "./DiffConflictBanner";
 import { DiffFileTree } from "./DiffFileTree";
-import { flattenTree } from "../ChangedFilesTree";
+import { buildTree, flattenNodes } from "../ChangedFilesTree";
 import { DiffSourceModeToggle } from "./DiffSourceModeToggle";
 import { DiffZoomControl } from "./DiffZoomControl";
 import {
@@ -92,13 +92,19 @@ export function DiffReviewPane({
   const [mode, setMode] = useState<ReviewMode>("working");
   const [baseBranch, setBaseBranch] = useState("");
   const { files, refresh } = useReviewFiles(projectRoot, mode, baseBranch, active);
-  // Order files as the tree shows them (folders first, alphabetical) so the diff
-  // stack reads top-to-bottom in the same order as the changes list.
-  const orderedFiles = useMemo(() => flattenTree(files), [files]);
+  // Build the tree once; the changes list renders it directly and the diff stack
+  // reads its flattened order (folders first, alphabetical) so both stay in sync.
+  const tree = useMemo(() => buildTree(files), [files]);
+  const orderedFiles = useMemo(() => flattenNodes(tree), [tree]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [binaryPath, setBinaryPath] = useState<string | null>(null);
   const [sideBySide, setSideBySide] = useState(true);
   const [viewMode, setViewMode] = useState<PaneViewMode>("all");
+  // The single-file editor is a heavyweight diff editor only the "single" view
+  // uses; the default "all" view is driven entirely by the pool. Latch on first
+  // switch to single so we never build it on the default path, and never tear it
+  // down (losing unsaved edits) when toggling back to all.
+  const [singleMounted, setSingleMounted] = useState(false);
   const [ready, setReady] = useState(false);
   const [dirtyPaths, setDirtyPaths] = useState<Set<string>>(new Set());
   const [conflict, setConflict] = useState<{ path: string; theirs: string } | null>(
@@ -107,7 +113,8 @@ export function DiffReviewPane({
 
   // Zoom = shared diff font size across the single editor and the all-files pool,
   // persisted across sessions; 100% is the configured editor font size.
-  const baseFontSize = getSettings().editorFontSize || DEFAULT_MONACO_FONT_SIZE;
+  const baseFontSize =
+    useSettingsStore((s) => s.editorFontSize) || DEFAULT_MONACO_FONT_SIZE;
   const [fontSize, setFontSize] = useState(() => {
     const v = Number(localStorage.getItem(FONT_SIZE_KEY));
     return v >= FONT_SIZE_MIN && v <= FONT_SIZE_MAX ? v : baseFontSize;
@@ -459,7 +466,11 @@ export function DiffReviewPane({
   }, [orderedFiles]);
 
   useEffect(() => {
-    if (!hostRef.current) return;
+    if (viewMode === "single") setSingleMounted(true);
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (!singleMounted || !hostRef.current) return;
     const monaco = setupMonaco();
     monacoRef.current = monaco;
     defineMonacoThemes(monaco);
@@ -531,7 +542,7 @@ export function DiffReviewPane({
       editorRef.current = null;
       displayedRef.current = null;
     };
-  }, [setDirty]);
+  }, [setDirty, singleMounted]);
 
   // Only the single view loads its editor; in all-files mode selectedPath is
   // driven by scroll-spy and must not refetch/build a hidden editor per scroll.
@@ -690,7 +701,7 @@ export function DiffReviewPane({
               </div>
             ) : (
               <DiffFileTree
-                files={orderedFiles}
+                tree={tree}
                 selectedPath={selectedPath}
                 dirtyPaths={
                   mode === "working" && viewMode === "single" ? dirtyPaths : EMPTY_DIRTY
