@@ -1330,13 +1330,15 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     }
     // Keep app-chrome shortcuts (⌘D split, ⌘F find, ⌘1-9 switch project) from
     // firing while typing here. ⌘I still bubbles so it can toggle the composer
-    // closed, and plain ⌘T / ⌘W bubble so they open / close the terminal even with
-    // the input focused (⌘⇧W above already handled the composer's own tabs); native
-    // edit shortcuts (copy/paste/select-all) keep working since we never
-    // preventDefault them.
+    // closed, ⌘⇧R bubbles so it opens the diff review tab, and plain ⌘T / ⌘W bubble
+    // so they open / close the terminal even with the input focused (⌘⇧W above
+    // already handled the composer's own tabs); native edit shortcuts
+    // (copy/paste/select-all) keep working since we never preventDefault them.
     const guardKey = e.key.toLowerCase();
     const passesThrough =
-      guardKey === "i" || (e.metaKey && !e.shiftKey && (guardKey === "t" || guardKey === "w"));
+      guardKey === "i" ||
+      (e.metaKey && e.shiftKey && guardKey === "r") ||
+      (e.metaKey && !e.shiftKey && (guardKey === "t" || guardKey === "w"));
     if ((e.metaKey || e.ctrlKey) && !passesThrough) {
       e.stopPropagation();
     }

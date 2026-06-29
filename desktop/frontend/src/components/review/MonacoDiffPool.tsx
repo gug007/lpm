@@ -372,7 +372,13 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         slot.host.style.height = `${DEFAULT_SLOT_HEIGHT}px`;
         body.appendChild(slot.host);
         editor.setModel({ original: entry.models.original, modified: entry.models.modified });
-        editor.updateOptions({ readOnly: !entry.editable });
+        // A pure add (empty original) or delete (empty modified) has nothing to
+        // compare against, so render it full-width inline rather than wasting
+        // half the pane on an empty side.
+        const oneSided =
+          entry.models.original.getValueLength() === 0 ||
+          entry.models.modified.getValueLength() === 0;
+        editor.updateOptions({ readOnly: !entry.editable, renderSideBySide: !oneSided });
         if (entry.viewState) editor.restoreViewState(entry.viewState);
         editor.layout({ width: body.clientWidth, height: DEFAULT_SLOT_HEIGHT });
 
