@@ -96,11 +96,31 @@ interface MonacoDiffPoolProps {
   // Reports the file occupying the top of the viewport as the user scrolls, so
   // the changes tree can highlight whatever they're reading.
   onActiveFileChange?: (path: string) => void;
+  // When given, files not in the set dim and show "(excluded)" (commit flow).
+  selected?: Set<string>;
+  // Namespaces the Monaco model URIs so two pools mounted at once (e.g. the
+  // review tab and the commit modal) never share — and dispose — each other's
+  // models. Must be distinct per mount site.
+  authority?: string;
+  // Reports how many files have unsaved edits, so a host can warn before
+  // discarding them (e.g. the commit modal on close).
+  onDirtyCountChange?: (count: number) => void;
 }
 
 export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolProps>(
   function MonacoDiffPool(
-    { projectRoot, files, mode, baseBranch, fontSize, active, onActiveFileChange },
+    {
+      projectRoot,
+      files,
+      mode,
+      baseBranch,
+      fontSize,
+      active,
+      onActiveFileChange,
+      selected,
+      authority = "pool",
+      onDirtyCountChange,
+    },
     ref,
   ) {
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -126,8 +146,6 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
     const saveRef = useRef<(path: string) => void>(() => {});
     activeRef.current = active;
     filesRef.current = files;
-    // Rebuild the path→status lookup only when the file list changes, not on
-    // every render; statusRef keeps the stable-identity callbacks ref-reading.
     const statusMap = useMemo(
       () => new Map(files.map((f) => [f.path, f.status])),
       [files],
@@ -188,7 +206,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         const modified = binary ? "" : diff.modified ?? "";
         const models = binary
           ? null
-          : makeDiffModels(monaco, "pool", mode, path, original, modified);
+          : makeDiffModels(monaco, authority, mode, path, original, modified);
         const entry: Entry = {
           models,
           fetched: true,
@@ -205,7 +223,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         }
         return entry;
       },
-      [projectRoot, mode, baseBranch, isEditable],
+      [projectRoot, mode, baseBranch, authority, isEditable],
     );
 
     // Size a slot's editor to its content and cache the height for the placeholder
@@ -545,8 +563,6 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
           const e = entriesRef.current.get(p);
           return !!e?.models && !e.binary;
         });
-      // Fetch every visible file's diff in parallel (each spawns git
-      // subprocesses), then apply the results to the models sequentially.
       const fetched = await Promise.all(
         paths.map(async (path) => {
           try {
@@ -691,6 +707,10 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       slotsRef.current.forEach((s) => s.editor.updateOptions({ fontSize }));
     }, [fontSize]);
 
+    useEffect(() => {
+      onDirtyCountChange?.(dirtyPaths.size);
+    }, [dirtyPaths, onDirtyCountChange]);
+
     // Observe each file frame; drive assignment off what is near the viewport.
     useEffect(() => {
       if (!ready) return;
@@ -819,11 +839,9 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       [syncAssignments],
     );
 
-    // Stable per-path frame ref callbacks. An inline `ref={(el) => ...}` is a new
-    // function each render, so React runs it with null then the node on every
-    // commit — re-observing every frame (and re-delivering IntersectionObserver
-    // entries) on unrelated state changes. Memoizing per path makes React invoke
-    // the ref only on real mount/unmount.
+    // Memoize per path so React invokes the ref only on real mount/unmount; an
+    // inline ref is a new function each render, re-observing every frame (and
+    // re-delivering IntersectionObserver entries) on unrelated state changes.
     const frameRefCbs = useRef<Map<string, (el: HTMLDivElement | null) => void>>(
       new Map(),
     );
@@ -872,12 +890,15 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
             const editable = isEditable(path, isBinary);
             const theirs = conflicts.get(path);
             const isRevealed = revealed.has(path);
+            const isExcluded = selected ? !selected.has(path) : false;
             return (
               <div
                 key={`${mode}-${path}`}
                 data-path={path}
                 ref={frameRefFor(path)}
-                className="border-b border-[var(--border)] last:border-b-0"
+                className={`border-b border-[var(--border)] last:border-b-0 ${
+                  isExcluded ? "opacity-60" : ""
+                }`}
               >
                 <div className="sticky top-0 z-10 flex items-center gap-2.5 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-2">
                   <span
@@ -888,6 +909,11 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
                   <span className="truncate text-[11px] font-medium text-[var(--text-secondary)]">
                     {path}
                   </span>
+                  {isExcluded && (
+                    <span className="shrink-0 text-[10px] font-normal text-[var(--text-muted)]">
+                      (excluded)
+                    </span>
+                  )}
                   {dirty && (
                     <span
                       className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent-cyan)]"

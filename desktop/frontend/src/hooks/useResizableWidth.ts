@@ -8,8 +8,7 @@ interface ResizableWidthOptions {
   onCommit?: (width: number) => void;
 }
 
-// Drag-to-resize a panel's width via a handle on its right edge (dragging right
-// grows it). Shared by the sidebar and the review file tree.
+// Drag-to-resize a panel's width. Shared by the sidebar and the review file tree.
 export function useResizableWidth({
   initial,
   min,

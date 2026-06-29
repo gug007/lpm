@@ -114,7 +114,8 @@ function FileRow({
   dirty: boolean;
   onSelect: (path: string) => void;
 }) {
-  const { dot: statusDot } = STATUS_DISPLAY[node.file.status] ?? DEFAULT_STATUS;
+  const { label: statusLabel, color: statusClr } =
+    STATUS_DISPLAY[node.file.status] ?? DEFAULT_STATUS;
   return (
     <div
       onClick={() => onSelect(node.path)}
@@ -125,10 +126,12 @@ function FileRow({
     >
       <span className="w-3 shrink-0" />
       <span
-        className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDot}`}
+        className={`w-3 shrink-0 text-center text-[11px] font-bold ${statusClr}`}
         title={node.file.status}
         aria-label={node.file.status}
-      />
+      >
+        {statusLabel}
+      </span>
       <span
         className={`min-w-0 flex-1 truncate text-xs ${
           active ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"

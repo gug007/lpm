@@ -1,13 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "./ui/Modal";
+import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { XIcon } from "./icons";
-import { GitDiff } from "../../bridge/commands";
 import { main } from "../../bridge/models";
-import {
-  BASE_DIFF_FONT_PX,
-  StackedDiffView,
-  type StackedDiffHandle,
-} from "./StackedDiffView";
+import { MonacoDiffPool, type MonacoDiffPoolHandle } from "./review/MonacoDiffPool";
 import {
   buildTree,
   fileDescendants,
@@ -24,6 +20,7 @@ import {
 
 type ChangedFile = main.ChangedFile;
 
+const BASE_DIFF_FONT_PX = 11;
 const BASE_ZOOM = 1;
 const ZOOM_MIN = 0.6;
 const ZOOM_MAX = 2.5;
@@ -51,12 +48,12 @@ export function SideBySideDiffModal({
   onToggleFile,
   onSetSelection,
 }: Props) {
-  const [rawDiff, setRawDiff] = useState("");
-  const [loading, setLoading] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [zoom, setZoom] = useState(BASE_ZOOM);
-  const stackRef = useRef<StackedDiffHandle>(null);
+  const [dirtyCount, setDirtyCount] = useState(0);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const stackRef = useRef<MonacoDiffPoolHandle>(null);
   const wheelStateRef = useRef<{ delta: number; scheduled: boolean }>({
     delta: 0,
     scheduled: false,
@@ -68,13 +65,14 @@ export function SideBySideDiffModal({
     setZoom((z) => clamp(+(z - ZOOM_STEP).toFixed(2), ZOOM_MIN, ZOOM_MAX));
   const zoomReset = () => setZoom(BASE_ZOOM);
 
-  const filePaths = useMemo(() => files.map((f) => f.path), [files]);
   const tree = useMemo(() => buildTree(files), [files]);
 
   useEffect(() => {
     if (!open) return;
     setCollapsed(new Set());
     setActiveFile(files[0]?.path ?? null);
+    setConfirmDiscard(false);
+    setDirtyCount(0);
   }, [open, files]);
 
   useEffect(() => {
@@ -108,30 +106,6 @@ export function SideBySideDiffModal({
     };
   }, [open]);
 
-  useEffect(() => {
-    if (!open || filePaths.length === 0) {
-      setRawDiff("");
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    GitDiff(projectPath, filePaths)
-      .then((raw) => {
-        if (cancelled) return;
-        setRawDiff(typeof raw === "string" ? raw : "");
-        setLoading(false);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setRawDiff("");
-          setLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [open, projectPath, filePaths]);
-
   const toggleCollapse = (path: string) => {
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -146,11 +120,23 @@ export function SideBySideDiffModal({
     stackRef.current?.scrollToFile(path);
   };
 
+  // The diff is editable; closing unmounts the pool and discards unsaved edits,
+  // and the commit stages from disk, so confirm before throwing edits away.
+  const handleClose = () => {
+    if (dirtyCount > 0) {
+      setConfirmDiscard(true);
+      return;
+    }
+    onClose();
+  };
+
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       zIndexClassName="z-[110]"
+      closeOnEscape={!confirmDiscard}
+      closeOnBackdrop={!confirmDiscard}
       backdropClassName="bg-black/50 backdrop-blur-sm"
       contentClassName="flex h-[90vh] w-[min(1480px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >
@@ -190,7 +176,7 @@ export function SideBySideDiffModal({
             </button>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="Close"
             className="rounded-md p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           >
@@ -217,14 +203,39 @@ export function SideBySideDiffModal({
           ))}
         </div>
 
-        <StackedDiffView
-          ref={stackRef}
-          diffText={rawDiff}
-          loading={loading}
-          fontSize={BASE_DIFF_FONT_PX * zoom}
-          selected={selected}
-        />
+        <div className="min-w-0 min-h-0 flex-1">
+          <MonacoDiffPool
+            ref={stackRef}
+            projectRoot={projectPath}
+            files={files}
+            mode="working"
+            baseBranch=""
+            fontSize={BASE_DIFF_FONT_PX * zoom}
+            active={open}
+            selected={selected}
+            authority="commit"
+            onActiveFileChange={setActiveFile}
+            onDirtyCountChange={setDirtyCount}
+          />
+        </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDiscard}
+        title="Discard unsaved edits?"
+        body={`You have unsaved changes in ${dirtyCount} file${
+          dirtyCount === 1 ? "" : "s"
+        }. Closing will discard them — the commit only includes saved changes.`}
+        cancelLabel="Keep editing"
+        confirmLabel="Discard & close"
+        variant="destructive"
+        zIndexClassName="z-[120]"
+        onCancel={() => setConfirmDiscard(false)}
+        onConfirm={() => {
+          setConfirmDiscard(false);
+          onClose();
+        }}
+      />
     </Modal>
   );
 }

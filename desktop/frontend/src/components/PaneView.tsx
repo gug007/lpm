@@ -8,6 +8,7 @@ import { Pane, type PaneHandle } from "./Pane";
 import { HeaderTab } from "./terminal/HeaderTab";
 import { RenameModal } from "./RenameModal";
 import { TabContextMenu } from "./terminal/TabContextMenu";
+import { ServiceTabContextMenu } from "./terminal/ServiceTabContextMenu";
 import { IconBtn } from "./terminal/IconBtn";
 import {
   SplitRightIcon,
@@ -115,6 +116,7 @@ export interface PaneViewProps {
   onFocusPane: (paneId: string) => void;
   onFocusTab: (paneId: string, tabIdx: number) => void;
   onFocusService: (paneId: string, serviceName: string) => void;
+  onStopService: (serviceName: string) => void;
   onAddTerminal: (paneId: string) => void;
   onAddBrowser: (paneId: string) => void;
   onAddReview: (paneId: string) => void;
@@ -171,6 +173,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onFocusPane,
     onFocusTab,
     onFocusService,
+    onStopService,
     onAddTerminal,
     onAddBrowser,
     onAddReview,
@@ -197,6 +200,11 @@ function PaneViewImpl(props: PaneViewProps) {
   const [tabMenu, setTabMenu] = useState<{
     paneId: string;
     tabIdx: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [serviceMenu, setServiceMenu] = useState<{
+    name: string;
     x: number;
     y: number;
   } | null>(null);
@@ -328,6 +336,10 @@ function PaneViewImpl(props: PaneViewProps) {
                 onClick={(e) => {
                   onFocusService(pane.id, svc.name);
                   scrollTabIntoView(e.currentTarget);
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setServiceMenu({ name: svc.name, x: e.clientX, y: e.clientY });
                 }}
               />
             );
@@ -552,6 +564,19 @@ function PaneViewImpl(props: PaneViewProps) {
             onTogglePin={() => onTogglePinTab(tabMenu.paneId, tabMenu.tabIdx)}
             onCloseTab={() => onCloseTerminal(tabMenu.paneId, tabMenu.tabIdx)}
             onClose={() => setTabMenu(null)}
+          />
+        );
+      })()}
+      {serviceMenu && (() => {
+        const svc = services.find((s) => s.name === serviceMenu.name);
+        if (!svc) return null;
+        return (
+          <ServiceTabContextMenu
+            x={serviceMenu.x}
+            y={serviceMenu.y}
+            ports={svc.ports ?? []}
+            onStop={() => onStopService(svc.name)}
+            onClose={() => setServiceMenu(null)}
           />
         );
       })()}

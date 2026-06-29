@@ -55,9 +55,8 @@ export const REVIEW_SOURCES: Record<ReviewMode, ReviewSource> = {
 
 export const REVIEW_MODES = Object.keys(REVIEW_SOURCES) as ReviewMode[];
 
-// Build a file's original/modified diff models. `authority` namespaces the model
-// URI so the single-file pane and the all-files pool can each hold independent
-// models for the same (mode, path) without colliding.
+// `authority` namespaces the model URI so the single-file pane and the all-files
+// pool can hold independent models for the same (mode, path) without colliding.
 export function makeDiffModels(
   monaco: typeof monacoNs,
   authority: string,
@@ -79,8 +78,6 @@ export function makeDiffModels(
   return { original: make("original", original), modified: make("modified", modified) };
 }
 
-// The single editability rule, shared by selection, reconcile, save, and render:
-// only a non-binary, non-deleted file of an editable source can be written.
 export const isPathEditable = (
   mode: ReviewMode,
   status: string | undefined,

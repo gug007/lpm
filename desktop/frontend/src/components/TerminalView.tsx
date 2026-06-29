@@ -17,6 +17,7 @@ import { useServicePorts } from "../hooks/useServicePorts";
 import { useTerminals, type TerminalStartOpts } from "../hooks/useTerminals";
 import { type PersistedHistoryEntry } from "../terminals";
 import { getSettings, saveSettings } from "../store/settings";
+import { useAppStore } from "../store/app";
 import { useComposerStore } from "../store/composer";
 import { forgetComposerDraft } from "../store/composerDrafts";
 import { useTTSHotkeys } from "../hooks/useTTSHotkeys";
@@ -500,6 +501,16 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     terminalHandles.current.get(terminalId)?.focus();
   }, []);
 
+  // Stopping a running service is a toggle — the service tab only exists while
+  // the service runs, so toggling it from that tab always stops it.
+  const toggleService = useAppStore((s) => s.toggleService);
+  const stopService = useCallback(
+    (serviceName: string) => {
+      void toggleService(projectName, serviceName);
+    },
+    [toggleService, projectName],
+  );
+
   useImperativeHandle(
     ref,
     () => ({ createTerminal, createTerminalWithCmd, resumeFromHistory }),
@@ -537,6 +548,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onFocusPane={focusPane}
             onFocusTab={focusTerminal}
             onFocusService={focusService}
+            onStopService={stopService}
             onAddTerminal={addTerminalToPane}
             onAddBrowser={addBrowserToPane}
             onAddReview={openReviewInPane}
