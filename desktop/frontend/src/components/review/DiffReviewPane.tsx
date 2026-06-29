@@ -24,6 +24,7 @@ import { BinaryFilePlaceholder } from "./BinaryFilePlaceholder";
 import { DiffConflictBanner } from "./DiffConflictBanner";
 import { DiffFileTree } from "./DiffFileTree";
 import { DiffSourceModeToggle } from "./DiffSourceModeToggle";
+import { DiffZoomControl } from "./DiffZoomControl";
 import { REVIEW_SOURCES, type FileDiffResult, type ReviewMode } from "./reviewSource";
 
 type Monaco = typeof monacoNs;
@@ -54,6 +55,11 @@ const EMPTY_DIRTY: Set<string> = new Set();
 const TREE_WIDTH_KEY = "lpm:reviewTreeWidth";
 const TREE_WIDTH_MIN = 180;
 const TREE_WIDTH_MAX = 480;
+const FONT_SIZE_KEY = "lpm:reviewFontSize";
+const FONT_SIZE_MIN = 8;
+const FONT_SIZE_MAX = 32;
+// Wheel delta accumulated per one-point font step during ⌘/pinch zoom.
+const ZOOM_WHEEL_STEP = 40;
 const VIEW_OPTIONS = [
   { value: "split", label: "Split" },
   { value: "unified", label: "Unified" },
@@ -116,6 +122,14 @@ export function DiffReviewPane({
     null,
   );
 
+  // Zoom = shared diff font size across the single editor and the all-files pool,
+  // persisted across sessions; 100% is the configured editor font size.
+  const baseFontSize = getSettings().editorFontSize || DEFAULT_MONACO_FONT_SIZE;
+  const [fontSize, setFontSize] = useState(() => {
+    const v = Number(localStorage.getItem(FONT_SIZE_KEY));
+    return v >= FONT_SIZE_MIN && v <= FONT_SIZE_MAX ? v : baseFontSize;
+  });
+
   const { width: treeWidth, handleResizeStart } = useResizableWidth({
     initial: () => {
       const v = Number(localStorage.getItem(TREE_WIDTH_KEY));
@@ -143,10 +157,14 @@ export function DiffReviewPane({
   const activeRef = useRef(active);
   const stackRef = useRef<MonacoDiffPoolHandle>(null);
   const saveRef = useRef<() => void>(() => {});
+  const rootRef = useRef<HTMLDivElement>(null);
+  const fontSizeRef = useRef(fontSize);
+  const wheelAccumRef = useRef(0);
   filesRef.current = files;
   baseRef.current = baseBranch;
   modeRef.current = mode;
   activeRef.current = active;
+  fontSizeRef.current = fontSize;
 
   const statusOf = useCallback(
     (path: string) => filesRef.current.find((f) => f.path === path)?.status,
@@ -166,6 +184,11 @@ export function DiffReviewPane({
       REVIEW_SOURCES[m].fetchDiff(projectRoot, path, baseRef.current),
     [projectRoot],
   );
+
+  const zoomBy = useCallback((delta: number) => {
+    setFontSize((f) => Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, f + delta)));
+  }, []);
+  const zoomReset = useCallback(() => setFontSize(baseFontSize), [baseFontSize]);
 
   const withSuppressed = useCallback((fn: () => void) => {
     suppressChangeRef.current = true;
@@ -468,7 +491,7 @@ export function DiffReviewPane({
       minimap: { enabled: false },
       scrollBeyondLastLine: false,
       stickyScroll: { enabled: false },
-      fontSize: getSettings().editorFontSize || DEFAULT_MONACO_FONT_SIZE,
+      fontSize: fontSizeRef.current,
       fontFamily: MONACO_FONT_FAMILY,
       lineNumbers: "on",
       renderOverviewRuler: false,
@@ -521,6 +544,56 @@ export function DiffReviewPane({
     editorRef.current?.updateOptions({ renderSideBySide: sideBySide });
   }, [sideBySide]);
 
+  // Persist the zoom and push it to the single editor (the pool takes fontSize
+  // as a prop and re-lays its editors itself).
+  useEffect(() => {
+    localStorage.setItem(FONT_SIZE_KEY, String(fontSize));
+    editorRef.current?.updateOptions({ fontSize });
+  }, [fontSize]);
+
+  // Zoom via ⌘+ / ⌘- / ⌘0, and ⌘/pinch-wheel. Capture phase so the keys never
+  // reach Monaco, and a non-passive wheel listener so we can preventDefault.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!e.metaKey) return;
+      if (e.key === "=" || e.key === "+") {
+        e.preventDefault();
+        e.stopPropagation();
+        zoomBy(1);
+      } else if (e.key === "-" || e.key === "_") {
+        e.preventDefault();
+        e.stopPropagation();
+        zoomBy(-1);
+      } else if (e.key === "0") {
+        e.preventDefault();
+        e.stopPropagation();
+        zoomReset();
+      }
+    };
+    const onWheel = (e: WheelEvent) => {
+      // ctrlKey covers the macOS trackpad pinch gesture.
+      if (!e.metaKey && !e.ctrlKey) return;
+      e.preventDefault();
+      wheelAccumRef.current += e.deltaY;
+      while (wheelAccumRef.current <= -ZOOM_WHEEL_STEP) {
+        wheelAccumRef.current += ZOOM_WHEEL_STEP;
+        zoomBy(1);
+      }
+      while (wheelAccumRef.current >= ZOOM_WHEEL_STEP) {
+        wheelAccumRef.current -= ZOOM_WHEEL_STEP;
+        zoomBy(-1);
+      }
+    };
+    root.addEventListener("keydown", onKeyDown, true);
+    root.addEventListener("wheel", onWheel, { passive: false, capture: true });
+    return () => {
+      root.removeEventListener("keydown", onKeyDown, true);
+      root.removeEventListener("wheel", onWheel, true);
+    };
+  }, [zoomBy, zoomReset]);
+
   useGitChanged(projectRoot, reconcileActive);
 
   // Catch up the active file's diff when the tab becomes visible again (its
@@ -539,7 +612,7 @@ export function DiffReviewPane({
   const activeDirty = !!selectedPath && dirtyPaths.has(selectedPath);
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[var(--bg-primary)]">
+    <div ref={rootRef} className="flex h-full min-h-0 flex-col bg-[var(--bg-primary)]">
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-[var(--border)] px-2.5">
         {onBack && (
           <Tooltip content="Back to terminal" side="bottom">
@@ -576,6 +649,14 @@ export function DiffReviewPane({
             Save
           </button>
         )}
+        <DiffZoomControl
+          fontSize={fontSize}
+          baseFontSize={baseFontSize}
+          min={FONT_SIZE_MIN}
+          max={FONT_SIZE_MAX}
+          onZoom={zoomBy}
+          onReset={zoomReset}
+        />
         <Tooltip content="Refresh changes" side="bottom">
           <button
             onClick={() => refresh()}
@@ -685,7 +766,7 @@ export function DiffReviewPane({
             files={files}
             mode={mode}
             baseBranch={baseBranch}
-            fontSize={getSettings().editorFontSize || DEFAULT_MONACO_FONT_SIZE}
+            fontSize={fontSize}
             active={active && viewMode === "all"}
           />
         </div>
