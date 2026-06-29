@@ -156,7 +156,9 @@ fn do_check(state: &UpdateState) -> Result<UpdateInfo, String> {
     *state.pending_url.lock().unwrap() = url;
 
     Ok(UpdateInfo {
-        update_avail: newer(&latest, &current),
+        // Dev/debug builds report version "dev" (parsed as 0.0.0) and have no
+        // enclosing .app to swap — never offer them an update they can't apply.
+        update_avail: current != "dev" && newer(&latest, &current),
         latest_version: latest,
         current_version: current,
     })
@@ -204,6 +206,11 @@ fn app_bundle_path() -> Result<PathBuf, String> {
 
 #[tauri::command(async)]
 pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(), String> {
+    // No enclosing .app in dev — bail with a product-terms message instead of
+    // leaking the debug binary path from app_bundle_path() into the UI.
+    if current_version() == "dev" {
+        return Err("Updates aren't available in development builds.".into());
+    }
     let _ = app.emit("update-status", "checking");
 
     // Re-check so we install the actual latest release, not whatever was

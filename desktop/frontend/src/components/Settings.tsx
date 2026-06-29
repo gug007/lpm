@@ -402,8 +402,8 @@ export function Settings({
               <SettingsRow label="Version" description="lpm desktop">
                 <span className="text-xs text-[var(--text-muted)]">{version || "..."}</span>
               </SettingsRow>
-              <SettingsRow label="Updates" description={getUpdateDescription(updateStatus, latestVersion, updateError)}>
-                {updateStatus === "available" ? (
+              <SettingsRow label="Updates" description={version === "dev" ? "Not available in development builds" : getUpdateDescription(updateStatus, latestVersion, updateError)}>
+                {version === "dev" ? null : updateStatus === "available" ? (
                   <button onClick={handleInstallUpdate} className="rounded-md bg-[var(--accent-green)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90">
                     Update
                   </button>
