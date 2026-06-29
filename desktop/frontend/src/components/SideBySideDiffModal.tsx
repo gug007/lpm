@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "./ui/Modal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { XIcon } from "./icons";
@@ -377,8 +377,13 @@ function NavFileRow({
 }) {
   const { label: statusLabel, color: statusClr } =
     STATUS_DISPLAY[node.file.status] ?? DEFAULT_STATUS;
+  const rowRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (active) rowRef.current?.scrollIntoView({ block: "nearest" });
+  }, [active]);
   return (
     <div
+      ref={rowRef}
       onClick={() => onClick(node.path)}
       style={{ paddingLeft: `${depth * INDENT_PX + BASE_LEFT_PX}px` }}
       className={`flex cursor-pointer items-center gap-2 py-[5px] pr-2.5 transition-colors ${

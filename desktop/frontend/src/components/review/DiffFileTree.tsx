@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { main } from "../../../bridge/models";
 import {
   BASE_LEFT_PX,
@@ -116,8 +116,15 @@ function FileRow({
 }) {
   const { label: statusLabel, color: statusClr } =
     STATUS_DISPLAY[node.file.status] ?? DEFAULT_STATUS;
+  const rowRef = useRef<HTMLDivElement>(null);
+  // Keep the active row visible as scroll-spy moves the selection through the
+  // diff; "nearest" is a no-op when it is already on screen, so no jitter.
+  useLayoutEffect(() => {
+    if (active) rowRef.current?.scrollIntoView({ block: "nearest" });
+  }, [active]);
   return (
     <div
+      ref={rowRef}
       onClick={() => onSelect(node.path)}
       style={{ paddingLeft: `${depth * INDENT_PX + BASE_LEFT_PX}px` }}
       className={`flex cursor-pointer items-center gap-2 py-[5px] pr-2.5 transition-colors ${
