@@ -38,7 +38,7 @@ function renderWithLinks(text: string): ReactNode {
 
 export const MessageMarkdown = memo(function MessageMarkdown({ text }: MessageMarkdownProps) {
   return (
-    <div className="markdown-body text-sm text-[var(--text-primary)]">
+    <div className="markdown-body select-text text-sm text-[var(--text-primary)]">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {text}
       </ReactMarkdown>
