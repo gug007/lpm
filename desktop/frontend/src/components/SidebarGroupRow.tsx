@@ -1,9 +1,10 @@
-import { ChevronDownIcon, ChevronRightIcon, MoreVerticalIcon } from "./icons";
+import { ChevronRightIcon, MoreVerticalIcon } from "./icons";
 import type { ProjectGroup } from "../types";
 
 interface SidebarGroupRowProps {
   group: ProjectGroup;
   collapsed: boolean;
+  count: number;
   selectMode: boolean;
   isContextTarget: boolean;
   onToggle: () => void;
@@ -13,6 +14,7 @@ interface SidebarGroupRowProps {
 export function SidebarGroupRow({
   group,
   collapsed,
+  count,
   selectMode,
   isContextTarget,
   onToggle,
@@ -30,10 +32,23 @@ export function SidebarGroupRow({
           isContextTarget ? "pr-9 ring-1 ring-inset ring-[var(--accent-cyan)]/60" : "group-hover/folder:pr-9"
         }`}
       >
-        <span className="shrink-0 text-[var(--text-muted)]">
-          {collapsed ? <ChevronRightIcon /> : <ChevronDownIcon />}
+        <span
+          className={`shrink-0 text-[var(--text-muted)] transition-transform duration-150 ${
+            collapsed ? "" : "rotate-90"
+          }`}
+        >
+          <ChevronRightIcon />
         </span>
         <span className="truncate font-medium">{group.name}</span>
+        {count > 0 && (
+          <span
+            className={`ml-auto shrink-0 text-[11px] tabular-nums text-[var(--text-muted)] transition-opacity ${
+              isContextTarget ? "opacity-0" : "group-hover/folder:opacity-0"
+            }`}
+          >
+            {count}
+          </span>
+        )}
       </button>
       {!selectMode && (
         <button

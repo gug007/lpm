@@ -121,7 +121,7 @@ function computeStatus(project: ProjectInfo): ProjectStatus {
 // duplicate), or the empty-folder drop target.
 type TreeItem =
   | { kind: "group"; group: ProjectGroup }
-  | { kind: "project"; project: ProjectInfo; isChild: boolean }
+  | { kind: "project"; project: ProjectInfo; isChild: boolean; folderId?: string }
   | { kind: "empty"; group: ProjectGroup };
 
 export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectsBatch, onRenameProject, onMoveProjectRoot, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showSettings, duplicatingNames, removingNames }: SidebarProps) {
@@ -185,12 +185,12 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     const out: TreeItem[] = [];
     const ids: string[] = [];
     const rendered = new Set<string>();
-    const pushProject = (p: ProjectInfo) => {
-      out.push({ kind: "project", project: p, isChild: false });
+    const pushProject = (p: ProjectInfo, folderId?: string) => {
+      out.push({ kind: "project", project: p, isChild: false, folderId });
       ids.push(p.name);
       rendered.add(p.name);
       for (const child of childrenByParent.get(p.name) ?? []) {
-        out.push({ kind: "project", project: child, isChild: true });
+        out.push({ kind: "project", project: child, isChild: true, folderId });
         rendered.add(child.name);
       }
     };
@@ -205,7 +205,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       ids.push(groupToken(g.id));
       if (!g.collapsed) {
         if (members.length === 0) out.push({ kind: "empty", group: g });
-        for (const mp of members) pushProject(mp);
+        for (const mp of members) pushProject(mp, g.id);
       } else {
         members.forEach((mp) => rendered.add(mp.name));
       }
@@ -614,6 +614,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         <SidebarGroupRow
           group={item.group}
           collapsed={!!item.group.collapsed}
+          count={item.group.members.length}
           selectMode={selectMode}
           isContextTarget={groupMenu?.id === item.group.id}
           onToggle={() => onToggleGroupCollapsed(item.group.id)}
@@ -632,7 +633,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     }
 
     if (item.kind === "empty") {
-      const emptyClass = "ml-4 mr-1 mb-0.5 rounded-md px-3 py-1.5 text-[11px] italic text-[var(--text-muted)]";
+      const emptyClass = "mb-0.5 rounded-md px-3 py-1.5 text-[11px] italic text-[var(--text-muted)]";
       if (selectMode) {
         return <div key={`empty-${item.group.id}`} className={emptyClass}>Empty</div>;
       }
@@ -668,7 +669,98 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     ) : null;
   })();
 
-  const navItems = items.map(renderRow);
+  // A folder header plus its (expanded) member rows render inside one block, tied
+  // together by a tree connector: a vertical trunk that drops from the folder's
+  // disclosure arrow, with a rounded elbow curving out to each member. The last
+  // member ends the trunk at its own elbow. The connector lives in the left
+  // gutter (left of the status dot), in existing row padding — so no project name
+  // is indented into less usable width.
+  // Same sky blue as the composer's image chip (IMAGE_CHIP_CLASS), brighter on
+  // folder hover.
+  const TRUNK_BG =
+    "bg-[#38bdf8]/55 transition-colors group-hover/folder-block:bg-[#38bdf8]/90";
+  const ELBOW_BORDER =
+    "border-[#38bdf8]/55 transition-colors group-hover/folder-block:border-[#38bdf8]/90";
+  const renderFolderBlock = (
+    groupItem: Extract<TreeItem, { kind: "group" }>,
+    body: TreeItem[],
+  ) => {
+    let lastProjectIndex = -1;
+    body.forEach((it, i) => {
+      if (it.kind === "project") lastProjectIndex = i;
+    });
+    const hasProjects = lastProjectIndex !== -1;
+    // Connectors are absolute siblings of the sortable rows, so a live drag's
+    // row transform would leave them stranded — hide the whole tree while any
+    // drag is active; it reappears on drop.
+    const showConnectors = !activeId;
+    return (
+      <div key={groupToken(groupItem.group.id)} className="group/folder-block mt-1 first:mt-0">
+        <div className="relative">
+          {renderRow(groupItem)}
+          {hasProjects && showConnectors && (
+            <span
+              aria-hidden
+              className={`pointer-events-none absolute left-[4px] top-1/2 bottom-0 z-10 w-px ${TRUNK_BG}`}
+            />
+          )}
+        </div>
+        {body.length > 0 && (
+          <div className="relative">
+            {body.map((it, i) =>
+              it.kind === "project" ? (
+                <div key={it.project.name} className="relative">
+                  {showConnectors && (
+                    <>
+                      <span
+                        aria-hidden
+                        className={`pointer-events-none absolute left-[4px] top-0 z-10 h-1/2 w-[8px] rounded-bl-[6px] border-b border-l ${ELBOW_BORDER}`}
+                      />
+                      {i !== lastProjectIndex && (
+                        <span
+                          aria-hidden
+                          className={`pointer-events-none absolute left-[4px] top-1/2 bottom-0 z-10 w-px ${TRUNK_BG}`}
+                        />
+                      )}
+                    </>
+                  )}
+                  {renderRow(it)}
+                </div>
+              ) : (
+                renderRow(it)
+              ),
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Walk the flat tree, folding each folder header together with the member rows
+  // tagged to it (and its empty-folder placeholder) into one folder block; loose
+  // top-level rows render on their own.
+  const navItems: React.ReactNode[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (item.kind === "group") {
+      const gid = item.group.id;
+      const body: TreeItem[] = [];
+      let j = i + 1;
+      while (j < items.length) {
+        const it = items[j];
+        const belongs =
+          (it.kind === "project" && it.folderId === gid) ||
+          (it.kind === "empty" && it.group.id === gid);
+        if (!belongs) break;
+        body.push(it);
+        j++;
+      }
+      navItems.push(renderFolderBlock(item, body));
+      i = j - 1;
+    } else {
+      navItems.push(renderRow(item));
+    }
+  }
 
   return (
     <aside
