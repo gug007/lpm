@@ -675,12 +675,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // member ends the trunk at its own elbow. The connector lives in the left
   // gutter (left of the status dot), in existing row padding — so no project name
   // is indented into less usable width.
-  // Same sky blue as the composer's image chip (IMAGE_CHIP_CLASS), brighter on
-  // folder hover.
-  const TRUNK_BG =
-    "bg-[#38bdf8]/55 transition-colors group-hover/folder-block:bg-[#38bdf8]/90";
-  const ELBOW_BORDER =
-    "border-[#38bdf8]/55 transition-colors group-hover/folder-block:border-[#38bdf8]/90";
+  // Same sky blue as the composer's image chip (IMAGE_CHIP_CLASS); constant color
+  // — it doesn't react to row/folder hover.
+  const TRUNK_BG = "bg-[#38bdf8]/55";
+  const ELBOW_BORDER = "border-[#38bdf8]/55";
   const renderFolderBlock = (
     groupItem: Extract<TreeItem, { kind: "group" }>,
     body: TreeItem[],
@@ -695,14 +693,20 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     // drag is active; it reappears on drop.
     const showConnectors = !activeId;
     return (
-      <div key={groupToken(groupItem.group.id)} className="group/folder-block mt-1 first:mt-0">
+      <div key={groupToken(groupItem.group.id)} className="mt-1 first:mt-0">
         <div className="relative">
           {renderRow(groupItem)}
           {hasProjects && showConnectors && (
-            <span
-              aria-hidden
-              className={`pointer-events-none absolute left-[4px] top-1/2 bottom-0 z-10 w-px ${TRUNK_BG}`}
-            />
+            <>
+              <span
+                aria-hidden
+                className={`pointer-events-none absolute left-[4px] top-[9px] z-10 h-[11px] w-[11.5px] rounded-t-[6px] border-l border-r border-t ${ELBOW_BORDER}`}
+              />
+              <span
+                aria-hidden
+                className={`pointer-events-none absolute left-[4px] top-[20px] bottom-0 z-10 w-px ${TRUNK_BG}`}
+              />
+            </>
           )}
         </div>
         {body.length > 0 && (

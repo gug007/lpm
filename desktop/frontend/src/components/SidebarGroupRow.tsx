@@ -33,7 +33,7 @@ export function SidebarGroupRow({
         }`}
       >
         <span
-          className={`shrink-0 text-[var(--text-muted)] transition-transform duration-150 ${
+          className={`relative z-20 shrink-0 text-[var(--text-muted)] transition-transform duration-150 ${
             collapsed ? "" : "rotate-90"
           }`}
         >
