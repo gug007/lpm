@@ -11,6 +11,7 @@ import { applyTheme } from "./theme";
 import { hydrateAppStore } from "./store/app";
 import { useComposerStore } from "./store/composer";
 import { initTTSEvents } from "./store/tts";
+import { useGeneratorsStore } from "./store/generators";
 import { queryClient } from "./queryClient";
 import "./styles/globals.css";
 
@@ -22,6 +23,7 @@ Promise.all([loadSettings(), loadTerminals(), loadGroups(), hydrateComposerActio
   applyTheme(s.theme);
   hydrateAppStore(g);
   useComposerStore.getState().hydrate(s.composerOpen ?? true);
+  useGeneratorsStore.getState().hydrate();
   initTTSEvents();
   createRoot(document.getElementById("root")!).render(
     <StrictMode>

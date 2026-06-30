@@ -1,4 +1,5 @@
 import type { ComposerValue } from "./components/composerEditor";
+import type { ComposerAction } from "./store/composerActions";
 
 export interface ServiceInfo {
   name: string;
@@ -269,4 +270,33 @@ export interface StatusEntry {
   priority: number;
   timestamp: number;
   paneID?: string;
+}
+
+export type GeneratorIcon =
+  | { type: "brand"; value: string }
+  | { type: "emoji"; value: string }
+  | { type: "image"; value: string };
+
+export interface Generator {
+  id: string;
+  label: string;
+  icon: GeneratorIcon;
+  prompt: string;
+  builtin?: boolean;
+}
+
+export type GeneratorDraft = Omit<Generator, "id" | "builtin">;
+
+export interface GeneratorOverride {
+  label?: string;
+  icon?: GeneratorIcon;
+  prompt?: string;
+}
+
+export interface GeneratorsConfig {
+  order: string[];
+  hiddenDefaults: string[];
+  overrides: Record<string, GeneratorOverride>;
+  custom: Generator[];
+  promptActions?: ComposerAction[];
 }

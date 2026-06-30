@@ -21,10 +21,26 @@ import {
 interface ComposerActionsModalProps {
   open: boolean;
   onClose: () => void;
+  zIndexClassName?: string;
+  actions?: ComposerAction[];
+  onSave?: (actions: ComposerAction[]) => void;
+  title?: string;
+  defaultActions?: ComposerAction[];
 }
 
-export function ComposerActionsModal({ open, onClose }: ComposerActionsModalProps) {
-  const actions = useComposerActions();
+export function ComposerActionsModal({
+  open,
+  onClose,
+  zIndexClassName = "z-[60]",
+  actions: propActions,
+  onSave,
+  title,
+  defaultActions = DEFAULT_COMPOSER_ACTIONS,
+}: ComposerActionsModalProps) {
+  const storeActions = useComposerActions();
+  const actions = propActions ?? storeActions;
+  const save = onSave ?? saveComposerActions;
+  const heading = title ?? "Composer actions";
   const ai = useAIPicker(open);
   // null = list view; otherwise the action draft being added/edited.
   const [draft, setDraft] = useState<ComposerAction | null>(null);
@@ -44,7 +60,7 @@ export function ComposerActionsModal({ open, onClose }: ComposerActionsModalProp
     if (draft) setTimeout(() => labelRef.current?.focus(), 60);
   }, [draft]);
 
-  const persist = (list: ComposerAction[]) => void saveComposerActions(list);
+  const persist = (list: ComposerAction[]) => void save(list);
 
   const toggle = (id: string) =>
     persist(actions.map((a) => (a.id === id ? { ...a, enabled: !a.enabled } : a)));
@@ -52,7 +68,7 @@ export function ComposerActionsModal({ open, onClose }: ComposerActionsModalProp
   const remove = (id: string) => persist(actions.filter((a) => a.id !== id));
 
   const resetToDefaults = () => {
-    persist(DEFAULT_COMPOSER_ACTIONS.map((a) => ({ ...a })));
+    persist(defaultActions.map((a) => ({ ...a })));
     setConfirmReset(false);
   };
 
@@ -85,7 +101,7 @@ export function ComposerActionsModal({ open, onClose }: ComposerActionsModalProp
         onClose={onClose}
         backdropClassName="bg-black/60 backdrop-blur-sm"
         contentClassName="rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
-        zIndexClassName="z-[60]"
+        zIndexClassName={zIndexClassName}
       >
         <div className="flex max-h-[80vh] w-[min(560px,calc(100vw-32px))] flex-col">
           {draft ? (
@@ -104,6 +120,7 @@ export function ComposerActionsModal({ open, onClose }: ComposerActionsModalProp
             <ActionList
               actions={actions}
               ai={ai}
+              title={heading}
               onToggle={toggle}
               onEdit={startEdit}
               onRemove={remove}
@@ -116,13 +133,14 @@ export function ComposerActionsModal({ open, onClose }: ComposerActionsModalProp
       </Modal>
       <ConfirmDialog
         open={confirmReset}
-        title="Reset composer actions"
+        title={`Reset ${heading.toLowerCase()}`}
         confirmLabel="Reset"
         variant="destructive"
+        zIndexClassName="z-[80]"
         body={
           <>
-            This replaces your current actions with the built-in defaults (all disabled). Any custom
-            actions you added will be removed. This can't be undone.
+            This replaces your current actions with the built-in defaults. Any custom actions you
+            added will be removed. This can't be undone.
           </>
         }
         onCancel={() => setConfirmReset(false)}
@@ -135,6 +153,7 @@ export function ComposerActionsModal({ open, onClose }: ComposerActionsModalProp
 interface ActionListProps {
   actions: ComposerAction[];
   ai: AIPicker;
+  title: string;
   onToggle: (id: string) => void;
   onEdit: (action: ComposerAction) => void;
   onRemove: (id: string) => void;
@@ -143,16 +162,16 @@ interface ActionListProps {
   onClose: () => void;
 }
 
-function ActionList({ actions, ai, onToggle, onEdit, onRemove, onNew, onReset, onClose }: ActionListProps) {
+function ActionList({ actions, ai, title, onToggle, onEdit, onRemove, onNew, onReset, onClose }: ActionListProps) {
   return (
     <>
       <header className="flex items-start justify-between gap-4 px-6 pb-3 pt-5">
         <div className="min-w-0">
           <h2 className="text-[16px] font-semibold tracking-tight text-[var(--text-primary)]">
-            Composer actions
+            {title}
           </h2>
           <p className="mt-1 text-[12.5px] leading-5 text-[var(--text-muted)]">
-            One-tap AI rewrites for your input. Enable the ones you want — they appear in the composer.
+            One-tap AI rewrites for your input. Enable the ones you want.
           </p>
         </div>
         <button

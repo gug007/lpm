@@ -250,8 +250,17 @@ export function LoadGroups() {
 export function LoadComposerActions() {
   return invoke("load_composer_actions");
 }
+export function LoadGenerators() {
+  return invoke("load_generators");
+}
 export function SaveComposerActions(actions) {
   return invoke("save_composer_actions", { actions });
+}
+export function SaveGeneratorIcon(srcPath, id) {
+  return invoke("save_generator_icon", { srcPath, id });
+}
+export function SaveGenerators(g) {
+  return invoke("save_generators", { g });
 }
 export function MessageHistoryQuery(input) {
   return invoke("message_history_query", { input });
@@ -339,6 +348,9 @@ export function PlaySoundPreview(name, event) {
 }
 export function PickAudioFile() {
   return invoke("pick_audio_file");
+}
+export function PickImageFile() {
+  return invoke("pick_image_file");
 }
 export function PullBranch(cwd, strategy, flags) {
   return invoke("pull_branch", { cwd, strategy, flags });
@@ -534,6 +546,9 @@ export function ToggleProjectService(name, serviceName) {
 }
 export function TransformText(cwd, cli, model, effort, fast, instruction, text) {
   return invoke("transform_text", { cwd, cli, model, effort, fast, instruction, text });
+}
+export function TrashProject(name) {
+  return invoke("trash_project", { name });
 }
 export function UninstallKokoro() {
   return invoke("uninstall_kokoro");
