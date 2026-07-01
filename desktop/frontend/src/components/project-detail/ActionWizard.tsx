@@ -44,6 +44,7 @@ import {
   ChevronRightIcon,
   FolderIcon,
   HelpCircleIcon,
+  MoonIcon,
   PlayIcon,
   PlusIcon,
   SendIcon,
@@ -286,14 +287,14 @@ function applyAutoSettings(
 function runModeHint(mode: RunMode, reuse: boolean) {
   if (mode === "terminal") {
     return reuse
-      ? "Runs in a terminal. Running this action again reuses the same pane."
-      : "Opens a new terminal every time this action runs.";
+      ? "Reuses the same terminal each time you run this action."
+      : "Opens a new terminal every time you run this action.";
   }
   if (mode === "command")
-    return "Submits the command into the terminal you're currently focused on.";
+    return "Types the command into the terminal you're currently using.";
   if (mode === "background")
-    return "Runs in the background and shows a success notification when done.";
-  return "Runs once and displays the result in a modal.";
+    return "Runs quietly in the background and notifies you when it's done.";
+  return "Runs once and shows the output in a pop-up.";
 }
 
 function wizardCopy(editing: boolean): {
@@ -2116,26 +2117,26 @@ const RUN_MODE_OPTIONS: Array<{
   {
     value: "terminal",
     icon: <TerminalIcon />,
-    title: "Run in new terminal",
-    description: "Opens a terminal so you can watch it run.",
+    title: "Run in a new terminal",
+    description: "Opens a new terminal — good for servers and long-running commands.",
   },
   {
     value: "once",
     icon: <ZapIcon />,
-    title: "Show in modal",
-    description: "Runs once and shows the result in a modal.",
+    title: "Run and show the output",
+    description: "Runs once and shows the output in a pop-up — good for quick commands.",
   },
   {
     value: "command",
     icon: <SendIcon />,
-    title: "Send to active terminal",
-    description: "Submits it into the terminal you're focused on.",
+    title: "Send to the active terminal",
+    description: "Types the command into the terminal you're currently using.",
   },
   {
     value: "background",
-    icon: <SparkleIcon />,
-    title: "Run in background",
-    description: "Runs in the background, notifies when done.",
+    icon: <MoonIcon />,
+    title: "Run in the background",
+    description: "Runs quietly and notifies you when it's done.",
   },
 ];
 
@@ -2230,7 +2231,7 @@ function RunModePicker({
             checked={reuse}
             onChange={(e) => onReuse(e.target.checked)}
           />
-          Reuse the same pane when I run this action again
+          Reuse the same terminal when I run this action again
         </label>
       )}
     </div>
