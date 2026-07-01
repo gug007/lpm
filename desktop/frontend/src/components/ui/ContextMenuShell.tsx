@@ -37,7 +37,7 @@ export function ContextMenuShell({ x, y, minWidth = 160, onClose, children }: Co
   return (
     <div
       ref={ref}
-      className={`fixed z-50 ${MENU_PANEL_CLASS}`}
+      className={`fixed z-[80] ${MENU_PANEL_CLASS}`}
       style={{ left: pos.left, top: pos.top, minWidth }}
     >
       <SubmenuCoordinator>{children}</SubmenuCoordinator>

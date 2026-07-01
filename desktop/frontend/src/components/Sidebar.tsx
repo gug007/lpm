@@ -72,6 +72,7 @@ interface SidebarProps {
   onBulkDuplicate: (name: string, count: number, opts: BulkDuplicateOptions) => void;
   onRemoveProject: (name: string) => void;
   onRemoveProjectCascade: (name: string) => void;
+  onRemoveProjectFromDisk: (name: string) => void;
   onRemoveProjectsBatch: (names: string[]) => void;
   onRenameProject: (name: string, label: string) => void;
   onMoveProjectRoot: (name: string, newRoot: string) => Promise<void>;
@@ -124,7 +125,7 @@ type TreeItem =
   | { kind: "project"; project: ProjectInfo; isChild: boolean; folderId?: string }
   | { kind: "empty"; group: ProjectGroup };
 
-export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectsBatch, onRenameProject, onMoveProjectRoot, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showSettings, duplicatingNames, removingNames }: SidebarProps) {
+export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onMoveProjectRoot, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showSettings, duplicatingNames, removingNames }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -133,6 +134,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const [contextMenu, setContextMenu] = useState<{ name: string; x: number; y: number } | null>(null);
   const [groupMenu, setGroupMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [confirmTrash, setConfirmTrash] = useState<string | null>(null);
   const [renamingName, setRenamingName] = useState<string | null>(null);
   const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
@@ -428,6 +430,14 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             </>
           ),
         };
+
+  const pendingTrash = confirmTrash ? projectByName.get(confirmTrash) : undefined;
+  const pendingTrashLabel = pendingTrash ? projectDisplayName(pendingTrash) : "";
+  const pendingTrashDuplicates = pendingTrash
+    ? projects.filter((p) => p.parentName === pendingTrash.name)
+    : [];
+  const trashDupCount = pendingTrashDuplicates.length;
+  const trashDupPlural = trashDupCount === 1 ? "" : "s";
 
   useEffect(() => EventsOn("update-available", setUpdateInfo), []);
   useEffect(() => {
@@ -886,6 +896,14 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             onMoveToGroup={(groupId) => onMoveProjectToGroup(contextMenu.name, groupId)}
             onCreateGroupWith={() => setCreateFolder({ initialMembers: [contextMenu.name] })}
             onRemove={() => setConfirmRemove(contextMenu.name)}
+            onRemoveFromDisk={
+              contextProject &&
+              !contextProject.parentName &&
+              !contextProject.isRemote &&
+              contextProject.root
+                ? () => setConfirmTrash(contextMenu.name)
+                : undefined
+            }
             onClose={() => setContextMenu(null)}
           />
         ))}
@@ -910,6 +928,37 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         onConfirm={() => {
           if (confirmRemove) removeDialog.onConfirm(confirmRemove);
           setConfirmRemove(null);
+        }}
+      />
+      <ConfirmDialog
+        open={confirmTrash !== null}
+        title="Remove from disk"
+        variant="destructive"
+        confirmLabel="Remove"
+        confirmText={pendingTrashLabel || undefined}
+        body={
+          <>
+            Remove{" "}
+            <span className="font-medium text-[var(--text-primary)]">
+              {pendingTrashLabel}
+            </span>{" "}
+            from lpm and move its source folder to the Trash?
+            {trashDupCount > 0 && (
+              <span className="mt-2 block">
+                Its {trashDupCount} duplicate{trashDupPlural}{" "}
+                {trashDupCount === 1 ? "is" : "are"} also deleted from disk.
+              </span>
+            )}
+            <span className="mt-2 block">
+              You can restore the folder from the Trash
+              {trashDupCount > 0 ? "; the duplicates can't be restored." : "."}
+            </span>
+          </>
+        }
+        onCancel={() => setConfirmTrash(null)}
+        onConfirm={() => {
+          if (confirmTrash) onRemoveProjectFromDisk(confirmTrash);
+          setConfirmTrash(null);
         }}
       />
       <ConfirmDialog

@@ -1,4 +1,4 @@
-import { CheckSquareIcon, ClipboardIcon, CopyIcon, DetachIcon, PencilIcon, TrashIcon } from "./icons";
+import { CheckSquareIcon, ClipboardIcon, CopyIcon, DetachIcon, HardDriveIcon, PencilIcon, TrashIcon } from "./icons";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
@@ -36,6 +36,7 @@ interface ProjectContextMenuProps {
   onMoveToGroup: (groupId: string | null) => void;
   onCreateGroupWith: () => void;
   onRemove: () => void;
+  onRemoveFromDisk?: () => void;
   onClose: () => void;
 }
 
@@ -66,6 +67,7 @@ export function ProjectContextMenu({
   onMoveToGroup,
   onCreateGroupWith,
   onRemove,
+  onRemoveFromDisk,
   onClose,
 }: ProjectContextMenuProps) {
   const openInTargets = useOpenInTargets().filter((t) => !t.fileOnly);
@@ -161,6 +163,15 @@ export function ProjectContextMenu({
         onClick={close(onRemove)}
         disabled={removeDisabled}
       />
+      {onRemoveFromDisk && (
+        <ContextMenuItem
+          destructive
+          label="Remove from disk"
+          icon={<HardDriveIcon />}
+          onClick={close(onRemoveFromDisk)}
+          disabled={removeDisabled}
+        />
+      )}
     </ContextMenuShell>
   );
 }

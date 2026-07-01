@@ -203,6 +203,43 @@ pub fn save_settings(s: &Value) -> Result<(), String> {
     std::fs::write(settings_path(), data).map_err(|e| e.to_string())
 }
 
+pub fn generators_path() -> PathBuf {
+    lpm_dir().join("generators.json")
+}
+
+pub fn generator_icons_dir() -> PathBuf {
+    lpm_dir().join("generator-icons")
+}
+
+fn default_generators() -> Value {
+    json!({ "order": [], "hiddenDefaults": [], "overrides": {}, "custom": [] })
+}
+
+pub fn load_generators() -> Value {
+    match std::fs::read(generators_path()) {
+        Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_else(|_| default_generators()),
+        Err(_) => default_generators(),
+    }
+}
+
+pub fn save_generators(g: &Value) -> Result<(), String> {
+    std::fs::create_dir_all(lpm_dir()).map_err(|e| e.to_string())?;
+    let data = serde_json::to_vec_pretty(g).map_err(|e| e.to_string())?;
+    std::fs::write(generators_path(), data).map_err(|e| e.to_string())
+}
+
+pub fn save_generator_icon(src_path: &str, id: &str) -> Result<String, String> {
+    std::fs::create_dir_all(generator_icons_dir()).map_err(|e| e.to_string())?;
+    let ext = std::path::Path::new(src_path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_else(|| "png".to_string());
+    let dest = generator_icons_dir().join(format!("{id}.{ext}"));
+    std::fs::copy(src_path, &dest).map_err(|e| e.to_string())?;
+    Ok(dest.to_string_lossy().into_owned())
+}
+
 /// Read-modify-write a single field (used by SaveWindowSize).
 pub fn merge_settings(patch: Value) -> Result<(), String> {
     let mut current = load_settings();

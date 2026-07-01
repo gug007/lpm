@@ -56,6 +56,17 @@ pub fn save_settings(s: Value) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn load_generators() -> Value { config::load_generators() }
+
+#[tauri::command]
+pub fn save_generators(g: Value) -> Result<(), String> { config::save_generators(&g) }
+
+#[tauri::command]
+pub fn save_generator_icon(src_path: String, id: String) -> Result<String, String> {
+    config::save_generator_icon(&src_path, &id)
+}
+
+#[tauri::command]
 pub fn save_window_size(width: i64, height: i64) -> Result<(), String> {
     config::merge_settings(json!({ "windowWidth": width, "windowHeight": height }))
 }

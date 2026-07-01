@@ -57,6 +57,22 @@ pub async fn browse_folder(
 }
 
 #[tauri::command]
+pub async fn pick_image_file(app: AppHandle) -> Result<String, String> {
+    let picked = pick_path(app, |app| {
+        app.dialog()
+            .file()
+            .set_title("Select an image")
+            .add_filter("Images", &["png", "jpg", "jpeg", "webp", "gif", "svg"])
+            .blocking_pick_file()
+    })
+    .await?;
+    match picked {
+        Some(p) => Ok(p.to_string_lossy().into_owned()),
+        None => Ok(String::new()),
+    }
+}
+
+#[tauri::command]
 pub async fn save_text_file(
     app: AppHandle,
     default_name: String,

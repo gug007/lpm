@@ -11,6 +11,8 @@ export interface DrillApi {
 export interface DrillScreen {
   title?: string;
   path?: string;
+  // Overrides the DrillMenu panel width while this screen is shown.
+  width?: string;
   render: (api: DrillApi) => ReactNode;
   // When true on a drilled screen, DrillMenu auto-pops up a level (e.g. the
   // menu's last item was dragged out and the submenu no longer exists).
@@ -20,9 +22,11 @@ export interface DrillScreen {
 export function DrillMenu({
   root,
   onClose,
+  widthClassName = "w-72",
 }: {
   root: DrillScreen;
   onClose: () => void;
+  widthClassName?: string;
 }) {
   const [stack, setStack] = useState<DrillScreen[]>([]);
   const api: DrillApi = {
@@ -46,16 +50,29 @@ export function DrillMenu({
   );
 
   return (
-    <div className="w-72 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl">
-      {drilled && (
-        <div className="mb-1 flex items-center gap-1 border-b border-[var(--border)] px-2 pb-1.5">
+    <div className={`${screen.width ?? widthClassName} overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl`}>
+      {drilled &&
+        (crumbs.length <= 1 ? (
           <button
             onClick={api.pop}
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            className="mb-1 flex w-full items-center gap-1 border-b border-[var(--border)] px-2 pb-1.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
           >
-            <ChevronLeftIcon />
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center text-[var(--text-secondary)]">
+              <ChevronLeftIcon />
+            </span>
+            <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[var(--text-primary)]">
+              {screen.title}
+            </span>
           </button>
-          <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
+        ) : (
+          <div className="mb-1 flex items-center gap-1 border-b border-[var(--border)] px-2 pb-1.5">
+            <button
+              onClick={api.pop}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              <ChevronLeftIcon />
+            </button>
+            <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
             {crumbs.map((crumb, i) => (
               <Fragment key={crumb.index}>
                 {i > 0 && (
@@ -85,7 +102,7 @@ export function DrillMenu({
             ))}
           </div>
         </div>
-      )}
+      ))}
       {screen.render(api)}
     </div>
   );
