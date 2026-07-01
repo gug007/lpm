@@ -46,6 +46,7 @@ import {
   HelpCircleIcon,
   PlayIcon,
   PlusIcon,
+  SendIcon,
   SparkleIcon,
   TerminalIcon,
   TrashIcon,
@@ -58,7 +59,7 @@ import { EmojiSlotButton } from "../EmojiPickerButton";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 
 type Shape = "button" | "split" | "dropdown";
-type RunMode = "once" | "terminal" | "background";
+type RunMode = "once" | "terminal" | "command" | "background";
 
 const SHAPE_PREVIEW_BUTTON_CLASS =
   "border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-primary)]";
@@ -288,6 +289,8 @@ function runModeHint(mode: RunMode, reuse: boolean) {
       ? "Runs in a terminal. Running this action again reuses the same pane."
       : "Opens a new terminal every time this action runs.";
   }
+  if (mode === "command")
+    return "Submits the command into the terminal you're currently focused on.";
   if (mode === "background")
     return "Runs in the background and shows a success notification when done.";
   return "Runs once and displays the result in a modal.";
@@ -530,7 +533,7 @@ function inferShape(action: ActionInfo): Shape {
 }
 
 function toRunMode(type: string | undefined): RunMode {
-  return type === "terminal" || type === "background" ? type : "once";
+  return type === "terminal" || type === "command" || type === "background" ? type : "once";
 }
 
 // Coerces AI-generated YAML into the ActionInfo shape so we can re-use
@@ -1793,6 +1796,14 @@ function RunModeDemo({
               </div>
             )}
 
+            {running === "command" && (
+              <div className="demo-terminal absolute inset-0 bg-black p-1.5 font-mono text-[7px] leading-tight text-white/90">
+                <div className="truncate text-white/40">~ % </div>
+                <div className="truncate">~ % {cmd}</div>
+                <span className="demo-cursor mt-0.5 inline-block h-[6px] w-[3px] bg-white/80" />
+              </div>
+            )}
+
             {running === "background" && (
               <div className="demo-toast absolute right-1.5 top-1.5 flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--bg-primary)] px-1.5 py-1 shadow">
                 <span className="h-1 w-1 animate-pulse rounded-full bg-[var(--text-secondary)]" />
@@ -2117,7 +2128,7 @@ function RunModePicker({
           {runModeHint(runMode, reuse)}
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-1 rounded-lg bg-[var(--bg-secondary)] p-1">
+      <div className="grid grid-cols-4 gap-1 rounded-lg bg-[var(--bg-secondary)] p-1">
         <ModeButton
           active={runMode === "once"}
           icon={<ZapIcon />}
@@ -2129,6 +2140,12 @@ function RunModePicker({
           icon={<TerminalIcon />}
           title="Run in new terminal"
           onClick={() => onRunMode("terminal")}
+        />
+        <ModeButton
+          active={runMode === "command"}
+          icon={<SendIcon />}
+          title="Send to active terminal"
+          onClick={() => onRunMode("command")}
         />
         <ModeButton
           active={runMode === "background"}

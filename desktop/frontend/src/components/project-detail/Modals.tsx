@@ -37,6 +37,7 @@ export function Modals({
 
       {inputs.action && (
         <ActionInputsModal
+          projectName={projectName}
           action={inputs.action}
           onCancel={inputs.onCancel}
           onSubmit={inputs.onSubmit}

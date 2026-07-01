@@ -170,6 +170,23 @@ actions:
 - Use the `terminals` section for always-available interactive shells (database consoles, Redis CLI).
 - Set `reuse: true` when the command should always run in the same pane — prevents pane sprawl for things like log viewers.
 
+### Active-Terminal Actions (`type: command`)
+
+Set `type: command` to submit the command into the terminal you're currently looking at — the focused pane's active terminal — instead of opening a new pane. lpm types the command and presses Enter. This is the way to drive a shell or an already-running interactive program (an AI CLI, a REPL, a `psql` session) with a one-tap button.
+
+```yaml
+actions:
+  run-tests:
+    cmd: npm test
+    type: command
+    label: Run Tests
+    display: footer
+```
+
+If no terminal is focused, lpm shows a toast asking you to open one first. Templated `{{input}}` placeholders still substitute before the command is sent.
+
+**`type: command` vs `type: terminal`:** `terminal` launches the command in its own (optionally reused) pane; `command` sends it into whatever terminal already has focus, so it composes with a running program rather than starting a fresh process.
+
 ### Background Actions (`type: background`)
 
 Set `type: background` to run the command hidden — no modal, no terminal pane. lpm shows a toast when the command finishes, success or failure. Good fit for slow commands whose only interesting signal is "did it succeed": builds, `docker pull`, `git fetch`, one-shot migrations, dependency installs.
@@ -187,6 +204,7 @@ actions:
 **When to pick which `type`:**
 - (default, omit the field) — interactive modal with streaming output. Use for commands you want to watch.
 - `terminal` — persistent pane you keep around. Use for log tailers, watchers, REPLs triggered from a button.
+- `command` — send into the focused terminal. Use to feed a command to a shell or running program you're already in.
 - `background` — silent + toast. Use for slow boring commands you can fire and forget.
 
 ### Action Groups (Nested Actions)
@@ -273,7 +291,7 @@ Sub-actions inherit `cwd`, `env`, and `mode` from their parent, and inheritance 
 | `env` | map[string]string | no | — | Environment variables injected into the command. |
 | `confirm` | bool | no | false | Prompt for confirmation before running. Use for destructive or irreversible commands. |
 | `display` | string | no | `header` | UI placement: `header` (main button row, default) or `footer` (terminal footer strip). `menu` is still accepted (legacy) but no longer suggested. `button` is a deprecated alias for `header`. |
-| `type` | string | no | — | Action type. `terminal` runs in a terminal pane; `background` runs hidden and shows a toast on completion. Omit for the default inline runner (modal with streaming output). |
+| `type` | string | no | — | Action type. `terminal` runs in a terminal pane; `command` submits the command into the focused terminal; `background` runs hidden and shows a toast on completion. Omit for the default inline runner (modal with streaming output). |
 | `reuse` | bool | no | false | When `type: terminal`, reuse the same terminal pane across runs instead of opening a new one. |
 | `mode` | string | no | — | SSH-only execution mode. `remote` (default on SSH projects) runs the command on the host. `sync` rsyncs `ssh.dir` into a local mirror, runs the action locally, then rsyncs changes back. `sync` is rejected on local projects. See [SSH Action Modes](#ssh-action-modes). |
 | `port` | int \| string \| list | no | — | Port(s) that must be free before the action runs. Single port, inclusive range string (`"3002-3010"`), or a list mixing both. Busy ports are handled per `portConflict`. See [Ports & Conflicts](#ports--conflicts). Different from `services.<key>.port` (which is "this is the port I will listen on"). |
@@ -335,6 +353,7 @@ actions:
 | `required` | bool | no | false | Whether the field must have a value to run. |
 | `placeholder` | string | no | — | Placeholder text (for `text` and `password` types). |
 | `default` | string | no | — | Pre-filled default value. For `radio`, must match an option's `value`. |
+| `persist` | bool | no | false | Remember the last value entered and pre-select it next time this action runs (scoped per project + action). Once a value has been chosen it takes precedence over `default`. |
 | `options` | []string \| []{label, value} | no | — | List of options (required when `type: radio`). Each entry is a string or an object with `label` (display text) and `value` (substituted into cmd). |
 
 ### Input Types
@@ -342,6 +361,28 @@ actions:
 - **`text`** (default) — single-line text input.
 - **`password`** — masked text input for secrets.
 - **`radio`** — vertical list of radio buttons. User picks exactly one option.
+
+### Remembering the Last Value (`persist: true`)
+
+Set `persist: true` on an input to have lpm remember the value the user last chose and pre-select it the next time the action runs. The remembered value is scoped per project + action + input and takes precedence over `default` once something has been picked. `default` still seeds the very first run. Handy for a model/environment/target picker you keep re-running with the same choice.
+
+```yaml
+actions:
+  model:
+    label: Model
+    cmd: /model {{model}}
+    type: command
+    inputs:
+      model:
+        type: radio
+        label: Choose a model
+        default: claude-opus-4-8
+        persist: true          # next run defaults to whatever you picked last
+        options:
+          - claude-opus-4-8
+          - claude-sonnet-5
+          - claude-haiku-4-5-20251001
+```
 
 ### When to Use `confirm: true`
 

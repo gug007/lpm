@@ -106,6 +106,15 @@ export function useProjectActions({
       }
       return;
     }
+    if (action.type === "command") {
+      onSwitchToTerminal();
+      const cmd = Object.entries(inputValues).reduce(
+        (acc, [k, v]) => acc.replaceAll(`{{${k}}}`, v),
+        action.cmd,
+      );
+      terminalViewRef.current?.sendCommandToActive(cmd);
+      return;
+    }
     if (action.type === "background") {
       toast.promise(RunActionBackground(projectName, action.name, inputValues), {
         loading: `${action.label}…`,

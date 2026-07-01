@@ -980,5 +980,5 @@ fn build_action_yaml_prompt(
         task.push_str(&format!("User's instruction:\n{user_prompt}\n\nCurrent action YAML:\n{current_yaml}\n"));
     }
 
-    format!("{ctx}\n# Reference: lpm-config skill\n\n{LPM_SKILL}\n\n{task}")
+    format!("{ctx}\n# Reference: lpm skill\n\n{LPM_SKILL}\n\n{task}")
 }

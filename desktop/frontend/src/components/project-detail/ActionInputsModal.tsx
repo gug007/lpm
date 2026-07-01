@@ -3,17 +3,27 @@ import { Modal } from "../ui/Modal";
 import type { ActionInfo } from "../../types";
 
 interface ActionInputsModalProps {
+  projectName: string;
   action: ActionInfo;
   onCancel: () => void;
   onSubmit: (values: Record<string, string>) => void;
 }
 
-export function ActionInputsModal({ action, onCancel, onSubmit }: ActionInputsModalProps) {
+// Persist the last value picked for inputs flagged `persist`, so the modal
+// pre-selects it next time instead of snapping back to the static default.
+function persistKey(projectName: string, actionName: string, inputKey: string) {
+  return `lpm:input-last:${projectName}:${actionName}:${inputKey}`;
+}
+
+export function ActionInputsModal({ projectName, action, onCancel, onSubmit }: ActionInputsModalProps) {
   const inputs = action.inputs ?? [];
   const [values, setValues] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
     for (const inp of inputs) {
-      init[inp.key] = inp.default || "";
+      const remembered = inp.persist
+        ? localStorage.getItem(persistKey(projectName, action.name, inp.key))
+        : null;
+      init[inp.key] = remembered ?? inp.default ?? "";
     }
     return init;
   });
@@ -25,7 +35,13 @@ export function ActionInputsModal({ action, onCancel, onSubmit }: ActionInputsMo
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (canSubmit) onSubmit(values);
+    if (!canSubmit) return;
+    for (const inp of inputs) {
+      if (inp.persist) {
+        localStorage.setItem(persistKey(projectName, action.name, inp.key), values[inp.key] ?? "");
+      }
+    }
+    onSubmit(values);
   };
 
   const set = (key: string, value: string) =>
