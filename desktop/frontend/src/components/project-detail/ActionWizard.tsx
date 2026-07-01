@@ -44,8 +44,10 @@ import {
   ChevronRightIcon,
   FolderIcon,
   HelpCircleIcon,
+  MoonIcon,
   PlayIcon,
   PlusIcon,
+  SendIcon,
   SparkleIcon,
   TerminalIcon,
   TrashIcon,
@@ -58,7 +60,7 @@ import { EmojiSlotButton } from "../EmojiPickerButton";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 
 type Shape = "button" | "split" | "dropdown";
-type RunMode = "once" | "terminal" | "background";
+type RunMode = "once" | "terminal" | "command" | "background";
 
 const SHAPE_PREVIEW_BUTTON_CLASS =
   "border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-primary)]";
@@ -285,12 +287,14 @@ function applyAutoSettings(
 function runModeHint(mode: RunMode, reuse: boolean) {
   if (mode === "terminal") {
     return reuse
-      ? "Runs in a terminal. Running this action again reuses the same pane."
-      : "Opens a new terminal every time this action runs.";
+      ? "Reuses the same terminal each time you run this action."
+      : "Opens a new terminal every time you run this action.";
   }
+  if (mode === "command")
+    return "Types the command into the terminal you're currently using.";
   if (mode === "background")
-    return "Runs in the background and shows a success notification when done.";
-  return "Runs once and displays the result in a modal.";
+    return "Runs quietly in the background and notifies you when it's done.";
+  return "Runs once and shows the output in a pop-up.";
 }
 
 function wizardCopy(editing: boolean): {
@@ -530,7 +534,7 @@ function inferShape(action: ActionInfo): Shape {
 }
 
 function toRunMode(type: string | undefined): RunMode {
-  return type === "terminal" || type === "background" ? type : "once";
+  return type === "terminal" || type === "command" || type === "background" ? type : "once";
 }
 
 // Coerces AI-generated YAML into the ActionInfo shape so we can re-use
@@ -618,7 +622,7 @@ function defaultDraft(): FormDraft {
     portConflict: "",
     configLayer: "project",
     children: [newChild()],
-    runMode: "once",
+    runMode: "terminal",
     reuse: false,
     confirm: false,
   };
@@ -1793,6 +1797,14 @@ function RunModeDemo({
               </div>
             )}
 
+            {running === "command" && (
+              <div className="demo-terminal absolute inset-0 bg-black p-1.5 font-mono text-[7px] leading-tight text-white/90">
+                <div className="truncate text-white/40">~ % </div>
+                <div className="truncate">~ % {cmd}</div>
+                <span className="demo-cursor mt-0.5 inline-block h-[6px] w-[3px] bg-white/80" />
+              </div>
+            )}
+
             {running === "background" && (
               <div className="demo-toast absolute right-1.5 top-1.5 flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--bg-primary)] px-1.5 py-1 shadow">
                 <span className="h-1 w-1 animate-pulse rounded-full bg-[var(--text-secondary)]" />
@@ -2096,6 +2108,38 @@ function MenuOptionsEditor({
   );
 }
 
+const RUN_MODE_OPTIONS: Array<{
+  value: RunMode;
+  icon: ReactNode;
+  title: string;
+  description: string;
+}> = [
+  {
+    value: "terminal",
+    icon: <TerminalIcon />,
+    title: "Run in a new terminal",
+    description: "Opens a new terminal — good for servers and long-running commands.",
+  },
+  {
+    value: "once",
+    icon: <ZapIcon />,
+    title: "Run and show the output",
+    description: "Runs once and shows the output in a pop-up — good for quick commands.",
+  },
+  {
+    value: "command",
+    icon: <SendIcon />,
+    title: "Send to the active terminal",
+    description: "Types the command into the terminal you're currently using.",
+  },
+  {
+    value: "background",
+    icon: <MoonIcon />,
+    title: "Run in the background",
+    description: "Runs quietly and notifies you when it's done.",
+  },
+];
+
 function RunModePicker({
   runMode,
   reuse,
@@ -2107,6 +2151,16 @@ function RunModePicker({
   onRunMode: (mode: RunMode) => void;
   onReuse: (value: boolean) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
+  const current =
+    RUN_MODE_OPTIONS.find((opt) => opt.value === runMode) ?? RUN_MODE_OPTIONS[0];
+
+  const choose = (next: RunMode) => {
+    setOpen(false);
+    if (next !== runMode) onRunMode(next);
+  };
+
   return (
     <div>
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -2117,25 +2171,58 @@ function RunModePicker({
           {runModeHint(runMode, reuse)}
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-1 rounded-lg bg-[var(--bg-secondary)] p-1">
-        <ModeButton
-          active={runMode === "once"}
-          icon={<ZapIcon />}
-          title="Show in modal"
-          onClick={() => onRunMode("once")}
-        />
-        <ModeButton
-          active={runMode === "terminal"}
-          icon={<TerminalIcon />}
-          title="Run in new terminal"
-          onClick={() => onRunMode("terminal")}
-        />
-        <ModeButton
-          active={runMode === "background"}
-          icon={<SparkleIcon />}
-          title="Run in background"
-          onClick={() => onRunMode("background")}
-        />
+      <div ref={ref} className="relative">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className={`flex w-full items-center gap-2.5 rounded-xl border py-3 pl-4 pr-3.5 text-left transition ${
+            open
+              ? "border-[var(--text-primary)] bg-[var(--bg-primary)]"
+              : "border-[var(--border)] bg-[var(--bg-secondary)] hover:border-[var(--text-muted)]"
+          }`}
+        >
+          <span className="shrink-0 text-[var(--text-primary)]">
+            {current.icon}
+          </span>
+          <span className="min-w-0 flex-1 text-[14px] text-[var(--text-primary)]">
+            {current.title}
+          </span>
+          <span className="shrink-0 text-[var(--text-muted)]">
+            <ChevronDownIcon />
+          </span>
+        </button>
+        {open && (
+          <div className="absolute left-0 right-0 top-full z-50 mt-1.5 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-2xl">
+            {RUN_MODE_OPTIONS.map((opt) => {
+              const active = opt.value === runMode;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => choose(opt.value)}
+                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
+                >
+                  <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-[var(--text-primary)]">
+                    {active && <CheckIcon />}
+                  </span>
+                  <span className="shrink-0 text-[var(--text-muted)]">
+                    {opt.icon}
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span
+                      className={`text-[12px] font-medium ${active ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}
+                    >
+                      {opt.title}
+                    </span>
+                    <span className="truncate text-[11px] text-[var(--text-muted)]">
+                      {opt.description}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
       {runMode === "terminal" && (
         <label className="mt-3 flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
@@ -2144,7 +2231,7 @@ function RunModePicker({
             checked={reuse}
             onChange={(e) => onReuse(e.target.checked)}
           />
-          Reuse the same pane when I run this action again
+          Reuse the same terminal when I run this action again
         </label>
       )}
     </div>

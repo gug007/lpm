@@ -213,7 +213,10 @@
               "description": "How the action appears in the UI. Defaults to \"header\" when omitted. \"menu\" is still accepted but no longer suggested.",
               "errorMessage": "Invalid \"display\" value. Use \"header\" or \"footer\" (\"button\" → use \"header\")."
             },
-            "type": { "type": "string" },
+            "type": {
+              "type": "string",
+              "description": "How the action runs. Omit for a modal one-shot; \"terminal\" opens the command in a terminal tab; \"command\" submits the command into the currently focused terminal; \"background\" runs it hidden with a completion toast."
+            },
             "reuse": { "type": "boolean", "description": "Reuse an existing terminal if one is open." },
             "mode": {
               "type": "string",
@@ -246,6 +249,7 @@
         "required": { "type": "boolean" },
         "placeholder": { "type": "string" },
         "default": { "type": "string" },
+        "persist": { "type": "boolean", "description": "Remember the last value entered for this input and pre-select it next time (per project + action), overriding \"default\" once a value has been chosen." },
         "options": {
           "type": "array",
           "items": {

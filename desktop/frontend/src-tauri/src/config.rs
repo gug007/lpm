@@ -420,6 +420,8 @@ struct ActionInputDef {
     #[serde(default)]
     default: String,
     #[serde(default)]
+    persist: bool,
+    #[serde(default)]
     options: Vec<ActionInputOptionDef>,
 }
 
@@ -807,6 +809,7 @@ pub struct ActionInputInfo {
     pub required: bool,
     pub placeholder: String,
     pub default: String,
+    pub persist: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub options: Vec<ActionInputOption>,
 }
@@ -1162,6 +1165,7 @@ fn build_input_infos(inputs: &BTreeMap<String, ActionInputDef>) -> Vec<ActionInp
                 required: inp.required,
                 placeholder: inp.placeholder.clone(),
                 default: inp.default.clone(),
+                persist: inp.persist,
                 options,
             }
         })

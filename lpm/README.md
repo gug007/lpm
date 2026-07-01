@@ -1,4 +1,4 @@
-# lpm-config
+# lpm
 
 Agent skill for [lpm](https://lpm.cx) (Local Project Manager). Lets your AI coding agent create, modify, and delete lpm project configs.
 
@@ -9,13 +9,15 @@ Agent skill for [lpm](https://lpm.cx) (Local Project Manager). Lets your AI codi
 npx skills add gug007/lpm
 
 # Or install directly
-npx skills add gug007/lpm -s lpm-config
+npx skills add gug007/lpm -s lpm
 
 # Globally (all projects)
-npx skills add gug007/lpm -s lpm-config -g
+npx skills add gug007/lpm -s lpm -g
 ```
 
 That's it. Your agent now knows how to set up and manage lpm configs.
+
+In Claude Code you can also trigger it explicitly as a slash command: `/lpm`.
 
 ## What it does
 
@@ -34,8 +36,9 @@ The skill guides the agent to write correct lpm YAML configs at `~/.lpm/projects
 - **Services** — long-running processes with ports, env vars, profiles
 - **Actions** — one-shot commands with confirmation, display placement, user inputs
 - **Terminal actions** — actions that run in a persistent terminal pane (`type: terminal`, `reuse: true`)
+- **Active-terminal actions** — actions that submit a command into the currently focused terminal (`type: command`)
 - **Action groups** — nested sub-actions under a parent with inherited cwd/env
-- **Action inputs** — prompt users for parameters before running (text, password, radio)
+- **Action inputs** — prompt users for parameters before running (text, password, radio); `persist: true` remembers the last value chosen
 - **Terminals** — interactive shells (database consoles, REPLs)
 - **Profiles** — named subsets of services
 - **Duplicate projects** — inherit config from a parent project (`parent_name`)
@@ -61,5 +64,5 @@ Works with any agent that supports the [agentskills.io](https://agentskills.io) 
 Install to a specific agent with `-a`:
 
 ```bash
-npx skills add gug007/lpm -s lpm-config -a cursor
+npx skills add gug007/lpm -s lpm -a cursor
 ```
