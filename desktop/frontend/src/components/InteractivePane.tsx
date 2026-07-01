@@ -141,6 +141,8 @@ interface InteractiveSession {
   // closing over stale component state don't fire.
   onScrollState?: (atBottom: boolean) => void;
   onExit?: (exitCode: number) => void;
+  // Run after the buffer is cleared so a live filter overlay refreshes too.
+  onAfterClear?: () => void;
   themeOverride: ITheme | null;
 
   // Marks the session disconnected (same path onData uses on a failed write).
@@ -329,7 +331,15 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   term.attachCustomKeyEventHandler((e) => {
     if (handleCopyShortcut(e, term, serialize)) return false;
     if (handleSelectAllShortcut(e, term)) return false;
-    if (handleClearShortcut(e, term)) return false;
+    if (
+      handleClearShortcut(e, term, {
+        onClear: () => {
+          term.clear();
+          interactiveSessions.get(terminalId)?.onAfterClear?.();
+        },
+      })
+    )
+      return false;
     if (!e.metaKey) return true;
     return false;
   });
@@ -523,10 +533,15 @@ export function InteractivePane({
   themeOverrideRef.current = themeOverride;
   onExitRef.current = onExit;
 
+  // Clear the buffer and refresh any live filter overlay so both empty at once.
+  const clearConsole = () => {
+    sessionRef.current?.term.clear();
+    filterRef.current?.refresh();
+  };
+
   useImperativeHandle(ref, () => ({
     clear() {
-      const session = sessionRef.current;
-      if (session) session.term.clear();
+      clearConsole();
     },
     findNext(query: string) {
       return sessionRef.current?.search?.findNext(query) ?? false;
@@ -653,6 +668,7 @@ export function InteractivePane({
       themeOverrideRef.current ?? getTerminalTheme(el);
     session.themeOverride = themeOverrideRef.current ?? null;
     session.onScrollState = (atBottom) => scrollCallbackRef.current?.(atBottom);
+    session.onAfterClear = () => filterRef.current?.refresh();
     session.onExit = (code) => onExitRef.current?.(code);
 
     el.appendChild(session.host);
@@ -688,6 +704,7 @@ export function InteractivePane({
       ro.disconnect();
       session.onScrollState = undefined;
       session.onExit = undefined;
+      session.onAfterClear = undefined;
       filterRef.current?.dispose();
       filterRef.current = null;
       if (session.host.parentNode) {
@@ -765,7 +782,8 @@ export function InteractivePane({
           term={sessionRef.current.term}
           serialize={sessionRef.current.serialize}
           canPaste
-          onClear={() => sessionRef.current?.term.clear()}
+          filter={filterRef.current}
+          onClear={clearConsole}
           onPaste={() => {
             navigator.clipboard
               .readText()
