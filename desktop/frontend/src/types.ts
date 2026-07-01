@@ -15,7 +15,7 @@ export interface ProfileInfo {
   services: string[];
 }
 
-export type ActionType = "terminal" | "background" | (string & {});
+export type ActionType = "terminal" | "background" | "command" | (string & {});
 
 export type ActionDisplay = "header" | "menu" | "footer" | (string & {});
 
@@ -44,6 +44,7 @@ export interface ActionInputInfo {
   required: boolean;
   placeholder: string;
   default: string;
+  persist: boolean;
   options?: ActionInputOption[];
 }
 

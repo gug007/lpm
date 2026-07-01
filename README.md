@@ -74,4 +74,4 @@ npx skills add gug007/lpm
 
 Then just tell your agent "set up lpm for this project" and it will analyze your codebase, discover services, and write the config.
 
-See [lpm-config/README.md](lpm-config/README.md) for details.
+See [lpm/README.md](lpm/README.md) for details.

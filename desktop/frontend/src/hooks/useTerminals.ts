@@ -23,7 +23,6 @@ import {
   makeBrowser,
   makeReview,
   isTerminalTab,
-  walkPanes,
   collectPanes,
   collectTerminals,
   findPane,
@@ -38,6 +37,7 @@ import {
   isTabPinned,
 } from "../paneTree";
 import { useTabScroll } from "../store/tabScroll";
+import { disambiguateLabel, pickTerminalLabel } from "../terminalLabels";
 
 export interface TerminalStartOpts {
   configName?: string;
@@ -97,22 +97,6 @@ export interface UseTerminalsResult {
 // Client-side id for panes + browser webview labels (terminal ids come from the backend).
 function nextId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-}
-
-// Picks the smallest positive integer not already used so labels don't
-// collide after terminals are closed and re-created in different order.
-function pickTerminalLabel(node: PaneNode | null): string {
-  if (!node) return "Terminal 1";
-  const used = new Set<number>();
-  walkPanes(node, (pane) => {
-    for (const t of pane.tabs) {
-      const match = /^Terminal (\d+)$/.exec(t.label);
-      if (match) used.add(parseInt(match[1], 10));
-    }
-  });
-  let n = 1;
-  while (used.has(n)) n++;
-  return `Terminal ${n}`;
 }
 
 function appendTerminal(pane: PaneLeaf, term: TerminalInstance): PaneLeaf {
@@ -301,13 +285,20 @@ export function useTerminals(
   const addTerminal = useCallback(
     (term: TerminalInstance, targetPaneId?: string) => {
       const current = treeRef.current;
+      // Suffix duplicate PTY-tab labels ("Ultracode 2", "Ultracode 3") at the
+      // one path every add funnels through, so no caller can reintroduce a
+      // collision. Generic "Terminal N" labels are already unique (no-op);
+      // browser/review tabs keep their bare shared names.
+      const labeled = isTerminalTab(term)
+        ? { ...term, label: disambiguateLabel(current, term.label) }
+        : term;
       if (!current) {
         const paneId = targetPaneId ?? nextId("pane");
-        applyTree(makePaneLeaf(paneId, [term], 0), paneId);
+        applyTree(makePaneLeaf(paneId, [labeled], 0), paneId);
         return;
       }
       const paneId = targetPaneId ?? focusedRef.current ?? firstPaneId(current);
-      applyTree(mapPane(current, paneId, (p) => appendTerminal(p, term)), paneId);
+      applyTree(mapPane(current, paneId, (p) => appendTerminal(p, labeled)), paneId);
     },
     [applyTree],
   );

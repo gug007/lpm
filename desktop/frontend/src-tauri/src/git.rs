@@ -14,11 +14,17 @@ use tauri::{AppHandle, Emitter, State};
 
 /// Run git in `cwd`, trimmed stdout on success; trimmed stderr (or status) on error.
 fn git_out(cwd: &str, args: &[&str]) -> Result<String, String> {
-    let out = Command::new("git")
-        .args(args)
-        .current_dir(cwd)
-        .output()
-        .map_err(|e| e.to_string())?;
+    git_out_env(cwd, args, &[])
+}
+
+/// Like `git_out`, with extra environment variables set on the git process.
+fn git_out_env(cwd: &str, args: &[&str], envs: &[(&str, &str)]) -> Result<String, String> {
+    let mut cmd = Command::new("git");
+    cmd.args(args).current_dir(cwd);
+    for (k, v) in envs {
+        cmd.env(k, v);
+    }
+    let out = cmd.output().map_err(|e| e.to_string())?;
     if !out.status.success() {
         let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
         if !stderr.is_empty() {
@@ -621,6 +627,18 @@ pub fn delete_branch(cwd: String, name: String) -> Result<(), String> {
     git_out(&cwd, &["branch", "-D", name]).map(|_| ())
 }
 
+/// Drop a stale remote-tracking ref (`refs/remotes/<remote>/<name>`) without
+/// touching the remote itself. For clearing branches deleted upstream that a
+/// plain fetch left behind; a later `fetch --prune` would remove the same ref.
+#[tauri::command(async)]
+pub fn delete_remote_tracking_ref(cwd: String, remote: String, name: String) -> Result<(), String> {
+    let (remote, name) = (remote.trim(), name.trim());
+    if remote.is_empty() || name.is_empty() {
+        return Err("remote and branch name required".into());
+    }
+    git_out(&cwd, &["branch", "-dr", &format!("{remote}/{name}")]).map(|_| ())
+}
+
 #[tauri::command(async)]
 pub fn rename_branch(cwd: String, old_name: String, new_name: String) -> Result<(), String> {
     let (old_name, new_name) = (old_name.trim(), new_name.trim());
@@ -727,6 +745,23 @@ pub fn git_fetch_all(cwd: String, flags: Vec<String>) -> Result<(), String> {
     git_out(&cwd, &refs).map(|_| ())
 }
 
+/// Background remote-ref cleanup for the branch picker: `git fetch --all
+/// --prune`, forced non-interactive so an auth-required, unknown-host, or
+/// unreachable remote fails fast instead of blocking on a credential/host
+/// prompt (which would otherwise wedge the caller's in-flight guard).
+#[tauri::command(async)]
+pub fn git_prune_remotes(cwd: String) -> Result<(), String> {
+    git_out_env(
+        &cwd,
+        &["fetch", "--all", "--prune"],
+        &[
+            ("GIT_TERMINAL_PROMPT", "0"),
+            ("GIT_SSH_COMMAND", "ssh -o BatchMode=yes -o ConnectTimeout=10"),
+        ],
+    )
+    .map(|_| ())
+}
+
 #[tauri::command(async)]
 pub fn git_merge(cwd: String, branch: String) -> Result<(), String> {
     let branch = branch.trim();
@@ -826,8 +861,8 @@ fn should_ignore(root: &str, full: &str) -> bool {
         if segs.len() == 2 {
             return !GIT_FILE_ALLOW.contains(&segs[1]);
         }
-        if segs.len() >= 3 && segs[1] == "refs" && segs[2] == "heads" {
-            return false; // local branch commits
+        if segs.len() >= 3 && segs[1] == "refs" && (segs[2] == "heads" || segs[2] == "remotes") {
+            return false; // local branch commits + remote-tracking ref changes (e.g. prune)
         }
         return true;
     }

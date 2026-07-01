@@ -46,6 +46,9 @@ export interface TerminalViewHandle {
   createTerminal(): void;
   createTerminalWithCmd(label: string, cmd: string, opts?: TerminalStartOpts): void;
   resumeFromHistory(entry: PersistedHistoryEntry): void;
+  // Submit a command into the focused pane's active terminal. Returns false
+  // (with a toast) when no live terminal is focused.
+  sendCommandToActive(cmd: string): boolean;
 }
 
 export function TerminalView({ projectName, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, runningPaneIDs, donePaneIDs, waitingPaneIDs, errorPaneIDs, visible = true, ref }: TerminalViewProps) {
@@ -554,10 +557,21 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     clearPendingGeneratorRun,
   ]);
 
+  const sendCommandToActive = useCallback(
+    (cmd: string): boolean => {
+      if (!focusedComposerTerminalId) {
+        toast.error("Open a terminal first to run this command.");
+        return false;
+      }
+      return submitInputToTerminal(focusedComposerTerminalId, cmd);
+    },
+    [focusedComposerTerminalId, submitInputToTerminal],
+  );
+
   useImperativeHandle(
     ref,
-    () => ({ createTerminal, createTerminalWithCmd, resumeFromHistory }),
-    [createTerminal, createTerminalWithCmd, resumeFromHistory],
+    () => ({ createTerminal, createTerminalWithCmd, resumeFromHistory, sendCommandToActive }),
+    [createTerminal, createTerminalWithCmd, resumeFromHistory, sendCommandToActive],
   );
 
   return (

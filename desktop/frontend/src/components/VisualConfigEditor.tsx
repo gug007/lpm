@@ -19,6 +19,7 @@ interface ActionInputEntry {
   required: boolean;
   placeholder: string;
   default: string;
+  persist: boolean;
 }
 
 interface ActionEntry {
@@ -96,6 +97,7 @@ function parseYaml(yaml: string): ConfigForm {
             required: Boolean(o.required),
             placeholder: String(o.placeholder || ""),
             default: String(o.default || ""),
+            persist: Boolean(o.persist),
           };
         }),
       };
@@ -150,6 +152,7 @@ function serializeToYaml(form: ConfigForm): string {
           if (inp.required) o.required = true;
           if (inp.placeholder) o.placeholder = inp.placeholder;
           if (inp.default) o.default = inp.default;
+          if (inp.persist) o.persist = true;
           inputsObj[inp.key] = o;
         }
       }
@@ -376,11 +379,24 @@ function InputsEditor({ entries, onChange }: { entries: ActionInputEntry[]; onCh
                 />
                 <span className="text-[11px] text-[var(--text-muted)]">Req</span>
               </label>
+              <label className="flex items-center gap-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={inp.persist}
+                  onChange={(e) => {
+                    const next = [...entries];
+                    next[i] = { ...inp, persist: e.target.checked };
+                    onChange(next);
+                  }}
+                  className="accent-[var(--accent-blue)]"
+                />
+                <span className="text-[11px] text-[var(--text-muted)]">Persist</span>
+              </label>
             </div>
           </div>
         ))}
         <button
-          onClick={() => onChange([...entries, { key: "", label: "", type: "text", required: false, placeholder: "", default: "" }])}
+          onClick={() => onChange([...entries, { key: "", label: "", type: "text", required: false, placeholder: "", default: "", persist: false }])}
           className="self-start text-[12px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
         >
           + Add input
@@ -573,7 +589,7 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
                         <Select
                           value={act.type}
                           onChange={(v) => updateAction(i, { type: v })}
-                          options={[{ value: "", label: "Modal" }, { value: "terminal", label: "Terminal tab" }, { value: "background", label: "Background" }]}
+                          options={[{ value: "", label: "Modal" }, { value: "terminal", label: "Terminal tab" }, { value: "command", label: "Active terminal" }, { value: "background", label: "Background" }]}
                         />
                       </Field>
                     </div>

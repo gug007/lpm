@@ -3,7 +3,7 @@ import type { SerializeAddon } from "@xterm/addon-serialize";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
 import { copyTerminalSelection } from "./copySelection";
-import { copyConsole, saveConsole } from "./consoleActions";
+import { copyConsole, saveConsole, type ConsoleFilter } from "./consoleActions";
 
 interface ConsoleContextMenuProps {
   x: number;
@@ -11,6 +11,7 @@ interface ConsoleContextMenuProps {
   term: Terminal;
   serialize: SerializeAddon | null;
   canPaste: boolean;
+  filter?: ConsoleFilter | null;
   onClear: () => void;
   onPaste?: () => void;
   onClose: () => void;
@@ -22,6 +23,7 @@ export function ConsoleContextMenu({
   term,
   serialize,
   canPaste,
+  filter,
   onClear,
   onPaste,
   onClose,
@@ -56,11 +58,11 @@ export function ConsoleContextMenu({
       <div className="my-1 h-px bg-[var(--border)]" />
       <ContextMenuItem
         label="Copy console"
-        onClick={run(() => void copyConsole(term))}
+        onClick={run(() => void copyConsole(term, filter))}
       />
       <ContextMenuItem
         label="Save as..."
-        onClick={run(() => void saveConsole(term))}
+        onClick={run(() => void saveConsole(term, filter))}
       />
     </ContextMenuShell>
   );

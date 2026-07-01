@@ -30,6 +30,8 @@ interface PaneSession {
   cwd: string;
   pathLinkDisposable: IDisposable | null;
   onScrollState?: (atBottom: boolean) => void;
+  // Run after the pane is cleared so a live filter overlay refreshes too.
+  onAfterClear?: () => void;
 }
 
 const paneSessions = new Map<string, PaneSession>();
@@ -99,6 +101,7 @@ function createPaneSession(opts: { fontSize: number; theme: ITheme; cwd: string 
 function clearPaneSession(session: PaneSession): void {
   session.term.reset();
   session.prevLines = [];
+  session.onAfterClear?.();
 }
 
 export function disposePaneSession(key: string): void {
@@ -219,6 +222,7 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
       session.onScrollState = (atBottom) => {
         scrollCallbackRef.current?.(atBottom);
       };
+      session.onAfterClear = () => filterRef.current?.refresh();
 
       try { session.fit.fit(); } catch {}
 
@@ -253,6 +257,7 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
         globalObserver.disconnect();
         ro.disconnect();
         session.onScrollState = undefined;
+        session.onAfterClear = undefined;
         filterRef.current?.dispose();
         filterRef.current = null;
 
@@ -386,6 +391,7 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
             term={sessionRef.current.term}
             serialize={sessionRef.current.serialize}
             canPaste={false}
+            filter={filterRef.current}
             onClear={() => {
               const s = sessionRef.current;
               if (s) clearPaneSession(s);

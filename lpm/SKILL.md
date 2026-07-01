@@ -1,6 +1,6 @@
 ---
-name: lpm-config
-description: Create, modify, and delete lpm (Local Project Manager) project configs at ~/.lpm/projects/*.yml. Use whenever the user mentions lpm, asks to set up lpm, create/edit/delete an lpm config, add or remove services, actions, or terminals from lpm, or says "lpm setup", "create lpm config", "add service to lpm", "configure lpm". Also trigger when the user wants to add a button or menu action to run commands, manage dev project processes, start/stop multiple services together, group related commands, set up one-shot commands with confirmation prompts, or configure interactive terminal shells through YAML config files. Also triggers when the user wants a background/silent action, a split-button with a default plus alternatives, a dropdown menu of related commands, an action pinned to the terminal footer, an SSH/remote project, or a sync-mode action that mirrors a remote directory locally. Also triggers when the user asks to edit lpm config for the current directory (cwd) without naming a project. Also triggers when the user wants to share an lpm config with their team via `.lpm.yml` checked into the repo, create or reference a reusable template under `~/.lpm/templates/`, layer one config on top of another via `extends`, reorder buttons with `position`, pre-flight a port-conflict check with `port` on an action or terminal, or sparse-override a single field of a global action. If the user has lpm installed (~/.lpm/ exists), this skill applies to any request about managing project workflows.
+name: lpm
+description: Create, modify, and delete lpm (Local Project Manager) project configs at ~/.lpm/projects/*.yml. Use whenever the user mentions lpm, asks to set up lpm, create/edit/delete an lpm config, add or remove services, actions, or terminals from lpm, or says "lpm setup", "create lpm config", "add service to lpm", "configure lpm". Also trigger when the user wants to add a button or menu action to run commands, manage dev project processes, start/stop multiple services together, group related commands, set up one-shot commands with confirmation prompts, or configure interactive terminal shells through YAML config files. Also triggers when the user wants a background/silent action, an action that submits a command into the currently open/focused/active terminal (the `command` action type), a split-button with a default plus alternatives, a dropdown menu of related commands, an action pinned to the terminal footer, an SSH/remote project, or a sync-mode action that mirrors a remote directory locally. Also triggers when the user wants an action input to remember the last value chosen and pre-select it next time (`persist`). Also triggers when the user asks to edit lpm config for the current directory (cwd) without naming a project. Also triggers when the user wants to share an lpm config with their team via `.lpm.yml` checked into the repo, create or reference a reusable template under `~/.lpm/templates/`, layer one config on top of another via `extends`, reorder buttons with `position`, pre-flight a port-conflict check with `port` on an action or terminal, or sparse-override a single field of a global action. If the user has lpm installed (~/.lpm/ exists), this skill applies to any request about managing project workflows.
 ---
 
 ## Instructions
@@ -19,13 +19,13 @@ For the full YAML field reference, see [YAML Schema Reference](references/yaml-s
 npx skills add gug007/lpm
 
 # Or install directly
-npx skills add gug007/lpm -s lpm-config
+npx skills add gug007/lpm -s lpm
 
 # Install globally (available everywhere)
-npx skills add gug007/lpm -s lpm-config -g
+npx skills add gug007/lpm -s lpm -g
 
 # Update to latest version
-npx skills update lpm-config
+npx skills update lpm
 ```
 
 **tmux** is required by lpm:
@@ -54,6 +54,7 @@ sudo apt install tmux
 | "group these actions together" | **Modify** — create an action group with nested `actions` |
 | "duplicate this project for another directory" | **Create** — use `parent_name` for a duplicate project |
 | "make it run in background", "notify when done", "run silently" | **Modify** — add action with `type: background` |
+| "send this to the open terminal", "run in the current/active terminal", "type this into my shell" | **Modify** — add action with `type: command` |
 | "button with a default and alternatives" | **Modify** — split-button action group (parent `cmd` + nested `actions`) |
 | "dropdown of related commands", "menu of sub-actions" | **Modify** — dropdown-only action group (nested `actions`, no parent `cmd`) |
 | "nested menus", "submenu inside a button", "a tree of actions", "multi-level menu" | **Modify** — nest `actions` recursively (any depth → drill menu); split at each level when the node has its own `cmd` |
@@ -175,6 +176,10 @@ When the user asks to add something, ask follow-up questions to pick the right c
 
 → Add the action with `type: background`. The command runs hidden and lpm shows a toast on completion. Common fits: builds, migrations, `docker pull`, `git fetch`, dependency installs. Pair with `confirm: true` when it's destructive.
 
+**"Send it to the terminal I'm looking at / run it in the active terminal"**
+
+→ Add the action with `type: command`. lpm types the command into the focused pane's active terminal and presses Enter, so it drives a shell or an already-running program (an AI CLI, a REPL, a `psql` session) instead of opening a new pane. If no terminal is focused, lpm shows a toast asking to open one first.
+
 **"Pin it to the terminal footer / right next to the branch switcher"**
 
 → Set `display: footer`. The action renders as a compact button in the strip at the bottom of the terminal pane. Use for tight, frequently-used controls (quick-test, redeploy, format) that should always be one click away without taking space in the main button row. Footer also accepts split buttons (parent `cmd` + nested `actions`).
@@ -223,6 +228,7 @@ services:
 - Are any required?
 - Should any be a selection from fixed options? → `type: radio` with `options`
 - Any defaults?
+- Should it remember the last value the user picked? → `persist: true` (pre-selects the previous choice next run, per project + action)
 
 **"Add a button with a dropdown" / "button with options"**
 
@@ -359,7 +365,7 @@ actions:                 # optional — one-shot commands
     env: {}              # optional
     confirm: <bool>      # optional (default: false)
     display: <string>    # optional (header | footer, default: header). "menu" still accepted (legacy).
-    type: <string>       # optional — "terminal" (pane) or "background" (hidden + toast)
+    type: <string>       # optional — "terminal" (pane), "command" (send to focused terminal), or "background" (hidden + toast)
     reuse: <bool>        # optional — reuse same terminal pane
     mode: <string>       # optional, SSH projects only — "remote" (default) or "sync"
     inputs: {}           # optional — user-prompted parameters

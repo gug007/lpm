@@ -79,6 +79,9 @@ export function CreateTemplate(name) {
 export function DeleteBranch(cwd, name) {
   return invoke("delete_branch", { cwd, name });
 }
+export function DeleteRemoteTrackingRef(cwd, remote, name) {
+  return invoke("delete_remote_tracking_ref", { cwd, remote, name });
+}
 export function DeleteTemplate(name) {
   return invoke("delete_template", { name });
 }
@@ -198,6 +201,9 @@ export function GitMerge(cwd, branch) {
 }
 export function GitMergeConflicts(cwd) {
   return invoke("git_merge_conflicts", { cwd });
+}
+export function GitPruneRemotes(cwd) {
+  return invoke("git_prune_remotes", { cwd });
 }
 export function GitPush(cwd, flags) {
   return invoke("git_push", { cwd, flags });

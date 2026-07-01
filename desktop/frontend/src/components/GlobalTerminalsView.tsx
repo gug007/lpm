@@ -147,6 +147,7 @@ export function GlobalTerminalsView({
       />
       {modals.inputs.action && (
         <ActionInputsModal
+          projectName={GLOBAL_TERMINALS_KEY}
           action={modals.inputs.action}
           onCancel={modals.inputs.onCancel}
           onSubmit={modals.inputs.onSubmit}
