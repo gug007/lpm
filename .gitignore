@@ -2,9 +2,6 @@
 PROJECT.md
 docs/superpowers/
 
-# Go binary (root only; keep the lpm/ skill directory tracked)
-/lpm
-!/lpm/
 *.exe
 
 # Desktop app
