@@ -4,8 +4,10 @@ import {
   CheckoutBranch,
   CreateBranch,
   DeleteBranch,
+  DeleteRemoteTrackingRef,
   GitDiscardAll,
   GitFetchAll,
+  GitPruneRemotes,
   GitPush,
   PullBranch,
   RenameBranch,
@@ -39,6 +41,7 @@ import { ConfirmDialog } from "./ui/ConfirmDialog";
 import {
   BranchIcon,
   CloudBranchIcon,
+  CloudOffIcon,
   CopyIcon,
   PencilIcon,
   TrashIcon,
@@ -46,6 +49,7 @@ import {
 } from "./icons";
 import { branchKey, orderBranches, RemoteBadge } from "./branchUtils";
 import { relativeTime } from "../relativeTime";
+import { shouldFetch, recordFetch } from "../gitFetchThrottle";
 
 export function BranchSwitcher({
   projectName,
@@ -73,6 +77,11 @@ export function BranchSwitcher({
   const [deletingBranch, setDeletingBranch] = useState<main.Branch | null>(
     null,
   );
+  const [removingRemote, setRemovingRemote] = useState<main.Branch | null>(
+    null,
+  );
+  const [pruning, setPruning] = useState(false);
+  const pruningRef = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const commitMenuRef = useOutsideClick<HTMLDivElement>(
@@ -139,8 +148,30 @@ export function BranchSwitcher({
     }
   };
 
+  // Deleted-on-remote branches leave stale remote-tracking refs that a plain
+  // fetch never removes, so they linger in the list (as cloud entries) until a
+  // prune. Kick off a throttled, non-blocking `fetch --prune` when the picker
+  // opens; the list re-renders from local refs immediately and updates when the
+  // prune lands. Offline/no-remote just no-ops via the swallowed error.
+  const maybePrune = () => {
+    if (pruningRef.current || !shouldFetch(projectPath)) return;
+    pruningRef.current = true;
+    recordFetch(projectPath);
+    setPruning(true);
+    GitPruneRemotes(projectPath)
+      .then(() => refresh())
+      .catch(() => {})
+      .finally(() => {
+        pruningRef.current = false;
+        setPruning(false);
+      });
+  };
+
   const toggleOpen = () => {
-    if (!open) refresh();
+    if (!open) {
+      refresh();
+      maybePrune();
+    }
     setOpen(!open);
   };
 
@@ -280,6 +311,21 @@ export function BranchSwitcher({
     }
   };
 
+  const handleRemoveRemote = async () => {
+    const b = removingRemote;
+    if (!b || !b.remote) return;
+    setBusy(true);
+    try {
+      await DeleteRemoteTrackingRef(projectPath, b.remote, b.name);
+      await refresh();
+      setRemovingRemote(null);
+    } catch (err) {
+      toast.error(`Remove ${b.remote}/${b.name}: ${err}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const needsSync =
     status.hasUpstream && (status.ahead > 0 || status.behind > 0);
 
@@ -343,8 +389,16 @@ export function BranchSwitcher({
               />
             </div>
             <div className="max-h-[360px] overflow-y-auto py-1.5">
-              <div className="px-4 pb-1.5 pt-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-                Branches
+              <div className="flex items-center px-4 pb-1.5 pt-2">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                  Branches
+                </span>
+                {pruning && (
+                  <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
+                    <span className="inline-block h-1 w-1 animate-pulse rounded-full bg-[var(--text-muted)]" />
+                    Syncing…
+                  </span>
+                )}
               </div>
               {filtered.length === 0 && (
                 <div className="px-4 py-3 text-[13px] text-[var(--text-muted)]">
@@ -461,6 +515,14 @@ export function BranchSwitcher({
                                 danger
                               >
                                 <TrashIcon size={13} />
+                              </BranchActionButton>
+                            )}
+                            {b.remote && (
+                              <BranchActionButton
+                                title="Remove from list"
+                                onClick={() => setRemovingRemote(b)}
+                              >
+                                <CloudOffIcon size={13} />
                               </BranchActionButton>
                             )}
                           </div>
@@ -669,6 +731,25 @@ export function BranchSwitcher({
         }
         onCancel={() => setDeletingBranch(null)}
         onConfirm={handleDelete}
+      />
+      <ConfirmDialog
+        open={removingRemote !== null}
+        title="Remove branch from list"
+        confirmLabel="Remove"
+        disabled={busy}
+        body={
+          <>
+            Remove{" "}
+            <span className="font-medium text-[var(--text-primary)]">
+              {removingRemote?.remote}/{removingRemote?.name}
+            </span>
+            ? This clears the copy lpm keeps locally — it doesn&apos;t change
+            anything on the remote. If the branch still exists there, it will
+            come back the next time you fetch.
+          </>
+        }
+        onCancel={() => setRemovingRemote(null)}
+        onConfirm={handleRemoveRemote}
       />
     </div>
   );
