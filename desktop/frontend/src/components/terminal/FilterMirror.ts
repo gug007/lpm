@@ -3,7 +3,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import type { SerializeAddon } from "@xterm/addon-serialize";
 import { TERMINAL_FONT_FAMILY } from "../terminal-utils";
-import { filterLines } from "./filterLines";
+import { filterLines, stripAnsi } from "./filterLines";
 
 const MATCH_DECORATIONS = {
   matchBackground: "#5c4a00",
@@ -58,6 +58,26 @@ export class FilterMirror {
     if (this.host) this.host.style.display = "block";
     this.subscribeLive();
     this.run();
+  }
+
+  // True while a query is actively filtering the overlay (what the user sees).
+  isActive(): boolean {
+    return this.active && this.query.length > 0;
+  }
+
+  // The matched lines as plain text, recomputed from the live source so it
+  // reflects the full filtered set independent of the mirror's rendering.
+  getFilteredText(): string {
+    if (!this.query) return "";
+    return filterLines(this.readSourceText(), this.query)
+      .map(stripAnsi)
+      .join("\n");
+  }
+
+  // Re-derive the overlay from the current source (e.g. after the underlying
+  // terminal is cleared, so the filtered view empties too).
+  refresh(): void {
+    if (this.active && this.query) this.run();
   }
 
   setTheme(theme: ITheme): void {

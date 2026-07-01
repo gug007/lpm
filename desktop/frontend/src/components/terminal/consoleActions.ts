@@ -12,8 +12,22 @@ export function bufferToPlainText(term: Terminal): string {
   return lines.join("\n");
 }
 
-export async function copyConsole(term: Terminal): Promise<void> {
-  const text = bufferToPlainText(term);
+// An active console filter (the FilterMirror). When present, copy/save operate
+// on the filtered lines the user is actually looking at, not the full buffer.
+export interface ConsoleFilter {
+  isActive(): boolean;
+  getFilteredText(): string;
+}
+
+function consoleText(term: Terminal, filter?: ConsoleFilter | null): string {
+  return filter?.isActive() ? filter.getFilteredText() : bufferToPlainText(term);
+}
+
+export async function copyConsole(
+  term: Terminal,
+  filter?: ConsoleFilter | null,
+): Promise<void> {
+  const text = consoleText(term, filter);
   if (!text) return;
   try {
     await navigator.clipboard.writeText(text);
@@ -23,8 +37,11 @@ export async function copyConsole(term: Terminal): Promise<void> {
   }
 }
 
-export async function saveConsole(term: Terminal): Promise<void> {
-  const text = bufferToPlainText(term);
+export async function saveConsole(
+  term: Terminal,
+  filter?: ConsoleFilter | null,
+): Promise<void> {
+  const text = consoleText(term, filter);
   const name = `console-${Date.now()}.log`;
   try {
     const saved = await SaveTextFile(name, text);
