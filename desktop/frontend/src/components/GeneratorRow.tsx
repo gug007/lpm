@@ -1,6 +1,7 @@
 import { type CSSProperties } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Pencil, Trash2 } from "lucide-react";
 import type { Generator } from "../types";
 import { GeneratorIconView } from "./generatorIcons";
 
@@ -41,14 +42,18 @@ export function GeneratorRow({ generator, onRun, onEdit, onRemove, onContextMenu
           aria-label="Edit"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); onEdit(generator); }}
-          className="flex h-6 w-6 items-center justify-center rounded text-[11px] text-[var(--text-muted)] hover:bg-[var(--bg-active)] hover:text-[var(--text-primary)]"
-        >✎</button>
+          className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-active)] hover:text-[var(--text-primary)]"
+        >
+          <Pencil size={13} />
+        </button>
         <button
           aria-label="Remove"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); onRemove(generator); }}
-          className="flex h-6 w-6 items-center justify-center rounded text-[11px] text-[var(--text-muted)] hover:bg-[var(--bg-active)] hover:text-[var(--accent-red)]"
-        >✕</button>
+          className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--accent-red)]/10 hover:text-[var(--accent-red)]"
+        >
+          <Trash2 size={13} />
+        </button>
       </div>
     </div>
   );
