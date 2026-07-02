@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Sparkles, X } from "lucide-react";
 import {
-  isAICLI,
   type AICLI,
   type Generator,
   type GeneratorDraft,
@@ -11,7 +10,7 @@ import {
 import { Modal } from "./ui/Modal";
 import { GeneratorIconButton } from "./GeneratorIconButton";
 import { useGeneratorsStore } from "../store/generators";
-import { getSettings } from "../store/settings";
+import { resolveInitialCli } from "../generators";
 import { PromptField } from "./PromptField";
 import { SegmentedControl } from "./ui/SegmentedControl";
 import { AICliSelect } from "./ui/AICliSelect";
@@ -40,11 +39,7 @@ export function GeneratorFormModal({ mode, generator, onClose }: GeneratorFormMo
   const [icon, setIcon] = useState<GeneratorIcon>(generator?.icon ?? { type: "emoji", value: "📦" });
   const [type, setType] = useState<GeneratorType>(generator?.type ?? "ai");
   const [prompt, setPrompt] = useState(generator?.prompt ?? DEFAULT_PROMPT);
-  const [cli, setCli] = useState<AICLI>(() => {
-    if (generator?.cli) return generator.cli;
-    const saved = getSettings().aiCli;
-    return isAICLI(saved) ? saved : "claude";
-  });
+  const [cli, setCli] = useState<AICLI>(() => resolveInitialCli(generator?.cli));
   const [command, setCommand] = useState(generator?.command ?? "");
 
   const canSave =

@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
-import { CheckAICLIs } from "../../../bridge/commands";
 import { AI_CLI_OPTIONS, type AICLI } from "../../types";
+import { useAIPicker } from "../../hooks/useAIPicker";
 import { ChevronDownIcon } from "../icons";
 
 interface AICliSelectProps {
@@ -9,25 +8,7 @@ interface AICliSelectProps {
 }
 
 export function AICliSelect({ value, onChange }: AICliSelectProps) {
-  const [available, setAvailable] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    let cancelled = false;
-    CheckAICLIs()
-      .then((a) => {
-        if (cancelled) return;
-        setAvailable({
-          claude: a.claude,
-          codex: a.codex,
-          gemini: a.gemini,
-          opencode: a.opencode,
-        });
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { aiCLIs: available } = useAIPicker(true);
 
   return (
     <div className="relative">

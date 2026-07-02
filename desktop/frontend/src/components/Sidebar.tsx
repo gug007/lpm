@@ -433,10 +433,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
 
   const pendingTrash = confirmTrash ? projectByName.get(confirmTrash) : undefined;
   const pendingTrashLabel = pendingTrash ? projectDisplayName(pendingTrash) : "";
-  const pendingTrashDuplicates = pendingTrash
-    ? projects.filter((p) => p.parentName === pendingTrash.name)
-    : [];
-  const trashDupCount = pendingTrashDuplicates.length;
+  const trashDupCount = pendingTrash
+    ? projects.filter((p) => p.parentName === pendingTrash.name).length
+    : 0;
   const trashDupPlural = trashDupCount === 1 ? "" : "s";
 
   useEffect(() => EventsOn("update-available", setUpdateInfo), []);

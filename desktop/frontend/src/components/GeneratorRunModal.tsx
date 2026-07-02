@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { X } from "lucide-react";
-import { isAICLI, type AICLI, type Generator, type GeneratorRunSpec } from "../types";
+import { type AICLI, type Generator, type GeneratorRunSpec } from "../types";
 import { Modal } from "./ui/Modal";
 import { BrowseFolder } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
 import { getSettings } from "../store/settings";
+import { resolveInitialCli } from "../generators";
 import { PromptField } from "./PromptField";
 import { AICliSelect } from "./ui/AICliSelect";
 import { GeneratorIconView } from "./generatorIcons";
@@ -21,11 +22,7 @@ export function GeneratorRunModal({ generator, onClose }: GeneratorRunModalProps
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState(generator.prompt);
   const [command, setCommand] = useState(generator.command ?? "");
-  const [cli, setCli] = useState<AICLI>(() => {
-    if (generator.cli) return generator.cli;
-    const saved = getSettings().aiCli;
-    return isAICLI(saved) ? saved : "claude";
-  });
+  const [cli, setCli] = useState<AICLI>(() => resolveInitialCli(generator.cli));
 
   const isCommand = generator.type === "command";
 

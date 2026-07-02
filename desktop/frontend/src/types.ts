@@ -297,14 +297,7 @@ export interface Generator {
 
 export type GeneratorDraft = Omit<Generator, "id" | "builtin">;
 
-export interface GeneratorOverride {
-  label?: string;
-  icon?: GeneratorIcon;
-  type?: GeneratorType;
-  prompt?: string;
-  cli?: AICLI;
-  command?: string;
-}
+export type GeneratorOverride = Partial<GeneratorDraft>;
 
 // What a generator run hands to the new project's terminal. "ai" launches the
 // selected agent CLI with the prompt as a launch arg; "command" runs the raw

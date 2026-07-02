@@ -1,10 +1,9 @@
+import { useMemo } from "react";
 import { create } from "zustand";
 import { LoadGenerators, SaveGenerators } from "../../bridge/commands";
 import type {
-  AICLI,
   Generator,
-  GeneratorIcon,
-  GeneratorType,
+  GeneratorOverride,
   GeneratorsConfig,
   GeneratorDraft,
 } from "../types";
@@ -22,15 +21,6 @@ import {
 import { type ComposerAction } from "./composerActions";
 import { DEFAULT_GENERATOR_PROMPT_ACTIONS } from "../generatorPromptActions";
 
-type GeneratorPatch = {
-  label?: string;
-  icon?: GeneratorIcon;
-  type?: GeneratorType;
-  prompt?: string;
-  cli?: AICLI;
-  command?: string;
-};
-
 interface GeneratorsActions {
   hydrate: () => Promise<void>;
   persist: (next: GeneratorsConfig) => Promise<void>;
@@ -38,7 +28,7 @@ interface GeneratorsActions {
   hideDefault: (id: string) => Promise<void>;
   restoreDefault: (id: string) => Promise<void>;
   addCustom: (gen: GeneratorDraft) => Promise<void>;
-  updateGenerator: (id: string, patch: GeneratorPatch, isDefault: boolean) => Promise<void>;
+  updateGenerator: (id: string, patch: GeneratorOverride, isDefault: boolean) => Promise<void>;
   deleteCustom: (id: string) => Promise<void>;
   savePromptActions: (actions: ComposerAction[]) => Promise<void>;
 }
@@ -80,7 +70,8 @@ export const useGeneratorsStore = create<GeneratorsState>((set, get) => ({
 }));
 
 export function useResolvedGenerators(): Generator[] {
-  return resolveGenerators(useGeneratorsStore((s) => s.config));
+  const config = useGeneratorsStore((s) => s.config);
+  return useMemo(() => resolveGenerators(config), [config]);
 }
 
 export function usePromptActions(): ComposerAction[] {
@@ -89,5 +80,6 @@ export function usePromptActions(): ComposerAction[] {
 }
 
 export function useEnabledPromptActions(): ComposerAction[] {
-  return usePromptActions().filter((a) => a.enabled);
+  const actions = usePromptActions();
+  return useMemo(() => actions.filter((a) => a.enabled), [actions]);
 }

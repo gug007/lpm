@@ -732,26 +732,27 @@ pub fn trash_project(app: AppHandle, name: String) -> Result<(), String> {
         return Err(format!("cannot remove {name:?} from disk: no source folder"));
     }
     move_to_trash(Path::new(&root))?;
-    for dup in config::duplicates_of(&name)? {
-        remove_one(&app, &dup)?;
+    cascade_remove(&app, &name)
+}
+
+/// Tear down `name` and every duplicate that references it, emitting once.
+/// Duplicates are flattened to one level, so a single pass over `duplicates_of`
+/// covers them all.
+fn cascade_remove(app: &AppHandle, name: &str) -> Result<(), String> {
+    for dup in config::duplicates_of(name)? {
+        remove_one(app, &dup)?;
     }
-    remove_one(&app, &name)?;
+    remove_one(app, name)?;
     let _ = app.emit("projects-changed", ());
     Ok(())
 }
 
 /// Remove a project together with every duplicate that references it. Each
 /// duplicate's folder is deleted from disk (irreversible); the original keeps
-/// its source folder. Duplicates are flattened to one level, so a single pass
-/// over `duplicates_of` covers them all.
+/// its source folder.
 #[tauri::command(async)]
 pub fn remove_project_cascade(app: AppHandle, name: String) -> Result<(), String> {
-    for dup in config::duplicates_of(&name)? {
-        remove_one(&app, &dup)?;
-    }
-    remove_one(&app, &name)?;
-    let _ = app.emit("projects-changed", ());
-    Ok(())
+    cascade_remove(&app, &name)
 }
 
 /// Remove several projects in one pass (used for bulk-pruning duplicates). Each

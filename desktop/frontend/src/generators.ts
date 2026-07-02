@@ -3,12 +3,12 @@ import type {
   AICLI,
   Generator,
   GeneratorDraft,
-  GeneratorIcon,
   GeneratorType,
   GeneratorsConfig,
   GeneratorOverride,
 } from "./types";
 import { isAICLI } from "./types";
+import { getSettings } from "./store/settings";
 import type { ComposerAction } from "./store/composerActions";
 
 export const DEFAULT_GENERATORS: Generator[] = [
@@ -27,6 +27,14 @@ export function emptyGeneratorsConfig(): GeneratorsConfig {
   return { order: [], hiddenDefaults: [], overrides: {}, custom: [] };
 }
 
+// The CLI a new/edited generator starts on: the generator's own choice if set,
+// else the global default from settings, else claude.
+export function resolveInitialCli(preferred?: AICLI): AICLI {
+  if (preferred) return preferred;
+  const saved = getSettings().aiCli;
+  return isAICLI(saved) ? saved : "claude";
+}
+
 function stripUndefined<T extends object>(o: T): Partial<T> {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>;
 }
@@ -43,8 +51,8 @@ function coerceGenerator(g: Generator): Generator {
 function sortByOrder(list: Generator[], order: string[]): Generator[] {
   const pos = new Map(order.map((id, i) => [id, i] as const));
   return [...list].sort((a, b) => {
-    const pa = pos.has(a.id) ? (pos.get(a.id) as number) : Number.POSITIVE_INFINITY;
-    const pb = pos.has(b.id) ? (pos.get(b.id) as number) : Number.POSITIVE_INFINITY;
+    const pa = pos.get(a.id) ?? Number.POSITIVE_INFINITY;
+    const pb = pos.get(b.id) ?? Number.POSITIVE_INFINITY;
     return pa - pb;
   });
 }
@@ -89,14 +97,7 @@ export function applyAddCustom(cfg: GeneratorsConfig, gen: GeneratorDraft): Gene
 export function applyUpdateGenerator(
   cfg: GeneratorsConfig,
   id: string,
-  patch: {
-    label?: string;
-    icon?: GeneratorIcon;
-    type?: GeneratorType;
-    prompt?: string;
-    cli?: AICLI;
-    command?: string;
-  },
+  patch: GeneratorOverride,
   isDefault: boolean,
 ): GeneratorsConfig {
   if (isDefault) {
