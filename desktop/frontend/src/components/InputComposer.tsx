@@ -332,6 +332,7 @@ export function InputComposer({
         const effort = s.aiEffort ?? ai.selectedEffort;
         const fast = s.aiFast ?? ai.selectedFast;
         const out = await TransformText(
+          history?.projectName ?? null,
           aiCwd,
           cli,
           model,

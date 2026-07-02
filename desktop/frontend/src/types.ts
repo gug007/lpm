@@ -314,3 +314,11 @@ export interface GeneratorsConfig {
   custom: Generator[];
   promptActions?: ComposerAction[];
 }
+
+// A named Claude login. Projects reference the id (claudeAccount in their
+// YAML); terminals of a pinned project run against that account instead of
+// the main Claude login.
+export interface ClaudeAccount {
+  id: string;
+  label: string;
+}

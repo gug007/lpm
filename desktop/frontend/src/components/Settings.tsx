@@ -41,6 +41,10 @@ import { Modal } from "./ui/Modal";
 import { TrafficLights } from "./ui/TrafficLights";
 import { CheckIcon, PencilIcon, TrashIcon } from "./icons";
 import { useAppStore, type SettingsTab } from "../store/app";
+import { useAccountsStore } from "../store/accounts";
+import type { ClaudeAccount } from "../types";
+import { ClaudeAccountRow } from "./ClaudeAccountRow";
+import { InlineNameEditor } from "./InlineNameEditor";
 import { modalInputDefaults } from "../forms/styles";
 
 const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -180,6 +184,12 @@ export function Settings({
   const [newTemplateName, setNewTemplateName] = useState("");
   const [creatingTemplateBusy, setCreatingTemplateBusy] = useState(false);
   const [confirmDeleteTemplate, setConfirmDeleteTemplate] = useState<string | null>(null);
+  const accounts = useAccountsStore((s) => s.accounts);
+  const addAccount = useAccountsStore((s) => s.add);
+  const renameAccount = useAccountsStore((s) => s.rename);
+  const removeAccount = useAccountsStore((s) => s.remove);
+  const [addingAccount, setAddingAccount] = useState(false);
+  const [confirmDeleteAccount, setConfirmDeleteAccount] = useState<ClaudeAccount | null>(null);
 
   useEffect(() => {
     if (showImportOptions) setImportOverwrite(false);
@@ -564,6 +574,7 @@ export function Settings({
           )}
 
           {activeTab === "ai" && (
+            <>
             <SettingsSection title="AI & Integrations">
               <SettingsRow label="Commit Instructions" description="Custom instructions for AI commit messages">
                 <button onClick={() => onNavigate("commit-instructions")} className={BTN_SECONDARY}>Edit</button>
@@ -578,6 +589,56 @@ export function Settings({
                 <button onClick={() => BrowserOpenURL("https://voicetotext.cc")} className={BTN_SECONDARY}>Learn more</button>
               </SettingsRow>
             </SettingsSection>
+
+            <SettingsSection
+              title="Claude Accounts"
+              description="Run different projects on different Claude accounts. Add an account here, then assign it in a project's config — that project's terminals will ask you to sign in the first time."
+            >
+              {accounts.length === 0 && !addingAccount && (
+                <div className="px-4 py-3 text-[11px] text-[var(--text-muted)]">
+                  No accounts yet. Projects use your main Claude login.
+                </div>
+              )}
+              {accounts.map((acc) => (
+                <ClaudeAccountRow
+                  key={acc.id}
+                  id={acc.id}
+                  label={acc.label}
+                  onRename={(label) =>
+                    renameAccount(acc.id, label).catch((err) =>
+                      toast.error(`Failed to rename account: ${err}`),
+                    )
+                  }
+                  onDelete={() => setConfirmDeleteAccount(acc)}
+                />
+              ))}
+              {addingAccount ? (
+                <div className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                  <InlineNameEditor
+                    initial=""
+                    placeholder="e.g. Work"
+                    commitTitle="Add (Esc to cancel)"
+                    onCommit={(label) => {
+                      setAddingAccount(false);
+                      addAccount(label).catch((err) =>
+                        toast.error(`Failed to add account: ${err}`),
+                      );
+                    }}
+                    onCancel={() => setAddingAccount(false)}
+                  />
+                </div>
+              ) : (
+                <div className="flex items-center justify-end px-4 py-2.5">
+                  <button
+                    onClick={() => setAddingAccount(true)}
+                    className={BTN_SECONDARY}
+                  >
+                    Add account
+                  </button>
+                </div>
+              )}
+            </SettingsSection>
+            </>
           )}
 
           {activeTab === "global-config" && (
@@ -720,6 +781,31 @@ export function Settings({
             onConfirm={() => {
               if (confirmDeleteTemplate) removeTemplate(confirmDeleteTemplate);
               setConfirmDeleteTemplate(null);
+            }}
+          />
+
+          <ConfirmDialog
+            open={confirmDeleteAccount !== null}
+            title="Remove account"
+            variant="destructive"
+            confirmLabel="Remove"
+            body={
+              <>
+                Remove{" "}
+                <span className="font-medium text-[var(--text-primary)]">
+                  {confirmDeleteAccount?.label}
+                </span>
+                ? Projects assigned to it will use your main Claude login instead.
+              </>
+            }
+            onCancel={() => setConfirmDeleteAccount(null)}
+            onConfirm={() => {
+              if (confirmDeleteAccount) {
+                removeAccount(confirmDeleteAccount.id).catch((err) =>
+                  toast.error(`Failed to remove account: ${err}`),
+                );
+              }
+              setConfirmDeleteAccount(null);
             }}
           />
 

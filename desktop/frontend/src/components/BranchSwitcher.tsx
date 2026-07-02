@@ -693,6 +693,7 @@ export function BranchSwitcher({
       />
       <MergeBranchDialog
         open={merging}
+        projectName={projectName}
         projectPath={projectPath}
         currentBranch={status.branch}
         branches={branches}

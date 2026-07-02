@@ -35,7 +35,7 @@ export function PromptImprover({ value, onChange, disabled = false }: PromptImpr
       const model = s.aiModel ?? ai.selectedModel;
       const effort = s.aiEffort ?? ai.selectedEffort;
       const fast = s.aiFast ?? ai.selectedFast;
-      const out = await TransformText(".", cli, model, effort, aiEffectiveFast(cli, model, fast), action.instruction, value);
+      const out = await TransformText(null, ".", cli, model, effort, aiEffectiveFast(cli, model, fast), action.instruction, value);
       const text = typeof out === "string" ? out.trim() : "";
       if (!text) {
         toast.error("AI returned an empty response");

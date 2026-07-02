@@ -1180,6 +1180,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       const effort = s.aiEffort ?? ai.selectedEffort;
       const fast = s.aiFast ?? ai.selectedFast;
       const out = await TransformText(
+        projectName,
         cwd,
         cli,
         model,
