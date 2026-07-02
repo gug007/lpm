@@ -20,7 +20,7 @@ export function NewProjectPicker() {
   const onPick = useAppStore((s) => s.pickAddProjectKind);
 
   const root = useMemo<DrillScreen>(() => {
-    const generatorsScreen: DrillScreen = { title: "New", render: () => <GeneratorList /> };
+    const generatorsScreen: DrillScreen = { title: "Templates", render: () => <GeneratorList /> };
     return {
       render: (api) => (
         <div className="px-2 pb-1 pt-3.5">

@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState, type ReactNode } from "react";
-import { ChevronLeftIcon } from "./icons";
+import { ChevronLeftIcon, XIcon } from "./icons";
 import { DrillCrumb } from "./DrillCrumb";
 
 export interface DrillApi {
@@ -50,17 +50,25 @@ export function DrillMenu({
   );
 
   return (
-    <div className={`${screen.width ?? widthClassName} overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl`}>
+    <div className={`relative ${screen.width ?? widthClassName} overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl`}>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close"
+        className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+      >
+        <XIcon />
+      </button>
       {drilled &&
         (crumbs.length <= 1 ? (
           <button
             onClick={api.pop}
-            className="mb-1 flex w-full items-center gap-1 border-b border-[var(--border)] px-2 pb-1.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
+            className="mx-2 mb-1 flex items-center gap-1 rounded-lg py-1 pl-1 pr-2.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
           >
             <span className="flex h-6 w-6 shrink-0 items-center justify-center text-[var(--text-secondary)]">
               <ChevronLeftIcon />
             </span>
-            <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[var(--text-primary)]">
+            <span className="min-w-0 truncate text-[12.5px] font-medium text-[var(--text-primary)]">
               {screen.title}
             </span>
           </button>
