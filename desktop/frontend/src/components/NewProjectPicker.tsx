@@ -1,9 +1,8 @@
 import { useMemo } from "react";
 import { useAppStore } from "../store/app";
-import { CloudBranchIcon, FolderIcon, ServerIcon } from "./icons";
+import { ChevronRightIcon, CloudBranchIcon, FolderIcon, ServerIcon } from "./icons";
 import { Modal } from "./ui/Modal";
 import { DrillMenu, type DrillScreen } from "./DrillMenu";
-import { MenuSplitRow } from "./MenuSplitRow";
 import { GeneratorList } from "./GeneratorList";
 import type { IconListMenuItem } from "./ui/IconListMenu";
 
@@ -21,34 +20,46 @@ export function NewProjectPicker() {
   const onPick = useAppStore((s) => s.pickAddProjectKind);
 
   const root = useMemo<DrillScreen>(() => {
-    const generatorsScreen: DrillScreen = { title: "New", width: "w-72", render: () => <GeneratorList /> };
+    const generatorsScreen: DrillScreen = { title: "New", render: () => <GeneratorList /> };
     return {
       render: (api) => (
-        <div>
-          <h3 className="px-4 pb-1.5 pt-1 text-[13px] font-medium text-[var(--text-primary)]">Add a project</h3>
-          {NEW_PROJECT_SOURCES.map((s) => (
+        <div className="px-2 pb-1 pt-3.5">
+          <h3 className="px-4 text-[13px] font-medium text-[var(--text-primary)]">Add a project</h3>
+          <div className="mt-3 flex flex-col">
+            {NEW_PROJECT_SOURCES.map((s) => (
+              <button
+                key={s.key}
+                onClick={() => onPick(s.key)}
+                className="group flex items-start gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all hover:bg-[var(--bg-hover)]"
+              >
+                <div
+                  className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-hover)] transition-colors group-hover:bg-[var(--bg-active)] [&_svg]:h-[22px] [&_svg]:w-[22px]"
+                  style={{ color: s.color }}
+                >
+                  {s.icon}
+                </div>
+                <div className="min-w-0 pt-0.5">
+                  <div className="text-[13px] font-medium text-[var(--text-primary)]">{s.label}</div>
+                  <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-secondary)]">{s.desc}</div>
+                </div>
+              </button>
+            ))}
             <button
-              key={s.key}
-              onClick={() => onPick(s.key)}
-              className="flex w-full items-start gap-2.5 px-4 py-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
+              onClick={() => api.push(generatorsScreen)}
+              className="group flex items-start gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all hover:bg-[var(--bg-hover)]"
             >
-              <span style={{ color: s.color }} className="mt-px flex h-5 w-5 shrink-0 items-center justify-center [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                {s.icon}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] text-[var(--text-primary)]">{s.label}</span>
-                <span className="mt-0.5 block text-[11px] leading-snug text-[var(--text-muted)]">{s.desc}</span>
+              <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-hover)] text-[19px] leading-none transition-colors group-hover:bg-[var(--bg-active)]">
+                ✨
+              </div>
+              <div className="min-w-0 flex-1 pt-0.5">
+                <div className="text-[13px] font-medium text-[var(--text-primary)]">New</div>
+                <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-secondary)]">Generate a new project from a template</div>
+              </div>
+              <span className="mt-2 flex shrink-0 text-[var(--text-muted)]">
+                <ChevronRightIcon />
               </span>
             </button>
-          ))}
-          <div className="mx-2 my-1 border-t border-[var(--border)]" />
-          <MenuSplitRow
-            icon={<span className="flex h-5 w-5 shrink-0 items-center justify-center text-[13px]">✨</span>}
-            label="New"
-            hasDefault={false}
-            onRun={() => api.push(generatorsScreen)}
-            onConfigure={() => api.push(generatorsScreen)}
-          />
+          </div>
         </div>
       ),
     };
@@ -56,7 +67,7 @@ export function NewProjectPicker() {
 
   return (
     <Modal open={open} onClose={onClose} zIndexClassName="z-50">
-      <DrillMenu root={root} onClose={onClose} widthClassName="w-[350px]" />
+      <DrillMenu root={root} onClose={onClose} widthClassName="w-[360px]" />
     </Modal>
   );
 }
