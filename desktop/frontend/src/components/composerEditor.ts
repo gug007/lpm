@@ -5,6 +5,7 @@
 
 import { basename } from "../path";
 import { ansiColors } from "./terminal-utils";
+import type { ComposerClipboardPayload } from "./composerClipboard";
 
 // The same blue the terminal renders a recognized slash command in (xterm's
 // bright-blue), so the composer's highlight matches what the CLI shows.
@@ -279,8 +280,9 @@ export function normalizeStrayChars(root: HTMLElement): boolean {
 // Walk the editor and rebuild the plain-text value: text nodes verbatim (minus
 // stray characters), chips as `[Image #N]`, line breaks as "\n". WebKit parks a
 // placeholder <br> at the end of the field for caret visibility — skip it so it
-// doesn't add a phantom trailing newline.
-export function serializeEditor(root: HTMLElement): string {
+// doesn't add a phantom trailing newline. Also serializes a selection fragment
+// cloned out of the editor (selectionClipboardPayload).
+export function serializeEditor(root: HTMLElement | DocumentFragment): string {
   let out = "";
   const visit = (parent: Node) => {
     const children = Array.from(parent.childNodes);
@@ -335,6 +337,50 @@ export function splitByImageTokens(value: string): ValueSegment[] {
   if (last < value.length)
     segments.push({ text: value.slice(last), image: null });
   return segments;
+}
+
+// The current selection as a clipboard payload — its serialized text (chips as
+// `[Image #N]` tokens) plus the token→path map for the chips it spans. Null when
+// the selection is collapsed, outside `root`, or holds no chips (native copy
+// already handles a text-only selection).
+export function selectionClipboardPayload(
+  root: HTMLElement,
+  imagePaths: Map<number, string>,
+): ComposerClipboardPayload | null {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
+  const range = sel.getRangeAt(0);
+  if (
+    !root.contains(range.startContainer) ||
+    !root.contains(range.endContainer)
+  )
+    return null;
+  const frag = range.cloneContents();
+  if (!frag.querySelector("[data-img]")) return null;
+  const text = serializeEditor(frag);
+  const images: Record<string, string> = {};
+  for (const seg of splitByImageTokens(text)) {
+    if (seg.image === null) continue;
+    const path = imagePaths.get(seg.image);
+    if (path) images[seg.image] = path;
+  }
+  return { text, images };
+}
+
+// Rebuild a pasted payload as insertable items: text runs verbatim, each mapped
+// token as a fresh chip minted by `registerPath` — fresh numbers, so a paste
+// into another composer can't collide with (or hijack) its existing tokens. A
+// token with no path stays literal text.
+export function payloadToItems(
+  payload: ComposerClipboardPayload,
+  registerPath: (path: string) => HTMLSpanElement,
+): Array<HTMLSpanElement | string> {
+  return splitByImageTokens(payload.text)
+    .map((seg) => {
+      const path = seg.image === null ? undefined : payload.images[seg.image];
+      return path ? registerPath(path) : seg.text;
+    })
+    .filter((item) => typeof item !== "string" || item.length > 0);
 }
 
 // Rebuild the editor from a plain-text value, turning any `[Image #N]` tokens
@@ -422,10 +468,14 @@ function placeCaretAfterChip(root: HTMLElement, chip: HTMLElement): void {
 // Insert chips and/or text at the caret (falling back to the end of the field
 // when the selection is elsewhere, e.g. an OS drop). Items are space-separated;
 // no trailing space is added, so a single Backspace right after a chip removes
-// the whole chip instead of first eating a phantom space.
+// the whole chip instead of first eating a phantom space. Paste reconstruction
+// passes `separate: false` to keep its segment runs verbatim — except two
+// adjacent chips still get a separating space, so their tokens never serialize
+// touching (whose resolved paths would concatenate on send).
 export function insertItemsAtCaret(
   root: HTMLElement,
   items: Array<HTMLElement | string>,
+  separate = true,
 ): void {
   if (items.length === 0) return;
   // Whether the field owns focus. A paste/drop whose image save resolved after
@@ -454,10 +504,15 @@ export function insertItemsAtCaret(
   const frag = document.createDocumentFragment();
   let lastNode: Node | null = null;
   if (needsLeadingSpace) frag.appendChild(document.createTextNode(" "));
+  let prevWasChip = false;
   items.forEach((item, i) => {
-    if (i > 0) frag.appendChild(document.createTextNode(" "));
+    const itemIsChip =
+      typeof item !== "string" && item.dataset.img !== undefined;
+    if (i > 0 && (separate || (prevWasChip && itemIsChip)))
+      frag.appendChild(document.createTextNode(" "));
     lastNode = typeof item === "string" ? document.createTextNode(item) : item;
     frag.appendChild(lastNode);
+    prevWasChip = itemIsChip;
   });
   range.insertNode(frag);
 

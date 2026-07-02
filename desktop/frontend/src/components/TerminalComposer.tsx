@@ -56,6 +56,7 @@ import {
   isImagePath,
   lineBeforeCaret,
   normalizeComposer,
+  payloadToItems,
   placeCaretAtCharOffset,
   placeCaretAtEnd,
   placeCaretFromPoint,
@@ -68,11 +69,16 @@ import {
   restoreTrailingChipCaret,
   selectChip,
   selectedChip,
+  selectionClipboardPayload,
   serializeEditor,
   setChipThumbnail,
   setEditorContent,
   splitByImageTokens,
 } from "./composerEditor";
+import {
+  readClipboardPayload,
+  writeClipboardPayload,
+} from "./composerClipboard";
 import { SlashCommandMenu } from "./SlashCommandMenu";
 import { useSlashCommands } from "../hooks/useSlashCommands";
 import { detectAICLI, type SlashCommand } from "../slashCommands";
@@ -514,10 +520,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   );
 
   const insertItems = useCallback(
-    (items: Array<HTMLElement | string>) => {
+    (items: Array<HTMLElement | string>, separate = true) => {
       const editor = editorRef.current;
       if (!editor || items.length === 0) return;
-      insertItemsAtCaret(editor, items);
+      insertItemsAtCaret(editor, items, separate);
       histIdx.current = -1;
       syncState();
     },
@@ -633,6 +639,16 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           .catch(() => {});
         return;
       }
+      // A copy made in any lpm composer this app run resolves to its token→path
+      // payload via the copy registry: rebuild text + chips from it (with fresh
+      // tokens), so a prompt pastes whole across composers. Checked after real
+      // files so a clipboard holding both prefers the actual image bytes.
+      const payload = readClipboardPayload(dt);
+      if (payload) {
+        e.preventDefault();
+        insertItems(payloadToItems(payload, registerImagePath), false);
+        return;
+      }
       // Plain text — insert it verbatim so rich clipboard HTML can't leak markup
       // (or styled chips) into the field. A pasted "[Image #N]" token whose path
       // is still mapped (a cut/copied chip) is rebuilt as the image chip.
@@ -645,6 +661,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           segments
             .map((s) => (s.image !== null && imagePaths.current.has(s.image) ? createImageChip(s.image) : s.text))
             .filter((it) => typeof it !== "string" || it.length > 0),
+          false,
         );
         return;
       }
@@ -652,7 +669,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       histIdx.current = -1;
       syncState();
     },
-    [addImageBlob, insertFilePaths, insertImageChips, insertItems, syncState],
+    [addImageBlob, insertFilePaths, insertImageChips, insertItems, registerImagePath, syncState],
   );
 
   // In-app / web drags deliver File objects through the DOM (OS file drops go
@@ -1203,21 +1220,30 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     syncState();
   };
 
-  // Cut/Copy of a selected image chip writes its "[Image #N]" token (not the
-  // visible "Image N" label) to the clipboard so it can be pasted back as the
-  // image. Cut keeps the path alive (syncState(false)) for that paste-back;
-  // any other selection falls through to native copy/cut.
+  // Cut/Copy of a selection holding attachment chips writes the serialized text
+  // (chips as "[Image #N]" tokens, not their visible labels) plus an HTML flavor
+  // referencing the token→path map — so pasting rebuilds the images in this or
+  // any other composer, and external apps get the token text. A chip-free
+  // selection falls through to native copy/cut. Cut deletes through execCommand
+  // so the edit flows through onInput (undo, normalize, sync) like ordinary
+  // editing — except a chip-only selection, which WebKit refuses to delete
+  // natively (it collapses the selection instead; see selectedChip) and is
+  // removed explicitly, keeping its path alive for a plain-text paste-back.
   const handleCopyCut = (e: ClipboardEvent<HTMLDivElement>, cut: boolean) => {
     const editor = editorRef.current;
     if (!editor) return;
-    const chip = selectedChip(editor);
-    if (!chip) return;
+    const payload = selectionClipboardPayload(editor, imagePaths.current);
+    if (!payload) return;
     e.preventDefault();
-    e.clipboardData.setData("text/plain", `[Image #${chip.dataset.img}]`);
-    if (cut) {
+    writeClipboardPayload(e.clipboardData, payload);
+    if (!cut) return;
+    const chip = selectedChip(editor);
+    if (chip) {
       removeChip(chip);
       histIdx.current = -1;
       syncState(false);
+    } else {
+      document.execCommand("delete");
     }
   };
 

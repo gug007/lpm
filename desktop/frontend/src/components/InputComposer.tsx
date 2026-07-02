@@ -37,6 +37,7 @@ import {
   isEditorEmpty,
   isImagePath,
   normalizeComposer,
+  payloadToItems,
   placeCaretAtEnd,
   placeCaretFromPoint,
   presentImageTokens,
@@ -44,6 +45,7 @@ import {
   renderFileChip,
   restoreTrailingChipCaret,
   selectedChip,
+  selectionClipboardPayload,
   serializeEditor,
   setChipThumbnail,
   setEditorContent,
@@ -51,6 +53,10 @@ import {
   type ComposerImage,
   type ComposerValue,
 } from "./composerEditor";
+import {
+  readClipboardPayload,
+  writeClipboardPayload,
+} from "./composerClipboard";
 
 export { EMPTY_COMPOSER };
 export type { ComposerImage, ComposerValue };
@@ -205,10 +211,10 @@ export function InputComposer({
   }, []);
 
   const insertItems = useCallback(
-    (items: Array<HTMLElement | string>) => {
+    (items: Array<HTMLElement | string>, separate = true) => {
       const editor = editorRef.current;
       if (!editor || items.length === 0) return;
-      insertItemsAtCaret(editor, items);
+      insertItemsAtCaret(editor, items, separate);
       syncState();
     },
     [syncState],
@@ -452,6 +458,15 @@ export function InputComposer({
         .catch(() => {});
       return;
     }
+    // A copy made in any lpm composer this app run resolves to its token→path
+    // payload via the copy registry: rebuild text + chips from it (with fresh
+    // tokens), so a prompt pastes whole across composers.
+    const payload = readClipboardPayload(dt);
+    if (payload) {
+      e.preventDefault();
+      insertItems(payloadToItems(payload, registerImagePath), false);
+      return;
+    }
     // Plain text — insert verbatim so rich clipboard HTML can't leak markup. A
     // pasted "[Image #N]" token whose path is still mapped rebuilds the chip.
     e.preventDefault();
@@ -469,11 +484,31 @@ export function InputComposer({
               : s.text,
           )
           .filter((it) => typeof it !== "string" || it.length > 0),
+        false,
       );
       return;
     }
     document.execCommand("insertText", false, text);
     syncState();
+  };
+
+  // Same clipboard contract as the terminal composer: a selection holding chips
+  // copies as token text plus an HTML flavor referencing the token→path map, so
+  // the images survive a paste into any composer. A chip-free selection stays
+  // native; cut deletes through execCommand so onInput does the bookkeeping —
+  // except a chip-only selection, which WebKit refuses to delete natively (it
+  // collapses the selection instead; see selectedChip) and is removed explicitly.
+  const handleCopyCut = (e: ClipboardEvent<HTMLDivElement>, cut: boolean) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const payload = selectionClipboardPayload(editor, imagePaths.current);
+    if (!payload) return;
+    e.preventDefault();
+    writeClipboardPayload(e.clipboardData, payload);
+    if (!cut) return;
+    const chip = selectedChip(editor);
+    if (chip) deleteImageChip(chip);
+    else document.execCommand("delete");
   };
 
   // In-app / web drags deliver File objects through the DOM (OS file drops go
@@ -603,6 +638,8 @@ export function InputComposer({
           }}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
+          onCopy={(e) => handleCopyCut(e, false)}
+          onCut={(e) => handleCopyCut(e, true)}
           onClick={handleClick}
           className="block max-h-[200px] min-h-[60px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent px-3 py-2.5 text-[13px] leading-snug text-[var(--text-primary)] outline-none [overflow-wrap:anywhere]"
         />

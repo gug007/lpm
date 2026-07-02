@@ -1,0 +1,2 @@
+[    2041ms] SyntaxError: Invalid regular expression: range out of order in character class
+    at unknown (http://localhost:8934/br-test.html:7:0)
