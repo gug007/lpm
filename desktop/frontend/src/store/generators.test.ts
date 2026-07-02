@@ -19,6 +19,7 @@ describe("generators store", () => {
     await useGeneratorsStore.getState().addCustom({
       label: "Expo",
       icon: { type: "emoji", value: "📱" },
+      type: "ai",
       prompt: "init",
     });
     expect(save).toHaveBeenCalledTimes(1);

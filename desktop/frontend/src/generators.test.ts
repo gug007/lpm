@@ -17,6 +17,7 @@ const custom = (id: string, label = id): Generator => ({
   id,
   label,
   icon: { type: "emoji", value: "🦀" },
+  type: "ai",
   prompt: `build ${label}`,
 });
 
@@ -52,6 +53,32 @@ describe("resolveGenerators", () => {
     };
     expect(resolveGenerators(cfg).map((g) => g.id)).toEqual(["expo", "nextjs", "rust"]);
   });
+
+  it("defaults a legacy custom generator with no type to 'ai'", () => {
+    const legacy = { id: "old", label: "Old", icon: { type: "emoji", value: "🧱" }, prompt: "p" };
+    const cfg = { ...emptyGeneratorsConfig(), custom: [legacy as unknown as Generator] };
+    expect(resolveGenerators(cfg)[1].type).toBe("ai");
+  });
+
+  it("drops an unrecognized cli on resolve", () => {
+    const bad = { ...custom("x"), cli: "bogus" };
+    const cfg = { ...emptyGeneratorsConfig(), custom: [bad as unknown as Generator] };
+    expect(resolveGenerators(cfg)[1].cli).toBeUndefined();
+  });
+
+  it("preserves a command generator's type and command", () => {
+    const cmd: Generator = {
+      id: "vite",
+      label: "Vite",
+      icon: { type: "emoji", value: "⚡" },
+      type: "command",
+      prompt: "",
+      command: "npm create vite@latest .",
+    };
+    const resolved = resolveGenerators({ ...emptyGeneratorsConfig(), custom: [cmd] })[1];
+    expect(resolved.type).toBe("command");
+    expect(resolved.command).toBe("npm create vite@latest .");
+  });
 });
 
 describe("transforms", () => {
@@ -84,6 +111,7 @@ describe("transforms", () => {
     const next = applyAddCustom(emptyGeneratorsConfig(), {
       label: "Expo",
       icon: { type: "emoji", value: "📱" },
+      type: "ai",
       prompt: "init expo",
     });
     expect(next.custom).toHaveLength(1);
@@ -95,6 +123,7 @@ describe("transforms", () => {
     const base = applyAddCustom(emptyGeneratorsConfig(), {
       label: "Expo",
       icon: { type: "emoji", value: "📱" },
+      type: "ai",
       prompt: "init expo",
     });
     const id = base.custom[0].id;
@@ -117,6 +146,7 @@ describe("transforms", () => {
     const base = applyAddCustom(emptyGeneratorsConfig(), {
       label: "Expo",
       icon: { type: "emoji", value: "📱" },
+      type: "ai",
       prompt: "p",
     });
     const id = base.custom[0].id;

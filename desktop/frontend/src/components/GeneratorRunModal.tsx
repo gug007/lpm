@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Generator } from "../types";
+import { AI_CLI_OPTIONS, type Generator, type GeneratorRunSpec } from "../types";
 import { Modal } from "./ui/Modal";
 import { BrowseFolder } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
@@ -16,6 +16,10 @@ export function GeneratorRunModal({ generator, onClose }: GeneratorRunModalProps
   const [destParent, setDestParent] = useState(getSettings().defaultProjectDirectory || "");
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState(generator.prompt);
+  const [command, setCommand] = useState(generator.command ?? "");
+
+  const isCommand = generator.type === "command";
+  const cliLabel = AI_CLI_OPTIONS.find((o) => o.value === generator.cli)?.label ?? "Default AI CLI";
 
   const chooseFolder = async () => {
     const dir = await BrowseFolder(destParent || getSettings().defaultProjectDirectory);
@@ -23,12 +27,18 @@ export function GeneratorRunModal({ generator, onClose }: GeneratorRunModalProps
     setDestParent(dir);
   };
 
-  const canRun = destParent.trim().length > 0 && name.trim().length > 0;
+  const canRun =
+    destParent.trim().length > 0 &&
+    name.trim().length > 0 &&
+    (!isCommand || command.trim().length > 0);
 
   const run = async () => {
     if (!canRun) return;
     const root = `${destParent.replace(/\/+$/, "")}/${name.trim()}`;
-    await runGenerator({ folder: root, name: name.trim(), prompt: prompt.trim() });
+    const spec: GeneratorRunSpec = isCommand
+      ? { type: "command", command: command.trim() }
+      : { type: "ai", cli: generator.cli, prompt: prompt.trim() };
+    await runGenerator({ folder: root, name: name.trim(), spec });
     onClose();
   };
 
@@ -55,15 +65,34 @@ export function GeneratorRunModal({ generator, onClose }: GeneratorRunModalProps
         className="mb-3 w-full rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm"
       />
 
-      <div className="mb-4">
-        <PromptField
-          label="Prompt"
-          value={prompt}
-          onChange={setPrompt}
-          defaultCollapsed
-          hint="Tweaks here apply to this run only — your saved generator stays unchanged."
-        />
-      </div>
+      {isCommand ? (
+        <div className="mb-4">
+          <label className="block text-xs opacity-70 mb-1">Command</label>
+          <textarea
+            value={command}
+            onChange={(e) => setCommand(e.target.value)}
+            rows={3}
+            spellCheck={false}
+            className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 font-mono text-xs text-[var(--text-primary)]"
+          />
+          <p className="mt-1 text-[11px] text-[var(--text-muted)]">Tweaks here apply to this run only — your saved generator stays unchanged.</p>
+        </div>
+      ) : (
+        <>
+          <div className="mb-2 inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-2.5 py-1 text-[11px] text-[var(--text-muted)]">
+            Runs with <span className="text-[var(--text-secondary)]">{cliLabel}</span>
+          </div>
+          <div className="mb-4">
+            <PromptField
+              label="Prompt"
+              value={prompt}
+              onChange={setPrompt}
+              defaultCollapsed
+              hint="Tweaks here apply to this run only — your saved generator stays unchanged."
+            />
+          </div>
+        </>
+      )}
 
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onClose} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm">
@@ -75,7 +104,7 @@ export function GeneratorRunModal({ generator, onClose }: GeneratorRunModalProps
           disabled={!canRun}
           className="rounded-lg bg-[var(--accent-blue)] px-3 py-1.5 text-sm text-white disabled:opacity-40"
         >
-          Create &amp; Run agent
+          {isCommand ? "Create & Run command" : "Create & Run agent"}
         </button>
       </div>
     </Modal>

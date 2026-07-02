@@ -15,7 +15,7 @@ import { TerminalIcon } from "./icons";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { useServicePorts } from "../hooks/useServicePorts";
 import { useTerminals, type TerminalStartOpts } from "../hooks/useTerminals";
-import { shellQuote } from "../terminal-io";
+import { buildGeneratorRunCommand } from "../generatorRun";
 import { type PersistedHistoryEntry } from "../terminals";
 import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 import { useAppStore } from "../store/app";
@@ -526,7 +526,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   const pendingGeneratorRun = useAppStore((s) => s.pendingGeneratorRun);
   const clearPendingGeneratorRun = useAppStore((s) => s.clearPendingGeneratorRun);
   const selectedProject = useAppStore((s) => s.selected);
-  const agentCmd = useSettingsStore((s) => s.aiCli) || "claude";
+  const defaultAiCli = useSettingsStore((s) => s.aiCli) || "claude";
   // Fire once per mount. Clearing the store isn't enough on its own: under
   // StrictMode the effect is double-invoked synchronously and both runs close
   // over the same non-null pendingGeneratorRun, so without this guard the agent
@@ -544,15 +544,15 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     }
     if (generatorRunConsumedRef.current) return;
     generatorRunConsumedRef.current = true;
-    const prompt = pendingGeneratorRun.prompt.trim();
+    const { spec } = pendingGeneratorRun;
     clearPendingGeneratorRun();
-    const cmd = prompt ? `${agentCmd} ${shellQuote(prompt)}` : agentCmd;
-    void createTerminalWithCmd("Agent", cmd);
+    const { label, cmd } = buildGeneratorRunCommand(spec, defaultAiCli);
+    if (cmd) void createTerminalWithCmd(label, cmd);
   }, [
     pendingGeneratorRun,
     selectedProject,
     projectName,
-    agentCmd,
+    defaultAiCli,
     createTerminalWithCmd,
     clearPendingGeneratorRun,
   ]);

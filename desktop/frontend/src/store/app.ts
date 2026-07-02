@@ -7,6 +7,7 @@ import {
   isHeaderDisplay,
   type ActionInfo,
   type ActionsLayout,
+  type GeneratorRunSpec,
   type ProjectGroup,
   type ProjectInfo,
   type SpawnTask,
@@ -180,8 +181,8 @@ interface AppState {
   openAddCloneModal: () => void;
   closeAddCloneModal: () => void;
   addCloneProject: (params: CloneProjectParams) => Promise<void>;
-  pendingGeneratorRun: { projectName: string; prompt: string } | null;
-  runGenerator: (opts: { folder: string; name: string; prompt: string }) => Promise<void>;
+  pendingGeneratorRun: { projectName: string; spec: GeneratorRunSpec } | null;
+  runGenerator: (opts: { folder: string; name: string; spec: GeneratorRunSpec }) => Promise<void>;
   clearPendingGeneratorRun: () => void;
   bulkDuplicate: (
     name: string,
@@ -787,7 +788,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   clearPendingGeneratorRun: () => set({ pendingGeneratorRun: null }),
 
-  runGenerator: async ({ folder, name, prompt }) => {
+  runGenerator: async ({ folder, name, spec }) => {
     try {
       await CreateProject(name, folder);
       await get().refreshProjects();
@@ -795,7 +796,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         selected: name,
         view: "projects",
         addProjectPickerOpen: false,
-        pendingGeneratorRun: { projectName: name, prompt },
+        pendingGeneratorRun: { projectName: name, spec },
       });
     } catch (err) {
       toast.error(`Failed to create project: ${err}`);

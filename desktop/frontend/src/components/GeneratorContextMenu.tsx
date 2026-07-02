@@ -21,7 +21,14 @@ export function GeneratorContextMenu({ generator, x, y, onClose, onEdit, onRemov
       <ContextMenuItem
         label="Duplicate"
         onClick={() => {
-          addCustom({ label: `${generator.label} copy`, icon: generator.icon, prompt: generator.prompt });
+          addCustom({
+            label: `${generator.label} copy`,
+            icon: generator.icon,
+            type: generator.type,
+            prompt: generator.prompt,
+            cli: generator.cli,
+            command: generator.command,
+          });
           onClose();
         }}
       />

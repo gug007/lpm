@@ -1,11 +1,14 @@
 import { arrayMove } from "@dnd-kit/sortable";
 import type {
+  AICLI,
   Generator,
   GeneratorDraft,
   GeneratorIcon,
+  GeneratorType,
   GeneratorsConfig,
   GeneratorOverride,
 } from "./types";
+import { isAICLI } from "./types";
 import type { ComposerAction } from "./store/composerActions";
 
 export const DEFAULT_GENERATORS: Generator[] = [
@@ -13,6 +16,7 @@ export const DEFAULT_GENERATORS: Generator[] = [
     id: "nextjs",
     label: "Next.js",
     icon: { type: "brand", value: "nextjs" },
+    type: "ai",
     prompt:
       "Scaffold a new Next.js app in the current directory using create-next-app with the App Router, TypeScript, and Tailwind CSS. Initialize git with a sensible .gitignore, verify the dev server runs, and make an initial commit using conventional commits.",
     builtin: true,
@@ -25,6 +29,15 @@ export function emptyGeneratorsConfig(): GeneratorsConfig {
 
 function stripUndefined<T extends object>(o: T): Partial<T> {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>;
+}
+
+// Records persisted before generators gained a type/cli field (or hand-edited
+// configs) get normalized on read: default to the "ai" type and drop an
+// unrecognized cli so downstream code can trust the discriminant.
+function coerceGenerator(g: Generator): Generator {
+  const type: GeneratorType =
+    (g as { type?: unknown }).type === "command" ? "command" : "ai";
+  return { ...g, type, cli: isAICLI(g.cli) ? g.cli : undefined };
 }
 
 function sortByOrder(list: Generator[], order: string[]): Generator[] {
@@ -40,9 +53,9 @@ export function resolveGenerators(cfg: GeneratorsConfig): Generator[] {
   const hidden = new Set(cfg.hiddenDefaults);
   const defaults = DEFAULT_GENERATORS.filter((g) => !hidden.has(g.id)).map((g) => {
     const o = cfg.overrides[g.id];
-    return o ? { ...g, ...stripUndefined(o) } : g;
+    return coerceGenerator(o ? { ...g, ...stripUndefined(o) } : g);
   });
-  const custom = cfg.custom.map((g) => ({ ...g, builtin: false }));
+  const custom = cfg.custom.map((g) => coerceGenerator({ ...g, builtin: false }));
   return sortByOrder([...defaults, ...custom], cfg.order);
 }
 
@@ -76,7 +89,14 @@ export function applyAddCustom(cfg: GeneratorsConfig, gen: GeneratorDraft): Gene
 export function applyUpdateGenerator(
   cfg: GeneratorsConfig,
   id: string,
-  patch: { label?: string; icon?: GeneratorIcon; prompt?: string },
+  patch: {
+    label?: string;
+    icon?: GeneratorIcon;
+    type?: GeneratorType;
+    prompt?: string;
+    cli?: AICLI;
+    command?: string;
+  },
   isDefault: boolean,
 ): GeneratorsConfig {
   if (isDefault) {

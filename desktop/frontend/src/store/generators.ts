@@ -1,6 +1,13 @@
 import { create } from "zustand";
 import { LoadGenerators, SaveGenerators } from "../../bridge/commands";
-import type { Generator, GeneratorIcon, GeneratorsConfig, GeneratorDraft } from "../types";
+import type {
+  AICLI,
+  Generator,
+  GeneratorIcon,
+  GeneratorType,
+  GeneratorsConfig,
+  GeneratorDraft,
+} from "../types";
 import {
   applyAddCustom,
   applyDeleteCustom,
@@ -15,7 +22,14 @@ import {
 import { type ComposerAction } from "./composerActions";
 import { DEFAULT_GENERATOR_PROMPT_ACTIONS } from "../generatorPromptActions";
 
-type IconPatch = { label?: string; icon?: GeneratorIcon; prompt?: string };
+type GeneratorPatch = {
+  label?: string;
+  icon?: GeneratorIcon;
+  type?: GeneratorType;
+  prompt?: string;
+  cli?: AICLI;
+  command?: string;
+};
 
 interface GeneratorsActions {
   hydrate: () => Promise<void>;
@@ -24,7 +38,7 @@ interface GeneratorsActions {
   hideDefault: (id: string) => Promise<void>;
   restoreDefault: (id: string) => Promise<void>;
   addCustom: (gen: GeneratorDraft) => Promise<void>;
-  updateGenerator: (id: string, patch: IconPatch, isDefault: boolean) => Promise<void>;
+  updateGenerator: (id: string, patch: GeneratorPatch, isDefault: boolean) => Promise<void>;
   deleteCustom: (id: string) => Promise<void>;
   savePromptActions: (actions: ComposerAction[]) => Promise<void>;
 }

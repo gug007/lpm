@@ -141,6 +141,10 @@ export const GIT_CHANGED_EVENT = "git-changed";
 
 export type AICLI = "claude" | "codex" | "gemini" | "opencode";
 
+export function isAICLI(v: unknown): v is AICLI {
+  return v === "claude" || v === "codex" || v === "gemini" || v === "opencode";
+}
+
 export interface AIModelOption {
   value: string;
   label: string;
@@ -278,11 +282,16 @@ export type GeneratorIcon =
   | { type: "emoji"; value: string }
   | { type: "image"; value: string };
 
+export type GeneratorType = "ai" | "command";
+
 export interface Generator {
   id: string;
   label: string;
   icon: GeneratorIcon;
+  type: GeneratorType;
   prompt: string;
+  cli?: AICLI;
+  command?: string;
   builtin?: boolean;
 }
 
@@ -291,8 +300,19 @@ export type GeneratorDraft = Omit<Generator, "id" | "builtin">;
 export interface GeneratorOverride {
   label?: string;
   icon?: GeneratorIcon;
+  type?: GeneratorType;
   prompt?: string;
+  cli?: AICLI;
+  command?: string;
 }
+
+// What a generator run hands to the new project's terminal. "ai" launches the
+// selected agent CLI with the prompt as a launch arg; "command" runs the raw
+// shell command. The AICLI is optional so the run can fall back to the global
+// default when a generator predates per-generator selection.
+export type GeneratorRunSpec =
+  | { type: "ai"; cli?: AICLI; prompt: string }
+  | { type: "command"; command: string };
 
 export interface GeneratorsConfig {
   order: string[];
