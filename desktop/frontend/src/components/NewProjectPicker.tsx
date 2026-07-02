@@ -52,8 +52,8 @@ export function NewProjectPicker() {
                 ✨
               </div>
               <div className="min-w-0 flex-1 pt-0.5">
-                <div className="text-[13px] font-medium text-[var(--text-primary)]">New</div>
-                <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-secondary)]">Generate a new project from a template</div>
+                <div className="text-[13px] font-medium text-[var(--text-primary)]">From template</div>
+                <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-secondary)]">Create a new project from a template</div>
               </div>
               <span className="mt-2 flex shrink-0 text-[var(--text-muted)]">
                 <ChevronRightIcon />

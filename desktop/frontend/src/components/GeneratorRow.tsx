@@ -20,7 +20,7 @@ export function GeneratorRow({ generator, onRun, onEdit, onRemove, onContextMenu
     <div
       ref={setNodeRef}
       style={style}
-      className={`group flex items-center ${isDragging ? "opacity-60" : ""}`}
+      className={`group flex items-center transition-colors hover:bg-[var(--bg-hover)] ${isDragging ? "opacity-60" : ""}`}
       onContextMenu={(e) => {
         e.preventDefault();
         onContextMenu(generator, e.clientX, e.clientY);
@@ -29,7 +29,7 @@ export function GeneratorRow({ generator, onRun, onEdit, onRemove, onContextMenu
     >
       <button
         onClick={() => onRun(generator)}
-        className="flex min-w-0 flex-1 items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)] cursor-grab"
+        className="flex min-w-0 flex-1 items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors group-hover:text-[var(--text-primary)] cursor-grab"
       >
         <span className="flex h-5 w-5 shrink-0 items-center justify-center">
           <GeneratorIconView icon={generator.icon} size={18} />

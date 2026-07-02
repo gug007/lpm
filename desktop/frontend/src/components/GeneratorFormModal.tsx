@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Sparkles, X } from "lucide-react";
 import {
   isAICLI,
   type AICLI,
@@ -8,12 +9,13 @@ import {
   type GeneratorType,
 } from "../types";
 import { Modal } from "./ui/Modal";
-import { GeneratorIconPicker } from "./GeneratorIconPicker";
+import { GeneratorIconButton } from "./GeneratorIconButton";
 import { useGeneratorsStore } from "../store/generators";
 import { getSettings } from "../store/settings";
 import { PromptField } from "./PromptField";
 import { SegmentedControl } from "./ui/SegmentedControl";
 import { AICliSelect } from "./ui/AICliSelect";
+import { FIELD_CLASS, HELPER_TEXT, SECTION_LABEL } from "./ui/fields";
 
 const DEFAULT_PROMPT =
   "Create a git repository and initialize the project; set up linting and formatting; add a test or two; make sure everything builds and runs; use conventional commits.";
@@ -22,10 +24,6 @@ const TYPE_OPTIONS: { value: GeneratorType; label: string }[] = [
   { value: "ai", label: "Generate with AI" },
   { value: "command", label: "Run command" },
 ];
-
-const LABEL_CLASS = "mb-1.5 block text-xs font-medium text-[var(--text-muted)]";
-const INPUT_CLASS =
-  "w-full rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent-blue)] focus:outline-none";
 
 interface GeneratorFormModalProps {
   mode: "create" | "edit";
@@ -68,63 +66,92 @@ export function GeneratorFormModal({ mode, generator, onClose }: GeneratorFormMo
   };
 
   return (
-    <Modal open onClose={onClose} contentClassName="w-[440px] max-w-[92vw] rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] p-6 text-[var(--text-primary)] shadow-2xl" zIndexClassName="z-[60]">
-      <h2 className="mb-5 text-base font-semibold">{mode === "create" ? "New generator" : "Edit generator"}</h2>
+    <Modal
+      open
+      onClose={onClose}
+      zIndexClassName="z-[60]"
+      contentClassName="w-[440px] max-w-[92vw] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
+    >
+      <div className="flex items-start gap-3 px-6 pb-1 pt-6">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)] ring-1 ring-inset ring-[var(--accent-cyan)]/20">
+          <Sparkles size={18} />
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-[15px] font-semibold leading-tight text-[var(--text-primary)]">
+            {mode === "create" ? "New generator" : "Edit generator"}
+          </h3>
+          <p className="mt-1 text-[12px] leading-snug text-[var(--text-muted)]">
+            Scaffold new projects by running a command or handing a prompt to an AI agent.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="-mr-1 -mt-1 ml-auto shrink-0 rounded-md p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        >
+          <X size={16} />
+        </button>
+      </div>
 
-      <div className="space-y-4">
+      <div className="space-y-4 px-6 pb-2 pt-5">
         <div>
-          <label className={LABEL_CLASS}>Name</label>
-          <input
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            className={INPUT_CLASS}
-            placeholder="e.g. Expo (React Native)"
-          />
+          <label className={`mb-1.5 block ${SECTION_LABEL}`}>Name</label>
+          <div className="flex items-center gap-2.5">
+            <GeneratorIconButton value={icon} generatorId={draftId} onChange={setIcon} />
+            <input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              autoFocus
+              spellCheck={false}
+              placeholder="e.g. Expo (React Native)"
+              className={`${FIELD_CLASS} h-10 flex-1 px-3`}
+            />
+          </div>
         </div>
 
         <div>
-          <label className={LABEL_CLASS}>Icon</label>
-          <GeneratorIconPicker value={icon} generatorId={draftId} onChange={setIcon} />
-        </div>
-
-        <div>
-          <label className={LABEL_CLASS}>Type</label>
+          <label className={`mb-1.5 block ${SECTION_LABEL}`}>Type</label>
           <SegmentedControl fullWidth value={type} options={TYPE_OPTIONS} onChange={setType} />
         </div>
 
         {type === "ai" ? (
-          <>
+          <div key="ai" className="field-reveal space-y-4">
             <div>
-              <label className={LABEL_CLASS}>AI CLI</label>
+              <label className={`mb-1.5 block ${SECTION_LABEL}`}>AI CLI</label>
               <AICliSelect value={cli} onChange={setCli} />
             </div>
             <PromptField label="Initialization prompt" value={prompt} onChange={setPrompt} />
-          </>
+          </div>
         ) : (
-          <div>
-            <label className={LABEL_CLASS}>Command</label>
+          <div key="command" className="field-reveal">
+            <label className={`mb-1.5 block ${SECTION_LABEL}`}>Command</label>
             <textarea
               value={command}
               onChange={(e) => setCommand(e.target.value)}
               rows={3}
               spellCheck={false}
               placeholder="npx create-next-app@latest ."
-              className={`${INPUT_CLASS} resize-none font-mono text-xs`}
+              className={`${FIELD_CLASS} resize-none px-3 py-2 font-mono text-xs`}
             />
-            <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">Runs in the new project folder.</p>
+            <p className={`mt-1.5 ${HELPER_TEXT}`}>Runs in the new project folder.</p>
           </div>
         )}
       </div>
 
-      <div className="mt-6 flex justify-end gap-2">
-        <button type="button" onClick={onClose} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm">
+      <div className="flex justify-end gap-2 px-6 pb-6 pt-2">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-lg px-4 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
+        >
           Cancel
         </button>
         <button
           type="button"
           onClick={save}
           disabled={!canSave}
-          className="rounded-lg bg-[var(--accent-blue)] px-3 py-1.5 text-sm text-white disabled:opacity-40"
+          className="rounded-lg bg-[var(--text-primary)] px-4 py-2 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition-opacity hover:opacity-90 disabled:opacity-40"
         >
           {mode === "create" ? "Create" : "Save"}
         </button>

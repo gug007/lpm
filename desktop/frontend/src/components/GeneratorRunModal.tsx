@@ -1,10 +1,14 @@
 import { useState } from "react";
-import { AI_CLI_OPTIONS, type Generator, type GeneratorRunSpec } from "../types";
+import { X } from "lucide-react";
+import { isAICLI, type AICLI, type Generator, type GeneratorRunSpec } from "../types";
 import { Modal } from "./ui/Modal";
 import { BrowseFolder } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
 import { getSettings } from "../store/settings";
 import { PromptField } from "./PromptField";
+import { AICliSelect } from "./ui/AICliSelect";
+import { GeneratorIconView } from "./generatorIcons";
+import { FIELD_CLASS, HELPER_TEXT, SECTION_LABEL } from "./ui/fields";
 
 interface GeneratorRunModalProps {
   generator: Generator;
@@ -17,9 +21,13 @@ export function GeneratorRunModal({ generator, onClose }: GeneratorRunModalProps
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState(generator.prompt);
   const [command, setCommand] = useState(generator.command ?? "");
+  const [cli, setCli] = useState<AICLI>(() => {
+    if (generator.cli) return generator.cli;
+    const saved = getSettings().aiCli;
+    return isAICLI(saved) ? saved : "claude";
+  });
 
   const isCommand = generator.type === "command";
-  const cliLabel = AI_CLI_OPTIONS.find((o) => o.value === generator.cli)?.label ?? "Default AI CLI";
 
   const chooseFolder = async () => {
     const dir = await BrowseFolder(destParent || getSettings().defaultProjectDirectory);
@@ -37,52 +45,94 @@ export function GeneratorRunModal({ generator, onClose }: GeneratorRunModalProps
     const root = `${destParent.replace(/\/+$/, "")}/${name.trim()}`;
     const spec: GeneratorRunSpec = isCommand
       ? { type: "command", command: command.trim() }
-      : { type: "ai", cli: generator.cli, prompt: prompt.trim() };
+      : { type: "ai", cli, prompt: prompt.trim() };
     await runGenerator({ folder: root, name: name.trim(), spec });
     onClose();
   };
 
   return (
-    <Modal open onClose={onClose} contentClassName="w-[460px] max-w-[92vw] rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] p-5 text-[var(--text-primary)] shadow-2xl" zIndexClassName="z-[60]">
-      <h2 className="text-base font-semibold mb-4">Run "{generator.label}" generator</h2>
-
-      <label className="block text-xs opacity-70 mb-1">Destination folder</label>
-      <div className="mb-1 flex items-center gap-2">
-        <div className="flex-1 truncate rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm">
-          {destParent || "No folder chosen"}
+    <Modal
+      open
+      onClose={onClose}
+      zIndexClassName="z-[60]"
+      contentClassName="w-[440px] max-w-[92vw] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
+    >
+      <div className="flex items-start gap-3 px-6 pb-1 pt-6">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]">
+          <GeneratorIconView icon={generator.icon} size={20} />
         </div>
-        <button type="button" onClick={chooseFolder} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm">
-          Choose…
+        <div className="min-w-0">
+          <h3 className="truncate text-[15px] font-semibold leading-tight text-[var(--text-primary)]">
+            Run “{generator.label}”
+          </h3>
+          <p className="mt-1 text-[12px] leading-snug text-[var(--text-muted)]">
+            Create a new project scaffolded by this generator.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="-mr-1 -mt-1 ml-auto shrink-0 rounded-md p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        >
+          <X size={16} />
         </button>
       </div>
-      <p className="mb-3 text-[11px] text-[var(--text-muted)]">Project will be created in a new subfolder here.</p>
 
-      <label className="block text-xs opacity-70 mb-1">Project name</label>
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="my-app"
-        className="mb-3 w-full rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm"
-      />
-
-      {isCommand ? (
-        <div className="mb-4">
-          <label className="block text-xs opacity-70 mb-1">Command</label>
-          <textarea
-            value={command}
-            onChange={(e) => setCommand(e.target.value)}
-            rows={3}
-            spellCheck={false}
-            className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 font-mono text-xs text-[var(--text-primary)]"
-          />
-          <p className="mt-1 text-[11px] text-[var(--text-muted)]">Tweaks here apply to this run only — your saved generator stays unchanged.</p>
-        </div>
-      ) : (
-        <>
-          <div className="mb-2 inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-2.5 py-1 text-[11px] text-[var(--text-muted)]">
-            Runs with <span className="text-[var(--text-secondary)]">{cliLabel}</span>
+      <div className="space-y-4 px-6 pb-2 pt-5">
+        <div>
+          <label className={`mb-1.5 block ${SECTION_LABEL}`}>Destination folder</label>
+          <div className="flex items-center gap-2">
+            <div
+              className={`${FIELD_CLASS} flex h-9 flex-1 items-center truncate px-3 ${
+                destParent ? "" : "text-[var(--text-muted)]"
+              }`}
+            >
+              {destParent || "No folder chosen"}
+            </div>
+            <button
+              type="button"
+              onClick={chooseFolder}
+              className="h-9 shrink-0 rounded-lg border border-[var(--border)] px-3 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              Choose…
+            </button>
           </div>
-          <div className="mb-4">
+          <p className={`mt-1.5 ${HELPER_TEXT}`}>Project will be created in a new subfolder here.</p>
+        </div>
+
+        <div>
+          <label className={`mb-1.5 block ${SECTION_LABEL}`}>Project name</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+            spellCheck={false}
+            placeholder="my-app"
+            className={`${FIELD_CLASS} h-9 w-full px-3`}
+          />
+        </div>
+
+        {isCommand ? (
+          <div>
+            <label className={`mb-1.5 block ${SECTION_LABEL}`}>Command</label>
+            <textarea
+              value={command}
+              onChange={(e) => setCommand(e.target.value)}
+              rows={3}
+              spellCheck={false}
+              className={`${FIELD_CLASS} resize-none px-3 py-2 font-mono text-xs`}
+            />
+            <p className={`mt-1.5 ${HELPER_TEXT}`}>
+              Tweaks here apply to this run only — your saved generator stays unchanged.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div>
+              <label className={`mb-1.5 block ${SECTION_LABEL}`}>AI CLI</label>
+              <AICliSelect value={cli} onChange={setCli} />
+            </div>
             <PromptField
               label="Prompt"
               value={prompt}
@@ -90,19 +140,23 @@ export function GeneratorRunModal({ generator, onClose }: GeneratorRunModalProps
               defaultCollapsed
               hint="Tweaks here apply to this run only — your saved generator stays unchanged."
             />
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
 
-      <div className="flex justify-end gap-2">
-        <button type="button" onClick={onClose} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm">
+      <div className="flex justify-end gap-2 px-6 pb-6 pt-2">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-lg px-4 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
+        >
           Cancel
         </button>
         <button
           type="button"
           onClick={run}
           disabled={!canRun}
-          className="rounded-lg bg-[var(--accent-blue)] px-3 py-1.5 text-sm text-white disabled:opacity-40"
+          className="rounded-lg bg-[var(--text-primary)] px-4 py-2 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition-opacity hover:opacity-90 disabled:opacity-40"
         >
           {isCommand ? "Create & Run command" : "Create & Run agent"}
         </button>

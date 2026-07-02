@@ -29,14 +29,16 @@ export function PromptField({ label, value, onChange, hint, defaultCollapsed = f
       {!collapsed && (
         <div className="mt-1">
           {hint && <p className="mb-1 text-[11px] text-[var(--text-muted)]">{hint}</p>}
-          <textarea
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            rows={rows}
-            className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm leading-relaxed"
-          />
-          <div className="mt-1.5 flex justify-end">
-            <PromptImprover value={value} onChange={onChange} />
+          <div className="relative">
+            <textarea
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              rows={rows}
+              className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 pb-11 pt-2 text-sm leading-relaxed outline-none focus:border-[var(--accent-cyan)]"
+            />
+            <div className="absolute bottom-2 right-2">
+              <PromptImprover value={value} onChange={onChange} />
+            </div>
           </div>
         </div>
       )}
