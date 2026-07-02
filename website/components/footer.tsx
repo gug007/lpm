@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   AI_AGENTS_PATH,
   BEST_TERMINAL_MAC_PATH,
+  CLAUDE_ACCOUNTS_PATH,
   GIT_TERMINAL_MAC_PATH,
   MAC_TERMINAL_DEVELOPERS_PATH,
   PRIVACY_PATH,
@@ -91,6 +92,15 @@ export function Footer() {
             className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
           >
             Best terminal for Claude Code &amp; Codex
+          </Link>
+          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
+            ·
+          </span>
+          <Link
+            href={CLAUDE_ACCOUNTS_PATH}
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            Multiple Claude Code accounts
           </Link>
         </nav>
         <nav
