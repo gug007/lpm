@@ -8,6 +8,7 @@ import Faq from "./_components/faq";
 import Features from "./_components/features";
 import Hero from "./_components/hero";
 import Problem from "./_components/problem";
+import Setup from "./_components/setup";
 import Workflows from "./_components/workflows";
 
 export const metadata: Metadata = {
@@ -74,6 +75,7 @@ export default function ClaudeCodeMultipleAccountsPage() {
       <DemoSection />
       <Problem />
       <Features />
+      <Setup />
       <Workflows />
       <Faq />
       <RelatedPages
