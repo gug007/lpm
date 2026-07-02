@@ -39,7 +39,7 @@ import type { main } from "../../bridge/models";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Modal } from "./ui/Modal";
 import { TrafficLights } from "./ui/TrafficLights";
-import { CheckIcon, PencilIcon, TrashIcon } from "./icons";
+import { PencilIcon, TrashIcon } from "./icons";
 import { useAppStore, type SettingsTab } from "../store/app";
 import { useAccountsStore } from "../store/accounts";
 import type { ClaudeAccount } from "../types";
@@ -1109,58 +1109,26 @@ function TemplateRow({
   onDelete: () => void;
 }) {
   const [renaming, setRenaming] = useState(false);
-  const [value, setValue] = useState(name);
-  const dirty = value.trim().length > 0 && value.trim() !== name;
-
-  const startRename = () => {
-    setValue(name);
-    setRenaming(true);
-  };
-
-  const commit = async () => {
-    setRenaming(false);
-    if (!dirty) return;
-    try {
-      await onRename(name, value.trim());
-    } catch {
-      // toast surfaced by store
-    }
-  };
 
   return (
     <div className="flex items-center gap-3 px-4 py-2.5 text-sm">
       {renaming ? (
-        <>
-          <input
-            autoFocus
-            {...modalInputDefaults}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                if (dirty) commit();
-              } else if (e.key === "Escape") {
-                e.preventDefault();
-                setRenaming(false);
-              }
-            }}
-            onFocus={(e) => e.currentTarget.select()}
-            className="min-w-0 flex-1 rounded border border-[var(--accent-cyan)] bg-[var(--bg-primary)] px-1 py-0 font-mono text-[12px] text-[var(--text-primary)] outline-none"
-          />
-          <button
-            onClick={commit}
-            disabled={!dirty}
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-green)] disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--text-muted)]"
-            title="Save (Esc to cancel)"
-          >
-            <CheckIcon />
-          </button>
-        </>
+        <InlineNameEditor
+          initial={name}
+          mono
+          commitTitle="Save (Esc to cancel)"
+          onCommit={(next) => {
+            setRenaming(false);
+            onRename(name, next).catch(() => {
+              // toast surfaced by store
+            });
+          }}
+          onCancel={() => setRenaming(false)}
+        />
       ) : (
         <>
           <button
-            onClick={startRename}
+            onClick={() => setRenaming(true)}
             className="flex-1 truncate text-left font-mono text-[12px] text-[var(--text-primary)] hover:text-[var(--accent-cyan)]"
             title="Rename"
           >

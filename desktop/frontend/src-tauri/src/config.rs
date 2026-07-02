@@ -228,6 +228,8 @@ pub fn save_generators(g: &Value) -> Result<(), String> {
     std::fs::write(generators_path(), data).map_err(|e| e.to_string())
 }
 
+pub const CLAUDE_CONFIG_DIR_ENV: &str = "CLAUDE_CONFIG_DIR";
+
 pub fn accounts_path() -> PathBuf {
     lpm_dir().join("accounts.json")
 }
@@ -1691,7 +1693,6 @@ pub struct SpawnInfo {
     pub ssh: SshSettings, // zero-valued when local
     pub services: BTreeMap<String, ServiceFull>,
     pub profiles: BTreeMap<String, Vec<String>>,
-    pub claude_config_dir: Option<String>,
 }
 
 pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
@@ -1704,11 +1705,9 @@ pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
             ssh: SshSettings::default(),
             services: BTreeMap::new(),
             profiles: BTreeMap::new(),
-            claude_config_dir: None,
         });
     }
     let y = parse_project_yaml(name)?;
-    let claude_config_dir = claude_config_dir_for_account(&claude_account_of(&y));
     let session = if y.name.is_empty() {
         name.to_string()
     } else {
@@ -1732,7 +1731,6 @@ pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
         ssh,
         services,
         profiles,
-        claude_config_dir,
     })
 }
 

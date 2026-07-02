@@ -6,6 +6,7 @@ interface InlineNameEditorProps {
   initial: string;
   placeholder?: string;
   commitTitle: string;
+  mono?: boolean;
   onCommit: (value: string) => void;
   onCancel: () => void;
 }
@@ -14,6 +15,7 @@ export function InlineNameEditor({
   initial,
   placeholder,
   commitTitle,
+  mono = false,
   onCommit,
   onCancel,
 }: InlineNameEditorProps) {
@@ -43,7 +45,9 @@ export function InlineNameEditor({
           }
         }}
         onFocus={(e) => e.currentTarget.select()}
-        className="min-w-0 flex-1 rounded border border-[var(--accent-cyan)] bg-[var(--bg-primary)] px-1 py-0 text-[13px] text-[var(--text-primary)] outline-none"
+        className={`min-w-0 flex-1 rounded border border-[var(--accent-cyan)] bg-[var(--bg-primary)] px-1 py-0 ${
+          mono ? "font-mono text-[12px]" : "text-[13px]"
+        } text-[var(--text-primary)] outline-none`}
       />
       <button
         onClick={commit}

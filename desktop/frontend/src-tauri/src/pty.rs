@@ -277,7 +277,7 @@ fn start_internal(
         // Pinned Claude account; an explicit CLAUDE_CONFIG_DIR in the action's
         // env map wins because extra_env is applied after.
         if let Some(dir) = &target.claude_config_dir {
-            builder.env("CLAUDE_CONFIG_DIR", dir);
+            builder.env(config::CLAUDE_CONFIG_DIR_ENV, dir);
         }
         for (k, v) in extra_env {
             builder.env(k, v);
@@ -360,11 +360,16 @@ fn resolve_restore_cmds(cmd: &str) -> (String, String) {
 
 fn resolve_spawn(project_name: &str) -> Result<SpawnTarget, String> {
     let info = config::spawn_info(project_name)?;
+    let claude_config_dir = if info.is_remote {
+        None
+    } else {
+        config::claude_config_dir_for_project(project_name)
+    };
     let ssh = if info.is_remote { Some(info.ssh) } else { None };
     Ok(SpawnTarget {
         root: info.root,
         ssh,
-        claude_config_dir: info.claude_config_dir,
+        claude_config_dir,
     })
 }
 
