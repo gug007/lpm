@@ -51,6 +51,8 @@ pub fn create_project(app: AppHandle, name: String, root: String) -> Result<(), 
     if config::project_exists(&name) {
         return Err(format!("project {name:?} already exists"));
     }
+    let abs_root = config::expand_home(&root);
+    std::fs::create_dir_all(&abs_root).map_err(|e| e.to_string())?;
     write_project_yaml(&name, |m| {
         yset(m, "name", name.as_str());
         yset(m, "root", config::collapse_home(&root).as_str());
@@ -632,6 +634,43 @@ pub fn move_project_root(
 
 // ---- remove -----------------------------------------------------------------
 
+/// AppleScript (ASObjC) that sends argv item 1 to the Trash via Foundation's
+/// NSFileManager — the same mechanism as dragging to Trash, so the folder stays
+/// restorable and no Finder-automation permission is needed. The path travels as
+/// an argv item, so it never has to be escaped into the script source.
+const TRASH_SCRIPT: &str = r#"use framework "Foundation"
+on run argv
+set p to item 1 of argv
+set fm to current application's NSFileManager's defaultManager()
+set u to current application's NSURL's fileURLWithPath:p
+set {ok, err} to fm's trashItemAtURL:u resultingItemURL:(missing value) |error|:(reference)
+if not ok then error (err's localizedDescription() as text)
+end run"#;
+
+/// Move `path` to the macOS Trash. A path that is already gone counts as success
+/// so a retried removal never gets stuck on a folder that's no longer there.
+fn move_to_trash(path: &Path) -> Result<(), String> {
+    if !path.exists() {
+        return Ok(());
+    }
+    let out = std::process::Command::new("osascript")
+        .arg("-e")
+        .arg(TRASH_SCRIPT)
+        .arg(path)
+        .output()
+        .map_err(|e| format!("move to Trash: {e}"))?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        let msg = err.trim();
+        return Err(if msg.is_empty() {
+            "move to Trash failed".to_string()
+        } else {
+            format!("move to Trash: {msg}")
+        });
+    }
+    Ok(())
+}
+
 /// Tear down a single project: stop its session/forwards/sync, delete its
 /// folder if it's a duplicate (originals keep their source folder), and drop
 /// its config + settings references. Does not emit; callers emit once.
@@ -678,18 +717,42 @@ pub fn remove_project(app: AppHandle, name: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Remove a project together with every duplicate that references it. Each
-/// duplicate's folder is deleted from disk (irreversible); the original keeps
-/// its source folder. Duplicates are flattened to one level, so a single pass
-/// over `duplicates_of` covers them all.
+/// Like `remove_project`, but also sends the project's source folder to the
+/// macOS Trash (restorable) instead of leaving it on disk. Any duplicates that
+/// reference it are torn down too — their folders are deleted from disk, the
+/// same as `remove_project_cascade`. The Trash move runs first, so if it fails
+/// the call aborts before the lpm entry (or any duplicate) is touched.
 #[tauri::command(async)]
-pub fn remove_project_cascade(app: AppHandle, name: String) -> Result<(), String> {
-    for dup in config::duplicates_of(&name)? {
-        remove_one(&app, &dup)?;
+pub fn trash_project(app: AppHandle, name: String) -> Result<(), String> {
+    let (root, is_remote) = config::project_root(&name)?;
+    if is_remote {
+        return Err(format!("cannot remove {name:?} from disk: it has no local folder"));
     }
-    remove_one(&app, &name)?;
+    if root.trim().is_empty() {
+        return Err(format!("cannot remove {name:?} from disk: no source folder"));
+    }
+    move_to_trash(Path::new(&root))?;
+    cascade_remove(&app, &name)
+}
+
+/// Tear down `name` and every duplicate that references it, emitting once.
+/// Duplicates are flattened to one level, so a single pass over `duplicates_of`
+/// covers them all.
+fn cascade_remove(app: &AppHandle, name: &str) -> Result<(), String> {
+    for dup in config::duplicates_of(name)? {
+        remove_one(app, &dup)?;
+    }
+    remove_one(app, name)?;
     let _ = app.emit("projects-changed", ());
     Ok(())
+}
+
+/// Remove a project together with every duplicate that references it. Each
+/// duplicate's folder is deleted from disk (irreversible); the original keeps
+/// its source folder.
+#[tauri::command(async)]
+pub fn remove_project_cascade(app: AppHandle, name: String) -> Result<(), String> {
+    cascade_remove(&app, &name)
 }
 
 /// Remove several projects in one pass (used for bulk-pruning duplicates). Each

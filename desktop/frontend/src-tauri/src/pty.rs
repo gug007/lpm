@@ -192,6 +192,15 @@ fn spawn_io_threads(
     });
 }
 
+/// Replace every character Tauri disallows in an event name with `_`. Mirrors
+/// tauri's own predicate (alphanumeric or `-` `/` `:` `_`); `/` and `:` are
+/// dropped too so the result reads cleanly as an id segment.
+fn event_safe(s: &str) -> String {
+    s.chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .collect()
+}
+
 fn start_internal(
     app: &AppHandle,
     state: &State<'_, PtyState>,
@@ -202,7 +211,12 @@ fn start_internal(
     ssh: Option<&config::SshSettings>,
 ) -> Result<String, String> {
     let n = state.counter.fetch_add(1, Ordering::SeqCst) + 1;
-    let id = format!("{project_name}-{n}");
+    // The id is embedded in Tauri event names (pty-output-<id>, pty-exit-<id>),
+    // which only permit alphanumerics and `-` `/` `:` `_`. A raw project name
+    // with a space or dot (e.g. "My app") would make emit/listen silently fail
+    // and the terminal render blank, so sanitize it; the global counter keeps
+    // the id unique regardless.
+    let id = format!("{}-{n}", event_safe(project_name));
     let is_remote = ssh.is_some();
 
     let mut builder;
@@ -502,4 +516,17 @@ pub fn session_remote_ssh(
         .unwrap()
         .get(id)
         .map(|s| (s.remote, s.ssh.clone()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::event_safe;
+
+    #[test]
+    fn sanitizes_chars_illegal_in_event_names() {
+        assert_eq!(event_safe("My app"), "My_app");
+        assert_eq!(event_safe("my.app"), "my_app");
+        assert_eq!(event_safe("a/b:c"), "a_b_c");
+        assert_eq!(event_safe("plain-name_1"), "plain-name_1");
+    }
 }

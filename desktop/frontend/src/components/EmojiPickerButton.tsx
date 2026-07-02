@@ -13,6 +13,7 @@ import { useEventListener } from "../hooks/useEventListener";
 import { insertAtSelection } from "../insertAtSelection";
 
 const PANEL_GAP_PX = 8;
+const PANEL_MIN_WIDTH_PX = 300;
 const PANEL_MAX_WIDTH_PX = 360;
 const VIEWPORT_MARGIN_PX = 8;
 const PANEL_Z_INDEX = "z-[70]";
@@ -105,6 +106,9 @@ interface EmojiSlotButtonProps {
   size?: Size;
   // Shown when no emoji is set yet. Defaults to a smiley.
   placeholder?: ReactNode;
+  // Fill the relative parent (a standalone slot) instead of the default
+  // left-anchored overlay used inside a composer input.
+  fill?: boolean;
 }
 
 /**
@@ -118,6 +122,7 @@ export function EmojiSlotButton({
   onSelect,
   size = "md",
   placeholder,
+  fill = false,
 }: EmojiSlotButtonProps) {
   const { open, setOpen, toggleRef, panelRef, panelStyle } = useEmojiPanel(inputRef);
   const { icon: iconSize } = SIZES[size];
@@ -137,7 +142,9 @@ export function EmojiSlotButton({
         onClick={() => setOpen((v) => !v)}
         aria-label={value ? "Change emoji" : "Pick emoji"}
         aria-pressed={open}
-        className={`absolute left-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg transition-colors hover:bg-[var(--bg-hover)] ${
+        className={`grid place-items-center rounded-lg transition-colors hover:bg-[var(--bg-hover)] ${
+          fill ? "absolute inset-0" : "absolute left-2 top-1/2 h-8 w-8 -translate-y-1/2"
+        } ${
           open
             ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
             : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
@@ -208,7 +215,7 @@ function computePanelStyle(
   anchorRect: DOMRect,
   viewportWidth: number,
 ): CSSProperties {
-  const width = Math.min(anchorRect.width, PANEL_MAX_WIDTH_PX);
+  const width = clamp(anchorRect.width, PANEL_MIN_WIDTH_PX, PANEL_MAX_WIDTH_PX);
   const preferredLeft = anchorRect.right - width;
   const maxLeft = viewportWidth - VIEWPORT_MARGIN_PX - width;
   const left = clamp(preferredLeft, VIEWPORT_MARGIN_PX, maxLeft);

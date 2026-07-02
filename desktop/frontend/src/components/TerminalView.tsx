@@ -15,8 +15,9 @@ import { TerminalIcon } from "./icons";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { useServicePorts } from "../hooks/useServicePorts";
 import { useTerminals, type TerminalStartOpts } from "../hooks/useTerminals";
+import { buildGeneratorRunCommand } from "../generatorRun";
 import { type PersistedHistoryEntry } from "../terminals";
-import { getSettings, saveSettings } from "../store/settings";
+import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 import { useAppStore } from "../store/app";
 import { useComposerStore } from "../store/composer";
 import { forgetComposerDraft } from "../store/composerDrafts";
@@ -513,6 +514,48 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     },
     [toggleService, projectName],
   );
+
+  // Final wiring for the generator run-flow. Once the freshly created project
+  // is the active one this view is showing, open a terminal that launches the
+  // configured agent CLI with the init prompt as a command-line argument
+  // (e.g. `claude '<prompt>'`). We deliberately do NOT type the prompt into the
+  // agent's TUI after launch: agents like claude boot through several async
+  // phases (MCP load, auth checks) whose pauses fool idle-based injection into
+  // firing mid-boot, landing the prompt in the wrong place and never submitting
+  // it. Passing it as a launch arg sidesteps the timing entirely.
+  const pendingGeneratorRun = useAppStore((s) => s.pendingGeneratorRun);
+  const clearPendingGeneratorRun = useAppStore((s) => s.clearPendingGeneratorRun);
+  const selectedProject = useAppStore((s) => s.selected);
+  const defaultAiCli = useSettingsStore((s) => s.aiCli) || "claude";
+  // Fire once per mount. Clearing the store isn't enough on its own: under
+  // StrictMode the effect is double-invoked synchronously and both runs close
+  // over the same non-null pendingGeneratorRun, so without this guard the agent
+  // terminal spawns twice in dev. A new run always targets a new project, hence
+  // a fresh TerminalView mount and a fresh ref.
+  const generatorRunConsumedRef = useRef(false);
+
+  useEffect(() => {
+    if (
+      !pendingGeneratorRun ||
+      pendingGeneratorRun.projectName !== projectName ||
+      selectedProject !== projectName
+    ) {
+      return;
+    }
+    if (generatorRunConsumedRef.current) return;
+    generatorRunConsumedRef.current = true;
+    const { spec } = pendingGeneratorRun;
+    clearPendingGeneratorRun();
+    const { label, cmd } = buildGeneratorRunCommand(spec, defaultAiCli);
+    if (cmd) void createTerminalWithCmd(label, cmd);
+  }, [
+    pendingGeneratorRun,
+    selectedProject,
+    projectName,
+    defaultAiCli,
+    createTerminalWithCmd,
+    clearPendingGeneratorRun,
+  ]);
 
   const sendCommandToActive = useCallback(
     (cmd: string): boolean => {

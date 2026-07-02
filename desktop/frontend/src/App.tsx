@@ -59,6 +59,7 @@ export default function App() {
   const bulkDuplicate = useAppStore((s) => s.bulkDuplicate);
   const removeProject = useAppStore((s) => s.removeProject);
   const removeProjectCascade = useAppStore((s) => s.removeProjectCascade);
+  const removeProjectFromDisk = useAppStore((s) => s.removeProjectFromDisk);
   const removeProjectsBatch = useAppStore((s) => s.removeProjectsBatch);
   const renameProject = useAppStore((s) => s.renameProject);
   const moveProjectRoot = useAppStore((s) => s.moveProjectRoot);
@@ -191,6 +192,7 @@ export default function App() {
           onBulkDuplicate={bulkDuplicate}
           onRemoveProject={removeProject}
           onRemoveProjectCascade={removeProjectCascade}
+          onRemoveProjectFromDisk={removeProjectFromDisk}
           onRemoveProjectsBatch={removeProjectsBatch}
           onRenameProject={renameProject}
           onMoveProjectRoot={moveProjectRoot}

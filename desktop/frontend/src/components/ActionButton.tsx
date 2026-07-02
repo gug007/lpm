@@ -6,9 +6,9 @@ const actionStyles = {
   destructive:
     "bg-[var(--accent-red)] text-white hover:opacity-85",
   secondary:
-    "border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]",
+    "border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--terminal-header-active)] hover:text-[var(--text-primary)]",
   ghost:
-    "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]",
+    "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--terminal-header-active)]",
 } as const;
 
 export function ActionButton({

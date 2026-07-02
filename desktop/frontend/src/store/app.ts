@@ -7,6 +7,7 @@ import {
   isHeaderDisplay,
   type ActionInfo,
   type ActionsLayout,
+  type GeneratorRunSpec,
   type ProjectGroup,
   type ProjectInfo,
   type SpawnTask,
@@ -38,6 +39,7 @@ import {
   StartProject,
   StopProject,
   ToggleProjectService,
+  TrashProject,
 } from "../../bridge/commands";
 import type { main } from "../../bridge/models";
 import { getSettings, loadSettings, saveSettings } from "./settings";
@@ -179,6 +181,9 @@ interface AppState {
   openAddCloneModal: () => void;
   closeAddCloneModal: () => void;
   addCloneProject: (params: CloneProjectParams) => Promise<void>;
+  pendingGeneratorRun: { projectName: string; spec: GeneratorRunSpec } | null;
+  runGenerator: (opts: { folder: string; name: string; spec: GeneratorRunSpec }) => Promise<void>;
+  clearPendingGeneratorRun: () => void;
   bulkDuplicate: (
     name: string,
     count: number,
@@ -194,6 +199,7 @@ interface AppState {
   consumeSpawnTasks: (name: string) => void;
   removeProject: (name: string) => Promise<void>;
   removeProjectCascade: (name: string) => Promise<void>;
+  removeProjectFromDisk: (name: string) => Promise<void>;
   removeProjectsBatch: (names: string[]) => Promise<string[]>;
   renameProject: (name: string, label: string) => Promise<void>;
   moveProjectRoot: (name: string, newRoot: string) => Promise<void>;
@@ -778,6 +784,25 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  pendingGeneratorRun: null,
+
+  clearPendingGeneratorRun: () => set({ pendingGeneratorRun: null }),
+
+  runGenerator: async ({ folder, name, spec }) => {
+    try {
+      await CreateProject(name, folder);
+      await get().refreshProjects();
+      set({
+        selected: name,
+        view: "projects",
+        addProjectPickerOpen: false,
+        pendingGeneratorRun: { projectName: name, spec },
+      });
+    } catch (err) {
+      toast.error(`Failed to create project: ${err}`);
+    }
+  },
+
   closeSSHModal: () => set({ sshModalOpen: false }),
 
   openAddCloneModal: () => set({ cloneModalOpen: true }),
@@ -937,6 +962,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       name,
       [name, ...get().projects.filter((p) => p.parentName === name).map((p) => p.name)],
       () => RemoveProjectCascade(name),
+    ),
+
+  removeProjectFromDisk: (name) =>
+    runProjectRemoval(
+      set,
+      get,
+      name,
+      [name, ...get().projects.filter((p) => p.parentName === name).map((p) => p.name)],
+      () => TrashProject(name),
     ),
 
   // Returns the names actually removed, so callers (e.g. deleteGroup) can tell a

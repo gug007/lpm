@@ -19,7 +19,7 @@ const SIZE_CLASSES = {
     border: "border border-[var(--border)]",
     dividerBorder: "border-l border-[var(--border)]",
     text: "text-[var(--text-secondary)]",
-    hover: "hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]",
+    hover: "hover:bg-[var(--terminal-header-active)] hover:text-[var(--text-primary)]",
     active: "bg-[var(--bg-active)] text-[var(--text-primary)]",
   },
   compact: {
@@ -32,8 +32,8 @@ const SIZE_CLASSES = {
     border: "border border-[var(--border)] bg-[var(--bg-secondary)]",
     dividerBorder: "border-l border-[var(--border)]",
     text: "text-[var(--text-secondary)]",
-    hover: "hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]",
-    active: "bg-[var(--bg-hover)] text-[var(--text-primary)]",
+    hover: "hover:bg-[var(--terminal-header-active)] hover:text-[var(--text-primary)]",
+    active: "bg-[var(--terminal-header-active)] text-[var(--text-primary)]",
   },
 } as const;
 
@@ -95,7 +95,7 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
   };
 
   const dropdown = panelOpen && style && createPortal(
-    <div ref={panelRef} style={style} className="z-50">
+    <div ref={panelRef} style={style} className="z-[70]">
       <ActionMenu action={action} onRun={handleSelectChild} onClose={() => setOpen(false)} />
     </div>,
     document.body,
