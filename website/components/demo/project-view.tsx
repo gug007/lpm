@@ -1070,17 +1070,17 @@ function Header({
               onRun={() => onOpenAction(a)}
             />
           ))}
-          <button
-            type="button"
-            onClick={onAddAction}
-            title="Create action"
-            aria-label="Create action"
-            className="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-lg border border-dashed border-[#3a3a3a] px-2 text-xs font-medium text-[#919191] transition-colors hover:border-[#555] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Action</span>
-          </button>
         </div>
+        <button
+          type="button"
+          onClick={onAddAction}
+          title="Create action"
+          aria-label="Create action"
+          className="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-lg border border-dashed border-[#3a3a3a] px-2 text-xs font-medium text-[#919191] transition-colors hover:border-[#555] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Action</span>
+        </button>
 
         <OpenInDropdown />
 
