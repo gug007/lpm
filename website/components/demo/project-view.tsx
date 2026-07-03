@@ -29,6 +29,7 @@ import { DemoBranchSwitcher } from "./branch-switcher";
 import { TabContextMenu, TabRenameModal } from "./tab-controls";
 import { AppTip } from "./app-tip";
 import { OpenInDropdown } from "./open-in-dropdown";
+import { ReviewView } from "./review-view";
 import {
   type LeafContent,
   type PaneLeaf,
@@ -45,6 +46,7 @@ import {
   findLeaf,
   makeLeaf,
   newBrowserContent,
+  newReviewContent,
   newShellContent,
   setActiveTab,
   setRatioAtPath,
@@ -206,6 +208,10 @@ export function DemoProjectView({
 
   const addBrowserToLeaf = (leafId: string) => {
     setTree((prev) => (prev ? addTabToLeaf(prev, leafId, newBrowserContent()) : prev));
+  };
+
+  const addReviewToLeaf = (leafId: string) => {
+    setTree((prev) => (prev ? addTabToLeaf(prev, leafId, newReviewContent()) : prev));
   };
 
   const openActionTerminal = (action: DemoAction) => {
@@ -430,6 +436,7 @@ export function DemoProjectView({
             onSelectTab={handleSelectTab}
             onNewTab={addTerminalToLeaf}
             onNewBrowser={addBrowserToLeaf}
+            onNewReview={addReviewToLeaf}
             onTabContextMenu={handleTabContextMenu}
             onRatioChange={handleRatioChange}
             onResizeStart={handleResizeStart}
@@ -514,13 +521,15 @@ export function DemoProjectView({
         const leaf = tree ? findLeaf(tree, renaming.leafId) : null;
         const tab = leaf?.tabs[renaming.tabIdx];
         if (!tab || tab.kind === "service") return null;
-        const isBrowser = tab.kind === "browser";
+        const hasEmoji = tab.kind === "shell" || tab.kind === "action";
+        const initialLabel =
+          tab.kind === "review" ? defaultLabel(tab) : tab.label ?? defaultLabel(tab);
         return (
           <TabRenameModal
             open
-            withEmoji={!isBrowser}
-            initialValue={tab.label ?? defaultLabel(tab)}
-            initialEmoji={tab.kind === "browser" ? "" : tab.emoji ?? ""}
+            withEmoji={hasEmoji}
+            initialValue={initialLabel}
+            initialEmoji={hasEmoji ? tab.emoji ?? "" : ""}
             onClose={() => setRenaming(null)}
             onSubmit={(value, emoji) =>
               handleRenameTab(renaming.leafId, renaming.tabIdx, value, emoji)
@@ -543,6 +552,7 @@ type PaneLayoutProps = {
   onSelectTab: (leafId: string, tabIdx: number) => void;
   onNewTab: (leafId: string) => void;
   onNewBrowser: (leafId: string) => void;
+  onNewReview: (leafId: string) => void;
   onTabContextMenu: (leafId: string, tabIdx: number, x: number, y: number) => void;
   onRatioChange: (path: number[], ratio: number) => void;
   onResizeStart: (dir: SplitDirection) => void;
@@ -621,6 +631,18 @@ function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
       ),
     };
   }
+  if (tab.kind === "review") {
+    return {
+      info: {
+        key,
+        label: defaultLabel(tab),
+        type: "review",
+        running: true,
+        pinned: tab.pinned,
+      },
+      body: <ReviewView key={tab.id} project={ctx.project} />,
+    };
+  }
   const action = ctx.actionTerminals[tab.key];
   const info: TabInfo = {
     key,
@@ -659,6 +681,7 @@ function Leaf({
   onSelectTab,
   onNewTab,
   onNewBrowser,
+  onNewReview,
   onTabContextMenu,
   agentTabStatus,
   onAgentTabStatus,
@@ -680,6 +703,7 @@ function Leaf({
         onCloseTab={(i) => onCloseTab(leaf.id, i)}
         onNewTab={() => onNewTab(leaf.id)}
         onNewBrowser={() => onNewBrowser(leaf.id)}
+        onNewReview={() => onNewReview(leaf.id)}
         onTabContextMenu={(i, x, y) => onTabContextMenu(leaf.id, i, x, y)}
         onSplitRight={() => onSplit(leaf.id, "row")}
         onSplitDown={() => onSplit(leaf.id, "col")}

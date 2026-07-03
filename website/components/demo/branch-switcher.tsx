@@ -382,7 +382,7 @@ export function DemoBranchSwitcher({
           className="flex items-center gap-1.5 rounded-md border border-[#2e2e2e] bg-[#242424] px-2.5 py-1 text-[10px] font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
         >
           <BranchIcon />
-          <span className="max-w-[160px] truncate">{git.branch}</span>
+          <span className="max-w-[160px] truncate font-mono">{git.branch}</span>
           {git.uncommitted > 0 && (
             <span
               className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[#60a5fa]"
@@ -477,7 +477,7 @@ export function DemoBranchSwitcher({
                           {b.remote ? <CloudBranchIcon /> : <BranchIcon />}
                           <span className="flex min-w-0 flex-1 flex-col">
                             <span className="flex min-w-0 items-center gap-1.5">
-                              <span className="truncate font-mono">{b.name}</span>
+                              <span className="truncate">{b.name}</span>
                               {b.remote && (
                                 <span className="rounded bg-[#1f1f1f] px-1 py-px text-[9px] font-medium uppercase tracking-wide text-[#919191]">
                                   {b.remote}
@@ -757,7 +757,7 @@ export function DemoBranchSwitcher({
           body={
             <>
               Remove{" "}
-              <span className="font-mono text-[#e5e5e5]">
+              <span className="font-medium text-[#e5e5e5]">
                 {removingRemote.remote}/{removingRemote.name}
               </span>
               ? This clears the copy lpm keeps locally — it doesn&apos;t change

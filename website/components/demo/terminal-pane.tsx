@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import {
+  Code,
   Columns2,
   Globe,
   Pin,
@@ -36,7 +37,7 @@ const COLOR_CLASS: Record<LineColor, string> = {
 export type TabInfo = {
   key: string;
   label: string;
-  type: "service" | "terminal" | "browser";
+  type: "service" | "terminal" | "browser" | "review";
   port?: number;
   running: boolean;
   emoji?: string;
@@ -51,6 +52,7 @@ type PaneHeaderProps = {
   onCloseTab: (idx: number) => void;
   onNewTab?: () => void;
   onNewBrowser?: () => void;
+  onNewReview?: () => void;
   onSplitRight?: () => void;
   onSplitDown?: () => void;
   onTabContextMenu?: (idx: number, x: number, y: number) => void;
@@ -63,6 +65,7 @@ export function PaneHeader({
   onCloseTab,
   onNewTab,
   onNewBrowser,
+  onNewReview,
   onSplitRight,
   onSplitDown,
   onTabContextMenu,
@@ -107,6 +110,8 @@ export function PaneHeader({
                   />
                 ) : tab.type === "browser" ? (
                   <Globe className="w-3.5 h-3.5 text-[#8e8e8e]" />
+                ) : tab.type === "review" ? (
+                  <Code className="w-3 h-3 text-[#8e8e8e]" />
                 ) : tab.emoji ? (
                   <span className="text-[12px] leading-none">{tab.emoji}</span>
                 ) : (
@@ -151,6 +156,7 @@ export function PaneHeader({
           <AddTabSplitButton
             onAddTerminal={onNewTab}
             onAddBrowser={onNewBrowser ?? onNewTab}
+            onAddReview={onNewReview ?? onNewTab}
           />
         )}
       </div>

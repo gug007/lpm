@@ -4,7 +4,8 @@ export type LeafContent =
   | { kind: "service"; name: string }
   | { kind: "shell"; id: string; label?: string; emoji?: string; pinned?: boolean }
   | { kind: "action"; key: string; label: string; emoji?: string; pinned?: boolean }
-  | { kind: "browser"; id: string; label?: string; pinned?: boolean };
+  | { kind: "browser"; id: string; label?: string; pinned?: boolean }
+  | { kind: "review"; id: string; pinned?: boolean };
 
 export interface PaneLeaf {
   kind: "leaf";
@@ -55,6 +56,10 @@ export function newBrowserContent(): LeafContent {
   return { kind: "browser", id: `br-${Date.now().toString(36)}-${rand(4)}` };
 }
 
+export function newReviewContent(): LeafContent {
+  return { kind: "review", id: `rv-${Date.now().toString(36)}-${rand(4)}` };
+}
+
 function newLeafId(): string {
   return `p-${Date.now().toString(36)}-${rand(4)}`;
 }
@@ -67,6 +72,7 @@ export function tabKey(content: LeafContent): string {
   if (content.kind === "service") return `s:${content.name}`;
   if (content.kind === "shell") return `sh:${content.id}`;
   if (content.kind === "browser") return `b:${content.id}`;
+  if (content.kind === "review") return `rv:${content.id}`;
   return `a:${content.key}`;
 }
 
@@ -74,6 +80,7 @@ export function defaultLabel(content: LeafContent): string {
   if (content.kind === "service") return content.name;
   if (content.kind === "shell") return "Terminal";
   if (content.kind === "browser") return "Browser";
+  if (content.kind === "review") return "Changes";
   return content.label;
 }
 
