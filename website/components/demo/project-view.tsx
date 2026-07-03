@@ -923,10 +923,12 @@ export function InteractiveTerminal({ projectRoot }: { projectRoot: string }) {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          autoFocus
           spellCheck={false}
           autoCapitalize="off"
           autoCorrect="off"
+          autoComplete="off"
+          data-1p-ignore
+          data-lpignore="true"
           className="flex-1 bg-transparent outline-none text-gray-100 font-mono caret-gray-100"
         />
       </form>

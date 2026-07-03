@@ -462,10 +462,12 @@ export function AgentTerminal({
               onChange={(e) => setInput(e.target.value)}
               disabled={busy}
               placeholder={busy ? "Working…" : `Send to ${agentName}…`}
-              autoFocus
               spellCheck={false}
               autoCapitalize="off"
               autoCorrect="off"
+              autoComplete="off"
+              data-1p-ignore
+              data-lpignore="true"
               className="w-full bg-transparent text-[12px] text-gray-100 outline-none placeholder:text-gray-600 caret-gray-100 disabled:opacity-50"
             />
             <div className="mt-1.5 flex items-center justify-between">
