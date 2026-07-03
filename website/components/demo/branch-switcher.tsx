@@ -14,6 +14,12 @@ const ICON_PROPS = {
   strokeLinejoin: "round" as const,
 };
 
+const AI_BRANCH_SUGGESTIONS = [
+  "feature/rotate-jwt-keys",
+  "fix/webhook-retry-backoff",
+  "chore/upgrade-dependencies",
+];
+
 function BranchIcon({ size = 12 }: { size?: number } = {}) {
   return (
     <svg {...ICON_PROPS} width={size} height={size} strokeWidth={2}>
@@ -243,6 +249,7 @@ export function DemoBranchSwitcher({
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
+  const [generatingName, setGeneratingName] = useState(false);
   const [renamingKey, setRenamingKey] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -253,12 +260,26 @@ export function DemoBranchSwitcher({
   const searchRef = useRef<HTMLInputElement>(null);
   const newBranchRef = useRef<HTMLInputElement>(null);
   const pullCloseTimer = useRef<number | null>(null);
+  const genIdxRef = useRef(0);
+
+  const generateBranchName = () => {
+    setGeneratingName(true);
+    window.setTimeout(() => {
+      const suggestion =
+        AI_BRANCH_SUGGESTIONS[genIdxRef.current % AI_BRANCH_SUGGESTIONS.length];
+      genIdxRef.current += 1;
+      setNewBranchName(suggestion);
+      setGeneratingName(false);
+      newBranchRef.current?.focus();
+    }, 650);
+  };
 
   const closeBranchMenu = () => {
     setBranchOpen(false);
     setQuery("");
     setCreating(false);
     setNewBranchName("");
+    setGeneratingName(false);
     setRenamingKey(null);
   };
 
@@ -543,37 +564,49 @@ export function DemoBranchSwitcher({
             </div>
             <div className="border-t border-[#2e2e2e]">
               {creating ? (
-                <div className="flex items-center gap-2 px-3 py-1.5">
-                  <PlusIcon />
-                  <input
-                    ref={newBranchRef}
-                    value={newBranchName}
-                    onChange={(e) => setNewBranchName(e.target.value)}
-                    placeholder="new-branch-name"
-                    spellCheck={false}
-                    autoCapitalize="off"
-                    autoCorrect="off"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        submitCreate();
-                      } else if (e.key === "Escape") {
-                        e.preventDefault();
-                        setCreating(false);
-                        setNewBranchName("");
-                      }
-                    }}
-                    className="min-w-0 flex-1 rounded border border-[#3a3a3a] bg-[#1a1a1a] px-1 py-0.5 text-[11px] font-mono text-[#e5e5e5] outline-none focus:border-[#5a5a5a]"
-                  />
+                <div className="px-3 py-1.5">
+                  <div className="flex items-center gap-2">
+                    <PlusIcon />
+                    <input
+                      ref={newBranchRef}
+                      value={newBranchName}
+                      onChange={(e) => setNewBranchName(e.target.value)}
+                      placeholder="new-branch-name"
+                      spellCheck={false}
+                      autoCapitalize="off"
+                      autoCorrect="off"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          submitCreate();
+                        } else if (e.key === "Escape") {
+                          e.preventDefault();
+                          setCreating(false);
+                          setNewBranchName("");
+                        }
+                      }}
+                      className="min-w-0 flex-1 rounded border border-[#3a3a3a] bg-[#1a1a1a] px-1 py-0.5 text-[11px] font-mono text-[#e5e5e5] outline-none focus:border-[#5a5a5a]"
+                    />
+                    <button
+                      type="button"
+                      title="Create"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={submitCreate}
+                      disabled={!newBranchName.trim()}
+                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[#60a5fa] transition-colors hover:bg-[#333] disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <CheckIcon />
+                    </button>
+                  </div>
                   <button
                     type="button"
-                    title="Create"
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={submitCreate}
-                    disabled={!newBranchName.trim()}
-                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[#60a5fa] transition-colors hover:bg-[#333] disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={generateBranchName}
+                    disabled={generatingName}
+                    className="mt-1.5 flex items-center gap-1.5 rounded px-1 py-0.5 text-[10px] text-[#b3b3b3] transition-colors hover:text-[#e5e5e5] disabled:opacity-70"
                   >
-                    <CheckIcon />
+                    <SparkleGlyph />
+                    {generatingName ? "Generating…" : "Generate with AI"}
                   </button>
                 </div>
               ) : (
@@ -787,14 +820,16 @@ function MergeDialog({
   onCancel: () => void;
   onMerge: (branch: string) => void;
 }) {
-  const options = useMemo(
+  const mergeable = useMemo(
     () =>
-      branches
-        .map((b) => (b.remote ? `${b.remote}/${b.name}` : b.name))
-        .filter((label) => label !== currentBranch),
+      branches.filter(
+        (b) => (b.remote ? `${b.remote}/${b.name}` : b.name) !== currentBranch,
+      ),
     [branches, currentBranch],
   );
-  const [selected, setSelected] = useState(options[0] ?? "");
+  const [selected, setSelected] = useState<DemoBranch | undefined>(mergeable[0]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const labelOf = (b: DemoBranch) => (b.remote ? `${b.remote}/${b.name}` : b.name);
 
   return (
     <div className="absolute inset-0 z-[60] flex items-center justify-center">
@@ -810,22 +845,52 @@ function MergeDialog({
           Merge another branch into{" "}
           <span className="font-mono text-[#e5e5e5]">{currentBranch}</span>.
         </p>
-        <label className="mt-4 block">
+        <div className="mt-4">
           <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-[#919191]">
             Branch to merge
           </span>
-          <select
-            value={selected}
-            onChange={(e) => setSelected(e.target.value)}
-            className="w-full rounded-md border border-[#2e2e2e] bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] outline-none focus:border-[#5a5a5a]"
-          >
-            {options.map((label) => (
-              <option key={label} value={label}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setPickerOpen((v) => !v)}
+              disabled={!selected}
+              className="flex w-full items-center gap-2 rounded-md border border-[#2e2e2e] bg-[#242424] px-2.5 py-1.5 text-left text-[12px] text-[#e5e5e5] transition-colors hover:border-[#5a5a5a] disabled:opacity-50"
+            >
+              {selected ? (
+                <BranchOption b={selected} />
+              ) : (
+                <span className="flex-1 text-[#666]">No other branches</span>
+              )}
+              <span className="shrink-0 text-[#919191]">
+                <ChevronDownIcon />
+              </span>
+            </button>
+            {pickerOpen && (
+              <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-52 overflow-y-auto rounded-md border border-[#2e2e2e] bg-[#242424] py-1 shadow-xl">
+                {mergeable.map((b) => {
+                  const active = selected && labelOf(b) === labelOf(selected);
+                  return (
+                    <button
+                      key={labelOf(b)}
+                      type="button"
+                      onClick={() => {
+                        setSelected(b);
+                        setPickerOpen(false);
+                      }}
+                      className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[12px] transition-colors ${
+                        active
+                          ? "bg-[#2f2f2f] text-[#e5e5e5]"
+                          : "text-[#b3b3b3] hover:bg-[#2a2a2a]"
+                      }`}
+                    >
+                      <BranchOption b={b} />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
         <div className="mt-3 flex items-center gap-1.5 rounded-md border border-[#2e2e2e] bg-[#242424] px-2.5 py-2 text-[11px] text-[#919191]">
           <SparkleGlyph />
           Conflicts? lpm can resolve them with AI.
@@ -840,7 +905,7 @@ function MergeDialog({
           </button>
           <button
             type="button"
-            onClick={() => selected && onMerge(selected)}
+            onClick={() => selected && onMerge(labelOf(selected))}
             disabled={!selected}
             className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-gray-900 transition-all hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -849,6 +914,27 @@ function MergeDialog({
         </div>
       </div>
     </div>
+  );
+}
+
+function BranchOption({ b }: { b: DemoBranch }) {
+  return (
+    <>
+      <span className="shrink-0 text-[#8e8e8e]">
+        {b.remote ? <CloudBranchIcon /> : <BranchIcon />}
+      </span>
+      <span className="min-w-0 flex-1 truncate font-mono">{b.name}</span>
+      {b.remote && (
+        <span className="shrink-0 rounded bg-[#333] px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-[#919191]">
+          {b.remote}
+        </span>
+      )}
+      {b.age && (
+        <span className="shrink-0 text-[10px] tabular-nums text-[#919191]">
+          {b.age}
+        </span>
+      )}
+    </>
   );
 }
 

@@ -124,7 +124,7 @@ function ProjectRow({
         aria-hidden="true"
         className={`inline-block w-[7px] h-[7px] rounded-full shrink-0 ${
           running
-            ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]"
+            ? "bg-[#4ade80]"
             : "border border-[#454545]"
         }`}
       />

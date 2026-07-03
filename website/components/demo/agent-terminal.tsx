@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { History, Mic, Plus, Send, Sparkles } from "lucide-react";
 
 export type AgentKind = "claude" | "codex";
 export type AgentStatus = "waiting" | "running" | "done";
@@ -470,26 +471,51 @@ export function AgentTerminal({
               data-lpignore="true"
               className="w-full bg-transparent text-[12px] text-gray-100 outline-none placeholder:text-gray-600 caret-gray-100 disabled:opacity-50"
             />
-            <div className="mt-1.5 flex items-center justify-between">
-              <div className="flex items-center gap-1 text-[10px] text-gray-500">
-                <span className="rounded border border-[#2e2e2e] px-1 py-px">
-                  @ mentions
-                </span>
-                <span className="rounded border border-[#2e2e2e] px-1 py-px">
-                  / commands
-                </span>
-              </div>
+            <div className="mt-1.5 flex items-center justify-end gap-0.5">
+              <ComposerIcon title="Dictate">
+                <Mic className="h-3.5 w-3.5" />
+              </ComposerIcon>
+              <ComposerIcon title="AI actions">
+                <Sparkles className="h-3.5 w-3.5" />
+              </ComposerIcon>
+              <ComposerIcon title="New input">
+                <Plus className="h-4 w-4" />
+              </ComposerIcon>
+              <ComposerIcon title="Message history">
+                <History className="h-3.5 w-3.5" />
+              </ComposerIcon>
               <button
                 type="submit"
                 disabled={busy || !input.trim()}
-                className="flex items-center gap-1 rounded-md bg-[#60a5fa] px-2 py-0.5 text-[10px] font-medium text-[#1a1a1a] transition-opacity hover:opacity-85 disabled:opacity-40"
+                aria-label="Send"
+                title="Send"
+                className="ml-0.5 flex h-7 w-7 items-center justify-center rounded-md bg-[#60a5fa] text-[#1a1a1a] transition-opacity hover:opacity-85 disabled:opacity-40"
               >
-                Send <span className="opacity-60">↵</span>
+                <Send className="h-3.5 w-3.5" />
               </button>
             </div>
           </div>
         </form>
       </div>
     </div>
+  );
+}
+
+function ComposerIcon({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      className="flex h-7 w-7 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-white/[0.06] hover:text-gray-200"
+    >
+      {children}
+    </button>
   );
 }

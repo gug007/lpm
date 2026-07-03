@@ -1,15 +1,23 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Settings as SettingsIcon } from "lucide-react";
+import {
+  Monitor,
+  Moon,
+  Settings as SettingsIcon,
+  Sun,
+} from "lucide-react";
 
-const THEMES = ["System", "Light", "Dark"] as const;
-type Theme = (typeof THEMES)[number];
+const THEMES = [
+  { id: "Light", icon: Sun },
+  { id: "Dark", icon: Moon },
+  { id: "System", icon: Monitor },
+] as const;
+type Theme = (typeof THEMES)[number]["id"];
 
 export function SettingsView() {
   const [theme, setTheme] = useState<Theme>("Dark");
   const [doubleClick, setDoubleClick] = useState(true);
-  const [confirmDestructive, setConfirmDestructive] = useState(true);
 
   return (
     <div className="relative flex flex-1 min-w-0 min-h-0 flex-col bg-[#1a1a1a]">
@@ -24,18 +32,19 @@ export function SettingsView() {
           <Section title="Appearance">
             <Row label="Theme" desc="How lpm looks on this machine">
               <div className="flex rounded-lg border border-[#2e2e2e] bg-[#242424] p-0.5">
-                {THEMES.map((t) => (
+                {THEMES.map(({ id, icon: Icon }) => (
                   <button
-                    key={t}
+                    key={id}
                     type="button"
-                    onClick={() => setTheme(t)}
-                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                      theme === t
+                    onClick={() => setTheme(id)}
+                    className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                      theme === id
                         ? "bg-[#333333] text-[#e5e5e5]"
                         : "text-[#919191] hover:text-[#e5e5e5]"
                     }`}
                   >
-                    {t}
+                    <Icon className="h-3 w-3" strokeWidth={2} />
+                    {id}
                   </button>
                 ))}
               </div>
@@ -48,11 +57,12 @@ export function SettingsView() {
               on={doubleClick}
               onToggle={() => setDoubleClick((v) => !v)}
             />
-            <ToggleRow
-              label="Confirm before destructive actions"
-              on={confirmDestructive}
-              onToggle={() => setConfirmDestructive((v) => !v)}
-            />
+            <Row
+              label="Default project directory"
+              desc="Where new projects are created"
+            >
+              <Value>~/Projects</Value>
+            </Row>
           </Section>
 
           <Section title="AI & accounts">
@@ -129,7 +139,7 @@ function ToggleRow({
         aria-checked={on}
         onClick={onToggle}
         className={`relative h-[18px] w-8 shrink-0 rounded-full transition-colors ${
-          on ? "bg-cyan-500" : "bg-[#3a3a3a]"
+          on ? "bg-emerald-500" : "bg-[#3a3a3a]"
         }`}
       >
         <span

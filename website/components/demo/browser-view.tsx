@@ -222,8 +222,8 @@ export function BrowserView({
         <button
           className={NAV_BTN}
           onClick={() => setDark((d) => !d)}
-          title={dark ? "Switch page to light" : "Switch page to dark"}
-          aria-label="Toggle page theme"
+          title={dark ? "Switch browser to light" : "Switch browser to dark"}
+          aria-label="Toggle browser theme"
         >
           {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>

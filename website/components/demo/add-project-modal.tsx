@@ -11,6 +11,7 @@ import {
   Home,
   Search,
   Server,
+  X,
 } from "lucide-react";
 
 function FilledFolder({ size = 13 }: { size?: number }) {
@@ -208,6 +209,8 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
   const [phase, setPhase] = useState<Phase>("pick");
   const [name, setName] = useState("");
   const [host, setHost] = useState("");
+  const [user, setUser] = useState("");
+  const [port, setPort] = useState("");
   const [url, setUrl] = useState("");
   const [branch, setBranch] = useState("");
   const [dest, setDest] = useState(DEST_FOLDERS[0]);
@@ -229,6 +232,8 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
     setPhase("pick");
     setName("");
     setHost("");
+    setUser("");
+    setPort("");
     setUrl("");
     setBranch("");
     setDest(DEST_FOLDERS[0]);
@@ -358,13 +363,21 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
         >
           <button
             type="button"
+            onClick={handleClose}
+            aria-label="Close"
+            className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-md text-[#919191] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
+          >
+            <X size={15} strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
             onClick={() => setPhase("pick")}
             className="mb-3 flex items-center gap-1 text-[11px] text-[#919191] transition-colors hover:text-[#e5e5e5]"
           >
             <ChevronLeft size={14} strokeWidth={1.5} />
             Back
           </button>
-          <div id="ssh-host-title" className="text-[13px] font-medium text-[#e5e5e5]">
+          <div id="ssh-host-title" className="text-base font-semibold text-[#e5e5e5]">
             Connect to SSH host
           </div>
           <p className="mt-1.5 text-[11px] leading-relaxed text-[#919191]">
@@ -381,13 +394,13 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
           >
             <label className="flex flex-col gap-1.5">
               <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
-                Project name
+                Host
               </span>
               <input
                 ref={sshNameRef}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="remote-api"
+                value={host}
+                onChange={(e) => setHost(e.target.value)}
+                placeholder="example.com or 10.0.0.5"
                 spellCheck={false}
                 autoCapitalize="off"
                 autoCorrect="off"
@@ -395,14 +408,44 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
               />
             </label>
 
+            <div className="flex gap-3">
+              <label className="flex flex-1 flex-col gap-1.5">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
+                  User
+                </span>
+                <input
+                  value={user}
+                  onChange={(e) => setUser(e.target.value)}
+                  placeholder="root"
+                  spellCheck={false}
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#666] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
+                />
+              </label>
+              <label className="flex w-24 flex-col gap-1.5">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
+                  Port
+                </span>
+                <input
+                  value={port}
+                  onChange={(e) => setPort(e.target.value)}
+                  placeholder="22"
+                  inputMode="numeric"
+                  spellCheck={false}
+                  className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#666] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
+                />
+              </label>
+            </div>
+
             <label className="flex flex-col gap-1.5">
               <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
-                Host
+                Project name
               </span>
               <input
-                value={host}
-                onChange={(e) => setHost(e.target.value)}
-                placeholder="user@host.example.com"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="my-server"
                 spellCheck={false}
                 autoCapitalize="off"
                 autoCorrect="off"
@@ -439,13 +482,21 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
         >
           <button
             type="button"
+            onClick={handleClose}
+            aria-label="Close"
+            className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-md text-[#919191] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
+          >
+            <X size={15} strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
             onClick={() => setPhase("pick")}
             className="mb-3 flex items-center gap-1 text-[11px] text-[#919191] transition-colors hover:text-[#e5e5e5]"
           >
             <ChevronLeft size={14} strokeWidth={1.5} />
             Back
           </button>
-          <div id="clone-repo-title" className="text-[13px] font-medium text-[#e5e5e5]">
+          <div id="clone-repo-title" className="text-base font-semibold text-[#e5e5e5]">
             Clone repository
           </div>
           <p className="mt-1.5 text-[11px] leading-relaxed text-[#919191]">

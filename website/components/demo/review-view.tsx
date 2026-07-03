@@ -8,8 +8,6 @@ type DiffLine = { t: "hunk" | "ctx" | "add" | "del"; text: string };
 type ChangedFile = {
   path: string;
   status: "modified" | "added" | "deleted";
-  add: number;
-  del: number;
   diff: DiffLine[];
 };
 
@@ -17,8 +15,6 @@ const FILES: ChangedFile[] = [
   {
     path: "src/lib/billing.ts",
     status: "modified",
-    add: 24,
-    del: 6,
     diff: [
       { t: "hunk", text: "@@ -14,7 +14,9 @@ export async function createSubscription(" },
       { t: "ctx", text: "   const customer = await stripe.customers.create({ email });" },
@@ -34,8 +30,6 @@ const FILES: ChangedFile[] = [
   {
     path: "src/components/PlanCard.tsx",
     status: "modified",
-    add: 12,
-    del: 3,
     diff: [
       { t: "hunk", text: "@@ -8,5 +8,7 @@ export function PlanCard({ plan }: Props) {" },
       { t: "ctx", text: "   return (" },
@@ -49,8 +43,6 @@ const FILES: ChangedFile[] = [
   {
     path: "src/lib/stripe-webhook.ts",
     status: "added",
-    add: 48,
-    del: 0,
     diff: [
       { t: "hunk", text: "@@ -0,0 +1,48 @@" },
       { t: "add", text: '+import { stripe } from "./billing";' },
@@ -74,17 +66,12 @@ const STATUS = {
 export function ReviewView({ project }: { project: DemoProject }) {
   const [active, setActive] = useState(0);
   const file = FILES[active];
-  const totalAdd = FILES.reduce((n, f) => n + f.add, 0);
-  const totalDel = FILES.reduce((n, f) => n + f.del, 0);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[#1a1a1a]">
       <div className="flex shrink-0 items-center gap-2 border-b border-[#2e2e2e] px-3 py-2 text-[11px]">
-        <span className="font-medium text-[#e5e5e5]">
-          {FILES.length} files changed
-        </span>
-        <span className="font-mono text-[#4ade80]">+{totalAdd}</span>
-        <span className="font-mono text-[#f87171]">−{totalDel}</span>
+        <span className="font-medium text-[#e5e5e5]">Changes</span>
+        <span className="text-[#8e8e8e]">{FILES.length} files</span>
         <span className="ml-auto truncate font-mono text-[10px] text-[#666]">
           {project.root}
         </span>
@@ -112,12 +99,6 @@ export function ReviewView({ project }: { project: DemoProject }) {
                 <span className="min-w-0 flex-1 truncate">
                   <span className="text-[#8e8e8e]">{dir}</span>
                   {name}
-                </span>
-                <span className="shrink-0 font-mono text-[10px] tabular-nums text-[#4ade80]">
-                  +{f.add}
-                </span>
-                <span className="shrink-0 font-mono text-[10px] tabular-nums text-[#f87171]">
-                  −{f.del}
                 </span>
               </button>
             );

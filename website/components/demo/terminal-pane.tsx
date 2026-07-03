@@ -101,21 +101,43 @@ export function PaneHeader({
                   : "text-[#a0a0a0] hover:bg-white/[0.04] hover:text-[#d4d4d4]"
               }`}
             >
-              <span aria-hidden="true" className="flex w-3.5 shrink-0 items-center justify-center">
-                {tab.type === "service" ? (
-                  <Zap
-                    className={`w-3 h-3 ${tab.running ? "text-emerald-400" : "text-[#8e8e8e]"}`}
-                    strokeWidth={2}
-                    fill={tab.running ? "currentColor" : "none"}
+              <span className="flex w-3.5 shrink-0 items-center justify-center">
+                <span aria-hidden="true" className="flex items-center justify-center group-hover:hidden">
+                  {tab.type === "service" ? (
+                    <Zap
+                      className={`w-3 h-3 ${tab.running ? "text-emerald-400" : "text-[#8e8e8e]"}`}
+                      strokeWidth={2}
+                      fill={tab.running ? "currentColor" : "none"}
+                    />
+                  ) : tab.type === "browser" ? (
+                    <Globe className="w-3.5 h-3.5 text-[#8e8e8e]" />
+                  ) : tab.type === "review" ? (
+                    <Code className="w-3 h-3 text-[#8e8e8e]" />
+                  ) : tab.emoji ? (
+                    <span className="text-[12px] leading-none">{tab.emoji}</span>
+                  ) : (
+                    <TerminalIcon className="w-3 h-3 text-[#8e8e8e]" />
+                  )}
+                </span>
+                {tab.pinned ? (
+                  <Pin
+                    aria-hidden="true"
+                    className="hidden w-3 h-3 text-[#8e8e8e] group-hover:block"
+                    fill="currentColor"
                   />
-                ) : tab.type === "browser" ? (
-                  <Globe className="w-3.5 h-3.5 text-[#8e8e8e]" />
-                ) : tab.type === "review" ? (
-                  <Code className="w-3 h-3 text-[#8e8e8e]" />
-                ) : tab.emoji ? (
-                  <span className="text-[12px] leading-none">{tab.emoji}</span>
                 ) : (
-                  <TerminalIcon className="w-3 h-3 text-[#8e8e8e]" />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCloseTab(i);
+                    }}
+                    aria-label={`Close ${tab.label}`}
+                    title="Close (⌘W)"
+                    className="hidden items-center justify-center rounded text-[#8e8e8e] transition-colors hover:text-gray-100 group-hover:flex focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
                 )}
               </span>
               <span
@@ -129,25 +151,6 @@ export function PaneHeader({
                 <span className="font-mono text-[10px] text-[#8e8e8e] tabular-nums shrink-0">
                   :{tab.port}
                 </span>
-              )}
-              {tab.pinned ? (
-                <Pin
-                  aria-hidden="true"
-                  className="w-3 h-3 text-[#8e8e8e] shrink-0"
-                  fill="currentColor"
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCloseTab(i);
-                  }}
-                  aria-label={`Close ${tab.label}`}
-                  className="rounded text-[#8e8e8e] hover:text-gray-100 transition-colors shrink-0 leading-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
-                >
-                  <X className="w-3 h-3" />
-                </button>
               )}
             </div>
           );
