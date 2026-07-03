@@ -29,6 +29,10 @@ export type DemoAction = {
   display: "header" | "footer";
   type?: "terminal";
   agent?: "claude" | "codex";
+  // When this agent action opens, the session starts with this prompt already
+  // sent — "progress" streams an unfinished reply, "done" shows it complete.
+  autoPrompt?: string;
+  autoMode?: "progress" | "done";
   confirm?: boolean;
   durationMs?: number;
   output: OutputLine[];
@@ -64,7 +68,11 @@ export type DemoProject = {
   actions: DemoAction[];
   profiles: DemoProfile[];
   git?: DemoGit;
+  // Action name to auto-open (mid-task) when this project is first viewed.
+  autoStart?: string;
 };
+
+export type AiStatus = "running" | "waiting" | "done" | "error";
 
 const CLAUDE_ACTION: DemoAction = {
   name: "claude",
@@ -297,8 +305,14 @@ const PROJECTS: DemoProject[] = [
         ],
       },
     ],
+    autoStart: "claude",
     actions: [
-      CODEX_ACTION,
+      {
+        ...CLAUDE_ACTION,
+        autoPrompt:
+          "Rotate the JWT signing keys safely and keep existing tokens valid",
+        autoMode: "progress",
+      },
       {
         name: "test",
         label: "go test",
@@ -350,6 +364,7 @@ const PROJECTS: DemoProject[] = [
     label: "docs-site",
     root: "~/Projects/docs-site",
     stack: "Astro + MDX",
+    autoStart: "claude",
     services: [
       {
         name: "site",
@@ -376,7 +391,11 @@ const PROJECTS: DemoProject[] = [
       },
     ],
     actions: [
-      CLAUDE_ACTION,
+      {
+        ...CLAUDE_ACTION,
+        autoPrompt: "Regenerate the API reference docs from the current routes",
+        autoMode: "done",
+      },
       {
         name: "build",
         label: "Build",
@@ -521,5 +540,14 @@ const PROJECTS: DemoProject[] = [
     },
   },
 ];
+
+// Seeded so the sidebar shows lpm's per-project AI states at a glance: a
+// background agent still working (running shimmer), one that needs input
+// (waiting), and one that just finished (done). The selected project picks up
+// live status when you launch Claude Code or Codex in it.
+export const INITIAL_AI_STATUS: Record<string, AiStatus> = {
+  "auth-service": "running",
+  "docs-site": "done",
+};
 
 export default PROJECTS;

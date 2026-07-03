@@ -3,6 +3,72 @@
 import { useEffect, useRef, useState } from "react";
 
 export type AgentKind = "claude" | "codex";
+export type AgentStatus = "waiting" | "running" | "done";
+
+type Brand = {
+  glyph: string;
+  color: string;
+  prompt: string;
+  bullet: string;
+  title: string;
+  help: string;
+  name: string;
+};
+
+const BRAND: Record<AgentKind, Brand> = {
+  claude: {
+    glyph: "✻",
+    color: "text-fuchsia-300",
+    prompt: ">",
+    bullet: "●",
+    title: "Welcome to Claude Code!",
+    help: "/help for help · /status for your setup",
+    name: "Claude Code",
+  },
+  codex: {
+    glyph: "◆",
+    color: "text-cyan-300",
+    prompt: "▶",
+    bullet: "▸",
+    title: "Codex CLI · ready",
+    help: "/help · /model · /resume",
+    name: "Codex",
+  },
+};
+
+// A canned session that streams agent work and then holds on a live "Thinking…"
+// spinner — used to show a project mid-task ("in progress") the moment you open
+// it. It never resolves on its own, so the sidebar stays in the running state.
+const IN_PROGRESS_STEPS: Step[] = [
+  { kind: "thinking" },
+  { kind: "tool", label: "Read", arg: "internal/auth/jwt.go", result: "212 lines" },
+  { kind: "tool", label: "Grep", arg: "RotateSigningKey", result: "6 matches" },
+  {
+    kind: "text",
+    text: "Rotating the signing key on a schedule and keeping a grace window so in-flight tokens stay valid.",
+  },
+  { kind: "tool", label: "Edit", arg: "internal/auth/rotation.go", result: "+48 -6" },
+  { kind: "tool", label: "Bash", arg: "go test ./internal/auth/...", result: "running…" },
+  { kind: "thinking" },
+];
+
+// A finished session — shown fully revealed when a project opens with work
+// already complete.
+const DONE_STEPS: Step[] = [
+  { kind: "thinking" },
+  { kind: "tool", label: "Glob", arg: "src/pages/api/**/*.ts", result: "24 routes" },
+  { kind: "tool", label: "Read", arg: "src/content/reference.mdx", result: "88 lines" },
+  { kind: "tool", label: "Write", arg: "src/content/reference.mdx", result: "+312 -74" },
+  {
+    kind: "text",
+    text: "Regenerated the API reference from the current routes — 24 endpoints grouped by resource, each with request and response examples.",
+  },
+  {
+    kind: "text",
+    text: "The dev server hot-reloaded; the updated page is live at /reference.",
+    style: "muted",
+  },
+];
 
 type Step =
   | { kind: "thinking" }
@@ -191,25 +257,39 @@ function stepDelay(step: Step): number {
 type AgentTerminalProps = {
   agent: AgentKind;
   cwd: string;
+  onStatus?: (status: AgentStatus) => void;
+  // When set, the session opens with this prompt already sent. autoMode
+  // "progress" streams a canned reply that never resolves (agent still
+  // working); "done" shows the reply already finished (work already complete).
+  autoPrompt?: string;
+  autoMode?: "progress" | "done";
 };
 
-export function AgentTerminal({ agent, cwd }: AgentTerminalProps) {
+export function AgentTerminal({
+  agent,
+  cwd,
+  onStatus,
+  autoPrompt,
+  autoMode = "progress",
+}: AgentTerminalProps) {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const nextIdRef = useRef(0);
+  const onStatusRef = useRef(onStatus);
+  useEffect(() => {
+    onStatusRef.current = onStatus;
+  });
 
   const spinner = useSpinnerFrame(busy);
 
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [history, input, busy, spinner]);
-
-  const runQuery = (text: string) => {
-    const steps = buildReply(text, agent);
+  const runQuery = (
+    text: string,
+    opts?: { steps?: Step[]; keepBusy?: boolean },
+  ) => {
+    const steps = opts?.steps ?? buildReply(text, agent);
     if (steps.length === 0) return;
     nextIdRef.current += 1;
     const id = nextIdRef.current;
@@ -218,6 +298,7 @@ export function AgentTerminal({ agent, cwd }: AgentTerminalProps) {
       return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
     });
     setBusy(true);
+    onStatusRef.current?.("running");
 
     let acc = 0;
     steps.forEach((step, i) => {
@@ -229,7 +310,9 @@ export function AgentTerminal({ agent, cwd }: AgentTerminalProps) {
             item.id === id ? { ...item, revealed: i + 1 } : item,
           ),
         );
-        if (isLast) {
+        // keepBusy leaves the session on its final live spinner (still
+        // "running") instead of settling — an agent that stays mid-task.
+        if (isLast && !opts?.keepBusy) {
           window.setTimeout(() => {
             setHistory((h) =>
               h.map((item) =>
@@ -237,11 +320,43 @@ export function AgentTerminal({ agent, cwd }: AgentTerminalProps) {
               ),
             );
             setBusy(false);
+            onStatusRef.current?.("done");
           }, 220);
         }
       }, acc);
     });
   };
+
+  const startedRef = useRef(false);
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    // The agent launches idle, awaiting your first prompt (lpm's "waiting"
+    // state) — unless it opens with work in flight (progress) or already
+    // finished (done) via autoPrompt.
+    if (autoPrompt && autoMode === "progress") {
+      runQuery(autoPrompt, { steps: IN_PROGRESS_STEPS, keepBusy: true });
+    } else if (autoPrompt && autoMode === "done") {
+      nextIdRef.current += 1;
+      setHistory([
+        {
+          id: nextIdRef.current,
+          query: autoPrompt,
+          revealed: DONE_STEPS.length,
+          steps: DONE_STEPS,
+          finished: true,
+        },
+      ]);
+    } else {
+      onStatusRef.current?.("waiting");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [history, input, busy, spinner]);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -251,24 +366,22 @@ export function AgentTerminal({ agent, cwd }: AgentTerminalProps) {
     runQuery(text);
   };
 
-  const brand = agent === "claude" ? "✻" : "◆";
-  const brandColor =
-    agent === "claude" ? "text-fuchsia-300" : "text-cyan-300";
-  const promptGlyph = agent === "claude" ? ">" : "▶";
-  const toolBullet = agent === "claude" ? "●" : "▸";
-  const welcomeTitle =
-    agent === "claude" ? "Welcome to Claude Code!" : "Codex CLI · ready";
-  const welcomeHelp =
-    agent === "claude"
-      ? "/help for help · /status for your setup"
-      : "/help · /model · /resume";
+  const b = BRAND[agent];
+  const brand = b.glyph;
+  const brandColor = b.color;
+  const promptGlyph = b.prompt;
+  const toolBullet = b.bullet;
+  const welcomeTitle = b.title;
+  const welcomeHelp = b.help;
+  const agentName = b.name;
 
   return (
-    <div
-      ref={scrollRef}
-      onClick={() => inputRef.current?.focus()}
-      className="flex-1 min-h-0 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed bg-[#1a1a1a] text-gray-100"
-    >
+    <div className="flex flex-1 min-h-0 flex-col bg-[#1a1a1a]">
+      <div
+        ref={scrollRef}
+        onClick={() => inputRef.current?.focus()}
+        className="flex-1 min-h-0 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed text-gray-100"
+      >
       <div className="text-emerald-400">$ {agent}</div>
       <div className="h-2" />
       <div className={brandColor}>
@@ -338,24 +451,43 @@ export function AgentTerminal({ agent, cwd }: AgentTerminalProps) {
         </div>
       ))}
 
-      <form onSubmit={onSubmit} className="flex items-start gap-2 mt-2">
-        <span className={brandColor}>{promptGlyph}</span>
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          disabled={busy}
-          placeholder={
-            busy ? "" : agent === "claude" ? "Ask anything…" : "Describe a task…"
-          }
-          autoFocus
-          spellCheck={false}
-          autoCapitalize="off"
-          autoCorrect="off"
-          className="flex-1 bg-transparent outline-none text-gray-100 font-mono placeholder:text-gray-600 caret-gray-100 disabled:opacity-50"
-        />
-      </form>
+      </div>
+      <div className="shrink-0 border-t border-[#2e2e2e] px-3 py-2">
+        <form onSubmit={onSubmit}>
+          <div className="rounded-lg border border-[#2e2e2e] bg-[#202020] px-2.5 py-2 transition-colors focus-within:border-[#3a3a3a]">
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              disabled={busy}
+              placeholder={busy ? "Working…" : `Send to ${agentName}…`}
+              autoFocus
+              spellCheck={false}
+              autoCapitalize="off"
+              autoCorrect="off"
+              className="w-full bg-transparent text-[12px] text-gray-100 outline-none placeholder:text-gray-600 caret-gray-100 disabled:opacity-50"
+            />
+            <div className="mt-1.5 flex items-center justify-between">
+              <div className="flex items-center gap-1 text-[10px] text-gray-500">
+                <span className="rounded border border-[#2e2e2e] px-1 py-px">
+                  @ mentions
+                </span>
+                <span className="rounded border border-[#2e2e2e] px-1 py-px">
+                  / commands
+                </span>
+              </div>
+              <button
+                type="submit"
+                disabled={busy || !input.trim()}
+                className="flex items-center gap-1 rounded-md bg-[#60a5fa] px-2 py-0.5 text-[10px] font-medium text-[#1a1a1a] transition-opacity hover:opacity-85 disabled:opacity-40"
+              >
+                Send <span className="opacity-60">↵</span>
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

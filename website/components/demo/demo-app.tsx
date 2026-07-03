@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MousePointer2 } from "lucide-react";
 import INITIAL_PROJECTS, {
+  INITIAL_AI_STATUS,
+  type AiStatus,
   type DemoAction,
   type DemoBranch,
   type DemoGit,
@@ -12,6 +14,8 @@ import INITIAL_PROJECTS, {
 import { DemoSidebar } from "./sidebar";
 import { MobileProjectSwitcher } from "./mobile-project-switcher";
 import { DemoProjectView } from "./project-view";
+import { GlobalTerminalsView } from "./global-terminals-view";
+import { SettingsView } from "./settings-view";
 import {
   DemoAddProjectModal,
   type NewProjectInput,
@@ -135,6 +139,12 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
   >(() => Object.fromEntries(INITIAL_PROJECTS.map((p) => [p.name, new Set()])));
   const [gitByProject, setGitByProject] = useState<Record<string, DemoGit>>(
     () => initialGitState(INITIAL_PROJECTS),
+  );
+  const [aiStatusByProject, setAiStatusByProject] = useState<
+    Record<string, AiStatus>
+  >(() => ({ ...INITIAL_AI_STATUS }));
+  const [view, setView] = useState<"project" | "terminals" | "settings">(
+    "project",
   );
   const [adding, setAdding] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
@@ -287,6 +297,23 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     [projects, selected],
   );
 
+  const selectProject = (name: string) => {
+    setSelected(name);
+    setView("project");
+    // Viewing a project consumes its attention badge (done / waiting) — a
+    // running agent re-announces itself when its view mounts.
+    setAiStatusByProject((prev) => {
+      if (!(name in prev)) return prev;
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
+  };
+
+  const setAiStatus = (name: string, status: AiStatus) => {
+    setAiStatusByProject((prev) => ({ ...prev, [name]: status }));
+  };
+
   const runningHere = runningByProject[project.name];
   const gitHere = gitByProject[project.name];
 
@@ -351,6 +378,19 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     updateGit((g) => ({ ...g, behind: 0 }));
   };
 
+  const handlePush = () => {
+    updateGit((g) => (g.ahead === 0 ? g : { ...g, ahead: 0 }));
+  };
+
+  const handleFetch = () => {
+    // Fetch only updates remote-tracking refs; the demo has nothing new to pull
+    // in, so this is a no-op — same as a real "Already up to date" fetch.
+  };
+
+  const handleMerge = () => {
+    updateGit((g) => ({ ...g, ahead: g.ahead + 1, uncommitted: 0 }));
+  };
+
   const handleCreatePR = () => {
     updateGit((g) => (g.ahead === 0 ? g : { ...g, ahead: 0 }));
   };
@@ -391,6 +431,15 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     }));
   };
 
+  const handleRemoveRemote = (branch: DemoBranch) => {
+    updateGit((g) => ({
+      ...g,
+      branches: g.branches.filter(
+        (b) => !(b.remote === branch.remote && b.name === branch.name),
+      ),
+    }));
+  };
+
   const handleAddAction = (input: NewActionInput) => {
     setProjects((prev) =>
       prev.map((p) =>
@@ -406,6 +455,7 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     setProjects((prev) => [...prev, newProject]);
     setRunningByProject((prev) => ({ ...prev, [newProject.name]: new Set() }));
     setSelected(newProject.name);
+    setView("project");
     setAdding(false);
   };
 
@@ -427,39 +477,54 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       <DemoSidebar
         projects={projects}
         selected={project.name}
-        onSelect={setSelected}
+        activeView={view}
+        onSelect={selectProject}
         runningByProject={runningByProject}
+        aiStatusByProject={aiStatusByProject}
         onAddProject={() => setAdding(true)}
+        onOpenTerminals={() => setView("terminals")}
+        onOpenSettings={() => setView("settings")}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <MobileProjectSwitcher
           projects={projects}
           selected={project.name}
-          onSelect={setSelected}
+          onSelect={selectProject}
           runningByProject={runningByProject}
           onAddProject={() => setAdding(true)}
         />
-        <DemoProjectView
-          key={project.name}
-          project={project}
-          runningServices={runningHere}
-          onStartServices={startServices}
-          onStopAll={stopAll}
-          onToggleService={toggleService}
-          git={gitHere}
-          onGitCheckout={handleCheckout}
-          onGitCommit={handleCommit}
-          onGitPull={handlePull}
-          onGitCreatePR={handleCreatePR}
-          onGitDiscard={handleDiscard}
-          onGitSync={handleSync}
-          onGitCreateBranch={handleCreateBranch}
-          onGitRenameBranch={handleRenameBranch}
-          onGitDeleteBranch={handleDeleteBranch}
-          onAddAction={handleAddAction}
-          startButtonRef={startButtonRef}
-          startRingPulse={ringPulseOn && !hasInteracted}
-        />
+        {view === "terminals" ? (
+          <GlobalTerminalsView />
+        ) : view === "settings" ? (
+          <SettingsView />
+        ) : (
+          <DemoProjectView
+            key={project.name}
+            project={project}
+            runningServices={runningHere}
+            onStartServices={startServices}
+            onStopAll={stopAll}
+            onToggleService={toggleService}
+            git={gitHere}
+            onGitCheckout={handleCheckout}
+            onGitCommit={handleCommit}
+            onGitPull={handlePull}
+            onGitPush={handlePush}
+            onGitFetch={handleFetch}
+            onGitMerge={handleMerge}
+            onGitCreatePR={handleCreatePR}
+            onGitDiscard={handleDiscard}
+            onGitSync={handleSync}
+            onGitCreateBranch={handleCreateBranch}
+            onGitRenameBranch={handleRenameBranch}
+            onGitDeleteBranch={handleDeleteBranch}
+            onGitRemoveRemote={handleRemoveRemote}
+            onAddAction={handleAddAction}
+            onAgentStatus={(status) => setAiStatus(project.name, status)}
+            startButtonRef={startButtonRef}
+            startRingPulse={ringPulseOn && !hasInteracted}
+          />
+        )}
       </div>
       <DemoAddProjectModal
         open={adding}

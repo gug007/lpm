@@ -27,8 +27,28 @@ function rand(n: number): string {
   return Math.random().toString(36).slice(2, 2 + n);
 }
 
-export function newShellContent(): LeafContent {
-  return { kind: "shell", id: `sh-${Date.now().toString(36)}-${rand(4)}` };
+export function newShellContent(node: PaneNode | null = null): LeafContent {
+  return {
+    kind: "shell",
+    id: `sh-${Date.now().toString(36)}-${rand(4)}`,
+    label: pickTerminalLabel(node),
+  };
+}
+
+// Numbers new shells "Terminal 1", "Terminal 2", … reusing the smallest freed
+// integer so closing and reopening tabs doesn't keep climbing.
+export function pickTerminalLabel(node: PaneNode | null): string {
+  const used = new Set<number>();
+  for (const leaf of collectLeaves(node)) {
+    for (const tab of leaf.tabs) {
+      if (tab.kind !== "shell") continue;
+      const match = /^Terminal (\d+)$/.exec(tab.label ?? "");
+      if (match) used.add(Number(match[1]));
+    }
+  }
+  let n = 1;
+  while (used.has(n)) n += 1;
+  return `Terminal ${n}`;
 }
 
 export function newBrowserContent(): LeafContent {
@@ -52,7 +72,7 @@ export function tabKey(content: LeafContent): string {
 
 export function defaultLabel(content: LeafContent): string {
   if (content.kind === "service") return content.name;
-  if (content.kind === "shell") return "terminal";
+  if (content.kind === "shell") return "Terminal";
   if (content.kind === "browser") return "Browser";
   return content.label;
 }

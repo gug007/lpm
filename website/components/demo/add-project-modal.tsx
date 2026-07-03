@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Cloud,
   File as FileIcon,
   Folder,
   Home,
@@ -24,12 +25,13 @@ function FilledFolder({ size = 13 }: { size?: number }) {
   );
 }
 
-export type NewProjectKind = "local" | "ssh";
+export type NewProjectKind = "local" | "ssh" | "clone";
 
 export type NewProjectInput = {
   kind: NewProjectKind;
   name: string;
   host?: string;
+  url?: string;
 };
 
 type Props = {
@@ -38,7 +40,59 @@ type Props = {
   onCreate: (input: NewProjectInput) => void;
 };
 
-type Phase = "pick" | "local" | "ssh";
+type Phase = "pick" | "local" | "ssh" | "clone" | "template";
+
+type Template = {
+  id: string;
+  icon: string;
+  label: string;
+  desc: string;
+  project: string;
+};
+
+const TEMPLATES: Template[] = [
+  {
+    id: "nextjs",
+    icon: "▲",
+    label: "Next.js",
+    desc: "App Router, TypeScript, and Tailwind CSS",
+    project: "nextjs-app",
+  },
+  {
+    id: "vite-react",
+    icon: "⚡",
+    label: "Vite + React",
+    desc: "Fast single-page app starter",
+    project: "vite-app",
+  },
+  {
+    id: "go-service",
+    icon: "🐹",
+    label: "Go service",
+    desc: "HTTP service with a sensible layout",
+    project: "go-service",
+  },
+  {
+    id: "fastapi",
+    icon: "🐍",
+    label: "FastAPI",
+    desc: "Python API with uvicorn reload",
+    project: "fastapi-app",
+  },
+];
+
+const DEST_FOLDERS = ["~/Projects", "~/Code", "~/dev", "~/work"];
+
+function deriveNameFromUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) return "";
+  let tail = trimmed.replace(/\/+$/, "").split(/[/:]/).pop() ?? "";
+  tail = tail.replace(/\.git$/i, "");
+  return tail
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
 type FsNode = {
   name: string;
@@ -154,11 +208,19 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
   const [phase, setPhase] = useState<Phase>("pick");
   const [name, setName] = useState("");
   const [host, setHost] = useState("");
+  const [url, setUrl] = useState("");
+  const [branch, setBranch] = useState("");
+  const [dest, setDest] = useState(DEST_FOLDERS[0]);
+  const [destMenuOpen, setDestMenuOpen] = useState(false);
+  const [nameEdited, setNameEdited] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [path, setPath] = useState<string[]>(["Projects"]);
   const sshNameRef = useRef<HTMLInputElement>(null);
+  const cloneUrlRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (phase === "ssh") sshNameRef.current?.focus();
+    if (phase === "clone") cloneUrlRef.current?.focus();
   }, [phase]);
 
   if (!open) return null;
@@ -167,6 +229,12 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
     setPhase("pick");
     setName("");
     setHost("");
+    setUrl("");
+    setBranch("");
+    setDest(DEST_FOLDERS[0]);
+    setDestMenuOpen(false);
+    setNameEdited(false);
+    setShowAdvanced(false);
     setPath(["Projects"]);
   };
 
@@ -183,8 +251,23 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
     reset();
   };
 
+  const cloneName = nameEdited ? name : deriveNameFromUrl(url);
+
+  const submitClone = () => {
+    const trimmed = cloneName.trim();
+    const u = url.trim();
+    if (!trimmed || !u) return;
+    onCreate({ kind: "clone", name: trimmed, url: u });
+    reset();
+  };
+
   const handleOpenFolder = (folderName: string) => {
     onCreate({ kind: "local", name: folderName });
+    reset();
+  };
+
+  const handlePickTemplate = (template: Template) => {
+    onCreate({ kind: "local", name: template.project });
     reset();
   };
 
@@ -211,45 +294,46 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
             Add a project
           </div>
           <div className="mt-3 flex flex-col">
-            <button
-              type="button"
+            <SourceOption
+              icon={<Folder size={22} strokeWidth={1.5} />}
+              color="#facc15"
+              label="Local Folder"
+              desc="A project on this machine — pick a folder on disk"
               onClick={() => setPhase("local")}
-              className="group flex items-start gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all hover:bg-[#2a2a2a]"
-            >
-              <div
-                className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#2a2a2a] transition-colors group-hover:bg-[#333333]"
-                style={{ color: "#facc15" }}
-              >
-                <Folder size={22} strokeWidth={1.5} />
-              </div>
-              <div className="min-w-0 pt-0.5">
-                <div className="text-[13px] font-medium text-[#e5e5e5]">
-                  Local Folder
-                </div>
-                <div className="mt-0.5 text-[11px] leading-relaxed text-[#919191]">
-                  A project on this machine — pick a folder on disk
-                </div>
-              </div>
-            </button>
+            />
+            <SourceOption
+              icon={<Cloud size={22} strokeWidth={1.5} />}
+              color="#a78bfa"
+              label="Clone Repository"
+              desc="Clone from a Git repo URL into a local folder"
+              onClick={() => setPhase("clone")}
+            />
+            <SourceOption
+              icon={<Server size={22} strokeWidth={1.5} />}
+              color="#22d3ee"
+              label="SSH Host"
+              desc="Connect to a remote machine over SSH"
+              onClick={() => setPhase("ssh")}
+            />
             <button
               type="button"
-              onClick={() => setPhase("ssh")}
+              onClick={() => setPhase("template")}
               className="group flex items-start gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all hover:bg-[#2a2a2a]"
             >
-              <div
-                className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#2a2a2a] transition-colors group-hover:bg-[#333333]"
-                style={{ color: "#22d3ee" }}
-              >
-                <Server size={22} strokeWidth={1.5} />
+              <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#2a2a2a] text-[19px] leading-none transition-colors group-hover:bg-[#333333]">
+                ✨
               </div>
-              <div className="min-w-0 pt-0.5">
+              <div className="min-w-0 flex-1 pt-0.5">
                 <div className="text-[13px] font-medium text-[#e5e5e5]">
-                  SSH Host
+                  From template
                 </div>
                 <div className="mt-0.5 text-[11px] leading-relaxed text-[#919191]">
-                  Connect to a remote machine over SSH
+                  Create a new project from a template
                 </div>
               </div>
+              <span className="mt-2 flex shrink-0 text-[#919191]">
+                <ChevronRight size={14} strokeWidth={1.5} />
+              </span>
             </button>
           </div>
         </div>
@@ -281,8 +365,12 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
             Back
           </button>
           <div id="ssh-host-title" className="text-[13px] font-medium text-[#e5e5e5]">
-            Add an SSH host
+            Connect to SSH host
           </div>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-[#919191]">
+            Creates a project that connects to a remote host. Services, actions,
+            and terminals will run over this SSH connection.
+          </p>
 
           <form
             className="mt-4 flex flex-col gap-3"
@@ -320,11 +408,6 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                 autoCorrect="off"
                 className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#666] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
               />
-              <span className="text-[10px] text-[#666]">
-                Hosts come from{" "}
-                <span className="font-mono">~/.ssh/config</span> in the real
-                app
-              </span>
             </label>
 
             <div className="mt-2 flex justify-end gap-2">
@@ -346,7 +429,254 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
           </form>
         </div>
       )}
+
+      {phase === "clone" && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="clone-repo-title"
+          className="relative w-[420px] max-w-[calc(100%-2rem)] rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] px-5 pb-5 pt-4 shadow-2xl"
+        >
+          <button
+            type="button"
+            onClick={() => setPhase("pick")}
+            className="mb-3 flex items-center gap-1 text-[11px] text-[#919191] transition-colors hover:text-[#e5e5e5]"
+          >
+            <ChevronLeft size={14} strokeWidth={1.5} />
+            Back
+          </button>
+          <div id="clone-repo-title" className="text-[13px] font-medium text-[#e5e5e5]">
+            Clone repository
+          </div>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-[#919191]">
+            Clones a Git repo into a folder on this machine and adds it as a
+            project.
+          </p>
+
+          <form
+            className="mt-4 flex flex-col gap-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              submitClone();
+            }}
+          >
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
+                Repository URL
+              </span>
+              <input
+                ref={cloneUrlRef}
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://github.com/owner/repo.git"
+                spellCheck={false}
+                autoCapitalize="off"
+                autoCorrect="off"
+                className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#666] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
+              />
+              <span className="text-[10px] text-[#666]">
+                HTTPS or SSH URL. Uses your existing Git credentials.
+              </span>
+            </label>
+
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
+                Destination folder
+              </span>
+              <div className="relative grid grid-cols-[1fr_auto] gap-2">
+                <input
+                  readOnly
+                  value={dest}
+                  className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] outline-none border border-[#2e2e2e]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setDestMenuOpen((v) => !v)}
+                  className="shrink-0 rounded-md border border-[#2e2e2e] bg-[#242424] px-3 py-1.5 text-xs font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
+                >
+                  Choose…
+                </button>
+                {destMenuOpen && (
+                  <div
+                    className="absolute right-0 top-full z-10 mt-1 min-w-[180px] overflow-hidden rounded-lg border border-[#2e2e2e] bg-[#242424] py-1 shadow-xl"
+                    onMouseLeave={() => setDestMenuOpen(false)}
+                  >
+                    {DEST_FOLDERS.map((folder) => (
+                      <button
+                        key={folder}
+                        type="button"
+                        onClick={() => {
+                          setDest(folder);
+                          setDestMenuOpen(false);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] font-mono text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
+                      >
+                        <FilledFolder size={12} />
+                        {folder}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <span className="text-[10px] text-[#666]">
+                Repository will be cloned into a new subfolder here.
+              </span>
+            </div>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
+                Project name
+              </span>
+              <input
+                value={cloneName}
+                onChange={(e) => {
+                  setNameEdited(true);
+                  setName(e.target.value);
+                }}
+                placeholder="my-repo"
+                spellCheck={false}
+                autoCapitalize="off"
+                autoCorrect="off"
+                className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#666] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
+              />
+            </label>
+
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowAdvanced((v) => !v)}
+                aria-expanded={showAdvanced}
+                className="inline-flex items-center gap-1 text-[10px] font-medium text-[#919191] transition-colors hover:text-[#e5e5e5]"
+              >
+                <span
+                  className={`inline-block transition-transform ${showAdvanced ? "rotate-90" : ""}`}
+                >
+                  ›
+                </span>
+                Advanced
+              </button>
+              {showAdvanced && (
+                <label className="mt-2 flex flex-col gap-1.5">
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
+                    Branch <span className="lowercase text-[#666]">(optional)</span>
+                  </span>
+                  <input
+                    value={branch}
+                    onChange={(e) => setBranch(e.target.value)}
+                    placeholder="main"
+                    spellCheck={false}
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#666] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
+                  />
+                  <span className="text-[10px] text-[#666]">
+                    Leave blank to use the repository&apos;s default branch.
+                  </span>
+                </label>
+              )}
+            </div>
+
+            <div className="mt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="rounded-lg border border-[#2e2e2e] bg-[#242424] px-3 py-1.5 text-xs font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!cloneName.trim() || !url.trim()}
+                className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-gray-900 transition-all hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Clone repository
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {phase === "template" && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="template-title"
+          className="relative w-[420px] max-w-[calc(100%-2rem)] rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] px-2 pb-2 pt-4 shadow-2xl"
+        >
+          <button
+            type="button"
+            onClick={() => setPhase("pick")}
+            className="mb-2 ml-2 flex items-center gap-1 text-[11px] text-[#919191] transition-colors hover:text-[#e5e5e5]"
+          >
+            <ChevronLeft size={14} strokeWidth={1.5} />
+            Back
+          </button>
+          <div
+            id="template-title"
+            className="px-4 pb-1 text-[13px] font-medium text-[#e5e5e5]"
+          >
+            New from template
+          </div>
+          <div className="mt-1 flex flex-col">
+            {TEMPLATES.map((template) => (
+              <button
+                key={template.id}
+                type="button"
+                onClick={() => handlePickTemplate(template)}
+                className="group flex items-center gap-3 rounded-xl px-4 py-2.5 text-left transition-all hover:bg-[#2a2a2a]"
+              >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#242424] text-[15px] leading-none transition-colors group-hover:bg-[#333333]">
+                  {template.icon}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-medium text-[#e5e5e5]">
+                    {template.label}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[11px] text-[#919191]">
+                    {template.desc}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function SourceOption({
+  icon,
+  color,
+  label,
+  desc,
+  onClick,
+}: {
+  icon: ReactNode;
+  color: string;
+  label: string;
+  desc: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex items-start gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all hover:bg-[#2a2a2a]"
+    >
+      <div
+        className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#2a2a2a] transition-colors group-hover:bg-[#333333]"
+        style={{ color }}
+      >
+        {icon}
+      </div>
+      <div className="min-w-0 pt-0.5">
+        <div className="text-[13px] font-medium text-[#e5e5e5]">{label}</div>
+        <div className="mt-0.5 text-[11px] leading-relaxed text-[#919191]">
+          {desc}
+        </div>
+      </div>
+    </button>
   );
 }
 
