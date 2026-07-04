@@ -44,6 +44,7 @@ import { loadImageDataUrl } from "./imageDataUrl";
 import { TerminalHistoryButton } from "./TerminalHistoryButton";
 import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
 import { basename } from "../path";
+import { composerPlaceholder } from "../composerText";
 import {
   caretCharOffset,
   caretEdges,
@@ -1589,7 +1590,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
             style={textStyle}
             className="pointer-events-none absolute left-3.5 top-2.5 text-[var(--text-muted)]"
           >
-            Send to {targetLabel}…
+            {composerPlaceholder(targetLabel)}
           </div>
         )}
         {hint && (

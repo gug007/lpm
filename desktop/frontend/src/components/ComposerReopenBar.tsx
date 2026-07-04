@@ -1,9 +1,10 @@
+import { composerPlaceholder } from "../composerText";
 import { useComposerStore } from "../store/composer";
 import { MessageIcon } from "./icons";
 
 interface ComposerReopenBarProps {
-  // Terminal the input would target; mirrors the composer's own placeholder so
-  // the collapsed bar stands in for the same input.
+  // Terminal the input would target; drives the same placeholder as the live
+  // input so the collapsed bar stands in for the same field.
   targetLabel: string;
   // Terminal font size; the label scales with it just like the composer's real
   // placeholder, so toggling open doesn't jump the text size.
@@ -21,16 +22,16 @@ export function ComposerReopenBar({ targetLabel, fontSize }: ComposerReopenBarPr
         onClick={() => useComposerStore.getState().setOpen(true)}
         title="Show input (⌘I)"
         aria-label={`Show message input for ${targetLabel}`}
-        className="group flex w-full cursor-pointer items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-1.5 text-left text-[var(--text-muted)] transition-colors hover:border-[var(--text-muted)] hover:text-[var(--text-primary)]"
+        className="flex w-full cursor-pointer items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-1.5 text-left text-[var(--text-muted)] transition-colors hover:border-[var(--text-muted)] hover:text-[var(--text-primary)]"
       >
-        <span className="flex shrink-0 items-center opacity-70 transition-opacity group-hover:opacity-100">
+        <span className="flex shrink-0 items-center">
           <MessageIcon />
         </span>
         <span
           style={{ fontSize, lineHeight: 1.5 }}
           className="min-w-0 flex-1 truncate"
         >
-          Send to {targetLabel}…
+          {composerPlaceholder(targetLabel)}
         </span>
         <span className="shrink-0 font-mono text-[11px]">⌘I</span>
       </button>
