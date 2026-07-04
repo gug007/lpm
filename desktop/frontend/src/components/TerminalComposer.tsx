@@ -19,14 +19,15 @@ import {
 } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
 import { useAIPicker } from "../hooks/useAIPicker";
-import { aiEffectiveFast, type AICLI } from "../types";
 import { getSettings } from "../store/settings";
 import {
   useEnabledComposerActions,
   type ComposerAction,
 } from "../store/composerActions";
+import { generateVariants, resolveTransformParams } from "../composerVariants";
 import { ComposerActionsButton } from "./ComposerActionsButton";
 import { ComposerActionsModal } from "./ComposerActionsModal";
+import { ComposerVariantsModal } from "./ComposerVariantsModal";
 import { ComposerMicButton } from "./ComposerMicButton";
 import {
   createInputTab,
@@ -188,6 +189,14 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // The composer action currently being applied (drives the busy UI), or null.
   const [transformingId, setTransformingId] = useState<string | null>(null);
   const [actionsModalOpen, setActionsModalOpen] = useState(false);
+  // Set while the multi-result variant picker is open. `startedId` pins the tab
+  // the rewrites belong to, and `images` rehydrates whichever one is committed.
+  const [variants, setVariants] = useState<{
+    label: string;
+    list: string[];
+    images: Record<string, string>;
+    startedId: string;
+  } | null>(null);
   // Slash-command autocomplete: open state, highlighted row, the filtered list,
   // and the caret rect the popover anchors to.
   const [slashOpen, setSlashOpen] = useState(false);
@@ -1200,10 +1209,36 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     editor.focus();
   };
 
+  // Rebuild the field from a rewrite, bracketing it in two undo steps so ⌘Z
+  // reverts to the pre-action text. Reused by the single-result path and the
+  // variant picker.
+  const applyRewrite = (editor: HTMLDivElement, text: string, images: Record<string, string>) => {
+    commitUndo(); // finalize the pre-action text as its own undo step…
+    applyHistoryEntry(editor, { text, images });
+    histIdx.current = -1;
+    commitUndo(); // …and the rewrite as the next, so ⌘Z reverts it
+  };
+
+  // Release the transform lock and re-seat focus/caret once the field flips back
+  // to editable next render.
+  const endTransform = () => {
+    transforming.current = false;
+    setTransformingId(null);
+    requestAnimationFrame(() => {
+      const ed = editorRef.current;
+      if (ed) {
+        ed.focus();
+        placeCaretAtEnd(ed);
+      }
+    });
+  };
+
   // Apply a composer action: send the current text through the user's AI CLI
   // with the action's instruction, then rebuild the field from the result —
   // reusing the history-entry path so any preserved image tokens become chips.
-  const runAction = async (action: ComposerAction) => {
+  // A count above 1 asks for several rewrites and opens the variant picker
+  // instead of applying one straight away.
+  const runAction = async (action: ComposerAction, count = 1) => {
     const editor = editorRef.current;
     if (!editor || transforming.current) return;
     const value = serializeEditor(editor);
@@ -1216,47 +1251,62 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     const startedId = activeId.current;
     transforming.current = true;
     setTransformingId(action.id);
+    // The picker keeps the transform locked until a variant is committed, so the
+    // finally must not release it — chooseVariant/closeVariants do.
+    let openedPicker = false;
     try {
       // Read the live AI selection at run time — the picker in the manage modal
       // (or any other AI flow) may have changed it since this composer mounted.
-      const s = getSettings();
-      const cli = (s.aiCli as AICLI) || ai.selectedCLI;
-      const model = s.aiModel ?? ai.selectedModel;
-      const effort = s.aiEffort ?? ai.selectedEffort;
-      const fast = s.aiFast ?? ai.selectedFast;
-      const out = await TransformText(
-        cwd,
-        cli,
-        model,
-        effort,
-        aiEffectiveFast(cli, model, fast),
-        action.instruction,
-        value,
-      );
-      const text = typeof out === "string" ? out.trim() : "";
-      if (!text) {
-        toast.error("AI returned an empty response");
-        return;
+      const params = resolveTransformParams(ai);
+      if (count <= 1) {
+        const out = await TransformText(
+          cwd,
+          params.cli,
+          params.model,
+          params.effort,
+          params.fast,
+          action.instruction,
+          value,
+        );
+        const text = typeof out === "string" ? out.trim() : "";
+        if (!text) {
+          toast.error("AI returned an empty response");
+          return;
+        }
+        if (activeId.current !== startedId) return;
+        applyRewrite(editor, text, images);
+      } else {
+        const list = await generateVariants(cwd, params, action.instruction, value, count);
+        if (list.length === 0) {
+          toast.error("AI returned an empty response");
+          return;
+        }
+        if (activeId.current !== startedId) return;
+        openedPicker = true;
+        setVariants({ label: action.label, list, images, startedId });
       }
-      if (activeId.current !== startedId) return;
-      commitUndo(); // finalize the pre-action text as its own undo step…
-      applyHistoryEntry(editor, { text, images });
-      histIdx.current = -1;
-      commitUndo(); // …and the rewrite as the next, so ⌘Z reverts it
     } catch (err) {
       toast.error(`Action failed: ${err}`);
     } finally {
-      transforming.current = false;
-      setTransformingId(null);
-      // Re-seat focus/caret once the field flips back to editable next render.
-      requestAnimationFrame(() => {
-        const ed = editorRef.current;
-        if (ed) {
-          ed.focus();
-          placeCaretAtEnd(ed);
-        }
-      });
+      if (!openedPicker) endTransform();
     }
+  };
+
+  const chooseVariant = (text: string) => {
+    const session = variants;
+    setVariants(null);
+    const editor = editorRef.current;
+    // The lock pins the tab while the picker is open, so this normally holds; the
+    // guard just refuses to write a rewrite into the wrong tab if it somehow did.
+    if (editor && session && activeId.current === session.startedId) {
+      applyRewrite(editor, text, session.images);
+    }
+    endTransform();
+  };
+
+  const closeVariants = () => {
+    setVariants(null);
+    endTransform();
   };
 
   const deleteImageChip = (chip: HTMLElement) => {
@@ -1713,6 +1763,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         />
       )}
       <ComposerActionsModal open={actionsModalOpen} onClose={() => setActionsModalOpen(false)} />
+      <ComposerVariantsModal
+        open={variants !== null}
+        actionLabel={variants?.label ?? ""}
+        variants={variants?.list ?? []}
+        onChoose={chooseVariant}
+        onClose={closeVariants}
+      />
     </div>
   );
 }

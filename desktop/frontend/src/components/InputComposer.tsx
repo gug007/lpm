@@ -17,15 +17,15 @@ import {
   TransformText,
 } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
-import { getSettings } from "../store/settings";
 import { useAIPicker } from "../hooks/useAIPicker";
 import {
   useEnabledComposerActions,
   type ComposerAction,
 } from "../store/composerActions";
-import { aiEffectiveFast, type AICLI } from "../types";
+import { generateVariants, resolveTransformParams } from "../composerVariants";
 import { ComposerActionsButton } from "./ComposerActionsButton";
 import { ComposerActionsModal } from "./ComposerActionsModal";
+import { ComposerVariantsModal } from "./ComposerVariantsModal";
 import { TerminalHistoryButton } from "./TerminalHistoryButton";
 import { loadImageDataUrl } from "./imageDataUrl";
 import {
@@ -127,6 +127,13 @@ export function InputComposer({
   // AI-edit: the action transform in flight (locks the field), if any.
   const [transformingId, setTransformingId] = useState<string | null>(null);
   const [actionsModalOpen, setActionsModalOpen] = useState(false);
+  // Set while the multi-result variant picker is open; holds the rewrites plus
+  // the image map to rehydrate whichever one the user commits.
+  const [variants, setVariants] = useState<{
+    label: string;
+    list: string[];
+    images: Record<string, string>;
+  } | null>(null);
   // Guards runAction against re-entry across the AI await.
   const transforming = useRef(false);
   const ai = useAIPicker(!!aiCwd);
@@ -314,10 +321,24 @@ export function InputComposer({
     [applyHistoryEntry],
   );
 
+  // Release the transform lock and re-seat focus once the field is editable.
+  const endTransform = useCallback(() => {
+    transforming.current = false;
+    setTransformingId(null);
+    requestAnimationFrame(() => {
+      const ed = editorRef.current;
+      if (ed) {
+        ed.focus();
+        placeCaretAtEnd(ed);
+      }
+    });
+  }, []);
+
   // AI-edit: run a composer action's instruction over the current prompt and
-  // swap the rewrite back in. The field is locked while it's in flight.
+  // swap the rewrite back in. The field is locked while it's in flight — and,
+  // for a multi-result run, stays locked until a variant is committed.
   const runAction = useCallback(
-    async (action: ComposerAction) => {
+    async (action: ComposerAction, count = 1) => {
       const editor = editorRef.current;
       if (!editor || transforming.current || !aiCwd) return;
       const value = serializeEditor(editor);
@@ -325,43 +346,59 @@ export function InputComposer({
       const images = Object.fromEntries(imagePaths.current);
       transforming.current = true;
       setTransformingId(action.id);
+      // Multiple rewrites open the picker; the field stays untouched until one is
+      // chosen, so skip the field-refocus that the single-result path needs.
+      let openedPicker = false;
       try {
-        const s = getSettings();
-        const cli = (s.aiCli as AICLI) || ai.selectedCLI;
-        const model = s.aiModel ?? ai.selectedModel;
-        const effort = s.aiEffort ?? ai.selectedEffort;
-        const fast = s.aiFast ?? ai.selectedFast;
-        const out = await TransformText(
-          aiCwd,
-          cli,
-          model,
-          effort,
-          aiEffectiveFast(cli, model, fast),
-          action.instruction,
-          value,
-        );
-        const text = typeof out === "string" ? out.trim() : "";
-        if (!text) {
-          toast.error("AI returned an empty response");
-          return;
+        const params = resolveTransformParams(ai);
+        if (count <= 1) {
+          const out = await TransformText(
+            aiCwd,
+            params.cli,
+            params.model,
+            params.effort,
+            params.fast,
+            action.instruction,
+            value,
+          );
+          const text = typeof out === "string" ? out.trim() : "";
+          if (!text) {
+            toast.error("AI returned an empty response");
+            return;
+          }
+          applyHistoryEntry(text, images);
+        } else {
+          const list = await generateVariants(aiCwd, params, action.instruction, value, count);
+          if (list.length === 0) {
+            toast.error("AI returned an empty response");
+            return;
+          }
+          openedPicker = true;
+          setVariants({ label: action.label, list, images });
         }
-        applyHistoryEntry(text, images);
       } catch (err) {
         toast.error(`Action failed: ${err}`);
       } finally {
-        transforming.current = false;
-        setTransformingId(null);
-        requestAnimationFrame(() => {
-          const ed = editorRef.current;
-          if (ed) {
-            ed.focus();
-            placeCaretAtEnd(ed);
-          }
-        });
+        if (!openedPicker) endTransform();
       }
     },
-    [aiCwd, ai, applyHistoryEntry],
+    [aiCwd, ai, applyHistoryEntry, endTransform],
   );
+
+  const chooseVariant = useCallback(
+    (text: string) => {
+      const images = variants?.images ?? {};
+      setVariants(null);
+      applyHistoryEntry(text, images);
+      endTransform();
+    },
+    [variants, applyHistoryEntry, endTransform],
+  );
+
+  const closeVariants = useCallback(() => {
+    setVariants(null);
+    endTransform();
+  }, [endTransform]);
 
   // Seed from defaultValue (mount only) and report the initial state.
   useEffect(() => {
@@ -679,6 +716,13 @@ export function InputComposer({
           onClose={() => setActionsModalOpen(false)}
         />
       )}
+      <ComposerVariantsModal
+        open={variants !== null}
+        actionLabel={variants?.label ?? ""}
+        variants={variants?.list ?? []}
+        onChoose={chooseVariant}
+        onClose={closeVariants}
+      />
     </>
   );
 }
