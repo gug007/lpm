@@ -152,7 +152,7 @@ export function ComposerActionsButton({
               value={custom}
               onChange={(e) => setCustom(e.target.value)}
               onKeyDown={onInputKeyDown}
-              placeholder="Custom instruction…"
+              placeholder="Ask AI to rewrite…"
               aria-label="Custom instruction"
               autoComplete="off"
               autoCorrect="off"
