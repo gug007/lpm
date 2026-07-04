@@ -236,7 +236,6 @@ export function isTabPinned(pane: PaneLeaf, idx: number): boolean {
   return pane.tabs[idx]?.pinned === true;
 }
 
-// Clamp an index into [0, length-1]; 0 when there is nothing to index.
 export function clampIdx(idx: number | undefined, length: number): number {
   if (typeof idx !== "number" || length === 0) return 0;
   return Math.max(0, Math.min(idx, length - 1));
