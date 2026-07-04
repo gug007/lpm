@@ -81,7 +81,7 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft }: SendSpl
           }}
           disabled={inert}
           aria-label="Send"
-          className={`flex h-7 items-center justify-center rounded-l-lg pl-2.5 pr-2 transition-colors ${
+          className={`flex h-7 items-center justify-center rounded-l-lg pl-2.5 pr-2 transition-colors [&>svg]:rotate-45 ${
             inert
               ? "text-[var(--text-muted)]"
               : "text-[var(--bg-primary)] hover:bg-black/10 active:bg-black/20"
