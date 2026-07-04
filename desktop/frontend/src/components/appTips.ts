@@ -18,7 +18,7 @@ export const APP_TIPS: AppTip[] = [
   { id: "attach", segments: ["Drag in a file or paste an image to attach it to a message"] },
   { id: "new-terminal", segments: ["Press ", { kbd: "⌘T" }, " to open a fresh terminal tab"] },
   { id: "close-tab", segments: ["Press ", { kbd: "⌘W" }, " to close the active terminal tab"] },
-  { id: "cycle-tabs", segments: ["Press ", { kbd: "⌘⌥←" }, " / ", { kbd: "⌘⌥→" }, " to jump between tabs and services"] },
+  { id: "cycle-tabs", segments: ["Press ", { kbd: "⌘⌥←" }, " / ", { kbd: "⌘⌥→" }, " to jump between terminals and services"] },
   { id: "pin-tab", segments: ["Right-click a tab and Pin it to block an accidental ", { kbd: "⌘W" }] },
   { id: "path-preview", segments: ["Click any file path in terminal output to preview it"] },
   { id: "zoom", segments: ["Resize terminal text with ", { kbd: "⌘+" }, " and ", { kbd: "⌘−" }] },

@@ -117,9 +117,8 @@ pub fn save_clipboard_image(b64_data: String, mime_type: String) -> Result<Strin
 #[tauri::command(async)]
 pub fn set_clipboard_text(text: String) -> Result<(), String> {
     let mut child = std::process::Command::new("pbcopy")
-        // pbcopy picks its input encoding from the locale and falls back to Mac
-        // Roman when none is set — which a Finder/Dock-launched app has. Force
-        // UTF-8 so multi-byte characters (⌘, emoji, box-drawing) aren't mangled.
+        // Without a UTF-8 locale pbcopy decodes stdin as Mac Roman, mangling
+        // multi-byte characters.
         .env("LC_CTYPE", "UTF-8")
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::null())
