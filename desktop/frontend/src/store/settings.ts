@@ -11,6 +11,7 @@ import {
   type GitPushConfig,
   type GitFetchConfig,
 } from "../gitOptions";
+import { normalizeHotkeys, type HotkeysConfig } from "../hotkeys";
 
 export interface DetachedWindowState {
   detached: boolean;
@@ -69,6 +70,7 @@ export interface Settings {
   composerOpen?: boolean;
   autoCloseComposerOnSend?: boolean;
   appTipsDismissed?: boolean;
+  hotkeys?: HotkeysConfig;
 }
 
 const defaults: Settings = {
@@ -144,6 +146,7 @@ function normalize(s: main.Settings): Settings {
     autoCloseComposerOnSend:
       s.autoCloseComposerOnSend ?? defaults.autoCloseComposerOnSend,
     appTipsDismissed: s.appTipsDismissed,
+    hotkeys: normalizeHotkeys(s.hotkeys),
     detachedWindows: s.detachedWindows
       ? Object.fromEntries(
           Object.entries(s.detachedWindows).map(([name, raw]) => {

@@ -23,8 +23,9 @@ import { uniqueKey } from "../../uniqueKey";
 import { withEmoji } from "../../withEmoji";
 import type { ActionInfo } from "../../types";
 import { forEachAction } from "../../actionTree";
-import { useEventListener } from "../../hooks/useEventListener";
-import type { KeyboardShortcut } from "../../hooks/useKeyboardShortcut";
+import { useShortcutCapture } from "../../hooks/useShortcutCapture";
+import { useSettingsStore } from "../../store/settings";
+import { configuredHotkeyCombos } from "../../hotkeys";
 import {
   canonicalShortcut,
   formatShortcut,
@@ -1348,49 +1349,16 @@ function ShortcutField({
   taken: Set<string>;
   onChange: (next: string) => void;
 }) {
-  const [recording, setRecording] = useState(false);
-  const [hint, setHint] = useState<string | null>(null);
+  const hotkeys = useSettingsStore((s) => s.hotkeys);
+  const reservedCombos = useMemo(() => configuredHotkeyCombos(hotkeys), [hotkeys]);
+  const { recording, hint, toggle } = useShortcutCapture({
+    reserved: reservedCombos,
+    onCapture: onChange,
+  });
 
   const parsed = value ? parseShortcut(value) : null;
-  const reserved = parsed ? isReservedShortcut(parsed) : false;
+  const reserved = parsed ? isReservedShortcut(parsed, reservedCombos) : false;
   const duplicate = parsed ? taken.has(canonicalShortcut(parsed)) : false;
-
-  // WKWebView doesn't focus a <button> on click, so a button-level onKeyDown
-  // never fires. While recording we listen on window in the capture phase
-  // instead — this also blocks the combo from reaching lpm's global shortcuts.
-  useEventListener(
-    "keydown",
-    (event) => {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      if (event.key === "Escape") {
-        setRecording(false);
-        setHint(null);
-        return;
-      }
-      if (["Meta", "Shift", "Alt", "Control"].includes(event.key)) return;
-      const shortcut: KeyboardShortcut = {
-        key: event.key.length === 1 ? event.key.toLowerCase() : event.key,
-        meta: event.metaKey || event.ctrlKey,
-        shift: event.shiftKey,
-        alt: event.altKey,
-      };
-      if (!shortcut.meta && !shortcut.alt) {
-        setHint("Add ⌘ or ⌥ to make a shortcut");
-        return;
-      }
-      if (isReservedShortcut(shortcut)) {
-        setHint(`${formatShortcut(shortcut)} is reserved by lpm`);
-        return;
-      }
-      onChange(canonicalShortcut(shortcut));
-      setRecording(false);
-      setHint(null);
-    },
-    window,
-    recording,
-    true,
-  );
 
   const warning =
     parsed && reserved
@@ -1409,10 +1377,7 @@ function ShortcutField({
       <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={() => {
-            setHint(null);
-            setRecording((on) => !on);
-          }}
+          onClick={toggle}
           className={`flex-1 rounded-xl border px-4 py-3 text-left text-[14px] outline-none transition ${borderClass} ${
             parsed
               ? "text-[var(--text-primary)]"
@@ -1428,10 +1393,7 @@ function ShortcutField({
         {value && !recording && (
           <button
             type="button"
-            onClick={() => {
-              setHint(null);
-              onChange("");
-            }}
+            onClick={() => onChange("")}
             className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           >
             Clear

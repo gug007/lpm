@@ -12,7 +12,9 @@ import type { ServiceTabInfo, StatusKind } from "./PaneView";
 import { type TerminalThemeName, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
 import { ansiColors } from "./terminal-utils";
 import { TerminalIcon } from "./icons";
-import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
+import { useKeyboardShortcut, type KeyboardShortcut } from "../hooks/useKeyboardShortcut";
+import { canonicalShortcut, parseShortcut } from "../shortcutParse";
+import { resolveHotkey, type HotkeyId } from "../hotkeys";
 import { useServicePorts } from "../hooks/useServicePorts";
 import { useTerminals, type TerminalStartOpts } from "../hooks/useTerminals";
 import { buildGeneratorRunCommand } from "../generatorRun";
@@ -461,22 +463,40 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     visible,
   );
 
-  // Cmd+Opt+Arrow cycles the focused pane's header entries — services and tabs
-  // alike. Cmd carries the combo past the interactive terminal (its custom key
-  // handler only forwards non-meta keys to the agent); capture phase beats the
-  // composer's keydown stopPropagation so it works while typing too.
+  // Cycles the focused pane's header entries — configurable in Settings ▸
+  // Keyboard Shortcuts. The combo must carry ⌘ to escape the interactive
+  // terminal's key handler (it only forwards non-meta keys to the agent);
+  // capture phase beats the composer's keydown stopPropagation so it works
+  // while typing too.
+  const hotkeys = useSettingsStore((s) => s.hotkeys);
+  const { paneNavShortcuts, dirByCanonical } = useMemo(() => {
+    const paneNavShortcuts: KeyboardShortcut[] = [];
+    const dirByCanonical = new Map<string, 1 | -1>();
+    const entries: Array<[HotkeyId, 1 | -1]> = [
+      ["tabSwitchNext", 1],
+      ["tabSwitchPrev", -1],
+    ];
+    for (const [id, dir] of entries) {
+      const parsed = parseShortcut(resolveHotkey(hotkeys, id));
+      if (!parsed) continue;
+      const canon = canonicalShortcut(parsed);
+      if (dirByCanonical.has(canon)) continue;
+      dirByCanonical.set(canon, dir);
+      paneNavShortcuts.push(parsed);
+    }
+    return { paneNavShortcuts, dirByCanonical };
+  }, [hotkeys]);
+
   useKeyboardShortcut(
-    [
-      { key: "ArrowRight", meta: true, alt: true },
-      { key: "ArrowLeft", meta: true, alt: true },
-    ],
+    paneNavShortcuts,
     (_event, matched) => {
       const pane = getFocusedPane();
       if (!pane) return;
+      const dir = dirByCanonical.get(canonicalShortcut(matched)) ?? 1;
       const serviceNames = stableServices.map((s) => s.name);
-      focusAdjacentPaneItem(pane.id, matched.key === "ArrowRight" ? 1 : -1, serviceNames);
+      focusAdjacentPaneItem(pane.id, dir, serviceNames);
     },
-    visible,
+    visible && paneNavShortcuts.length > 0,
     true,
   );
 
