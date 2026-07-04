@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Sparkles } from "lucide-react";
 import { Modal } from "./ui/Modal";
 import { XIcon } from "./icons";
@@ -27,8 +27,9 @@ export function ComposerVariantsModal({
   const [drafts, setDrafts] = useState<string[]>(variants);
 
   // Reseed editable copies whenever a fresh batch opens; edits are discarded on
-  // close so a later batch never inherits stale text.
-  useEffect(() => {
+  // close so a later batch never inherits stale text. Pre-paint (layout effect)
+  // so a reopen never flashes the previous batch's drafts for a frame.
+  useLayoutEffect(() => {
     if (open) setDrafts(variants);
   }, [open, variants]);
 
