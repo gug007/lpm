@@ -12,7 +12,6 @@ interface ShortcutCapture {
   recording: boolean;
   hint: string | null;
   toggle: () => void;
-  stop: () => void;
 }
 
 // Records a keyboard combo. WKWebView doesn't focus a <button> on click, so a
@@ -62,10 +61,6 @@ export function useShortcutCapture({ reserved, onCapture }: Options): ShortcutCa
     toggle: () => {
       setHint(null);
       setRecording((on) => !on);
-    },
-    stop: () => {
-      setHint(null);
-      setRecording(false);
     },
   };
 }

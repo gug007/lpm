@@ -546,7 +546,7 @@ export function Settings({
                       {!isDefault && (
                         <button
                           onClick={() => updateSettings({ hotkeys: { ...hotkeys, [def.id]: def.default } })}
-                          className="rounded-md px-2 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                          className={BTN_SECONDARY}
                         >
                           Reset
                         </button>
@@ -554,7 +554,7 @@ export function Settings({
                       <ShortcutRecorder
                         value={value}
                         onChange={(next) =>
-                          updateSettings({ hotkeys: { ...hotkeys, [def.id]: next || def.default } })
+                          updateSettings({ hotkeys: { ...hotkeys, [def.id]: next } })
                         }
                         reserved={configuredHotkeyCombos(hotkeys, def.id)}
                       />
