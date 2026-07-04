@@ -1,5 +1,5 @@
-import { useEffect, useState, type MouseEvent } from "react";
-import { Loader2, Settings2, Sparkles } from "lucide-react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from "react";
+import { ArrowUp, Loader2, Settings2, Sparkles } from "lucide-react";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { composerActionIcon, type ComposerAction } from "../store/composerActions";
 import { Tooltip } from "./ui/Tooltip";
@@ -31,6 +31,10 @@ export function ComposerActionsButton({
   align = "right",
 }: ComposerActionsButtonProps) {
   const [open, setOpen] = useState(false);
+  // A one-off instruction typed into the popover, run immediately as a transient
+  // action without being saved to the shared action list.
+  const [custom, setCustom] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   // Boundary wraps both the trigger and the panel so clicking the trigger to
   // close doesn't read as an outside click (which would reopen on the click).
   const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
@@ -48,9 +52,31 @@ export function ComposerActionsButton({
     return () => document.removeEventListener("keydown", onKey, true);
   }, [open]);
 
+  // Focus the instruction field on open so the menu is type-ready; clear the
+  // draft on close so reopening starts fresh.
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+    else setCustom("");
+  }, [open]);
+
   const run = (action: ComposerAction) => {
     setOpen(false);
     onRun(action);
+  };
+
+  const runCustom = () => {
+    const instruction = custom.trim();
+    if (!instruction || !canRun || busy) return;
+    run({ id: "custom", icon: "sparkles", label: instruction, instruction, enabled: true });
+  };
+
+  const onInputKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    // Keep typing from reaching the composer's global shortcut handlers.
+    e.stopPropagation();
+    if (e.key === "Enter") {
+      e.preventDefault();
+      runCustom();
+    }
   };
 
   const manage = () => {
@@ -60,6 +86,8 @@ export function ComposerActionsButton({
 
   // Keep clicks from pulling focus off the composer editor; the caret stays put.
   const keepEditorFocus = (e: MouseEvent) => e.preventDefault();
+
+  const canRunCustom = custom.trim().length > 0 && canRun && !busy;
 
   return (
     <div ref={ref} className="relative">
@@ -83,12 +111,12 @@ export function ComposerActionsButton({
 
       {open && (
         <div
-          className={`absolute bottom-full z-20 mb-2 w-60 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl ${
+          className={`absolute bottom-full z-20 mb-2 w-64 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl ${
             align === "left" ? "left-0" : "right-0"
           }`}
         >
           {enabledActions.length === 0 ? (
-            <div className="px-3.5 py-4 text-center">
+            <div className="px-3.5 py-3 text-center">
               <p className="text-[12px] text-[var(--text-muted)]">No actions enabled yet.</p>
             </div>
           ) : (
@@ -115,6 +143,40 @@ export function ComposerActionsButton({
               })}
             </ul>
           )}
+
+          <div className="flex items-center gap-2 border-t border-[var(--border)] px-2.5 py-2">
+            <Sparkles size={14} strokeWidth={1.75} className="shrink-0 text-[var(--text-muted)]" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={custom}
+              onChange={(e) => setCustom(e.target.value)}
+              onKeyDown={onInputKeyDown}
+              placeholder="Custom instruction…"
+              aria-label="Custom instruction"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              className="min-w-0 flex-1 bg-transparent text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+            />
+            <button
+              type="button"
+              onMouseDown={keepEditorFocus}
+              onClick={runCustom}
+              disabled={!canRunCustom}
+              title={canRun ? "Run instruction" : "Type something first"}
+              aria-label="Run instruction"
+              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors ${
+                canRunCustom
+                  ? "bg-[var(--accent-cyan)] text-[var(--bg-primary)] hover:opacity-90"
+                  : "text-[var(--text-muted)]"
+              }`}
+            >
+              <ArrowUp size={13} strokeWidth={2.25} />
+            </button>
+          </div>
+
           <button
             type="button"
             onMouseDown={keepEditorFocus}
