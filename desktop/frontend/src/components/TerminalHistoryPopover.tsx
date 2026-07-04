@@ -32,7 +32,7 @@ import {
 } from "../store/messageHistory";
 import { relativeTime } from "../relativeTime";
 import { isImagePath, splitByImageTokens } from "./composerEditor";
-import { FolderIcon, PencilIcon, PlusIcon, SearchIcon, StarIcon, TrashIcon, XIcon } from "./icons";
+import { FolderIcon, PencilIcon, PlusIcon, SearchIcon, SendIcon, StarIcon, TrashIcon, XIcon } from "./icons";
 import { MessageFolderMenu } from "./MessageFolderMenu";
 import { MessageFileChip } from "./MessageFileChip";
 import { MessageImageChip } from "./MessageImageChip";
@@ -45,6 +45,8 @@ interface TerminalHistoryPopoverProps {
   projectName: string;
   terminalLabel: string;
   onPick: (text: string, images: Record<string, string>) => void;
+  // When set, each row gains a one-click "send to terminal" action.
+  onSend?: (text: string, images: Record<string, string>) => void;
 }
 
 export function TerminalHistoryPopover({
@@ -54,6 +56,7 @@ export function TerminalHistoryPopover({
   projectName,
   terminalLabel,
   onPick,
+  onSend,
 }: TerminalHistoryPopoverProps) {
   const [scope, setScope] = useState<HistoryScope>("project");
   const [collection, setCollection] = useState(COLLECTION_ALL);
@@ -241,6 +244,7 @@ export function TerminalHistoryPopover({
                     message={message}
                     source={scope === "all" ? "full" : "terminal"}
                     onPick={onPick}
+                    onSend={onSend}
                     onOpenFolderMenu={openFolderMenu}
                   />
                 </div>
@@ -436,11 +440,13 @@ const HistoryRow = memo(function HistoryRow({
   message,
   source,
   onPick,
+  onSend,
   onOpenFolderMenu,
 }: {
   message: HistoryMessage;
   source: "terminal" | "full";
   onPick: (text: string, images: Record<string, string>) => void;
+  onSend?: (text: string, images: Record<string, string>) => void;
   onOpenFolderMenu: (message: HistoryMessage, anchor: DOMRect) => void;
 }) {
   return (
@@ -465,6 +471,19 @@ const HistoryRow = memo(function HistoryRow({
       <span className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]">
         {relativeTime(Math.floor(message.at / 1000))}
       </span>
+      {onSend && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSend(message.text, message.images);
+          }}
+          title="Send to terminal"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] opacity-0 transition-all hover:bg-[var(--accent-blue)]/15 hover:text-[var(--accent-blue)] group-hover:opacity-100 [&>svg]:h-3.5 [&>svg]:w-3.5"
+        >
+          <SendIcon />
+        </button>
+      )}
       <button
         type="button"
         onClick={(e) => {

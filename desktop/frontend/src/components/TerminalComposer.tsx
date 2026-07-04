@@ -727,6 +727,31 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     editor.focus();
   };
 
+  // Resolve a message (its serialized text + token→path image map) into what the
+  // terminal receives: plain text when there are no images, or an ordered array
+  // of text runs and per-image bracketed pastes. Each image path is uploaded
+  // (scp'd) for a remote pane and passed through for a local one, kept in
+  // segment order and padded so a path-attaching agent keeps order; blank runs
+  // between chips are dropped. A literal "[Image #N]" the user typed (no mapped
+  // path) rides along as plain text. Shared by live sends and history re-sends.
+  const buildTerminalPayload = async (
+    text: string,
+    images: Record<string, string>,
+  ): Promise<string | string[]> => {
+    const segments = splitByImageTokens(text);
+    const hasImages = segments.some((s) => s.image !== null && images[s.image] !== undefined);
+    if (!hasImages) return text;
+    const parts = await Promise.all(
+      segments.map(async (s) => {
+        const path = s.image === null ? undefined : images[s.image];
+        if (path === undefined) return s.text;
+        const uploaded = await UploadAndQuoteForTerminal(terminalId, [path]).catch(() => "");
+        return ` ${uploaded || path} `;
+      }),
+    );
+    return parts.filter((p) => p.trim().length > 0);
+  };
+
   const send = async () => {
     const editor = editorRef.current;
     if (!editor || transforming.current) return;
@@ -739,35 +764,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     // mid-upload, while a different prepared prompt can still be sent.
     if (sending.current.has(sentId)) return;
     // Snapshot the token→local-path map now (before it's cleared) for both the
-    // recall ring and the durable history — local paths, so a re-send re-uploads.
-    const paths = new Map(imagePaths.current);
-    const images = Object.fromEntries(paths);
-    const segments = splitByImageTokens(value);
-    // Only segments whose token resolves to a real path are images; a literal
-    // "[Image #N]" the user typed rides along as plain text in one paste. Read
-    // from the local snapshot so a concurrent send clearing the map can't strip
-    // paths mid-upload.
-    const hasImages = segments.some((s) => s.image !== null && paths.has(s.image));
+    // recall ring and the durable history — a plain-object copy, so a concurrent
+    // send clearing the live map can't strip paths mid-upload.
+    const images = Object.fromEntries(imagePaths.current);
     sending.current.add(sentId);
     try {
-      let payload: string | string[];
-      if (hasImages) {
-        // Resolve each image to a deliverable path — uploaded (scp'd) for a remote
-        // pane, passed through for a local one — keeping per-segment order. Each
-        // path is its own bracketed paste so a path-attaching agent keeps order;
-        // pad it so it stays a distinct token, and drop blank runs between chips.
-        const parts = await Promise.all(
-          segments.map(async (s) => {
-            const path = s.image === null ? undefined : paths.get(s.image);
-            if (path === undefined) return s.text;
-            const uploaded = await UploadAndQuoteForTerminal(terminalId, [path]).catch(() => "");
-            return ` ${uploaded || path} `;
-          }),
-        );
-        payload = parts.filter((p) => p.trim().length > 0);
-      } else {
-        payload = value;
-      }
+      const payload = await buildTerminalPayload(value, images);
       if (!onSubmit(payload)) return;
       history.current.unshift({ text: value, images });
       // The prepend shifts every existing entry up by one; nudge each recall
@@ -785,6 +787,18 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     } finally {
       sending.current.delete(sentId);
     }
+  };
+
+  // Fire a message chosen from the history popover straight at the terminal,
+  // without loading it into the composer first. Images resolve exactly like a
+  // live send; a delivered message is recorded so it bumps to the top of history,
+  // then focus moves to the terminal to watch the result.
+  const sendFromHistory = async (text: string, images: Record<string, string>) => {
+    if (!text.trim()) return;
+    const payload = await buildTerminalPayload(text, images);
+    if (!onSubmit(payload)) return;
+    recordMessage({ text, projectName, terminalId: historyKey, terminalLabel: targetLabel, images });
+    onFocusTerminal();
   };
 
   // Park the current prompt as a draft in message history without sending it,
@@ -1664,6 +1678,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
               projectName={projectName}
               terminalLabel={targetLabel}
               onPick={loadFromHistory}
+              onSend={sendFromHistory}
             />
           </div>
           <SendSplitButton

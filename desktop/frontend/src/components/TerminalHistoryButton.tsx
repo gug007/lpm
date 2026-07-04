@@ -12,6 +12,9 @@ interface TerminalHistoryButtonProps {
   terminalLabel: string;
   // Loads the chosen message back into the composer for editing/resending.
   onPick: (text: string, images: Record<string, string>) => void;
+  // Fires the chosen message straight at the terminal, skipping the composer.
+  // Optional: dialog composers have no terminal, so they omit it (no send button).
+  onSend?: (text: string, images: Record<string, string>) => void;
 }
 
 const GAP = 10;
@@ -23,6 +26,7 @@ export function TerminalHistoryButton({
   projectName,
   terminalLabel,
   onPick,
+  onSend,
 }: TerminalHistoryButtonProps) {
   const [open, setOpen] = useState(false);
   const [rect, setRect] = useState<DOMRect | null>(null);
@@ -143,6 +147,14 @@ export function TerminalHistoryButton({
               onPick(text, images);
               close();
             }}
+            onSend={
+              onSend
+                ? (text, images) => {
+                    onSend(text, images);
+                    close();
+                  }
+                : undefined
+            }
           />,
           document.body,
         )}
