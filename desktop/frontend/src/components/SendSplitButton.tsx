@@ -63,7 +63,7 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft }: SendSpl
   // One segmented pill in both states so the control never reads as two loose
   // icons: a solid accent send half and a slightly recessed caret half when
   // live; a quiet neutral shell when there's nothing to send.
-  const container = inert ? "bg-[var(--bg-active)]" : "bg-[var(--accent-blue)]";
+  const container = inert ? "bg-[var(--bg-active)]/60" : "bg-[var(--accent-blue)]";
   const divider = inert ? "bg-[var(--border)]" : "bg-[var(--bg-primary)]/20";
 
   return (
