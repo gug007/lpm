@@ -23,6 +23,8 @@ import {
   makeBrowser,
   makeReview,
   isTerminalTab,
+  adjacentPaneHeaderItem,
+  clampIdx,
   collectPanes,
   collectTerminals,
   findPane,
@@ -75,6 +77,7 @@ export interface UseTerminalsResult {
   addReviewToPane: (paneId?: string) => void;
   closeTerminal: (paneId: string, tabIdx: number) => void;
   focusTerminal: (paneId: string, tabIdx: number) => void;
+  focusAdjacentPaneItem: (paneId: string, delta: 1 | -1, serviceNames: string[]) => void;
   focusService: (paneId: string, serviceName: string) => void;
   renameTerminal: (
     paneId: string,
@@ -520,6 +523,23 @@ export function useTerminals(
     [applyTree],
   );
 
+  const focusAdjacentPaneItem = useCallback(
+    (paneId: string, delta: 1 | -1, serviceNames: string[]) => {
+      const current = treeRef.current;
+      if (!current) return;
+      const pane = findPane(current, paneId);
+      if (!pane) return;
+      // Services render only in the first leaf's header; elsewhere the pane
+      // cycles its tabs alone.
+      const names = paneId === firstPaneId(current) ? serviceNames : [];
+      const target = adjacentPaneHeaderItem(pane, names, delta);
+      if (!target) return;
+      if (target.kind === "service") focusService(paneId, target.name);
+      else focusTerminal(paneId, target.idx);
+    },
+    [focusTerminal, focusService],
+  );
+
   const ensureRootPane = useCallback(
     (initialServiceName?: string) => {
       if (treeRef.current) return;
@@ -758,6 +778,7 @@ export function useTerminals(
     addReviewToPane,
     closeTerminal,
     focusTerminal,
+    focusAdjacentPaneItem,
     focusService,
     renameTerminal,
     toggleTabPinned,
@@ -778,11 +799,6 @@ function resolveActiveAfterClose(prevActive: number, removed: number, remaining:
   if (prevActive === removed) return Math.min(removed, remaining - 1);
   if (prevActive > removed) return prevActive - 1;
   return prevActive;
-}
-
-function clampIdx(idx: number | undefined, length: number): number {
-  if (typeof idx !== "number" || length === 0) return 0;
-  return Math.max(0, Math.min(idx, length - 1));
 }
 
 /**

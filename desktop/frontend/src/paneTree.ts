@@ -235,3 +235,55 @@ export function splitAtPane(
 export function isTabPinned(pane: PaneLeaf, idx: number): boolean {
   return pane.tabs[idx]?.pinned === true;
 }
+
+// Clamp an index into [0, length-1]; 0 when there is nothing to index.
+export function clampIdx(idx: number | undefined, length: number): number {
+  if (typeof idx !== "number" || length === 0) return 0;
+  return Math.max(0, Math.min(idx, length - 1));
+}
+
+// A selectable entry in a pane's header strip: either a service log (the
+// "All" aggregate is a service named ALL_SERVICES) or a terminal/browser/
+// review tab.
+export type PaneHeaderItem =
+  | { kind: "service"; name: string }
+  | { kind: "tab"; idx: number };
+
+// The header entries in the left-to-right order PaneView renders them: the
+// "All" aggregate (only with more than one service), then each service, then
+// each tab.
+export function paneHeaderItems(pane: PaneLeaf, serviceNames: string[]): PaneHeaderItem[] {
+  const items: PaneHeaderItem[] = [];
+  if (serviceNames.length > 1) items.push({ kind: "service", name: ALL_SERVICES });
+  for (const name of serviceNames) items.push({ kind: "service", name });
+  pane.tabs.forEach((_, idx) => items.push({ kind: "tab", idx }));
+  return items;
+}
+
+// Index of the active header entry within `items`: the active service when it
+// is still selectable (services absent from `items` — a stale name, or All
+// with a single service — fall through), otherwise the active tab. -1 when
+// nothing is selectable.
+function activeHeaderIndex(items: PaneHeaderItem[], pane: PaneLeaf): number {
+  if (pane.activeServiceName) {
+    const i = items.findIndex((it) => it.kind === "service" && it.name === pane.activeServiceName);
+    if (i >= 0) return i;
+  }
+  if (pane.tabs.length === 0) return -1;
+  const idx = clampIdx(pane.activeTabIdx, pane.tabs.length);
+  return items.findIndex((it) => it.kind === "tab" && it.idx === idx);
+}
+
+// The header entry `delta` steps from the active one, wrapping around both
+// ends. Null when fewer than two entries are selectable.
+export function adjacentPaneHeaderItem(
+  pane: PaneLeaf,
+  serviceNames: string[],
+  delta: number,
+): PaneHeaderItem | null {
+  const items = paneHeaderItems(pane, serviceNames);
+  if (items.length < 2) return null;
+  const from = activeHeaderIndex(items, pane);
+  const base = from < 0 ? 0 : from;
+  return items[(base + delta + items.length) % items.length];
+}

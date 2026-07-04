@@ -95,6 +95,8 @@ const RESERVED = new Set<string>([
   "cmd+f",
   "cmd+i",
   "cmd+shift+r",
+  "cmd+alt+arrowright",
+  "cmd+alt+arrowleft",
   "cmd+=",
   "cmd++",
   "cmd+-",

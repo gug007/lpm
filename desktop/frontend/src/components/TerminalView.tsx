@@ -77,6 +77,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     addReviewToPane,
     closeTerminal,
     focusTerminal,
+    focusAdjacentPaneItem,
     focusService,
     renameTerminal,
     toggleTabPinned,
@@ -458,6 +459,25 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       }
     },
     visible,
+  );
+
+  // Cmd+Opt+Arrow cycles the focused pane's header entries — services and tabs
+  // alike. Cmd carries the combo past the interactive terminal (its custom key
+  // handler only forwards non-meta keys to the agent); capture phase beats the
+  // composer's keydown stopPropagation so it works while typing too.
+  useKeyboardShortcut(
+    [
+      { key: "ArrowRight", meta: true, alt: true },
+      { key: "ArrowLeft", meta: true, alt: true },
+    ],
+    (_event, matched) => {
+      const pane = getFocusedPane();
+      if (!pane) return;
+      const serviceNames = stableServices.map((s) => s.name);
+      focusAdjacentPaneItem(pane.id, matched.key === "ArrowRight" ? 1 : -1, serviceNames);
+    },
+    visible,
+    true,
   );
 
   const focusedPane = getFocusedPane();
