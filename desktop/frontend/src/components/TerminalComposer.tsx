@@ -1501,11 +1501,6 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
 
   const busy = transformingId !== null;
   const showActions = ai.anyAvailable;
-  // Reserve room on the right for the floating button cluster so text never
-  // slides under it; each button is 28px wide with a 4px gap. Four are always
-  // shown (mic, new-input, history, send); the AI actions button is conditional.
-  const footerButtons = (showActions ? 1 : 0) + 4;
-  const editorPadRight = 8 + footerButtons * 28 + (footerButtons - 1) * 4 + 12;
 
   return (
     <div className="border-t border-[var(--border)] bg-[var(--terminal-bg)] px-3 pb-1 pt-2">
@@ -1582,13 +1577,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           onMouseOver={handleHover}
           onMouseLeave={dismissPreview}
           onScroll={dismissPreview}
-          style={{ ...textStyle, paddingRight: editorPadRight }}
-          className="block max-h-[200px] min-h-[60px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent py-2.5 pl-3.5 text-[var(--text-primary)] outline-none [overflow-wrap:anywhere]"
+          style={textStyle}
+          className="block max-h-[200px] min-h-[24px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent px-3.5 py-1.5 text-[var(--text-primary)] outline-none [overflow-wrap:anywhere]"
         />
         {blank && (
           <div
             style={textStyle}
-            className="pointer-events-none absolute left-3.5 top-2.5 text-[var(--text-muted)]"
+            className="pointer-events-none absolute left-3.5 top-1.5 text-[var(--text-muted)]"
           >
             {composerPlaceholder(targetLabel)}
           </div>
@@ -1602,33 +1597,36 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
             {hint.text}
           </div>
         )}
-        <div className="absolute bottom-2 right-2 flex items-center gap-1">
-          <ComposerMicButton />
-          {showActions && (
-            <ComposerActionsButton
-              enabledActions={enabledActions}
-              busy={busy}
-              canRun={!disabled}
-              cliLabel={ai.cliLabel}
-              onRun={runAction}
-              onManage={() => setActionsModalOpen(true)}
+        <div className="flex items-center justify-between px-2 pb-1">
+          <div className="flex items-center gap-1">
+            <ComposerMicButton />
+            {showActions && (
+              <ComposerActionsButton
+                align="left"
+                enabledActions={enabledActions}
+                busy={busy}
+                canRun={!disabled}
+                cliLabel={ai.cliLabel}
+                onRun={runAction}
+                onManage={() => setActionsModalOpen(true)}
+              />
+            )}
+            <button
+              type="button"
+              onClick={addTab}
+              aria-label="New input"
+              title="New input"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              <PlusIcon />
+            </button>
+            <TerminalHistoryButton
+              terminalId={historyKey}
+              projectName={projectName}
+              terminalLabel={targetLabel}
+              onPick={loadFromHistory}
             />
-          )}
-          <button
-            type="button"
-            onClick={addTab}
-            aria-label="New input"
-            title="New input"
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          >
-            <PlusIcon />
-          </button>
-          <TerminalHistoryButton
-            terminalId={historyKey}
-            projectName={projectName}
-            terminalLabel={targetLabel}
-            onPick={loadFromHistory}
-          />
+          </div>
           <button
             type="button"
             onClick={() => void send()}

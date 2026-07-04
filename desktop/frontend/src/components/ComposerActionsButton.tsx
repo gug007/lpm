@@ -13,6 +13,10 @@ interface ComposerActionsButtonProps {
   cliLabel: string;
   onRun: (action: ComposerAction) => void;
   onManage: () => void;
+  // Which edge the popover aligns to. Defaults to "right" (the button sits on the
+  // right of its footer); "left" is used when the button is on the left so the
+  // menu opens inward instead of off the left edge.
+  align?: "left" | "right";
 }
 
 export function ComposerActionsButton({
@@ -22,6 +26,7 @@ export function ComposerActionsButton({
   cliLabel,
   onRun,
   onManage,
+  align = "right",
 }: ComposerActionsButtonProps) {
   const [open, setOpen] = useState(false);
   // Boundary wraps both the trigger and the panel so clicking the trigger to
@@ -74,7 +79,11 @@ export function ComposerActionsButton({
       </button>
 
       {open && (
-        <div className="absolute bottom-full right-0 z-20 mb-2 w-60 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl">
+        <div
+          className={`absolute bottom-full z-20 mb-2 w-60 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl ${
+            align === "left" ? "left-0" : "right-0"
+          }`}
+        >
           {enabledActions.length === 0 ? (
             <div className="px-3.5 py-4 text-center">
               <p className="text-[12px] text-[var(--text-muted)]">No actions enabled yet.</p>
