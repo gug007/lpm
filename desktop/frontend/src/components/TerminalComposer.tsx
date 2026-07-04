@@ -43,8 +43,9 @@ import { ImageLightbox } from "./ImageLightbox";
 import { loadImageDataUrl } from "./imageDataUrl";
 import { TerminalHistoryButton } from "./TerminalHistoryButton";
 import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
+import { Tooltip } from "./ui/Tooltip";
 import { basename } from "../path";
-import { composerPlaceholder } from "../composerText";
+import { composerPlaceholder, COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 import {
   caretCharOffset,
   caretEdges,
@@ -1611,15 +1612,16 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
                 onManage={() => setActionsModalOpen(true)}
               />
             )}
-            <button
-              type="button"
-              onClick={addTab}
-              aria-label="New input"
-              title="New input"
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              <PlusIcon />
-            </button>
+            <Tooltip content="New prompt" delay={COMPOSER_TOOLTIP_DELAY_MS}>
+              <button
+                type="button"
+                onClick={addTab}
+                aria-label="New input"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              >
+                <PlusIcon />
+              </button>
+            </Tooltip>
             <TerminalHistoryButton
               terminalId={historyKey}
               projectName={projectName}
@@ -1627,25 +1629,26 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
               onPick={loadFromHistory}
             />
           </div>
-          <button
-            type="button"
-            onClick={() => void send()}
-            disabled={disabled || busy}
-            title="Send  ·  ↵"
-            aria-label="Send"
-            style={
-              disabled || busy
-                ? undefined
-                : { boxShadow: "0 2px 12px -2px color-mix(in srgb, var(--accent-blue) 60%, transparent)" }
-            }
-            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 ${
-              disabled || busy
-                ? "text-[var(--text-muted)]"
-                : "bg-[var(--accent-blue)] text-[var(--bg-primary)] hover:brightness-110 active:scale-90"
-            }`}
-          >
-            <SendIcon />
-          </button>
+          <Tooltip content="Send  ·  ↵" delay={COMPOSER_TOOLTIP_DELAY_MS}>
+            <button
+              type="button"
+              onClick={() => void send()}
+              disabled={disabled || busy}
+              aria-label="Send"
+              style={
+                disabled || busy
+                  ? undefined
+                  : { boxShadow: "0 2px 12px -2px color-mix(in srgb, var(--accent-blue) 60%, transparent)" }
+              }
+              className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 ${
+                disabled || busy
+                  ? "text-[var(--text-muted)]"
+                  : "bg-[var(--accent-blue)] text-[var(--bg-primary)] hover:brightness-110 active:scale-90"
+              }`}
+            >
+              <SendIcon />
+            </button>
+          </Tooltip>
         </div>
       </div>
       </div>

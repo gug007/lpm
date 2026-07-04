@@ -2,6 +2,8 @@ import { useEffect, useState, type MouseEvent } from "react";
 import { Loader2, Settings2, Sparkles } from "lucide-react";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { composerActionIcon, type ComposerAction } from "../store/composerActions";
+import { Tooltip } from "./ui/Tooltip";
+import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 
 interface ComposerActionsButtonProps {
   // Enabled actions, in order. May be empty — the popover then offers setup.
@@ -61,22 +63,23 @@ export function ComposerActionsButton({
 
   return (
     <div ref={ref} className="relative">
-      <button
-        type="button"
-        onMouseDown={keepEditorFocus}
-        onClick={() => setOpen((v) => !v)}
-        disabled={busy}
-        aria-label="AI actions"
-        aria-expanded={open}
-        title={busy ? "Applying action…" : "AI actions"}
-        className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors disabled:opacity-50 ${
-          open
-            ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
-            : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-        }`}
-      >
-        {busy ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} strokeWidth={1.75} />}
-      </button>
+      <Tooltip content={busy ? "Refining…" : "Refine with AI"} delay={COMPOSER_TOOLTIP_DELAY_MS}>
+        <button
+          type="button"
+          onMouseDown={keepEditorFocus}
+          onClick={() => setOpen((v) => !v)}
+          disabled={busy}
+          aria-label="AI actions"
+          aria-expanded={open}
+          className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors disabled:opacity-50 ${
+            open
+              ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
+              : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          }`}
+        >
+          {busy ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} strokeWidth={1.75} />}
+        </button>
+      </Tooltip>
 
       {open && (
         <div

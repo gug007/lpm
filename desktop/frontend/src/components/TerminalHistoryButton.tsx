@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { useOverlay } from "../store/overlay";
 import { ClipboardListIcon } from "./icons";
 import { TerminalHistoryPopover } from "./TerminalHistoryPopover";
+import { Tooltip } from "./ui/Tooltip";
+import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 
 interface TerminalHistoryButtonProps {
   terminalId: string;
@@ -110,22 +112,23 @@ export function TerminalHistoryButton({
 
   return (
     <>
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={toggleOpen}
-        aria-label="Message history"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        title="Message history"
-        className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
-          open
-            ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
-            : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-        }`}
-      >
-        <ClipboardListIcon />
-      </button>
+      <Tooltip content="Recent messages" delay={COMPOSER_TOOLTIP_DELAY_MS}>
+        <button
+          ref={btnRef}
+          type="button"
+          onClick={toggleOpen}
+          aria-label="Message history"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+            open
+              ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
+              : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          }`}
+        >
+          <ClipboardListIcon />
+        </button>
+      </Tooltip>
 
       {open &&
         rect &&
