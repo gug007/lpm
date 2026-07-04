@@ -1612,7 +1612,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
                 onManage={() => setActionsModalOpen(true)}
               />
             )}
-            <Tooltip content="New prompt" delay={COMPOSER_TOOLTIP_DELAY_MS}>
+            <Tooltip content="New prompt  ·  ⌘⇧T" delay={COMPOSER_TOOLTIP_DELAY_MS}>
               <button
                 type="button"
                 onClick={addTab}
