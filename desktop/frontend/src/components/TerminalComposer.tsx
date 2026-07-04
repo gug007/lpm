@@ -35,9 +35,10 @@ import {
   type ComposerHistoryEntry,
   type ComposerInputTab,
 } from "../store/composerDrafts";
-import { recordMessage } from "../store/messageHistory";
+import { recordMessage, saveDraft } from "../store/messageHistory";
 import { ComposerTabStrip, type ComposerTabView } from "./ComposerTabStrip";
-import { PlusIcon, SendIcon } from "./icons";
+import { SendSplitButton } from "./SendSplitButton";
+import { PlusIcon } from "./icons";
 import { ImagePreviewPopover } from "./ImagePreviewPopover";
 import { ImageLightbox } from "./ImageLightbox";
 import { loadImageDataUrl } from "./imageDataUrl";
@@ -786,6 +787,34 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     }
   };
 
+  // Park the current prompt as a draft in message history without sending it,
+  // then clear the composer the same way a send does (auto-close the tab, or
+  // clear it in place) so the draft is filed away and the field is ready for the
+  // next prompt. The draft is reopened later from the history popover.
+  const saveCurrentDraft = async () => {
+    const editor = editorRef.current;
+    if (!editor || transforming.current) return;
+    const value = serializeEditor(editor);
+    if (!value.trim()) return;
+    // Same re-entry guard send() uses: the field stays editable across the write,
+    // so a save must not race a send (or a second save) of the same prompt.
+    const draftId = activeId.current;
+    if (sending.current.has(draftId)) return;
+    const images = Object.fromEntries(imagePaths.current);
+    sending.current.add(draftId);
+    try {
+      // Store the draft first; only clear the field once it's safely persisted so
+      // a failed write never discards the prompt.
+      await saveDraft({ text: value, projectName, terminalId: historyKey, terminalLabel: targetLabel, images });
+      finishSend(draftId, editor);
+      toast.success("Saved as draft");
+    } catch {
+      toast.error("Couldn't save draft");
+    } finally {
+      sending.current.delete(draftId);
+    }
+  };
+
   // Rebuild the field from a recalled/saved message: a chip for each token with
   // a mapped path, plain text otherwise (a literally-typed "[Image #N]" with no
   // path stays text rather than becoming a phantom, path-less chip). Leaves
@@ -1374,6 +1403,14 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     // explicit stepping below covers the common case, this cleans the rest
     // (word/line jumps, vertical moves, boundaries) before the next paint.
     if (e.key.startsWith("Arrow")) scheduleNormalize();
+    // ⌘↵ saves the prompt as a draft instead of sending it (mirrors the send
+    // button's split menu). Checked before plain ↵ so the modifier wins.
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      e.stopPropagation();
+      void saveCurrentDraft();
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       e.stopPropagation();
@@ -1629,26 +1666,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
               onPick={loadFromHistory}
             />
           </div>
-          <Tooltip content="Send  ·  ↵" delay={COMPOSER_TOOLTIP_DELAY_MS}>
-            <button
-              type="button"
-              onClick={() => void send()}
-              disabled={disabled || busy}
-              aria-label="Send"
-              style={
-                disabled || busy
-                  ? undefined
-                  : { boxShadow: "0 2px 12px -2px color-mix(in srgb, var(--accent-blue) 60%, transparent)" }
-              }
-              className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 ${
-                disabled || busy
-                  ? "text-[var(--text-muted)]"
-                  : "bg-[var(--accent-blue)] text-[var(--bg-primary)] hover:brightness-110 active:scale-90"
-              }`}
-            >
-              <SendIcon />
-            </button>
-          </Tooltip>
+          <SendSplitButton
+            disabled={disabled}
+            busy={busy}
+            onSend={() => void send()}
+            onSaveDraft={() => void saveCurrentDraft()}
+          />
         </div>
       </div>
       </div>

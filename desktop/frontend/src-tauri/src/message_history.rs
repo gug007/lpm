@@ -45,7 +45,8 @@ fn open() -> Result<Connection, String> {
             at INTEGER NOT NULL,
             favorite INTEGER NOT NULL DEFAULT 0,
             images TEXT NOT NULL DEFAULT '{}',
-            folder_id TEXT
+            folder_id TEXT,
+            is_draft INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS message_folders (
             id TEXT PRIMARY KEY,
@@ -64,6 +65,11 @@ fn open() -> Result<Connection, String> {
         "ALTER TABLE message_history ADD COLUMN images TEXT NOT NULL DEFAULT '{}';",
     );
     let _ = conn.execute_batch("ALTER TABLE message_history ADD COLUMN folder_id TEXT;");
+    // Drafts are saved-but-unsent prompts. They live in the same table (so they
+    // surface in the history popover alongside sent messages) but are flagged so
+    // the UI can badge them and "clear history" can spare them.
+    let _ = conn
+        .execute_batch("ALTER TABLE message_history ADD COLUMN is_draft INTEGER NOT NULL DEFAULT 0;");
     // The "this project" scope filters by project_name, so the old per-terminal
     // index is dead weight; drop it on DBs that still carry it.
     let _ = conn.execute_batch("DROP INDEX IF EXISTS idx_mh_terminal;");
@@ -110,6 +116,8 @@ pub struct HistoryRow {
     pub at: i64,
     pub favorite: bool,
     pub folder_id: Option<String>,
+    // A saved-but-unsent prompt, kept in history so it can be reopened later.
+    pub is_draft: bool,
     // Map of "[Image #N]" token index -> resolved file path, so recall can
     // rebuild image chips instead of pasting the raw path.
     pub images: serde_json::Value,
@@ -133,7 +141,7 @@ pub struct QueryInput {
     pub terminal_id: String,
     pub project_name: String,
     pub terminal_label: String,
-    pub collection: String, // "" / "all" = none, "favorites", or a folder id
+    pub collection: String, // "" / "all" = none, "favorites", "drafts", or a folder id
     pub search: String,     // "" = no filter
     pub cursor_at: Option<i64>,
     pub cursor_seq: Option<i64>,
@@ -160,7 +168,7 @@ pub fn message_history_query(
 ) -> Result<Vec<HistoryRow>, String> {
     state.with_conn(|conn| {
         let mut sql = String::from(
-            "SELECT seq, id, text, project_name, terminal_id, terminal_label, at, favorite, folder_id, images \
+            "SELECT seq, id, text, project_name, terminal_id, terminal_label, at, favorite, folder_id, is_draft, images \
              FROM message_history WHERE 1 = 1",
         );
         let mut args: Vec<SqlValue> = Vec::new();
@@ -174,6 +182,8 @@ pub fn message_history_query(
         ));
         if input.collection == "favorites" {
             sql.push_str(" AND favorite = 1");
+        } else if input.collection == "drafts" {
+            sql.push_str(" AND is_draft = 1");
         } else if !input.collection.is_empty() && input.collection != "all" {
             sql.push_str(" AND folder_id = ?");
             args.push(input.collection.clone().into());
@@ -211,7 +221,8 @@ pub fn message_history_query(
                     at: r.get(6)?,
                     favorite: r.get::<_, i64>(7)? != 0,
                     folder_id: r.get(8)?,
-                    images: serde_json::from_str(&r.get::<_, String>(9)?)
+                    is_draft: r.get::<_, i64>(9)? != 0,
+                    images: serde_json::from_str(&r.get::<_, String>(10)?)
                         .unwrap_or_else(|_| serde_json::json!({})),
                 })
             })
@@ -224,6 +235,29 @@ pub fn message_history_query(
     })
 }
 
+// Shared INSERT for a sent message or a draft — identical except the is_draft
+// flag, so the column list lives in exactly one place.
+fn insert_message(conn: &Connection, message: &AddInput, is_draft: bool) -> Result<(), String> {
+    let images = serde_json::to_string(&message.images).unwrap_or_else(|_| "{}".into());
+    conn.execute(
+        "INSERT INTO message_history \
+         (id, text, project_name, terminal_id, terminal_label, at, favorite, images, is_draft) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7, ?8)",
+        params![
+            uuid::Uuid::new_v4().to_string(),
+            message.text,
+            message.project_name,
+            message.terminal_id,
+            message.terminal_label,
+            now_millis(),
+            images,
+            is_draft as i64,
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[tauri::command(async)]
 pub fn message_history_add(
     state: State<MessageHistoryState>,
@@ -231,10 +265,13 @@ pub fn message_history_add(
 ) -> Result<(), String> {
     state.with_conn(|conn| {
         // Skip an immediate repeat: same text on the same terminal as the newest
-        // row overall (matches the composer's ↑/↓ recall de-duping).
+        // sent row (matches the composer's ↑/↓ recall de-duping). Drafts are
+        // excluded so sending a prompt right after saving it as a draft still
+        // records the send.
         let is_repeat = conn
             .query_row(
-                "SELECT terminal_id, text FROM message_history ORDER BY at DESC, seq DESC LIMIT 1",
+                "SELECT terminal_id, text FROM message_history WHERE is_draft = 0 \
+                 ORDER BY at DESC, seq DESC LIMIT 1",
                 [],
                 |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
             )
@@ -245,24 +282,19 @@ pub fn message_history_add(
         if is_repeat {
             return Ok(());
         }
-        let images = serde_json::to_string(&message.images).unwrap_or_else(|_| "{}".into());
-        conn.execute(
-            "INSERT INTO message_history \
-             (id, text, project_name, terminal_id, terminal_label, at, favorite, images) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7)",
-            params![
-                uuid::Uuid::new_v4().to_string(),
-                message.text,
-                message.project_name,
-                message.terminal_id,
-                message.terminal_label,
-                now_millis(),
-                images,
-            ],
-        )
-        .map_err(|e| e.to_string())?;
-        Ok(())
+        insert_message(conn, &message, false)
     })
+}
+
+// Save the composer's current prompt as an unsent draft. Unlike a send this
+// never de-dupes (the user asked to keep this exact text) and flags the row so
+// the popover badges it and "clear history" leaves it alone.
+#[tauri::command(async)]
+pub fn message_history_save_draft(
+    state: State<MessageHistoryState>,
+    message: AddInput,
+) -> Result<(), String> {
+    state.with_conn(|conn| insert_message(conn, &message, true))
 }
 
 #[tauri::command(async)]
@@ -289,8 +321,8 @@ pub fn message_history_toggle_favorite(
     })
 }
 
-// Clear keeps favorited and foldered messages, so curated saves survive a
-// "clear history".
+// Clear keeps favorited, foldered, and draft messages, so curated saves survive
+// a "clear history".
 #[tauri::command(async)]
 pub fn message_history_clear(
     state: State<MessageHistoryState>,
@@ -300,8 +332,9 @@ pub fn message_history_clear(
     terminal_label: String,
 ) -> Result<(), String> {
     state.with_conn(|conn| {
-        let mut sql =
-            String::from("DELETE FROM message_history WHERE favorite = 0 AND folder_id IS NULL");
+        let mut sql = String::from(
+            "DELETE FROM message_history WHERE favorite = 0 AND folder_id IS NULL AND is_draft = 0",
+        );
         let mut args: Vec<SqlValue> = Vec::new();
         sql.push_str(scope_clause(&scope, &terminal_id, &project_name, &terminal_label, &mut args));
         conn.execute(&sql, params_from_iter(args)).map_err(|e| e.to_string())?;

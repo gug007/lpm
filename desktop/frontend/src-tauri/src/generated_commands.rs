@@ -115,6 +115,7 @@ macro_rules! all_command_handlers {
         message_history_delete_folder,
         message_history_folders,
         message_history_query,
+        message_history_save_draft,
         message_history_set_folder,
         message_history_toggle_favorite,
         move_project_root,

@@ -6,6 +6,7 @@ import {
   MessageHistoryDeleteFolder,
   MessageHistoryFolders,
   MessageHistoryQuery,
+  MessageHistorySaveDraft,
   MessageHistorySetFolder,
   MessageHistoryToggleFavorite,
 } from "../../bridge/commands";
@@ -27,6 +28,7 @@ export interface HistoryMessage {
   at: number; // epoch ms
   favorite: boolean;
   folderId: string | null;
+  isDraft: boolean; // saved-but-unsent prompt, reopenable from the popover
   images: Record<string, string>; // "[Image #N]" token index -> resolved file path
 }
 
@@ -38,9 +40,10 @@ export interface Folder {
 
 export type HistoryScope = "project" | "all";
 
-// A collection filter: "all" = no filter, "favorites", or a folder id.
+// A collection filter: "all" = no filter, "favorites", "drafts", or a folder id.
 export const COLLECTION_ALL = "all";
 export const COLLECTION_FAVORITES = "favorites";
+export const COLLECTION_DRAFTS = "drafts";
 
 export interface HistoryFilter {
   scope: HistoryScope;
@@ -108,6 +111,27 @@ export function recordMessage(
   })
     .then(invalidateHistory)
     .catch(() => {});
+}
+
+// Persist the composer's current prompt as an unsent draft. Same shape as a
+// send, but flagged as a draft so it can be reopened later; unlike a send it's
+// never de-duped. Resolves once stored (rejecting on a backend failure) so the
+// caller can keep the prompt in the field until the write actually lands.
+export function saveDraft(
+  entry: Pick<
+    HistoryMessage,
+    "text" | "projectName" | "terminalId" | "terminalLabel" | "images"
+  >,
+): Promise<void> {
+  const text = entry.text.trimEnd();
+  if (!text.trim()) return Promise.resolve();
+  return MessageHistorySaveDraft({
+    text,
+    projectName: entry.projectName,
+    terminalId: entry.terminalId,
+    terminalLabel: entry.terminalLabel,
+    images: entry.images,
+  }).then(invalidateHistory);
 }
 
 export function toggleFavorite(id: string): void {

@@ -274,6 +274,9 @@ export function MessageHistoryQuery(input) {
 export function MessageHistoryAdd(message) {
   return invoke("message_history_add", { message });
 }
+export function MessageHistorySaveDraft(message) {
+  return invoke("message_history_save_draft", { message });
+}
 export function MessageHistoryToggleFavorite(id) {
   return invoke("message_history_toggle_favorite", { id });
 }

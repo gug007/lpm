@@ -19,6 +19,7 @@ import {
   queryHistory,
   toggleFavorite,
   COLLECTION_ALL,
+  COLLECTION_DRAFTS,
   COLLECTION_FAVORITES,
   FOLDERS_KEY,
   HISTORY_PAGE_SIZE,
@@ -31,7 +32,7 @@ import {
 } from "../store/messageHistory";
 import { relativeTime } from "../relativeTime";
 import { isImagePath, splitByImageTokens } from "./composerEditor";
-import { FolderIcon, PlusIcon, SearchIcon, StarIcon, TrashIcon, XIcon } from "./icons";
+import { FolderIcon, PencilIcon, PlusIcon, SearchIcon, StarIcon, TrashIcon, XIcon } from "./icons";
 import { MessageFolderMenu } from "./MessageFolderMenu";
 import { MessageFileChip } from "./MessageFileChip";
 import { MessageImageChip } from "./MessageImageChip";
@@ -70,13 +71,13 @@ export function TerminalHistoryPopover({
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  // Favorites and folders are cross-project collections, so they always span
-  // every project; the project/all scope only narrows the unfiltered "All" view.
-  const effectiveScope: HistoryScope = collection === COLLECTION_ALL ? scope : "all";
-
+  // Every collection can be narrowed to this project or widened to all — the
+  // scope toggle shows for all of them. Only the default differs (see
+  // selectCollection): "All" opens project-scoped, the curated collections
+  // (Favorites, Drafts, folders) open across every project.
   const filter: HistoryFilter = useMemo(
-    () => ({ scope: effectiveScope, terminalId, projectName, terminalLabel, collection, search: search.trim() }),
-    [effectiveScope, terminalId, projectName, terminalLabel, collection, search],
+    () => ({ scope, terminalId, projectName, terminalLabel, collection, search: search.trim() }),
+    [scope, terminalId, projectName, terminalLabel, collection, search],
   );
 
   const query = useInfiniteQuery({
@@ -114,8 +115,13 @@ export function TerminalHistoryPopover({
     setConfirmingClear(false);
   };
 
+  // Picking a collection resets the scope to that collection's default: the
+  // unfiltered "All" view opens on the current project, while the curated
+  // collections (Favorites, Drafts, folders) open across all projects. The user
+  // can still flip the toggle either way afterward.
   const selectCollection = (next: string) => {
     setCollection(next);
+    setScope(next === COLLECTION_ALL ? "project" : "all");
     setConfirmingClear(false);
   };
 
@@ -129,7 +135,7 @@ export function TerminalHistoryPopover({
   const canClear =
     !search.trim() &&
     collection === COLLECTION_ALL &&
-    items.some((m) => !m.favorite && !m.folderId);
+    items.some((m) => !m.favorite && !m.folderId && !m.isDraft);
   const clear = () => {
     clearHistory(filter);
     setConfirmingClear(false);
@@ -138,11 +144,13 @@ export function TerminalHistoryPopover({
   const emptyLabel =
     collection === COLLECTION_FAVORITES
       ? "No favorites yet"
-      : collection !== COLLECTION_ALL
-        ? "Folder is empty"
-        : search.trim()
-          ? "No matching messages"
-          : "Nothing sent yet";
+      : collection === COLLECTION_DRAFTS
+        ? "No drafts yet"
+        : collection !== COLLECTION_ALL
+          ? "Folder is empty"
+          : search.trim()
+            ? "No matching messages"
+            : "Nothing sent yet";
 
   return (
     <div
@@ -171,16 +179,14 @@ export function TerminalHistoryPopover({
       </div>
 
       <div className="flex items-center gap-1.5 px-2.5 pb-2">
-        {collection === COLLECTION_ALL && (
-          <div className="flex shrink-0 items-center gap-0.5">
-            <ScopeTab active={scope === "project"} onClick={() => onScopeChange("project")}>
-              This project
-            </ScopeTab>
-            <ScopeTab active={scope === "all"} onClick={() => onScopeChange("all")}>
-              All projects
-            </ScopeTab>
-          </div>
-        )}
+        <div className="flex shrink-0 items-center gap-0.5">
+          <ScopeTab active={scope === "project"} onClick={() => onScopeChange("project")}>
+            This project
+          </ScopeTab>
+          <ScopeTab active={scope === "all"} onClick={() => onScopeChange("all")}>
+            All projects
+          </ScopeTab>
+        </div>
         <div className="min-w-0 flex-1" />
         <CollectionBar
           collection={collection}
@@ -229,7 +235,7 @@ export function TerminalHistoryPopover({
                 >
                   <HistoryRow
                     message={message}
-                    source={effectiveScope === "all" ? "full" : "terminal"}
+                    source={scope === "all" ? "full" : "terminal"}
                     onPick={onPick}
                     onOpenFolderMenu={openFolderMenu}
                   />
@@ -276,6 +282,13 @@ function CollectionBar({
         icon={<StarIcon filled={collection === COLLECTION_FAVORITES} size={11} />}
       >
         Favorites
+      </Chip>
+      <Chip
+        active={collection === COLLECTION_DRAFTS}
+        onClick={() => onSelect(COLLECTION_DRAFTS)}
+        icon={<PencilIcon size={11} />}
+      >
+        Drafts
       </Chip>
       {folders.map((f) => (
         <Chip
@@ -434,6 +447,11 @@ const HistoryRow = memo(function HistoryRow({
         className="flex min-w-0 flex-1 flex-col gap-0.5 py-2 text-left"
       >
         <span className="line-clamp-2 whitespace-pre-wrap break-words text-[13px] leading-snug text-[var(--text-primary)] [overflow-wrap:anywhere]">
+          {message.isDraft && (
+            <span className="mr-1.5 rounded bg-[var(--accent-blue)]/15 px-1 py-px align-[1px] text-[9px] font-semibold uppercase tracking-wide text-[var(--accent-blue)]">
+              Draft
+            </span>
+          )}
           <MessageText text={message.text} images={message.images} />
         </span>
         <span className="truncate text-[10px] text-[var(--text-muted)]">

@@ -90,6 +90,7 @@ export function SaveGeneratorIcon(...args: any[]): Promise<any>;
 export function SaveGenerators(...args: any[]): Promise<any>;
 export function MessageHistoryQuery(...args: any[]): Promise<any>;
 export function MessageHistoryAdd(...args: any[]): Promise<any>;
+export function MessageHistorySaveDraft(...args: any[]): Promise<any>;
 export function MessageHistoryToggleFavorite(...args: any[]): Promise<any>;
 export function MessageHistoryDelete(...args: any[]): Promise<any>;
 export function MessageHistoryClear(...args: any[]): Promise<any>;
