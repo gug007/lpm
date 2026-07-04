@@ -100,7 +100,7 @@ export function TerminalHistoryPopover({
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 54,
+    estimateSize: () => 48,
     overscan: 8,
   });
   const virtualItems = virtualizer.getVirtualItems();
@@ -450,11 +450,11 @@ const HistoryRow = memo(function HistoryRow({
   onOpenFolderMenu: (message: HistoryMessage, anchor: DOMRect) => void;
 }) {
   return (
-    <div className="group flex items-center gap-1 rounded-lg pl-2.5 pr-1.5 transition-colors hover:bg-[var(--bg-hover)]">
+    <div className="group relative flex items-start gap-2 rounded-lg pl-2.5 pr-2 transition-colors hover:bg-[var(--bg-hover)]">
       <button
         type="button"
         onClick={() => onPick(message.text, message.images)}
-        className="flex min-w-0 flex-1 flex-col gap-0.5 py-2 text-left"
+        className="flex min-w-0 flex-1 flex-col gap-0.5 py-1.5 text-left"
       >
         <span className="line-clamp-2 whitespace-pre-wrap break-words text-[13px] leading-snug text-[var(--text-primary)] [overflow-wrap:anywhere]">
           {message.isDraft && (
@@ -468,64 +468,93 @@ const HistoryRow = memo(function HistoryRow({
           {source === "full" ? `${message.projectName} · ${message.terminalLabel}` : message.terminalLabel}
         </span>
       </button>
-      <span className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]">
-        {relativeTime(Math.floor(message.at / 1000))}
-      </span>
-      {onSend && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onSend(message.text, message.images);
-          }}
-          title="Send to terminal"
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] opacity-0 transition-all hover:bg-[var(--accent-blue)]/15 hover:text-[var(--accent-blue)] group-hover:opacity-100 [&>svg]:h-3.5 [&>svg]:w-3.5"
-        >
-          <SendIcon />
-        </button>
-      )}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onOpenFolderMenu(message, e.currentTarget.getBoundingClientRect());
-        }}
-        title="Move to folder"
-        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-all ${
-          message.folderId
-            ? "text-[var(--accent-blue)]"
-            : "text-[var(--text-muted)] opacity-0 hover:text-[var(--text-secondary)] group-hover:opacity-100"
-        }`}
-      >
-        <FolderIcon />
-      </button>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          toggleFavorite(message.id);
-        }}
-        aria-pressed={message.favorite}
-        title={message.favorite ? "Remove favorite" : "Mark as favorite"}
-        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-all ${
-          message.favorite
-            ? "text-amber-400"
-            : "text-[var(--text-muted)] opacity-0 hover:text-[var(--text-secondary)] group-hover:opacity-100"
-        }`}
-      >
-        <StarIcon filled={message.favorite} size={13} />
-      </button>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          deleteMessage(message.id);
-        }}
-        title="Delete message"
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] opacity-0 transition-all hover:text-[var(--accent-red)] group-hover:opacity-100"
-      >
-        <TrashIcon size={13} />
-      </button>
+
+      {/* Rest state: persistent folder/star status glyphs + timestamp, top-aligned
+          to the first line so time never floats mid-row on a 2-line message. Stays
+          in flow (only opacity toggles) so the body's flex width is identical
+          whether hovered or not — no reflow. */}
+      <div className="pointer-events-none flex shrink-0 items-center gap-1.5 pt-2 transition-opacity group-hover:opacity-0">
+        {message.folderId && (
+          <span className="text-[var(--accent-blue)] [&>svg]:h-3 [&>svg]:w-3">
+            <FolderIcon />
+          </span>
+        )}
+        {message.favorite && (
+          <span className="text-amber-400">
+            <StarIcon filled size={12} />
+          </span>
+        )}
+        <span className="text-[10px] leading-none tabular-nums text-[var(--text-muted)]">
+          {relativeTime(Math.floor(message.at / 1000))}
+        </span>
+      </div>
+
+      {/* Hover state: the action toolbar overlays the right edge — absolute, so it
+          reserves no width and causes no reflow. A left gradient dissolves long
+          text sliding under it; both the fade and the strip reference --bg-hover
+          (the row's own hover tint) so the seam vanishes in light + dark. The
+          container is pointer-events-none; only the buttons re-enable hits on
+          hover, so at rest clicks fall straight through to the row body (onPick). */}
+      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="h-full w-10 bg-gradient-to-l from-[var(--bg-hover)] to-transparent" />
+        <div className="flex h-full items-center gap-0.5 bg-[var(--bg-hover)] pr-2">
+          {onSend && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSend(message.text, message.images);
+              }}
+              title="Send to terminal"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--accent-blue)]/15 hover:text-[var(--accent-blue)] group-hover:pointer-events-auto [&>svg]:h-3.5 [&>svg]:w-3.5"
+            >
+              <SendIcon />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenFolderMenu(message, e.currentTarget.getBoundingClientRect());
+            }}
+            title="Move to folder"
+            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors group-hover:pointer-events-auto ${
+              message.folderId
+                ? "text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/15"
+                : "text-[var(--text-muted)] hover:bg-[var(--bg-active)] hover:text-[var(--text-secondary)]"
+            }`}
+          >
+            <FolderIcon />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleFavorite(message.id);
+            }}
+            aria-pressed={message.favorite}
+            title={message.favorite ? "Remove favorite" : "Mark as favorite"}
+            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors group-hover:pointer-events-auto ${
+              message.favorite
+                ? "text-amber-400 hover:bg-amber-400/15"
+                : "text-[var(--text-muted)] hover:bg-[var(--bg-active)] hover:text-[var(--text-secondary)]"
+            }`}
+          >
+            <StarIcon filled={message.favorite} size={13} />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              deleteMessage(message.id);
+            }}
+            title="Delete message"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--accent-red)]/10 hover:text-[var(--accent-red)] group-hover:pointer-events-auto"
+          >
+            <TrashIcon size={13} />
+          </button>
+        </div>
+      </div>
     </div>
   );
 });
