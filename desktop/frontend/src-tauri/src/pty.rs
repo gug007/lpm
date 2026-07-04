@@ -240,6 +240,11 @@ fn start_internal(
         for (k, v) in std::env::vars() {
             builder.env(k, v);
         }
+        // The app may itself descend from a tmux pane (services run in tmux;
+        // dev runs launched from one), but these terminals are not tmux panes —
+        // a leaked TMUX makes TUIs like Claude Code disable their mouse UX.
+        builder.env_remove("TMUX");
+        builder.env_remove("TMUX_PANE");
         builder.env("TERM", "xterm-256color");
         builder.env("TERM_PROGRAM", "kitty");
         builder.env("LPM_SOCKET_PATH", config::socket_path());
@@ -259,6 +264,11 @@ fn start_internal(
         for (k, v) in std::env::vars() {
             builder.env(k, v);
         }
+        // The app may itself descend from a tmux pane (services run in tmux;
+        // dev runs launched from one), but these terminals are not tmux panes —
+        // a leaked TMUX makes TUIs like Claude Code disable their mouse UX.
+        builder.env_remove("TMUX");
+        builder.env_remove("TMUX_PANE");
         builder.env("TERM", "xterm-256color");
         builder.env("TERM_PROGRAM", "kitty");
         builder.env("LPM_SOCKET_PATH", config::socket_path());

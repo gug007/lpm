@@ -168,6 +168,7 @@ macro_rules! all_command_handlers {
         save_branch_name_instructions,
         save_clipboard_image,
         save_commit_instructions,
+        set_clipboard_text,
         save_config,
         save_global_config,
         save_composer_actions,

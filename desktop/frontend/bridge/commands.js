@@ -487,6 +487,9 @@ export function SaveWindowSize(width, height) {
 export function SearchBranches(cwd, query) {
   return invoke("search_branches", { cwd, query });
 }
+export function SetClipboardText(text) {
+  return invoke("set_clipboard_text", { text });
+}
 export function SetProjectLabel(name, label) {
   return invoke("set_project_label", { name, label });
 }

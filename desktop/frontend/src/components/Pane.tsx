@@ -6,7 +6,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { getTerminalTheme, openTerminalLink } from "./terminal-utils";
-import { copyTerminalSelection, handleCopyShortcut, handleSelectAllShortcut, handleClearShortcut } from "./terminal/copySelection";
+import { copyTerminalSelection, handleCopyShortcut, handleNativeCopy, handleSelectAllShortcut, handleClearShortcut } from "./terminal/copySelection";
 import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { ChevronRightIcon } from "./icons";
@@ -94,6 +94,12 @@ function createPaneSession(opts: { fontSize: number; theme: ITheme; cwd: string 
     if (handleClearShortcut(e, term, { force: true, onClear: () => clearPaneSession(session) })) return false;
     return true;
   });
+
+  host.addEventListener("copy", (e) => handleNativeCopy(e, term, serialize), true);
+
+  // xterm preventDefaults mousedown without focusing itself, so a selection
+  // drag would otherwise leave ⌘C pointed at the previously focused element.
+  host.addEventListener("mousedown", () => term.focus());
 
   return session;
 }

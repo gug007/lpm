@@ -1,5 +1,6 @@
 import type { Terminal } from "@xterm/xterm";
 import type { SerializeAddon } from "@xterm/addon-serialize";
+import { SetClipboardText } from "../../../bridge/commands";
 
 // Cleans terminal selections before they hit the clipboard:
 //   1. merges soft-wrapped rows back into one logical line
@@ -214,18 +215,31 @@ async function writeClipboard(plain: string, html: string | null): Promise<void>
       // Rich write rejected — fall through to plain-text only.
     }
   }
-  await navigator.clipboard.writeText(plain);
+  try {
+    await navigator.clipboard.writeText(plain);
+  } catch {
+    // The WKWebView refuses clipboard writes it doesn't consider gesture-
+    // backed (context-menu clicks among them) — write through the backend.
+    await SetClipboardText(plain);
+  }
 }
 
-export function copyTerminalSelection(
+interface ClipboardPayload {
+  plain: string;
+  html: string | null;
+}
+
+function buildClipboardPayload(
   term: Terminal,
   serialize: SerializeAddon | null,
-): void {
+): ClipboardPayload | null {
   const selection = getSelectionRespectingWraps(term);
-  if (!selection) return;
+  if (!selection) return null;
 
   const rules = detectRules(selection);
   const plain = cleanPlainText(selection, rules);
+  // A whitespace-only selection cleans to nothing — don't blank the clipboard.
+  if (!/\S/.test(plain)) return null;
 
   let html: string | null = null;
   if (serialize) {
@@ -236,22 +250,62 @@ export function copyTerminalSelection(
     }
   }
 
-  void writeClipboard(plain, html).catch(() => {});
+  return { plain, html };
 }
 
-// Returns true if the event was a Cmd+C that we handled. Callers should
-// return `false` from their attachCustomKeyEventHandler so xterm doesn't
-// also process the event.
+export function copyTerminalSelection(
+  term: Terminal,
+  serialize: SerializeAddon | null,
+): void {
+  const payload = buildClipboardPayload(term, serialize);
+  if (!payload) return;
+  void writeClipboard(payload.plain, payload.html).catch(() => {});
+}
+
+export function isCopyShortcut(e: KeyboardEvent): boolean {
+  if (!e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return false;
+  const key = e.key.toLowerCase();
+  if (key === "c") return true;
+  // Non-Latin layouts (e.g. Russian "с") keep ⌘C on the physical C key but
+  // report their own letter; Latin layouts that move "c" elsewhere (Dvorak)
+  // must not match the physical key.
+  return e.code === "KeyC" && !/^[a-z]$/.test(key);
+}
+
+// Returns true if the event was a Cmd+C over a live selection that we copied.
+// Callers should return `false` from their attachCustomKeyEventHandler so
+// xterm doesn't also process the event. Without a selection the event is left
+// untouched — the running app may own the mouse (and with it the selection),
+// in which case the chord belongs to the app, not to us.
 export function handleCopyShortcut(
   e: KeyboardEvent,
   term: Terminal,
   serialize: SerializeAddon | null,
 ): boolean {
-  if (!(e.metaKey && e.key === "c" && e.type === "keydown")) return false;
+  if (!(isCopyShortcut(e) && e.type === "keydown")) return false;
+  const payload = buildClipboardPayload(term, serialize);
+  if (!payload) return false;
   // Stop WebKit's native Cmd+C from clobbering our clipboard write with the
   // raw selection from xterm's hidden helper textarea.
   e.preventDefault();
-  copyTerminalSelection(term, serialize);
+  void writeClipboard(payload.plain, payload.html).catch(() => {});
+  return true;
+}
+
+// Populates a native copy (Edit menu, context menu) with the same cleaned
+// payload the shortcut path produces, instead of xterm's raw selection text.
+export function handleNativeCopy(
+  e: ClipboardEvent,
+  term: Terminal,
+  serialize: SerializeAddon | null,
+): boolean {
+  if (!e.clipboardData) return false;
+  const payload = buildClipboardPayload(term, serialize);
+  if (!payload) return false;
+  e.preventDefault();
+  e.stopPropagation();
+  e.clipboardData.setData("text/plain", payload.plain);
+  if (payload.html) e.clipboardData.setData("text/html", payload.html);
   return true;
 }
 
