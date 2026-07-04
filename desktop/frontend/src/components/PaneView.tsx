@@ -23,6 +23,7 @@ import { XIcon, GlobeIcon, TerminalIcon, ZapIcon, CodeIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
 import { SortableTab, TabStrip } from "./TerminalTabDnd";
 import { TerminalComposer } from "./TerminalComposer";
+import { ComposerReopenBar } from "./ComposerReopenBar";
 import { useScrollFade } from "../hooks/useScrollFade";
 import { computeScrollIntoViewLeft } from "../hooks/scrollIntoViewX";
 import { useTabScroll } from "../store/tabScroll";
@@ -532,25 +533,29 @@ function PaneViewImpl(props: PaneViewProps) {
           );
         })}
       </div>
-      {composerOpen && composerTab && (
-        // Keyed by terminal id so each terminal keeps its own draft and the
-        // input refocuses when the active terminal changes.
-        <TerminalComposer
-          key={composerTab.id}
-          terminalId={composerTab.id}
-          historyKey={composerTab.historyKey ?? composerTab.id}
-          projectName={projectName}
-          shown={visible}
-          focused={focused}
-          targetLabel={composerTab.label}
-          terminals={allTerminals}
-          cwd={interactiveCwd}
-          launchCmd={composerTab.startCmd ?? composerTab.resumeCmd}
-          fontSize={fontSize}
-          onSubmit={(input) => onSubmitInput(composerTab.id, input)}
-          onFocusTerminal={() => onFocusTerminalInput(composerTab.id)}
-        />
-      )}
+      {composerTab &&
+        (composerOpen ? (
+          // Keyed by terminal id so each terminal keeps its own draft and the
+          // input refocuses when the active terminal changes.
+          <TerminalComposer
+            key={composerTab.id}
+            terminalId={composerTab.id}
+            historyKey={composerTab.historyKey ?? composerTab.id}
+            projectName={projectName}
+            shown={visible}
+            focused={focused}
+            targetLabel={composerTab.label}
+            terminals={allTerminals}
+            cwd={interactiveCwd}
+            launchCmd={composerTab.startCmd ?? composerTab.resumeCmd}
+            fontSize={fontSize}
+            onSubmit={(input) => onSubmitInput(composerTab.id, input)}
+            onFocusTerminal={() => onFocusTerminalInput(composerTab.id)}
+          />
+        ) : (
+          // Input closed: leave a slim stand-in that reopens it (same as ⌘I).
+          <ComposerReopenBar targetLabel={composerTab.label} />
+        ))}
       {tabMenu && (() => {
         const targetPane = pane.id === tabMenu.paneId ? pane : null;
         const tab = targetPane?.tabs[tabMenu.tabIdx];
