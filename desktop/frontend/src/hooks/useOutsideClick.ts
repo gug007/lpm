@@ -17,9 +17,12 @@ export function useOutsideClick<T extends HTMLElement = HTMLElement>(
     if (!enabled) return;
     const onMouseDown = (event: MouseEvent) => {
       const el = ref.current;
-      if (el && !el.contains(event.target as Node)) {
-        handlerRef.current(event);
-      }
+      if (!el || el.contains(event.target as Node)) return;
+      // A popover may host a portaled modal (rendered to document.body, outside
+      // this boundary). Its overlay/backdrop is part of the layer stack, not the
+      // page behind the popover, so dismissing the modal must not close its host.
+      if ((event.target as Element)?.closest?.("[data-modal-overlay]")) return;
+      handlerRef.current(event);
     };
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);

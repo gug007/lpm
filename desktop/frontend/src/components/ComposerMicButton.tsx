@@ -1,28 +1,15 @@
-import { useState, type MouseEvent } from "react";
-import { toast } from "sonner";
-import { VoiceToTextAvailable, VoiceToTextToggle } from "../../bridge/commands";
+import { type MouseEvent } from "react";
+import { useVoiceDictation } from "../hooks/useVoiceDictation";
 import { MicIcon } from "./icons";
 import { VoiceToTextInstallModal } from "./VoiceToTextInstallModal";
 import { Tooltip } from "./ui/Tooltip";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 
 export function ComposerMicButton() {
-  const [installOpen, setInstallOpen] = useState(false);
+  const { toggle, installOpen, setInstallOpen } = useVoiceDictation();
 
   // Don't pull focus off the composer editor, so the dictated text pastes there.
   const keepEditorFocus = (e: MouseEvent) => e.preventDefault();
-
-  const toggle = async () => {
-    try {
-      if (!(await VoiceToTextAvailable())) {
-        setInstallOpen(true);
-        return;
-      }
-      await VoiceToTextToggle();
-    } catch (err) {
-      toast.error(`Voice dictation failed: ${err}`);
-    }
-  };
 
   return (
     <>

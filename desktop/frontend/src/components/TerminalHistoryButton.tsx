@@ -78,19 +78,27 @@ export function TerminalHistoryButton({
 
   // Outside-click and Escape close the popover. The trigger button and anything
   // marked data-history-overlay (the popover and its portaled child menus, which
-  // live outside popRef's subtree) count as inside. Escape is captured so it
-  // doesn't also close the composer, but defers to an open child menu or an
-  // active folder-name input so it dismisses the topmost layer first.
+  // live outside popRef's subtree) count as inside; a hosted modal
+  // (data-modal-overlay) does too, so its backdrop dismisses the modal rather
+  // than the popover. Escape is captured so it doesn't also close the composer,
+  // but defers to an open child menu, a hosted confirm dialog, or an active
+  // folder-name input so it dismisses the topmost layer first.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
       const t = e.target as Element;
-      if (btnRef.current?.contains(t) || t.closest?.("[data-history-overlay]")) return;
+      if (
+        btnRef.current?.contains(t) ||
+        t.closest?.("[data-history-overlay]") ||
+        t.closest?.("[data-modal-overlay]")
+      )
+        return;
       close();
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       if (document.querySelector("[data-history-menu]")) return;
+      if (document.querySelector("[data-modal-overlay]")) return;
       const active = document.activeElement;
       if (active instanceof HTMLElement && active.dataset.folderInput !== undefined) return;
       e.stopPropagation();

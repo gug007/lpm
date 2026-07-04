@@ -76,6 +76,7 @@ export interface UseTerminalsResult {
   addBrowserToPane: (paneId?: string) => void;
   addReviewToPane: (paneId?: string) => void;
   closeTerminal: (paneId: string, tabIdx: number) => void;
+  closeOtherTerminals: (paneId: string, tabIdx: number) => void;
   focusTerminal: (paneId: string, tabIdx: number) => void;
   focusAdjacentPaneItem: (paneId: string, delta: 1 | -1, serviceNames: string[]) => void;
   focusService: (paneId: string, serviceName: string) => void;
@@ -464,6 +465,22 @@ export function useTerminals(
     [projectName],
   );
 
+  // Releases back-end resources for a set of closing tabs (stop the process,
+  // clear any pane status) and records them in history. Both close paths — one
+  // tab, or all-but-one — funnel through here so teardown lives in one place.
+  const disposeTabs = useCallback(
+    (tabs: TerminalInstance[]) => {
+      for (const t of tabs) {
+        StopTerminal(t.id).catch(() => {});
+        if (isTerminalTab(t)) {
+          ClearPaneStatus(projectName, t.id).catch(() => {});
+        }
+      }
+      recordClosingTabs(tabs);
+    },
+    [recordClosingTabs, projectName],
+  );
+
   const closeTerminal = useCallback(
     (paneId: string, tabIdx: number) => {
       const current = treeRef.current;
@@ -471,12 +488,7 @@ export function useTerminals(
       const pane = findPane(current, paneId);
       if (!pane || !pane.tabs[tabIdx]) return;
       if (isTabPinned(pane, tabIdx)) return;
-      const closingTab = pane.tabs[tabIdx];
-      StopTerminal(closingTab.id).catch(() => {});
-      if (isTerminalTab(closingTab)) {
-        ClearPaneStatus(projectName, closingTab.id).catch(() => {});
-      }
-      recordClosingTabs([closingTab]);
+      disposeTabs([pane.tabs[tabIdx]]);
 
       // Collapse the pane only when it would otherwise be empty — panes
       // that hold a persistent service tab stay alive even with no
@@ -491,7 +503,29 @@ export function useTerminals(
       const next = mapPane(current, paneId, (p) => ({ ...p, tabs: newTabs, activeTabIdx: newActive }));
       applyTree(next);
     },
-    [applyTree, collapsePane, recordClosingTabs, projectName],
+    [applyTree, collapsePane, disposeTabs],
+  );
+
+  // Closes every unpinned tab in the pane except the one at `tabIdx`; pinned
+  // tabs and the selected tab always survive, so the pane never empties and
+  // needs no collapse. The kept tab becomes active.
+  const closeOtherTerminals = useCallback(
+    (paneId: string, tabIdx: number) => {
+      const current = treeRef.current;
+      if (!current) return;
+      const pane = findPane(current, paneId);
+      const keptTab = pane?.tabs[tabIdx];
+      if (!pane || !keptTab) return;
+      const closing = pane.tabs.filter((t, i) => i !== tabIdx && t.pinned !== true);
+      if (closing.length === 0) return;
+      disposeTabs(closing);
+
+      const newTabs = pane.tabs.filter((t, i) => i === tabIdx || t.pinned === true);
+      const newActive = newTabs.findIndex((t) => t.id === keptTab.id);
+      const next = mapPane(current, paneId, (p) => ({ ...p, tabs: newTabs, activeTabIdx: newActive }));
+      applyTree(next);
+    },
+    [applyTree, disposeTabs],
   );
 
   const focusTerminal = useCallback(
@@ -777,6 +811,7 @@ export function useTerminals(
     addBrowserToPane,
     addReviewToPane,
     closeTerminal,
+    closeOtherTerminals,
     focusTerminal,
     focusAdjacentPaneItem,
     focusService,

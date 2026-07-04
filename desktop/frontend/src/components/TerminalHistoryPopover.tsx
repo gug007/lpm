@@ -32,11 +32,12 @@ import {
 } from "../store/messageHistory";
 import { relativeTime } from "../relativeTime";
 import { isImagePath, splitByImageTokens } from "./composerEditor";
-import { FolderIcon, PencilIcon, PlusIcon, SearchIcon, SendIcon, StarIcon, TrashIcon, XIcon } from "./icons";
+import { FolderIcon, HistoryIcon, PencilIcon, PlusIcon, SearchIcon, SendIcon, StarIcon, TrashIcon, XIcon } from "./icons";
 import { MessageFolderMenu } from "./MessageFolderMenu";
 import { MessageFileChip } from "./MessageFileChip";
 import { MessageImageChip } from "./MessageImageChip";
 import { NewFolderInput } from "./NewFolderInput";
+import { ConfirmDialog } from "./ui/ConfirmDialog";
 
 interface TerminalHistoryPopoverProps {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -113,11 +114,6 @@ export function TerminalHistoryPopover({
     }
   }, [last, items.length, query.hasNextPage, query.isFetchingNextPage, query.fetchNextPage]);
 
-  const onScopeChange = (next: HistoryScope) => {
-    setScope(next);
-    setConfirmingClear(false);
-  };
-
   // Picking a collection resets the scope to that collection's default: the
   // unfiltered "All" view opens on the current project, while the curated
   // collections (Favorites, Drafts, folders) open across all projects. The user
@@ -125,7 +121,6 @@ export function TerminalHistoryPopover({
   const selectCollection = (next: string) => {
     setCollection(next);
     setScope(next === COLLECTION_ALL ? "project" : "all");
-    setConfirmingClear(false);
   };
 
   const openFolderMenu = useCallback(
@@ -170,10 +165,7 @@ export function TerminalHistoryPopover({
         </span>
         <input
           value={searchInput}
-          onChange={(e) => {
-            setSearchInput(e.target.value);
-            setConfirmingClear(false);
-          }}
+          onChange={(e) => setSearchInput(e.target.value)}
           placeholder="Search history"
           spellCheck={false}
           autoFocus
@@ -182,15 +174,15 @@ export function TerminalHistoryPopover({
       </div>
 
       <div className="flex items-center gap-2 px-3.5 pb-2.5">
-        <div className="flex shrink-0 items-center gap-0.5 rounded-full bg-[var(--bg-secondary)] p-0.5">
-          <ScopeTab active={scope === "project"} onClick={() => onScopeChange("project")}>
+        <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-[var(--border)] p-0.5">
+          <ScopeTab active={scope === "project"} onClick={() => setScope("project")}>
             This project
           </ScopeTab>
-          <ScopeTab active={scope === "all"} onClick={() => onScopeChange("all")}>
+          <ScopeTab active={scope === "all"} onClick={() => setScope("all")}>
             All projects
           </ScopeTab>
         </div>
-        <div className="min-w-0 flex-1" />
+
         <CollectionBar
           collection={collection}
           folders={folders}
@@ -200,21 +192,21 @@ export function TerminalHistoryPopover({
             if (collection === id) selectCollection(COLLECTION_ALL);
           }}
         />
+
+        <div className="min-w-0 flex-1" />
+
         <span
           aria-hidden
           className={`h-4 w-px shrink-0 bg-[var(--border)] transition-opacity ${canClear ? "" : "opacity-0"}`}
         />
         <button
           type="button"
-          onClick={() => (confirmingClear ? clear() : setConfirmingClear(true))}
+          onClick={() => setConfirmingClear(true)}
           disabled={!canClear}
-          className={`shrink-0 rounded-md px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-0 ${
-            confirmingClear
-              ? "text-[var(--accent-red)] hover:bg-[var(--accent-red)]/10"
-              : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
-          }`}
+          className="flex h-[26px] shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)] disabled:opacity-0 [&>svg]:h-3 [&>svg]:w-3"
         >
-          {confirmingClear ? "Clear?" : "Clear"}
+          <TrashIcon />
+          Clear
         </button>
       </div>
 
@@ -262,6 +254,21 @@ export function TerminalHistoryPopover({
           onClose={() => setFolderMenu(null)}
         />
       )}
+
+      <ConfirmDialog
+        open={confirmingClear}
+        title="Clear history"
+        body={
+          scope === "all"
+            ? "This clears the message history for all projects. Favorites, drafts, and messages saved to folders are kept."
+            : "This clears the message history for this project. Favorites, drafts, and messages saved to folders are kept."
+        }
+        confirmLabel="Clear"
+        variant="destructive"
+        zIndexClassName="z-[10000]"
+        onCancel={() => setConfirmingClear(false)}
+        onConfirm={clear}
+      />
     </div>
   );
 }
@@ -280,39 +287,41 @@ function CollectionBar({
   const [creating, setCreating] = useState(false);
 
   return (
-    <div className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]">
-      <Chip active={collection === COLLECTION_ALL} onClick={() => onSelect(COLLECTION_ALL)}>
-        All
-      </Chip>
-      <Chip
-        active={collection === COLLECTION_FAVORITES}
-        onClick={() => onSelect(COLLECTION_FAVORITES)}
-        icon={<StarIcon filled={collection === COLLECTION_FAVORITES} size={11} />}
-      >
-        Favorites
-      </Chip>
-      <Chip
-        active={collection === COLLECTION_DRAFTS}
-        onClick={() => onSelect(COLLECTION_DRAFTS)}
-        icon={<PencilIcon size={11} />}
-      >
-        Drafts
-      </Chip>
-      {folders.map((f) => (
-        <Chip
-          key={f.id}
-          active={collection === f.id}
-          onClick={() => onSelect(f.id)}
-          icon={<FolderIcon />}
-          count={f.count}
-          onDelete={() => onDeleteFolder(f.id)}
-        >
-          {f.name}
+    <div className="flex min-w-0 items-center gap-1">
+      <div className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]">
+        <Chip active={collection === COLLECTION_ALL} onClick={() => onSelect(COLLECTION_ALL)} icon={<HistoryIcon />}>
+          All
         </Chip>
-      ))}
+        <Chip
+          active={collection === COLLECTION_FAVORITES}
+          onClick={() => onSelect(COLLECTION_FAVORITES)}
+          icon={<StarIcon filled={collection === COLLECTION_FAVORITES} />}
+        >
+          Favorites
+        </Chip>
+        <Chip
+          active={collection === COLLECTION_DRAFTS}
+          onClick={() => onSelect(COLLECTION_DRAFTS)}
+          icon={<PencilIcon />}
+        >
+          Drafts
+        </Chip>
+        {folders.map((f) => (
+          <Chip
+            key={f.id}
+            active={collection === f.id}
+            onClick={() => onSelect(f.id)}
+            icon={<FolderIcon />}
+            count={f.count}
+            onDelete={() => onDeleteFolder(f.id)}
+          >
+            {f.name}
+          </Chip>
+        ))}
+      </div>
       {creating ? (
         <NewFolderInput
-          className="h-[26px] w-28 shrink-0 rounded-full border border-[var(--border)] bg-transparent px-2.5 text-[11px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+          className="h-[26px] w-28 shrink-0 rounded-lg border border-[var(--border)] bg-transparent px-2.5 text-[11px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
           onCreated={(folder) => {
             setCreating(false);
             onSelect(folder.id);
@@ -324,7 +333,7 @@ function CollectionBar({
           type="button"
           onClick={() => setCreating(true)}
           title="New folder"
-          className="flex h-[26px] shrink-0 items-center justify-center rounded-full px-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          className="flex h-[26px] shrink-0 items-center justify-center rounded-lg px-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] [&>svg]:h-3.5 [&>svg]:w-3.5"
         >
           <PlusIcon />
         </button>
@@ -333,8 +342,8 @@ function CollectionBar({
   );
 }
 
-// A filter pill. With onDelete it gains a hover delete button + count badge
-// (folders); without, it's a plain pill (All / Favorites).
+// A filter pill. Folders (onDelete) show a count and swap their leading icon
+// to a delete button on hover; the rest are plain pills (All / Favorites).
 function Chip({
   active,
   onClick,
@@ -353,11 +362,18 @@ function Chip({
   const tone = active
     ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
     : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]";
+  const text = (
+    <>
+      <span className="max-w-[140px] truncate">{children}</span>
+      {count !== undefined && count > 0 && (
+        <span className="text-[10px] tabular-nums opacity-60">{count}</span>
+      )}
+    </>
+  );
   const label = (
     <>
       {icon}
-      <span className="max-w-[140px] truncate">{children}</span>
-      {count !== undefined && count > 0 && <span className="opacity-60">{count}</span>}
+      {text}
     </>
   );
   if (!onDelete) {
@@ -365,7 +381,7 @@ function Chip({
       <button
         type="button"
         onClick={onClick}
-        className={`flex h-[26px] shrink-0 items-center gap-1 rounded-full px-2.5 text-[11px] font-medium transition-colors ${tone}`}
+        className={`flex h-[26px] shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-medium transition-colors [&>svg]:h-3 [&>svg]:w-3 ${tone}`}
       >
         {label}
       </button>
@@ -373,23 +389,28 @@ function Chip({
   }
   return (
     <div
-      className={`group flex h-[26px] shrink-0 items-center gap-1 rounded-full pl-2.5 pr-1.5 text-[11px] font-medium transition-colors ${tone}`}
+      className={`group flex h-[26px] shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-medium transition-colors ${tone}`}
     >
-      <button type="button" onClick={onClick} className="flex items-center gap-1">
-        {label}
-      </button>
-      <button
-        type="button"
-        onClick={onDelete}
-        title="Delete folder"
-        className="flex h-4 w-4 items-center justify-center rounded opacity-0 transition-opacity hover:text-[var(--accent-red)] group-hover:opacity-100"
-      >
-        <XIcon />
+      <span className="relative flex h-3 w-3 shrink-0 items-center justify-center">
+        <span className="flex transition-opacity group-hover:opacity-0 [&>svg]:h-3 [&>svg]:w-3">{icon}</span>
+        <button
+          type="button"
+          onClick={onDelete}
+          title="Delete folder"
+          className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity hover:text-[var(--accent-red)] group-hover:pointer-events-auto group-hover:opacity-100 [&>svg]:h-3 [&>svg]:w-3"
+        >
+          <XIcon />
+        </button>
+      </span>
+      <button type="button" onClick={onClick} className="flex items-center gap-1.5">
+        {text}
       </button>
     </div>
   );
 }
 
+// A two-state scope switch — the "where" axis, visually distinct from the
+// collection chips (the "what" axis) so the two never read as one filter set.
 function ScopeTab({
   active,
   onClick,
@@ -403,10 +424,10 @@ function ScopeTab({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+      className={`flex h-5 items-center rounded-md px-2.5 text-[11px] font-medium transition-colors ${
         active
-          ? "bg-[var(--bg-active)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.25)]"
-          : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+          ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+          : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
       }`}
     >
       {children}

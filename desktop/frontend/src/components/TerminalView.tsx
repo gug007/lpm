@@ -78,6 +78,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     addBrowserToPane,
     addReviewToPane,
     closeTerminal,
+    closeOtherTerminals,
     focusTerminal,
     focusAdjacentPaneItem,
     focusService,
@@ -650,6 +651,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onAddBrowser={addBrowserToPane}
             onAddReview={openReviewInPane}
             onCloseTerminal={closeTerminal}
+            onCloseOtherTerminals={closeOtherTerminals}
             onRenameTerminal={renameTerminal}
             onTogglePinTab={toggleTabPinned}
             onSplit={splitPane}

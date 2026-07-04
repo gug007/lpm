@@ -122,6 +122,7 @@ export interface PaneViewProps {
   onAddBrowser: (paneId: string) => void;
   onAddReview: (paneId: string) => void;
   onCloseTerminal: (paneId: string, tabIdx: number) => void;
+  onCloseOtherTerminals: (paneId: string, tabIdx: number) => void;
   onRenameTerminal: (
     paneId: string,
     tabIdx: number,
@@ -179,6 +180,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onAddBrowser,
     onAddReview,
     onCloseTerminal,
+    onCloseOtherTerminals,
     onRenameTerminal,
     onTogglePinTab,
     onSplit,
@@ -560,14 +562,19 @@ function PaneViewImpl(props: PaneViewProps) {
         const targetPane = pane.id === tabMenu.paneId ? pane : null;
         const tab = targetPane?.tabs[tabMenu.tabIdx];
         if (!tab) return null;
+        const canCloseOthers = targetPane.tabs.some(
+          (t, i) => i !== tabMenu.tabIdx && t.pinned !== true,
+        );
         return (
           <TabContextMenu
             x={tabMenu.x}
             y={tabMenu.y}
             pinned={tab.pinned === true}
+            canCloseOthers={canCloseOthers}
             onRename={() => setRenamingTabIdx(tabMenu.tabIdx)}
             onTogglePin={() => onTogglePinTab(tabMenu.paneId, tabMenu.tabIdx)}
             onCloseTab={() => onCloseTerminal(tabMenu.paneId, tabMenu.tabIdx)}
+            onCloseOthers={() => onCloseOtherTerminals(tabMenu.paneId, tabMenu.tabIdx)}
             onClose={() => setTabMenu(null)}
           />
         );
