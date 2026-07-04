@@ -1,5 +1,6 @@
 import type { Terminal } from "@xterm/xterm";
 import type { SerializeAddon } from "@xterm/addon-serialize";
+import { SetClipboardText } from "../../../bridge/commands";
 
 // Cleans terminal selections before they hit the clipboard:
 //   1. merges soft-wrapped rows back into one logical line
@@ -214,7 +215,13 @@ async function writeClipboard(plain: string, html: string | null): Promise<void>
       // Rich write rejected — fall through to plain-text only.
     }
   }
-  await navigator.clipboard.writeText(plain);
+  try {
+    await navigator.clipboard.writeText(plain);
+  } catch {
+    // The WKWebView refuses clipboard writes it doesn't consider gesture-
+    // backed (context-menu clicks among them) — write through the backend.
+    await SetClipboardText(plain);
+  }
 }
 
 interface ClipboardPayload {

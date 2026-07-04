@@ -57,11 +57,12 @@ interface InteractivePaneProps {
 // Flow control: ack in batches to reduce IPC calls (matches VS Code's approach)
 const ACK_SIZE = 5000;
 
-// ⌘C this soon after a drag reported to a mouse-owning app asks the app to
-// copy its own selection (Ctrl+C — Claude Code's only copy trigger). Past the
-// window the selection is too likely gone, and a bare Ctrl+C doubles as an
-// interrupt, so the chord is not translated.
-const APP_SELECTION_WINDOW_MS = 15000;
+// A copy this soon after a selection gesture reported to a mouse-owning app
+// asks the app to copy its own selection (Ctrl+C — Claude Code's only copy
+// trigger). The on-screen copy hint is what verifies the selection is still
+// alive at fire time; the window just bounds how long a stale gesture can
+// authorize one, since a bare Ctrl+C doubles as an interrupt.
+const APP_SELECTION_WINDOW_MS = 60000;
 // An app may write the clipboard only on the heels of the user's own input to
 // its terminal (a copy is always an answer to a keystroke or click there).
 // Anything later — or from a session the user isn't touching — is dropped.
@@ -167,6 +168,11 @@ interface InteractiveSession {
   cwd: string;
   pathLinkDisposable: IDisposable | null;
   osc52Disposable: IDisposable | null;
+
+  // Copy routed to the mouse-owning app (Claude Code's Ctrl+C-with-selection);
+  // exposed so the context menu shares the ⌘C path's gates.
+  canAppCopy: () => boolean;
+  tryAppCopy: () => boolean;
 
   // Installed by the current React mount, cleared on unmount so callbacks
   // closing over stale component state don't fire.
@@ -349,6 +355,11 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     vtExtensions: { kittyKeyboard: true },
     // Mouse-owning apps suppress local selection; ⌥ drag opts back into it.
     macOptionClickForcesSelection: true,
+    // On mac xterm word-selects under a right-click by default. That phantom
+    // selection would shadow the running app's own selection in the context
+    // menu, making Copy grab the word under the cursor instead of asking the
+    // app for what the user highlighted.
+    rightClickSelectsWord: false,
     linkHandler: { activate: openTerminalLink },
   });
 
@@ -384,6 +395,7 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   let lastAppDragAt = 0;
   let lastUserInputAt = 0;
   let dragHasMotion = false;
+  let multiClickPending = false;
   let copyChordForwarded = false;
 
   term.onData((data) => {
@@ -404,8 +416,11 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
       if (btn & 32) {
         dragHasMotion = true;
       } else if (m[2] === "m") {
-        lastAppDragAt = dragHasMotion ? Date.now() : 0;
+        // Drags and double/triple clicks give the app a selection; a plain
+        // motionless click clears one.
+        lastAppDragAt = dragHasMotion || multiClickPending ? Date.now() : 0;
         dragHasMotion = false;
+        multiClickPending = false;
       } else {
         dragHasMotion = false;
       }
@@ -416,19 +431,18 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   // right after a drag the app is holding a selection, and Claude Code copies
   // it on Ctrl+C — its only external copy trigger. One-shot so a repeat ⌘C
   // can't turn into a bare interrupt once the selection is gone.
+  const canAppCopy = (): boolean =>
+    lastAppDragAt !== 0 &&
+    Date.now() - lastAppDragAt < APP_SELECTION_WINDOW_MS &&
+    term.modes.mouseTrackingMode !== "none" &&
+    viewportShowsAppCopyHint(term);
+
   const tryAppCopy = (): boolean => {
-    if (
-      lastAppDragAt &&
-      Date.now() - lastAppDragAt < APP_SELECTION_WINDOW_MS &&
-      term.modes.mouseTrackingMode !== "none" &&
-      viewportShowsAppCopyHint(term)
-    ) {
-      lastAppDragAt = 0;
-      lastUserInputAt = Date.now();
-      sendTerminalInput(terminalId, "\x03").catch(() => {});
-      return true;
-    }
-    return false;
+    if (!canAppCopy()) return false;
+    lastAppDragAt = 0;
+    lastUserInputAt = Date.now();
+    sendTerminalInput(terminalId, "\x03").catch(() => {});
+    return true;
   };
 
   // Intercept Cmd+key combos before kitty keyboard protocol encodes them.
@@ -485,8 +499,13 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   // xterm preventDefaults mousedown (killing the browser's focus change) and
   // only focuses itself when the app owns the mouse — a plain selection drag
   // leaves focus in the composer, and the ⌘C that follows would never reach
-  // this terminal. Clicking a terminal means keys belong to it.
-  host.addEventListener("mousedown", () => term.focus());
+  // this terminal. Clicking a terminal means keys belong to it. The click
+  // count rides along: SGR reports can't distinguish a double-click word
+  // selection from a selection-clearing single click.
+  host.addEventListener("mousedown", (e) => {
+    term.focus();
+    if (e.button === 0) multiClickPending = e.detail >= 2;
+  });
 
   term.open(host);
 
@@ -514,6 +533,8 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     cwd,
     pathLinkDisposable: null,
     osc52Disposable: null,
+    canAppCopy,
+    tryAppCopy,
     destroy: () => {},
   };
 
@@ -954,6 +975,8 @@ export function InteractivePane({
           serialize={sessionRef.current.serialize}
           canPaste
           filter={filterRef.current}
+          appCopyAvailable={sessionRef.current.canAppCopy()}
+          onAppCopy={() => sessionRef.current?.tryAppCopy()}
           onClear={clearConsole}
           onPaste={() => {
             navigator.clipboard
