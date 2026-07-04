@@ -554,7 +554,7 @@ function PaneViewImpl(props: PaneViewProps) {
           />
         ) : (
           // Input closed: leave a slim stand-in that reopens it (same as ⌘I).
-          <ComposerReopenBar targetLabel={composerTab.label} />
+          <ComposerReopenBar targetLabel={composerTab.label} fontSize={fontSize} />
         ))}
       {tabMenu && (() => {
         const targetPane = pane.id === tabMenu.paneId ? pane : null;
