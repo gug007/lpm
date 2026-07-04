@@ -178,8 +178,8 @@ export function TerminalHistoryPopover({
         />
       </div>
 
-      <div className="flex items-center gap-1.5 px-2.5 pb-2">
-        <div className="flex shrink-0 items-center gap-0.5">
+      <div className="flex items-center gap-2 px-3.5 pb-2.5">
+        <div className="flex shrink-0 items-center gap-0.5 rounded-full bg-[var(--bg-secondary)] p-0.5">
           <ScopeTab active={scope === "project"} onClick={() => onScopeChange("project")}>
             This project
           </ScopeTab>
@@ -197,14 +197,18 @@ export function TerminalHistoryPopover({
             if (collection === id) selectCollection(COLLECTION_ALL);
           }}
         />
+        <span
+          aria-hidden
+          className={`h-4 w-px shrink-0 bg-[var(--border)] transition-opacity ${canClear ? "" : "opacity-0"}`}
+        />
         <button
           type="button"
           onClick={() => (confirmingClear ? clear() : setConfirmingClear(true))}
           disabled={!canClear}
-          className={`shrink-0 rounded-md px-1.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-0 ${
+          className={`shrink-0 rounded-md px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-0 ${
             confirmingClear
-              ? "text-[var(--accent-red)]"
-              : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              ? "text-[var(--accent-red)] hover:bg-[var(--accent-red)]/10"
+              : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
           }`}
         >
           {confirmingClear ? "Clear?" : "Clear"}
@@ -397,8 +401,8 @@ function ScopeTab({
       onClick={onClick}
       className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
         active
-          ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-          : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+          ? "bg-[var(--bg-active)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.25)]"
+          : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
       }`}
     >
       {children}
