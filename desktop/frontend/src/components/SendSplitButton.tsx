@@ -148,7 +148,7 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onRunInDu
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="truncate">Run in duplicates</span>
                   <span className="text-[10px] leading-snug text-[var(--text-muted)]">
-                    This project + {dupes - 1} more, in parallel
+                    Run in {dupes} copies at once, keep the best
                   </span>
                 </span>
               </button>
