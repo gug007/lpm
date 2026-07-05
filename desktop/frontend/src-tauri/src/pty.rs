@@ -499,7 +499,13 @@ pub fn stop_terminal(state: State<'_, PtyState>, id: String) -> Result<(), Strin
         sess.resume.notify_one();
     }
     *sess.closed.write().unwrap() = true;
-    let _ = sess.child.lock().unwrap().kill();
+    // Reap the shell's whole process tree, not just the shell pid: killing only
+    // the login shell leaves dev-server/agent grandchildren (node/next-server)
+    // orphaned and burning CPU. kill_tree_async snapshots + reaps off-thread so
+    // the UI thread never blocks; the flush thread reaps the shell zombie on EOF.
+    if let Some(pid) = sess.child.lock().unwrap().process_id().map(|p| p as i32) {
+        crate::proctree::kill_tree_async(pid);
+    }
     Ok(())
 }
 
