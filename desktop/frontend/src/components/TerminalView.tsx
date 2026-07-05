@@ -569,7 +569,8 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
   // "Run in duplicates" from a composer's split button: the current prompt (with
   // its agent command) opens the seeded Duplicate dialog, where the user picks
-  // how many copies to spin up. Each copy then runs the prompt in parallel.
+  // how many copies to spin up. On confirm the current project runs the prompt
+  // as copy #1 (`runHere`) alongside those copies, all in parallel.
   const bulkDuplicate = useAppStore((s) => s.bulkDuplicate);
   const duplicateProject = useAppStore(
     (s) => s.projects.find((p) => p.name === projectName) ?? null,
@@ -577,12 +578,16 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   const groups = useAppStore((s) => s.groups);
   const folderNames = useMemo(() => groups.map((g) => g.name), [groups]);
   const [duplicateSeed, setDuplicateSeed] = useState<DuplicatePromptSeed | null>(null);
+  // Runs the seeded prompt in the originating terminal (copy #1) — set on
+  // trigger, fired on confirm, dropped on cancel so nothing runs if dismissed.
+  const duplicateRunHere = useRef<(() => Promise<void>) | null>(null);
   // Bumped on every trigger so the (non-blocking) dialog remounts and re-seeds
   // even when it's already open — e.g. run-in-duplicates fired from a second
   // pane's composer while the first one's dialog is still up.
   const [duplicateNonce, setDuplicateNonce] = useState(0);
-  const runInDuplicates = useCallback((seed: DuplicatePromptSeed) => {
+  const runInDuplicates = useCallback((seed: DuplicatePromptSeed, runHere: () => Promise<void>) => {
     setDuplicateSeed(seed);
+    duplicateRunHere.current = runHere;
     setDuplicateNonce((n) => n + 1);
   }, []);
 
@@ -723,10 +728,20 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
           project={duplicateProject}
           folderNames={folderNames}
           seed={duplicateSeed}
-          onCancel={() => setDuplicateSeed(null)}
-          onConfirm={(count, opts) => {
-            void bulkDuplicate(projectName, count, opts);
+          onCancel={() => {
+            duplicateRunHere.current = null;
             setDuplicateSeed(null);
+          }}
+          onConfirm={async (count, opts) => {
+            // Submit the prompt in the current terminal (copy #1) and wait for it
+            // to land before creating the copies — bulkDuplicate switches the
+            // selected project to the first copy, which would otherwise unmount
+            // this composer mid-send and drop the current run.
+            const runHere = duplicateRunHere.current;
+            duplicateRunHere.current = null;
+            setDuplicateSeed(null);
+            if (runHere) await runHere();
+            void bulkDuplicate(projectName, count, opts);
           }}
         />
       )}

@@ -132,9 +132,11 @@ interface TerminalComposerProps {
   // (text runs and image paths) to be delivered as separate pastes.
   onSubmit: (input: string | string[]) => boolean;
   onFocusTerminal: () => void;
-  // Hand the current prompt off to the "run in duplicates" flow, which spins up
-  // the seed's `count` fresh project copies that each run it in parallel.
-  onRunInDuplicates: (seed: DuplicatePromptSeed) => void;
+  // Hand the current prompt off to the "run in duplicates" flow. The host opens
+  // the seeded Duplicate dialog for the seed's copies and, on confirm, calls
+  // `runHere` to run the same prompt in this terminal as copy #1 — so the
+  // current project and every copy run it in parallel.
+  onRunInDuplicates: (seed: DuplicatePromptSeed, runHere: () => Promise<void>) => void;
 }
 
 // How many trailing lines of a service's pane to pull into the draft when its
@@ -770,32 +772,31 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     return parts.filter((p) => p.trim().length > 0);
   };
 
-  const send = async () => {
+  // Deliver a prompt (its text + token→local-path image map) to the target
+  // terminal and retire the active draft — resolve image pastes, submit, bump
+  // the recall ring, record durable history, then clear the field. Shared by the
+  // manual ↵ send and the run-in-duplicates "copy #1" send, which fires the same
+  // prompt into this terminal while the dialog spins up the extra copies.
+  const deliverPrompt = async (text: string, images: Record<string, string>) => {
     const editor = editorRef.current;
-    if (!editor || transforming.current) return;
-    const value = serializeEditor(editor);
-    if (!value.trim()) return;
+    if (!editor) return;
     // The editor stays editable across the upload await, so pin which prompt is
     // being sent now; a concurrent tab switch must not redirect the retire below.
     const sentId = activeId.current;
     // Re-entry guard scoped to this prompt: block a second Enter on the same tab
     // mid-upload, while a different prepared prompt can still be sent.
     if (sending.current.has(sentId)) return;
-    // Snapshot the token→local-path map now (before it's cleared) for both the
-    // recall ring and the durable history — a plain-object copy, so a concurrent
-    // send clearing the live map can't strip paths mid-upload.
-    const images = Object.fromEntries(imagePaths.current);
     sending.current.add(sentId);
     try {
-      const payload = await buildTerminalPayload(value, images);
+      const payload = await buildTerminalPayload(text, images);
       if (!onSubmit(payload)) return;
-      history.current.unshift({ text: value, images });
+      history.current.unshift({ text, images });
       // The prepend shifts every existing entry up by one; nudge each recall
       // cursor (per-tab and the live one) so it stays anchored to its message.
       for (const t of tabs.current) if (t.histIdx >= 0) t.histIdx += 1;
       if (histIdx.current >= 0) histIdx.current += 1;
       recordMessage({
-        text: value,
+        text,
         projectName,
         terminalId: historyKey,
         terminalLabel: targetLabel,
@@ -805,6 +806,16 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     } finally {
       sending.current.delete(sentId);
     }
+  };
+
+  const send = async () => {
+    const editor = editorRef.current;
+    if (!editor || transforming.current) return;
+    const value = serializeEditor(editor);
+    if (!value.trim()) return;
+    // Snapshot the token→local-path map now (before it's cleared) — a plain-object
+    // copy, so a concurrent send clearing the live map can't strip paths mid-upload.
+    await deliverPrompt(value, Object.fromEntries(imagePaths.current));
   };
 
   // Fire a message chosen from the history popover straight at the terminal,
@@ -847,11 +858,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     }
   };
 
-  // Hand the current prompt to the duplicate flow: serialize the field and its
-  // live attachments (present tokens only), tag it with the terminal's launch
-  // command and originating action, and let the host open the seeded Duplicate
-  // dialog for `count` copies. The field is left untouched — the prompt keeps
-  // running here as usual.
+  // Hand the current prompt to the duplicate flow. The current project is copy
+  // #1: serialize the field and its live attachments (present tokens only), tag
+  // it with the terminal's launch command / originating action, and let the host
+  // open the seeded Duplicate dialog for the remaining `count - 1` copies. On
+  // confirm the host fires `runHere`, which runs this same prompt in THIS
+  // terminal — so the current project and every copy run it in parallel. Nothing
+  // runs until confirm.
   const runInDuplicates = (count: number) => {
     const editor = editorRef.current;
     if (!editor || transforming.current) return;
@@ -862,7 +875,16 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     for (const [token, path] of imagePaths.current) {
       if (present.has(token)) images.push({ token, path });
     }
-    onRunInDuplicates({ prompt: { text, images, pending: false }, count, command: launchCmd, actionName });
+    const runHere = () => {
+      if (transforming.current) return Promise.resolve();
+      const map: Record<string, string> = {};
+      for (const img of images) map[img.token] = img.path;
+      return deliverPrompt(text, map);
+    };
+    onRunInDuplicates(
+      { prompt: { text, images, pending: false }, count: count - 1, command: launchCmd, actionName },
+      runHere,
+    );
   };
 
   // Rebuild the field from a recalled/saved message: a chip for each token with

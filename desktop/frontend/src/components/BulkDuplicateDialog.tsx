@@ -128,6 +128,9 @@ export function BulkDuplicateDialog({
   // name rather than the original's.
   const base = project?.parentName || project?.name;
   const genLabel = () => (base ? `${base}-${randomId6()}` : "");
+  // Shown as run #1 in the seeded (composer) flow — the current project runs the
+  // prompt in place, so it's listed above the fresh copies rather than created.
+  const currentName = project?.label || project?.name || "This project";
 
   // The full action tree drives the picker (it drills into menus / split
   // buttons); the flattened runnable set is for "is anything runnable?" checks,
@@ -276,11 +279,13 @@ export function BulkDuplicateDialog({
     (mode === "command" && command.trim().length > 0);
   const confirmLabel = imagesPending
     ? "Attaching images…"
-    : defaultRuns
-      ? single
-        ? "Run on the copy"
-        : `Run on ${count} copies`
-      : `Create ${count} ${noun}`;
+    : seeded
+      ? `Run ${count + 1} in parallel`
+      : defaultRuns
+        ? single
+          ? "Run on the copy"
+          : `Run on ${count} copies`
+        : `Create ${count} ${noun}`;
 
   // The same history recall + AI-edit wiring is shared by the default composer
   // and every per-copy override composer.
@@ -516,22 +521,22 @@ export function BulkDuplicateDialog({
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 pb-6 pt-5">
         <div className={CARD_CLASS}>
           <div className="flex items-center justify-between gap-3 px-4 py-3">
-            <span className={SECTION_LABEL}>Copies</span>
+            <span className={SECTION_LABEL}>{seeded ? "Parallel runs" : "Copies"}</span>
             <div className="inline-flex items-center overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
               <button
                 type="button"
                 onClick={() => changeCount(count - 1)}
                 disabled={count <= MIN_COUNT}
                 className="flex h-8 w-8 items-center justify-center text-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-30"
-                aria-label="Fewer copies"
+                aria-label={seeded ? "Fewer runs" : "Fewer copies"}
               >
                 −
               </button>
               <input
-                value={count}
+                value={seeded ? count + 1 : count}
                 onChange={(e) => {
                   const n = parseInt(e.target.value.replace(/\D/g, ""), 10);
-                  if (!Number.isNaN(n)) changeCount(n);
+                  if (!Number.isNaN(n)) changeCount(seeded ? n - 1 : n);
                 }}
                 inputMode="numeric"
                 className="h-8 w-11 border-x border-[var(--border)] bg-transparent text-center text-[13px] font-semibold tabular-nums text-[var(--text-primary)] outline-none"
@@ -541,7 +546,7 @@ export function BulkDuplicateDialog({
                 onClick={() => changeCount(count + 1)}
                 disabled={count >= MAX_COUNT}
                 className="flex h-8 w-8 items-center justify-center text-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-30"
-                aria-label="More copies"
+                aria-label={seeded ? "More runs" : "More copies"}
               >
                 +
               </button>
@@ -549,7 +554,7 @@ export function BulkDuplicateDialog({
           </div>
 
           <div className="border-t border-[var(--border)] px-4 py-3">
-            {single ? (
+            {!seeded && single ? (
               <div>
                 <div className="flex items-center gap-3">
                   <span className={SECTION_LABEL}>Label</span>
@@ -571,67 +576,84 @@ export function BulkDuplicateDialog({
               </div>
             ) : (
               <div>
-                <div className="relative">
-                  <Folder
-                    size={14}
-                    className={`pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${
-                      hasGroup
-                        ? "text-[var(--accent-cyan)]"
-                        : "text-[var(--text-muted)]"
-                    }`}
-                  />
-                  <input
-                    value={groupName}
-                    onChange={(e) => {
-                      setGroupName(e.target.value);
-                      setFolderOpen(true);
-                    }}
-                    onFocus={() => setFolderOpen(true)}
-                    onBlur={() => setFolderOpen(false)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Escape" && folderOpen) {
-                        e.stopPropagation();
-                        setFolderOpen(false);
-                      }
-                    }}
-                    spellCheck={false}
-                    autoCapitalize="off"
-                    autoCorrect="off"
-                    placeholder="Folder name (optional)"
-                    className={`${FIELD_CLASS} h-9 pl-9 pr-3`}
-                  />
+                {!single && (
+                  <div className="relative">
+                    <Folder
+                      size={14}
+                      className={`pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${
+                        hasGroup
+                          ? "text-[var(--accent-cyan)]"
+                          : "text-[var(--text-muted)]"
+                      }`}
+                    />
+                    <input
+                      value={groupName}
+                      onChange={(e) => {
+                        setGroupName(e.target.value);
+                        setFolderOpen(true);
+                      }}
+                      onFocus={() => setFolderOpen(true)}
+                      onBlur={() => setFolderOpen(false)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape" && folderOpen) {
+                          e.stopPropagation();
+                          setFolderOpen(false);
+                        }
+                      }}
+                      spellCheck={false}
+                      autoCapitalize="off"
+                      autoCorrect="off"
+                      placeholder="Folder name (optional)"
+                      className={`${FIELD_CLASS} h-9 pl-9 pr-3`}
+                    />
 
-                  {folderOpen && folderSuggestions.length > 0 && (
-                    <div className="absolute inset-x-0 top-full z-20 mt-1 max-h-44 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] p-1 shadow-2xl">
-                      {folderSuggestions.map((n) => (
-                        <button
-                          key={n}
-                          type="button"
-                          // Keep the input focused so the click lands before blur.
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => {
-                            setGroupName(n);
-                            setFolderOpen(false);
-                          }}
-                          title={n}
-                          className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                        >
-                          <Folder
-                            size={13}
-                            className="shrink-0 text-[var(--text-muted)]"
-                          />
-                          <span className="min-w-0 flex-1 truncate">{n}</span>
-                        </button>
-                      ))}
+                    {folderOpen && folderSuggestions.length > 0 && (
+                      <div className="absolute inset-x-0 top-full z-20 mt-1 max-h-44 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] p-1 shadow-2xl">
+                        {folderSuggestions.map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            // Keep the input focused so the click lands before blur.
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setGroupName(n);
+                              setFolderOpen(false);
+                            }}
+                            title={n}
+                            className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                          >
+                            <Folder
+                              size={13}
+                              className="shrink-0 text-[var(--text-muted)]"
+                            />
+                            <span className="min-w-0 flex-1 truncate">{n}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className={`space-y-1.5 ${!single ? "mt-3" : ""}`}>
+                  {seeded && (
+                    <div className="grid grid-cols-[1rem_1fr_6.5rem] items-center gap-2.5">
+                      <span className="text-right text-[12px] tabular-nums text-[var(--text-muted)]">
+                        1
+                      </span>
+                      <div className="flex h-9 items-center rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg-secondary)]/40 px-3">
+                        <span className="truncate text-[13px] text-[var(--text-secondary)]">
+                          {currentName}
+                        </span>
+                      </div>
+                      <span className="text-right text-[12px] font-medium text-[var(--text-muted)]">
+                        Current
+                      </span>
                     </div>
                   )}
-                </div>
-
-                <div className="mt-3 space-y-1.5">
                   {copies.map((copy, i) => (
                     <CopyRow
                       key={i}
-                      index={i}
+                      index={seeded ? i + 1 : i}
                       label={copy.label}
                       onLabelChange={(value) => setLabelAt(i, value)}
                       override={copy.override}
@@ -651,11 +673,13 @@ export function BulkDuplicateDialog({
                 </div>
 
                 <p className={`mt-2 ${HELPER_TEXT}`}>
-                  {hasGroup
-                    ? `The copies are grouped under “${trimmedGroup}” in the sidebar.`
-                    : "Name a folder above to keep the copies together in the sidebar, or leave it blank."}{" "}
-                  Use the menu beside a copy to run a different action or
-                  command on it.
+                  {seeded
+                    ? `Run #1 is ${currentName} — the prompt runs in its existing terminal; the rest are fresh copies.`
+                    : hasGroup
+                      ? `The copies are grouped under “${trimmedGroup}” in the sidebar.`
+                      : "Name a folder above to keep the copies together in the sidebar, or leave it blank."}{" "}
+                  Use the menu beside a copy to run a different action or command
+                  on it.
                 </p>
               </div>
             )}

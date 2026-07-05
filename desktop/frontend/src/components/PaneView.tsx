@@ -147,8 +147,9 @@ export interface PaneViewProps {
   onSubmitInput: (terminalId: string, input: string | string[]) => boolean;
   onFocusTerminalInput: (terminalId: string) => void;
   // Open the seeded Duplicate dialog from a composer's split button, carrying
-  // the current prompt so each of the seed's fresh copies runs it in parallel.
-  onRunInDuplicates: (seed: DuplicatePromptSeed) => void;
+  // the current prompt. On confirm the current project runs it as copy #1
+  // (`runHere`) alongside the seed's fresh copies, all in parallel.
+  onRunInDuplicates: (seed: DuplicatePromptSeed, runHere: () => Promise<void>) => void;
   onFindInPane: (paneId: string, query: string, direction: "next" | "prev") => boolean;
   filterMode: boolean;
   matchCount: number;
