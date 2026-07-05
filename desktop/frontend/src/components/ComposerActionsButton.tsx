@@ -191,58 +191,60 @@ export function ComposerActionsButton({
             </ul>
           )}
 
-          <div className="group flex items-end gap-2 border-t border-[var(--border)] px-2.5 py-2">
-            <button
-              type="button"
-              onMouseDown={keepEditorFocus}
-              onClick={() => void toggleDictation()}
-              title="Dictate"
-              aria-label="Dictate"
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              <MicIcon size={14} />
-            </button>
-            <textarea
-              ref={inputRef}
-              rows={1}
-              value={custom}
-              onChange={(e) => setCustom(e.target.value)}
-              onKeyDown={onInputKeyDown}
-              placeholder="Ask AI to rewrite…"
-              aria-label="Custom instruction"
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              className="block min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-0.5 text-[12.5px] leading-relaxed text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
-            />
-            <div className="relative h-6 w-[69px] shrink-0">
-              <CountStepper
-                value={countFor(CUSTOM_KEY)}
-                onChange={(n) => setCount(CUSTOM_KEY, n)}
+          <div className="border-t border-[var(--border)] p-2">
+            <div className="group flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/50 px-2 py-1.5 transition-colors focus-within:border-[var(--accent-cyan)]/40 focus-within:bg-[var(--bg-secondary)]">
+              <button
+                type="button"
                 onMouseDown={keepEditorFocus}
-                className={`absolute right-0 top-1/2 -translate-y-1/2 ${
-                  countFor(CUSTOM_KEY) > 1
-                    ? "opacity-100"
-                    : "opacity-0 group-hover:opacity-100"
-                }`}
+                onClick={() => void toggleDictation()}
+                title="Dictate"
+                aria-label="Dictate"
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              >
+                <MicIcon size={14} />
+              </button>
+              <textarea
+                ref={inputRef}
+                rows={1}
+                value={custom}
+                onChange={(e) => setCustom(e.target.value)}
+                onKeyDown={onInputKeyDown}
+                placeholder="Ask AI to rewrite…"
+                aria-label="Custom instruction"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                className="block min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-1 text-[12.5px] leading-relaxed text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
               />
+              <div className="relative h-6 w-[69px] shrink-0">
+                <CountStepper
+                  value={countFor(CUSTOM_KEY)}
+                  onChange={(n) => setCount(CUSTOM_KEY, n)}
+                  onMouseDown={keepEditorFocus}
+                  className={`absolute right-0 top-1/2 -translate-y-1/2 ${
+                    countFor(CUSTOM_KEY) > 1
+                      ? "opacity-100"
+                      : "opacity-0 group-hover:opacity-100"
+                  }`}
+                />
+              </div>
+              <button
+                type="button"
+                onMouseDown={keepEditorFocus}
+                onClick={runCustom}
+                disabled={!canRunCustom}
+                title={canRun ? "Run instruction" : "Type something first"}
+                aria-label="Run instruction"
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-all ${
+                  canRunCustom
+                    ? "bg-[var(--accent-cyan)] text-[var(--bg-primary)] hover:brightness-110 active:scale-95"
+                    : "bg-[var(--bg-hover)] text-[var(--text-muted)]"
+                }`}
+              >
+                <ArrowUp size={14} strokeWidth={2.5} />
+              </button>
             </div>
-            <button
-              type="button"
-              onMouseDown={keepEditorFocus}
-              onClick={runCustom}
-              disabled={!canRunCustom}
-              title={canRun ? "Run instruction" : "Type something first"}
-              aria-label="Run instruction"
-              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors ${
-                canRunCustom
-                  ? "bg-[var(--accent-cyan)] text-[var(--bg-primary)] hover:opacity-90"
-                  : "text-[var(--text-muted)]"
-              }`}
-            >
-              <ArrowUp size={13} strokeWidth={2.25} />
-            </button>
           </div>
 
           <button
