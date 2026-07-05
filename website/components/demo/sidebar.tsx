@@ -1,22 +1,35 @@
 "use client";
 
-import type { DemoProject } from "./projects";
+import { AlertCircle, Check, Settings, Terminal } from "lucide-react";
+import type { AiStatus, DemoProject } from "./projects";
+
+type SidebarView = "project" | "terminals" | "settings";
 
 type SidebarProps = {
   projects: DemoProject[];
   selected: string;
+  activeView: SidebarView;
   onSelect: (name: string) => void;
   runningByProject: Record<string, Set<string>>;
+  aiStatusByProject: Record<string, AiStatus>;
   onAddProject: () => void;
+  onOpenTerminals: () => void;
+  onOpenSettings: () => void;
 };
 
 export function DemoSidebar({
   projects,
   selected,
+  activeView,
   onSelect,
   runningByProject,
+  aiStatusByProject,
   onAddProject,
+  onOpenTerminals,
+  onOpenSettings,
 }: SidebarProps) {
+  const projectSelected = activeView === "project";
+
   return (
     <aside
       aria-label="Projects"
@@ -42,42 +55,113 @@ export function DemoSidebar({
         </button>
       </div>
       <nav aria-label="Project list" className="flex-1 overflow-y-auto px-2">
-        {projects.map((project) => {
-          const running = runningByProject[project.name];
-          const isRunning = running && running.size > 0;
-          const isSelected = selected === project.name;
-          return (
-            <button
-              key={project.name}
-              type="button"
-              onClick={() => onSelect(project.name)}
-              aria-current={isSelected ? "true" : undefined}
-              aria-label={`${project.label ?? project.name}${isRunning ? ", running" : ""}`}
-              className={`flex w-full select-none items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 ${
-                isSelected
-                  ? "bg-[#333333] text-[#e5e5e5]"
-                  : "text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
-              }`}
-            >
-              <span
-                aria-hidden="true"
-                className={`inline-block w-[7px] h-[7px] rounded-full shrink-0 ${
-                  isRunning
-                    ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]"
-                    : "border border-[#454545]"
-                }`}
-              />
-              <span className="truncate">{project.label ?? project.name}</span>
-            </button>
-          );
-        })}
+        {projects.map((project) => (
+          <ProjectRow
+            key={project.name}
+            project={project}
+            selected={projectSelected && selected === project.name}
+            running={(runningByProject[project.name]?.size ?? 0) > 0}
+            aiStatus={aiStatusByProject[project.name]}
+            onSelect={() => onSelect(project.name)}
+          />
+        ))}
       </nav>
-      <div className="flex flex-col gap-0.5 p-2 border-t border-[#2e2e2e]">
-        <div className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] text-[#919191]">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />
-          <span>Demo mode</span>
-        </div>
+      <div className="flex flex-col gap-0.5 p-2">
+        <FooterRow
+          icon={<Terminal className="h-3.5 w-3.5" strokeWidth={1.75} />}
+          label="Terminals"
+          active={activeView === "terminals"}
+          onClick={onOpenTerminals}
+        />
+        <FooterRow
+          icon={<Settings className="h-3.5 w-3.5" strokeWidth={1.75} />}
+          label="Settings"
+          active={activeView === "settings"}
+          onClick={onOpenSettings}
+        />
       </div>
     </aside>
+  );
+}
+
+function ProjectRow({
+  project,
+  selected,
+  running,
+  aiStatus,
+  onSelect,
+}: {
+  project: DemoProject;
+  selected: boolean;
+  running: boolean;
+  aiStatus?: AiStatus;
+  onSelect: () => void;
+}) {
+  const label = project.label ?? project.name;
+  const nameClass =
+    aiStatus === "running"
+      ? "sidebar-shimmer"
+      : aiStatus === "waiting"
+        ? "sidebar-waiting"
+        : aiStatus === "error"
+          ? "text-red-400"
+          : aiStatus === "done"
+            ? "text-[#60a5fa]"
+            : "";
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-current={selected ? "true" : undefined}
+      aria-label={`${label}${running ? ", running" : ""}${aiStatus ? `, agent ${aiStatus}` : ""}`}
+      className={`flex w-full select-none items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 ${
+        selected
+          ? "bg-[#333333] text-[#e5e5e5]"
+          : "text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
+      }`}
+    >
+      <span
+        aria-hidden="true"
+        className={`inline-block w-[7px] h-[7px] rounded-full shrink-0 ${
+          running
+            ? "bg-[#4ade80]"
+            : "border border-[#454545]"
+        }`}
+      />
+      <span className={`min-w-0 flex-1 truncate ${nameClass}`}>{label}</span>
+      {aiStatus === "error" ? (
+        <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-400" strokeWidth={2} />
+      ) : aiStatus === "done" ? (
+        <Check className="h-3.5 w-3.5 shrink-0 text-[#60a5fa]" strokeWidth={2.25} />
+      ) : null}
+    </button>
+  );
+}
+
+function FooterRow({
+  icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={active ? "true" : undefined}
+      className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[12px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 ${
+        active
+          ? "bg-[#333333] text-[#e5e5e5]"
+          : "text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
+      }`}
+    >
+      <span className="shrink-0 text-[#919191]">{icon}</span>
+      <span className="truncate">{label}</span>
+    </button>
   );
 }

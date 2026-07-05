@@ -13,13 +13,14 @@ import {
   AckTerminalData,
   ReadClipboardFiles,
   SaveClipboardImage,
+  SetClipboardText,
   IsTerminalRemote,
   UploadAndQuoteForTerminal,
   UploadClipboardImageForTerminal,
 } from "../../bridge/commands";
 import { sendTerminalInput, shellQuote } from "../terminal-io";
 import { getTerminalTheme, openTerminalLink, TERMINAL_FONT_FAMILY } from "./terminal-utils";
-import { handleCopyShortcut, handleSelectAllShortcut, handleClearShortcut } from "./terminal/copySelection";
+import { handleCopyShortcut, handleNativeCopy, handleSelectAllShortcut, handleClearShortcut, isCopyShortcut } from "./terminal/copySelection";
 import { ConsoleContextMenu } from "./terminal/ConsoleContextMenu";
 import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
 import { stripAnsi } from "./terminal/filterLines";
@@ -55,6 +56,36 @@ interface InteractivePaneProps {
 
 // Flow control: ack in batches to reduce IPC calls (matches VS Code's approach)
 const ACK_SIZE = 5000;
+
+// A copy this soon after a selection gesture reported to a mouse-owning app
+// asks the app to copy its own selection (Ctrl+C — Claude Code's only copy
+// trigger). The on-screen copy hint is what verifies the selection is still
+// alive at fire time; the window just bounds how long a stale gesture can
+// authorize one, since a bare Ctrl+C doubles as an interrupt.
+const APP_SELECTION_WINDOW_MS = 60000;
+// An app may write the clipboard only on the heels of the user's own input to
+// its terminal (a copy is always an answer to a keystroke or click there).
+// Anything later — or from a session the user isn't touching — is dropped.
+const APP_CLIPBOARD_INPUT_WINDOW_MS = 15000;
+// While its selection is active, Claude Code advertises the copy chord as
+// " · ctrl+c to copy" in its status row. Requiring that advertisement — in
+// its separator form, and only in the last drawn rows where the status line
+// lives — means a Ctrl+C is only ever sent to an app that just promised it
+// copies, and transcript prose merely mentioning the chord can't authorize
+// one. The status row is the last non-blank row: Claude draws inline (blank
+// screen below its chrome) in short sessions and bottom-anchored in full
+// ones, so fixed bottom offsets miss it.
+const APP_COPY_HINT_RE = /·\s*ctrl\+c to copy/i;
+const APP_COPY_HINT_ROWS = 3;
+
+// Serialized so two copies arriving close together can't land out of order
+// and leave the clipboard holding the older payload.
+let clipboardWriteChain: Promise<void> = Promise.resolve();
+function writeAppClipboard(text: string): void {
+  clipboardWriteChain = clipboardWriteChain
+    .then(() => SetClipboardText(text))
+    .catch(() => {});
+}
 
 // A multi-part submit gates each paste on the receiver going quiet rather than on
 // a fixed delay: Claude Code resolves a pasted image path into an attachment
@@ -136,6 +167,12 @@ interface InteractiveSession {
 
   cwd: string;
   pathLinkDisposable: IDisposable | null;
+  osc52Disposable: IDisposable | null;
+
+  // Copy routed to the mouse-owning app (Claude Code's Ctrl+C-with-selection);
+  // exposed so the context menu shares the ⌘C path's gates.
+  canAppCopy: () => boolean;
+  tryAppCopy: () => boolean;
 
   // Installed by the current React mount, cleared on unmount so callbacks
   // closing over stale component state don't fire.
@@ -156,6 +193,7 @@ export { interactiveSessions };
 function disposeSession(s: InteractiveSession) {
   s.destroy();
   s.pathLinkDisposable?.dispose();
+  s.osc52Disposable?.dispose();
   s.term.dispose();
   s.host.remove();
 }
@@ -283,6 +321,21 @@ function writeTerminalError(terminalId: string, err: unknown): void {
   term.write(`\r\n\x1b[31mlpm upload failed: ${msg}\x1b[0m\r\n`);
 }
 
+function viewportShowsAppCopyHint(term: Terminal): boolean {
+  const buf = term.buffer.active;
+  const end = Math.min(buf.viewportY + term.rows, buf.length);
+  let checked = 0;
+  for (let y = end - 1; y >= buf.viewportY && checked < APP_COPY_HINT_ROWS; y--) {
+    const line = buf.getLine(y);
+    if (!line) continue;
+    const text = line.translateToString(true);
+    if (!/\S/.test(text)) continue;
+    checked++;
+    if (APP_COPY_HINT_RE.test(text)) return true;
+  }
+  return false;
+}
+
 function createInteractiveSession(terminalId: string, cwd: string): InteractiveSession {
   const host = document.createElement("div");
   host.className = "absolute inset-0 overflow-hidden";
@@ -300,6 +353,13 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     theme: getTerminalTheme(),
     allowProposedApi: true,
     vtExtensions: { kittyKeyboard: true },
+    // Mouse-owning apps suppress local selection; ⌥ drag opts back into it.
+    macOptionClickForcesSelection: true,
+    // On mac xterm word-selects under a right-click by default. That phantom
+    // selection would shadow the running app's own selection in the context
+    // menu, making Copy grab the word under the cursor instead of asking the
+    // app for what the user highlighted.
+    rightClickSelectsWord: false,
     linkHandler: { activate: openTerminalLink },
   });
 
@@ -325,6 +385,66 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     term.unicode.activeVersion = "11";
   } catch {}
 
+  // When an app owns the mouse it also owns the selection: Claude Code
+  // highlights dragged text itself and copies it (via OSC 52) only when it
+  // receives Ctrl+C while that selection is active. Watch the outgoing SGR
+  // mouse reports for a left-button drag — the gesture that gives the app a
+  // selection worth copying — so ⌘C right after can be translated into the
+  // app's own copy. A motionless click clears the app's selection, so it
+  // clears the marker too.
+  let lastAppDragAt = 0;
+  let lastUserInputAt = 0;
+  let dragHasMotion = false;
+  let multiClickPending = false;
+  let copyChordForwarded = false;
+
+  term.onData((data) => {
+    lastUserInputAt = Date.now();
+    // Any typed/pasted input clears Claude Code's selection (any printable
+    // key does, without being consumed), so it disarms the marker too —
+    // mouse reports and focus in/out are the only traffic that doesn't.
+    if (data.replace(/\x1b\[(?:<\d+;\d+;\d+[Mm]|[IO])/g, "")) {
+      lastAppDragAt = 0;
+      dragHasMotion = false;
+      return;
+    }
+    if (term.modes.mouseTrackingMode === "none") return;
+    for (const m of data.matchAll(/\x1b\[<(\d+);\d+;\d+([Mm])/g)) {
+      const btn = Number(m[1]);
+      if (btn >= 64) continue; // wheel
+      if ((btn & 3) !== 0) continue; // left button only
+      if (btn & 32) {
+        dragHasMotion = true;
+      } else if (m[2] === "m") {
+        // Drags and double/triple clicks give the app a selection; a plain
+        // motionless click clears one.
+        lastAppDragAt = dragHasMotion || multiClickPending ? Date.now() : 0;
+        dragHasMotion = false;
+        multiClickPending = false;
+      } else {
+        dragHasMotion = false;
+      }
+    }
+  });
+
+  // A copy chord with no local selection belongs to the mouse-owning app:
+  // right after a drag the app is holding a selection, and Claude Code copies
+  // it on Ctrl+C — its only external copy trigger. One-shot so a repeat ⌘C
+  // can't turn into a bare interrupt once the selection is gone.
+  const canAppCopy = (): boolean =>
+    lastAppDragAt !== 0 &&
+    Date.now() - lastAppDragAt < APP_SELECTION_WINDOW_MS &&
+    term.modes.mouseTrackingMode !== "none" &&
+    viewportShowsAppCopyHint(term);
+
+  const tryAppCopy = (): boolean => {
+    if (!canAppCopy()) return false;
+    lastAppDragAt = 0;
+    lastUserInputAt = Date.now();
+    sendTerminalInput(terminalId, "\x03").catch(() => {});
+    return true;
+  };
+
   // Intercept Cmd+key combos before kitty keyboard protocol encodes them.
   // Without this, Cmd+V/C/etc. are sent as CSI u sequences instead of
   // triggering paste/copy/other OS-level shortcuts.
@@ -340,8 +460,51 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
       })
     )
       return false;
+    // ⌘C with no local selection belongs to the mouse-owning app. (On macOS
+    // the native Edit→Copy accelerator usually claims the chord before any
+    // keydown reaches the page — the copy listener below handles that path —
+    // but a keydown that does arrive gets the same treatment.)
+    if (isCopyShortcut(e) && !term.hasSelection()) {
+      // Keep keyup pairing consistent with what its keydown did, so kitty
+      // apps that track key releases never see an orphan press or release.
+      if (e.type !== "keydown") return copyChordForwarded;
+      if (tryAppCopy()) {
+        copyChordForwarded = false;
+        e.preventDefault();
+        return false;
+      }
+      copyChordForwarded = true;
+      return true;
+    }
     if (!e.metaKey) return true;
     return false;
+  });
+
+  // The native Edit→Copy accelerator delivers ⌘C as a copy event on the
+  // focused element (no DOM keydown fires), so this listener is the primary
+  // entry point for the chord: local selection wins, otherwise the app gets
+  // to copy its own.
+  host.addEventListener(
+    "copy",
+    (e) => {
+      if (handleNativeCopy(e, term, serialize)) return;
+      if (tryAppCopy()) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    },
+    true,
+  );
+
+  // xterm preventDefaults mousedown (killing the browser's focus change) and
+  // only focuses itself when the app owns the mouse — a plain selection drag
+  // leaves focus in the composer, and the ⌘C that follows would never reach
+  // this terminal. Clicking a terminal means keys belong to it. The click
+  // count rides along: SGR reports can't distinguish a double-click word
+  // selection from a selection-clearing single click.
+  host.addEventListener("mousedown", (e) => {
+    term.focus();
+    if (e.button === 0) multiClickPending = e.detail >= 2;
   });
 
   term.open(host);
@@ -369,12 +532,41 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     themeOverride: null,
     cwd,
     pathLinkDisposable: null,
+    osc52Disposable: null,
+    canAppCopy,
+    tryAppCopy,
     destroy: () => {},
   };
 
   try {
     session.pathLinkDisposable = registerPathLinkProvider(term, {
       getCwd: () => session.cwd,
+    });
+  } catch {}
+
+  // OSC 52: programs that own their selection (Claude Code under mouse
+  // reporting) copy by emitting the selected text; land it in the system
+  // clipboard. Write-only — "?" queries are never answered, since responding
+  // would hand the clipboard contents to the running program.
+  try {
+    session.osc52Disposable = term.parser.registerOscHandler(52, (data) => {
+      const sep = data.indexOf(";");
+      if (sep === -1) return true;
+      const target = data.slice(0, sep);
+      const payload = data.slice(sep + 1);
+      if (target && !target.includes("c")) return true;
+      if (!payload || payload === "?") return true;
+      if (Date.now() - lastUserInputAt > APP_CLIPBOARD_INPUT_WINDOW_MS) return true;
+      // A hidden pane can't be answering the user — drop background writes.
+      if (!session.host.isConnected || session.host.offsetParent === null) return true;
+      try {
+        const bytes = Uint8Array.from(atob(payload), (ch) => ch.charCodeAt(0));
+        const text = new TextDecoder().decode(bytes);
+        if (text) writeAppClipboard(text);
+      } catch {
+        // Malformed base64 — ignore.
+      }
+      return true;
     });
   } catch {}
 
@@ -783,6 +975,8 @@ export function InteractivePane({
           serialize={sessionRef.current.serialize}
           canPaste
           filter={filterRef.current}
+          appCopyAvailable={sessionRef.current.canAppCopy()}
+          onAppCopy={() => sessionRef.current?.tryAppCopy()}
           onClear={clearConsole}
           onPaste={() => {
             navigator.clipboard

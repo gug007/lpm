@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { StartTerminal, StartTerminalForConfig, StartTerminalForRestore, StartTerminalWithCwdEnv, StopTerminal, ClearPaneStatus } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
-import { sendTerminalInput } from "../terminal-io";
+import { sendTerminalInput, shellQuote } from "../terminal-io";
+import { detectAICLI } from "../slashCommands";
 import { isInteractivePaneSessionDead } from "../components/InteractivePane";
 import {
   appendHistoryEntry,
@@ -23,6 +24,8 @@ import {
   makeBrowser,
   makeReview,
   isTerminalTab,
+  adjacentPaneHeaderItem,
+  clampIdx,
   collectPanes,
   collectTerminals,
   findPane,
@@ -46,9 +49,10 @@ export interface TerminalStartOpts {
   actionName?: string;
   reuse?: boolean;
   emoji?: string;
-  // Typed into the terminal after `cmd`, once the launched program goes quiet
-  // — e.g. an initial task for an AI agent started by `cmd`.
-  prompt?: string;
+  // Submitted into the terminal after `cmd`, once the launched program goes
+  // quiet — e.g. an initial task for an AI agent started by `cmd`. A string is
+  // a text prompt; an array is ordered paste parts (text runs and image paths).
+  prompt?: string | string[];
 }
 
 // Injection waits for pty output to go quiet for PROMPT_IDLE_MS before
@@ -74,7 +78,9 @@ export interface UseTerminalsResult {
   addBrowserToPane: (paneId?: string) => void;
   addReviewToPane: (paneId?: string) => void;
   closeTerminal: (paneId: string, tabIdx: number) => void;
+  closeOtherTerminals: (paneId: string, tabIdx: number) => void;
   focusTerminal: (paneId: string, tabIdx: number) => void;
+  focusAdjacentPaneItem: (paneId: string, delta: 1 | -1, serviceNames: string[]) => void;
   focusService: (paneId: string, serviceName: string) => void;
   renameTerminal: (
     paneId: string,
@@ -108,9 +114,29 @@ function appendTerminal(pane: PaneLeaf, term: TerminalInstance): PaneLeaf {
   };
 }
 
+// Seed a launched agent with its initial task the same way the generator flow
+// does: fold a text prompt into the launch command as a positional argument
+// (e.g. `claude '<task>'`) so the CLI submits it once it's ready. Typing it into
+// the TUI after launch is unreliable — agents boot through async phases (MCP
+// load, auth checks) whose pauses fool idle detection into firing mid-boot, so
+// the submit is swallowed and the prompt sits unsent. Only plain-text prompts
+// fold; an image prompt stays an array so it can be delivered as an isolated
+// bracketed paste (the only reliable way to attach a file), and a non-agent
+// command is left untouched.
+function foldAgentPrompt(
+  cmd: string,
+  prompt?: string | string[],
+): { cmd: string; prompt?: string | string[] } {
+  if (typeof prompt === "string" && prompt.trim() && detectAICLI(cmd)) {
+    return { cmd: `${cmd} ${shellQuote(prompt.trim())}`, prompt: undefined };
+  }
+  return { cmd, prompt };
+}
+
 export function useTerminals(
   projectName: string,
   onTerminalCountChange?: (count: number) => void,
+  submitPrompt?: (id: string, payload: string | string[]) => boolean,
 ): UseTerminalsResult {
   const [tree, setTree] = useState<PaneNode | null>(null);
   const [focusedPaneId, setFocusedPaneId] = useState<string | null>(null);
@@ -121,6 +147,8 @@ export function useTerminals(
   focusedRef.current = focusedPaneId;
   const onCountRef = useRef(onTerminalCountChange);
   onCountRef.current = onTerminalCountChange;
+  const submitPromptRef = useRef(submitPrompt);
+  submitPromptRef.current = submitPrompt;
 
   const pendingInjectCleanups = useRef<Set<() => void>>(new Set());
   const deferredPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -180,59 +208,83 @@ export function useTerminals(
     [cancelDeferredPersist, persist],
   );
 
-  // Type `text` + Enter once the pty goes quiet (or PROMPT_MAX_WAIT_MS
-  // elapses), then run `onSent`. Each call registers a cleanup in
-  // pendingInjectCleanups so the unmount effect can tear down in-flight
-  // injections — otherwise the pty-output subscription would outlive the
-  // component and fire into a dead session.
+  // Run `action` once the pty goes quiet (or PROMPT_MAX_WAIT_MS elapses). Each
+  // call registers a cleanup in pendingInjectCleanups so the unmount effect can
+  // tear down in-flight injections — otherwise the pty-output subscription would
+  // outlive the component and fire into a dead session.
+  const runWhenIdle = useCallback((id: string, action: () => void) => {
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+    let fired = false;
+
+    const unsubscribe = EventsOn(`pty-output-${id}`, () => {
+      if (fired) return;
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(fire, PROMPT_IDLE_MS);
+    });
+
+    const cleanup = () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      unsubscribe();
+      pendingInjectCleanups.current.delete(cleanup);
+    };
+
+    function fire() {
+      if (fired) return;
+      fired = true;
+      cleanup();
+      action();
+    }
+
+    fallbackTimer = setTimeout(fire, PROMPT_MAX_WAIT_MS);
+    pendingInjectCleanups.current.add(cleanup);
+  }, []);
+
+  // Type `text` + newline once the shell prompt settles, then run `onSent`.
   const scheduleInputInject = useCallback(
     (id: string, text: string, onSent?: () => void) => {
-      let idleTimer: ReturnType<typeof setTimeout> | null = null;
-      let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
-      let fired = false;
-
-      const unsubscribe = EventsOn(`pty-output-${id}`, () => {
-        if (fired) return;
-        if (idleTimer) clearTimeout(idleTimer);
-        idleTimer = setTimeout(fire, PROMPT_IDLE_MS);
-      });
-
-      const cleanup = () => {
-        if (idleTimer) clearTimeout(idleTimer);
-        if (fallbackTimer) clearTimeout(fallbackTimer);
-        unsubscribe();
-        pendingInjectCleanups.current.delete(cleanup);
-      };
-
-      function fire() {
-        if (fired) return;
-        fired = true;
-        cleanup();
+      runWhenIdle(id, () => {
         sendTerminalInput(id, text + "\n").catch(() => {});
         onSent?.();
-      }
-
-      fallbackTimer = setTimeout(fire, PROMPT_MAX_WAIT_MS);
-      pendingInjectCleanups.current.add(cleanup);
+      });
     },
-    [],
+    [runWhenIdle],
   );
 
-  // Type an optional follow-up prompt — e.g. a task for an AI agent — once the
+  // Submit an optional follow-up prompt — e.g. a task for an AI agent — once the
   // launched program has drawn its own input UI. Waits for the pty to go quiet
-  // so we never type before the receiver is ready; a blank prompt is a no-op.
+  // so we never type before the receiver is ready, then delivers through the
+  // terminal handle's submitInput: a bracketed paste whose submitting CR is
+  // gated on the program's paste/image redraw settling. A naive "text + newline"
+  // write submits an LF (not the CR agents read as Enter) in one shot, so an
+  // agent like Claude Code swallows it mid-redraw and the prompt sits unsent. A
+  // blank prompt is a no-op; the handle path falls back to a raw CR write only
+  // if no live handle is registered.
   const scheduleSeedInject = useCallback(
-    (id: string, prompt?: string) => {
-      const seed = prompt?.trim();
-      if (seed) scheduleInputInject(id, seed);
+    (id: string, prompt?: string | string[]) => {
+      let payload: string | string[] | undefined;
+      if (typeof prompt === "string") payload = prompt.trim() || undefined;
+      else if (Array.isArray(prompt)) {
+        const parts = prompt.filter((p) => p.trim().length > 0);
+        payload = parts.length ? parts : undefined;
+      }
+      if (payload === undefined) return;
+      runWhenIdle(id, () => {
+        const submitted = submitPromptRef.current?.(id, payload) ?? false;
+        if (!submitted) {
+          const flat = Array.isArray(payload) ? payload.join("") : payload;
+          sendTerminalInput(id, `${flat}\r`).catch(() => {});
+        }
+      });
     },
-    [scheduleInputInject],
+    [runWhenIdle],
   );
 
   // Type the launch command once the shell prompt settles, then seed the
   // optional follow-up prompt once the launched program is ready.
   const scheduleCmdInject = useCallback(
-    (id: string, cmd: string, prompt?: string) => {
+    (id: string, cmd: string, prompt?: string | string[]) => {
       scheduleInputInject(id, cmd, () => scheduleSeedInject(id, prompt));
     },
     [scheduleInputInject, scheduleSeedInject],
@@ -333,8 +385,9 @@ export function useTerminals(
             // Always bring the reused tab into view: when it's already active no
             // pane state changes, so PaneView's activation effect wouldn't fire.
             useTabScroll.getState().requestScroll(pane.id);
-            await sendTerminalInput(pane.tabs[idx].id, cmd + "\n");
-            scheduleSeedInject(pane.tabs[idx].id, opts.prompt);
+            const reused = foldAgentPrompt(cmd, opts.prompt);
+            await sendTerminalInput(pane.tabs[idx].id, reused.cmd + "\n");
+            scheduleSeedInject(pane.tabs[idx].id, reused.prompt);
             return;
           }
         }
@@ -353,7 +406,10 @@ export function useTerminals(
         });
         addTerminal(term);
         if (launch.startCmd) {
-          scheduleCmdInject(launch.id, launch.startCmd, opts.prompt);
+          // Fold into the injected command only; `term` persists the original
+          // startCmd so a later restore relaunches without re-seeding the task.
+          const folded = foldAgentPrompt(launch.startCmd, opts.prompt);
+          scheduleCmdInject(launch.id, folded.cmd, folded.prompt);
         } else {
           scheduleSeedInject(launch.id, opts.prompt);
         }
@@ -371,7 +427,8 @@ export function useTerminals(
           emoji: opts?.emoji,
         }),
       );
-      scheduleCmdInject(id, cmd, opts?.prompt);
+      const folded = foldAgentPrompt(cmd, opts?.prompt);
+      scheduleCmdInject(id, folded.cmd, folded.prompt);
     },
     [projectName, addTerminal, applyTree, scheduleCmdInject, scheduleSeedInject],
   );
@@ -461,6 +518,22 @@ export function useTerminals(
     [projectName],
   );
 
+  // Releases back-end resources for a set of closing tabs (stop the process,
+  // clear any pane status) and records them in history. Both close paths — one
+  // tab, or all-but-one — funnel through here so teardown lives in one place.
+  const disposeTabs = useCallback(
+    (tabs: TerminalInstance[]) => {
+      for (const t of tabs) {
+        StopTerminal(t.id).catch(() => {});
+        if (isTerminalTab(t)) {
+          ClearPaneStatus(projectName, t.id).catch(() => {});
+        }
+      }
+      recordClosingTabs(tabs);
+    },
+    [recordClosingTabs, projectName],
+  );
+
   const closeTerminal = useCallback(
     (paneId: string, tabIdx: number) => {
       const current = treeRef.current;
@@ -468,12 +541,7 @@ export function useTerminals(
       const pane = findPane(current, paneId);
       if (!pane || !pane.tabs[tabIdx]) return;
       if (isTabPinned(pane, tabIdx)) return;
-      const closingTab = pane.tabs[tabIdx];
-      StopTerminal(closingTab.id).catch(() => {});
-      if (isTerminalTab(closingTab)) {
-        ClearPaneStatus(projectName, closingTab.id).catch(() => {});
-      }
-      recordClosingTabs([closingTab]);
+      disposeTabs([pane.tabs[tabIdx]]);
 
       // Collapse the pane only when it would otherwise be empty — panes
       // that hold a persistent service tab stay alive even with no
@@ -488,7 +556,29 @@ export function useTerminals(
       const next = mapPane(current, paneId, (p) => ({ ...p, tabs: newTabs, activeTabIdx: newActive }));
       applyTree(next);
     },
-    [applyTree, collapsePane, recordClosingTabs, projectName],
+    [applyTree, collapsePane, disposeTabs],
+  );
+
+  // Closes every unpinned tab in the pane except the one at `tabIdx`; pinned
+  // tabs and the selected tab always survive, so the pane never empties and
+  // needs no collapse. The kept tab becomes active.
+  const closeOtherTerminals = useCallback(
+    (paneId: string, tabIdx: number) => {
+      const current = treeRef.current;
+      if (!current) return;
+      const pane = findPane(current, paneId);
+      const keptTab = pane?.tabs[tabIdx];
+      if (!pane || !keptTab) return;
+      const closing = pane.tabs.filter((t, i) => i !== tabIdx && t.pinned !== true);
+      if (closing.length === 0) return;
+      disposeTabs(closing);
+
+      const newTabs = pane.tabs.filter((t, i) => i === tabIdx || t.pinned === true);
+      const newActive = newTabs.findIndex((t) => t.id === keptTab.id);
+      const next = mapPane(current, paneId, (p) => ({ ...p, tabs: newTabs, activeTabIdx: newActive }));
+      applyTree(next);
+    },
+    [applyTree, disposeTabs],
   );
 
   const focusTerminal = useCallback(
@@ -518,6 +608,23 @@ export function useTerminals(
       applyTree(next, paneId);
     },
     [applyTree],
+  );
+
+  const focusAdjacentPaneItem = useCallback(
+    (paneId: string, delta: 1 | -1, serviceNames: string[]) => {
+      const current = treeRef.current;
+      if (!current) return;
+      const pane = findPane(current, paneId);
+      if (!pane) return;
+      // Services render only in the first leaf's header; elsewhere the pane
+      // cycles its tabs alone.
+      const names = paneId === firstPaneId(current) ? serviceNames : [];
+      const target = adjacentPaneHeaderItem(pane, names, delta);
+      if (!target) return;
+      if (target.kind === "service") focusService(paneId, target.name);
+      else focusTerminal(paneId, target.idx);
+    },
+    [focusTerminal, focusService],
   );
 
   const ensureRootPane = useCallback(
@@ -757,7 +864,9 @@ export function useTerminals(
     addBrowserToPane,
     addReviewToPane,
     closeTerminal,
+    closeOtherTerminals,
     focusTerminal,
+    focusAdjacentPaneItem,
     focusService,
     renameTerminal,
     toggleTabPinned,
@@ -778,11 +887,6 @@ function resolveActiveAfterClose(prevActive: number, removed: number, remaining:
   if (prevActive === removed) return Math.min(removed, remaining - 1);
   if (prevActive > removed) return prevActive - 1;
   return prevActive;
-}
-
-function clampIdx(idx: number | undefined, length: number): number {
-  if (typeof idx !== "number" || length === 0) return 0;
-  return Math.max(0, Math.min(idx, length - 1));
 }
 
 /**

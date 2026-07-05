@@ -23,10 +23,13 @@ import type {
 import { PaneHeader, StreamingOutput, type TabInfo } from "./terminal-pane";
 import { DemoActionModal } from "./action-modal";
 import { DemoAddActionModal, type NewActionInput } from "./add-action-modal";
-import { AgentTerminal } from "./agent-terminal";
+import { AgentTerminal, type AgentStatus } from "./agent-terminal";
 import { BrowserView } from "./browser-view";
 import { DemoBranchSwitcher } from "./branch-switcher";
 import { TabContextMenu, TabRenameModal } from "./tab-controls";
+import { AppTip } from "./app-tip";
+import { OpenInDropdown } from "./open-in-dropdown";
+import { ReviewView } from "./review-view";
 import {
   type LeafContent,
   type PaneLeaf,
@@ -35,6 +38,7 @@ import {
   type SplitDirection,
   addTabToLeaf,
   appendLeaf,
+  collectLeaves,
   closeServiceTab,
   closeTabInLeaf,
   collectServiceNames,
@@ -42,6 +46,7 @@ import {
   findLeaf,
   makeLeaf,
   newBrowserContent,
+  newReviewContent,
   newShellContent,
   setActiveTab,
   setRatioAtPath,
@@ -64,13 +69,18 @@ type ProjectViewProps = {
   onGitCheckout: (branch: DemoBranch) => void;
   onGitCommit: () => void;
   onGitPull: () => void;
+  onGitPush: () => void;
+  onGitFetch: () => void;
+  onGitMerge: (branch: string) => void;
   onGitCreatePR: () => void;
   onGitDiscard: () => void;
   onGitSync: () => void;
   onGitCreateBranch: (name: string) => void;
   onGitRenameBranch: (oldName: string, newName: string) => void;
   onGitDeleteBranch: (name: string) => void;
+  onGitRemoveRemote: (branch: DemoBranch) => void;
   onAddAction: (input: NewActionInput) => void;
+  onAgentStatus?: (status: AgentStatus) => void;
   startButtonRef?: React.Ref<HTMLButtonElement>;
   startRingPulse?: boolean;
 };
@@ -104,21 +114,49 @@ export function DemoProjectView({
   onGitCheckout,
   onGitCommit,
   onGitPull,
+  onGitPush,
+  onGitFetch,
+  onGitMerge,
   onGitCreatePR,
   onGitDiscard,
   onGitSync,
   onGitCreateBranch,
   onGitRenameBranch,
   onGitDeleteBranch,
+  onGitRemoveRemote,
   onAddAction,
+  onAgentStatus,
   startButtonRef,
   startRingPulse,
 }: ProjectViewProps) {
   const [startOpen, setStartOpen] = useState(false);
   const [addingAction, setAddingAction] = useState(false);
   const [runningAction, setRunningAction] = useState<DemoAction | null>(null);
-  const [tree, setTree] = useState<PaneNode | null>(null);
-  const [actionTerminals, setActionTerminals] = useState<ActionTerminalMap>({});
+  const autoAction = project.autoStart
+    ? project.actions.find((a) => a.name === project.autoStart)
+    : undefined;
+  const autoKey = autoAction ? `${autoAction.name}-auto` : null;
+  const [tree, setTree] = useState<PaneNode | null>(() =>
+    autoAction && autoKey
+      ? makeLeaf({
+          kind: "action",
+          key: autoKey,
+          label: autoAction.label,
+          ...(autoAction.emoji ? { emoji: autoAction.emoji } : {}),
+        })
+      : null,
+  );
+  const [actionTerminals, setActionTerminals] = useState<ActionTerminalMap>(() =>
+    autoAction && autoKey ? { [autoKey]: autoAction } : {},
+  );
+  const [agentTabStatus, setAgentTabStatus] = useState<
+    Record<string, AgentStatus>
+  >({});
+
+  const handleAgentStatus = (tabKey: string, status: AgentStatus) => {
+    setAgentTabStatus((prev) => ({ ...prev, [tabKey]: status }));
+    onAgentStatus?.(status);
+  };
   const [isResizing, setIsResizing] = useState(false);
   const [resizeDir, setResizeDir] = useState<SplitDirection>("row");
   const [tabMenu, setTabMenu] = useState<{
@@ -155,7 +193,7 @@ export function DemoProjectView({
   };
 
   const openNewPaneWithShell = () => {
-    setTree((prev) => appendLeaf(prev, makeLeaf(newShellContent())));
+    setTree((prev) => appendLeaf(prev, makeLeaf(newShellContent(prev))));
   };
 
   const openNewPaneWithBrowser = () => {
@@ -163,27 +201,35 @@ export function DemoProjectView({
   };
 
   const addTerminalToLeaf = (leafId: string) => {
-    setTree((prev) => (prev ? addTabToLeaf(prev, leafId, newShellContent()) : prev));
+    setTree((prev) =>
+      prev ? addTabToLeaf(prev, leafId, newShellContent(prev)) : prev,
+    );
   };
 
   const addBrowserToLeaf = (leafId: string) => {
     setTree((prev) => (prev ? addTabToLeaf(prev, leafId, newBrowserContent()) : prev));
   };
 
+  const addReviewToLeaf = (leafId: string) => {
+    setTree((prev) => (prev ? addTabToLeaf(prev, leafId, newReviewContent()) : prev));
+  };
+
   const openActionTerminal = (action: DemoAction) => {
     const key = `${action.name}-${Date.now().toString(36)}`;
     setActionTerminals((prev) => ({ ...prev, [key]: action }));
-    setTree((prev) =>
-      appendLeaf(
-        prev,
-        makeLeaf({
-          kind: "action",
-          key,
-          label: action.label,
-          ...(action.emoji ? { emoji: action.emoji } : {}),
-        }),
-      ),
-    );
+    const content: LeafContent = {
+      kind: "action",
+      key,
+      label: action.label,
+      ...(action.emoji ? { emoji: action.emoji } : {}),
+    };
+    // Actions open as a new tab in the existing pane, never as a new split.
+    setTree((prev) => {
+      if (!prev) return makeLeaf(content);
+      const leaves = collectLeaves(prev);
+      const target = leaves[leaves.length - 1];
+      return addTabToLeaf(prev, target.id, content);
+    });
   };
 
   const handleTabContextMenu = (
@@ -233,8 +279,20 @@ export function DemoProjectView({
     onGitCommit();
   };
 
-  const handleGitPull = (_strategy: "ff-only" | "rebase") => {
+  const handleGitPull = () => {
     onGitPull();
+  };
+
+  const handleGitPush = () => {
+    onGitPush();
+  };
+
+  const handleGitFetch = () => {
+    onGitFetch();
+  };
+
+  const handleGitMerge = (branch: string) => {
+    onGitMerge(branch);
   };
 
   const handleGitCreatePR = () => {
@@ -264,7 +322,7 @@ export function DemoProjectView({
   const handleSplit = (paneId: string, direction: SplitDirection) => {
     setTree((prev) =>
       prev
-        ? splitAtLeaf(prev, paneId, direction, makeLeaf(newShellContent()))
+        ? splitAtLeaf(prev, paneId, direction, makeLeaf(newShellContent(prev)))
         : prev,
     );
   };
@@ -378,10 +436,13 @@ export function DemoProjectView({
             onSelectTab={handleSelectTab}
             onNewTab={addTerminalToLeaf}
             onNewBrowser={addBrowserToLeaf}
+            onNewReview={addReviewToLeaf}
             onTabContextMenu={handleTabContextMenu}
             onRatioChange={handleRatioChange}
             onResizeStart={handleResizeStart}
             onResizeEnd={handleResizeEnd}
+            agentTabStatus={agentTabStatus}
+            onAgentTabStatus={handleAgentStatus}
           />
         </div>
       ) : (
@@ -392,8 +453,9 @@ export function DemoProjectView({
         />
       )}
 
-      {tree && (git || footerActions.length > 0) && (
-        <div className="flex shrink-0 items-center justify-end gap-1 bg-[#1a1a1a] px-2 py-1">
+      {tree && (
+        <div className="flex shrink-0 items-center gap-1 bg-[#1a1a1a] px-2 py-1">
+          <AppTip />
           {footerActions.map((a) => (
             <FooterActionButton key={a.name} action={a} onRun={() => openAction(a)} />
           ))}
@@ -403,12 +465,16 @@ export function DemoProjectView({
               onCheckout={handleGitCheckout}
               onCommit={handleGitCommit}
               onPull={handleGitPull}
+              onPush={handleGitPush}
+              onFetch={handleGitFetch}
+              onMerge={handleGitMerge}
               onCreatePR={handleGitCreatePR}
               onDiscard={handleGitDiscard}
               onSync={handleGitSync}
               onCreateBranch={handleGitCreateBranch}
               onRenameBranch={onGitRenameBranch}
               onDeleteBranch={onGitDeleteBranch}
+              onRemoveRemote={onGitRemoveRemote}
               onCopyBranchName={handleGitCopyBranchName}
             />
           )}
@@ -455,13 +521,15 @@ export function DemoProjectView({
         const leaf = tree ? findLeaf(tree, renaming.leafId) : null;
         const tab = leaf?.tabs[renaming.tabIdx];
         if (!tab || tab.kind === "service") return null;
-        const isBrowser = tab.kind === "browser";
+        const hasEmoji = tab.kind === "shell" || tab.kind === "action";
+        const initialLabel =
+          tab.kind === "review" ? defaultLabel(tab) : tab.label ?? defaultLabel(tab);
         return (
           <TabRenameModal
             open
-            withEmoji={!isBrowser}
-            initialValue={tab.label ?? defaultLabel(tab)}
-            initialEmoji={tab.kind === "browser" ? "" : tab.emoji ?? ""}
+            withEmoji={hasEmoji}
+            initialValue={initialLabel}
+            initialEmoji={hasEmoji ? tab.emoji ?? "" : ""}
             onClose={() => setRenaming(null)}
             onSubmit={(value, emoji) =>
               handleRenameTab(renaming.leafId, renaming.tabIdx, value, emoji)
@@ -484,10 +552,13 @@ type PaneLayoutProps = {
   onSelectTab: (leafId: string, tabIdx: number) => void;
   onNewTab: (leafId: string) => void;
   onNewBrowser: (leafId: string) => void;
+  onNewReview: (leafId: string) => void;
   onTabContextMenu: (leafId: string, tabIdx: number, x: number, y: number) => void;
   onRatioChange: (path: number[], ratio: number) => void;
   onResizeStart: (dir: SplitDirection) => void;
   onResizeEnd: () => void;
+  agentTabStatus: Record<string, AgentStatus>;
+  onAgentTabStatus: (tabKey: string, status: AgentStatus) => void;
 };
 
 function PaneLayout(props: PaneLayoutProps) {
@@ -499,6 +570,8 @@ type LeafContext = {
   project: DemoProject;
   runningServices: Set<string>;
   actionTerminals: ActionTerminalMap;
+  agentTabStatus: Record<string, AgentStatus>;
+  onAgentTabStatus: (tabKey: string, status: AgentStatus) => void;
 };
 
 type ResolvedTab = {
@@ -558,6 +631,18 @@ function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
       ),
     };
   }
+  if (tab.kind === "review") {
+    return {
+      info: {
+        key,
+        label: defaultLabel(tab),
+        type: "review",
+        running: true,
+        pinned: tab.pinned,
+      },
+      body: <ReviewView key={tab.id} project={ctx.project} />,
+    };
+  }
   const action = ctx.actionTerminals[tab.key];
   const info: TabInfo = {
     key,
@@ -566,6 +651,7 @@ function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
     running: true,
     emoji: tab.emoji,
     pinned: tab.pinned,
+    status: action?.agent ? ctx.agentTabStatus[key] : undefined,
   };
   if (!action) return { info, body: null };
   return {
@@ -575,6 +661,9 @@ function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
         key={tab.key}
         agent={action.agent}
         cwd={ctx.project.root}
+        autoPrompt={action.autoPrompt}
+        autoMode={action.autoMode}
+        onStatus={(status) => ctx.onAgentTabStatus(key, status)}
       />
     ) : (
       <StreamingOutput key={tab.key} output={action.output} loop={action.loop} />
@@ -592,9 +681,18 @@ function Leaf({
   onSelectTab,
   onNewTab,
   onNewBrowser,
+  onNewReview,
   onTabContextMenu,
+  agentTabStatus,
+  onAgentTabStatus,
 }: PaneLayoutProps & { leaf: PaneLeaf }) {
-  const ctx: LeafContext = { project, runningServices, actionTerminals };
+  const ctx: LeafContext = {
+    project,
+    runningServices,
+    actionTerminals,
+    agentTabStatus,
+    onAgentTabStatus,
+  };
   const resolved = leaf.tabs.map((tab) => resolveTab(tab, ctx));
   return (
     <div className="flex min-w-0 min-h-0 flex-1 flex-col overflow-hidden">
@@ -605,6 +703,7 @@ function Leaf({
         onCloseTab={(i) => onCloseTab(leaf.id, i)}
         onNewTab={() => onNewTab(leaf.id)}
         onNewBrowser={() => onNewBrowser(leaf.id)}
+        onNewReview={() => onNewReview(leaf.id)}
         onTabContextMenu={(i, x, y) => onTabContextMenu(leaf.id, i, x, y)}
         onSplitRight={() => onSplit(leaf.id, "row")}
         onSplitDown={() => onSplit(leaf.id, "col")}
@@ -754,14 +853,15 @@ function EmptyState({
   );
 }
 
-function InteractiveTerminal({ projectRoot }: { projectRoot: string }) {
+export function InteractiveTerminal({ projectRoot }: { projectRoot: string }) {
   const [input, setInput] = useState("");
   const [history, setHistory] = useState<
     { prompt: string; input: string; output: string }[]
   >([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const prompt = `~/${projectRoot.replace(/^~\//, "")} $ `;
+  const rel = projectRoot.replace(/^~\/?/, "");
+  const prompt = rel ? `~/${rel} $ ` : `~ $ `;
 
   const fakeRun = (cmd: string): string => {
     const trimmed = cmd.trim();
@@ -847,10 +947,12 @@ function InteractiveTerminal({ projectRoot }: { projectRoot: string }) {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          autoFocus
           spellCheck={false}
           autoCapitalize="off"
           autoCorrect="off"
+          autoComplete="off"
+          data-1p-ignore
+          data-lpignore="true"
           className="flex-1 bg-transparent outline-none text-gray-100 font-mono caret-gray-100"
         />
       </form>
@@ -945,23 +1047,20 @@ function Header({
   startButtonRef,
   startRingPulse,
 }: HeaderProps) {
-  const showSplit = project.services.length > 1 || project.profiles.length > 1;
+  const hasServices = project.services.length > 0;
   const startColor = anyRunning
-    ? "bg-red-500 text-white"
-    : "bg-white text-gray-900";
+    ? "bg-[#f87171] text-white"
+    : "bg-[#e5e5e5] text-[#1a1a1a]";
   const startChevronBorder = anyRunning
-    ? "border-white/20 bg-red-500 text-white"
-    : "border-gray-900/20 bg-white text-gray-900";
+    ? "border-white/20 bg-[#f87171] text-white"
+    : "border-[#1a1a1a]/20 bg-[#e5e5e5] text-[#1a1a1a]";
+  const chevronIdle =
+    "border-[#2e2e2e] bg-[#242424] text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5]";
   return (
     <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 h-12 shrink-0">
-      <div className="flex flex-col min-w-0">
-        <div className="truncate text-base font-semibold text-[#e5e5e5]">
-          {project.label ?? project.name}
-        </div>
-        <span className="text-[10px] text-[#919191] truncate">
-          {project.stack}
-        </span>
-      </div>
+      <h1 className="min-w-0 shrink-0 truncate pr-2 text-xl font-semibold tracking-tight text-[#e5e5e5]">
+        {project.label ?? project.name}
+      </h1>
       <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:gap-2">
         <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto">
           {headerActions.map((a) => (
@@ -971,43 +1070,45 @@ function Header({
               onRun={() => onOpenAction(a)}
             />
           ))}
-          <button
-            type="button"
-            onClick={onAddAction}
-            title="Create action"
-            aria-label="Create action"
-            className="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-lg border border-dashed border-[#3a3a3a] px-2 text-xs font-medium text-[#919191] transition-colors hover:border-[#555] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Action</span>
-          </button>
         </div>
+        <button
+          type="button"
+          onClick={onAddAction}
+          title="Create action"
+          aria-label="Create action"
+          className="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-lg border border-dashed border-[#3a3a3a] px-2 text-xs font-medium text-[#919191] transition-colors hover:border-[#555] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Action</span>
+        </button>
+
+        <OpenInDropdown />
 
         <div className="relative flex shrink-0">
-          <button
-            ref={startButtonRef}
-            type="button"
-            onClick={onStartStop}
-            aria-label={anyRunning ? "Stop services" : "Start services"}
-            className={`${showSplit ? "rounded-l-lg" : "rounded-lg"} px-3.5 py-1.5 text-xs font-medium transition-all hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1a1a] ${startColor} ${
-              startRingPulse && !anyRunning ? "start-ring-pulse" : ""
-            }`}
-          >
-            {anyRunning ? "Stop" : "Start"}
-          </button>
-          {showSplit && (
+          {hasServices && (
             <button
+              ref={startButtonRef}
               type="button"
-              onClick={onToggleStart}
-              aria-label="Choose profile or services"
-              aria-expanded={startOpen}
-              aria-haspopup="menu"
-              className={`rounded-r-lg border-l px-1.5 py-1.5 transition-all hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1a1a] ${startChevronBorder}`}
+              onClick={onStartStop}
+              aria-label={anyRunning ? "Stop services" : "Start services"}
+              className={`rounded-l-lg px-3.5 py-1.5 text-xs font-medium transition-all hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1a1a] ${startColor} ${
+                startRingPulse && !anyRunning ? "start-ring-pulse" : ""
+              }`}
             >
-              <ChevronDown className="w-3.5 h-3.5" strokeWidth={1.5} />
+              {anyRunning ? "Stop" : "Start"}
             </button>
           )}
-          {showSplit && startOpen && (
+          <button
+            type="button"
+            onClick={onToggleStart}
+            aria-label="Services and profiles"
+            aria-expanded={startOpen}
+            aria-haspopup="menu"
+            className={`${hasServices ? "rounded-r-lg border-l" : "rounded-lg border"} px-1.5 py-1.5 transition-all hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1a1a] ${hasServices ? startChevronBorder : chevronIdle}`}
+          >
+            <ChevronDown className="w-3.5 h-3.5" strokeWidth={1.5} />
+          </button>
+          {startOpen && (
             <div
               className="absolute right-0 top-full z-40 mt-1.5 min-w-[240px] overflow-hidden rounded-xl border border-[#2e2e2e] bg-[#242424] shadow-xl"
               onMouseLeave={onCloseStart}
@@ -1047,14 +1148,20 @@ function Header({
               )}
               <DropdownSectionLabel>Services</DropdownSectionLabel>
               <div className="pb-1.5">
-                {project.services.map((s) => (
-                  <ServiceMenuItem
-                    key={s.name}
-                    service={s}
-                    running={runningServices.has(s.name)}
-                    onClick={() => onToggleService(s.name)}
-                  />
-                ))}
+                {project.services.length > 0 ? (
+                  project.services.map((s) => (
+                    <ServiceMenuItem
+                      key={s.name}
+                      service={s}
+                      running={runningServices.has(s.name)}
+                      onClick={() => onToggleService(s.name)}
+                    />
+                  ))
+                ) : (
+                  <div className="px-3 py-1.5 text-[11px] italic text-[#919191]">
+                    No services yet
+                  </div>
+                )}
               </div>
             </div>
           )}

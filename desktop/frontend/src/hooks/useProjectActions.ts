@@ -29,9 +29,10 @@ export interface ProjectActionsModals {
 }
 
 export interface RunActionOpts {
-  // Typed into the action's terminal once its program is ready (e.g. an
-  // initial task for an AI agent the action launches).
-  prompt?: string;
+  // Submitted into the action's terminal once its program is ready (e.g. an
+  // initial task for an AI agent the action launches). A string is a text
+  // prompt; an array is ordered paste parts (text runs and image paths).
+  prompt?: string | string[];
 }
 
 export interface UseProjectActionsResult {

@@ -16,6 +16,8 @@ import {
   getTerminalThemeColors,
 } from "../terminal-themes";
 import { ProgressBar } from "./ui/ProgressBar";
+import { ShortcutRecorder } from "./ui/ShortcutRecorder";
+import { HOTKEYS, resolveHotkey, configuredHotkeyCombos } from "../hotkeys";
 import { BTN_SECONDARY } from "./ui/buttons";
 import { BrowserOpenURL, EventsOn } from "../../bridge/runtime";
 import {
@@ -119,6 +121,7 @@ export function Settings({
   );
   const terminalInputOpen = useComposerStore((s) => s.open);
   const experimentalTTS = useSettingsStore((s) => s.experimentalTTS);
+  const hotkeys = useSettingsStore((s) => s.hotkeys);
   const updateSettings = useSettingsStore((s) => s.update);
 
   const setTheme = (next: Theme) => {
@@ -330,6 +333,7 @@ export function Settings({
     ["general", "General"],
     ["notifications", "Notifications"],
     ["terminal", "Terminal"],
+    ["shortcuts", "Shortcuts"],
     ...(experimentalTTS ? [["tts", "Text to Speech"] as [SettingsTab, string]] : []),
     ["ai", "AI & Integrations"],
     ["global-config", "Global Config"],
@@ -535,6 +539,39 @@ export function Settings({
                   onChange={(v) => updateSettings({ appTipsDismissed: !v })}
                 />
               </SettingsRow>
+            </SettingsSection>
+          )}
+
+          {activeTab === "shortcuts" && (
+            <SettingsSection
+              title="Keyboard Shortcuts"
+              description="Click a shortcut, then press the keys you want. Requires ⌘ or ⌥."
+            >
+              {HOTKEYS.map((def) => {
+                const value = resolveHotkey(hotkeys, def.id);
+                const isDefault = value === def.default;
+                return (
+                  <SettingsRow key={def.id} label={def.label} description={def.description}>
+                    <div className="flex items-start gap-2">
+                      {!isDefault && (
+                        <button
+                          onClick={() => updateSettings({ hotkeys: { ...hotkeys, [def.id]: def.default } })}
+                          className={BTN_SECONDARY}
+                        >
+                          Reset
+                        </button>
+                      )}
+                      <ShortcutRecorder
+                        value={value}
+                        onChange={(next) =>
+                          updateSettings({ hotkeys: { ...hotkeys, [def.id]: next } })
+                        }
+                        reserved={configuredHotkeyCombos(hotkeys, def.id)}
+                      />
+                    </div>
+                  </SettingsRow>
+                );
+              })}
             </SettingsSection>
           )}
 

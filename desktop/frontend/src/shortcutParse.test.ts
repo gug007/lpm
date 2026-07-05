@@ -63,6 +63,12 @@ describe("isReservedShortcut", () => {
     expect(isReservedShortcut(parseShortcut("cmd+shift+b")!)).toBe(false);
     expect(isReservedShortcut(parseShortcut("alt+r")!)).toBe(false);
   });
+
+  it("also blocks combos passed via the extra set", () => {
+    const extra = new Set(["cmd+alt+arrowright"]);
+    expect(isReservedShortcut(parseShortcut("cmd+alt+arrowright")!, extra)).toBe(true);
+    expect(isReservedShortcut(parseShortcut("cmd+alt+arrowleft")!, extra)).toBe(false);
+  });
 });
 
 describe("formatShortcut", () => {

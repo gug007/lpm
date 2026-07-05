@@ -7,9 +7,11 @@ interface TabContextMenuProps {
   x: number;
   y: number;
   pinned: boolean;
+  canCloseOthers: boolean;
   onRename: () => void;
   onTogglePin: () => void;
   onCloseTab: () => void;
+  onCloseOthers: () => void;
   onClose: () => void;
 }
 
@@ -17,9 +19,11 @@ export function TabContextMenu({
   x,
   y,
   pinned,
+  canCloseOthers,
   onRename,
   onTogglePin,
   onCloseTab,
+  onCloseOthers,
   onClose,
 }: TabContextMenuProps) {
   const close = (fn: () => void) => () => {
@@ -43,6 +47,14 @@ export function TabContextMenu({
         icon={<XIcon />}
         destructive
         onClick={close(onCloseTab)}
+      />
+      <ContextMenuItem
+        label="Close Other Tabs"
+        icon={<XIcon />}
+        destructive
+        disabled={!canCloseOthers}
+        title={canCloseOthers ? undefined : "No other unpinned tabs"}
+        onClick={close(onCloseOthers)}
       />
     </ContextMenuShell>
   );

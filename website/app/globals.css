@@ -183,3 +183,59 @@ body {
     transparent 75%
   );
 }
+
+.sidebar-shimmer {
+  background: linear-gradient(
+    90deg,
+    #60a5fa,
+    #8b5cf6,
+    #ec4899,
+    #06b6d4,
+    #6366f1,
+    #60a5fa
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation:
+    shimmer 4s ease-in-out infinite,
+    shimmer-glow 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 150% 50%;
+  }
+  100% {
+    background-position: 300% 50%;
+  }
+}
+
+@keyframes shimmer-glow {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.3);
+  }
+}
+
+.sidebar-waiting {
+  color: #f59e0b;
+  animation: waiting-pulse 2s ease-in-out infinite;
+}
+
+@keyframes waiting-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}

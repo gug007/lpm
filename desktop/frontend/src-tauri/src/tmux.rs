@@ -80,12 +80,29 @@ pub fn capture_pane(pane_id: &str, lines: i64) -> Result<String, String> {
     Ok(out.trim_end_matches('\n').to_string())
 }
 
+fn pane_pid(pane_id: &str) -> Option<i32> {
+    run(&["display-message", "-p", "-t", pane_id, "#{pane_pid}"])
+        .ok()
+        .and_then(|s| s.trim().parse().ok())
+}
+
 pub fn kill_session(name: &str) -> Result<(), String> {
-    run(&["kill-session", "-t", name]).map(|_| ())
+    // Snapshot every pane's process tree BEFORE the panes go away: tmux only hangs
+    // up the pane shell, leaving detached dev-server/agent grandchildren orphaned.
+    // Capture first, kill-session, then reap the trees in the background.
+    let roots: Vec<i32> = list_pane_pids(name).into_iter().map(|p| p as i32).collect();
+    let victims = crate::proctree::trees(&roots);
+    let r = run(&["kill-session", "-t", name]);
+    crate::proctree::kill_pids_async(victims);
+    r.map(|_| ())
 }
 
 pub fn kill_pane(pane_id: &str) -> Result<(), String> {
-    run(&["kill-pane", "-t", pane_id]).map(|_| ())
+    let roots: Vec<i32> = pane_pid(pane_id).into_iter().collect();
+    let victims = crate::proctree::trees(&roots);
+    let r = run(&["kill-pane", "-t", pane_id]);
+    crate::proctree::kill_pids_async(victims);
+    r.map(|_| ())
 }
 
 /// Ctrl-C the service, then best-effort clear the pane + scrollback (pane stays

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useLayoutEffect, type ReactNode } from "react";
+import { useState, useRef, useCallback, useEffect, useLayoutEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 type Side = "top" | "bottom" | "right" | "left";
@@ -9,6 +9,8 @@ interface TooltipProps {
   side?: Side;
   align?: "start" | "center" | "end";
   wide?: boolean;
+  // Hover dwell before the tooltip appears, in ms. Default 0 shows it immediately.
+  delay?: number;
   // Default "inline-flex" hugs the child; pass "flex w-full" for full-width triggers.
   triggerClassName?: string;
 }
@@ -16,11 +18,41 @@ interface TooltipProps {
 const GAP = 8;
 const EDGE_MARGIN = 8;
 
-export function Tooltip({ content, children, side = "top", align = "center", wide = false, triggerClassName = "inline-flex" }: TooltipProps) {
+export function Tooltip({ content, children, side = "top", align = "center", wide = false, delay = 0, triggerClassName = "inline-flex" }: TooltipProps) {
   const triggerRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLSpanElement>(null);
+  const showTimer = useRef<number | null>(null);
   const [visible, setVisible] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  const clearShowTimer = useCallback(() => {
+    if (showTimer.current !== null) {
+      clearTimeout(showTimer.current);
+      showTimer.current = null;
+    }
+  }, []);
+
+  // Reveal after the dwell delay (or immediately when delay is 0); leaving the
+  // trigger before it elapses cancels the pending show.
+  const show = useCallback(() => {
+    if (delay <= 0) {
+      setVisible(true);
+      return;
+    }
+    clearShowTimer();
+    showTimer.current = window.setTimeout(() => {
+      showTimer.current = null;
+      setVisible(true);
+    }, delay);
+  }, [delay, clearShowTimer]);
+
+  const hide = useCallback(() => {
+    clearShowTimer();
+    setVisible(false);
+  }, [clearShowTimer]);
+
+  // Drop a pending show if the trigger unmounts mid-dwell.
+  useEffect(() => clearShowTimer, [clearShowTimer]);
 
   const updatePosition = useCallback(() => {
     const trigger = triggerRef.current;
@@ -65,8 +97,8 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
       <span
         ref={triggerRef}
         className={triggerClassName}
-        onMouseEnter={() => setVisible(true)}
-        onMouseLeave={() => setVisible(false)}
+        onMouseEnter={show}
+        onMouseLeave={hide}
       >
         {children}
       </span>

@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { useOverlay } from "../store/overlay";
 import { ClipboardListIcon } from "./icons";
 import { TerminalHistoryPopover } from "./TerminalHistoryPopover";
+import { Tooltip } from "./ui/Tooltip";
+import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 
 interface TerminalHistoryButtonProps {
   terminalId: string;
@@ -10,6 +12,9 @@ interface TerminalHistoryButtonProps {
   terminalLabel: string;
   // Loads the chosen message back into the composer for editing/resending.
   onPick: (text: string, images: Record<string, string>) => void;
+  // Fires the chosen message straight at the terminal, skipping the composer.
+  // Optional: dialog composers have no terminal, so they omit it (no send button).
+  onSend?: (text: string, images: Record<string, string>) => void;
 }
 
 const GAP = 10;
@@ -21,6 +26,7 @@ export function TerminalHistoryButton({
   projectName,
   terminalLabel,
   onPick,
+  onSend,
 }: TerminalHistoryButtonProps) {
   const [open, setOpen] = useState(false);
   const [rect, setRect] = useState<DOMRect | null>(null);
@@ -72,19 +78,27 @@ export function TerminalHistoryButton({
 
   // Outside-click and Escape close the popover. The trigger button and anything
   // marked data-history-overlay (the popover and its portaled child menus, which
-  // live outside popRef's subtree) count as inside. Escape is captured so it
-  // doesn't also close the composer, but defers to an open child menu or an
-  // active folder-name input so it dismisses the topmost layer first.
+  // live outside popRef's subtree) count as inside; a hosted modal
+  // (data-modal-overlay) does too, so its backdrop dismisses the modal rather
+  // than the popover. Escape is captured so it doesn't also close the composer,
+  // but defers to an open child menu, a hosted confirm dialog, or an active
+  // folder-name input so it dismisses the topmost layer first.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
       const t = e.target as Element;
-      if (btnRef.current?.contains(t) || t.closest?.("[data-history-overlay]")) return;
+      if (
+        btnRef.current?.contains(t) ||
+        t.closest?.("[data-history-overlay]") ||
+        t.closest?.("[data-modal-overlay]")
+      )
+        return;
       close();
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       if (document.querySelector("[data-history-menu]")) return;
+      if (document.querySelector("[data-modal-overlay]")) return;
       const active = document.activeElement;
       if (active instanceof HTMLElement && active.dataset.folderInput !== undefined) return;
       e.stopPropagation();
@@ -110,22 +124,23 @@ export function TerminalHistoryButton({
 
   return (
     <>
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={toggleOpen}
-        aria-label="Message history"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        title="Message history"
-        className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
-          open
-            ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
-            : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-        }`}
-      >
-        <ClipboardListIcon />
-      </button>
+      <Tooltip content="Recent messages" delay={COMPOSER_TOOLTIP_DELAY_MS}>
+        <button
+          ref={btnRef}
+          type="button"
+          onClick={toggleOpen}
+          aria-label="Message history"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+            open
+              ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
+              : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          }`}
+        >
+          <ClipboardListIcon />
+        </button>
+      </Tooltip>
 
       {open &&
         rect &&
@@ -140,6 +155,14 @@ export function TerminalHistoryButton({
               onPick(text, images);
               close();
             }}
+            onSend={
+              onSend
+                ? (text, images) => {
+                    onSend(text, images);
+                    close();
+                  }
+                : undefined
+            }
           />,
           document.body,
         )}

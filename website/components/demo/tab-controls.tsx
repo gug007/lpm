@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ChevronDown,
+  Code,
   Globe,
   Pencil,
   Pin,
@@ -23,9 +24,11 @@ export const SUGGESTED_EMOJIS = [
 export function AddTabSplitButton({
   onAddTerminal,
   onAddBrowser,
+  onAddReview,
 }: {
   onAddTerminal: () => void;
   onAddBrowser: () => void;
+  onAddReview: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -74,8 +77,17 @@ export function AddTabSplitButton({
           <div
             role="menu"
             style={{ left: menu.x, top: menu.y }}
-            className="fixed z-[70] min-w-[160px] overflow-hidden rounded-lg border border-[#2e2e2e] bg-[#242424] py-1 shadow-xl"
+            className="fixed z-[70] min-w-[180px] overflow-hidden rounded-lg border border-[#2e2e2e] bg-[#242424] py-1 shadow-xl"
           >
+            <MenuButton
+              icon={<Code className="h-3.5 w-3.5" />}
+              label="Review changes"
+              hint="⌘⇧R"
+              onClick={() => {
+                onAddReview();
+                setMenu(null);
+              }}
+            />
             <MenuButton
               icon={<Globe className="h-3.5 w-3.5" />}
               label="Open browser"
@@ -368,11 +380,13 @@ function MenuButton({
   label,
   onClick,
   danger,
+  hint,
 }: {
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
   danger?: boolean;
+  hint?: string;
 }) {
   return (
     <button
@@ -384,7 +398,10 @@ function MenuButton({
       }`}
     >
       <span className="shrink-0 text-[#919191]">{icon}</span>
-      <span className="truncate">{label}</span>
+      <span className="flex-1 truncate">{label}</span>
+      {hint && (
+        <span className="shrink-0 font-mono text-[10px] text-[#666]">{hint}</span>
+      )}
     </button>
   );
 }

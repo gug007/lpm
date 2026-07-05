@@ -69,11 +69,14 @@ export interface ActionInfo {
 
 // A task to run on each freshly created copy from "Bulk Duplicate": either an
 // existing project action or an ad-hoc shell command typed by the user. An
-// optional `prompt` is typed into the terminal once the launched program is
-// ready — mainly to seed an AI agent with a task.
+// optional `prompt` is submitted into the terminal once the launched program is
+// ready — mainly to seed an AI agent with a task. A plain string is a text-only
+// prompt; an array is an ordered set of paste parts (text runs and image paths)
+// so an attached image lands as its own bracketed paste, exactly like a manual
+// composer send.
 export type SpawnTask =
-  | { kind: "action"; actionName: string; prompt?: string }
-  | { kind: "command"; command: string; prompt?: string };
+  | { kind: "action"; actionName: string; prompt?: string | string[] }
+  | { kind: "command"; command: string; prompt?: string | string[] };
 
 // What a duplicated copy runs once created: nothing, a project action, or an
 // ad-hoc command — the authoring side of SpawnTask in the "Bulk Duplicate" flow.

@@ -22,6 +22,7 @@ mod notes_store;
 mod openin;
 mod portforward;
 mod ports;
+mod proctree;
 mod projects_crud;
 mod pty;
 mod services;

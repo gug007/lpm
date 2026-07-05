@@ -8,11 +8,14 @@ import { disposeInteractivePaneSession, isInteractivePaneSessionDead, type Inter
 import { collectTerminals, isTabPinned, isTerminalTab } from "../paneTree";
 import { PaneLayout } from "./PaneLayout";
 import { TerminalTabDnd } from "./TerminalTabDnd";
+import { BulkDuplicateDialog, type DuplicatePromptSeed } from "./BulkDuplicateDialog";
 import type { ServiceTabInfo, StatusKind } from "./PaneView";
 import { type TerminalThemeName, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
 import { ansiColors } from "./terminal-utils";
 import { TerminalIcon } from "./icons";
-import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
+import { useKeyboardShortcut, type KeyboardShortcut } from "../hooks/useKeyboardShortcut";
+import { canonicalShortcut, parseShortcut } from "../shortcutParse";
+import { resolveHotkey, type HotkeyId } from "../hotkeys";
 import { useServicePorts } from "../hooks/useServicePorts";
 import { useTerminals, type TerminalStartOpts } from "../hooks/useTerminals";
 import { buildGeneratorRunCommand } from "../generatorRun";
@@ -61,6 +64,16 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   const terminalHandles = useRef<Map<string, InteractivePaneHandle>>(new Map());
   const serviceHandles = useRef<Map<string, PaneHandle>>(new Map());
   const visibleRef = useRef(visible);
+
+  // Deliver a seeded prompt (e.g. a duplicate's initial agent task) through the
+  // same robust paste-and-submit path a manual composer send uses, so its CR
+  // isn't swallowed by the agent's async redraw. Stable identity: it reads the
+  // handle map by ref, so a terminal registered after mount is still reachable.
+  const submitPrompt = useCallback(
+    (id: string, payload: string | string[]) =>
+      terminalHandles.current.get(id)?.submitInput(payload) ?? false,
+    [],
+  );
   // Skip the first visibility-effect run so we don't double-start log
   // streaming (the log-streaming setup effect already starts it on mount).
   const mountedRef = useRef(false);
@@ -76,7 +89,9 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     addBrowserToPane,
     addReviewToPane,
     closeTerminal,
+    closeOtherTerminals,
     focusTerminal,
+    focusAdjacentPaneItem,
     focusService,
     renameTerminal,
     toggleTabPinned,
@@ -89,7 +104,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     ensureRootPane,
     getFocusedPane,
     getPane,
-  } = useTerminals(projectName, onTerminalCountChange);
+  } = useTerminals(projectName, onTerminalCountChange, submitPrompt);
 
   const servicesKey = services.map((s) => s.name).join(",");
   const stableServices = useMemo(() => services, [servicesKey]);
@@ -460,6 +475,43 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     visible,
   );
 
+  // Cycles the focused pane's header entries — configurable in Settings ▸
+  // Keyboard Shortcuts. The combo must carry ⌘ to escape the interactive
+  // terminal's key handler (it only forwards non-meta keys to the agent);
+  // capture phase beats the composer's keydown stopPropagation so it works
+  // while typing too.
+  const hotkeys = useSettingsStore((s) => s.hotkeys);
+  const { paneNavShortcuts, dirByCanonical } = useMemo(() => {
+    const paneNavShortcuts: KeyboardShortcut[] = [];
+    const dirByCanonical = new Map<string, 1 | -1>();
+    const entries: Array<[HotkeyId, 1 | -1]> = [
+      ["tabSwitchNext", 1],
+      ["tabSwitchPrev", -1],
+    ];
+    for (const [id, dir] of entries) {
+      const parsed = parseShortcut(resolveHotkey(hotkeys, id));
+      if (!parsed) continue;
+      const canon = canonicalShortcut(parsed);
+      if (dirByCanonical.has(canon)) continue;
+      dirByCanonical.set(canon, dir);
+      paneNavShortcuts.push(parsed);
+    }
+    return { paneNavShortcuts, dirByCanonical };
+  }, [hotkeys]);
+
+  useKeyboardShortcut(
+    paneNavShortcuts,
+    (_event, matched) => {
+      const pane = getFocusedPane();
+      if (!pane) return;
+      const dir = dirByCanonical.get(canonicalShortcut(matched)) ?? 1;
+      const serviceNames = stableServices.map((s) => s.name);
+      focusAdjacentPaneItem(pane.id, dir, serviceNames);
+    },
+    visible && paneNavShortcuts.length > 0,
+    true,
+  );
+
   const focusedPane = getFocusedPane();
   // The focused pane's active tab (or null for a service log / empty pane). TTS
   // and the composer both derive from this single resolution.
@@ -514,6 +566,30 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     },
     [toggleService, projectName],
   );
+
+  // "Run in duplicates" from a composer's split button: the current prompt (with
+  // its agent command) opens the seeded Duplicate dialog, where the user picks
+  // how many copies to spin up. On confirm the current project runs the prompt
+  // as copy #1 (`runHere`) alongside those copies, all in parallel.
+  const bulkDuplicate = useAppStore((s) => s.bulkDuplicate);
+  const duplicateProject = useAppStore(
+    (s) => s.projects.find((p) => p.name === projectName) ?? null,
+  );
+  const groups = useAppStore((s) => s.groups);
+  const folderNames = useMemo(() => groups.map((g) => g.name), [groups]);
+  const [duplicateSeed, setDuplicateSeed] = useState<DuplicatePromptSeed | null>(null);
+  // Runs the seeded prompt in the originating terminal (copy #1) — set on
+  // trigger, fired on confirm, dropped on cancel so nothing runs if dismissed.
+  const duplicateRunHere = useRef<(() => Promise<void>) | null>(null);
+  // Bumped on every trigger so the (non-blocking) dialog remounts and re-seeds
+  // even when it's already open — e.g. run-in-duplicates fired from a second
+  // pane's composer while the first one's dialog is still up.
+  const [duplicateNonce, setDuplicateNonce] = useState(0);
+  const runInDuplicates = useCallback((seed: DuplicatePromptSeed, runHere: () => Promise<void>) => {
+    setDuplicateSeed(seed);
+    duplicateRunHere.current = runHere;
+    setDuplicateNonce((n) => n + 1);
+  }, []);
 
   // Final wiring for the generator run-flow. Once the freshly created project
   // is the active one this view is showing, open a terminal that launches the
@@ -610,6 +686,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onAddBrowser={addBrowserToPane}
             onAddReview={openReviewInPane}
             onCloseTerminal={closeTerminal}
+            onCloseOtherTerminals={closeOtherTerminals}
             onRenameTerminal={renameTerminal}
             onTogglePinTab={toggleTabPinned}
             onSplit={splitPane}
@@ -621,6 +698,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onClearStatus={handleClearStatus}
             onSubmitInput={submitInputToTerminal}
             onFocusTerminalInput={focusTerminalInput}
+            onRunInDuplicates={runInDuplicates}
             onRatioChange={setRatio}
             onFindInPane={findInPane}
             onFilterInPane={filterInPane}
@@ -643,6 +721,30 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       )}
       <TTSControls />
       </div>
+      {duplicateSeed !== null && (
+        <BulkDuplicateDialog
+          key={duplicateNonce}
+          open
+          project={duplicateProject}
+          folderNames={folderNames}
+          seed={duplicateSeed}
+          onCancel={() => {
+            duplicateRunHere.current = null;
+            setDuplicateSeed(null);
+          }}
+          onConfirm={async (count, opts) => {
+            // Submit the prompt in the current terminal (copy #1) and wait for it
+            // to land before creating the copies — bulkDuplicate switches the
+            // selected project to the first copy, which would otherwise unmount
+            // this composer mid-send and drop the current run.
+            const runHere = duplicateRunHere.current;
+            duplicateRunHere.current = null;
+            setDuplicateSeed(null);
+            if (runHere) await runHere();
+            void bulkDuplicate(projectName, count, opts);
+          }}
+        />
+      )}
       </div>
   );
 }

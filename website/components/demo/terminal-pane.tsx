@@ -2,15 +2,24 @@
 
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import {
+  Code,
   Columns2,
   Globe,
   Pin,
   Rows2,
   Terminal as TerminalIcon,
   X,
+  Zap,
 } from "lucide-react";
 import type { LineColor, OutputLine } from "./projects";
+import type { AgentStatus } from "./agent-terminal";
 import { AddTabSplitButton } from "./tab-controls";
+
+const STATUS_LABEL_CLASS: Record<AgentStatus, string> = {
+  running: "sidebar-shimmer",
+  waiting: "sidebar-waiting",
+  done: "text-[#60a5fa]",
+};
 
 const MAX_LINES = 140;
 const LOOP_START_DELAY_MS = 800;
@@ -28,11 +37,12 @@ const COLOR_CLASS: Record<LineColor, string> = {
 export type TabInfo = {
   key: string;
   label: string;
-  type: "service" | "terminal" | "browser";
+  type: "service" | "terminal" | "browser" | "review";
   port?: number;
   running: boolean;
   emoji?: string;
   pinned?: boolean;
+  status?: AgentStatus;
 };
 
 type PaneHeaderProps = {
@@ -42,6 +52,7 @@ type PaneHeaderProps = {
   onCloseTab: (idx: number) => void;
   onNewTab?: () => void;
   onNewBrowser?: () => void;
+  onNewReview?: () => void;
   onSplitRight?: () => void;
   onSplitDown?: () => void;
   onTabContextMenu?: (idx: number, x: number, y: number) => void;
@@ -54,6 +65,7 @@ export function PaneHeader({
   onCloseTab,
   onNewTab,
   onNewBrowser,
+  onNewReview,
   onSplitRight,
   onSplitDown,
   onTabContextMenu,
@@ -89,49 +101,56 @@ export function PaneHeader({
                   : "text-[#a0a0a0] hover:bg-white/[0.04] hover:text-[#d4d4d4]"
               }`}
             >
-              <span aria-hidden="true" className="flex w-3.5 shrink-0 items-center justify-center">
-                {tab.type === "service" ? (
-                  <span
-                    className={`inline-block w-2 h-2 rounded-full ${
-                      tab.running
-                        ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]"
-                        : "bg-gray-600"
-                    }`}
+              <span className="flex w-3.5 shrink-0 items-center justify-center">
+                <span aria-hidden="true" className="flex items-center justify-center group-hover:hidden">
+                  {tab.type === "service" ? (
+                    <Zap
+                      className={`w-3 h-3 ${tab.running ? "text-emerald-400" : "text-[#8e8e8e]"}`}
+                      strokeWidth={2}
+                      fill={tab.running ? "currentColor" : "none"}
+                    />
+                  ) : tab.type === "browser" ? (
+                    <Globe className="w-3.5 h-3.5 text-[#8e8e8e]" />
+                  ) : tab.type === "review" ? (
+                    <Code className="w-3 h-3 text-[#8e8e8e]" />
+                  ) : tab.emoji ? (
+                    <span className="text-[12px] leading-none">{tab.emoji}</span>
+                  ) : (
+                    <TerminalIcon className="w-3 h-3 text-[#8e8e8e]" />
+                  )}
+                </span>
+                {tab.pinned ? (
+                  <Pin
+                    aria-hidden="true"
+                    className="hidden w-3 h-3 text-[#8e8e8e] group-hover:block"
+                    fill="currentColor"
                   />
-                ) : tab.type === "browser" ? (
-                  <Globe className="w-3.5 h-3.5 text-[#8e8e8e]" />
-                ) : tab.emoji ? (
-                  <span className="text-[12px] leading-none">{tab.emoji}</span>
                 ) : (
-                  <TerminalIcon className="w-3 h-3 text-[#8e8e8e]" />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCloseTab(i);
+                    }}
+                    aria-label={`Close ${tab.label}`}
+                    title="Close (⌘W)"
+                    className="hidden items-center justify-center rounded text-[#8e8e8e] transition-colors hover:text-gray-100 group-hover:flex focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
                 )}
               </span>
-              <span className="font-mono text-[11px] font-medium truncate">
+              <span
+                className={`font-mono text-[11px] font-medium truncate ${
+                  tab.status ? STATUS_LABEL_CLASS[tab.status] : ""
+                }`}
+              >
                 {tab.label}
               </span>
               {tab.port !== undefined && (
                 <span className="font-mono text-[10px] text-[#8e8e8e] tabular-nums shrink-0">
                   :{tab.port}
                 </span>
-              )}
-              {tab.pinned ? (
-                <Pin
-                  aria-hidden="true"
-                  className="w-3 h-3 text-[#8e8e8e] shrink-0"
-                  fill="currentColor"
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCloseTab(i);
-                  }}
-                  aria-label={`Close ${tab.label}`}
-                  className="rounded text-[#8e8e8e] hover:text-gray-100 transition-colors shrink-0 leading-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
-                >
-                  <X className="w-3 h-3" />
-                </button>
               )}
             </div>
           );
@@ -140,6 +159,7 @@ export function PaneHeader({
           <AddTabSplitButton
             onAddTerminal={onNewTab}
             onAddBrowser={onNewBrowser ?? onNewTab}
+            onAddReview={onNewReview ?? onNewTab}
           />
         )}
       </div>

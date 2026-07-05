@@ -250,6 +250,11 @@ fn start_internal(
         for (k, v) in std::env::vars() {
             builder.env(k, v);
         }
+        // The app may itself descend from a tmux pane (services run in tmux;
+        // dev runs launched from one), but these terminals are not tmux panes —
+        // a leaked TMUX makes TUIs like Claude Code disable their mouse UX.
+        builder.env_remove("TMUX");
+        builder.env_remove("TMUX_PANE");
         builder.env("TERM", "xterm-256color");
         builder.env("TERM_PROGRAM", "kitty");
         builder.env("LPM_SOCKET_PATH", config::socket_path());
@@ -269,6 +274,11 @@ fn start_internal(
         for (k, v) in std::env::vars() {
             builder.env(k, v);
         }
+        // The app may itself descend from a tmux pane (services run in tmux;
+        // dev runs launched from one), but these terminals are not tmux panes —
+        // a leaked TMUX makes TUIs like Claude Code disable their mouse UX.
+        builder.env_remove("TMUX");
+        builder.env_remove("TMUX_PANE");
         builder.env("TERM", "xterm-256color");
         builder.env("TERM_PROGRAM", "kitty");
         builder.env("LPM_SOCKET_PATH", config::socket_path());
@@ -512,7 +522,13 @@ pub fn stop_terminal(state: State<'_, PtyState>, id: String) -> Result<(), Strin
         sess.resume.notify_one();
     }
     *sess.closed.write().unwrap() = true;
-    let _ = sess.child.lock().unwrap().kill();
+    // Reap the shell's whole process tree, not just the shell pid: killing only
+    // the login shell leaves dev-server/agent grandchildren (node/next-server)
+    // orphaned and burning CPU. kill_tree_async snapshots + reaps off-thread so
+    // the UI thread never blocks; the flush thread reaps the shell zombie on EOF.
+    if let Some(pid) = sess.child.lock().unwrap().process_id().map(|p| p as i32) {
+        crate::proctree::kill_tree_async(pid);
+    }
     Ok(())
 }
 

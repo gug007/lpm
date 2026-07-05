@@ -3,6 +3,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import type { SerializeAddon } from "@xterm/addon-serialize";
 import { TERMINAL_FONT_FAMILY } from "../terminal-utils";
+import { handleCopyShortcut, handleNativeCopy } from "./copySelection";
 import { filterLines, stripAnsi } from "./filterLines";
 
 const MATCH_DECORATIONS = {
@@ -133,6 +134,11 @@ export class FilterMirror {
       search = new SearchAddon();
       term.loadAddon(search);
     } catch {}
+    term.attachCustomKeyEventHandler((e) => !handleCopyShortcut(e, term, null));
+    host.addEventListener("copy", (e) => handleNativeCopy(e, term, null), true);
+    // xterm preventDefaults mousedown without focusing itself, so a selection
+    // drag would otherwise leave ⌘C pointed at the previously focused element.
+    host.addEventListener("mousedown", () => term.focus());
     term.open(host);
 
     this.mirror = term;

@@ -19,14 +19,15 @@ import {
 } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
 import { useAIPicker } from "../hooks/useAIPicker";
-import { aiEffectiveFast, type AICLI } from "../types";
 import { getSettings } from "../store/settings";
 import {
   useEnabledComposerActions,
   type ComposerAction,
 } from "../store/composerActions";
+import { generateVariants, resolveTransformParams } from "../composerVariants";
 import { ComposerActionsButton } from "./ComposerActionsButton";
 import { ComposerActionsModal } from "./ComposerActionsModal";
+import { ComposerVariantsModal } from "./ComposerVariantsModal";
 import { ComposerMicButton } from "./ComposerMicButton";
 import {
   createInputTab,
@@ -35,15 +36,19 @@ import {
   type ComposerHistoryEntry,
   type ComposerInputTab,
 } from "../store/composerDrafts";
-import { recordMessage } from "../store/messageHistory";
+import { recordMessage, saveDraft } from "../store/messageHistory";
 import { ComposerTabStrip, type ComposerTabView } from "./ComposerTabStrip";
-import { PlusIcon, SendIcon } from "./icons";
+import { SendSplitButton } from "./SendSplitButton";
+import type { DuplicatePromptSeed } from "./BulkDuplicateDialog";
+import { PlusIcon } from "./icons";
 import { ImagePreviewPopover } from "./ImagePreviewPopover";
 import { ImageLightbox } from "./ImageLightbox";
 import { loadImageDataUrl } from "./imageDataUrl";
 import { TerminalHistoryButton } from "./TerminalHistoryButton";
 import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
+import { Tooltip } from "./ui/Tooltip";
 import { basename } from "../path";
+import { composerPlaceholder, COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 import {
   caretCharOffset,
   caretEdges,
@@ -74,6 +79,7 @@ import {
   setChipThumbnail,
   setEditorContent,
   splitByImageTokens,
+  type ComposerImage,
 } from "./composerEditor";
 import {
   readClipboardPayload,
@@ -115,6 +121,10 @@ interface TerminalComposerProps {
   // which AI CLI is running there (e.g. "claude …" / "codex …"), which scopes the
   // "/" slash-command autocomplete. Absent / unrecognized keeps the menu off.
   launchCmd?: string;
+  // Name of the project action this terminal was launched from, if any. Lets
+  // "run in duplicates" run that same action on each copy instead of replaying
+  // the resolved launch command (which may carry a one-off session id).
+  actionName?: string;
   // Terminal font size; the composer text scales to match it.
   fontSize: number;
   // Returns false when the input could not be delivered (e.g. a dead session),
@@ -122,6 +132,11 @@ interface TerminalComposerProps {
   // (text runs and image paths) to be delivered as separate pastes.
   onSubmit: (input: string | string[]) => boolean;
   onFocusTerminal: () => void;
+  // Hand the current prompt off to the "run in duplicates" flow. The host opens
+  // the seeded Duplicate dialog for the seed's copies and, on confirm, calls
+  // `runHere` to run the same prompt in this terminal as copy #1 — so the
+  // current project and every copy run it in parallel.
+  onRunInDuplicates: (seed: DuplicatePromptSeed, runHere: () => Promise<void>) => void;
 }
 
 // How many trailing lines of a service's pane to pull into the draft when its
@@ -173,7 +188,7 @@ function sameTabView(a: ComposerTabView[], b: ComposerTabView[]): boolean {
   return a.every((t, i) => t.id === b[i].id && t.label === b[i].label);
 }
 
-export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, fontSize, onSubmit, onFocusTerminal }: TerminalComposerProps) {
+export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, actionName, fontSize, onSubmit, onFocusTerminal, onRunInDuplicates }: TerminalComposerProps) {
   // `blank` drives the placeholder (no content at all); `disabled` drives the
   // send button (nothing but whitespace).
   const [blank, setBlank] = useState(true);
@@ -185,6 +200,14 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // The composer action currently being applied (drives the busy UI), or null.
   const [transformingId, setTransformingId] = useState<string | null>(null);
   const [actionsModalOpen, setActionsModalOpen] = useState(false);
+  // Set while the multi-result variant picker is open. `startedId` pins the tab
+  // the rewrites belong to, and `images` rehydrates whichever one is committed.
+  const [variants, setVariants] = useState<{
+    label: string;
+    list: string[];
+    images: Record<string, string>;
+    startedId: string;
+  } | null>(null);
   // Slash-command autocomplete: open state, highlighted row, the filtered list,
   // and the caret rect the popover anchors to.
   const [slashOpen, setSlashOpen] = useState(false);
@@ -724,55 +747,56 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     editor.focus();
   };
 
-  const send = async () => {
+  // Resolve a message (its serialized text + token→path image map) into what the
+  // terminal receives: plain text when there are no images, or an ordered array
+  // of text runs and per-image bracketed pastes. Each image path is uploaded
+  // (scp'd) for a remote pane and passed through for a local one, kept in
+  // segment order and padded so a path-attaching agent keeps order; blank runs
+  // between chips are dropped. A literal "[Image #N]" the user typed (no mapped
+  // path) rides along as plain text. Shared by live sends and history re-sends.
+  const buildTerminalPayload = async (
+    text: string,
+    images: Record<string, string>,
+  ): Promise<string | string[]> => {
+    const segments = splitByImageTokens(text);
+    const hasImages = segments.some((s) => s.image !== null && images[s.image] !== undefined);
+    if (!hasImages) return text;
+    const parts = await Promise.all(
+      segments.map(async (s) => {
+        const path = s.image === null ? undefined : images[s.image];
+        if (path === undefined) return s.text;
+        const uploaded = await UploadAndQuoteForTerminal(terminalId, [path]).catch(() => "");
+        return ` ${uploaded || path} `;
+      }),
+    );
+    return parts.filter((p) => p.trim().length > 0);
+  };
+
+  // Deliver a prompt (its text + token→local-path image map) to the target
+  // terminal and retire the active draft — resolve image pastes, submit, bump
+  // the recall ring, record durable history, then clear the field. Shared by the
+  // manual ↵ send and the run-in-duplicates "copy #1" send, which fires the same
+  // prompt into this terminal while the dialog spins up the extra copies.
+  const deliverPrompt = async (text: string, images: Record<string, string>) => {
     const editor = editorRef.current;
-    if (!editor || transforming.current) return;
-    const value = serializeEditor(editor);
-    if (!value.trim()) return;
+    if (!editor) return;
     // The editor stays editable across the upload await, so pin which prompt is
     // being sent now; a concurrent tab switch must not redirect the retire below.
     const sentId = activeId.current;
     // Re-entry guard scoped to this prompt: block a second Enter on the same tab
     // mid-upload, while a different prepared prompt can still be sent.
     if (sending.current.has(sentId)) return;
-    // Snapshot the token→local-path map now (before it's cleared) for both the
-    // recall ring and the durable history — local paths, so a re-send re-uploads.
-    const paths = new Map(imagePaths.current);
-    const images = Object.fromEntries(paths);
-    const segments = splitByImageTokens(value);
-    // Only segments whose token resolves to a real path are images; a literal
-    // "[Image #N]" the user typed rides along as plain text in one paste. Read
-    // from the local snapshot so a concurrent send clearing the map can't strip
-    // paths mid-upload.
-    const hasImages = segments.some((s) => s.image !== null && paths.has(s.image));
     sending.current.add(sentId);
     try {
-      let payload: string | string[];
-      if (hasImages) {
-        // Resolve each image to a deliverable path — uploaded (scp'd) for a remote
-        // pane, passed through for a local one — keeping per-segment order. Each
-        // path is its own bracketed paste so a path-attaching agent keeps order;
-        // pad it so it stays a distinct token, and drop blank runs between chips.
-        const parts = await Promise.all(
-          segments.map(async (s) => {
-            const path = s.image === null ? undefined : paths.get(s.image);
-            if (path === undefined) return s.text;
-            const uploaded = await UploadAndQuoteForTerminal(terminalId, [path]).catch(() => "");
-            return ` ${uploaded || path} `;
-          }),
-        );
-        payload = parts.filter((p) => p.trim().length > 0);
-      } else {
-        payload = value;
-      }
+      const payload = await buildTerminalPayload(text, images);
       if (!onSubmit(payload)) return;
-      history.current.unshift({ text: value, images });
+      history.current.unshift({ text, images });
       // The prepend shifts every existing entry up by one; nudge each recall
       // cursor (per-tab and the live one) so it stays anchored to its message.
       for (const t of tabs.current) if (t.histIdx >= 0) t.histIdx += 1;
       if (histIdx.current >= 0) histIdx.current += 1;
       recordMessage({
-        text: value,
+        text,
         projectName,
         terminalId: historyKey,
         terminalLabel: targetLabel,
@@ -782,6 +806,85 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     } finally {
       sending.current.delete(sentId);
     }
+  };
+
+  const send = async () => {
+    const editor = editorRef.current;
+    if (!editor || transforming.current) return;
+    const value = serializeEditor(editor);
+    if (!value.trim()) return;
+    // Snapshot the token→local-path map now (before it's cleared) — a plain-object
+    // copy, so a concurrent send clearing the live map can't strip paths mid-upload.
+    await deliverPrompt(value, Object.fromEntries(imagePaths.current));
+  };
+
+  // Fire a message chosen from the history popover straight at the terminal,
+  // without loading it into the composer first. Images resolve exactly like a
+  // live send; a delivered message is recorded so it bumps to the top of history,
+  // then focus moves to the terminal to watch the result.
+  const sendFromHistory = async (text: string, images: Record<string, string>) => {
+    if (!text.trim()) return;
+    const payload = await buildTerminalPayload(text, images);
+    if (!onSubmit(payload)) return;
+    recordMessage({ text, projectName, terminalId: historyKey, terminalLabel: targetLabel, images });
+    onFocusTerminal();
+  };
+
+  // Park the current prompt as a draft in message history without sending it,
+  // then clear the composer the same way a send does (auto-close the tab, or
+  // clear it in place) so the draft is filed away and the field is ready for the
+  // next prompt. The draft is reopened later from the history popover.
+  const saveCurrentDraft = async () => {
+    const editor = editorRef.current;
+    if (!editor || transforming.current) return;
+    const value = serializeEditor(editor);
+    if (!value.trim()) return;
+    // Same re-entry guard send() uses: the field stays editable across the write,
+    // so a save must not race a send (or a second save) of the same prompt.
+    const draftId = activeId.current;
+    if (sending.current.has(draftId)) return;
+    const images = Object.fromEntries(imagePaths.current);
+    sending.current.add(draftId);
+    try {
+      // Store the draft first; only clear the field once it's safely persisted so
+      // a failed write never discards the prompt.
+      await saveDraft({ text: value, projectName, terminalId: historyKey, terminalLabel: targetLabel, images });
+      finishSend(draftId, editor);
+      toast.success("Saved as draft");
+    } catch {
+      toast.error("Couldn't save draft");
+    } finally {
+      sending.current.delete(draftId);
+    }
+  };
+
+  // Hand the current prompt to the duplicate flow. The current project is copy
+  // #1: serialize the field and its live attachments (present tokens only), tag
+  // it with the terminal's launch command / originating action, and let the host
+  // open the seeded Duplicate dialog for the remaining `count - 1` copies. On
+  // confirm the host fires `runHere`, which runs this same prompt in THIS
+  // terminal — so the current project and every copy run it in parallel. Nothing
+  // runs until confirm.
+  const runInDuplicates = (count: number) => {
+    const editor = editorRef.current;
+    if (!editor || transforming.current) return;
+    const text = serializeEditor(editor);
+    if (!text.trim()) return;
+    const present = presentImageTokens(editor);
+    const images: ComposerImage[] = [];
+    for (const [token, path] of imagePaths.current) {
+      if (present.has(token)) images.push({ token, path });
+    }
+    const runHere = () => {
+      if (transforming.current) return Promise.resolve();
+      const map: Record<string, string> = {};
+      for (const img of images) map[img.token] = img.path;
+      return deliverPrompt(text, map);
+    };
+    onRunInDuplicates(
+      { prompt: { text, images, pending: false }, count: count - 1, command: launchCmd, actionName },
+      runHere,
+    );
   };
 
   // Rebuild the field from a recalled/saved message: a chip for each token with
@@ -1155,10 +1258,36 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     editor.focus();
   };
 
+  // Rebuild the field from a rewrite, bracketing it in two undo steps so ⌘Z
+  // reverts to the pre-action text. Reused by the single-result path and the
+  // variant picker.
+  const applyRewrite = (editor: HTMLDivElement, text: string, images: Record<string, string>) => {
+    commitUndo(); // finalize the pre-action text as its own undo step…
+    applyHistoryEntry(editor, { text, images });
+    histIdx.current = -1;
+    commitUndo(); // …and the rewrite as the next, so ⌘Z reverts it
+  };
+
+  // Release the transform lock and re-seat focus/caret once the field flips back
+  // to editable next render.
+  const endTransform = () => {
+    transforming.current = false;
+    setTransformingId(null);
+    requestAnimationFrame(() => {
+      const ed = editorRef.current;
+      if (ed) {
+        ed.focus();
+        placeCaretAtEnd(ed);
+      }
+    });
+  };
+
   // Apply a composer action: send the current text through the user's AI CLI
   // with the action's instruction, then rebuild the field from the result —
   // reusing the history-entry path so any preserved image tokens become chips.
-  const runAction = async (action: ComposerAction) => {
+  // A count above 1 asks for several rewrites and opens the variant picker
+  // instead of applying one straight away.
+  const runAction = async (action: ComposerAction, count = 1) => {
     const editor = editorRef.current;
     if (!editor || transforming.current) return;
     const value = serializeEditor(editor);
@@ -1171,48 +1300,63 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     const startedId = activeId.current;
     transforming.current = true;
     setTransformingId(action.id);
+    // The picker keeps the transform locked until a variant is committed, so the
+    // finally must not release it — chooseVariant/closeVariants do.
+    let openedPicker = false;
     try {
       // Read the live AI selection at run time — the picker in the manage modal
       // (or any other AI flow) may have changed it since this composer mounted.
-      const s = getSettings();
-      const cli = (s.aiCli as AICLI) || ai.selectedCLI;
-      const model = s.aiModel ?? ai.selectedModel;
-      const effort = s.aiEffort ?? ai.selectedEffort;
-      const fast = s.aiFast ?? ai.selectedFast;
-      const out = await TransformText(
-        projectName,
-        cwd,
-        cli,
-        model,
-        effort,
-        aiEffectiveFast(cli, model, fast),
-        action.instruction,
-        value,
-      );
-      const text = typeof out === "string" ? out.trim() : "";
-      if (!text) {
-        toast.error("AI returned an empty response");
-        return;
+      const params = resolveTransformParams(ai);
+      if (count <= 1) {
+        const out = await TransformText(
+          projectName,
+          cwd,
+          params.cli,
+          params.model,
+          params.effort,
+          params.fast,
+          action.instruction,
+          value,
+        );
+        const text = typeof out === "string" ? out.trim() : "";
+        if (!text) {
+          toast.error("AI returned an empty response");
+          return;
+        }
+        if (activeId.current !== startedId) return;
+        applyRewrite(editor, text, images);
+      } else {
+        const list = await generateVariants(projectName, cwd, params, action.instruction, value, count);
+        if (list.length === 0) {
+          toast.error("AI returned an empty response");
+          return;
+        }
+        if (activeId.current !== startedId) return;
+        openedPicker = true;
+        setVariants({ label: action.label, list, images, startedId });
       }
-      if (activeId.current !== startedId) return;
-      commitUndo(); // finalize the pre-action text as its own undo step…
-      applyHistoryEntry(editor, { text, images });
-      histIdx.current = -1;
-      commitUndo(); // …and the rewrite as the next, so ⌘Z reverts it
     } catch (err) {
       toast.error(`Action failed: ${err}`);
     } finally {
-      transforming.current = false;
-      setTransformingId(null);
-      // Re-seat focus/caret once the field flips back to editable next render.
-      requestAnimationFrame(() => {
-        const ed = editorRef.current;
-        if (ed) {
-          ed.focus();
-          placeCaretAtEnd(ed);
-        }
-      });
+      if (!openedPicker) endTransform();
     }
+  };
+
+  const chooseVariant = (text: string) => {
+    const session = variants;
+    setVariants(null);
+    const editor = editorRef.current;
+    // The lock pins the tab while the picker is open, so this normally holds; the
+    // guard just refuses to write a rewrite into the wrong tab if it somehow did.
+    if (editor && session && activeId.current === session.startedId) {
+      applyRewrite(editor, text, session.images);
+    }
+    endTransform();
+  };
+
+  const closeVariants = () => {
+    setVariants(null);
+    endTransform();
   };
 
   const deleteImageChip = (chip: HTMLElement) => {
@@ -1373,6 +1517,14 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     // explicit stepping below covers the common case, this cleans the rest
     // (word/line jumps, vertical moves, boundaries) before the next paint.
     if (e.key.startsWith("Arrow")) scheduleNormalize();
+    // ⌘↵ saves the prompt as a draft instead of sending it (mirrors the send
+    // button's split menu). Checked before plain ↵ so the modifier wins.
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      e.stopPropagation();
+      void saveCurrentDraft();
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       e.stopPropagation();
@@ -1501,11 +1653,6 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
 
   const busy = transformingId !== null;
   const showActions = ai.anyAvailable;
-  // Reserve room on the right for the floating button cluster so text never
-  // slides under it; each button is 28px wide with a 4px gap. Four are always
-  // shown (mic, new-input, history, send); the AI actions button is conditional.
-  const footerButtons = (showActions ? 1 : 0) + 4;
-  const editorPadRight = 8 + footerButtons * 28 + (footerButtons - 1) * 4 + 12;
 
   return (
     <div className="border-t border-[var(--border)] bg-[var(--terminal-bg)] px-3 pb-1 pt-2">
@@ -1582,15 +1729,15 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           onMouseOver={handleHover}
           onMouseLeave={dismissPreview}
           onScroll={dismissPreview}
-          style={{ ...textStyle, paddingRight: editorPadRight }}
-          className="block max-h-[200px] min-h-[60px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent py-2.5 pl-3.5 text-[var(--text-primary)] outline-none [overflow-wrap:anywhere]"
+          style={textStyle}
+          className="block max-h-[200px] min-h-[24px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent px-3.5 py-1.5 text-[var(--text-primary)] outline-none [overflow-wrap:anywhere]"
         />
         {blank && (
           <div
             style={textStyle}
-            className="pointer-events-none absolute left-3.5 top-2.5 text-[var(--text-muted)]"
+            className="pointer-events-none absolute left-3.5 top-1.5 text-[var(--text-muted)]"
           >
-            Send to {targetLabel}…
+            {composerPlaceholder(targetLabel)}
           </div>
         )}
         {hint && (
@@ -1602,52 +1749,45 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
             {hint.text}
           </div>
         )}
-        <div className="absolute bottom-2 right-2 flex items-center gap-1">
-          <ComposerMicButton />
-          {showActions && (
-            <ComposerActionsButton
-              enabledActions={enabledActions}
-              busy={busy}
-              canRun={!disabled}
-              cliLabel={ai.cliLabel}
-              onRun={runAction}
-              onManage={() => setActionsModalOpen(true)}
+        <div className="flex items-center justify-between px-2 pb-1">
+          <div className="flex items-center gap-1">
+            <ComposerMicButton />
+            {showActions && (
+              <ComposerActionsButton
+                align="left"
+                enabledActions={enabledActions}
+                busy={busy}
+                canRun={!disabled}
+                cliLabel={ai.cliLabel}
+                onRun={runAction}
+                onManage={() => setActionsModalOpen(true)}
+              />
+            )}
+            <Tooltip content="New prompt  ·  ⌘⇧T" delay={COMPOSER_TOOLTIP_DELAY_MS}>
+              <button
+                type="button"
+                onClick={addTab}
+                aria-label="New input"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              >
+                <PlusIcon />
+              </button>
+            </Tooltip>
+            <TerminalHistoryButton
+              terminalId={historyKey}
+              projectName={projectName}
+              terminalLabel={targetLabel}
+              onPick={loadFromHistory}
+              onSend={sendFromHistory}
             />
-          )}
-          <button
-            type="button"
-            onClick={addTab}
-            aria-label="New input"
-            title="New input"
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          >
-            <PlusIcon />
-          </button>
-          <TerminalHistoryButton
-            terminalId={historyKey}
-            projectName={projectName}
-            terminalLabel={targetLabel}
-            onPick={loadFromHistory}
+          </div>
+          <SendSplitButton
+            disabled={disabled}
+            busy={busy}
+            onSend={() => void send()}
+            onSaveDraft={() => void saveCurrentDraft()}
+            onRunInDuplicates={runInDuplicates}
           />
-          <button
-            type="button"
-            onClick={() => void send()}
-            disabled={disabled || busy}
-            title="Send  ·  ↵"
-            aria-label="Send"
-            style={
-              disabled || busy
-                ? undefined
-                : { boxShadow: "0 2px 12px -2px color-mix(in srgb, var(--accent-blue) 60%, transparent)" }
-            }
-            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 ${
-              disabled || busy
-                ? "text-[var(--text-muted)]"
-                : "bg-[var(--accent-blue)] text-[var(--bg-primary)] hover:brightness-110 active:scale-90"
-            }`}
-          >
-            <SendIcon />
-          </button>
         </div>
       </div>
       </div>
@@ -1674,6 +1814,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         />
       )}
       <ComposerActionsModal open={actionsModalOpen} onClose={() => setActionsModalOpen(false)} />
+      <ComposerVariantsModal
+        open={variants !== null}
+        actionLabel={variants?.label ?? ""}
+        variants={variants?.list ?? []}
+        onChoose={chooseVariant}
+        onClose={closeVariants}
+      />
     </div>
   );
 }

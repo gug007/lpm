@@ -14,6 +14,12 @@ const ICON_PROPS = {
   strokeLinejoin: "round" as const,
 };
 
+const AI_BRANCH_SUGGESTIONS = [
+  "feature/rotate-jwt-keys",
+  "fix/webhook-retry-backoff",
+  "chore/upgrade-dependencies",
+];
+
 function BranchIcon({ size = 12 }: { size?: number } = {}) {
   return (
     <svg {...ICON_PROPS} width={size} height={size} strokeWidth={2}>
@@ -133,6 +139,47 @@ function PullIcon() {
   );
 }
 
+function PushIcon() {
+  return (
+    <svg {...ICON_PROPS} width={12} height={12} strokeWidth={2}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="17 8 12 3 7 8" />
+      <line x1="12" y1="3" x2="12" y2="15" />
+    </svg>
+  );
+}
+
+function FetchIcon() {
+  return (
+    <svg {...ICON_PROPS} width={12} height={12} strokeWidth={2}>
+      <polyline points="23 4 23 10 17 10" />
+      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+    </svg>
+  );
+}
+
+function MergeIcon() {
+  return (
+    <svg {...ICON_PROPS} width={12} height={12} strokeWidth={2}>
+      <circle cx="18" cy="18" r="3" />
+      <circle cx="6" cy="6" r="3" />
+      <circle cx="6" cy="18" r="3" />
+      <path d="M6 9v6" />
+      <path d="M6 21a12 12 0 0 0 12-12" />
+    </svg>
+  );
+}
+
+function CloudOffIcon() {
+  return (
+    <svg {...ICON_PROPS} width={12} height={12} strokeWidth={2}>
+      <path d="m2 2 20 20" />
+      <path d="M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193" />
+      <path d="M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7.008 7.008 0 0 0 10 5.07" />
+    </svg>
+  );
+}
+
 function SyncIcon({ spinning }: { spinning: boolean }) {
   return (
     <svg
@@ -149,11 +196,12 @@ function SyncIcon({ spinning }: { spinning: boolean }) {
   );
 }
 
-type PullStrategy = "ff-only" | "rebase";
+type PullStrategy = "ff" | "ff-only" | "rebase";
 
 const PULL_STRATEGIES: { value: PullStrategy; label: string }[] = [
-  { value: "ff-only", label: "Pull" },
-  { value: "rebase", label: "Pull (Rebase)" },
+  { value: "ff", label: "Pull (ff if possible)" },
+  { value: "ff-only", label: "Pull (ff-only)" },
+  { value: "rebase", label: "Pull (rebase)" },
 ];
 
 type BranchSwitcherProps = {
@@ -162,12 +210,16 @@ type BranchSwitcherProps = {
   onCheckout: (branch: DemoBranch) => void;
   onCommit: () => void;
   onPull: (strategy: PullStrategy) => void;
+  onPush: () => void;
+  onFetch: () => void;
+  onMerge: (branch: string) => void;
   onCreatePR: () => void;
   onDiscard: () => void;
   onSync: () => void;
   onCreateBranch: (name: string) => void;
   onRenameBranch: (oldName: string, newName: string) => void;
   onDeleteBranch: (name: string) => void;
+  onRemoveRemote: (branch: DemoBranch) => void;
   onCopyBranchName: (name: string) => void;
 };
 
@@ -177,36 +229,57 @@ export function DemoBranchSwitcher({
   onCheckout,
   onCommit,
   onPull,
+  onPush,
+  onFetch,
+  onMerge,
   onCreatePR,
   onDiscard,
   onSync,
   onCreateBranch,
   onRenameBranch,
   onDeleteBranch,
+  onRemoveRemote,
   onCopyBranchName,
 }: BranchSwitcherProps) {
   const [branchOpen, setBranchOpen] = useState(false);
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
   const [pullMenuOpen, setPullMenuOpen] = useState(false);
-  const [pullStrategy, setPullStrategy] = useState<PullStrategy>("ff-only");
+  const [pullStrategy, setPullStrategy] = useState<PullStrategy>("ff");
+  const [mergePicker, setMergePicker] = useState(false);
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
+  const [generatingName, setGeneratingName] = useState(false);
   const [renamingKey, setRenamingKey] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<DemoBranch | null>(null);
+  const [removingRemote, setRemovingRemote] = useState<DemoBranch | null>(null);
   const branchRef = useRef<HTMLDivElement>(null);
   const commitRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const newBranchRef = useRef<HTMLInputElement>(null);
   const pullCloseTimer = useRef<number | null>(null);
+  const genIdxRef = useRef(0);
+
+  const generateBranchName = () => {
+    setGeneratingName(true);
+    window.setTimeout(() => {
+      const suggestion =
+        AI_BRANCH_SUGGESTIONS[genIdxRef.current % AI_BRANCH_SUGGESTIONS.length];
+      genIdxRef.current += 1;
+      setNewBranchName(suggestion);
+      setGeneratingName(false);
+      newBranchRef.current?.focus();
+    }, 650);
+  };
 
   const closeBranchMenu = () => {
     setBranchOpen(false);
     setQuery("");
     setCreating(false);
     setNewBranchName("");
+    setGeneratingName(false);
     setRenamingKey(null);
   };
 
@@ -330,10 +403,10 @@ export function DemoBranchSwitcher({
           className="flex items-center gap-1.5 rounded-md border border-[#2e2e2e] bg-[#242424] px-2.5 py-1 text-[10px] font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
         >
           <BranchIcon />
-          <span className="max-w-[160px] truncate">{git.branch}</span>
+          <span className="max-w-[160px] truncate font-mono">{git.branch}</span>
           {git.uncommitted > 0 && (
             <span
-              className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[#919191]"
+              className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[#60a5fa]"
               title={`${git.uncommitted} uncommitted file${git.uncommitted === 1 ? "" : "s"}`}
             />
           )}
@@ -399,7 +472,7 @@ export function DemoBranchSwitcher({
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => submitRename(b)}
                           disabled={!renameValue.trim() || renameValue.trim() === b.name}
-                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-cyan-400 transition-colors hover:bg-[#333] disabled:cursor-not-allowed disabled:opacity-40"
+                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[#60a5fa] transition-colors hover:bg-[#333] disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           <CheckIcon />
                         </button>
@@ -419,15 +492,15 @@ export function DemoBranchSwitcher({
                               : undefined
                           }
                           className={`flex min-w-0 flex-1 items-start gap-2 px-3 py-1.5 text-left text-[11px] disabled:opacity-50 ${
-                            isCurrent ? "text-cyan-300" : "text-[#b3b3b3]"
+                            isCurrent ? "text-[#60a5fa]" : "text-[#b3b3b3]"
                           }`}
                         >
                           {b.remote ? <CloudBranchIcon /> : <BranchIcon />}
                           <span className="flex min-w-0 flex-1 flex-col">
                             <span className="flex min-w-0 items-center gap-1.5">
-                              <span className="truncate font-mono">{b.name}</span>
+                              <span className="truncate">{b.name}</span>
                               {b.remote && (
-                                <span className="rounded bg-[#1f1f1f] px-1 py-px text-[9px] font-mono text-[#919191]">
+                                <span className="rounded bg-[#1f1f1f] px-1 py-px text-[9px] font-medium uppercase tracking-wide text-[#919191]">
                                   {b.remote}
                                 </span>
                               )}
@@ -468,6 +541,14 @@ export function DemoBranchSwitcher({
                                 <TrashIcon />
                               </BranchActionButton>
                             )}
+                            {b.remote && (
+                              <BranchActionButton
+                                title="Remove from list"
+                                onClick={() => setRemovingRemote(b)}
+                              >
+                                <CloudOffIcon />
+                              </BranchActionButton>
+                            )}
                           </div>
                           {b.age && (
                             <span className="text-[10px] text-[#919191] tabular-nums">
@@ -483,37 +564,49 @@ export function DemoBranchSwitcher({
             </div>
             <div className="border-t border-[#2e2e2e]">
               {creating ? (
-                <div className="flex items-center gap-2 px-3 py-1.5">
-                  <PlusIcon />
-                  <input
-                    ref={newBranchRef}
-                    value={newBranchName}
-                    onChange={(e) => setNewBranchName(e.target.value)}
-                    placeholder="new-branch-name"
-                    spellCheck={false}
-                    autoCapitalize="off"
-                    autoCorrect="off"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        submitCreate();
-                      } else if (e.key === "Escape") {
-                        e.preventDefault();
-                        setCreating(false);
-                        setNewBranchName("");
-                      }
-                    }}
-                    className="min-w-0 flex-1 rounded border border-[#3a3a3a] bg-[#1a1a1a] px-1 py-0.5 text-[11px] font-mono text-[#e5e5e5] outline-none focus:border-[#5a5a5a]"
-                  />
+                <div className="px-3 py-1.5">
+                  <div className="flex items-center gap-2">
+                    <PlusIcon />
+                    <input
+                      ref={newBranchRef}
+                      value={newBranchName}
+                      onChange={(e) => setNewBranchName(e.target.value)}
+                      placeholder="new-branch-name"
+                      spellCheck={false}
+                      autoCapitalize="off"
+                      autoCorrect="off"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          submitCreate();
+                        } else if (e.key === "Escape") {
+                          e.preventDefault();
+                          setCreating(false);
+                          setNewBranchName("");
+                        }
+                      }}
+                      className="min-w-0 flex-1 rounded border border-[#3a3a3a] bg-[#1a1a1a] px-1 py-0.5 text-[11px] font-mono text-[#e5e5e5] outline-none focus:border-[#5a5a5a]"
+                    />
+                    <button
+                      type="button"
+                      title="Create"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={submitCreate}
+                      disabled={!newBranchName.trim()}
+                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[#60a5fa] transition-colors hover:bg-[#333] disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <CheckIcon />
+                    </button>
+                  </div>
                   <button
                     type="button"
-                    title="Create"
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={submitCreate}
-                    disabled={!newBranchName.trim()}
-                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-cyan-400 transition-colors hover:bg-[#333] disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={generateBranchName}
+                    disabled={generatingName}
+                    className="mt-1.5 flex items-center gap-1.5 rounded px-1 py-0.5 text-[10px] text-[#b3b3b3] transition-colors hover:text-[#e5e5e5] disabled:opacity-70"
                   >
-                    <CheckIcon />
+                    <SparkleGlyph />
+                    {generatingName ? "Generating…" : "Generate with AI"}
                   </button>
                 </div>
               ) : (
@@ -545,7 +638,7 @@ export function DemoBranchSwitcher({
           <CommitIcon />
           <span>Commit</span>
           {git.uncommitted > 0 && (
-            <span className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-cyan-400" />
+            <span className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[#60a5fa]" />
           )}
         </button>
         <button
@@ -587,12 +680,45 @@ export function DemoBranchSwitcher({
               type="button"
               onClick={() => {
                 setCommitMenuOpen(false);
+                onPush();
+              }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
+            >
+              <PushIcon />
+              Push
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCommitMenuOpen(false);
+                onFetch();
+              }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
+            >
+              <FetchIcon />
+              Fetch
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCommitMenuOpen(false);
                 onCreatePR();
               }}
               className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
             >
               <PRIcon />
               Create PR
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCommitMenuOpen(false);
+                setMergePicker(true);
+              }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
+            >
+              <MergeIcon />
+              Merge
             </button>
             <div className="my-1 border-t border-[#2e2e2e]" />
             <button
@@ -644,7 +770,189 @@ export function DemoBranchSwitcher({
           }}
         />
       )}
+
+      {mergePicker && (
+        <MergeDialog
+          currentBranch={git.branch}
+          branches={git.branches}
+          onCancel={() => setMergePicker(false)}
+          onMerge={(branch) => {
+            onMerge(branch);
+            setMergePicker(false);
+          }}
+        />
+      )}
+
+      {removingRemote && (
+        <ConfirmDialog
+          title="Remove branch from list"
+          confirmLabel="Remove"
+          body={
+            <>
+              Remove{" "}
+              <span className="font-medium text-[#e5e5e5]">
+                {removingRemote.remote}/{removingRemote.name}
+              </span>
+              ? This clears the copy lpm keeps locally — it doesn&apos;t change
+              anything on the remote. If the branch still exists there, it will
+              come back the next time you fetch.
+            </>
+          }
+          onCancel={() => setRemovingRemote(null)}
+          onConfirm={() => {
+            onRemoveRemote(removingRemote);
+            setRemovingRemote(null);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function MergeDialog({
+  currentBranch,
+  branches,
+  onCancel,
+  onMerge,
+}: {
+  currentBranch: string;
+  branches: DemoBranch[];
+  onCancel: () => void;
+  onMerge: (branch: string) => void;
+}) {
+  const mergeable = useMemo(
+    () =>
+      branches.filter(
+        (b) => (b.remote ? `${b.remote}/${b.name}` : b.name) !== currentBranch,
+      ),
+    [branches, currentBranch],
+  );
+  const [selected, setSelected] = useState<DemoBranch | undefined>(mergeable[0]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const labelOf = (b: DemoBranch) => (b.remote ? `${b.remote}/${b.name}` : b.name);
+
+  return (
+    <div className="absolute inset-0 z-[60] flex items-center justify-center">
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={onCancel}
+        className="absolute inset-0 bg-black/50"
+      />
+      <div className="relative w-80 rounded-xl border border-[#2e2e2e] bg-[#1f1f1f] p-5 shadow-xl">
+        <div className="text-sm font-medium text-[#e5e5e5]">Merge</div>
+        <p className="mt-2 text-[12px] leading-relaxed text-[#b3b3b3]">
+          Merge another branch into{" "}
+          <span className="font-mono text-[#e5e5e5]">{currentBranch}</span>.
+        </p>
+        <div className="mt-4">
+          <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-[#919191]">
+            Branch to merge
+          </span>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setPickerOpen((v) => !v)}
+              disabled={!selected}
+              className="flex w-full items-center gap-2 rounded-md border border-[#2e2e2e] bg-[#242424] px-2.5 py-1.5 text-left text-[12px] text-[#e5e5e5] transition-colors hover:border-[#5a5a5a] disabled:opacity-50"
+            >
+              {selected ? (
+                <BranchOption b={selected} />
+              ) : (
+                <span className="flex-1 text-[#666]">No other branches</span>
+              )}
+              <span className="shrink-0 text-[#919191]">
+                <ChevronDownIcon />
+              </span>
+            </button>
+            {pickerOpen && (
+              <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-52 overflow-y-auto rounded-md border border-[#2e2e2e] bg-[#242424] py-1 shadow-xl">
+                {mergeable.map((b) => {
+                  const active = selected && labelOf(b) === labelOf(selected);
+                  return (
+                    <button
+                      key={labelOf(b)}
+                      type="button"
+                      onClick={() => {
+                        setSelected(b);
+                        setPickerOpen(false);
+                      }}
+                      className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[12px] transition-colors ${
+                        active
+                          ? "bg-[#2f2f2f] text-[#e5e5e5]"
+                          : "text-[#b3b3b3] hover:bg-[#2a2a2a]"
+                      }`}
+                    >
+                      <BranchOption b={b} />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="mt-3 flex items-center gap-1.5 rounded-md border border-[#2e2e2e] bg-[#242424] px-2.5 py-2 text-[11px] text-[#919191]">
+          <SparkleGlyph />
+          Conflicts? lpm can resolve them with AI.
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg border border-[#2e2e2e] bg-[#242424] px-3 py-1.5 text-xs font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => selected && onMerge(labelOf(selected))}
+            disabled={!selected}
+            className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-gray-900 transition-all hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Merge
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BranchOption({ b }: { b: DemoBranch }) {
+  return (
+    <>
+      <span className="shrink-0 text-[#8e8e8e]">
+        {b.remote ? <CloudBranchIcon /> : <BranchIcon />}
+      </span>
+      <span className="min-w-0 flex-1 truncate font-mono">{b.name}</span>
+      {b.remote && (
+        <span className="shrink-0 rounded bg-[#333] px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-[#919191]">
+          {b.remote}
+        </span>
+      )}
+      {b.age && (
+        <span className="shrink-0 text-[10px] tabular-nums text-[#919191]">
+          {b.age}
+        </span>
+      )}
+    </>
+  );
+}
+
+function SparkleGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={12}
+      height={12}
+      fill="none"
+      stroke="#c084fc"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="shrink-0"
+    >
+      <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2" />
+    </svg>
   );
 }
 

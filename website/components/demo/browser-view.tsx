@@ -194,7 +194,7 @@ export function BrowserView({
           <ChevronRight className="h-4 w-4" />
         </button>
         <button className={NAV_BTN} onClick={reload} title="Reload" aria-label="Reload">
-          <RotateCw className="h-3.5 w-3.5" />
+          <RotateCw className="h-4 w-4" />
         </button>
         <form onSubmit={go} className="relative flex-1">
           <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[#7e7e7e]">
@@ -222,10 +222,10 @@ export function BrowserView({
         <button
           className={NAV_BTN}
           onClick={() => setDark((d) => !d)}
-          title={dark ? "Switch page to light" : "Switch page to dark"}
-          aria-label="Toggle page theme"
+          title={dark ? "Switch browser to light" : "Switch browser to dark"}
+          aria-label="Toggle browser theme"
         >
-          {dark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+          {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
       </div>
 

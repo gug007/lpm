@@ -127,6 +127,9 @@ const RESERVED = new Set<string>([
 // App.tsx — Cmd+1..9 select project by index
 for (let n = 1; n <= 9; n++) RESERVED.add(`cmd+${n}`);
 
-export function isReservedShortcut(s: KeyboardShortcut): boolean {
-  return RESERVED.has(canonicalShortcut(s));
+// The tab-switch combos are user-configurable, so they aren't in RESERVED;
+// callers that must block them (the action wizard) pass them via `extra`.
+export function isReservedShortcut(s: KeyboardShortcut, extra?: ReadonlySet<string>): boolean {
+  const id = canonicalShortcut(s);
+  return RESERVED.has(id) || (extra?.has(id) ?? false);
 }

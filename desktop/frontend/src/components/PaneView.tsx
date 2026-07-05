@@ -23,6 +23,8 @@ import { XIcon, GlobeIcon, TerminalIcon, ZapIcon, CodeIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
 import { SortableTab, TabStrip } from "./TerminalTabDnd";
 import { TerminalComposer } from "./TerminalComposer";
+import type { DuplicatePromptSeed } from "./BulkDuplicateDialog";
+import { ComposerReopenBar } from "./ComposerReopenBar";
 import { useScrollFade } from "../hooks/useScrollFade";
 import { computeScrollIntoViewLeft } from "../hooks/scrollIntoViewX";
 import { useTabScroll } from "../store/tabScroll";
@@ -121,6 +123,7 @@ export interface PaneViewProps {
   onAddBrowser: (paneId: string) => void;
   onAddReview: (paneId: string) => void;
   onCloseTerminal: (paneId: string, tabIdx: number) => void;
+  onCloseOtherTerminals: (paneId: string, tabIdx: number) => void;
   onRenameTerminal: (
     paneId: string,
     tabIdx: number,
@@ -143,6 +146,10 @@ export interface PaneViewProps {
   onClearStatus: (terminalId: string, kind: StatusKind) => void;
   onSubmitInput: (terminalId: string, input: string | string[]) => boolean;
   onFocusTerminalInput: (terminalId: string) => void;
+  // Open the seeded Duplicate dialog from a composer's split button, carrying
+  // the current prompt. On confirm the current project runs it as copy #1
+  // (`runHere`) alongside the seed's fresh copies, all in parallel.
+  onRunInDuplicates: (seed: DuplicatePromptSeed, runHere: () => Promise<void>) => void;
   onFindInPane: (paneId: string, query: string, direction: "next" | "prev") => boolean;
   filterMode: boolean;
   matchCount: number;
@@ -178,6 +185,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onAddBrowser,
     onAddReview,
     onCloseTerminal,
+    onCloseOtherTerminals,
     onRenameTerminal,
     onTogglePinTab,
     onSplit,
@@ -189,6 +197,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onClearStatus,
     onSubmitInput,
     onFocusTerminalInput,
+    onRunInDuplicates,
     onFindInPane,
     filterMode,
     matchCount,
@@ -532,37 +541,48 @@ function PaneViewImpl(props: PaneViewProps) {
           );
         })}
       </div>
-      {composerOpen && composerTab && (
-        // Keyed by terminal id so each terminal keeps its own draft and the
-        // input refocuses when the active terminal changes.
-        <TerminalComposer
-          key={composerTab.id}
-          terminalId={composerTab.id}
-          historyKey={composerTab.historyKey ?? composerTab.id}
-          projectName={projectName}
-          shown={visible}
-          focused={focused}
-          targetLabel={composerTab.label}
-          terminals={allTerminals}
-          cwd={interactiveCwd}
-          launchCmd={composerTab.startCmd ?? composerTab.resumeCmd}
-          fontSize={fontSize}
-          onSubmit={(input) => onSubmitInput(composerTab.id, input)}
-          onFocusTerminal={() => onFocusTerminalInput(composerTab.id)}
-        />
-      )}
+      {composerTab &&
+        (composerOpen ? (
+          // Keyed by terminal id so each terminal keeps its own draft and the
+          // input refocuses when the active terminal changes.
+          <TerminalComposer
+            key={composerTab.id}
+            terminalId={composerTab.id}
+            historyKey={composerTab.historyKey ?? composerTab.id}
+            projectName={projectName}
+            shown={visible}
+            focused={focused}
+            targetLabel={composerTab.label}
+            terminals={allTerminals}
+            cwd={interactiveCwd}
+            launchCmd={composerTab.startCmd ?? composerTab.resumeCmd}
+            actionName={composerTab.actionName}
+            fontSize={fontSize}
+            onSubmit={(input) => onSubmitInput(composerTab.id, input)}
+            onFocusTerminal={() => onFocusTerminalInput(composerTab.id)}
+            onRunInDuplicates={onRunInDuplicates}
+          />
+        ) : (
+          // Input closed: leave a slim stand-in that reopens it (same as ⌘I).
+          <ComposerReopenBar targetLabel={composerTab.label} fontSize={fontSize} />
+        ))}
       {tabMenu && (() => {
         const targetPane = pane.id === tabMenu.paneId ? pane : null;
         const tab = targetPane?.tabs[tabMenu.tabIdx];
         if (!tab) return null;
+        const canCloseOthers = targetPane.tabs.some(
+          (t, i) => i !== tabMenu.tabIdx && t.pinned !== true,
+        );
         return (
           <TabContextMenu
             x={tabMenu.x}
             y={tabMenu.y}
             pinned={tab.pinned === true}
+            canCloseOthers={canCloseOthers}
             onRename={() => setRenamingTabIdx(tabMenu.tabIdx)}
             onTogglePin={() => onTogglePinTab(tabMenu.paneId, tabMenu.tabIdx)}
             onCloseTab={() => onCloseTerminal(tabMenu.paneId, tabMenu.tabIdx)}
+            onCloseOthers={() => onCloseOtherTerminals(tabMenu.paneId, tabMenu.tabIdx)}
             onClose={() => setTabMenu(null)}
           />
         );

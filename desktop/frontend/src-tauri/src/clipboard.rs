@@ -110,3 +110,33 @@ pub fn save_clipboard_image_impl(b64_data: &str, mime_type: &str) -> Result<Stri
 pub fn save_clipboard_image(b64_data: String, mime_type: String) -> Result<String, String> {
     save_clipboard_image_impl(&b64_data, &mime_type)
 }
+
+/// Write text to the system clipboard via pbcopy. The WKWebView refuses
+/// `navigator.clipboard` writes that aren't tied to a user gesture, which is
+/// exactly the case for OSC 52 writes arriving asynchronously from the PTY.
+#[tauri::command(async)]
+pub fn set_clipboard_text(text: String) -> Result<(), String> {
+    let mut child = std::process::Command::new("pbcopy")
+        // Without a UTF-8 locale pbcopy decodes stdin as Mac Roman, mangling
+        // multi-byte characters.
+        .env("LC_CTYPE", "UTF-8")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| format!("spawn pbcopy: {e}"))?;
+    // Always reap the child, even when the write fails, so no zombie is left.
+    let write_res = match child.stdin.take() {
+        Some(mut stdin) => stdin
+            .write_all(text.as_bytes())
+            .map_err(|e| format!("write pbcopy: {e}")),
+        None => Err("pbcopy stdin unavailable".to_string()),
+    };
+    let wait_res = child.wait().map_err(|e| format!("wait pbcopy: {e}"));
+    write_res?;
+    let status = wait_res?;
+    if !status.success() {
+        return Err(format!("pbcopy exited with {status}"));
+    }
+    Ok(())
+}

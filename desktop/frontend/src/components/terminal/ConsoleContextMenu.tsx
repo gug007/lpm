@@ -12,6 +12,10 @@ interface ConsoleContextMenuProps {
   serialize: SerializeAddon | null;
   canPaste: boolean;
   filter?: ConsoleFilter | null;
+  // The running app holds the selection (mouse-owning TUIs); Copy asks it to
+  // copy instead of reading the terminal's own (empty) selection.
+  appCopyAvailable?: boolean;
+  onAppCopy?: () => void;
   onClear: () => void;
   onPaste?: () => void;
   onClose: () => void;
@@ -24,6 +28,8 @@ export function ConsoleContextMenu({
   serialize,
   canPaste,
   filter,
+  appCopyAvailable,
+  onAppCopy,
   onClear,
   onPaste,
   onClose,
@@ -38,8 +44,11 @@ export function ConsoleContextMenu({
       <ContextMenuItem
         label="Copy"
         shortcut="⌘C"
-        disabled={!hasSelection}
-        onClick={run(() => copyTerminalSelection(term, serialize))}
+        disabled={!hasSelection && !appCopyAvailable}
+        onClick={run(() => {
+          if (hasSelection) copyTerminalSelection(term, serialize);
+          else onAppCopy?.();
+        })}
       />
       {canPaste && onPaste && (
         <ContextMenuItem label="Paste" shortcut="⌘V" onClick={run(onPaste)} />

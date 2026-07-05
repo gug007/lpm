@@ -37,7 +37,7 @@ function AddActionForm({
   const [name, setName] = useState("");
   const [emoji, setEmoji] = useState("🚀");
   const [cmd, setCmd] = useState("");
-  const [runMode, setRunMode] = useState<NewActionRunMode>("once");
+  const [runMode, setRunMode] = useState<NewActionRunMode>("terminal");
   const [confirm, setConfirm] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -116,18 +116,18 @@ function AddActionForm({
             </span>
             <div className="grid grid-cols-2 gap-1.5">
               <ModeOption
-                active={runMode === "once"}
-                onClick={() => setRunMode("once")}
-                icon={<Play className="h-3.5 w-3.5" />}
-                label="Run once"
-                desc="Runs and finishes"
-              />
-              <ModeOption
                 active={runMode === "terminal"}
                 onClick={() => setRunMode("terminal")}
                 icon={<TerminalIcon className="h-3.5 w-3.5" />}
                 label="Open terminal"
-                desc="Keeps a tab open"
+                desc="Good for servers & long tasks"
+              />
+              <ModeOption
+                active={runMode === "once"}
+                onClick={() => setRunMode("once")}
+                icon={<Play className="h-3.5 w-3.5" />}
+                label="Run once"
+                desc="Shows output in a pop-up"
               />
             </div>
           </div>
