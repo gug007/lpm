@@ -67,10 +67,28 @@ export interface BulkDuplicateOptions {
   groupName: string;
 }
 
+// Everything the "run in duplicates" flow (a composer's split button) hands the
+// dialog to pre-fill itself: the current prompt (text + attachments), how many
+// copies to spin up, and how each copy runs it — the originating project action
+// when the terminal was launched from one (preferred, since the action
+// regenerates a clean command per copy), otherwise the raw launch command.
+export interface DuplicatePromptSeed {
+  prompt: ComposerValue;
+  count: number;
+  command?: string;
+  actionName?: string;
+}
+
 interface BulkDuplicateDialogProps {
   open: boolean;
   project: ProjectInfo | null;
   folderNames: string[];
+  // Opened from a composer's "run in duplicates": pre-fill the shared prompt,
+  // the copy count, and how each copy runs it — the originating project action
+  // when the terminal came from one (preferred), else the raw agent command.
+  // When set, the run section stays collapsed and these one-off choices are NOT
+  // persisted as the user's duplicate defaults.
+  seed?: DuplicatePromptSeed;
   onCancel: () => void;
   onConfirm: (count: number, opts: BulkDuplicateOptions) => void;
 }
@@ -79,9 +97,11 @@ export function BulkDuplicateDialog({
   open,
   project,
   folderNames,
+  seed,
   onCancel,
   onConfirm,
 }: BulkDuplicateDialogProps) {
+  const seeded = seed !== undefined;
   const [copies, setCopies] = useState<CopyDraft[]>([
     { label: "", override: null },
   ]);
@@ -131,18 +151,35 @@ export function BulkDuplicateDialog({
         : s.duplicateRunMode === "command"
           ? "command"
           : "none";
-    setCopies([{ label: genLabel(), override: null }]);
-    setMode(savedMode);
-    setActionName(savedAction);
-    setCommand(s.duplicateCommand ?? "");
-    setComposer(EMPTY_COMPOSER);
+    // Seed the copy count from the menu's counter (clamped), else one copy.
+    const initialCount = seed?.count ? clamp(seed.count) : 1;
+    setCopies(
+      Array.from({ length: initialCount }, () => ({
+        label: genLabel(),
+        override: null,
+      })),
+    );
+    // Prefer running the originating action (a clean, re-resolved command per
+    // copy) over replaying the raw launch command; fall back to the saved mode
+    // when nothing is seeded.
+    const seededMode: RunMode = seed?.actionName
+      ? "action"
+      : seed?.command !== undefined
+        ? "command"
+        : savedMode;
+    setMode(seededMode);
+    setActionName(seed?.actionName ?? savedAction);
+    setCommand(seed?.command ?? s.duplicateCommand ?? "");
+    setComposer(seed?.prompt ?? EMPTY_COMPOSER);
     setEditing(null);
     setExcludeUncommitted(s.duplicateExcludeUncommitted ?? false);
     setReinstallDeps(s.duplicateReinstallDeps ?? false);
     setPullLatest(s.duplicatePullLatest ?? true);
     setGroupName("");
     setFolderOpen(false);
-    setRunOpen(s.duplicateRunSectionOpen ?? false);
+    // A composer-seeded run stays collapsed — its target/prompt are already set
+    // and summarized in the section header, so the dialog opens uncluttered.
+    setRunOpen(seeded ? false : (s.duplicateRunSectionOpen ?? false));
     setOptionsOpen(s.duplicateOptionsSectionOpen ?? false);
   }, [open, project?.name]);
 
@@ -230,6 +267,20 @@ export function BulkDuplicateDialog({
   // still has an image saving to disk.
   const imagesPending =
     composer.pending || copies.some((c) => c.override?.prompt.pending);
+
+  // When the "Run on each copy" section resolves to an actual task, the confirm
+  // button leads with that action ("Run on …"); with nothing to run it's just
+  // "Create …". Mirrors taskFrom so the verb matches what will actually happen.
+  const defaultRuns =
+    (mode === "action" && actionName.trim().length > 0) ||
+    (mode === "command" && command.trim().length > 0);
+  const confirmLabel = imagesPending
+    ? "Attaching images…"
+    : defaultRuns
+      ? single
+        ? "Run on the copy"
+        : `Run on ${count} copies`
+      : `Create ${count} ${noun}`;
 
   // The same history recall + AI-edit wiring is shared by the default composer
   // and every per-copy override composer.
@@ -357,14 +408,19 @@ export function BulkDuplicateDialog({
 
   const handleConfirm = () => {
     if (!project) return;
-    saveSettings({
-      duplicateExcludeUncommitted: excludeUncommitted,
-      duplicateReinstallDeps: reinstallDeps,
-      duplicatePullLatest: pullLatest,
-      duplicateRunMode: mode,
-      duplicateActionName: actionName || undefined,
-      duplicateCommand: command || undefined,
-    });
+    // A seeded (composer-triggered) run points at that terminal's agent command
+    // for this one duplication — don't let it overwrite the user's remembered
+    // "run on each copy" defaults for the normal Duplicate flow.
+    if (!seeded) {
+      saveSettings({
+        duplicateExcludeUncommitted: excludeUncommitted,
+        duplicateReinstallDeps: reinstallDeps,
+        duplicatePullLatest: pullLatest,
+        duplicateRunMode: mode,
+        duplicateActionName: actionName || undefined,
+        duplicateCommand: command || undefined,
+      });
+    }
     onConfirm(count, {
       excludeUncommitted,
       reinstallDeps,
@@ -652,6 +708,7 @@ export function BulkDuplicateDialog({
                   <div className="mt-3 field-reveal">
                     <InputComposer
                       onChange={setComposer}
+                      defaultValue={seed?.prompt}
                       placeholder="Type a task for an AI agent, and paste or attach images…"
                       history={composerHistory}
                       aiCwd={aiCwd}
@@ -714,7 +771,7 @@ export function BulkDuplicateDialog({
           disabled={!project || imagesPending}
           className="rounded-lg bg-[var(--text-primary)] px-4 py-2 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition-opacity hover:opacity-90 disabled:opacity-40"
         >
-          {imagesPending ? "Attaching images…" : `Create ${count} ${noun}`}
+          {confirmLabel}
         </button>
       </div>
     </Modal>

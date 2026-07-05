@@ -39,6 +39,7 @@ import {
 import { recordMessage, saveDraft } from "../store/messageHistory";
 import { ComposerTabStrip, type ComposerTabView } from "./ComposerTabStrip";
 import { SendSplitButton } from "./SendSplitButton";
+import type { DuplicatePromptSeed } from "./BulkDuplicateDialog";
 import { PlusIcon } from "./icons";
 import { ImagePreviewPopover } from "./ImagePreviewPopover";
 import { ImageLightbox } from "./ImageLightbox";
@@ -78,6 +79,7 @@ import {
   setChipThumbnail,
   setEditorContent,
   splitByImageTokens,
+  type ComposerImage,
 } from "./composerEditor";
 import {
   readClipboardPayload,
@@ -119,6 +121,10 @@ interface TerminalComposerProps {
   // which AI CLI is running there (e.g. "claude …" / "codex …"), which scopes the
   // "/" slash-command autocomplete. Absent / unrecognized keeps the menu off.
   launchCmd?: string;
+  // Name of the project action this terminal was launched from, if any. Lets
+  // "run in duplicates" run that same action on each copy instead of replaying
+  // the resolved launch command (which may carry a one-off session id).
+  actionName?: string;
   // Terminal font size; the composer text scales to match it.
   fontSize: number;
   // Returns false when the input could not be delivered (e.g. a dead session),
@@ -126,6 +132,9 @@ interface TerminalComposerProps {
   // (text runs and image paths) to be delivered as separate pastes.
   onSubmit: (input: string | string[]) => boolean;
   onFocusTerminal: () => void;
+  // Hand the current prompt off to the "run in duplicates" flow, which spins up
+  // the seed's `count` fresh project copies that each run it in parallel.
+  onRunInDuplicates: (seed: DuplicatePromptSeed) => void;
 }
 
 // How many trailing lines of a service's pane to pull into the draft when its
@@ -177,7 +186,7 @@ function sameTabView(a: ComposerTabView[], b: ComposerTabView[]): boolean {
   return a.every((t, i) => t.id === b[i].id && t.label === b[i].label);
 }
 
-export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, fontSize, onSubmit, onFocusTerminal }: TerminalComposerProps) {
+export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, actionName, fontSize, onSubmit, onFocusTerminal, onRunInDuplicates }: TerminalComposerProps) {
   // `blank` drives the placeholder (no content at all); `disabled` drives the
   // send button (nothing but whitespace).
   const [blank, setBlank] = useState(true);
@@ -836,6 +845,24 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     } finally {
       sending.current.delete(draftId);
     }
+  };
+
+  // Hand the current prompt to the duplicate flow: serialize the field and its
+  // live attachments (present tokens only), tag it with the terminal's launch
+  // command and originating action, and let the host open the seeded Duplicate
+  // dialog for `count` copies. The field is left untouched — the prompt keeps
+  // running here as usual.
+  const runInDuplicates = (count: number) => {
+    const editor = editorRef.current;
+    if (!editor || transforming.current) return;
+    const text = serializeEditor(editor);
+    if (!text.trim()) return;
+    const present = presentImageTokens(editor);
+    const images: ComposerImage[] = [];
+    for (const [token, path] of imagePaths.current) {
+      if (present.has(token)) images.push({ token, path });
+    }
+    onRunInDuplicates({ prompt: { text, images, pending: false }, count, command: launchCmd, actionName });
   };
 
   // Rebuild the field from a recalled/saved message: a chip for each token with
@@ -1736,6 +1763,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
             busy={busy}
             onSend={() => void send()}
             onSaveDraft={() => void saveCurrentDraft()}
+            onRunInDuplicates={runInDuplicates}
           />
         </div>
       </div>

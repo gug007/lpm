@@ -23,6 +23,7 @@ import { XIcon, GlobeIcon, TerminalIcon, ZapIcon, CodeIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
 import { SortableTab, TabStrip } from "./TerminalTabDnd";
 import { TerminalComposer } from "./TerminalComposer";
+import type { DuplicatePromptSeed } from "./BulkDuplicateDialog";
 import { ComposerReopenBar } from "./ComposerReopenBar";
 import { useScrollFade } from "../hooks/useScrollFade";
 import { computeScrollIntoViewLeft } from "../hooks/scrollIntoViewX";
@@ -145,6 +146,9 @@ export interface PaneViewProps {
   onClearStatus: (terminalId: string, kind: StatusKind) => void;
   onSubmitInput: (terminalId: string, input: string | string[]) => boolean;
   onFocusTerminalInput: (terminalId: string) => void;
+  // Open the seeded Duplicate dialog from a composer's split button, carrying
+  // the current prompt so each of the seed's fresh copies runs it in parallel.
+  onRunInDuplicates: (seed: DuplicatePromptSeed) => void;
   onFindInPane: (paneId: string, query: string, direction: "next" | "prev") => boolean;
   filterMode: boolean;
   matchCount: number;
@@ -192,6 +196,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onClearStatus,
     onSubmitInput,
     onFocusTerminalInput,
+    onRunInDuplicates,
     onFindInPane,
     filterMode,
     matchCount,
@@ -550,9 +555,11 @@ function PaneViewImpl(props: PaneViewProps) {
             terminals={allTerminals}
             cwd={interactiveCwd}
             launchCmd={composerTab.startCmd ?? composerTab.resumeCmd}
+            actionName={composerTab.actionName}
             fontSize={fontSize}
             onSubmit={(input) => onSubmitInput(composerTab.id, input)}
             onFocusTerminal={() => onFocusTerminalInput(composerTab.id)}
+            onRunInDuplicates={onRunInDuplicates}
           />
         ) : (
           // Input closed: leave a slim stand-in that reopens it (same as ⌘I).

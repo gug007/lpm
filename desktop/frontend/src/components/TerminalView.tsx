@@ -8,6 +8,7 @@ import { disposeInteractivePaneSession, isInteractivePaneSessionDead, type Inter
 import { collectTerminals, isTabPinned, isTerminalTab } from "../paneTree";
 import { PaneLayout } from "./PaneLayout";
 import { TerminalTabDnd } from "./TerminalTabDnd";
+import { BulkDuplicateDialog, type DuplicatePromptSeed } from "./BulkDuplicateDialog";
 import type { ServiceTabInfo, StatusKind } from "./PaneView";
 import { type TerminalThemeName, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
 import { ansiColors } from "./terminal-utils";
@@ -566,6 +567,25 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     [toggleService, projectName],
   );
 
+  // "Run in duplicates" from a composer's split button: the current prompt (with
+  // its agent command) opens the seeded Duplicate dialog, where the user picks
+  // how many copies to spin up. Each copy then runs the prompt in parallel.
+  const bulkDuplicate = useAppStore((s) => s.bulkDuplicate);
+  const duplicateProject = useAppStore(
+    (s) => s.projects.find((p) => p.name === projectName) ?? null,
+  );
+  const groups = useAppStore((s) => s.groups);
+  const folderNames = useMemo(() => groups.map((g) => g.name), [groups]);
+  const [duplicateSeed, setDuplicateSeed] = useState<DuplicatePromptSeed | null>(null);
+  // Bumped on every trigger so the (non-blocking) dialog remounts and re-seeds
+  // even when it's already open — e.g. run-in-duplicates fired from a second
+  // pane's composer while the first one's dialog is still up.
+  const [duplicateNonce, setDuplicateNonce] = useState(0);
+  const runInDuplicates = useCallback((seed: DuplicatePromptSeed) => {
+    setDuplicateSeed(seed);
+    setDuplicateNonce((n) => n + 1);
+  }, []);
+
   // Final wiring for the generator run-flow. Once the freshly created project
   // is the active one this view is showing, open a terminal that launches the
   // configured agent CLI with the init prompt as a command-line argument
@@ -673,6 +693,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onClearStatus={handleClearStatus}
             onSubmitInput={submitInputToTerminal}
             onFocusTerminalInput={focusTerminalInput}
+            onRunInDuplicates={runInDuplicates}
             onRatioChange={setRatio}
             onFindInPane={findInPane}
             onFilterInPane={filterInPane}
@@ -695,6 +716,20 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       )}
       <TTSControls />
       </div>
+      {duplicateSeed !== null && (
+        <BulkDuplicateDialog
+          key={duplicateNonce}
+          open
+          project={duplicateProject}
+          folderNames={folderNames}
+          seed={duplicateSeed}
+          onCancel={() => setDuplicateSeed(null)}
+          onConfirm={(count, opts) => {
+            void bulkDuplicate(projectName, count, opts);
+            setDuplicateSeed(null);
+          }}
+        />
+      )}
       </div>
   );
 }

@@ -5,7 +5,7 @@ import { useOverlay } from "../store/overlay";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 import { MENU_PANEL_CLASS } from "./ui/ContextMenuShell";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
-import { ChevronUpIcon, PencilIcon, SendIcon } from "./icons";
+import { ChevronUpIcon, CopyIcon, PencilIcon, SendIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
 
 interface SendSplitButtonProps {
@@ -15,17 +15,27 @@ interface SendSplitButtonProps {
   busy: boolean;
   onSend: () => void;
   onSaveDraft: () => void;
+  // Spin up `count` project duplicates that each run this prompt in parallel.
+  onRunInDuplicates: (count: number) => void;
 }
 
-const MENU_WIDTH = 172;
+const MENU_WIDTH = 240;
+
+// Range for the in-menu duplicates counter. "Duplicates" is plural, so the
+// floor is two; the dialog it opens can still push higher.
+const MIN_DUPES = 2;
+const MAX_DUPES = 10;
 
 // The composer's send control: a split button whose primary half sends the
 // prompt (unchanged ↵ behaviour) and whose caret half opens a one-item menu to
 // save the prompt as a draft instead. The menu is anchored above the button
 // (the composer sits at the bottom of the pane) and portaled so the composer's
 // rounded, clipping ancestors can't cut it off.
-export function SendSplitButton({ disabled, busy, onSend, onSaveDraft }: SendSplitButtonProps) {
+export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onRunInDuplicates }: SendSplitButtonProps) {
   const [open, setOpen] = useState(false);
+  // How many copies "Run in duplicates" spins up; adjusted inline in the menu
+  // and carried over as the seeded Copies count when the dialog opens.
+  const [dupes, setDupes] = useState(MIN_DUPES);
   const inert = disabled || busy;
   // Shared anchored-panel infra owns the upward positioning, viewport clamp, and
   // outside-click dismiss — the sibling SplitButton uses it the same way.
@@ -122,6 +132,44 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft }: SendSpl
                 onSaveDraft();
               }}
             />
+            <div className="group flex items-center gap-1 px-3 py-1.5 text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]">
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  onRunInDuplicates(dupes);
+                }}
+                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+              >
+                <span className="flex shrink-0 items-center">
+                  <CopyIcon size={13} />
+                </span>
+                <span className="truncate">Run in duplicates</span>
+              </button>
+              <div className="pointer-events-none flex shrink-0 items-center gap-1.5 text-[var(--text-muted)] opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
+                <button
+                  type="button"
+                  aria-label="Fewer duplicates"
+                  disabled={dupes <= MIN_DUPES}
+                  onClick={() => setDupes((n) => Math.max(MIN_DUPES, n - 1))}
+                  className="flex h-4 w-4 items-center justify-center text-[14px] leading-none transition-colors hover:text-[var(--text-primary)] disabled:opacity-30"
+                >
+                  −
+                </button>
+                <span className="min-w-[0.75rem] text-center text-[11px] tabular-nums text-[var(--text-secondary)]">
+                  {dupes}
+                </span>
+                <button
+                  type="button"
+                  aria-label="More duplicates"
+                  disabled={dupes >= MAX_DUPES}
+                  onClick={() => setDupes((n) => Math.min(MAX_DUPES, n + 1))}
+                  className="flex h-4 w-4 items-center justify-center text-[14px] leading-none transition-colors hover:text-[var(--text-primary)] disabled:opacity-30"
+                >
+                  +
+                </button>
+              </div>
+            </div>
           </div>,
           document.body,
         )}
