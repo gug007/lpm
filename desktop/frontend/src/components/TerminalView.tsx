@@ -63,6 +63,16 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   const terminalHandles = useRef<Map<string, InteractivePaneHandle>>(new Map());
   const serviceHandles = useRef<Map<string, PaneHandle>>(new Map());
   const visibleRef = useRef(visible);
+
+  // Deliver a seeded prompt (e.g. a duplicate's initial agent task) through the
+  // same robust paste-and-submit path a manual composer send uses, so its CR
+  // isn't swallowed by the agent's async redraw. Stable identity: it reads the
+  // handle map by ref, so a terminal registered after mount is still reachable.
+  const submitPrompt = useCallback(
+    (id: string, payload: string | string[]) =>
+      terminalHandles.current.get(id)?.submitInput(payload) ?? false,
+    [],
+  );
   // Skip the first visibility-effect run so we don't double-start log
   // streaming (the log-streaming setup effect already starts it on mount).
   const mountedRef = useRef(false);
@@ -93,7 +103,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     ensureRootPane,
     getFocusedPane,
     getPane,
-  } = useTerminals(projectName, onTerminalCountChange);
+  } = useTerminals(projectName, onTerminalCountChange, submitPrompt);
 
   const servicesKey = services.map((s) => s.name).join(",");
   const stableServices = useMemo(() => services, [servicesKey]);

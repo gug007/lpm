@@ -155,7 +155,7 @@ export function ComposerActionsButton({
                 const Icon = composerActionIcon(action.icon);
                 const count = countFor(action.id);
                 return (
-                  <li key={action.id} className="relative">
+                  <li key={action.id} className="group relative">
                     <button
                       type="button"
                       onMouseDown={keepEditorFocus}
@@ -166,27 +166,32 @@ export function ComposerActionsButton({
                           ? `${action.label} · ${count === 1 ? "1 result" : `${count} results`} with ${cliLabel}`
                           : "Type something first"
                       }
-                      className="flex w-full items-center gap-2.5 py-2 pl-3.5 pr-[92px] text-left text-[12.5px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:hover:bg-transparent"
+                      className={`flex w-full items-center gap-2.5 py-2 pl-3.5 pr-[92px] text-left text-[12.5px] text-[var(--text-secondary)] transition-colors disabled:opacity-40 ${
+                        canRun ? "group-hover:bg-[var(--bg-hover)] group-hover:text-[var(--text-primary)]" : ""
+                      }`}
                     >
                       <span className="flex h-5 w-5 shrink-0 items-center justify-center text-[var(--text-muted)]">
                         <Icon size={14} strokeWidth={1.75} />
                       </span>
                       <span className="min-w-0 flex-1 truncate">{action.label || "Untitled action"}</span>
                     </button>
-                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
-                      <CountStepper
-                        value={count}
-                        onChange={(n) => setCount(action.id, n)}
-                        onMouseDown={keepEditorFocus}
-                      />
-                    </div>
+                    <CountStepper
+                      value={count}
+                      onChange={(n) => setCount(action.id, n)}
+                      onMouseDown={keepEditorFocus}
+                      className={`absolute right-2.5 top-1/2 -translate-y-1/2 transition-opacity ${
+                        count > 1
+                          ? "opacity-100"
+                          : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+                      }`}
+                    />
                   </li>
                 );
               })}
             </ul>
           )}
 
-          <div className="flex items-end gap-2 border-t border-[var(--border)] px-2.5 py-2">
+          <div className="group flex items-end gap-2 border-t border-[var(--border)] px-2.5 py-2">
             <button
               type="button"
               onMouseDown={keepEditorFocus}
@@ -211,11 +216,18 @@ export function ComposerActionsButton({
               spellCheck={false}
               className="block min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-0.5 text-[12.5px] leading-relaxed text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
             />
-            <CountStepper
-              value={countFor(CUSTOM_KEY)}
-              onChange={(n) => setCount(CUSTOM_KEY, n)}
-              onMouseDown={keepEditorFocus}
-            />
+            <div className="relative h-6 w-[69px] shrink-0">
+              <CountStepper
+                value={countFor(CUSTOM_KEY)}
+                onChange={(n) => setCount(CUSTOM_KEY, n)}
+                onMouseDown={keepEditorFocus}
+                className={`absolute right-0 top-1/2 -translate-y-1/2 ${
+                  countFor(CUSTOM_KEY) > 1
+                    ? "opacity-100"
+                    : "opacity-0 group-hover:opacity-100"
+                }`}
+              />
+            </div>
             <button
               type="button"
               onMouseDown={keepEditorFocus}
@@ -254,15 +266,16 @@ interface CountStepperProps {
   value: number;
   onChange: (n: number) => void;
   onMouseDown: (e: MouseEvent) => void;
+  className?: string;
 }
 
 // Minimal, borderless −/N/+ control choosing how many rewrites an action
 // returns. The count glows in the accent once it's above the default of 1, so a
 // multi-result choice reads at a glance. Mouse-down is intercepted so adjusting
 // the count never pulls focus off the composer.
-function CountStepper({ value, onChange, onMouseDown }: CountStepperProps) {
+function CountStepper({ value, onChange, onMouseDown, className = "" }: CountStepperProps) {
   return (
-    <div onMouseDown={onMouseDown} className="flex shrink-0 items-center gap-0.5">
+    <div onMouseDown={onMouseDown} className={`flex shrink-0 items-center gap-0.5 ${className}`}>
       <button
         type="button"
         onClick={() => onChange(value - 1)}

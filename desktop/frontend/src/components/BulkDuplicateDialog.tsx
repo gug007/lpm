@@ -8,6 +8,7 @@ import {
   EMPTY_COMPOSER,
   type ComposerValue,
 } from "./InputComposer";
+import { splitByImageTokens } from "./composerEditor";
 import { CopyRow } from "./CopyRow";
 import { ShellCommandInput } from "./ShellCommandInput";
 import { SwitchRow } from "./SwitchRow";
@@ -20,7 +21,6 @@ import {
   SECTION_LABEL,
 } from "./ui/fields";
 import { getSettings, saveSettings } from "../store/settings";
-import { shellQuote } from "../terminal-io";
 import { detectAICLI } from "../slashCommands";
 import { findActionByPath, flattenRunnableActions } from "../actionTree";
 import type {
@@ -293,22 +293,33 @@ export function BulkDuplicateDialog({
       .replace(/[ \t]{2,}/g, " ")
       .trim();
 
-  // Resolve the composer's `[Image #N]` tokens to shell-quoted paths in place,
-  // then flatten — so a pasted image lands where the user put it in the prompt.
-  const composerSeed = (value: ComposerValue): string | undefined => {
+  // Resolve the composer's `[Image #N]` tokens for delivery once the copy's
+  // agent is ready. A text-only prompt is one flattened line; with images the
+  // seed becomes ordered paste parts — each image path is its own part (raw,
+  // space-padded, not shell-quoted) so the agent lifts it into an image the
+  // same way a manual composer send does, instead of it arriving as quoted text.
+  const composerSeed = (value: ComposerValue): string | string[] | undefined => {
     const byToken = new Map(value.images.map((im) => [im.token, im.path]));
-    const resolved = value.text.replace(/\[Image #(\d+)\]/g, (_, n) => {
-      const path = byToken.get(Number(n));
-      return path ? ` ${shellQuote(path)} ` : "";
-    });
-    return flatten(resolved) || undefined;
+    const segments = splitByImageTokens(value.text);
+    const hasImages = segments.some((s) => s.image !== null && byToken.has(s.image));
+    if (!hasImages) {
+      return flatten(value.text.replace(/\[Image #\d+\]/g, "")) || undefined;
+    }
+    const parts = segments
+      .map((s) => {
+        if (s.image === null) return flatten(s.text);
+        const path = byToken.get(s.image);
+        return path ? ` ${path} ` : "";
+      })
+      .filter((p) => p.trim().length > 0);
+    return parts.length ? parts : undefined;
   };
 
   const taskFrom = (
     m: RunMode,
     act: string,
     cmd: string,
-    seed: string | undefined,
+    seed: string | string[] | undefined,
   ): SpawnTask[] => {
     if (m === "action" && act)
       return [{ kind: "action", actionName: act, prompt: seed }];
