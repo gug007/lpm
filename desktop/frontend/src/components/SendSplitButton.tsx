@@ -19,7 +19,7 @@ interface SendSplitButtonProps {
   onRunInDuplicates: (count: number) => void;
 }
 
-const MENU_WIDTH = 240;
+const MENU_WIDTH = 300;
 
 // Range for the in-menu duplicates counter. "Duplicates" is plural, so the
 // floor is two; the dialog it opens can still push higher.
@@ -27,10 +27,10 @@ const MIN_DUPES = 2;
 const MAX_DUPES = 10;
 
 // The composer's send control: a split button whose primary half sends the
-// prompt (unchanged ↵ behaviour) and whose caret half opens a one-item menu to
-// save the prompt as a draft instead. The menu is anchored above the button
-// (the composer sits at the bottom of the pane) and portaled so the composer's
-// rounded, clipping ancestors can't cut it off.
+// prompt (unchanged ↵ behaviour) and whose caret half opens a menu to save the
+// prompt as a draft or run it across several parallel duplicates instead. The
+// menu is anchored above the button (the composer sits at the bottom of the
+// pane) and portaled so the composer's rounded, clipping ancestors can't cut it off.
 export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onRunInDuplicates }: SendSplitButtonProps) {
   const [open, setOpen] = useState(false);
   // How many copies "Run in duplicates" spins up; adjusted inline in the menu
@@ -125,6 +125,7 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onRunInDu
           <div ref={panelRef} role="menu" style={style} className={`z-[80] ${MENU_PANEL_CLASS}`}>
             <ContextMenuItem
               label="Save as draft"
+              description="Keep this prompt to send later"
               icon={<PencilIcon size={13} />}
               shortcut="⌘↵"
               onClick={() => {
@@ -132,21 +133,26 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onRunInDu
                 onSaveDraft();
               }}
             />
-            <div className="group flex items-center gap-1 px-3 py-1.5 text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]">
+            <div className="flex w-full items-start gap-2 px-3 py-1.5 text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]">
               <button
                 type="button"
                 onClick={() => {
                   setOpen(false);
                   onRunInDuplicates(dupes);
                 }}
-                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                className="flex min-w-0 flex-1 items-start gap-2 text-left"
               >
-                <span className="flex shrink-0 items-center">
+                <span className="flex shrink-0 items-center pt-0.5">
                   <CopyIcon size={13} />
                 </span>
-                <span className="truncate">Run in duplicates</span>
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="truncate">Run in duplicates</span>
+                  <span className="text-[10px] leading-snug text-[var(--text-muted)]">
+                    This project + {dupes - 1} more, in parallel
+                  </span>
+                </span>
               </button>
-              <div className="pointer-events-none flex shrink-0 items-center gap-1.5 text-[var(--text-muted)] opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
+              <div className="flex shrink-0 items-center gap-1.5 pt-px text-[var(--text-muted)]">
                 <button
                   type="button"
                   aria-label="Fewer duplicates"
