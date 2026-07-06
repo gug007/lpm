@@ -4,7 +4,7 @@
 // + AtomicBool cancel flag (PTY-style; no tokio).
 use crate::{config, tmux};
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -20,9 +20,18 @@ struct LogUpdate {
     content: String,
 }
 
+// One poller per project, refcounted by viewer. Both the main window and a
+// detached mirror can watch the same project's logs; the poller must live while
+// EITHER is watching, so a viewer set governs it instead of a bare cancel flag —
+// otherwise one window pausing (hidden/deselected) would freeze the other's logs.
+pub struct Stream {
+    cancel: Arc<AtomicBool>,
+    viewers: HashSet<String>,
+}
+
 pub struct LogState {
-    // keyed by project FILE name -> cancel flag for its poller
-    pub streams: Mutex<HashMap<String, Arc<AtomicBool>>>,
+    // keyed by project FILE name -> its poller + active viewers
+    pub streams: Mutex<HashMap<String, Stream>>,
 }
 
 impl Default for LogState {
@@ -56,21 +65,42 @@ pub fn start_log_streaming(
     app: AppHandle,
     state: State<'_, LogState>,
     project_name: String,
+    viewer: Option<String>,
 ) -> Result<(), String> {
+    let viewer = viewer.unwrap_or_else(|| "main".to_string());
+
+    {
+        let mut streams = state.streams.lock().unwrap();
+        // A poller already running for this project just gains a viewer — never
+        // respawn (that would double-emit); the existing thread already serves
+        // every window listening on the global `log-update` event.
+        if let Some(existing) = streams.get_mut(&project_name) {
+            existing.viewers.insert(viewer);
+            return Ok(());
+        }
+    }
+
     // Resolve the session up front; if the project can't be read, no-op.
     let session = match config::spawn_info(&project_name) {
         Ok(info) => info.session,
         Err(_) => return Ok(()),
     };
 
-    // Cancel-and-replace any existing poller so we never double-emit.
     let stop = Arc::new(AtomicBool::new(false));
     {
         let mut streams = state.streams.lock().unwrap();
-        if let Some(old) = streams.remove(&project_name) {
-            old.store(true, Ordering::SeqCst);
+        // Re-check under the lock: a concurrent start may have spawned first.
+        if let Some(existing) = streams.get_mut(&project_name) {
+            existing.viewers.insert(viewer);
+            return Ok(());
         }
-        streams.insert(project_name.clone(), stop.clone());
+        streams.insert(
+            project_name.clone(),
+            Stream {
+                cancel: stop.clone(),
+                viewers: HashSet::from([viewer]),
+            },
+        );
     }
 
     std::thread::spawn(move || {
@@ -88,9 +118,22 @@ pub fn start_log_streaming(
 }
 
 #[tauri::command(async)]
-pub fn stop_log_streaming(state: State<'_, LogState>, project_name: String) -> Result<(), String> {
-    if let Some(stop) = state.streams.lock().unwrap().remove(&project_name) {
-        stop.store(true, Ordering::SeqCst);
+pub fn stop_log_streaming(
+    state: State<'_, LogState>,
+    project_name: String,
+    viewer: Option<String>,
+) -> Result<(), String> {
+    let viewer = viewer.unwrap_or_else(|| "main".to_string());
+    let mut streams = state.streams.lock().unwrap();
+    let Some(existing) = streams.get_mut(&project_name) else {
+        return Ok(());
+    };
+    existing.viewers.remove(&viewer);
+    // Stop the poller only when the last viewer leaves, so one window pausing
+    // doesn't freeze the other's live logs.
+    if existing.viewers.is_empty() {
+        existing.cancel.store(true, Ordering::SeqCst);
+        streams.remove(&project_name);
     }
     Ok(())
 }

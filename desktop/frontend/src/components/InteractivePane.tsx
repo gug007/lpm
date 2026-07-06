@@ -36,8 +36,46 @@ import {
   replyMirrorSnapshot,
   requestMirrorSnapshot,
   onMirrorSnapshot,
+  broadcastMirrorAcking,
+  onMirrorAcking,
 } from "../mirror";
 import "@xterm/xterm/css/xterm.css";
+
+// Cross-window flow-control ack authority (one window acks a PTY's output; two
+// desync the shared counter). Window-level state shared by every session.
+//
+// Mirror-side: this window is the acker while it's focused AND visible — then
+// it's not OS-throttled, so its acks keep the producer flowing in real time.
+// Owner-side: mirrorIsAckAuthority tracks whether a mirror currently owns acking
+// so the owner can defer. Both default to "owner acks", so a window with no
+// mirror behaves exactly as before.
+let mirrorAmAckAuthority = false;
+let mirrorIsAckAuthority = false;
+if (IS_MIRROR_WINDOW) {
+  const publishAcking = () => {
+    const next = document.hasFocus() && !document.hidden;
+    if (next === mirrorAmAckAuthority) return;
+    mirrorAmAckAuthority = next;
+    broadcastMirrorAcking(next);
+  };
+  window.addEventListener("focus", publishAcking);
+  window.addEventListener("blur", publishAcking);
+  document.addEventListener("visibilitychange", publishAcking);
+  window.addEventListener("beforeunload", () => {
+    if (mirrorAmAckAuthority) broadcastMirrorAcking(false);
+  });
+  publishAcking();
+} else {
+  onMirrorAcking((acking) => {
+    mirrorIsAckAuthority = acking;
+  });
+  // Safety net: whenever this owner window is focused, it acks — no other window
+  // can be the ack authority (macOS focuses one at a time). This also clears a
+  // stale claim left by a mirror that closed without broadcasting a release.
+  window.addEventListener("focus", () => {
+    mirrorIsAckAuthority = false;
+  });
+}
 
 export interface InteractivePaneHandle {
   clear: () => void;
@@ -584,12 +622,14 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   ensureThemeObserver();
 
   let unsentAck = 0;
-  // Only the owner window acks. A mirror renders the same global broadcast but
-  // must not touch the single per-session flow-control counter — two windows
-  // acking the same bytes would drive it negative and disable backpressure. The
-  // owner's ack still bounds the producer, so the mirror can't lag unboundedly.
+  // Exactly one window acks a PTY's output — two acking the same bytes would
+  // desync the single shared flow-control counter. The owner acks by default;
+  // when a focused, visible mirror declares itself the ack authority (because
+  // the owner is hidden and its ack loop is throttled), the owner defers and the
+  // mirror acks instead, keeping the producer flowing for the window the user is
+  // actually watching. With no mirror both flags stay false → owner acks, as before.
   const ackData = (charCount: number) => {
-    if (IS_MIRROR_WINDOW) return;
+    if (IS_MIRROR_WINDOW ? !mirrorAmAckAuthority : mirrorIsAckAuthority) return;
     unsentAck += charCount;
     while (unsentAck >= ACK_SIZE) {
       unsentAck -= ACK_SIZE;
@@ -616,6 +656,9 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   // gates above before rendering.
   const writeData = (data: string) => {
     if (IS_MIRROR_WINDOW) {
+      // Ack on receipt while we're the acker (a focused, visible mirror isn't
+      // throttled, so receipt ≈ render). No-op otherwise.
+      ackData(data.length);
       if (document.hidden) {
         droppedWhileHidden = true;
         return;
@@ -625,6 +668,15 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
         return;
       }
       term.write(data);
+      return;
+    }
+    // Owner. When a mirror holds ack authority and this window is hidden, the
+    // producer is no longer paused on our behalf, so writing would grow xterm's
+    // parse queue unbounded (our parser is OS-throttled while hidden). Drop and
+    // reseed on show — exactly the mirror's memory bound — since the mirror is
+    // the live renderer meanwhile. Never triggers without a mirror (main-only).
+    if (mirrorIsAckAuthority && document.hidden) {
+      droppedWhileHidden = true;
       return;
     }
     term.write(data, () => ackData(data.length));
@@ -658,6 +710,13 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     session.host.offsetParent !== null &&
     session.host.clientWidth > 0;
 
+  // The owner owns the shared PTY size only while it's the focused, laid-out
+  // view. macOS focuses one window at a time, so when a mirror is focused the
+  // owner is not — deferring on focus keeps the two windows from fighting over
+  // one PTY's geometry. (Main-only: the window is focused whenever it resizes,
+  // so this never withholds a legitimate resize.)
+  const hasSizeAuthority = () => document.hasFocus() && isLaidOut();
+
   // One PTY has one geometry: the owner is the sole caller of ResizeTerminal and
   // publishes the result so the mirror renders at the same cols/rows instead of
   // mis-wrapping the shared stream. Always paired, so callers can't desync them.
@@ -666,9 +725,14 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     broadcastMirrorSize(terminalId, { cols, rows });
   };
 
+  // Drive the PTY (and mirror) from a local fit only when this window holds size
+  // authority. Without the focus gate an unfocused owner's ResizeObserver — e.g.
+  // triggered by the mirror re-laying-out the owner's panes after a forwarded
+  // divider drag — would refit to the MAIN window's container and clobber the
+  // focused mirror's geometry ~350ms later.
   term.onResize(({ cols, rows }) => {
     if (IS_MIRROR_WINDOW) return;
-    if (!isLaidOut()) return;
+    if (!hasSizeAuthority()) return;
     driveOwnerSize(cols, rows);
   });
 
@@ -678,7 +742,7 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     session.onScrollState?.(atBottom);
   });
 
-  if (!IS_MIRROR_WINDOW && isLaidOut()) {
+  if (!IS_MIRROR_WINDOW && hasSizeAuthority()) {
     driveOwnerSize(term.cols, term.rows);
   }
 
@@ -767,6 +831,11 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     };
     const offSize = onMirrorSize(terminalId, ({ cols, rows }) => applySize(cols, rows));
 
+    // Whether the current seed came from a real owner snapshot (vs. the timeout
+    // fallback). A fallback seed is provisional — a snapshot arriving later
+    // corrects it.
+    let seededFromSnapshot = false;
+
     let snapTimer: ReturnType<typeof setInterval> | null = null;
     const stopSnapTimer = () => {
       if (snapTimer) {
@@ -781,11 +850,14 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     const finishSeed = (snapData?: string) => {
       if (seeded) return;
       seeded = true;
-      stopSnapTimer();
+      seededFromSnapshot = !!snapData;
+      // Always reset first: on a snapshot we replace the screen; on the fallback
+      // we must NOT stack post-show output onto the stale pre-hidden screen
+      // (the hidden-period output was dropped, so the two don't join cleanly).
+      try {
+        term.reset();
+      } catch {}
       if (snapData) {
-        try {
-          term.reset();
-        } catch {}
         try {
           term.write(snapData);
         } catch {}
@@ -798,21 +870,26 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
       }
       preSeed.length = 0;
     };
-    // Self-heal like the tree channel: keep asking until seeded; a bounded
-    // fallback renders the buffer so a silent owner never leaves a blank pane.
+    // Self-heal like the tree channel: keep asking for the owner's snapshot. A
+    // bounded wait renders the live buffer so a silent owner never leaves a
+    // blank pane (a provisional fallback seed), but we keep asking a few more
+    // times afterward so a late snapshot can still replace that provisional
+    // screen — then give up.
     const startSeeding = () => {
       seeded = false;
+      seededFromSnapshot = false;
       preSeed.length = 0;
       stopSnapTimer();
       requestMirrorSnapshot(terminalId);
       let tries = 0;
       snapTimer = setInterval(() => {
-        if (seeded) {
+        tries += 1;
+        if (tries === 4) finishSeed(); // provisional fallback
+        // Keep asking briefly after the fallback so a late snapshot can still
+        // replace the provisional screen, then give up (a silent owner never
+        // replies — no point re-serializing its scrollback indefinitely).
+        if (tries >= 6) {
           stopSnapTimer();
-          return;
-        }
-        if (++tries >= 4) {
-          finishSeed();
           return;
         }
         requestMirrorSnapshot(terminalId);
@@ -820,7 +897,17 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     };
     const offSnap = onMirrorSnapshot(terminalId, ({ data, cols, rows }) => {
       applySize(cols, rows);
-      finishSeed(data);
+      if (!seeded) {
+        finishSeed(data);
+      } else if (!seededFromSnapshot && data) {
+        // A snapshot that lands after we already fell back to the live buffer:
+        // re-run the seed to replace the provisional fallback screen with the
+        // owner's authoritative one. Once seeded FROM a snapshot there's nothing
+        // to fix. preSeed is already empty here, so this only resets + writes.
+        seeded = false;
+        finishSeed(data);
+      }
+      if (seededFromSnapshot) stopSnapTimer();
     });
 
     startSeeding();
@@ -847,16 +934,19 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     // hidden) — size authority follows focus. Resize our own xterm to match so
     // this view letterboxes instead of mis-wrapping while the mirror drives.
     const offSnapReq = onMirrorSnapshotRequest(terminalId, () => {
-      replyMirrorSnapshot(terminalId, {
-        data: serialize?.serialize() ?? "",
-        cols: term.cols,
-        rows: term.rows,
+      // Drain xterm's async write queue before serializing, so the snapshot
+      // reflects every byte the owner has received — not just its parsed buffer.
+      // Under heavy streaming to a throttled owner the unparsed backlog can
+      // approach the flow-control window (~100KB); serializing without draining
+      // would silently drop it from the mirror's seed.
+      term.write("", () => {
+        replyMirrorSnapshot(terminalId, {
+          data: serialize?.serialize() ?? "",
+          cols: term.cols,
+          rows: term.rows,
+        });
       });
     });
-    // This window owns the shared PTY size while it's the focused, laid-out
-    // view; only then does it ignore the mirror's desired size and drive its
-    // own. (macOS focuses one window at a time, so authority is never contested.)
-    const hasSizeAuthority = () => document.hasFocus() && isLaidOut();
     const offDesired = onMirrorDesired(terminalId, ({ cols, rows }) => {
       if (!cols || !rows) return;
       if (hasSizeAuthority()) return;
@@ -865,9 +955,22 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
       } catch {}
       driveOwnerSize(cols, rows);
     });
+    // When this owner was hidden and dropped output (mirror held ack authority),
+    // its buffer has a gap; on show, reset and let the live stream repaint rather
+    // than render a torn screen. Mirrors the mirror's drop-and-reseed tradeoff.
+    const onOwnerVis = () => {
+      if (!document.hidden && droppedWhileHidden) {
+        droppedWhileHidden = false;
+        try {
+          term.reset();
+        } catch {}
+      }
+    };
+    document.addEventListener("visibilitychange", onOwnerVis);
     cleanupMirror = () => {
       offSnapReq();
       offDesired();
+      document.removeEventListener("visibilitychange", onOwnerVis);
     };
   }
 

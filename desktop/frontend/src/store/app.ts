@@ -1139,6 +1139,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const raw = (await ListDetachedProjects()) as string[] | null;
       const next = new Set<string>(raw ?? []);
+      // Every detached project must stay marked visited so the main window (the
+      // terminals' owner) keeps its ProjectDetail mounted even when unselected.
+      // Windows restored at launch reach the store only through this path — not
+      // detachProject — so without this a restored detached window's close would
+      // unmount the owner and StopTerminal-kill the project's live PTYs.
+      for (const name of next) get().markVisited(name);
       set((s) => {
         if (s.detached.size === next.size && [...s.detached].every((n) => next.has(n))) {
           return s;

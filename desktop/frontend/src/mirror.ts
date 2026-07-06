@@ -110,6 +110,22 @@ export function onMirrorAction(
   });
 }
 
+// --- flow-control ack authority (mirror -> owner). Only ONE window may ack a
+//     PTY's output; two would desync the single shared unacked counter. The
+//     owner acks by default, but when the owner window is hidden its ack loop
+//     (driven by xterm's write-completion callback) is OS-throttled and starves
+//     flow control for a visible mirror. So a focused, visible mirror announces
+//     that it is the acker and the owner defers (and drops+reseeds its own now-
+//     unbackpressured output) while that holds. macOS focuses one window at a
+//     time, so at most one window ever claims acking. This is a window-level
+//     property, so it rides one global channel rather than a per-terminal one. ---
+export function broadcastMirrorAcking(acking: boolean): void {
+  EventsEmit("mirror-acking", { acking });
+}
+export function onMirrorAcking(cb: (acking: boolean) => void): () => void {
+  return EventsOn("mirror-acking", (m: { acking?: boolean }) => cb(!!m?.acking));
+}
+
 // --- run-in-duplicates (mirror -> owner). Creating project copies + queuing
 //     their seeded tasks must happen in the main window's store, where the
 //     copies actually mount and auto-run; a mirror only forwards the request. ---

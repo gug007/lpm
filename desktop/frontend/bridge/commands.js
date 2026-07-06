@@ -499,8 +499,8 @@ export function SetProjectLabel(name, label) {
 export function MoveProjectRoot(name, newRoot) {
   return invoke("move_project_root", { name, newRoot });
 }
-export function StartLogStreaming(projectName) {
-  return invoke("start_log_streaming", { projectName });
+export function StartLogStreaming(projectName, viewer) {
+  return invoke("start_log_streaming", { projectName, viewer });
 }
 export function StartProject(name, profile) {
   return invoke("start_project", { name, profile });
@@ -532,8 +532,8 @@ export function StartWatchingProject(path) {
 export function StopAll() {
   return invoke("stop_all");
 }
-export function StopLogStreaming(projectName) {
-  return invoke("stop_log_streaming", { projectName });
+export function StopLogStreaming(projectName, viewer) {
+  return invoke("stop_log_streaming", { projectName, viewer });
 }
 export function StopProject(name) {
   return invoke("stop_project", { name });

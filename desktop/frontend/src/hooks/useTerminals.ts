@@ -40,6 +40,7 @@ import {
   isTabPinned,
 } from "../paneTree";
 import { useTabScroll } from "../store/tabScroll";
+import { useAppStore } from "../store/app";
 import { disambiguateLabel, pickTerminalLabel } from "../terminalLabels";
 import {
   IS_MIRROR_WINDOW,
@@ -405,6 +406,16 @@ export function useTerminals(
     });
   }, [projectName]);
 
+  // Disarm broadcasting once the project is no longer detached (mirror window
+  // closed / re-attached). Otherwise mirrorActiveRef stays latched for the rest
+  // of the session and every tree/focus change keeps serializing + emitting the
+  // pane tree over IPC to a listener that no longer exists.
+  const isDetached = useAppStore((s) => s.detached.has(projectName));
+  useEffect(() => {
+    if (IS_MIRROR_WINDOW) return;
+    if (!isDetached) mirrorActiveRef.current = false;
+  }, [isDetached]);
+
   // Re-broadcast the live tree whenever it changes so the mirror follows adds,
   // closes, splits, tab switches, and divider drags. Debounced so a divider
   // drag coalesces to ~one emit per frame-burst.
@@ -633,9 +644,18 @@ export function useTerminals(
 
   const closeTerminal = useCallback(
     (paneId: string, tabIdx: number) => {
-      if (IS_MIRROR_WINDOW) return forward("closeTerminal", paneId, tabIdx);
+      // Forward by tab id, not index: the mirror's local tree lags the owner's
+      // echoed broadcast, so a second close click within that window would carry
+      // a stale index and the owner would close whatever tab now sits there —
+      // potentially killing a live session's PTY. The owner resolves the id
+      // against its authoritative tree (or no-ops if already gone).
       const current = treeRef.current;
       if (!current) return;
+      if (IS_MIRROR_WINDOW) {
+        const id = findPane(current, paneId)?.tabs[tabIdx]?.id;
+        if (id) forward("closeTerminalById", paneId, id);
+        return;
+      }
       const pane = findPane(current, paneId);
       if (!pane || !pane.tabs[tabIdx]) return;
       if (isTabPinned(pane, tabIdx)) return;
@@ -662,9 +682,15 @@ export function useTerminals(
   // needs no collapse. The kept tab becomes active.
   const closeOtherTerminals = useCallback(
     (paneId: string, tabIdx: number) => {
-      if (IS_MIRROR_WINDOW) return forward("closeOtherTerminals", paneId, tabIdx);
+      // Forward by the kept tab's id (see closeTerminal) so a stale index can't
+      // make the owner keep the wrong tab and close everything else.
       const current = treeRef.current;
       if (!current) return;
+      if (IS_MIRROR_WINDOW) {
+        const id = findPane(current, paneId)?.tabs[tabIdx]?.id;
+        if (id) forward("closeOthersById", paneId, id);
+        return;
+      }
       const pane = findPane(current, paneId);
       const keptTab = pane?.tabs[tabIdx];
       if (!pane || !keptTab) return;
@@ -953,6 +979,25 @@ export function useTerminals(
     return treeRef.current ? findPane(treeRef.current, paneId) : null;
   }, []);
 
+  // Owner-side resolvers for the mirror's id-addressed close actions: map the
+  // terminal id back to its current index in the authoritative tree, then run
+  // the normal close. A no-longer-present id is a safe no-op (the tab already
+  // closed), which is exactly the double-click case index-based close got wrong.
+  const closeTerminalById = useCallback(
+    (paneId: string, termId: string) => {
+      const idx = getPane(paneId)?.tabs.findIndex((t) => t.id === termId) ?? -1;
+      if (idx >= 0) closeTerminal(paneId, idx);
+    },
+    [getPane, closeTerminal],
+  );
+  const closeOthersById = useCallback(
+    (paneId: string, termId: string) => {
+      const idx = getPane(paneId)?.tabs.findIndex((t) => t.id === termId) ?? -1;
+      if (idx >= 0) closeOtherTerminals(paneId, idx);
+    },
+    [getPane, closeOtherTerminals],
+  );
+
   // Owner side of action forwarding: execute the actions a mirror window sends
   // for this project against the authoritative tree. This map is the single
   // list of everything a mirror may do; the result flows back to the mirror
@@ -965,8 +1010,8 @@ export function useTerminals(
     addTerminalToPane,
     addBrowserToPane,
     addReviewToPane,
-    closeTerminal,
-    closeOtherTerminals,
+    closeTerminalById,
+    closeOthersById,
     focusTerminal,
     focusService,
     renameTerminal,
