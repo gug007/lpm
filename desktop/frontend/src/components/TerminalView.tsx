@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback, useImperativeHandle } from "react";
 import { toast } from "sonner";
 import { EventsOn } from "../../bridge/runtime";
-import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus } from "../../bridge/commands";
+import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus, FocusMainWindow } from "../../bridge/commands";
+import { IS_MIRROR_WINDOW, requestRunInDuplicates } from "../mirror";
 import type { ITheme } from "@xterm/xterm";
 import { disposePaneSession, type PaneHandle } from "./Pane";
 import { disposeInteractivePaneSession, isInteractivePaneSessionDead, type InteractivePaneHandle } from "./InteractivePane";
@@ -741,7 +742,16 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             duplicateRunHere.current = null;
             setDuplicateSeed(null);
             if (runHere) await runHere();
-            void bulkDuplicate(projectName, count, opts);
+            // In a mirror window, copy #1 runs in the shared PTY here, but the
+            // copies themselves must be created in the main window's store —
+            // that's where they mount and auto-run their seeded tasks. Forward
+            // the request and raise the main window so the user sees them spawn.
+            if (IS_MIRROR_WINDOW) {
+              requestRunInDuplicates({ project: projectName, count, opts: opts as unknown as Record<string, unknown> });
+              void FocusMainWindow(projectName);
+            } else {
+              void bulkDuplicate(projectName, count, opts);
+            }
           }}
         />
       )}

@@ -41,6 +41,13 @@ import {
 } from "../paneTree";
 import { useTabScroll } from "../store/tabScroll";
 import { disambiguateLabel, pickTerminalLabel } from "../terminalLabels";
+import {
+  IS_MIRROR_WINDOW,
+  broadcastMirrorTree,
+  onMirrorTree,
+  onMirrorTreeRequest,
+  requestMirrorTree,
+} from "../mirror";
 
 export interface TerminalStartOpts {
   configName?: string;
@@ -153,8 +160,14 @@ export function useTerminals(
   const pendingInjectCleanups = useRef<Set<() => void>>(new Set());
   const deferredPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const mirrorActiveRef = useRef(false);
+  const broadcastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const persist = useCallback(
     (next: PaneNode | null) => {
+      // A mirror window never owns the persisted tree — the owner (main
+      // window) is the single source of truth for terminals.json.
+      if (IS_MIRROR_WINDOW) return;
       const focusedId = focusedRef.current;
       // serviceFilterModes is a removed field (filter mode is now a single
       // global setting); strip it so a dead key from an earlier build doesn't
@@ -296,6 +309,30 @@ export function useTerminals(
   // previous conversation instead of restarting fresh). Falls back to
   // converting the legacy terminals[] array into a single root pane.
   useEffect(() => {
+    // Mirror window: don't reify fresh PTYs. Adopt the owner's LIVE tree (same
+    // process-global PTY ids) over the cross-window channel and keep it synced.
+    // Re-request until the owner answers so mount ordering doesn't matter.
+    if (IS_MIRROR_WINDOW) {
+      let gotTree = false;
+      const off = onMirrorTree(projectName, (payload) => {
+        gotTree = true;
+        setTree(payload.tree);
+        setFocusedPaneId(payload.focusedPaneId);
+        onCountRef.current?.(payload.tree ? collectTerminals(payload.tree).length : 0);
+      });
+      requestMirrorTree(projectName);
+      const retry = setInterval(() => {
+        if (gotTree) clearInterval(retry);
+        else requestMirrorTree(projectName);
+      }, 500);
+      const stopRetry = setTimeout(() => clearInterval(retry), 10000);
+      return () => {
+        off();
+        clearInterval(retry);
+        clearTimeout(stopRetry);
+      };
+    }
+
     const saved = getProjectTerminals(projectName);
     const persistedTree = saved.panes ?? legacyEntriesToTree(saved.terminals);
     if (!persistedTree) return;
@@ -332,6 +369,37 @@ export function useTerminals(
     };
   }, [projectName, scheduleCmdInject]);
 
+  // Owner side of the mirror channel: answer a mirror window's request for the
+  // current live tree, and lazily arm change-broadcasting (only once a mirror
+  // has actually asked, so non-mirrored projects stay silent).
+  useEffect(() => {
+    if (IS_MIRROR_WINDOW) return;
+    return onMirrorTreeRequest(projectName, () => {
+      mirrorActiveRef.current = true;
+      broadcastMirrorTree(projectName, {
+        tree: treeRef.current,
+        focusedPaneId: focusedRef.current,
+      });
+    });
+  }, [projectName]);
+
+  // Re-broadcast the live tree whenever it changes so the mirror follows adds,
+  // closes, splits, tab switches, and divider drags. Debounced so a divider
+  // drag coalesces to ~one emit per frame-burst.
+  useEffect(() => {
+    if (IS_MIRROR_WINDOW || !mirrorActiveRef.current) return;
+    if (broadcastTimer.current) clearTimeout(broadcastTimer.current);
+    broadcastTimer.current = setTimeout(() => {
+      broadcastMirrorTree(projectName, {
+        tree: treeRef.current,
+        focusedPaneId: focusedRef.current,
+      });
+    }, 80);
+    return () => {
+      if (broadcastTimer.current) clearTimeout(broadcastTimer.current);
+    };
+  }, [projectName, tree, focusedPaneId]);
+
   // Central path for adding a terminal: either to an explicit pane, the
   // focused pane, or a fresh root pane if the tree is empty.
   const addTerminal = useCallback(
@@ -356,6 +424,7 @@ export function useTerminals(
   );
 
   const createTerminal = useCallback(async () => {
+    if (IS_MIRROR_WINDOW) return;
     try {
       const id = await StartTerminal(projectName);
       addTerminal(makeTerminal(id, pickTerminalLabel(treeRef.current)));
@@ -364,6 +433,7 @@ export function useTerminals(
 
   const createTerminalWithCmd = useCallback(
     async (label: string, cmd: string, opts?: TerminalStartOpts) => {
+      if (IS_MIRROR_WINDOW) return;
       // When reuse is requested, find an existing live terminal tagged with
       // the same actionName. A dead session (process exited) falls through
       // so the user gets a fresh PTY instead of typing into a dead tab.
@@ -435,6 +505,7 @@ export function useTerminals(
 
   const resumeFromHistory = useCallback(
     async (entry: PersistedHistoryEntry) => {
+      if (IS_MIRROR_WINDOW) return;
       let id: string;
       try {
         id = entry.actionName
@@ -461,6 +532,7 @@ export function useTerminals(
 
   const addTerminalToPane = useCallback(
     async (paneId: string) => {
+      if (IS_MIRROR_WINDOW) return;
       try {
         const id = await StartTerminal(projectName);
         addTerminal(makeTerminal(id, pickTerminalLabel(treeRef.current)), paneId);
@@ -472,6 +544,7 @@ export function useTerminals(
   // Browser tabs have no PTY — no StartTerminal, just a webview keyed by id.
   const addBrowserToPane = useCallback(
     (paneId?: string) => {
+      if (IS_MIRROR_WINDOW) return;
       addTerminal(makeBrowser(nextId("browser")), paneId);
     },
     [addTerminal],
@@ -480,6 +553,7 @@ export function useTerminals(
   // Review tabs have no PTY — they render the git diff review pane keyed by id.
   const addReviewToPane = useCallback(
     (paneId?: string) => {
+      if (IS_MIRROR_WINDOW) return;
       addTerminal(makeReview(nextId("review")), paneId);
     },
     [addTerminal],
@@ -536,6 +610,7 @@ export function useTerminals(
 
   const closeTerminal = useCallback(
     (paneId: string, tabIdx: number) => {
+      if (IS_MIRROR_WINDOW) return;
       const current = treeRef.current;
       if (!current) return;
       const pane = findPane(current, paneId);
@@ -564,6 +639,7 @@ export function useTerminals(
   // needs no collapse. The kept tab becomes active.
   const closeOtherTerminals = useCallback(
     (paneId: string, tabIdx: number) => {
+      if (IS_MIRROR_WINDOW) return;
       const current = treeRef.current;
       if (!current) return;
       const pane = findPane(current, paneId);
@@ -716,6 +792,7 @@ export function useTerminals(
   // closeTerminal rule — panes with a persistent service tab stay alive.
   const moveTerminal = useCallback(
     (fromPaneId: string, termId: string, toPaneId: string, toIdx?: number) => {
+      if (IS_MIRROR_WINDOW) return;
       if (fromPaneId === toPaneId) return;
       const current = treeRef.current;
       if (!current) return;
@@ -755,6 +832,7 @@ export function useTerminals(
 
   const splitPane = useCallback(
     async (paneId: string, direction: SplitDirection) => {
+      if (IS_MIRROR_WINDOW) return;
       if (!treeRef.current || !findPane(treeRef.current, paneId)) return;
       let newId: string;
       try {
@@ -778,6 +856,7 @@ export function useTerminals(
 
   const closePane = useCallback(
     (paneId: string) => {
+      if (IS_MIRROR_WINDOW) return;
       const current = treeRef.current;
       if (!current) return;
       const pane = findPane(current, paneId);
@@ -845,6 +924,8 @@ export function useTerminals(
       }
       cleanups.forEach((fn) => fn());
       cleanups.clear();
+      // A mirror window adopts the owner's PTYs; closing it must not stop them.
+      if (IS_MIRROR_WINDOW) return;
       const current = treeRef.current;
       if (current) {
         collectTerminals(current).forEach((t) => {
