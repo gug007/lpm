@@ -1,7 +1,13 @@
 import { useState, useEffect, useMemo, useRef, useCallback, useImperativeHandle } from "react";
 import { toast } from "sonner";
 import { EventsOn } from "../../bridge/runtime";
-import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus } from "../../bridge/commands";
+import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus, FocusMainWindow } from "../../bridge/commands";
+import { IS_MIRROR_WINDOW, requestRunInDuplicates } from "../mirror";
+
+// Log streaming is refcounted per viewer in Rust; the two windows that can watch
+// one project's logs must identify themselves so pausing one doesn't stop the
+// shared poller for the other.
+const LOG_VIEWER = IS_MIRROR_WINDOW ? "mirror" : "main";
 import type { ITheme } from "@xterm/xterm";
 import { disposePaneSession, type PaneHandle } from "./Pane";
 import { disposeInteractivePaneSession, isInteractivePaneSessionDead, type InteractivePaneHandle } from "./InteractivePane";
@@ -108,7 +114,15 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
   const servicesKey = services.map((s) => s.name).join(",");
   const stableServices = useMemo(() => services, [servicesKey]);
-  const servicePorts = useServicePorts(projectName, visible && services.length > 0, servicesKey);
+  // Only the owner runs the 3s system-wide lsof port scan. A detached project is
+  // mounted in both windows, so gating the mirror off avoids doubling a load the
+  // freeze audit already flagged; the mirror's service tabs simply omit port
+  // labels rather than running a second scanner.
+  const servicePorts = useServicePorts(
+    projectName,
+    !IS_MIRROR_WINDOW && visible && services.length > 0,
+    servicesKey,
+  );
 
   // Ensure a root pane exists whenever there's something to host — either
   // a running service (so its tab has somewhere to live) or after the
@@ -333,7 +347,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     let prevPollOutputs: string[] = [];
 
     try {
-      StartLogStreaming(projectName).catch(() => {});
+      StartLogStreaming(projectName, LOG_VIEWER).catch(() => {});
       const cancel = EventsOn("log-update", (update: { project: string; pane: number; content: string }) => {
         if (update?.project !== projectName) return;
         setOutputs((prev) => {
@@ -374,14 +388,14 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
     const onVisibility = () => {
       if (shouldPause()) {
-        StopLogStreaming(projectName).catch(() => {});
+        StopLogStreaming(projectName, LOG_VIEWER).catch(() => {});
         if (pollInterval) {
           clearInterval(pollInterval);
           pollInterval = null;
         }
       } else {
         if (streaming) {
-          StartLogStreaming(projectName).catch(() => {});
+          StartLogStreaming(projectName, LOG_VIEWER).catch(() => {});
         } else if (!pollInterval) {
           poll();
           pollInterval = setInterval(poll, 1000);
@@ -393,7 +407,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     return () => {
       if (eventCleanup) eventCleanup();
       if (pollInterval) clearInterval(pollInterval);
-      StopLogStreaming(projectName).catch(() => {});
+      StopLogStreaming(projectName, LOG_VIEWER).catch(() => {});
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [projectName, stableServices]);
@@ -405,9 +419,9 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     }
     if (stableServices.length === 0) return;
     if (visible) {
-      StartLogStreaming(projectName).catch(() => {});
+      StartLogStreaming(projectName, LOG_VIEWER).catch(() => {});
     } else {
-      StopLogStreaming(projectName).catch(() => {});
+      StopLogStreaming(projectName, LOG_VIEWER).catch(() => {});
     }
   }, [visible, projectName, stableServices.length]);
 
@@ -741,7 +755,16 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             duplicateRunHere.current = null;
             setDuplicateSeed(null);
             if (runHere) await runHere();
-            void bulkDuplicate(projectName, count, opts);
+            // In a mirror window, copy #1 runs in the shared PTY here, but the
+            // copies themselves must be created in the main window's store —
+            // that's where they mount and auto-run their seeded tasks. Forward
+            // the request and raise the main window so the user sees them spawn.
+            if (IS_MIRROR_WINDOW) {
+              requestRunInDuplicates({ project: projectName, count, opts: opts as unknown as Record<string, unknown> });
+              void FocusMainWindow(projectName);
+            } else {
+              void bulkDuplicate(projectName, count, opts);
+            }
           }}
         />
       )}

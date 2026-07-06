@@ -26,7 +26,56 @@ import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
 import { stripAnsi } from "./terminal/filterLines";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { registerFileDropHandler } from "../fileDrop";
+import {
+  IS_MIRROR_WINDOW,
+  broadcastMirrorSize,
+  onMirrorSize,
+  broadcastMirrorDesired,
+  onMirrorDesired,
+  onMirrorSnapshotRequest,
+  replyMirrorSnapshot,
+  requestMirrorSnapshot,
+  onMirrorSnapshot,
+  broadcastMirrorAcking,
+  onMirrorAcking,
+} from "../mirror";
 import "@xterm/xterm/css/xterm.css";
+
+// Cross-window flow-control ack authority (one window acks a PTY's output; two
+// desync the shared counter). Window-level state shared by every session.
+//
+// Mirror-side: this window is the acker while it's focused AND visible — then
+// it's not OS-throttled, so its acks keep the producer flowing in real time.
+// Owner-side: mirrorIsAckAuthority tracks whether a mirror currently owns acking
+// so the owner can defer. Both default to "owner acks", so a window with no
+// mirror behaves exactly as before.
+let mirrorAmAckAuthority = false;
+let mirrorIsAckAuthority = false;
+if (IS_MIRROR_WINDOW) {
+  const publishAcking = () => {
+    const next = document.hasFocus() && !document.hidden;
+    if (next === mirrorAmAckAuthority) return;
+    mirrorAmAckAuthority = next;
+    broadcastMirrorAcking(next);
+  };
+  window.addEventListener("focus", publishAcking);
+  window.addEventListener("blur", publishAcking);
+  document.addEventListener("visibilitychange", publishAcking);
+  window.addEventListener("beforeunload", () => {
+    if (mirrorAmAckAuthority) broadcastMirrorAcking(false);
+  });
+  publishAcking();
+} else {
+  onMirrorAcking((acking) => {
+    mirrorIsAckAuthority = acking;
+  });
+  // Safety net: whenever this owner window is focused, it acks — no other window
+  // can be the ack authority (macOS focuses one at a time). This also clears a
+  // stale claim left by a mirror that closed without broadcasting a release.
+  window.addEventListener("focus", () => {
+    mirrorIsAckAuthority = false;
+  });
+}
 
 export interface InteractivePaneHandle {
   clear: () => void;
@@ -573,7 +622,14 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   ensureThemeObserver();
 
   let unsentAck = 0;
+  // Exactly one window acks a PTY's output — two acking the same bytes would
+  // desync the single shared flow-control counter. The owner acks by default;
+  // when a focused, visible mirror declares itself the ack authority (because
+  // the owner is hidden and its ack loop is throttled), the owner defers and the
+  // mirror acks instead, keeping the producer flowing for the window the user is
+  // actually watching. With no mirror both flags stay false → owner acks, as before.
   const ackData = (charCount: number) => {
+    if (IS_MIRROR_WINDOW ? !mirrorAmAckAuthority : mirrorIsAckAuthority) return;
     unsentAck += charCount;
     while (unsentAck >= ACK_SIZE) {
       unsentAck -= ACK_SIZE;
@@ -581,10 +637,48 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     }
   };
 
-  // Always write + ack, even when the pane is hidden. xterm.js keeps its own
-  // bounded scrollback, so background terminals stay drained and long-running
-  // processes (AI agents, scripts) never block on a full PTY buffer.
+  // Mirror seeding state: a joining mirror renders nothing until it has a
+  // scrollback snapshot from the owner (or a short fallback fires), so live
+  // output doesn't paint a torn screen ahead of the snapshot. `preSeed` holds
+  // live chunks until then.
+  let seeded = !IS_MIRROR_WINDOW;
+  const preSeed: string[] = [];
+  // A mirror that goes fully hidden (window occluded/minimized) has its xterm
+  // parser throttled by the OS while output keeps arriving — its write backlog
+  // would grow unbounded (the owner's ack governs the PRODUCER, not the mirror).
+  // So a hidden mirror drops output and re-seeds from a fresh snapshot on show.
+  let droppedWhileHidden = false;
+
+  // Always write + ack in the owner, even when the pane is hidden. xterm.js
+  // keeps its own bounded scrollback, so background terminals stay drained and
+  // long-running processes (AI agents, scripts) never block on a full PTY
+  // buffer. A mirror never acks (owner-only) and applies the seeding/memory
+  // gates above before rendering.
   const writeData = (data: string) => {
+    if (IS_MIRROR_WINDOW) {
+      // Ack on receipt while we're the acker (a focused, visible mirror isn't
+      // throttled, so receipt ≈ render). No-op otherwise.
+      ackData(data.length);
+      if (document.hidden) {
+        droppedWhileHidden = true;
+        return;
+      }
+      if (!seeded) {
+        preSeed.push(data);
+        return;
+      }
+      term.write(data);
+      return;
+    }
+    // Owner. When a mirror holds ack authority and this window is hidden, the
+    // producer is no longer paused on our behalf, so writing would grow xterm's
+    // parse queue unbounded (our parser is OS-throttled while hidden). Drop and
+    // reseed on show — exactly the mirror's memory bound — since the mirror is
+    // the live renderer meanwhile. Never triggers without a mirror (main-only).
+    if (mirrorIsAckAuthority && document.hidden) {
+      droppedWhileHidden = true;
+      return;
+    }
     term.write(data, () => ackData(data.length));
   };
 
@@ -607,8 +701,39 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     sendTerminalInput(terminalId, data).catch(handleWriteError);
   });
 
-  term.onResize(({ cols, rows }) => {
+  // The owner's host isn't in the DOM yet at session-create and may be mounted
+  // hidden (a detached project kept alive in the main window but not selected).
+  // A hidden host fits to a bogus 80x24 that would then drive the shared PTY, so
+  // the owner only drives geometry while it's actually laid out.
+  const isLaidOut = () =>
+    session.host.isConnected &&
+    session.host.offsetParent !== null &&
+    session.host.clientWidth > 0;
+
+  // The owner owns the shared PTY size only while it's the focused, laid-out
+  // view. macOS focuses one window at a time, so when a mirror is focused the
+  // owner is not — deferring on focus keeps the two windows from fighting over
+  // one PTY's geometry. (Main-only: the window is focused whenever it resizes,
+  // so this never withholds a legitimate resize.)
+  const hasSizeAuthority = () => document.hasFocus() && isLaidOut();
+
+  // One PTY has one geometry: the owner is the sole caller of ResizeTerminal and
+  // publishes the result so the mirror renders at the same cols/rows instead of
+  // mis-wrapping the shared stream. Always paired, so callers can't desync them.
+  const driveOwnerSize = (cols: number, rows: number) => {
     ResizeTerminal(terminalId, cols, rows).catch(() => {});
+    broadcastMirrorSize(terminalId, { cols, rows });
+  };
+
+  // Drive the PTY (and mirror) from a local fit only when this window holds size
+  // authority. Without the focus gate an unfocused owner's ResizeObserver — e.g.
+  // triggered by the mirror re-laying-out the owner's panes after a forwarded
+  // divider drag — would refit to the MAIN window's container and clobber the
+  // focused mirror's geometry ~350ms later.
+  term.onResize(({ cols, rows }) => {
+    if (IS_MIRROR_WINDOW) return;
+    if (!hasSizeAuthority()) return;
+    driveOwnerSize(cols, rows);
   });
 
   term.onScroll(() => {
@@ -617,7 +742,9 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     session.onScrollState?.(atBottom);
   });
 
-  ResizeTerminal(terminalId, term.cols, term.rows).catch(() => {});
+  if (!IS_MIRROR_WINDOW && hasSizeAuthority()) {
+    driveOwnerSize(term.cols, term.rows);
+  }
 
   // Attached to term.textarea — that's where xterm.js focuses and receives paste events.
   const handlePaste = (e: ClipboardEvent) => {
@@ -682,10 +809,177 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     },
   );
 
+  // Cross-window mirroring wiring.
+  //
+  // Size authority follows OS window focus: activating a window reconciles this
+  // session's geometry (a focused mirror claims the PTY size for its container;
+  // a focused owner re-fits and reclaims it), so whichever window the user is in
+  // gets a perfectly fitted terminal. One listener for both roles — reconcile
+  // dispatches on IS_MIRROR_WINDOW and no-ops for panes that aren't laid out.
+  const onWinFocus = () => reconcileGeometry(session, terminalId);
+  window.addEventListener("focus", onWinFocus);
+
+  let cleanupMirror: (() => void) | null = null;
+  if (IS_MIRROR_WINDOW) {
+    // Render the owner's authoritative geometry (the mirror never fits its own
+    // container — that would mis-wrap the shared stream).
+    const applySize = (cols: number, rows: number) => {
+      if (!cols || !rows) return;
+      try {
+        term.resize(cols, rows);
+      } catch {}
+    };
+    const offSize = onMirrorSize(terminalId, ({ cols, rows }) => applySize(cols, rows));
+
+    // Whether the current seed came from a real owner snapshot (vs. the timeout
+    // fallback). A fallback seed is provisional — a snapshot arriving later
+    // corrects it.
+    let seededFromSnapshot = false;
+
+    let snapTimer: ReturnType<typeof setInterval> | null = null;
+    const stopSnapTimer = () => {
+      if (snapTimer) {
+        clearInterval(snapTimer);
+        snapTimer = null;
+      }
+    };
+    // Apply the owner's serialized screen as the seed, then release buffered
+    // live output. Discard the pre-seed buffer on a real snapshot: it already
+    // reflects everything up to the owner's serialize point, so replaying would
+    // duplicate scrollback; the sub-frame gap self-heals on the next output.
+    const finishSeed = (snapData?: string) => {
+      if (seeded) return;
+      seeded = true;
+      seededFromSnapshot = !!snapData;
+      // Always reset first: on a snapshot we replace the screen; on the fallback
+      // we must NOT stack post-show output onto the stale pre-hidden screen
+      // (the hidden-period output was dropped, so the two don't join cleanly).
+      try {
+        term.reset();
+      } catch {}
+      if (snapData) {
+        try {
+          term.write(snapData);
+        } catch {}
+      } else {
+        for (const d of preSeed) {
+          try {
+            term.write(d);
+          } catch {}
+        }
+      }
+      preSeed.length = 0;
+    };
+    // Self-heal like the tree channel: keep asking for the owner's snapshot. A
+    // bounded wait renders the live buffer so a silent owner never leaves a
+    // blank pane (a provisional fallback seed), but we keep asking a few more
+    // times afterward so a late snapshot can still replace that provisional
+    // screen — then give up.
+    const startSeeding = () => {
+      seeded = false;
+      seededFromSnapshot = false;
+      preSeed.length = 0;
+      stopSnapTimer();
+      requestMirrorSnapshot(terminalId);
+      let tries = 0;
+      snapTimer = setInterval(() => {
+        tries += 1;
+        if (tries === 4) finishSeed(); // provisional fallback
+        // Keep asking briefly after the fallback so a late snapshot can still
+        // replace the provisional screen, then give up (a silent owner never
+        // replies — no point re-serializing its scrollback indefinitely).
+        if (tries >= 6) {
+          stopSnapTimer();
+          return;
+        }
+        requestMirrorSnapshot(terminalId);
+      }, 400);
+    };
+    const offSnap = onMirrorSnapshot(terminalId, ({ data, cols, rows }) => {
+      applySize(cols, rows);
+      if (!seeded) {
+        finishSeed(data);
+      } else if (!seededFromSnapshot && data) {
+        // A snapshot that lands after we already fell back to the live buffer:
+        // re-run the seed to replace the provisional fallback screen with the
+        // owner's authoritative one. Once seeded FROM a snapshot there's nothing
+        // to fix. preSeed is already empty here, so this only resets + writes.
+        seeded = false;
+        finishSeed(data);
+      }
+      if (seededFromSnapshot) stopSnapTimer();
+    });
+
+    startSeeding();
+
+    // Re-seed from the current screen when the window is shown after dropping
+    // output while hidden (see writeData's memory bound).
+    const onVis = () => {
+      if (!document.hidden && droppedWhileHidden) {
+        droppedWhileHidden = false;
+        startSeeding();
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+
+    cleanupMirror = () => {
+      offSize();
+      offSnap();
+      stopSnapTimer();
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  } else {
+    // Owner: seed a joining mirror's screen, and honor the mirror's DESIRED
+    // geometry whenever this window isn't the active one (unfocused or pane
+    // hidden) — size authority follows focus. Resize our own xterm to match so
+    // this view letterboxes instead of mis-wrapping while the mirror drives.
+    const offSnapReq = onMirrorSnapshotRequest(terminalId, () => {
+      // Drain xterm's async write queue before serializing, so the snapshot
+      // reflects every byte the owner has received — not just its parsed buffer.
+      // Under heavy streaming to a throttled owner the unparsed backlog can
+      // approach the flow-control window (~100KB); serializing without draining
+      // would silently drop it from the mirror's seed.
+      term.write("", () => {
+        replyMirrorSnapshot(terminalId, {
+          data: serialize?.serialize() ?? "",
+          cols: term.cols,
+          rows: term.rows,
+        });
+      });
+    });
+    const offDesired = onMirrorDesired(terminalId, ({ cols, rows }) => {
+      if (!cols || !rows) return;
+      if (hasSizeAuthority()) return;
+      try {
+        term.resize(cols, rows);
+      } catch {}
+      driveOwnerSize(cols, rows);
+    });
+    // When this owner was hidden and dropped output (mirror held ack authority),
+    // its buffer has a gap; on show, reset and let the live stream repaint rather
+    // than render a torn screen. Mirrors the mirror's drop-and-reseed tradeoff.
+    const onOwnerVis = () => {
+      if (!document.hidden && droppedWhileHidden) {
+        droppedWhileHidden = false;
+        try {
+          term.reset();
+        } catch {}
+      }
+    };
+    document.addEventListener("visibilitychange", onOwnerVis);
+    cleanupMirror = () => {
+      offSnapReq();
+      offDesired();
+      document.removeEventListener("visibilitychange", onOwnerVis);
+    };
+  }
+
   session.destroy = () => {
     textarea?.removeEventListener("paste", handlePaste, true);
     if (typeof cleanupOutput === "function") cleanupOutput();
     if (typeof cleanupExit === "function") cleanupExit();
+    window.removeEventListener("focus", onWinFocus);
+    cleanupMirror?.();
   };
 
   return session;
@@ -700,6 +994,41 @@ function getOrCreateInteractiveSession(terminalId: string, cwd: string): Interac
   const session = createInteractiveSession(terminalId, cwd);
   interactiveSessions.set(terminalId, session);
   return session;
+}
+
+// React to a geometry trigger (mount, container resize, font change, becoming
+// visible or focused): the owner fits its xterm to its container and drives the
+// shared PTY size, while a mirror never fits (that would mis-wrap the shared
+// stream) and instead publishes the size its container could hold. Size
+// authority follows OS window focus — only a focused mirror claims the PTY, so
+// whichever window the user is working in gets a perfectly fitted terminal and
+// an unfocused claim can never fight the active window.
+function reconcileGeometry(session: InteractiveSession, terminalId: string): void {
+  // A pane with no layout (hidden tab / a detached project kept mounted but
+  // unselected in the main window) has nothing to reconcile — skip before any
+  // fit/measure so a window-focus event doesn't fan out to every hidden pane.
+  if (session.host.offsetParent === null) return;
+  if (IS_MIRROR_WINDOW) {
+    if (!document.hasFocus()) return;
+    const dims = session.fit.proposeDimensions();
+    if (dims && dims.cols && dims.rows) {
+      broadcastMirrorDesired(terminalId, { cols: dims.cols, rows: dims.rows });
+    }
+    return;
+  }
+  try {
+    session.fit.fit();
+  } catch {}
+}
+
+// The owner focuses its terminal on mount/visible unless the composer already
+// holds focus; a mirror never auto-focuses (it can't see the owner window's
+// focus, so grabbing it would steal OS focus from the main window mid-action).
+function shouldAutoFocus(): boolean {
+  return (
+    !IS_MIRROR_WINDOW &&
+    !document.activeElement?.closest("[data-terminal-composer]")
+  );
 }
 
 export function InteractivePane({
@@ -865,9 +1194,12 @@ export function InteractivePane({
 
     el.appendChild(session.host);
 
-    try {
-      session.fit.fit();
-    } catch {}
+    // A mirror renders at the owner's cols/rows (see the mirror-size handler),
+    // so it never fits to its own container — fitting would resize the term
+    // away from the owner's geometry and mis-wrap the shared stream. Instead it
+    // publishes its container's DESIRED size, which the owner honors while the
+    // owner's own pane is hidden.
+    reconcileGeometry(session, terminalId);
 
     // Resize observer — debounced at 200ms to avoid garbled redraws during
     // the sidebar's CSS transition (transition-[width] duration-200)
@@ -877,9 +1209,7 @@ export function InteractivePane({
       resizeTimer = window.setTimeout(() => {
         resizeTimer = 0;
         if (!session.host.clientWidth || !session.host.clientHeight) return;
-        try {
-          session.fit.fit();
-        } catch {}
+        reconcileGeometry(session, terminalId);
       }, 200);
     });
     ro.observe(session.host);
@@ -887,7 +1217,7 @@ export function InteractivePane({
     // A new terminal's composer claims focus in its mount layout-effect, which
     // runs before this passive effect; don't yank focus back to the terminal
     // when the open terminal-input already holds it.
-    if (!document.activeElement?.closest("[data-terminal-composer]")) {
+    if (shouldAutoFocus()) {
       session.term.focus();
     }
 
@@ -921,9 +1251,7 @@ export function InteractivePane({
     if (!session) return;
     session.term.options.fontSize = fontSize;
     filterRef.current?.setFontSize(fontSize);
-    try {
-      session.fit.fit();
-    } catch {}
+    reconcileGeometry(session, terminalId);
   }, [fontSize]);
 
   useEffect(() => {
@@ -940,17 +1268,14 @@ export function InteractivePane({
     const session = sessionRef.current;
     if (!session) return;
     const term = session.term;
-    const fit = session.fit;
     requestAnimationFrame(() => {
-      try {
-        fit.fit();
-      } catch {}
+      reconcileGeometry(session, terminalId);
       try {
         term.refresh(0, term.rows - 1);
       } catch {}
       // Don't yank focus out of an open terminal-input composer that just
       // claimed it on a tab switch (it focuses synchronously, before this rAF).
-      if (!document.activeElement?.closest("[data-terminal-composer]")) {
+      if (shouldAutoFocus()) {
         term.focus();
       }
     });

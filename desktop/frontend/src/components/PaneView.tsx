@@ -2,6 +2,8 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { ITheme } from "@xterm/xterm";
 import { InteractivePane, type InteractivePaneHandle } from "./InteractivePane";
 import { BrowserPane } from "./BrowserPane";
+import { BrowserMirrorPlaceholder } from "./BrowserMirrorPlaceholder";
+import { IS_MIRROR_WINDOW } from "../mirror";
 import { DiffReviewPane } from "./review/DiffReviewPane";
 import { ErrorBoundary } from "./ui/ErrorBoundary";
 import { Pane, type PaneHandle } from "./Pane";
@@ -519,7 +521,11 @@ function PaneViewImpl(props: PaneViewProps) {
               }
             >
               {t.kind === "browser" ? (
-                <BrowserPane id={t.id} active={visible && isActive} />
+                IS_MIRROR_WINDOW ? (
+                  <BrowserMirrorPlaceholder />
+                ) : (
+                  <BrowserPane id={t.id} active={visible && isActive} />
+                )
               ) : t.kind === "review" ? (
                 <ErrorBoundary resetKey={t.id}>
                   <DiffReviewPane

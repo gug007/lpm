@@ -13,11 +13,10 @@ import { useComposerStore } from "./store/composer";
 import { initTTSEvents } from "./store/tts";
 import { useGeneratorsStore } from "./store/generators";
 import { queryClient } from "./queryClient";
+import { MIRROR_PROJECT } from "./mirror";
 import "./styles/globals.css";
 
-const detachedProject = new URLSearchParams(window.location.search).get(
-  "detached",
-);
+const detachedProject = MIRROR_PROJECT;
 
 Promise.all([loadSettings(), loadTerminals(), loadGroups(), hydrateComposerActions()]).then(([s, , g]) => {
   applyTheme(s.theme);

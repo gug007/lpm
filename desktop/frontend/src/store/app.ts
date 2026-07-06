@@ -1139,6 +1139,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const raw = (await ListDetachedProjects()) as string[] | null;
       const next = new Set<string>(raw ?? []);
+      // Every detached project must stay marked visited so the main window (the
+      // terminals' owner) keeps its ProjectDetail mounted even when unselected.
+      // Windows restored at launch reach the store only through this path — not
+      // detachProject — so without this a restored detached window's close would
+      // unmount the owner and StopTerminal-kill the project's live PTYs.
+      for (const name of next) get().markVisited(name);
       set((s) => {
         if (s.detached.size === next.size && [...s.detached].every((n) => next.has(n))) {
           return s;
@@ -1153,16 +1159,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   detachProject: async (name) => {
     try {
       await DetachProject(name);
+      // Mark visited so the main window keeps this project's ProjectDetail
+      // mounted (as the terminals' owner) even when it isn't selected — and so
+      // closing the detached window later doesn't unmount + kill the live PTYs
+      // the user never selected it inline.
+      get().markVisited(name);
       set((s) => {
-        const detached = s.detached.has(name)
-          ? s.detached
-          : new Set<string>([...s.detached, name]);
-        // Clear inline selection so lastSelectedProject persistence
-        // doesn't carry the now-detached project, and so EmptyState
-        // shows in the main pane without needing a derived guard.
-        const selected = s.selected === name ? null : s.selected;
-        if (detached === s.detached && selected === s.selected) return s;
-        return { detached, selected };
+        if (s.detached.has(name)) return s;
+        // Keep the project selected in the main window: the main window stays
+        // the owner of its live terminals, and the detached window opens as a
+        // co-interactive mirror of them — the project is now live in both.
+        return { detached: new Set<string>([...s.detached, name]) };
       });
     } catch (err) {
       toast.error(`Failed to detach ${name}: ${err}`);
