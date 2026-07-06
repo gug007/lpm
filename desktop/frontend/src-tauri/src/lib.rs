@@ -25,6 +25,7 @@ mod ports;
 mod proctree;
 mod projects_crud;
 mod pty;
+mod remote;
 mod services;
 mod socketsrv;
 mod sound;
@@ -63,6 +64,7 @@ use portforward::*;
 use ports::*;
 use projects_crud::*;
 use pty::*;
+use remote::*;
 use services::*;
 use sound::*;
 use sshconfig::*;
@@ -103,6 +105,7 @@ pub fn run() {
         .manage(portforward::PortFwdState::default())
         .manage(sshsync::SyncState::default())
         .manage(browser::BrowserState::default())
+        .manage(remote::RemoteHub::default())
         .on_menu_event(menu::handle_event)
         .on_window_event(|window, event| {
             // Closing the main window hides it instead of quitting, so terminals,
@@ -136,6 +139,11 @@ pub fn run() {
             socketsrv::start(config::socket_path(), store.clone(), handle.clone());
             status::start_pid_sweep(store, handle.clone());
 
+            // Mobile remote-control server (the phone app connects here). Reads
+            // its own ~/.lpm/remote.json; a no-op until enabled + paired.
+            let hub = app.state::<remote::RemoteHub>().inner().clone();
+            remote::start(hub, handle.clone());
+
             // Install agent status hooks (Claude Code / Codex) so they report to
             // the socket. Backgrounded — touches files, never blocks startup.
             std::thread::spawn(hooks::install_agent_hooks);
@@ -165,6 +173,7 @@ pub fn run() {
                 tts::stop_on_exit(app); // kill any suspended python TTS child
                 portforward::stop_all_forwards(app); // kill ssh -L tunnels + pollers
                 sshsync::stop_all_sync_watchers(app); // drop rsync mirror watchers
+                remote::stop(&app.state::<remote::RemoteHub>()); // retire the mobile server threads
                 let _ = std::fs::remove_file(config::socket_path());
             }
             // Dock-icon click with no visible window restores the hidden main

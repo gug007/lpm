@@ -301,6 +301,18 @@ export function MessageHistorySetFolder(messageId, folderId) {
 export function LoadSettings() {
   return invoke("load_settings");
 }
+export function RemoteState() {
+  return invoke("remote_state");
+}
+export function RemoteSetConfig(enabled, lan, port) {
+  return invoke("remote_set_config", { enabled, lan, port });
+}
+export function RemoteStartPairing() {
+  return invoke("remote_start_pairing");
+}
+export function RemoteRevokeDevice(id) {
+  return invoke("remote_revoke_device", { id });
+}
 export function LoadTerminals() {
   return invoke("load_terminals");
 }

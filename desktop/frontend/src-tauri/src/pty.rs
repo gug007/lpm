@@ -12,7 +12,7 @@ use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize}
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{Read, Write};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU16, AtomicU64, Ordering};
 use std::sync::mpsc::{sync_channel, RecvTimeoutError};
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::time::Duration;
@@ -52,6 +52,11 @@ pub struct PtySession {
     flow: Mutex<FlowState>,
     resume: Condvar,
     closed: RwLock<bool>,
+    // Last geometry pushed to the PTY. The owner window is the sole resizer, but
+    // a remote mirror (mobile app) has no other way to learn the size it must
+    // render at, so we cache cols/rows here and update them on every resize.
+    cols: AtomicU16,
+    rows: AtomicU16,
 }
 
 type SessionMap = Arc<Mutex<HashMap<String, Arc<PtySession>>>>;
@@ -117,6 +122,10 @@ fn flush(pending: &mut Vec<u8>, app: &AppHandle, sess: &Arc<PtySession>) {
     let text = String::from_utf8_lossy(pending).into_owned();
     let runes = text.chars().count() as i64; // RuneCountInString — MUST be runes
     let _ = app.emit(&format!("pty-output-{}", sess.id), &text);
+    // Mirror the same chunk to any connected mobile client (no-op when the
+    // remote server is off). Kept off the emit/ack path so it can never stall
+    // the reader — it only appends to a bounded ring + non-blocking client queues.
+    crate::remote::tee_output(app, &sess.id, &sess.project_name, &text);
     // Remote panes: sniff localhost URLs in output to auto-forward declared
     // ports / surface undeclared ones (port poller's no-poll-needed path).
     if sess.remote {
@@ -188,6 +197,7 @@ fn spawn_io_threads(
             .map(|s| s.exit_code() as i32)
             .unwrap_or(0);
         let _ = app.emit(&format!("pty-exit-{}", sess.id), code);
+        crate::remote::tee_exit(&app, &sess.id, code);
         sessions.lock().unwrap().remove(&sess.id);
     });
 }
@@ -307,6 +317,8 @@ fn start_internal(
         }),
         resume: Condvar::new(),
         closed: RwLock::new(false),
+        cols: AtomicU16::new(80),
+        rows: AtomicU16::new(24),
     });
     state.sessions.lock().unwrap().insert(id.clone(), sess.clone());
     spawn_io_threads(app.clone(), sess, state.sessions.clone(), reader);
@@ -465,6 +477,10 @@ pub fn resize_terminal(
             pixel_height: 0,
         })
         .map_err(|e| e.to_string());
+    if r.is_ok() {
+        sess.cols.store(cols, Ordering::Relaxed);
+        sess.rows.store(rows, Ordering::Relaxed);
+    }
     r
 }
 
@@ -532,6 +548,84 @@ pub fn session_remote_ssh(
         .unwrap()
         .get(id)
         .map(|s| (s.remote, s.ssh.clone()))
+}
+
+// --- remote-control accessors (remote.rs) ------------------------------------
+// remote.rs lives in a sibling module and can't reach PtySession's private
+// writer/master, so these mirror the write_terminal/resize_terminal bodies but
+// take &PtyState (obtained via app.state::<PtyState>()) instead of a Tauri
+// State wrapper. Behaviour is identical to the commands the main window calls.
+
+/// A terminal a mobile client can attach to (its id, current geometry, remote flag).
+#[derive(Serialize, Clone)]
+pub struct RemoteTerminal {
+    pub id: String,
+    pub project: String,
+    pub cols: u16,
+    pub rows: u16,
+    pub remote: bool,
+}
+
+fn session(state: &PtyState, id: &str) -> Option<Arc<PtySession>> {
+    state.sessions.lock().unwrap().get(id).cloned()
+}
+
+/// Write input to a terminal from the remote server (same hex-marker contract as
+/// write_terminal). Errors mirror the command's.
+pub fn remote_write(state: &PtyState, id: &str, data: &str) -> Result<(), String> {
+    let sess = session(state, id).ok_or_else(|| format!("terminal not found: {id}"))?;
+    if *sess.closed.read().unwrap() {
+        return Err(format!("terminal closed: {id}"));
+    }
+    let buf: Vec<u8> = match data.strip_prefix(HEX_MARKER) {
+        Some(hexpart) => hex::decode(hexpart).map_err(|e| format!("decode hex: {e}"))?,
+        None => data.as_bytes().to_vec(),
+    };
+    let r = sess.writer.lock().unwrap().write_all(&buf).map_err(|e| e.to_string());
+    r
+}
+
+/// Resize a terminal from the remote server. One PTY has one geometry, so this
+/// fights the owner window — the mobile client only calls it when it is the sole
+/// interactive viewer.
+pub fn remote_resize(state: &PtyState, id: &str, cols: u16, rows: u16) -> Result<(), String> {
+    let sess = session(state, id).ok_or_else(|| format!("terminal not found: {id}"))?;
+    if *sess.closed.read().unwrap() {
+        return Err(format!("terminal closed: {id}"));
+    }
+    sess.master
+        .lock()
+        .unwrap()
+        .resize(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
+        .map_err(|e| e.to_string())?;
+    sess.cols.store(cols, Ordering::Relaxed);
+    sess.rows.store(rows, Ordering::Relaxed);
+    Ok(())
+}
+
+/// Current geometry of a terminal, so a joining mobile client renders correctly.
+pub fn remote_dims(state: &PtyState, id: &str) -> Option<(u16, u16)> {
+    session(state, id).map(|s| (s.cols.load(Ordering::Relaxed), s.rows.load(Ordering::Relaxed)))
+}
+
+/// Every live terminal belonging to `project` (what the phone lists per project).
+pub fn remote_terminals(state: &PtyState, project: &str) -> Vec<RemoteTerminal> {
+    let mut out: Vec<RemoteTerminal> = state
+        .sessions
+        .lock()
+        .unwrap()
+        .values()
+        .filter(|s| s.project_name == project && !*s.closed.read().unwrap())
+        .map(|s| RemoteTerminal {
+            id: s.id.clone(),
+            project: s.project_name.clone(),
+            cols: s.cols.load(Ordering::Relaxed),
+            rows: s.rows.load(Ordering::Relaxed),
+            remote: s.remote,
+        })
+        .collect();
+    out.sort_by(|a, b| a.id.cmp(&b.id));
+    out
 }
 
 #[cfg(test)]

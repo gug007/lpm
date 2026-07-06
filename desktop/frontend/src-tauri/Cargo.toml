@@ -60,6 +60,14 @@ flate2 = "1"           # gzip for the config archive
 # default-tls = native-tls = Security.framework on macOS (no extra OpenSSL).
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "default-tls"] }
 
+# --- Mobile remote-control server (remote.rs) ---
+# Blocking WebSocket per the socketsrv std::thread house style (no tokio). Each
+# phone connection is one thread; output is teed from the PTY flush point.
+tungstenite = "0.24"
+# QR encode the pairing payload to an SVG string the Settings pane renders inline
+# (svg feature only — avoids pulling the `image` crate).
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+
 # objc2 for the in-pane browser's per-webview NSAppearance override (window theme
 # is app-wide on macOS). Versions match what Tauri already pulls in.
 [target.'cfg(target_os = "macos")'.dependencies]

@@ -41,6 +41,7 @@ import type { main } from "../../bridge/models";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Modal } from "./ui/Modal";
 import { TrafficLights } from "./ui/TrafficLights";
+import { MobileSettingsPane } from "./MobileSettingsPane";
 import { CheckIcon, PencilIcon, TrashIcon } from "./icons";
 import { useAppStore, type SettingsTab } from "../store/app";
 import { modalInputDefaults } from "../forms/styles";
@@ -329,6 +330,7 @@ export function Settings({
     ["global-config", "Global Config"],
     ["templates", "Templates"],
     ["backup", "Backup & Transfer"],
+    ["mobile", "Mobile devices"],
   ];
 
   const soundRows: {
@@ -706,6 +708,8 @@ export function Settings({
             </SettingsSection>
             </>
           )}
+
+          {activeTab === "mobile" && <MobileSettingsPane />}
 
           <ConfirmDialog
             open={showResetDialog}

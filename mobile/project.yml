@@ -1,0 +1,57 @@
+# XcodeGen spec — turns the Swift sources here into a runnable iOS app.
+#
+#   brew install xcodegen        # once
+#   cd mobile && xcodegen generate
+#   open LpmMobile.xcodeproj
+#
+# Then set your signing team in Signing & Capabilities and run on a physical
+# iPhone (the Simulator can't reach your Mac's LAN/tailnet).
+name: LpmMobile
+options:
+  bundleIdPrefix: cx.lpm
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+packages:
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm
+    from: "1.2.0"
+
+targets:
+  LpmMobile:
+    type: application
+    platform: iOS
+    sources:
+      - Sources/LpmMobile
+    dependencies:
+      - package: SwiftTerm
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cx.lpm.mobile
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        # Automatic signing — pick your team in Xcode → Signing & Capabilities.
+        CODE_SIGN_STYLE: Automatic
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: lpm
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # Required — the QR scanner crashes on open without a camera usage string.
+        NSCameraUsageDescription: Scan the pairing QR code shown by lpm on your Mac.
+        NSLocalNetworkUsageDescription: Connect to lpm running on your Mac.
+        NSBonjourServices:
+          - _lpm._tcp
+        # The desktop server is plaintext ws:// on the LAN (encryption comes from
+        # running over a Tailscale tailnet). App Transport Security blocks cleartext
+        # by default; NSAllowsLocalNetworking permits it for local/private addresses
+        # only — no global ATS opt-out.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
