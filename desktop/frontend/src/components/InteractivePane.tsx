@@ -746,6 +746,15 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   );
 
   // Cross-window mirroring wiring.
+  //
+  // Size authority follows OS window focus: activating a window reconciles this
+  // session's geometry (a focused mirror claims the PTY size for its container;
+  // a focused owner re-fits and reclaims it), so whichever window the user is in
+  // gets a perfectly fitted terminal. One listener for both roles — reconcile
+  // dispatches on IS_MIRROR_WINDOW and no-ops for panes that aren't laid out.
+  const onWinFocus = () => reconcileGeometry(session, terminalId);
+  window.addEventListener("focus", onWinFocus);
+
   let cleanupMirror: (() => void) | null = null;
   if (IS_MIRROR_WINDOW) {
     // Render the owner's authoritative geometry (the mirror never fits its own
@@ -834,8 +843,9 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     };
   } else {
     // Owner: seed a joining mirror's screen, and honor the mirror's DESIRED
-    // geometry only while our own pane is hidden — so a mirror that is the sole
-    // visible view isn't stuck at our stale/default size.
+    // geometry whenever this window isn't the active one (unfocused or pane
+    // hidden) — size authority follows focus. Resize our own xterm to match so
+    // this view letterboxes instead of mis-wrapping while the mirror drives.
     const offSnapReq = onMirrorSnapshotRequest(terminalId, () => {
       replyMirrorSnapshot(terminalId, {
         data: serialize?.serialize() ?? "",
@@ -843,8 +853,16 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
         rows: term.rows,
       });
     });
+    // This window owns the shared PTY size while it's the focused, laid-out
+    // view; only then does it ignore the mirror's desired size and drive its
+    // own. (macOS focuses one window at a time, so authority is never contested.)
+    const hasSizeAuthority = () => document.hasFocus() && isLaidOut();
     const offDesired = onMirrorDesired(terminalId, ({ cols, rows }) => {
-      if (!cols || !rows || isLaidOut()) return;
+      if (!cols || !rows) return;
+      if (hasSizeAuthority()) return;
+      try {
+        term.resize(cols, rows);
+      } catch {}
       driveOwnerSize(cols, rows);
     });
     cleanupMirror = () => {
@@ -857,6 +875,7 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     textarea?.removeEventListener("paste", handlePaste, true);
     if (typeof cleanupOutput === "function") cleanupOutput();
     if (typeof cleanupExit === "function") cleanupExit();
+    window.removeEventListener("focus", onWinFocus);
     cleanupMirror?.();
   };
 
@@ -875,11 +894,19 @@ function getOrCreateInteractiveSession(terminalId: string, cwd: string): Interac
 }
 
 // React to a geometry trigger (mount, container resize, font change, becoming
-// visible): the owner fits its xterm to its container and drives the shared PTY
-// size, while a mirror never fits (that would mis-wrap the shared stream) and
-// instead publishes the size its container could hold for the owner to honor.
+// visible or focused): the owner fits its xterm to its container and drives the
+// shared PTY size, while a mirror never fits (that would mis-wrap the shared
+// stream) and instead publishes the size its container could hold. Size
+// authority follows OS window focus — only a focused mirror claims the PTY, so
+// whichever window the user is working in gets a perfectly fitted terminal and
+// an unfocused claim can never fight the active window.
 function reconcileGeometry(session: InteractiveSession, terminalId: string): void {
+  // A pane with no layout (hidden tab / a detached project kept mounted but
+  // unselected in the main window) has nothing to reconcile — skip before any
+  // fit/measure so a window-focus event doesn't fan out to every hidden pane.
+  if (session.host.offsetParent === null) return;
   if (IS_MIRROR_WINDOW) {
+    if (!document.hasFocus()) return;
     const dims = session.fit.proposeDimensions();
     if (dims && dims.cols && dims.rows) {
       broadcastMirrorDesired(terminalId, { cols: dims.cols, rows: dims.rows });
