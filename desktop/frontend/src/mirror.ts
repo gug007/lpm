@@ -86,6 +86,30 @@ export function onMirrorDesired(id: string, cb: (s: MirrorSize) => void): () => 
   return EventsOn(desiredEvt(id), cb);
 }
 
+// --- forwarded terminal actions (mirror -> owner). A mirror can't spawn/stop
+//     PTYs or restructure the pane tree itself — its tree is a copy the owner
+//     overwrites on every broadcast. So the mirror forwards the action by name,
+//     the owner executes it against the authoritative tree (spawn, labeling,
+//     command injection, persistence all stay in one place), and the result
+//     comes back through the tree broadcast. ---
+const ACTION = "mirror-terminal-action";
+export function requestMirrorAction(project: string, kind: string, args: unknown[]): void {
+  // Trailing omitted optionals would JSON-serialize to null and stop reading
+  // as "not provided" on the owner side (e.g. renameTerminal's emoji, where
+  // undefined means "keep" but null-ish means "clear").
+  const trimmed = [...args];
+  while (trimmed.length > 0 && trimmed[trimmed.length - 1] === undefined) trimmed.pop();
+  EventsEmit(ACTION, { project, kind, args: trimmed });
+}
+export function onMirrorAction(
+  project: string,
+  cb: (kind: string, args: unknown[]) => void,
+): () => void {
+  return EventsOn(ACTION, (m: { project?: string; kind?: string; args?: unknown[] }) => {
+    if (m && m.project === project && m.kind) cb(m.kind, m.args ?? []);
+  });
+}
+
 // --- run-in-duplicates (mirror -> owner). Creating project copies + queuing
 //     their seeded tasks must happen in the main window's store, where the
 //     copies actually mount and auto-run; a mirror only forwards the request. ---

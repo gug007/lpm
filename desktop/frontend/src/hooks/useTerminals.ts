@@ -47,6 +47,8 @@ import {
   onMirrorTree,
   onMirrorTreeRequest,
   requestMirrorTree,
+  requestMirrorAction,
+  onMirrorAction,
 } from "../mirror";
 
 export interface TerminalStartOpts {
@@ -162,6 +164,20 @@ export function useTerminals(
 
   const mirrorActiveRef = useRef(false);
   const broadcastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ratioForwardTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Mirror -> owner action forwarding: the mirror can't spawn/stop PTYs or
+  // restructure the tree (its tree is overwritten by every owner broadcast), so
+  // it sends the action by name and the owner executes it; the result comes
+  // back through the tree broadcast. Pure tree actions (focus, rename, reorder)
+  // ALSO apply locally so they feel instant — the owner applies the same change
+  // and the echoed broadcast is a no-op.
+  const forward = useCallback(
+    (kind: string, ...args: unknown[]) => {
+      requestMirrorAction(projectName, kind, args);
+    },
+    [projectName],
+  );
 
   const persist = useCallback(
     (next: PaneNode | null) => {
@@ -326,10 +342,16 @@ export function useTerminals(
         else requestMirrorTree(projectName);
       }, 500);
       const stopRetry = setTimeout(() => clearInterval(retry), 10000);
+      // Self-heal on activation: if this mirror's tree went stale for any
+      // reason (owner remounted and lost its armed state, retries expired,
+      // a broadcast was missed), re-syncing costs one request+answer.
+      const onWinFocus = () => requestMirrorTree(projectName);
+      window.addEventListener("focus", onWinFocus);
       return () => {
         off();
         clearInterval(retry);
         clearTimeout(stopRetry);
+        window.removeEventListener("focus", onWinFocus);
       };
     }
 
@@ -424,16 +446,16 @@ export function useTerminals(
   );
 
   const createTerminal = useCallback(async () => {
-    if (IS_MIRROR_WINDOW) return;
+    if (IS_MIRROR_WINDOW) return forward("createTerminal");
     try {
       const id = await StartTerminal(projectName);
       addTerminal(makeTerminal(id, pickTerminalLabel(treeRef.current)));
     } catch {}
-  }, [projectName, addTerminal]);
+  }, [projectName, addTerminal, forward]);
 
   const createTerminalWithCmd = useCallback(
     async (label: string, cmd: string, opts?: TerminalStartOpts) => {
-      if (IS_MIRROR_WINDOW) return;
+      if (IS_MIRROR_WINDOW) return forward("createTerminalWithCmd", label, cmd, opts);
       // When reuse is requested, find an existing live terminal tagged with
       // the same actionName. A dead session (process exited) falls through
       // so the user gets a fresh PTY instead of typing into a dead tab.
@@ -500,12 +522,12 @@ export function useTerminals(
       const folded = foldAgentPrompt(cmd, opts?.prompt);
       scheduleCmdInject(id, folded.cmd, folded.prompt);
     },
-    [projectName, addTerminal, applyTree, scheduleCmdInject, scheduleSeedInject],
+    [projectName, addTerminal, applyTree, scheduleCmdInject, scheduleSeedInject, forward],
   );
 
   const resumeFromHistory = useCallback(
     async (entry: PersistedHistoryEntry) => {
-      if (IS_MIRROR_WINDOW) return;
+      if (IS_MIRROR_WINDOW) return forward("resumeFromHistory", entry);
       let id: string;
       try {
         id = entry.actionName
@@ -527,36 +549,37 @@ export function useTerminals(
       addTerminal(term);
       scheduleCmdInject(id, entry.resumeCmd);
     },
-    [projectName, addTerminal, scheduleCmdInject],
+    [projectName, addTerminal, scheduleCmdInject, forward],
   );
 
   const addTerminalToPane = useCallback(
     async (paneId: string) => {
-      if (IS_MIRROR_WINDOW) return;
+      if (IS_MIRROR_WINDOW) return forward("addTerminalToPane", paneId);
       try {
         const id = await StartTerminal(projectName);
         addTerminal(makeTerminal(id, pickTerminalLabel(treeRef.current)), paneId);
       } catch {}
     },
-    [projectName, addTerminal],
+    [projectName, addTerminal, forward],
   );
 
   // Browser tabs have no PTY — no StartTerminal, just a webview keyed by id.
+  // Still owner-created so the tab id is minted once, in the tree of record.
   const addBrowserToPane = useCallback(
     (paneId?: string) => {
-      if (IS_MIRROR_WINDOW) return;
+      if (IS_MIRROR_WINDOW) return forward("addBrowserToPane", paneId);
       addTerminal(makeBrowser(nextId("browser")), paneId);
     },
-    [addTerminal],
+    [addTerminal, forward],
   );
 
   // Review tabs have no PTY — they render the git diff review pane keyed by id.
   const addReviewToPane = useCallback(
     (paneId?: string) => {
-      if (IS_MIRROR_WINDOW) return;
+      if (IS_MIRROR_WINDOW) return forward("addReviewToPane", paneId);
       addTerminal(makeReview(nextId("review")), paneId);
     },
-    [addTerminal],
+    [addTerminal, forward],
   );
 
   // Drop a pane from the tree, moving focus to its visual neighbor (or the
@@ -610,7 +633,7 @@ export function useTerminals(
 
   const closeTerminal = useCallback(
     (paneId: string, tabIdx: number) => {
-      if (IS_MIRROR_WINDOW) return;
+      if (IS_MIRROR_WINDOW) return forward("closeTerminal", paneId, tabIdx);
       const current = treeRef.current;
       if (!current) return;
       const pane = findPane(current, paneId);
@@ -631,7 +654,7 @@ export function useTerminals(
       const next = mapPane(current, paneId, (p) => ({ ...p, tabs: newTabs, activeTabIdx: newActive }));
       applyTree(next);
     },
-    [applyTree, collapsePane, disposeTabs],
+    [applyTree, collapsePane, disposeTabs, forward],
   );
 
   // Closes every unpinned tab in the pane except the one at `tabIdx`; pinned
@@ -639,7 +662,7 @@ export function useTerminals(
   // needs no collapse. The kept tab becomes active.
   const closeOtherTerminals = useCallback(
     (paneId: string, tabIdx: number) => {
-      if (IS_MIRROR_WINDOW) return;
+      if (IS_MIRROR_WINDOW) return forward("closeOtherTerminals", paneId, tabIdx);
       const current = treeRef.current;
       if (!current) return;
       const pane = findPane(current, paneId);
@@ -654,7 +677,7 @@ export function useTerminals(
       const next = mapPane(current, paneId, (p) => ({ ...p, tabs: newTabs, activeTabIdx: newActive }));
       applyTree(next);
     },
-    [applyTree, disposeTabs],
+    [applyTree, disposeTabs, forward],
   );
 
   const focusTerminal = useCallback(
@@ -664,6 +687,7 @@ export function useTerminals(
       const pane = findPane(current, paneId);
       if (!pane) return;
       if (pane.activeTabIdx === tabIdx && pane.activeServiceName === undefined) return;
+      if (IS_MIRROR_WINDOW) forward("focusTerminal", paneId, tabIdx);
       const next = mapPane(current, paneId, (p) => ({
         ...p,
         activeTabIdx: tabIdx,
@@ -671,7 +695,7 @@ export function useTerminals(
       }));
       applyTree(next, paneId);
     },
-    [applyTree],
+    [applyTree, forward],
   );
 
   const focusService = useCallback(
@@ -680,10 +704,11 @@ export function useTerminals(
       if (!current) return;
       const pane = findPane(current, paneId);
       if (!pane || pane.activeServiceName === serviceName) return;
+      if (IS_MIRROR_WINDOW) forward("focusService", paneId, serviceName);
       const next = mapPane(current, paneId, (p) => ({ ...p, activeServiceName: serviceName }));
       applyTree(next, paneId);
     },
-    [applyTree],
+    [applyTree, forward],
   );
 
   const focusAdjacentPaneItem = useCallback(
@@ -706,18 +731,21 @@ export function useTerminals(
   const ensureRootPane = useCallback(
     (initialServiceName?: string) => {
       if (treeRef.current) return;
+      // Owner-only: the pane id must be minted once, in the tree of record.
+      if (IS_MIRROR_WINDOW) return forward("ensureRootPane", initialServiceName);
       const paneId = nextId("pane");
       const pane = makePaneLeaf(paneId, [], 0);
       if (initialServiceName) pane.activeServiceName = initialServiceName;
       applyTree(pane, paneId);
     },
-    [applyTree],
+    [applyTree, forward],
   );
 
   const renameTerminal = useCallback(
     (paneId: string, tabIdx: number, label: string, emoji?: string) => {
       const current = treeRef.current;
       if (!current) return;
+      if (IS_MIRROR_WINDOW) forward("renameTerminal", paneId, tabIdx, label, emoji);
       const next = mapPane(current, paneId, (p) => ({
         ...p,
         tabs: p.tabs.map((t, i) =>
@@ -733,7 +761,7 @@ export function useTerminals(
       }));
       applyTree(next);
     },
-    [applyTree],
+    [applyTree, forward],
   );
 
   const toggleTabPinned = useCallback(
@@ -742,6 +770,7 @@ export function useTerminals(
       if (!current) return;
       const pane = findPane(current, paneId);
       if (!pane || !pane.tabs[tabIdx]) return;
+      if (IS_MIRROR_WINDOW) forward("toggleTabPinned", paneId, tabIdx);
       const next = mapPane(current, paneId, (p) => ({
         ...p,
         tabs: p.tabs.map((t, i) =>
@@ -750,7 +779,7 @@ export function useTerminals(
       }));
       applyTree(next);
     },
-    [applyTree],
+    [applyTree, forward],
   );
 
   // Reorder follows the active terminal by id rather than by index so the
@@ -778,6 +807,7 @@ export function useTerminals(
         return;
       }
 
+      if (IS_MIRROR_WINDOW) forward("reorderTerminals", paneId, order);
       const next = mapPane(current, paneId, (p) => ({
         ...p,
         tabs: newTabs,
@@ -785,15 +815,15 @@ export function useTerminals(
       }));
       applyTree(next);
     },
-    [applyTree],
+    [applyTree, forward],
   );
 
   // Collapses the source pane when the move empties it, matching the
   // closeTerminal rule — panes with a persistent service tab stay alive.
   const moveTerminal = useCallback(
     (fromPaneId: string, termId: string, toPaneId: string, toIdx?: number) => {
-      if (IS_MIRROR_WINDOW) return;
       if (fromPaneId === toPaneId) return;
+      if (IS_MIRROR_WINDOW) forward("moveTerminal", fromPaneId, termId, toPaneId, toIdx);
       const current = treeRef.current;
       if (!current) return;
       const fromPane = findPane(current, fromPaneId);
@@ -827,12 +857,12 @@ export function useTerminals(
 
       applyTree(next, toPaneId);
     },
-    [applyTree],
+    [applyTree, forward],
   );
 
   const splitPane = useCallback(
     async (paneId: string, direction: SplitDirection) => {
-      if (IS_MIRROR_WINDOW) return;
+      if (IS_MIRROR_WINDOW) return forward("splitPane", paneId, direction);
       if (!treeRef.current || !findPane(treeRef.current, paneId)) return;
       let newId: string;
       try {
@@ -851,12 +881,12 @@ export function useTerminals(
       const newPane = makePaneLeaf(newPaneId, [makeTerminal(newId, pickTerminalLabel(current))], 0);
       applyTree(splitAtPane(current, paneId, direction, newPane), newPaneId);
     },
-    [projectName, applyTree],
+    [projectName, applyTree, forward],
   );
 
   const closePane = useCallback(
     (paneId: string) => {
-      if (IS_MIRROR_WINDOW) return;
+      if (IS_MIRROR_WINDOW) return forward("closePane", paneId);
       const current = treeRef.current;
       if (!current) return;
       const pane = findPane(current, paneId);
@@ -870,7 +900,7 @@ export function useTerminals(
       recordClosingTabs(pane.tabs);
       collapsePane(current, paneId);
     },
-    [collapsePane, recordClosingTabs, projectName],
+    [collapsePane, recordClosingTabs, projectName, forward],
   );
 
   // Divider drag mutates the tree on every frame. setRatioAtPath returns
@@ -883,9 +913,20 @@ export function useTerminals(
       const next = setRatioAtPath(current, path, ratio);
       if (next === current) return;
       setTree(next);
+      if (IS_MIRROR_WINDOW) {
+        // Local-first for a smooth drag; forward only the settled ratio so the
+        // owner's echoed broadcasts (up to 80ms stale) can't rubber-band the
+        // divider mid-drag.
+        if (ratioForwardTimer.current) clearTimeout(ratioForwardTimer.current);
+        ratioForwardTimer.current = setTimeout(() => {
+          ratioForwardTimer.current = null;
+          forward("setRatio", path, ratio);
+        }, 150);
+        return;
+      }
       schedulePersist();
     },
-    [schedulePersist],
+    [schedulePersist, forward],
   );
 
   const focusPane = useCallback(
@@ -893,12 +934,13 @@ export function useTerminals(
       if (focusedRef.current === paneId) return;
       const current = treeRef.current;
       if (!current || !findPane(current, paneId)) return;
+      if (IS_MIRROR_WINDOW) forward("focusPane", paneId);
       setFocusedPaneId(paneId);
       // Sync ref so the debounced persist reads the just-clicked pane id.
       focusedRef.current = paneId;
       schedulePersist();
     },
-    [schedulePersist],
+    [schedulePersist, forward],
   );
 
   const getFocusedPane = useCallback((): PaneLeaf | null => {
@@ -911,6 +953,52 @@ export function useTerminals(
     return treeRef.current ? findPane(treeRef.current, paneId) : null;
   }, []);
 
+  // Owner side of action forwarding: execute the actions a mirror window sends
+  // for this project against the authoritative tree. This map is the single
+  // list of everything a mirror may do; the result flows back to the mirror
+  // through the tree broadcast. Pane/tab ids in the args are valid here because
+  // the mirror's tree is a verbatim copy of this window's.
+  const forwardable = {
+    createTerminal,
+    createTerminalWithCmd,
+    resumeFromHistory,
+    addTerminalToPane,
+    addBrowserToPane,
+    addReviewToPane,
+    closeTerminal,
+    closeOtherTerminals,
+    focusTerminal,
+    focusService,
+    renameTerminal,
+    toggleTabPinned,
+    reorderTerminals,
+    moveTerminal,
+    splitPane,
+    closePane,
+    setRatio,
+    focusPane,
+    ensureRootPane,
+  };
+  const forwardableRef = useRef(forwardable);
+  forwardableRef.current = forwardable;
+
+  useEffect(() => {
+    if (IS_MIRROR_WINDOW) return;
+    return onMirrorAction(projectName, (kind, args) => {
+      // A forwarded action is proof a mirror is attached: arm change
+      // broadcasting even if the arm-on-request signal was missed (e.g. this
+      // hook instance remounted after the mirror joined), so the action's
+      // resulting tree change always makes it back to the mirror.
+      mirrorActiveRef.current = true;
+      const actions = forwardableRef.current;
+      if (!Object.prototype.hasOwnProperty.call(actions, kind)) return;
+      const fn = actions[kind as keyof typeof actions] as unknown as (
+        ...a: unknown[]
+      ) => unknown;
+      void fn(...args);
+    });
+  }, [projectName]);
+
   // Cleanup all terminals and pending command injections on unmount.
   // Flush any debounced persist first so in-flight ratio changes aren't
   // lost.
@@ -921,6 +1009,10 @@ export function useTerminals(
         clearTimeout(deferredPersistTimer.current);
         deferredPersistTimer.current = null;
         persist(treeRef.current);
+      }
+      if (ratioForwardTimer.current) {
+        clearTimeout(ratioForwardTimer.current);
+        ratioForwardTimer.current = null;
       }
       cleanups.forEach((fn) => fn());
       cleanups.clear();
