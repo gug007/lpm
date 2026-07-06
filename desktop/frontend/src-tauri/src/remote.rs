@@ -499,6 +499,10 @@ fn handle_msg(
     match t {
         "ping" => send(ws, json!({ "t": "pong" }))?,
         "projects" => send(ws, json!({ "t": "projects", "projects": list_projects_json(app) }))?,
+        "sidebar" => {
+            let sb = sidebar_json();
+            send(ws, json!({ "t": "sidebar", "order": sb.0, "groups": sb.1 }))?;
+        }
         "terminals" => {
             let project = str_field("project").unwrap_or_default();
             let terms = pty::remote_terminals(&app.state::<pty::PtyState>(), &project);
@@ -582,6 +586,23 @@ fn list_projects_json(app: &AppHandle) -> Value {
         }
     }
     Value::Array(projects)
+}
+
+/// The sidebar layout so the phone can render folders like the desktop:
+/// (order, groups). `order` is settings.json's sidebarOrder — an interleaved list
+/// of project names and "group:<id>" tokens; `groups` is groups.json's group defs
+/// ({id, name, collapsed, members}). Both default to empty/absent gracefully.
+fn sidebar_json() -> (Value, Value) {
+    let order = config::load_settings()
+        .get("sidebarOrder")
+        .cloned()
+        .unwrap_or_else(|| json!([]));
+    let groups = std::fs::read(config::lpm_dir().join("groups.json"))
+        .ok()
+        .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+        .and_then(|v| v.get("groups").cloned())
+        .unwrap_or_else(|| json!([]));
+    (order, groups)
 }
 
 fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {

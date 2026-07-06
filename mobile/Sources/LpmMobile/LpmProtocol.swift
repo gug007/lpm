@@ -20,6 +20,7 @@ enum Wire {
         json(["t": "auth", "deviceId": deviceId, "token": token])
     }
     static func projects() -> String { json(["t": "projects"]) }
+    static func sidebar() -> String { json(["t": "sidebar"]) }
     static func terminals(project: String) -> String { json(["t": "terminals", "project": project]) }
     static func status(project: String) -> String { json(["t": "status", "project": project]) }
     static func sub(id: String) -> String { json(["t": "sub", "id": id]) }
@@ -49,6 +50,7 @@ enum Wire {
         case ready
         case error(String)
         case projects([Project])
+        case sidebar(order: [String], groups: [ProjectFolder])
         case terminals(project: String, [TerminalInfo])
         case status(project: String, [StatusEntry])
         case seed(id: String, cols: Int, rows: Int, data: String)
@@ -73,6 +75,11 @@ enum Wire {
             case "error": return .error(obj["error"] as? String ?? "error")
             case "projects":
                 return .projects((obj["projects"] as? [[String: Any]] ?? []).map(Project.init))
+            case "sidebar":
+                return .sidebar(
+                    order: obj["order"] as? [String] ?? [],
+                    groups: (obj["groups"] as? [[String: Any]] ?? []).map(ProjectFolder.init)
+                )
             case "terminals":
                 return .terminals(project: obj["project"] as? String ?? "",
                                   (obj["terminals"] as? [[String: Any]] ?? []).map(TerminalInfo.init))
@@ -109,11 +116,31 @@ struct Project: Identifiable {
 
     init(_ o: [String: Any]) {
         name = o["name"] as? String ?? ""
-        label = o["label"] as? String ?? (o["name"] as? String ?? "")
+        // Desktop shows label||name; an empty label string must fall back to the
+        // name too (many projects have `label: ""` in their YAML), not just a
+        // missing one.
+        let lbl = (o["label"] as? String) ?? ""
+        label = lbl.isEmpty ? (o["name"] as? String ?? "") : lbl
         running = o["running"] as? Bool ?? false
         isRemote = o["isRemote"] as? Bool ?? false
         statusEntries = (o["statusEntries"] as? [[String: Any]] ?? []).map(StatusEntry.init)
         services = (o["services"] as? [[String: Any]] ?? []).map(Service.init)
+    }
+}
+
+/// A sidebar folder (groups.json). `members` are project names contained in it.
+/// Named ProjectFolder to avoid colliding with SwiftUI's built-in `Group`.
+struct ProjectFolder: Identifiable {
+    let id: String
+    let name: String
+    let collapsed: Bool
+    let members: [String]
+
+    init(_ o: [String: Any]) {
+        id = o["id"] as? String ?? ""
+        name = o["name"] as? String ?? "Folder"
+        collapsed = o["collapsed"] as? Bool ?? false
+        members = o["members"] as? [String] ?? []
     }
 }
 

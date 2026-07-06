@@ -1,5 +1,6 @@
 import SwiftUI
 #if canImport(SwiftTerm)
+import UIKit
 import SwiftTerm
 #endif
 
@@ -82,11 +83,28 @@ struct PairingView: View {
 
 struct ProjectsView: View {
     @EnvironmentObject var model: AppModel
+    @State private var expandedOverride: [String: Bool] = [:]
+
+    private func isExpanded(_ g: ProjectFolder) -> Bool { expandedOverride[g.id] ?? !g.collapsed }
 
     var body: some View {
-        List(model.projects) { project in
-            NavigationLink(value: project.name) {
-                ProjectRow(project: project)
+        List {
+            ForEach(model.sidebarItems) { item in
+                switch item {
+                case .project(let p):
+                    NavigationLink(value: p.name) { ProjectRow(project: p) }
+                case .folder(let g, let members):
+                    FolderHeader(name: g.name, count: members.count, expanded: isExpanded(g)) {
+                        expandedOverride[g.id] = !isExpanded(g)
+                    }
+                    if isExpanded(g) {
+                        ForEach(members) { p in
+                            NavigationLink(value: p.name) {
+                                ProjectRow(project: p).padding(.leading, 20)
+                            }
+                        }
+                    }
+                }
             }
         }
         .navigationTitle("Projects")
@@ -98,6 +116,27 @@ struct ProjectsView: View {
         .overlay {
             if model.projects.isEmpty { ContentUnavailableView("No projects", systemImage: "folder") }
         }
+    }
+}
+
+struct FolderHeader: View {
+    let name: String
+    let count: Int
+    let expanded: Bool
+    let toggle: () -> Void
+
+    var body: some View {
+        Button(action: toggle) {
+            HStack(spacing: 8) {
+                Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                    .font(.caption2).foregroundStyle(.secondary)
+                Image(systemName: "folder").foregroundStyle(.secondary)
+                Text(name).fontWeight(.medium)
+                Spacer()
+                Text("\(count)").font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -186,11 +225,21 @@ struct TerminalRepresentable: UIViewRepresentable {
 
     func makeUIView(context: Context) -> SwiftTerm.TerminalView {
         let view = SwiftTerm.TerminalView()
+        // A fixed monospace font makes the phone's column count deterministic and
+        // legible; SwiftTerm reports the resulting cols/rows via sizeChanged, which
+        // we forward as a PTY resize so the remote app repaints at the phone's size.
+        view.font = UIFont.monospacedSystemFont(ofSize: 11, weight: .regular)
         view.terminalDelegate = context.coordinator
-        // Stream server output straight into the emulator; SwiftTerm owns the buffer.
-        model.subscribe(term.id) { data in
-            view.feed(text: data)
-        }
+        model.subscribe(
+            term.id,
+            onSeed: { _, _, data in
+                // Reset before replaying scrollback so a TUI's absolute-positioned
+                // redraws (Claude Code) don't overlap earlier content.
+                view.getTerminal().resetToInitialState()
+                view.feed(text: data)
+            },
+            onOutput: { data in view.feed(text: data) }
+        )
         return view
     }
 

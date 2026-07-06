@@ -10,10 +10,17 @@ final class AppModel: ObservableObject {
     @Published var projects: [Project] = []
     @Published var terminals: [String: [TerminalInfo]] = [:] // project -> terminals
     @Published var paired: Bool = false
+    // Sidebar folders, matching the desktop: `order` interleaves project names and
+    // "group:<id>" tokens; `groups` are the folder defs.
+    @Published var sidebarOrder: [String] = []
+    @Published var groups: [ProjectFolder] = []
 
-    // Output is streamed straight to whichever TerminalScreen is subscribed; the
-    // emulator (SwiftTerm) holds the buffer, not this model.
-    var onTerminalFeed: [String: (String) -> Void] = [:]
+    // Terminal streams go straight to whichever TerminalScreen is subscribed; the
+    // emulator (SwiftTerm) holds the buffer, not this model. Seed and live output
+    // are kept separate so the view can reset the emulator before replaying the
+    // seed (raw scrollback) — otherwise a TUI's cursor-positioned redraws overlap.
+    var onTerminalSeed: [String: (_ cols: Int, _ rows: Int, _ data: String) -> Void] = [:]
+    var onTerminalOutput: [String: (String) -> Void] = [:]
 
     private var client: LpmClient?
 
@@ -52,12 +59,18 @@ final class AppModel: ObservableObject {
     }
 
     // Terminal wiring used by TerminalScreen.
-    func subscribe(_ id: String, feed: @escaping (String) -> Void) {
-        onTerminalFeed[id] = feed
+    func subscribe(
+        _ id: String,
+        onSeed: @escaping (_ cols: Int, _ rows: Int, _ data: String) -> Void,
+        onOutput: @escaping (String) -> Void
+    ) {
+        onTerminalSeed[id] = onSeed
+        onTerminalOutput[id] = onOutput
         client?.subscribe(id)
     }
     func unsubscribe(_ id: String) {
-        onTerminalFeed[id] = nil
+        onTerminalSeed[id] = nil
+        onTerminalOutput[id] = nil
         client?.unsubscribe(id)
     }
     func input(_ id: String, _ data: String) { client?.sendInput(id, data) }
@@ -67,14 +80,53 @@ final class AppModel: ObservableObject {
     func stopProject(_ p: Project) { client?.stopProject(p.name) }
     func loadTerminals(_ project: String) { client?.requestTerminals(project: project) }
 
+    /// The projects list arranged like the desktop sidebar: folders (with their
+    /// members) and top-level projects, in `sidebarOrder`. Falls back to a flat
+    /// list before the layout has loaded, and appends any project the order
+    /// doesn't mention so nothing silently disappears.
+    var sidebarItems: [SidebarItem] {
+        let byName = Dictionary(projects.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
+        guard !sidebarOrder.isEmpty else { return projects.map { .project($0) } }
+
+        var items: [SidebarItem] = []
+        var covered = Set<String>()
+        for token in sidebarOrder {
+            if token.hasPrefix("group:") {
+                let gid = String(token.dropFirst("group:".count))
+                guard let g = groups.first(where: { $0.id == gid }) else { continue }
+                let members = g.members.compactMap { byName[$0] }
+                members.forEach { covered.insert($0.name) }
+                items.append(.folder(g, members))
+            } else if let p = byName[token] {
+                covered.insert(p.name)
+                items.append(.project(p))
+            }
+        }
+        for p in projects where !covered.contains(p.name) {
+            items.append(.project(p))
+        }
+        return items
+    }
+
     private func wire(_ c: LpmClient) {
         c.onState = { [weak self] s in
             self?.connection = s
-            if case .ready = s { self?.paired = true; c.requestProjects() }
+            if case .ready = s {
+                self?.paired = true
+                c.requestProjects()
+                c.requestSidebar()
+            }
         }
         c.onProjects = { [weak self] p in self?.projects = p }
+        c.onSidebar = { [weak self] order, groups in
+            self?.sidebarOrder = order
+            self?.groups = groups
+        }
         c.onTerminals = { [weak self] proj, t in self?.terminals[proj] = t }
-        c.onProjectsChanged = { c.requestProjects() }
+        c.onProjectsChanged = {
+            c.requestProjects()
+            c.requestSidebar()
+        }
         c.onStatusChanged = { proj in c.requestStatus(project: proj) }
         c.onStatus = { [weak self] proj, entries in
             guard let self else { return }
@@ -89,8 +141,21 @@ final class AppModel: ObservableObject {
                 self.projects[idx] = Project(dict)
             }
         }
-        c.onSeed = { [weak self] id, _, _, data in self?.onTerminalFeed[id]?(data) }
-        c.onOutput = { [weak self] id, data in self?.onTerminalFeed[id]?(data) }
+        c.onSeed = { [weak self] id, cols, rows, data in self?.onTerminalSeed[id]?(cols, rows, data) }
+        c.onOutput = { [weak self] id, data in self?.onTerminalOutput[id]?(data) }
+    }
+}
+
+/// One row of the projects screen: a top-level project or a folder + its members.
+enum SidebarItem: Identifiable {
+    case project(Project)
+    case folder(ProjectFolder, [Project])
+
+    var id: String {
+        switch self {
+        case .project(let p): return "p:" + p.name
+        case .folder(let g, _): return "g:" + g.id
+        }
     }
 }
 

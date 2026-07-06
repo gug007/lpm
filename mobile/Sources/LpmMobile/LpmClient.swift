@@ -22,6 +22,7 @@ final class LpmClient: NSObject {
     var onSeed: ((_ id: String, _ cols: Int, _ rows: Int, _ data: String) -> Void)?
     var onExit: ((_ id: String, _ code: Int) -> Void)?
     var onProjects: (([Project]) -> Void)?
+    var onSidebar: ((_ order: [String], _ groups: [ProjectFolder]) -> Void)?
     var onTerminals: ((_ project: String, _ terminals: [TerminalInfo]) -> Void)?
     var onStatus: ((_ project: String, _ entries: [StatusEntry]) -> Void)?
     var onProjectsChanged: (() -> Void)?
@@ -79,6 +80,7 @@ final class LpmClient: NSObject {
     // MARK: requests
 
     func requestProjects() { send(Wire.projects()) }
+    func requestSidebar() { send(Wire.sidebar()) }
     func requestTerminals(project: String) { send(Wire.terminals(project: project)) }
     func requestStatus(project: String) { send(Wire.status(project: project)) }
     func startProject(_ name: String, profile: String = "") { send(Wire.start(name: name, profile: profile)) }
@@ -134,6 +136,7 @@ final class LpmClient: NSObject {
             case .error(let e):
                 self.set(.failed(e))
             case .projects(let p): self.onProjects?(p)
+            case .sidebar(let order, let groups): self.onSidebar?(order, groups)
             case .terminals(let proj, let t): self.onTerminals?(proj, t)
             case .status(let proj, let s): self.onStatus?(proj, s)
             case .seed(let id, let c, let r, let d): self.onSeed?(id, c, r, d)
