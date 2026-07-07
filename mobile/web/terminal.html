@@ -16,6 +16,7 @@
 <script src="xterm/xterm.js"></script>
 <script src="xterm/addon-fit.js"></script>
 <script src="xterm/addon-webgl.js"></script>
+<script src="xterm/addon-unicode11.js"></script>
 <script>
   const post = (name, body) => window.webkit?.messageHandlers?.[name]?.postMessage(body);
 
@@ -34,6 +35,10 @@
 
   const term = new Terminal({
     fontSize: 12,
+    // Match the desktop's effective font stack exactly (no color-emoji font):
+    // adding one pulls dual-presentation symbols like the ⏺ message bullet into
+    // emoji rendering (boxed/tinted) instead of the monospace text glyph. Real
+    // emoji still render via WebKit's automatic system fallback.
     fontFamily: "ui-monospace, 'SF Mono', Menlo, Monaco, 'Courier New', monospace",
     cursorBlink: true,
     scrollback: 10000,
@@ -42,6 +47,15 @@
   });
   const fit = new FitAddon.FitAddon();
   term.loadAddon(fit);
+
+  // Unicode 11 width tables — same as the desktop. Without this xterm uses older
+  // (Unicode 6) widths, so emoji and other wide characters get the wrong cell
+  // width and render/align differently than on the Mac.
+  try {
+    term.loadAddon(new Unicode11Addon.Unicode11Addon());
+    term.unicode.activeVersion = '11';
+  } catch (e) {}
+
   term.open(document.getElementById('term'));
 
   // GPU-accelerated renderer — same as the desktop. This is the big performance

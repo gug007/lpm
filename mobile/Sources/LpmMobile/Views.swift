@@ -125,34 +125,33 @@ struct ProjectsView: View {
 }
 
 /// Compact, minimal screen header: the title with a subtle inline project count
-/// on the left and a live connection indicator on the right, over a hairline.
-/// Pinned above the list (which scrolls beneath it) via `safeAreaInset`.
+/// on the left and a live connection indicator on the right. A translucent glass
+/// background (the list scrolls beneath it via `safeAreaInset`) with a hairline
+/// separator that only shows once content has scrolled under it.
 struct ProjectsHeader: View {
     let total: Int
     let connection: LpmClient.State
 
     var body: some View {
-        HStack(spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("Projects")
-                    .font(.system(size: 26, weight: .bold))
-                if total > 0 {
-                    Text("·")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.quaternary)
-                    Text("\(total)")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                        .monospacedDigit()
-                }
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text("Projects")
+                .font(.system(size: 28, weight: .bold))
+            if total > 0 {
+                Text("\(total)")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
             }
             Spacer(minLength: 8)
             ConnectionIndicator(state: connection)
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(.bar)
-        .overlay(alignment: .bottom) { Divider() }
+        .padding(.top, 8)
+        .padding(.bottom, 14)
+        // Match the list's grouped background exactly so the header blends
+        // seamlessly into the content — a translucent material here tints a
+        // different grey and leaves an ugly seam against the list below.
+        .background(Color(.systemGroupedBackground))
     }
 }
 
