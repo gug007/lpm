@@ -8,6 +8,9 @@ import UIKit
 final class AppModel: ObservableObject {
     @Published var connection: LpmClient.State = .idle
     @Published var projects: [Project] = []
+    // False until the first projects list arrives, so the UI can tell an empty
+    // list apart from "still loading" and show a spinner instead of "No projects".
+    @Published var projectsLoaded = false
     @Published var terminals: [String: [TerminalInfo]] = [:] // project -> terminals
     @Published var slashCommands: [String: [SlashCommand]] = [:] // terminal id -> commands
     // One-shot: a just-uploaded image's on-Mac path, for the composer to insert.
@@ -83,6 +86,7 @@ final class AppModel: ObservableObject {
 
         connection = .idle
         projects = []
+        projectsLoaded = false
         terminals = [:]
         slashCommands = [:]
         pendingImagePath = [:]
@@ -233,7 +237,10 @@ final class AppModel: ObservableObject {
                 c.requestSidebar()
             }
         }
-        c.onProjects = { [weak self] p in self?.projects = p }
+        c.onProjects = { [weak self] p in
+            self?.projects = p
+            self?.projectsLoaded = true
+        }
         c.onSidebar = { [weak self] order, groups in
             self?.sidebarOrder = order
             self?.groups = groups

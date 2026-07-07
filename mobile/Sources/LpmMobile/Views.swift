@@ -133,7 +133,15 @@ struct ProjectsView: View {
             }
         }
         .overlay {
-            if model.projects.isEmpty { ContentUnavailableView("No projects", systemImage: "folder") }
+            if model.projects.isEmpty {
+                if model.projectsLoaded {
+                    ContentUnavailableView("No projects", systemImage: "folder")
+                } else if case .failed = model.connection {
+                    ContentUnavailableView("Can't reach your Mac", systemImage: "wifi.slash")
+                } else {
+                    ProgressView().controlSize(.large)
+                }
+            }
         }
         .confirmationDialog("Log out of this Mac?", isPresented: $confirmingLogout, titleVisibility: .visible) {
             Button("Log out", role: .destructive) { model.logout() }

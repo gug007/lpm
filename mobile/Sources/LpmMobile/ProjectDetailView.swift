@@ -56,7 +56,7 @@ struct ProjectDetail: View {
                     .onMove(perform: moveTerminals)
                 }
             } header: {
-                DetailSectionHeader(title: "Terminals", count: terminals.count) {
+                DetailSectionHeader(title: "Tabs", count: terminals.count) {
                     Button { model.newTerminal(project.name) } label: {
                         Label("New", systemImage: "plus")
                             .font(.system(size: 13, weight: .semibold))
