@@ -95,6 +95,16 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// The "Retry" button: force an immediate attempt now, skipping any backoff.
+    /// Re-probes for a reachable address if we don't have a live client yet.
+    func retryConnection() {
+        if let client {
+            client.retryNow()
+        } else if let cred = Keychain.load() {
+            connectBest(credential: cred)
+        }
+    }
+
     private func savedHosts() -> [String] {
         if let data = UserDefaults.standard.data(forKey: "lpm.hosts"),
            let arr = try? JSONDecoder().decode([String].self, from: data), !arr.isEmpty {

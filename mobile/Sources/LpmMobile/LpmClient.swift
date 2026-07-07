@@ -42,6 +42,26 @@ final class LpmClient: NSObject {
     private let subscribed = NSMutableSet() // termIds we auto-re-sub on reconnect
     private(set) var state: State = .idle
 
+    // Reconnection. Over a cellular Tailscale path the tunnel flaps (direct ↔
+    // DERP), so a connection can establish and drop within seconds; the client
+    // retries with exponential backoff instead of dying on the first failure.
+    // `wantConnected` is true between connect() and disconnect()/logout and gates
+    // every retry, so an intentional teardown never resurrects the socket.
+    private var wantConnected = false
+    private var retryAttempt = 0
+    private var reconnectWork: DispatchWorkItem?
+    private var connectWatchdog: DispatchWorkItem?
+    private var heartbeat: DispatchSourceTimer?
+    private let connectTimeout: TimeInterval = 10
+    private let heartbeatInterval: TimeInterval = 20
+    private let baseBackoff: TimeInterval = 1.5
+    private let maxBackoff: TimeInterval = 20
+    // After a few quick retries fail, stop pretending and surface an honest error
+    // (while still retrying underneath), so the UI never spins forever.
+    private let patientAttempts = 3
+
+    static let offlineHint = "Can't reach your Mac. On cellular, make sure Tailscale is connected on both devices."
+
     struct Credential { let deviceId: String; let token: String }
 
     /// This device's id (once paired/authenticated), for comparing against a
@@ -53,12 +73,51 @@ final class LpmClient: NSObject {
         self.credential = credential
         self.deviceName = deviceName
         super.init()
-        session = URLSession(configuration: .default, delegate: nil, delegateQueue: nil)
+        let config = URLSessionConfiguration.default
+        // Fail fast on a dead path rather than waiting for connectivity — the
+        // reconnect loop owns retrying, and the watchdog owns the connect timeout.
+        config.waitsForConnectivity = false
+        config.timeoutIntervalForRequest = 30
+        session = URLSession(configuration: config, delegate: nil, delegateQueue: nil)
     }
 
-    /// Connect for a normal (already-paired) session.
+    /// Connect (or reconnect) for a normal, already-paired session. Idempotent:
+    /// resets backoff and starts a fresh attempt, which is what foregrounding
+    /// wants (a clean chance rather than continuing a long backoff).
     func connect() {
-        guard let url = endpoint.url else { return set(.failed("bad host")) }
+        guard endpoint.url != nil else { return fatal("bad host") }
+        wantConnected = true
+        cancelReconnect()
+        startAttempt()
+    }
+
+    /// Connect to consume a one-time pairing code scanned from the desktop QR.
+    func pair(host: String, port: Int, code: String) {
+        endpoint = Endpoint(host: host, port: port)
+        pairingCode = code
+        connect()
+    }
+
+    /// Force an immediate reconnect attempt (the "Retry" button) — skips any
+    /// pending backoff wait.
+    func retryNow() {
+        cancelReconnect()
+        wantConnected = true
+        startAttempt()
+    }
+
+    func disconnect() {
+        wantConnected = false
+        cancelReconnect()
+        teardownTask()
+        set(.idle)
+    }
+
+    // MARK: connection lifecycle
+
+    private func startAttempt() {
+        guard let url = endpoint.url else { return fatal("bad host") }
+        teardownTask()
         set(.connecting)
         let task = session.webSocketTask(with: url)
         self.task = task
@@ -69,19 +128,98 @@ final class LpmClient: NSObject {
         } else if let c = credential {
             send(Wire.auth(deviceId: c.deviceId, token: c.token))
         } else {
-            return set(.failed("no credential"))
+            return fatal("no credential")
         }
-        receiveLoop()
+        receiveLoop(task)
+        startWatchdog()
     }
 
-    /// Connect to consume a one-time pairing code scanned from the desktop QR.
-    func pair(host: String, port: Int, code: String) {
-        endpoint = Endpoint(host: host, port: port)
-        pairingCode = code
-        connect()
+    /// Reached `ready` (or `paired`): the link is live. Clear backoff and start
+    /// the heartbeat that keeps the tunnel warm and detects silent drops.
+    private func onConnected() {
+        retryAttempt = 0
+        connectWatchdog?.cancel(); connectWatchdog = nil
+        startHeartbeat()
     }
 
-    func disconnect() {
+    /// A retryable failure — transport dropped, a send/ping failed, or the connect
+    /// watchdog fired. Tears down and schedules a backoff retry (unless we've been
+    /// intentionally disconnected).
+    private func transientFailure(_ reason: String) {
+        teardownTask()
+        guard wantConnected else { return }
+        scheduleReconnect(reason)
+    }
+
+    /// A terminal failure — the server rejected our auth/pairing, or the endpoint
+    /// is unusable. Stop retrying; the user must act (re-pair / fix the address).
+    private func fatal(_ msg: String) {
+        wantConnected = false
+        cancelReconnect()
+        teardownTask()
+        set(.failed(msg))
+    }
+
+    private func scheduleReconnect(_ reason: String) {
+        guard wantConnected, reconnectWork == nil else { return }
+        retryAttempt += 1
+        let capped = min(baseBackoff * pow(2, Double(retryAttempt - 1)), maxBackoff)
+        let delay = capped * Double.random(in: 0.85...1.15)
+        // Stay hopeful ("connecting") for the first few fast retries; after that,
+        // show the honest offline hint while the slow retries continue underneath.
+        set(retryAttempt <= patientAttempts ? .connecting : .failed(Self.offlineHint))
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.reconnectWork = nil
+            guard self.wantConnected else { return }
+            self.startAttempt()
+        }
+        reconnectWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private func startWatchdog() {
+        connectWatchdog?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.wantConnected else { return }
+            if case .ready = self.state { return }
+            self.transientFailure("timed out")
+        }
+        connectWatchdog = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + connectTimeout, execute: work)
+    }
+
+    private func startHeartbeat() {
+        stopHeartbeat()
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + heartbeatInterval, repeating: heartbeatInterval)
+        timer.setEventHandler { [weak self] in
+            guard let self, let t = self.task else { return }
+            t.sendPing { [weak self] err in
+                guard err != nil else { return }
+                self?.main {
+                    guard let self, t === self.task else { return }
+                    self.transientFailure("ping timeout")
+                }
+            }
+        }
+        timer.resume()
+        heartbeat = timer
+    }
+
+    private func stopHeartbeat() {
+        heartbeat?.cancel()
+        heartbeat = nil
+    }
+
+    private func cancelReconnect() {
+        reconnectWork?.cancel(); reconnectWork = nil
+        retryAttempt = 0
+    }
+
+    private func teardownTask() {
+        connectWatchdog?.cancel(); connectWatchdog = nil
+        stopHeartbeat()
         task?.cancel(with: .goingAway, reason: nil)
         task = nil
     }
@@ -128,40 +266,50 @@ final class LpmClient: NSObject {
     // MARK: plumbing
 
     private func send(_ text: String) {
-        task?.send(.string(text)) { [weak self] err in
-            if err != nil { self?.main { self?.set(.failed("send failed")) } }
-        }
-    }
-
-    private func receiveLoop() {
-        task?.receive { [weak self] result in
-            guard let self else { return }
-            switch result {
-            case .failure:
-                self.main { self.set(.failed("disconnected")) }
-            case .success(let message):
-                if case .string(let text) = message { self.handle(text) }
-                self.receiveLoop()
+        guard let t = task else { return }
+        t.send(.string(text)) { [weak self] err in
+            guard err != nil else { return }
+            self?.main {
+                guard let self, t === self.task else { return } // ignore a stale task's send
+                self.transientFailure("send failed")
             }
         }
     }
 
+    private func receiveLoop(_ task: URLSessionWebSocketTask) {
+        task.receive { [weak self] result in
+            guard let self else { return }
+            self.main {
+                guard task === self.task else { return } // a superseded task's callback
+                switch result {
+                case .failure:
+                    self.transientFailure("disconnected")
+                case .success(let message):
+                    if case .string(let text) = message { self.handle(text) }
+                    self.receiveLoop(task)
+                }
+            }
+        }
+    }
+
+    /// Handle one inbound frame. Always called on the main queue (from receiveLoop).
     private func handle(_ text: String) {
         let frame = Wire.Inbound.parse(text)
-        main {
-            switch frame {
+        switch frame {
             case .paired(let deviceId, let token):
                 self.credential = Credential(deviceId: deviceId, token: token)
                 self.pairingCode = nil
                 Keychain.save(deviceId: deviceId, token: token)
                 self.set(.ready)
+                self.onConnected()
                 self.onProjectsChanged?()
             case .ready:
                 self.set(.ready)
+                self.onConnected()
                 // Re-subscribe to any terminals we were watching before a drop.
                 for id in self.subscribed { self.send(Wire.sub(id: id as! String)) }
             case .error(let e):
-                self.set(.failed(e))
+                self.fatal(e)
             case .projects(let p): self.onProjects?(p)
             case .sidebar(let order, let groups): self.onSidebar?(order, groups)
             case .terminals(let proj, let t): self.onTerminals?(proj, t)
@@ -179,7 +327,6 @@ final class LpmClient: NSObject {
             case .projectsChanged: self.onProjectsChanged?()
             case .statusChanged(let proj): self.onStatusChanged?(proj)
             case .pong, .unknown: break
-            }
         }
     }
 

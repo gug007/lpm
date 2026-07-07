@@ -44,6 +44,11 @@ struct PairingView: View {
         !trimmedHost.isEmpty && !trimmedCode.isEmpty
     }
 
+    private var isPairing: Bool {
+        if case .connecting = model.connection { return true }
+        return false
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
@@ -141,13 +146,15 @@ struct PairingView: View {
                     Button {
                         model.pair(hosts: [trimmedHost], port: Int(port) ?? 8765, code: trimmedCode)
                     } label: {
-                        Text("Pair")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity, minHeight: 50)
+                        HStack(spacing: 8) {
+                            if isPairing { ProgressView().controlSize(.small) }
+                            Text(isPairing ? "Pairing…" : "Pair").font(.headline)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 50)
                     }
                     .buttonStyle(.borderedProminent)
                     .buttonBorderShape(.roundedRectangle(radius: 14))
-                    .disabled(!canPair)
+                    .disabled(!canPair || isPairing)
 
                     if case .failed(let err) = model.connection {
                         Text(err)
@@ -254,8 +261,15 @@ struct ProjectsView: View {
             if model.projects.isEmpty {
                 if model.projectsLoaded {
                     ContentUnavailableView("No projects", systemImage: "folder")
-                } else if case .failed = model.connection {
-                    ContentUnavailableView("Can't reach your Mac", systemImage: "wifi.slash")
+                } else if case .failed(let msg) = model.connection {
+                    ContentUnavailableView {
+                        Label("Can't reach your Mac", systemImage: "wifi.slash")
+                    } description: {
+                        Text(msg)
+                    } actions: {
+                        Button("Retry") { model.retryConnection() }
+                            .buttonStyle(.borderedProminent)
+                    }
                 } else {
                     ProgressView().controlSize(.large)
                 }
