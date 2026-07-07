@@ -63,6 +63,7 @@ export interface TerminalViewHandle {
   remoteCloseTerminal(id: string): void;
   remoteRenameTerminal(id: string, label: string): void;
   remoteTogglePin(id: string): void;
+  remoteReorderTerminals(order: string[]): void;
 }
 
 export function TerminalView({ projectName, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, runningPaneIDs, donePaneIDs, waitingPaneIDs, errorPaneIDs, visible = true, ref }: TerminalViewProps) {
@@ -110,6 +111,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     remoteCloseTerminal,
     remoteRenameTerminal,
     remoteTogglePin,
+    remoteReorderTerminals,
     moveTerminal,
     splitPane,
     closePane,
@@ -699,6 +701,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       remoteCloseTerminal,
       remoteRenameTerminal,
       remoteTogglePin,
+      remoteReorderTerminals,
     }),
     [
       createTerminal,
@@ -708,6 +711,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       remoteCloseTerminal,
       remoteRenameTerminal,
       remoteTogglePin,
+      remoteReorderTerminals,
     ],
   );
 

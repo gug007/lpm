@@ -257,23 +257,70 @@ struct StatusBadge: View {
     }
 }
 
+private final class KeyboardObserver: ObservableObject {
+    @Published private(set) var height: CGFloat = 0
+    @Published private(set) var duration: Double = 0.25
+
+    private let center: NotificationCenter
+    private var observers: [NSObjectProtocol] = []
+
+    init(center: NotificationCenter = .default) {
+        self.center = center
+        observers = [
+            center.addObserver(
+                forName: UIResponder.keyboardWillChangeFrameNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                self?.update(from: notification)
+            },
+            center.addObserver(
+                forName: UIResponder.keyboardWillHideNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                self?.update(from: notification, hidden: true)
+            }
+        ]
+    }
+
+    deinit {
+        observers.forEach(center.removeObserver)
+    }
+
+    private func update(from notification: Notification, hidden: Bool = false) {
+        duration = (notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? NSNumber)?
+            .doubleValue ?? 0.25
+
+        guard !hidden,
+              let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
+            height = 0
+            return
+        }
+
+        height = keyboardOverlap(for: frame)
+    }
+
+    private func keyboardOverlap(for screenFrame: CGRect) -> CGFloat {
+        guard let window = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .flatMap(\.windows)
+            .first(where: { $0.isKeyWindow }) else {
+            return max(0, UIScreen.main.bounds.maxY - screenFrame.minY)
+        }
+
+        let frame = window.convert(screenFrame, from: nil)
+        return max(0, window.bounds.maxY - frame.minY - window.safeAreaInsets.bottom)
+    }
+}
+
 /// A single terminal: xterm.js (in a WKWebView) renders output the client streams
 /// in and posts keystrokes back — the same emulator the desktop uses, so rendering
 /// matches and scrollback works. The nav bar floats translucently over the top.
 struct TerminalScreen: View {
     @EnvironmentObject var model: AppModel
     let term: TerminalInfo
-
-    // Pad the terminal down by the status-bar strip only, so the clock doesn't
-    // land on terminal text, while the title/back row still overlaps the top rows
-    // (visible through the translucent bar). Read the status-bar height directly
-    // rather than guessing the nav-bar height off the safe area — the direct value
-    // is correct across orientations and device shapes.
-    private var statusBarHeight: CGFloat {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first?.statusBarManager?.statusBarFrame.height ?? 0
-    }
+    @StateObject private var keyboard = KeyboardObserver()
 
     var body: some View {
         // A terminal is shown live in exactly one place at a time. When the
@@ -282,11 +329,12 @@ struct TerminalScreen: View {
         // underneath so this phone stays subscribed (a presenter / candidate
         // owner) and takes over instantly on claim.
         let controlled = model.isControlled(term.id)
-        // Terminal flows UP under the translucent nav bar (see-through header); the
-        // composer sits below it and rides above the keyboard when it opens.
+        // The terminal sits WITHIN the safe area (below the nav bar), so its top
+        // rows aren't hidden under the title; the composer sits below it and rides
+        // above the keyboard when it opens.
         return VStack(spacing: 0) {
             ZStack {
-                WebTerminalView(term: term, topInset: statusBarHeight)
+                WebTerminalView(term: term)
                     .environmentObject(model)
                 if !controlled {
                     ControlHandoffView(ownerLabel: model.controlOwnerLabel(term.id)) {
@@ -294,25 +342,22 @@ struct TerminalScreen: View {
                     }
                 }
             }
-            // Ignore the TOP safe area on the whole terminal area (one view in the
-            // VStack, like the pre-ZStack layout) so the terminal flows under the
-            // translucent nav bar. Applying it to the inner web view instead broke
-            // SwiftUI keyboard avoidance for the composer below — it stopped riding
-            // above the keyboard. The bottom safe area stays respected here.
-            .ignoresSafeArea(.container, edges: .top)
             if controlled {
                 TerminalComposer(termId: term.id, project: term.project, label: term.label)
                     .environmentObject(model)
             }
         }
+            .padding(.bottom, keyboard.height)
+            .background(SwiftUI.Color.black)
+            .animation(.easeOut(duration: keyboard.duration), value: keyboard.height)
+            .ignoresSafeArea(.keyboard, edges: .bottom)
             .navigationTitle(term.label)
             .navigationBarTitleDisplayMode(.inline)
-            // ~50%-transparent dark bar, scoped to the terminal only, so the
-            // terminal shows through the header. The height stays stable (the
-            // global appearance proxy pins large titles off in every state); only
-            // this screen's bar background is overridden. `.dark` keeps the
-            // title/back button white.
-            .toolbarBackground(SwiftUI.Color(white: 0.1).opacity(0.5), for: .navigationBar)
+            // Solid black bar matching the terminal ground, scoped to this screen —
+            // the terminal sits below it (safe area), so the bar reads as one
+            // continuous black surface with the terminal instead of letting the
+            // light background show through. `.dark` keeps title/back white.
+            .toolbarBackground(SwiftUI.Color.black, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
     }
@@ -327,8 +372,8 @@ struct ControlHandoffView: View {
 
     var body: some View {
         ZStack {
-            // Match the terminal's ground so there's no flash behind it.
-            SwiftUI.Color(white: 0x1a / 255)
+            // Match the terminal's black ground so there's no flash behind it.
+            SwiftUI.Color.black
             VStack(spacing: 16) {
                 Image(systemName: "terminal.fill")
                     .font(.system(size: 34))
@@ -362,4 +407,3 @@ struct ControlHandoffView: View {
         .environment(\.colorScheme, .dark)
     }
 }
-

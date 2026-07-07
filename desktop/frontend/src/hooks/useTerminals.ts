@@ -103,6 +103,7 @@ export interface UseTerminalsResult {
   remoteCloseTerminal: (termId: string) => void;
   remoteRenameTerminal: (termId: string, label: string) => void;
   remoteTogglePin: (termId: string) => void;
+  remoteReorderTerminals: (order: string[]) => void;
   moveTerminal: (fromPaneId: string, termId: string, toPaneId: string, toIdx?: number) => void;
   splitPane: (paneId: string, direction: SplitDirection) => Promise<void>;
   closePane: (paneId: string) => void;
@@ -1034,6 +1035,23 @@ export function useTerminals(
     },
     [locateTerminal, toggleTabPinned],
   );
+  // The phone shows a flat list across all panes and sends the full new id order.
+  // Reorder each pane by its terminals' relative order in that list (a terminal
+  // stays in its own pane; cross-pane moves aren't expressed by a flat reorder).
+  const remoteReorderTerminals = useCallback(
+    (order: string[]) => {
+      const current = treeRef.current;
+      if (!current) return;
+      for (const pane of collectPanes(current)) {
+        const paneIds = new Set(pane.tabs.map((t) => t.id));
+        const paneOrder = order.filter((id) => paneIds.has(id));
+        if (paneOrder.length === pane.tabs.length && paneOrder.length > 0) {
+          reorderTerminals(pane.id, paneOrder);
+        }
+      }
+    },
+    [reorderTerminals],
+  );
 
   // Owner side of action forwarding: execute the actions a mirror window sends
   // for this project against the authoritative tree. This map is the single
@@ -1129,6 +1147,7 @@ export function useTerminals(
     remoteCloseTerminal,
     remoteRenameTerminal,
     remoteTogglePin,
+    remoteReorderTerminals,
     moveTerminal,
     splitPane,
     closePane,

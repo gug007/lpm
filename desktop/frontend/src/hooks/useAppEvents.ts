@@ -44,13 +44,27 @@ export function useAppEvents(): void {
         if (payload?.project) triggerRemoteAction(payload.project, payload.action ?? null);
       },
     );
-    // The mobile app asks to close / rename / pin a terminal tab; the mounted
-    // ProjectDetail resolves the id against its live tab tree and runs it.
+    // The mobile app asks to close / rename / pin / reorder a terminal tab; the
+    // mounted ProjectDetail resolves it against its live tab tree and runs it.
+    // reorder carries the full new id `order`; the others address a single `id`.
     const cancelRemoteTermOp = EventsOn(
       "remote-terminal-op",
-      (payload: { project: string; op: "close" | "rename" | "pin"; id: string; label?: string }) => {
-        if (payload?.project && payload?.id && payload?.op) {
-          triggerRemoteTerminalOp(payload.project, payload.op, payload.id, payload.label ?? "");
+      (payload: {
+        project: string;
+        op: "close" | "rename" | "pin" | "reorder";
+        id: string;
+        label?: string;
+        order?: string[];
+      }) => {
+        const ok = payload?.op === "reorder" ? !!payload.order?.length : !!payload?.id;
+        if (payload?.project && payload?.op && ok) {
+          triggerRemoteTerminalOp(
+            payload.project,
+            payload.op,
+            payload.id,
+            payload.label ?? "",
+            payload.order ?? [],
+          );
         }
       },
     );

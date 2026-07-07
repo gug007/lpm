@@ -144,6 +144,17 @@ final class AppModel: ObservableObject {
         client?.pinTerminal(project: project, id: id)
         reloadTerminalsSoon(project)
     }
+    /// Reorder a project's terminal tabs. Applies the new order optimistically so
+    /// the list doesn't snap back before the desktop echoes it via the terminals
+    /// push (which is now emitted in tab-tree order).
+    func reorderTerminals(_ project: String, order: [String]) {
+        if let list = terminals[project] {
+            let byId = Dictionary(list.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+            let reordered = order.compactMap { byId[$0] }
+            if reordered.count == list.count { terminals[project] = reordered }
+        }
+        client?.reorderTerminals(project: project, order: order)
+    }
     /// The desktop creates the terminal + types its command asynchronously (it
     /// waits for the shell prompt to settle), so poll the list a few times for the
     /// new terminal to show up.

@@ -16,34 +16,40 @@ struct ProjectDetail: View {
     private var actions: [Action] { live.actions.flatMap { $0.runnableLeaves } }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 26) {
-                VStack(alignment: .leading, spacing: 12) {
-                    DetailSectionHeader(title: "Terminals", count: terminals.count) {
-                        Button { model.newTerminal(project.name) } label: {
-                            Label("New", systemImage: "plus")
-                                .font(.system(size: 13, weight: .semibold))
-                        }
-                        .tint(.accentColor)
+        // A List (not a ScrollView) so the terminal rows support native
+        // drag-to-reorder via `.onMove` (long-press a row and drag). Styled plain
+        // with cleared row chrome so the custom `.card()` rows keep their look.
+        List {
+            Section {
+                if terminals.isEmpty {
+                    EmptyTerminalsCard()
+                        .terminalRowChrome()
+                } else {
+                    ForEach(terminals) { t in
+                        TerminalRow(
+                            term: t,
+                            onRename: { renameText = t.label; renaming = t },
+                            onTogglePin: { model.pinTerminal(project.name, id: t.id) },
+                            onClose: { model.closeTerminal(project.name, id: t.id) }
+                        )
+                        .terminalRowChrome()
                     }
-                    if terminals.isEmpty {
-                        EmptyTerminalsCard()
-                    } else {
-                        VStack(spacing: 10) {
-                            ForEach(terminals) { t in
-                                TerminalRow(
-                                    term: t,
-                                    onRename: { renameText = t.label; renaming = t },
-                                    onTogglePin: { model.pinTerminal(project.name, id: t.id) },
-                                    onClose: { model.closeTerminal(project.name, id: t.id) }
-                                )
-                            }
-                        }
-                    }
+                    .onMove(perform: moveTerminals)
                 }
+            } header: {
+                DetailSectionHeader(title: "Terminals", count: terminals.count) {
+                    Button { model.newTerminal(project.name) } label: {
+                        Label("New", systemImage: "plus")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .tint(.accentColor)
+                }
+                .textCase(nil)
+                .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 8, trailing: 20))
             }
-            .padding(20)
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .background(Color(.systemGroupedBackground))
         .navigationTitle(project.label)
         .navigationBarTitleDisplayMode(.inline)
@@ -72,6 +78,24 @@ struct ProjectDetail: View {
             }
         }
         .onAppear { model.loadTerminals(project.name) }
+    }
+
+    private func moveTerminals(from source: IndexSet, to destination: Int) {
+        var order = terminals.map(\.id)
+        order.move(fromOffsets: source, toOffset: destination)
+        model.reorderTerminals(project.name, order: order)
+    }
+}
+
+/// Strips a List row's default chrome so a custom `.card()` row keeps its look:
+/// transparent background, no separators, and the same insets/spacing the old
+/// ScrollView cards used.
+private extension View {
+    func terminalRowChrome() -> some View {
+        self
+            .listRowInsets(EdgeInsets(top: 5, leading: 20, bottom: 5, trailing: 20))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
     }
 }
 

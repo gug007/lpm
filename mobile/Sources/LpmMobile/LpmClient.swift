@@ -106,6 +106,9 @@ final class LpmClient: NSObject {
         send(Wire.renameTerminal(project: project, id: id, label: label))
     }
     func pinTerminal(project: String, id: String) { send(Wire.pinTerminal(project: project, id: id)) }
+    func reorderTerminals(project: String, order: [String]) {
+        send(Wire.reorderTerminals(project: project, order: order))
+    }
     func startProject(_ name: String, profile: String = "") { send(Wire.start(name: name, profile: profile)) }
     func stopProject(_ name: String) { send(Wire.stop(name: name)) }
     func toggleService(_ name: String, service: String) { send(Wire.toggleService(name: name, service: service)) }

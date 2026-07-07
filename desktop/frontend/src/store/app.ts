@@ -190,20 +190,23 @@ interface AppState {
   pendingRemoteAction: { projectName: string; action: string | null; nonce: number } | null;
   triggerRemoteAction: (projectName: string, action: string | null) => void;
   clearPendingRemoteAction: () => void;
-  // A terminal-tab op (close / rename / pin) relayed from the mobile app,
-  // addressed by terminal id. Consumed by the mounted ProjectDetail.
+  // A terminal-tab op (close / rename / pin / reorder) relayed from the mobile
+  // app. Addressed by terminal id, except reorder which carries the full new id
+  // order. Consumed by the mounted ProjectDetail.
   pendingRemoteTerminalOp: {
     projectName: string;
-    op: "close" | "rename" | "pin";
+    op: "close" | "rename" | "pin" | "reorder";
     id: string;
     label: string;
+    order: string[];
     nonce: number;
   } | null;
   triggerRemoteTerminalOp: (
     projectName: string,
-    op: "close" | "rename" | "pin",
+    op: "close" | "rename" | "pin" | "reorder",
     id: string,
     label: string,
+    order: string[],
   ) => void;
   clearPendingRemoteTerminalOp: () => void;
   bulkDuplicate: (
@@ -830,7 +833,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   pendingRemoteTerminalOp: null,
 
-  triggerRemoteTerminalOp: (projectName, op, id, label) =>
+  triggerRemoteTerminalOp: (projectName, op, id, label, order) =>
     set((s) => ({
       selected: projectName,
       view: "projects",
@@ -840,6 +843,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         op,
         id,
         label,
+        order,
         nonce: (s.pendingRemoteTerminalOp?.nonce ?? 0) + 1,
       },
     })),

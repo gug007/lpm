@@ -129,12 +129,13 @@ struct HubInner {
     // Live terminal id -> pinned, pushed from the frontend tab tree so the phone
     // can show the pin state and offer Pin/Unpin in the tab menu.
     pinned: Mutex<HashMap<String, bool>>,
-    // project -> the set of terminal ids currently IN that project's tab tree,
-    // replaced on each frontend push. The phone's terminal list is scoped to this
-    // (intersected with live PTYs) so orphaned/leaked PTYs — live sessions no
-    // longer in any tab tree — never appear. Unlike labels (upsert-only), this is
-    // authoritative membership.
-    tree_ids: Mutex<HashMap<String, HashSet<String>>>,
+    // project -> the ORDERED terminal ids in that project's tab tree (desktop tab
+    // order), replaced on each frontend push. The phone's terminal list is emitted
+    // in this order and scoped to it (intersected with live PTYs), so it matches
+    // the desktop's tab order and orphaned/leaked PTYs — live sessions no longer in
+    // any tab tree — never appear. Unlike labels (upsert-only), this is
+    // authoritative membership + order.
+    tree_ids: Mutex<HashMap<String, Vec<String>>>,
     config: Mutex<RemoteConfig>,
     next_id: AtomicU64,
     generation: AtomicU64, // bumped on every (re)start to retire old accept/conn threads
@@ -565,14 +566,24 @@ fn handle_msg(
         }
         "terminals" => {
             let project = str_field("project").unwrap_or_default();
-            let mut terms = pty::remote_terminals(&app.state::<pty::PtyState>(), &project);
-            // Scope to the project's current tab tree so orphaned/leaked PTYs
-            // (live sessions no longer in any tree) don't show. Fall back to all
-            // live sessions when the frontend hasn't registered a set yet (older
-            // client, or the project's window isn't open).
-            if let Some(tree) = hub.inner.tree_ids.lock().unwrap().get(&project) {
-                terms.retain(|t| tree.contains(&t.id));
-            }
+            let terms = pty::remote_terminals(&app.state::<pty::PtyState>(), &project);
+            // Emit in the desktop's tab-tree order and scope to it, so the phone's
+            // list matches the desktop tabs (and reordering sticks) and orphaned/
+            // leaked PTYs — live sessions no longer in any tree — don't show. Fall
+            // back to all live sessions (id order) when the frontend hasn't
+            // registered a set yet (older client, or the project's window isn't open).
+            let terms: Vec<pty::RemoteTerminal> =
+                match hub.inner.tree_ids.lock().unwrap().get(&project) {
+                    Some(order) => {
+                        let live: HashMap<&str, &pty::RemoteTerminal> =
+                            terms.iter().map(|t| (t.id.as_str(), t)).collect();
+                        order
+                            .iter()
+                            .filter_map(|id| live.get(id.as_str()).map(|t| (*t).clone()))
+                            .collect()
+                    }
+                    None => terms,
+                };
             // Attach the desktop's tab label to each terminal (falling back to the
             // id when the frontend hasn't registered one, e.g. an unopened project).
             let labels = hub.inner.labels.lock().unwrap();
@@ -845,6 +856,23 @@ fn handle_msg(
             }
             send(ws, json!({ "t": t, "ok": true }))?;
         }
+        // Reorder a project's terminal tabs — same owner-window relay, but carries
+        // the full new id order instead of a single id.
+        "reorderTerminals" => {
+            let project = str_field("project").unwrap_or_default();
+            let order: Vec<String> = v
+                .get("order")
+                .and_then(Value::as_array)
+                .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+                .unwrap_or_default();
+            if !project.is_empty() && !order.is_empty() {
+                let _ = app.emit(
+                    "remote-terminal-op",
+                    json!({ "project": project, "op": "reorder", "id": "", "label": "", "order": order }),
+                );
+            }
+            send(ws, json!({ "t": t, "ok": true }))?;
+        }
         _ => {}
     }
     Ok(())
@@ -979,13 +1007,13 @@ pub fn remote_set_terminal_labels(hub: State<'_, RemoteHub>, project: String, la
     let mut label_map = hub.inner.labels.lock().unwrap();
     let mut cli_map = hub.inner.clis.lock().unwrap();
     let mut pin_map = hub.inner.pinned.lock().unwrap();
-    let mut ids = HashSet::new();
+    let mut ids: Vec<String> = Vec::new();
     for item in &labels {
         let id = item.get("id").and_then(Value::as_str).unwrap_or("");
         if id.is_empty() {
             continue;
         }
-        ids.insert(id.to_string());
+        ids.push(id.to_string());
         let label = item.get("label").and_then(Value::as_str).unwrap_or("");
         if !label.is_empty() {
             label_map.insert(id.to_string(), label.to_string());

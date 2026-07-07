@@ -53,9 +53,9 @@ struct WebTerminalView: UIViewRepresentable {
         config.userContentController = controller
         config.allowsInlineMediaPlayback = true
 
-        // Match the desktop terminal ground (#1a1a1a) so there's no color mismatch
-        // behind the page while it loads or under the translucent nav bar.
-        let ground = UIColor(white: 0x1a / 255.0, alpha: 1)
+        // True-black ground so there's no color mismatch behind the page while it
+        // loads (matches terminal.html's #000000 for a clean OLED look).
+        let ground = UIColor.black
         let web = WKWebView(frame: .zero, configuration: config)
         web.isOpaque = false
         web.backgroundColor = ground

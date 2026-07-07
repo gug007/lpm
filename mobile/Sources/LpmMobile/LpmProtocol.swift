@@ -59,6 +59,9 @@ enum Wire {
     static func pinTerminal(project: String, id: String) -> String {
         json(["t": "pinTerminal", "project": project, "id": id])
     }
+    static func reorderTerminals(project: String, order: [String]) -> String {
+        json(["t": "reorderTerminals", "project": project, "order": order])
+    }
     static func start(name: String, profile: String = "") -> String {
         json(["t": "start", "name": name, "profile": profile])
     }

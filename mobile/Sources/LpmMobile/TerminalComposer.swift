@@ -23,9 +23,9 @@ struct TerminalComposer: View {
     @State private var uploading = false
     @FocusState private var focused: Bool
 
-    // Matches the terminal ground (#1a1a1a) so the composer reads as part of the
+    // Matches the terminal ground (true black) so the composer reads as part of the
     // terminal rather than a separate light bar.
-    private let ground = SwiftUI.Color(red: 0x1a / 255, green: 0x1a / 255, blue: 0x1a / 255)
+    private let ground = SwiftUI.Color.black
 
     private var cameraAvailable: Bool { UIImagePickerController.isSourceTypeAvailable(.camera) }
 

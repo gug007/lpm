@@ -251,11 +251,12 @@ export function ProjectDetail({
       return;
     }
     remoteTerminalOpConsumed.current = pendingRemoteTerminalOp.nonce;
-    const { op, id, label } = pendingRemoteTerminalOp;
+    const { op, id, label, order } = pendingRemoteTerminalOp;
     clearPendingRemoteTerminalOp();
     if (op === "close") terminalRef.current?.remoteCloseTerminal(id);
     else if (op === "rename") terminalRef.current?.remoteRenameTerminal(id, label);
     else if (op === "pin") terminalRef.current?.remoteTogglePin(id);
+    else if (op === "reorder") terminalRef.current?.remoteReorderTerminals(order);
   }, [
     pendingRemoteTerminalOp,
     selectedProject,
