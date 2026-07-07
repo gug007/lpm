@@ -268,8 +268,8 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   // Mirror the live id -> {label, cli} mapping to the remote server so paired
   // phones show the same terminal names and offer the same slash commands.
   useEffect(() => {
-    void RemoteSetTerminalLabels(allTerminals);
-  }, [allTerminals]);
+    void RemoteSetTerminalLabels(projectName, allTerminals);
+  }, [projectName, allTerminals]);
 
   useEffect(() => {
     return () => {

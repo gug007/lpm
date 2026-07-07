@@ -123,9 +123,9 @@ private struct ProjectRunControl: View {
                 }
             }
         } label: {
-            Image(systemName: running ? "ellipsis.circle.fill" : "ellipsis.circle")
-                .font(.system(size: 18, weight: .regular))
-                .foregroundStyle(running ? .green : Color.accentColor)
+            Image(systemName: "ellipsis")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(running ? .green : .primary)
         }
     }
 

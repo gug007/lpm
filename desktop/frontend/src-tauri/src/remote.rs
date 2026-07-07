@@ -129,6 +129,12 @@ struct HubInner {
     // Live terminal id -> pinned, pushed from the frontend tab tree so the phone
     // can show the pin state and offer Pin/Unpin in the tab menu.
     pinned: Mutex<HashMap<String, bool>>,
+    // project -> the set of terminal ids currently IN that project's tab tree,
+    // replaced on each frontend push. The phone's terminal list is scoped to this
+    // (intersected with live PTYs) so orphaned/leaked PTYs — live sessions no
+    // longer in any tab tree — never appear. Unlike labels (upsert-only), this is
+    // authoritative membership.
+    tree_ids: Mutex<HashMap<String, HashSet<String>>>,
     config: Mutex<RemoteConfig>,
     next_id: AtomicU64,
     generation: AtomicU64, // bumped on every (re)start to retire old accept/conn threads
@@ -559,7 +565,14 @@ fn handle_msg(
         }
         "terminals" => {
             let project = str_field("project").unwrap_or_default();
-            let terms = pty::remote_terminals(&app.state::<pty::PtyState>(), &project);
+            let mut terms = pty::remote_terminals(&app.state::<pty::PtyState>(), &project);
+            // Scope to the project's current tab tree so orphaned/leaked PTYs
+            // (live sessions no longer in any tree) don't show. Fall back to all
+            // live sessions when the frontend hasn't registered a set yet (older
+            // client, or the project's window isn't open).
+            if let Some(tree) = hub.inner.tree_ids.lock().unwrap().get(&project) {
+                terms.retain(|t| tree.contains(&t.id));
+            }
             // Attach the desktop's tab label to each terminal (falling back to the
             // id when the frontend hasn't registered one, e.g. an unopened project).
             let labels = hub.inner.labels.lock().unwrap();
@@ -954,19 +967,25 @@ pub fn remote_state(hub: State<'_, RemoteHub>) -> Value {
     state_value(&hub)
 }
 
-/// Register the current terminal id -> {label, cli} mapping (from the frontend tab
-/// tree) so remote clients can show the same names the desktop does and offer the
-/// right slash commands. Upsert-only.
+/// Register the current terminal id -> {label, cli, pinned} mapping (from a
+/// project's frontend tab tree) so remote clients show the same names/pins and
+/// offer the right slash commands. Labels/clis/pins are upsert-only (dead ids
+/// linger harmlessly); the id SET is authoritative per project — it scopes the
+/// phone's list to the actual tab tree so orphaned PTYs don't show. An empty push
+/// (e.g. a mirror window before it has adopted the tree) is ignored for the set,
+/// since a genuinely-empty project simply has no live PTYs to list.
 #[tauri::command]
-pub fn remote_set_terminal_labels(hub: State<'_, RemoteHub>, labels: Vec<Value>) {
+pub fn remote_set_terminal_labels(hub: State<'_, RemoteHub>, project: String, labels: Vec<Value>) {
     let mut label_map = hub.inner.labels.lock().unwrap();
     let mut cli_map = hub.inner.clis.lock().unwrap();
     let mut pin_map = hub.inner.pinned.lock().unwrap();
-    for item in labels {
+    let mut ids = HashSet::new();
+    for item in &labels {
         let id = item.get("id").and_then(Value::as_str).unwrap_or("");
         if id.is_empty() {
             continue;
         }
+        ids.insert(id.to_string());
         let label = item.get("label").and_then(Value::as_str).unwrap_or("");
         if !label.is_empty() {
             label_map.insert(id.to_string(), label.to_string());
@@ -979,6 +998,9 @@ pub fn remote_set_terminal_labels(hub: State<'_, RemoteHub>, labels: Vec<Value>)
             id.to_string(),
             item.get("pinned").and_then(Value::as_bool).unwrap_or(false),
         );
+    }
+    if !project.is_empty() && !ids.is_empty() {
+        hub.inner.tree_ids.lock().unwrap().insert(project, ids);
     }
 }
 

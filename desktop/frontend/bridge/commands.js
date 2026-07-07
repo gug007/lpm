@@ -313,8 +313,8 @@ export function RemoteStartPairing() {
 export function RemoteRevokeDevice(id) {
   return invoke("remote_revoke_device", { id });
 }
-export function RemoteSetTerminalLabels(labels) {
-  return invoke("remote_set_terminal_labels", { labels });
+export function RemoteSetTerminalLabels(project, labels) {
+  return invoke("remote_set_terminal_labels", { project, labels });
 }
 export function TerminalPresentControl(id, realmKind, realmId, label) {
   return invoke("terminal_present_control", { id, realmKind, realmId, label });

@@ -288,14 +288,18 @@ struct TerminalScreen: View {
             ZStack {
                 WebTerminalView(term: term, topInset: statusBarHeight)
                     .environmentObject(model)
-                    .ignoresSafeArea(.container, edges: .top)
                 if !controlled {
                     ControlHandoffView(ownerLabel: model.controlOwnerLabel(term.id)) {
                         model.claimControl(term.id)
                     }
-                    .ignoresSafeArea(.container, edges: .top)
                 }
             }
+            // Ignore the TOP safe area on the whole terminal area (one view in the
+            // VStack, like the pre-ZStack layout) so the terminal flows under the
+            // translucent nav bar. Applying it to the inner web view instead broke
+            // SwiftUI keyboard avoidance for the composer below — it stopped riding
+            // above the keyboard. The bottom safe area stays respected here.
+            .ignoresSafeArea(.container, edges: .top)
             if controlled {
                 TerminalComposer(termId: term.id, project: term.project, label: term.label)
                     .environmentObject(model)
