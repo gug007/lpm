@@ -2,6 +2,32 @@ import SwiftUI
 import UIKit
 import WebKit
 
+/// Pre-warms WebKit for the terminal web views. Creating the first WKWebView
+/// cold-starts WebKit's helper processes (GPU/WebContent/Networking) — the device
+/// logs show that taking ~2s. iOS 15+ shares one WebContent process across all
+/// WKWebViews automatically, so spinning up one throwaway view at launch (which
+/// also parses xterm.js) means the first terminal the user opens reuses the warm
+/// process instead of paying that cost.
+enum TerminalWebPool {
+    private static var warmup: WKWebView?
+
+    /// The bundled xterm page + assets (preserved "web/" folder).
+    static var webDir: URL {
+        (Bundle.main.resourceURL ?? Bundle.main.bundleURL)
+            .appendingPathComponent("web", isDirectory: true)
+    }
+
+    /// Create one throwaway web view at launch so WebKit's processes are live and
+    /// xterm.js is parsed before the first real terminal opens. Idempotent.
+    static func prewarm() {
+        guard warmup == nil else { return }
+        let web = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
+        web.loadFileURL(webDir.appendingPathComponent("terminal.html"),
+                        allowingReadAccessTo: webDir)
+        warmup = web
+    }
+}
+
 /// The terminal, rendered by xterm.js inside a WKWebView — the same emulator the
 /// desktop uses, so rendering matches and (unlike SwiftTerm's iOS view) scrollback
 /// works: xterm owns a real scrolling viewport with 10k lines of history.
@@ -41,10 +67,8 @@ struct WebTerminalView: UIViewRepresentable {
 
         // Assets ship as a preserved "web/" folder; grant read access to the whole
         // folder so xterm's relative script/css loads resolve.
-        let root = Bundle.main.resourceURL ?? Bundle.main.bundleURL
-        let dir = root.appendingPathComponent("web", isDirectory: true)
-        let indexURL = dir.appendingPathComponent("terminal.html")
-        web.loadFileURL(indexURL, allowingReadAccessTo: dir)
+        let dir = TerminalWebPool.webDir
+        web.loadFileURL(dir.appendingPathComponent("terminal.html"), allowingReadAccessTo: dir)
 
         context.coordinator.topInset = topInset
         // Capture only the coordinator, not `context` — these closures outlive this

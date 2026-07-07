@@ -17,7 +17,11 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.reconnectIfNeeded() }
         }
-        .onAppear { model.bootstrap() }
+        .onAppear {
+            model.bootstrap()
+            // Warm WebKit now so the first terminal opens without the ~2s cold start.
+            TerminalWebPool.prewarm()
+        }
     }
 }
 

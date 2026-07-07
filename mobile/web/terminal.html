@@ -76,7 +76,8 @@
   // iOS's synthetic mouse events (the other source of NaN mouse-report garbage).
   (function enableTouchScroll() {
     const el = term.element;
-    let lastY = null, rect = null, accum = 0;
+    const TAP_SLOP = 8; // px of movement under which a touch is a tap, not a scroll
+    let lastY = null, startY = 0, rect = null, accum = 0, scrolling = false;
     const rowHeight = () => {
       const r = el.querySelector('.xterm-rows')?.firstElementChild;
       return (r && r.getBoundingClientRect().height) || Math.ceil(term.options.fontSize * 1.2);
@@ -94,14 +95,20 @@
     };
     el.addEventListener('touchstart', e => {
       if (e.touches.length === 1) {
-        lastY = e.touches[0].clientY;
+        lastY = startY = e.touches[0].clientY;
         rect = el.getBoundingClientRect();
         accum = 0;
+        scrolling = false;
       }
     }, { passive: true });
     el.addEventListener('touchmove', e => {
       if (lastY === null || e.touches.length !== 1) return;
       const t = e.touches[0];
+      // Until the finger clearly moves, treat it as a (possible) tap: don't
+      // preventDefault, so the tap still reaches xterm to focus its input and
+      // raise the keyboard. Only take over the gesture once it's a real scroll.
+      if (!scrolling && Math.abs(t.clientY - startY) < TAP_SLOP) return;
+      scrolling = true;
       accum += t.clientY - lastY;
       lastY = t.clientY;
       const rh = rowHeight();
@@ -117,9 +124,14 @@
       }
       e.preventDefault();
     }, { passive: false });
-    const end = () => { lastY = null; };
+    const end = () => {
+      // A touch that never became a scroll is a tap → focus the terminal so iOS
+      // opens the keyboard (xterm focuses its hidden input on focus()).
+      if (lastY !== null && !scrolling) term.focus();
+      lastY = null;
+    };
     el.addEventListener('touchend', end, { passive: true });
-    el.addEventListener('touchcancel', end, { passive: true });
+    el.addEventListener('touchcancel', () => { lastY = null; }, { passive: true });
   })();
 
   // Report geometry after a fit so the PTY reflows to the phone's real size.
