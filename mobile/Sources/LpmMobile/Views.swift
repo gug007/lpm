@@ -85,6 +85,7 @@ struct PairingView: View {
 struct ProjectsView: View {
     @EnvironmentObject var model: AppModel
     @State private var expandedOverride: [String: Bool] = [:]
+    @State private var confirmingLogout = false
 
     private func isExpanded(_ g: ProjectFolder) -> Bool { expandedOverride[g.id] ?? !g.collapsed }
 
@@ -108,11 +109,24 @@ struct ProjectsView: View {
                 }
             }
         }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            ProjectsHeader(total: model.projects.count, connection: model.connection)
-        }
-        .toolbar(.hidden, for: .navigationBar)
         .navigationTitle("Projects")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                ConnectionIndicator(state: model.connection)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button(role: .destructive) { confirmingLogout = true } label: {
+                        Label("Log out", systemImage: "rectangle.portrait.and.arrow.right")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.primary)
+                }
+            }
+        }
         .navigationDestination(for: String.self) { name in
             if let p = model.projects.first(where: { $0.name == name }) {
                 ProjectDetail(project: p)
@@ -121,37 +135,12 @@ struct ProjectsView: View {
         .overlay {
             if model.projects.isEmpty { ContentUnavailableView("No projects", systemImage: "folder") }
         }
-    }
-}
-
-/// Compact, minimal screen header: the title with a subtle inline project count
-/// on the left and a live connection indicator on the right. A translucent glass
-/// background (the list scrolls beneath it via `safeAreaInset`) with a hairline
-/// separator that only shows once content has scrolled under it.
-struct ProjectsHeader: View {
-    let total: Int
-    let connection: LpmClient.State
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text("Projects")
-                .font(.system(size: 28, weight: .bold))
-            if total > 0 {
-                Text("\(total)")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-                    .monospacedDigit()
-            }
-            Spacer(minLength: 8)
-            ConnectionIndicator(state: connection)
+        .confirmationDialog("Log out of this Mac?", isPresented: $confirmingLogout, titleVisibility: .visible) {
+            Button("Log out", role: .destructive) { model.logout() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This device will be unpaired. You'll need to scan a new QR code to reconnect.")
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 8)
-        .padding(.bottom, 14)
-        // Match the list's grouped background exactly so the header blends
-        // seamlessly into the content — a translucent material here tints a
-        // different grey and leaves an ugly seam against the list below.
-        .background(Color(.systemGroupedBackground))
     }
 }
 

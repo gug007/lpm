@@ -71,6 +71,29 @@ final class AppModel: ObservableObject {
         client?.connect()
     }
 
+    /// Forget this device's pairing: drop the live connection, wipe the Keychain
+    /// credential and remembered endpoint, and clear all cached state so the next
+    /// device to pair here starts clean. Returns the UI to the pairing screen.
+    func logout() {
+        client?.disconnect()
+        client = nil
+        Keychain.clear()
+        UserDefaults.standard.removeObject(forKey: "lpm.host")
+        UserDefaults.standard.removeObject(forKey: "lpm.port")
+
+        connection = .idle
+        projects = []
+        terminals = [:]
+        slashCommands = [:]
+        pendingImagePath = [:]
+        mentions = [:]
+        history = [:]
+        sidebarOrder = []
+        groups = []
+        controlOwner = [:]
+        paired = false
+    }
+
     // Terminal wiring used by TerminalScreen.
     func subscribe(
         _ id: String,
