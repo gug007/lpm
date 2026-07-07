@@ -31,6 +31,7 @@ struct PairingView: View {
     @State private var port = "8765"
     @State private var code = ""
     @State private var scanning = false
+    @State private var scannedHosts: [String] = []
 
     private var trimmedHost: String {
         host.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -38,6 +39,15 @@ struct PairingView: View {
 
     private var trimmedCode: String {
         code.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// The typed host plus any other addresses the QR advertised (e.g. the
+    /// Tailscale IP), typed one first, deduped. Pairing probes all of them so a
+    /// scan that autofills the LAN IP still reaches the Mac over the tailnet.
+    private var pairHosts: [String] {
+        ([trimmedHost] + scannedHosts).reduce(into: [String]()) { acc, h in
+            if !h.isEmpty && !acc.contains(h) { acc.append(h) }
+        }
     }
 
     private var canPair: Bool {
@@ -144,7 +154,7 @@ struct PairingView: View {
 
                 VStack(spacing: 12) {
                     Button {
-                        model.pair(hosts: [trimmedHost], port: Int(port) ?? 8765, code: trimmedCode)
+                        model.pair(hosts: pairHosts, port: Int(port) ?? 8765, code: trimmedCode)
                     } label: {
                         HStack(spacing: 8) {
                             if isPairing { ProgressView().controlSize(.small) }
@@ -176,6 +186,7 @@ struct PairingView: View {
                 host = payload.host
                 port = String(payload.port)
                 code = payload.code
+                scannedHosts = payload.hosts
                 model.pair(hosts: payload.hosts, port: payload.port, code: payload.code)
             }
         }
