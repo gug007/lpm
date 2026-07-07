@@ -184,6 +184,12 @@ interface AppState {
   pendingGeneratorRun: { projectName: string; spec: GeneratorRunSpec } | null;
   runGenerator: (opts: { folder: string; name: string; spec: GeneratorRunSpec }) => Promise<void>;
   clearPendingGeneratorRun: () => void;
+  // A run-action / new-terminal request relayed from the mobile app. `action` is
+  // the action's (possibly composite) name, or null for a plain new terminal.
+  // `nonce` lets an already-mounted ProjectDetail re-fire on repeat requests.
+  pendingRemoteAction: { projectName: string; action: string | null; nonce: number } | null;
+  triggerRemoteAction: (projectName: string, action: string | null) => void;
+  clearPendingRemoteAction: () => void;
   bulkDuplicate: (
     name: string,
     count: number,
@@ -787,6 +793,24 @@ export const useAppStore = create<AppState>((set, get) => ({
   pendingGeneratorRun: null,
 
   clearPendingGeneratorRun: () => set({ pendingGeneratorRun: null }),
+
+  pendingRemoteAction: null,
+
+  // Mount/activate the target project (only a mounted ProjectDetail has a live
+  // TerminalView to run in), then park the request for its consumer effect.
+  triggerRemoteAction: (projectName, action) =>
+    set((s) => ({
+      selected: projectName,
+      view: "projects",
+      visited: new Set([...s.visited, projectName]),
+      pendingRemoteAction: {
+        projectName,
+        action,
+        nonce: (s.pendingRemoteAction?.nonce ?? 0) + 1,
+      },
+    })),
+
+  clearPendingRemoteAction: () => set({ pendingRemoteAction: null }),
 
   runGenerator: async ({ folder, name, spec }) => {
     try {

@@ -23,12 +23,21 @@ export function useAmbientAppEvents(): void {
 export function useAppEvents(): void {
   useAmbientAppEvents();
   useEffect(() => {
-    const { selectProject, setView, setFeedbackOpen, addProject } =
+    const { selectProject, setView, setFeedbackOpen, addProject, triggerRemoteAction } =
       useAppStore.getState();
 
     const cancelDock = EventsOn("dock-project-selected", (name: string) => {
       selectProject(name);
     });
+    // The mobile app asks to run an action / open a terminal; activate the target
+    // project and park the request for its ProjectDetail to execute (only the
+    // mounted view owns the terminal tree).
+    const cancelRemoteAction = EventsOn(
+      "remote-run-action",
+      (payload: { project: string; action?: string | null }) => {
+        if (payload?.project) triggerRemoteAction(payload.project, payload.action ?? null);
+      },
+    );
     const cancelNavView = EventsOn("navigate-main-view", (view: string) => {
       setView(view as Parameters<typeof setView>[0]);
     });
@@ -53,6 +62,7 @@ export function useAppEvents(): void {
 
     return () => {
       if (typeof cancelDock === "function") cancelDock();
+      if (typeof cancelRemoteAction === "function") cancelRemoteAction();
       if (typeof cancelNavView === "function") cancelNavView();
       if (typeof cancelNewProject === "function") cancelNewProject();
       if (typeof cancelSettings === "function") cancelSettings();

@@ -42,6 +42,12 @@ enum Wire {
     static func resize(id: String, cols: Int, rows: Int) -> String {
         json(["t": "resize", "id": id, "cols": cols, "rows": rows])
     }
+    static func runAction(project: String, action: String) -> String {
+        json(["t": "runAction", "project": project, "action": action])
+    }
+    static func newTerminal(project: String) -> String {
+        json(["t": "newTerminal", "project": project])
+    }
     static func start(name: String, profile: String = "") -> String {
         json(["t": "start", "name": name, "profile": profile])
     }
@@ -148,6 +154,7 @@ struct Project: Identifiable {
     let isRemote: Bool
     let statusEntries: [StatusEntry]
     let services: [Service]
+    let actions: [Action]
 
     var id: String { name }
 
@@ -158,6 +165,50 @@ struct Project: Identifiable {
         isRemote = o["isRemote"] as? Bool ?? false
         statusEntries = (o["statusEntries"] as? [[String: Any]] ?? []).map(StatusEntry.init)
         services = (o["services"] as? [[String: Any]] ?? []).map(Service.init)
+        actions = (o["actions"] as? [[String: Any]] ?? []).map(Action.init)
+    }
+
+    private init(name: String, label: String, running: Bool, isRemote: Bool,
+                 statusEntries: [StatusEntry], services: [Service], actions: [Action]) {
+        self.name = name; self.label = label; self.running = running; self.isRemote = isRemote
+        self.statusEntries = statusEntries; self.services = services; self.actions = actions
+    }
+
+    /// A copy with fresh status — used by the status-changed push, which must not
+    /// erase the project's services/actions (a partial dict rebuild would).
+    func withStatus(_ entries: [StatusEntry]) -> Project {
+        Project(name: name, label: label, running: running, isRemote: isRemote,
+                statusEntries: entries, services: services, actions: actions)
+    }
+}
+
+/// A project action the phone can run (mirrors the Rust ActionInfo). `name` may be
+/// a composite `parent:child` path; `children` nest into submenus. A leaf (no
+/// children) is runnable; a node with children is a menu.
+struct Action: Identifiable {
+    let name: String
+    let label: String
+    let emoji: String
+    let type: String   // terminal | command | background | ""
+    let display: String
+    let children: [Action]
+
+    var id: String { name }
+    var isRunnable: Bool { children.isEmpty }
+
+    init(_ o: [String: Any]) {
+        name = o["name"] as? String ?? ""
+        let lbl = o["label"] as? String ?? ""
+        label = lbl.isEmpty ? name : lbl
+        emoji = o["emoji"] as? String ?? ""
+        type = o["type"] as? String ?? ""
+        display = o["display"] as? String ?? ""
+        children = (o["children"] as? [[String: Any]] ?? []).map(Action.init)
+    }
+
+    /// All runnable leaves under this action, depth-first (self if it's a leaf).
+    var runnableLeaves: [Action] {
+        isRunnable ? [self] : children.flatMap { $0.runnableLeaves }
     }
 }
 

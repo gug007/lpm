@@ -94,6 +94,8 @@ final class LpmClient: NSObject {
         send(Wire.historyAdd(project: project, id: id, label: label, text: text))
     }
     func requestStatus(project: String) { send(Wire.status(project: project)) }
+    func runAction(project: String, action: String) { send(Wire.runAction(project: project, action: action)) }
+    func newTerminal(project: String) { send(Wire.newTerminal(project: project)) }
     func startProject(_ name: String, profile: String = "") { send(Wire.start(name: name, profile: profile)) }
     func stopProject(_ name: String) { send(Wire.stop(name: name)) }
     func toggleService(_ name: String, service: String) { send(Wire.toggleService(name: name, service: service)) }

@@ -37,7 +37,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, SyncSender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{AppHandle, Listener, Manager, State};
+use tauri::{AppHandle, Emitter, Listener, Manager, State};
 use tungstenite::{accept, Error as WsError, Message, WebSocket};
 
 const DEFAULT_PORT: u16 = 8765;
@@ -705,6 +705,26 @@ fn handle_msg(
                 service,
             );
             send(ws, result_reply("toggleService", r))?;
+        }
+        // Run an action / open a new terminal. A terminal is a frontend pane-tree +
+        // command-injection concept, not a raw pty op — spawning one from Rust would
+        // orphan it (no tab, label, or command typed in). So relay to the owner
+        // window, which runs its normal create-terminal flow; the new terminal then
+        // reaches the phone via the label push + output tee (re-request `terminals`).
+        "runAction" => {
+            let project = str_field("project").unwrap_or_default();
+            let action = str_field("action").unwrap_or_default();
+            if !project.is_empty() && !action.is_empty() {
+                let _ = app.emit("remote-run-action", json!({ "project": project, "action": action }));
+            }
+            send(ws, json!({ "t": "runAction", "ok": true }))?;
+        }
+        "newTerminal" => {
+            let project = str_field("project").unwrap_or_default();
+            if !project.is_empty() {
+                let _ = app.emit("remote-run-action", json!({ "project": project }));
+            }
+            send(ws, json!({ "t": "newTerminal", "ok": true }))?;
         }
         _ => {}
     }

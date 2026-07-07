@@ -7,17 +7,41 @@ struct ProjectDetail: View {
     @EnvironmentObject var model: AppModel
     let project: Project
 
+    // Current project object (fresh status/actions) from the store; falls back to
+    // the one we were pushed with.
+    private var live: Project { model.projects.first(where: { $0.name == project.name }) ?? project }
     private var terminals: [TerminalInfo] { model.terminals[project.name] ?? [] }
+    private var actions: [Action] { live.actions.flatMap { $0.runnableLeaves } }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 26) {
-                ProjectHeroCard(project: project) {
-                    project.running ? model.stopProject(project) : model.startProject(project)
+                ProjectHeroCard(project: live) {
+                    live.running ? model.stopProject(live) : model.startProject(live)
+                }
+
+                if !actions.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        DetailSectionHeader(title: "Actions", count: actions.count)
+                        VStack(spacing: 10) {
+                            ForEach(actions) { a in
+                                Button { model.runAction(project.name, action: a.name) } label: {
+                                    ActionCard(action: a)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
-                    DetailSectionHeader(title: "Terminals", count: terminals.count)
+                    DetailSectionHeader(title: "Terminals", count: terminals.count) {
+                        Button { model.newTerminal(project.name) } label: {
+                            Label("New", systemImage: "plus")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        .tint(.accentColor)
+                    }
                     if terminals.isEmpty {
                         EmptyTerminalsCard()
                     } else {
@@ -99,9 +123,10 @@ private struct ProjectHeroCard: View {
     }
 }
 
-private struct DetailSectionHeader: View {
+private struct DetailSectionHeader<Trailing: View>: View {
     let title: String
     let count: Int
+    @ViewBuilder var trailing: Trailing
 
     var body: some View {
         HStack(spacing: 6) {
@@ -115,8 +140,49 @@ private struct DetailSectionHeader: View {
                     .monospacedDigit()
             }
             Spacer()
+            trailing
         }
         .padding(.horizontal, 4)
+    }
+}
+
+extension DetailSectionHeader where Trailing == EmptyView {
+    init(title: String, count: Int) {
+        self.init(title: title, count: count) { EmptyView() }
+    }
+}
+
+private struct ActionCard: View {
+    let action: Action
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Group {
+                if action.emoji.isEmpty {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(action.emoji).font(.system(size: 18))
+                }
+            }
+            .frame(width: 40, height: 40)
+            .background(Color(.tertiarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            Text(action.label)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+
+            Spacer(minLength: 8)
+
+            Image(systemName: "play.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(14)
+        .card()
     }
 }
 

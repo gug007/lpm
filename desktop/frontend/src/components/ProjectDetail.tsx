@@ -200,6 +200,42 @@ export function ProjectDetail({
     }
   }, [spawnTasks, project.actions, project.name, consumeSpawnTasks, handleRunAction, switchDetailView]);
 
+  // Run an action / open a terminal on behalf of the mobile app. The store
+  // activated this project; run once per `nonce` (a repeat request bumps it) with
+  // a ref latch so StrictMode's double-invoke doesn't spawn twice.
+  const pendingRemoteAction = useAppStore((s) => s.pendingRemoteAction);
+  const clearPendingRemoteAction = useAppStore((s) => s.clearPendingRemoteAction);
+  const selectedProject = useAppStore((s) => s.selected);
+  const remoteActionConsumed = useRef(0);
+  useEffect(() => {
+    if (
+      !pendingRemoteAction ||
+      pendingRemoteAction.projectName !== project.name ||
+      selectedProject !== project.name ||
+      remoteActionConsumed.current === pendingRemoteAction.nonce
+    ) {
+      return;
+    }
+    remoteActionConsumed.current = pendingRemoteAction.nonce;
+    const { action } = pendingRemoteAction;
+    clearPendingRemoteAction();
+    switchDetailView("terminal");
+    if (action) {
+      const found = findActionByPath(project.actions ?? [], action);
+      if (found) handleRunAction(found);
+    } else {
+      terminalRef.current?.createTerminal();
+    }
+  }, [
+    pendingRemoteAction,
+    selectedProject,
+    project.name,
+    project.actions,
+    handleRunAction,
+    switchDetailView,
+    clearPendingRemoteAction,
+  ]);
+
   const parentProject = useAppStore((s) => findParentProject(project, s.projects));
   const displayName = projectDisplayName(project, parentProject);
 

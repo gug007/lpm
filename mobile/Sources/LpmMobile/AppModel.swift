@@ -91,6 +91,25 @@ final class AppModel: ObservableObject {
     func startProject(_ p: Project) { client?.startProject(p.name) }
     func stopProject(_ p: Project) { client?.stopProject(p.name) }
     func loadTerminals(_ project: String) { client?.requestTerminals(project: project) }
+
+    func runAction(_ project: String, action: String) {
+        client?.runAction(project: project, action: action)
+        reloadTerminalsSoon(project)
+    }
+    func newTerminal(_ project: String) {
+        client?.newTerminal(project: project)
+        reloadTerminalsSoon(project)
+    }
+    /// The desktop creates the terminal + types its command asynchronously (it
+    /// waits for the shell prompt to settle), so poll the list a few times for the
+    /// new terminal to show up.
+    private func reloadTerminalsSoon(_ project: String) {
+        for delay in [0.6, 1.5, 3.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.loadTerminals(project)
+            }
+        }
+    }
     func loadSlash(_ id: String, project: String) { client?.requestSlash(id: id, project: project) }
     func uploadImage(_ id: String, _ b64: String, mime: String) { client?.uploadImage(id, b64, mime: mime) }
     func loadMentions(_ project: String) { client?.requestMentions(project: project) }
@@ -154,14 +173,8 @@ final class AppModel: ObservableObject {
         c.onStatus = { [weak self] proj, entries in
             guard let self else { return }
             if let idx = self.projects.firstIndex(where: { $0.name == proj }) {
-                // Rebuild the project with fresh status (Project is a value type).
-                var dict = [String: Any]()
-                dict["name"] = self.projects[idx].name
-                dict["label"] = self.projects[idx].label
-                dict["running"] = self.projects[idx].running
-                dict["isRemote"] = self.projects[idx].isRemote
-                dict["statusEntries"] = entries.map { ["key": $0.key, "value": $0.value, "priority": $0.priority, "timestamp": $0.timestamp] }
-                self.projects[idx] = Project(dict)
+                // Copy with fresh status — preserves services/actions.
+                self.projects[idx] = self.projects[idx].withStatus(entries)
             }
         }
         c.onSeed = { [weak self] id, cols, rows, data in self?.onTerminalSeed[id]?(cols, rows, data) }
