@@ -370,7 +370,14 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
         return;
     };
     let device_id = match authenticate(&mut ws, &hub) {
-        Some(id) => id,
+        Some(outcome) => {
+            if outcome.is_new_pairing() {
+                // A phone just paired — nudge any open Settings pane to refetch its
+                // device list instead of waiting for the pane to remount.
+                let _ = app.emit("remote-devices-changed", ());
+            }
+            outcome.into_device_id()
+        }
         None => {
             let _ = ws.close(None);
             let _ = ws.flush();
@@ -446,7 +453,24 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
 
 // --- auth / pairing ----------------------------------------------------------
 
-fn authenticate(ws: &mut WebSocket<TcpStream>, hub: &RemoteHub) -> Option<String> {
+enum AuthOutcome {
+    Paired(String),
+    Resumed(String),
+}
+
+impl AuthOutcome {
+    fn is_new_pairing(&self) -> bool {
+        matches!(self, AuthOutcome::Paired(_))
+    }
+
+    fn into_device_id(self) -> String {
+        match self {
+            AuthOutcome::Paired(id) | AuthOutcome::Resumed(id) => id,
+        }
+    }
+}
+
+fn authenticate(ws: &mut WebSocket<TcpStream>, hub: &RemoteHub) -> Option<AuthOutcome> {
     let txt = loop {
         match ws.read() {
             Ok(m) if m.is_text() => break m.to_text().ok()?.to_string(),
@@ -465,7 +489,7 @@ fn authenticate(ws: &mut WebSocket<TcpStream>, hub: &RemoteHub) -> Option<String
                     let _ = ws.send(Message::text(
                         json!({ "t": "paired", "deviceId": id, "token": token }).to_string(),
                     ));
-                    Some(id)
+                    Some(AuthOutcome::Paired(id))
                 }
                 None => {
                     let _ = ws.send(Message::text(
@@ -480,7 +504,7 @@ fn authenticate(ws: &mut WebSocket<TcpStream>, hub: &RemoteHub) -> Option<String
             let token = v.get("token").and_then(Value::as_str).unwrap_or_default();
             if check_device(hub, id, token) {
                 let _ = ws.send(Message::text(json!({ "t": "ready" }).to_string()));
-                Some(id.to_string())
+                Some(AuthOutcome::Resumed(id.to_string()))
             } else {
                 let _ = ws.send(Message::text(
                     json!({ "t": "error", "error": "unauthorized" }).to_string(),

@@ -38,6 +38,11 @@ targets:
       path: Info.plist
       properties:
         CFBundleDisplayName: lpm
+        # Export compliance: the app implements no encryption of its own — transport
+        # is plaintext ws:// (privacy comes from Tailscale, not the app) and the only
+        # crypto is the OS Keychain, which is exempt. Declaring this false stops App
+        # Store Connect from prompting for export-compliance docs on every build.
+        ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

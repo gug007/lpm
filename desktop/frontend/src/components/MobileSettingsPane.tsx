@@ -7,6 +7,7 @@ import {
   RemoteStartPairing,
   RemoteRevokeDevice,
 } from "../../bridge/commands";
+import { EventsOn } from "../../bridge/runtime";
 
 interface Device {
   id: string;
@@ -126,6 +127,15 @@ export function MobileSettingsPane() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(
+    () =>
+      EventsOn("remote-devices-changed", () => {
+        void refresh();
+        setPairing(null);
+      }),
+    [refresh],
+  );
 
   const apply = useCallback(
     async (next: Partial<Pick<RemoteStateShape, "enabled" | "lan" | "port">>) => {
