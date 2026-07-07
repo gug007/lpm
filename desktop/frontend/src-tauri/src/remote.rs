@@ -966,6 +966,54 @@ fn primary_lan_ip() -> Option<String> {
     sock.local_addr().ok().map(|a| a.ip().to_string())
 }
 
+/// This Mac's Tailscale IPv4, if a tailnet interface is up. Tailscale assigns
+/// addresses from the 100.64.0.0/10 CGNAT range, so we scan the interface list
+/// for one — no dependency on the `tailscale` CLI being in PATH. Advertising it
+/// in the pairing QR lets the phone reach this Mac from anywhere it shares the
+/// tailnet (cellular, another network), not just the local Wi-Fi.
+fn tailscale_ip() -> Option<String> {
+    let mut ifap: *mut libc::ifaddrs = std::ptr::null_mut();
+    if unsafe { libc::getifaddrs(&mut ifap) } != 0 {
+        return None;
+    }
+    let mut result = None;
+    let mut cur = ifap;
+    while !cur.is_null() {
+        let addr = unsafe { (*cur).ifa_addr };
+        if !addr.is_null() && unsafe { (*addr).sa_family } as i32 == libc::AF_INET {
+            let sin = addr as *const libc::sockaddr_in;
+            let ip = std::net::Ipv4Addr::from(u32::from_be(unsafe { (*sin).sin_addr.s_addr }));
+            let o = ip.octets();
+            if o[0] == 100 && (64..=127).contains(&o[1]) {
+                result = Some(ip.to_string());
+                break;
+            }
+        }
+        cur = unsafe { (*cur).ifa_next };
+    }
+    unsafe { libc::freeifaddrs(ifap) };
+    result
+}
+
+/// Addresses to advertise for pairing, most-preferred first: the LAN IP (lowest
+/// latency at home) then the Tailscale IP (reachable away from home). The phone
+/// probes them and keeps whichever it can reach.
+fn candidate_hosts() -> Vec<String> {
+    let mut hosts = Vec::new();
+    if let Some(ip) = primary_lan_ip() {
+        hosts.push(ip);
+    }
+    if let Some(ip) = tailscale_ip() {
+        if !hosts.contains(&ip) {
+            hosts.push(ip);
+        }
+    }
+    if hosts.is_empty() {
+        hosts.push("127.0.0.1".to_string());
+    }
+    hosts
+}
+
 fn pairing_qr_svg(payload: &str) -> Option<String> {
     let code = qrcode::QrCode::new(payload.as_bytes()).ok()?;
     Some(
@@ -989,6 +1037,7 @@ fn state_value(hub: &RemoteHub) -> Value {
         "port": effective_port(cfg.port),
         "running": hub.inner.running.load(Ordering::Relaxed),
         "host": primary_lan_ip(),
+        "tailscaleHost": tailscale_ip(),
         "hasPendingCode": !cfg.pairing_code.is_empty(),
         "devices": devices,
     })
@@ -1069,29 +1118,32 @@ pub fn remote_set_config(
 #[tauri::command]
 pub fn remote_start_pairing(app: AppHandle, hub: State<'_, RemoteHub>) -> Result<Value, String> {
     let code = gen_pairing_code();
-    let (host, port) = {
+    let (hosts, port) = {
         let mut cfg = hub.inner.config.lock().unwrap();
         cfg.pairing_code = code.clone();
         cfg.enabled = true;
-        // The QR advertises this Mac's LAN IP, so the server must bind the LAN
+        // The QR advertises this Mac's addresses, so the server must bind every
         // interface (0.0.0.0) or the phone hits a loopback-only port and gets
         // connection-refused. Pairing a device inherently means network access;
         // the Settings toggle reflects this and can turn it back off afterward.
         cfg.lan = true;
-        let host = primary_lan_ip().unwrap_or_else(|| "127.0.0.1".to_string());
         let port = effective_port(cfg.port);
         let snapshot = cfg.clone();
         drop(cfg);
         save_config(&snapshot)?;
-        (host, port)
+        (candidate_hosts(), port)
     };
     apply(&hub, &app); // ensure the listener is up so the phone can connect
-    let url = format!("lpm://pair?h={host}&p={port}&c={code}");
+    // Every candidate address as a repeated `h=` param; the phone tries each and
+    // keeps the one it can reach (LAN at home, Tailscale away from home).
+    let host_params: String = hosts.iter().map(|h| format!("&h={h}")).collect();
+    let url = format!("lpm://pair?p={port}&c={code}{host_params}");
     Ok(json!({
         "code": code,
         "url": url,
         "svg": pairing_qr_svg(&url),
-        "host": host,
+        "host": hosts[0],
+        "hosts": hosts,
         "port": port,
     }))
 }

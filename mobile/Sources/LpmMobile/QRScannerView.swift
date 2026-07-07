@@ -2,11 +2,15 @@ import SwiftUI
 import AVFoundation
 
 /// A pairing payload decoded from the desktop's QR code:
-/// `lpm://pair?h=<host>&p=<port>&c=<code>`.
+/// `lpm://pair?p=<port>&c=<code>&h=<host>&h=<host>…`. The Mac advertises every
+/// address it can be reached at (LAN, Tailscale) as repeated `h` params; the
+/// phone probes them and keeps the reachable one.
 struct PairPayload {
-    let host: String
+    let hosts: [String]
     let port: Int
     let code: String
+
+    var host: String { hosts.first ?? "" }
 
     init?(_ raw: String) {
         guard let comps = URLComponents(string: raw),
@@ -14,8 +18,9 @@ struct PairPayload {
         else { return nil }
         let items = comps.queryItems ?? []
         func q(_ name: String) -> String? { items.first { $0.name == name }?.value }
-        guard let h = q("h"), let c = q("c") else { return nil }
-        host = h
+        let hs = items.filter { $0.name == "h" }.compactMap(\.value).filter { !$0.isEmpty }
+        guard !hs.isEmpty, let c = q("c") else { return nil }
+        hosts = hs
         port = Int(q("p") ?? "8765") ?? 8765
         code = c
     }

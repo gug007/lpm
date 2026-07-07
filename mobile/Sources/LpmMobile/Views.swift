@@ -61,7 +61,7 @@ struct PairingView: View {
             .textFieldStyle(.roundedBorder)
 
             Button("Pair") {
-                model.pair(host: host, port: Int(port) ?? 8765, code: code)
+                model.pair(hosts: [host], port: Int(port) ?? 8765, code: code)
             }
             .buttonStyle(.bordered)
             .disabled(host.isEmpty || code.isEmpty)
@@ -76,7 +76,7 @@ struct PairingView: View {
                 host = payload.host
                 port = String(payload.port)
                 code = payload.code
-                model.pair(host: payload.host, port: payload.port, code: payload.code)
+                model.pair(hosts: payload.hosts, port: payload.port, code: payload.code)
             }
         }
     }

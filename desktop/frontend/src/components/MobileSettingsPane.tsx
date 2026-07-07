@@ -20,6 +20,7 @@ interface RemoteStateShape {
   port: number;
   running: boolean;
   host: string | null;
+  tailscaleHost: string | null;
   hasPendingCode: boolean;
   devices: Device[];
 }
@@ -38,6 +39,7 @@ const DEFAULT_STATE: RemoteStateShape = {
   port: 8765,
   running: false,
   host: null,
+  tailscaleHost: null,
   hasPendingCode: false,
   devices: [],
 };
@@ -290,6 +292,26 @@ export function MobileSettingsPane() {
               </div>
             </button>
           </div>
+        </div>
+      </div>
+
+      <div className="mt-8">
+        <SectionLabel>Using lpm away from home</SectionLabel>
+        <div className="rounded-xl border border-[var(--border)] px-4 py-3">
+          <p className="text-[12px] leading-relaxed text-[var(--text-muted)]">
+            Keep this Mac awake with remote control on — every command still runs here. On the same
+            Wi-Fi, your phone connects directly. To use lpm over cellular or another network, put
+            both devices on a{" "}
+            <span className="font-medium text-[var(--text-secondary)]">Tailscale</span> tailnet — the
+            pairing QR includes this Mac's Tailscale address, so scanning it works from anywhere on
+            the tailnet.
+          </p>
+          {state.tailscaleHost && (
+            <p className="mt-2 text-[12px] leading-relaxed text-[var(--text-muted)]">
+              Tailscale address:{" "}
+              <span className="font-mono text-[var(--text-secondary)]">{state.tailscaleHost}</span>
+            </p>
+          )}
         </div>
       </div>
 

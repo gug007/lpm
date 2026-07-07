@@ -43,14 +43,23 @@ final class AppModel: ObservableObject {
     func bootstrap() {
         guard let cred = Keychain.load() else { paired = false; return }
         paired = true
-        // Endpoint is remembered from the last successful connect (persist it in
-        // UserDefaults in a real build); default to loopback for the simulator.
-        connect(host: UserDefaults.standard.string(forKey: "lpm.host") ?? "127.0.0.1",
-                port: UserDefaults.standard.integer(forKey: "lpm.port").nonzero ?? 8765,
-                credential: cred)
+        connectBest(credential: cred)
+    }
+
+    /// Probe the remembered addresses and connect to whichever the phone can
+    /// reach right now — the LAN IP at home, the Tailscale IP away from home.
+    private func connectBest(credential: LpmClient.Credential) {
+        let hosts = savedHosts()
+        let port = savedPort()
+        connection = .connecting
+        Task { @MainActor in
+            let host = await HostProbe.firstReachable(hosts, port: port) ?? hosts.first ?? "127.0.0.1"
+            connect(host: host, port: port, credential: credential)
+        }
     }
 
     func connect(host: String, port: Int, credential: LpmClient.Credential) {
+        client?.disconnect()
         let c = LpmClient(endpoint: .init(host: host, port: port),
                           credential: credential,
                           deviceName: UIDevice.current.name)
@@ -59,19 +68,51 @@ final class AppModel: ObservableObject {
         c.connect()
     }
 
-    func pair(host: String, port: Int, code: String) {
-        UserDefaults.standard.set(host, forKey: "lpm.host")
+    func pair(hosts: [String], port: Int, code: String) {
+        persistHosts(hosts)
         UserDefaults.standard.set(port, forKey: "lpm.port")
-        let c = LpmClient(endpoint: .init(host: host, port: port),
-                          credential: nil, deviceName: UIDevice.current.name)
-        wire(c)
-        client = c
-        c.pair(host: host, port: port, code: code)
+        connection = .connecting
+        Task { @MainActor in
+            let host = await HostProbe.firstReachable(hosts, port: port) ?? hosts.first ?? "127.0.0.1"
+            client?.disconnect()
+            let c = LpmClient(endpoint: .init(host: host, port: port),
+                              credential: nil, deviceName: UIDevice.current.name)
+            wire(c)
+            client = c
+            c.pair(host: host, port: port, code: code)
+        }
     }
 
     func reconnectIfNeeded() {
         if case .ready = connection { return }
-        client?.connect()
+        // Reuse the live client when we have one — it re-auths and re-subscribes
+        // to the terminals this phone was watching. Only rebuild (and re-probe
+        // for a reachable address) on a cold start with no client.
+        if let client {
+            client.connect()
+        } else if let cred = Keychain.load() {
+            connectBest(credential: cred)
+        }
+    }
+
+    private func savedHosts() -> [String] {
+        if let data = UserDefaults.standard.data(forKey: "lpm.hosts"),
+           let arr = try? JSONDecoder().decode([String].self, from: data), !arr.isEmpty {
+            return arr
+        }
+        if let h = UserDefaults.standard.string(forKey: "lpm.host") { return [h] }
+        return ["127.0.0.1"]
+    }
+
+    private func persistHosts(_ hosts: [String]) {
+        if let data = try? JSONEncoder().encode(hosts) {
+            UserDefaults.standard.set(data, forKey: "lpm.hosts")
+        }
+        if let first = hosts.first { UserDefaults.standard.set(first, forKey: "lpm.host") }
+    }
+
+    private func savedPort() -> Int {
+        UserDefaults.standard.integer(forKey: "lpm.port").nonzero ?? 8765
     }
 
     /// Forget this device's pairing: drop the live connection, wipe the Keychain
@@ -82,6 +123,7 @@ final class AppModel: ObservableObject {
         client = nil
         Keychain.clear()
         UserDefaults.standard.removeObject(forKey: "lpm.host")
+        UserDefaults.standard.removeObject(forKey: "lpm.hosts")
         UserDefaults.standard.removeObject(forKey: "lpm.port")
 
         connection = .idle
