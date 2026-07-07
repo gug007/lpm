@@ -28,6 +28,7 @@ import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { registerFileDropHandler } from "../fileDrop";
 import {
   IS_MIRROR_WINDOW,
+  REALM,
   broadcastMirrorSize,
   onMirrorSize,
   broadcastMirrorDesired,
@@ -39,6 +40,17 @@ import {
   broadcastMirrorAcking,
   onMirrorAcking,
 } from "../mirror";
+import {
+  amControlOwner,
+  onControlChange,
+  applyControlOwner,
+  type ControlOwner,
+} from "../store/terminalControl";
+import {
+  TerminalPresentControl,
+  TerminalUnpresentControl,
+  TerminalClaimControl,
+} from "../../bridge/commands";
 import "@xterm/xterm/css/xterm.css";
 
 // Cross-window flow-control ack authority (one window acks a PTY's output; two
@@ -223,6 +235,13 @@ interface InteractiveSession {
   canAppCopy: () => boolean;
   tryAppCopy: () => boolean;
 
+  // Whether this window is currently showing this terminal as its active,
+  // visible tab (set by the React mount from the `visible` prop). Note this is
+  // TRUE even when the pane sits display:none behind the "take control"
+  // placeholder — so a focus-claim can fire for a placeholder view, which
+  // `offsetParent`/`isLaidOut` (both false there) could not detect.
+  presenting: boolean;
+
   // Installed by the current React mount, cleared on unmount so callbacks
   // closing over stale component state don't fire.
   onScrollState?: (atBottom: boolean) => void;
@@ -233,6 +252,10 @@ interface InteractiveSession {
 
   // Marks the session disconnected (same path onData uses on a failed write).
   handleWriteError?: () => void;
+  // Force this owner to (re)drive the PTY to its current xterm size. Needed when
+  // this window becomes the control owner: a no-op fit() emits no onResize, so
+  // the size would otherwise never reach the PTY.
+  reassertSize?: () => void;
   destroy: () => void;
 }
 
@@ -576,6 +599,7 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     host,
     remote: IsTerminalRemote(terminalId).catch(() => false),
     sessionDead: false,
+    presenting: false,
     lastOutputAt: 0,
     delivering: false,
     themeOverride: null,
@@ -710,12 +734,12 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     session.host.offsetParent !== null &&
     session.host.clientWidth > 0;
 
-  // The owner owns the shared PTY size only while it's the focused, laid-out
-  // view. macOS focuses one window at a time, so when a mirror is focused the
-  // owner is not — deferring on focus keeps the two windows from fighting over
-  // one PTY's geometry. (Main-only: the window is focused whenever it resizes,
-  // so this never withholds a legitimate resize.)
-  const hasSizeAuthority = () => document.hasFocus() && isLaidOut();
+  // This window drives the shared PTY size only while it OWNS this terminal
+  // (control ownership, tracked in Rust) and is actually laid out. Exactly one
+  // surface owns a terminal at a time, so the two windows (and any phone) can't
+  // fight over one PTY's geometry, and a non-owner never resizes it out from
+  // under the owner. Replaces the previous focus-follows heuristic.
+  const amOwner = () => amControlOwner(terminalId) && isLaidOut();
 
   // One PTY has one geometry: the owner is the sole caller of ResizeTerminal and
   // publishes the result so the mirror renders at the same cols/rows instead of
@@ -725,6 +749,15 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     broadcastMirrorSize(terminalId, { cols, rows });
   };
 
+  // The PTY owner (main) re-asserts the current size when it (re)gains control —
+  // fit() alone won't, since an already-fitted xterm emits no onResize. A mirror
+  // owner instead republishes its desired size through reconcileGeometry.
+  session.reassertSize = () => {
+    if (!IS_MIRROR_WINDOW && amOwner()) {
+      driveOwnerSize(term.cols, term.rows);
+    }
+  };
+
   // Drive the PTY (and mirror) from a local fit only when this window holds size
   // authority. Without the focus gate an unfocused owner's ResizeObserver — e.g.
   // triggered by the mirror re-laying-out the owner's panes after a forwarded
@@ -732,7 +765,7 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   // focused mirror's geometry ~350ms later.
   term.onResize(({ cols, rows }) => {
     if (IS_MIRROR_WINDOW) return;
-    if (!hasSizeAuthority()) return;
+    if (!amOwner()) return;
     driveOwnerSize(cols, rows);
   });
 
@@ -742,7 +775,7 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     session.onScrollState?.(atBottom);
   });
 
-  if (!IS_MIRROR_WINDOW && hasSizeAuthority()) {
+  if (!IS_MIRROR_WINDOW && amOwner()) {
     driveOwnerSize(term.cols, term.rows);
   }
 
@@ -811,12 +844,15 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
 
   // Cross-window mirroring wiring.
   //
-  // Size authority follows OS window focus: activating a window reconciles this
-  // session's geometry (a focused mirror claims the PTY size for its container;
-  // a focused owner re-fits and reclaims it), so whichever window the user is in
-  // gets a perfectly fitted terminal. One listener for both roles — reconcile
-  // dispatches on IS_MIRROR_WINDOW and no-ops for panes that aren't laid out.
-  const onWinFocus = () => reconcileGeometry(session, terminalId);
+  // Focusing a window makes it OWN what it's actively showing: this one listener
+  // both takes control of the laid-out terminal (so the active window is where it
+  // renders live) and reconciles its geometry, for whichever role this window is.
+  // Both no-op for panes that aren't laid out (hidden tabs / kept-mounted detached
+  // projects), so a focus event only affects the terminals the user can see.
+  const onWinFocus = () => {
+    claimIfActive(session, terminalId);
+    reconcileGeometry(session, terminalId);
+  };
   window.addEventListener("focus", onWinFocus);
 
   let cleanupMirror: (() => void) | null = null;
@@ -949,7 +985,7 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     });
     const offDesired = onMirrorDesired(terminalId, ({ cols, rows }) => {
       if (!cols || !rows) return;
-      if (hasSizeAuthority()) return;
+      if (amOwner()) return;
       try {
         term.resize(cols, rows);
       } catch {}
@@ -996,20 +1032,45 @@ function getOrCreateInteractiveSession(terminalId: string, cwd: string): Interac
   return session;
 }
 
+// Take control of a terminal this window is actively showing while it's focused
+// — "the active window owns what it shows." Gated on `presenting` (this is the
+// active tab), NOT on layout: a not-yet-controlled view sits display:none behind
+// the placeholder, so `offsetParent` would be null there and focusing it — the
+// whole point — could never claim. No-op when it's a background tab, the window
+// isn't focused, or this window already owns it (so re-focusing doesn't re-claim).
+function claimIfActive(session: InteractiveSession, terminalId: string): void {
+  if (!session.presenting) return;
+  if (!document.hasFocus()) return;
+  if (amControlOwner(terminalId)) return;
+  TerminalClaimControl(terminalId, REALM.kind, REALM.id, REALM.label)
+    .then((owner: ControlOwner) => applyControlOwner(terminalId, owner))
+    .catch(() => {});
+}
+
+// Re-sync a session's geometry after a trigger that isn't a container resize
+// (becoming visible, or an ownership change): fit + re-assert size, since an
+// already-fitted xterm emits no onResize on its own.
+function resync(session: InteractiveSession, terminalId: string): void {
+  reconcileGeometry(session, terminalId);
+  session.reassertSize?.();
+}
+
 // React to a geometry trigger (mount, container resize, font change, becoming
 // visible or focused): the owner fits its xterm to its container and drives the
 // shared PTY size, while a mirror never fits (that would mis-wrap the shared
-// stream) and instead publishes the size its container could hold. Size
-// authority follows OS window focus — only a focused mirror claims the PTY, so
-// whichever window the user is working in gets a perfectly fitted terminal and
-// an unfocused claim can never fight the active window.
+// stream) and instead publishes the size its container could hold. Only the
+// control owner drives/proposes size, so an unfocused/non-owning window can never
+// fight the active one over the one PTY's geometry.
 function reconcileGeometry(session: InteractiveSession, terminalId: string): void {
   // A pane with no layout (hidden tab / a detached project kept mounted but
   // unselected in the main window) has nothing to reconcile — skip before any
   // fit/measure so a window-focus event doesn't fan out to every hidden pane.
   if (session.host.offsetParent === null) return;
   if (IS_MIRROR_WINDOW) {
-    if (!document.hasFocus()) return;
+    // A mirror publishes the size its container wants only while it OWNS the
+    // terminal; the PTY owner (main) applies it via ResizeTerminal. A non-owning
+    // mirror renders behind a placeholder, so it never proposes a size.
+    if (!amControlOwner(terminalId)) return;
     const dims = session.fit.proposeDimensions();
     if (dims && dims.cols && dims.rows) {
       broadcastMirrorDesired(terminalId, { cols: dims.cols, rows: dims.rows });
@@ -1269,7 +1330,7 @@ export function InteractivePane({
     if (!session) return;
     const term = session.term;
     requestAnimationFrame(() => {
-      reconcileGeometry(session, terminalId);
+      resync(session, terminalId);
       try {
         term.refresh(0, term.rows - 1);
       } catch {}
@@ -1280,6 +1341,41 @@ export function InteractivePane({
       }
     });
   }, [visible]);
+
+  // Presence + focus-follows control: while its pane is the visible active tab,
+  // this window shows the terminal. If the window is focused it OWNS it (claim →
+  // the other surface flips to its "take control" placeholder); if not, it just
+  // presents as a candidate owner. Claim also registers the presenter, so it
+  // subsumes present. Later window-focus events re-claim via `onWinFocus`.
+  // Unpresenting on hide/unmount transfers ownership to a remaining presenter
+  // instead of stranding it on a window that no longer shows the terminal.
+  useEffect(() => {
+    if (!visible) return;
+    const session = sessionRef.current;
+    if (session) session.presenting = true;
+    const call = document.hasFocus()
+      ? TerminalClaimControl(terminalId, REALM.kind, REALM.id, REALM.label)
+      : TerminalPresentControl(terminalId, REALM.kind, REALM.id, REALM.label);
+    // A deferring present isn't broadcast, so learn the owner from the return.
+    call.then((owner: ControlOwner) => applyControlOwner(terminalId, owner)).catch(
+      () => {},
+    );
+    return () => {
+      if (session) session.presenting = false;
+      TerminalUnpresentControl(terminalId, REALM.kind, REALM.id).catch(() => {});
+    };
+  }, [terminalId, visible]);
+
+  // When this terminal's owner changes (we took control, another surface did, or
+  // the previous owner left), re-fit + re-drive geometry so a newly-owning window
+  // sizes the PTY to its own container immediately.
+  useEffect(() => {
+    return onControlChange((id) => {
+      if (id !== terminalId) return;
+      const session = sessionRef.current;
+      if (session) resync(session, terminalId);
+    });
+  }, [terminalId]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">

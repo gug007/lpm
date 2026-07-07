@@ -23,12 +23,51 @@ export function useAmbientAppEvents(): void {
 export function useAppEvents(): void {
   useAmbientAppEvents();
   useEffect(() => {
-    const { selectProject, setView, setFeedbackOpen, addProject } =
-      useAppStore.getState();
+    const {
+      selectProject,
+      setView,
+      setFeedbackOpen,
+      addProject,
+      triggerRemoteAction,
+      triggerRemoteTerminalOp,
+    } = useAppStore.getState();
 
     const cancelDock = EventsOn("dock-project-selected", (name: string) => {
       selectProject(name);
     });
+    // The mobile app asks to run an action / open a terminal; activate the target
+    // project and park the request for its ProjectDetail to execute (only the
+    // mounted view owns the terminal tree).
+    const cancelRemoteAction = EventsOn(
+      "remote-run-action",
+      (payload: { project: string; action?: string | null }) => {
+        if (payload?.project) triggerRemoteAction(payload.project, payload.action ?? null);
+      },
+    );
+    // The mobile app asks to close / rename / pin / reorder a terminal tab; the
+    // mounted ProjectDetail resolves it against its live tab tree and runs it.
+    // reorder carries the full new id `order`; the others address a single `id`.
+    const cancelRemoteTermOp = EventsOn(
+      "remote-terminal-op",
+      (payload: {
+        project: string;
+        op: "close" | "rename" | "pin" | "reorder";
+        id: string;
+        label?: string;
+        order?: string[];
+      }) => {
+        const ok = payload?.op === "reorder" ? !!payload.order?.length : !!payload?.id;
+        if (payload?.project && payload?.op && ok) {
+          triggerRemoteTerminalOp(
+            payload.project,
+            payload.op,
+            payload.id,
+            payload.label ?? "",
+            payload.order ?? [],
+          );
+        }
+      },
+    );
     const cancelNavView = EventsOn("navigate-main-view", (view: string) => {
       setView(view as Parameters<typeof setView>[0]);
     });
@@ -53,6 +92,8 @@ export function useAppEvents(): void {
 
     return () => {
       if (typeof cancelDock === "function") cancelDock();
+      if (typeof cancelRemoteAction === "function") cancelRemoteAction();
+      if (typeof cancelRemoteTermOp === "function") cancelRemoteTermOp();
       if (typeof cancelNavView === "function") cancelNavView();
       if (typeof cancelNewProject === "function") cancelNewProject();
       if (typeof cancelSettings === "function") cancelSettings();

@@ -301,6 +301,33 @@ export function MessageHistorySetFolder(messageId, folderId) {
 export function LoadSettings() {
   return invoke("load_settings");
 }
+export function RemoteState() {
+  return invoke("remote_state");
+}
+export function RemoteSetConfig(enabled, lan, port) {
+  return invoke("remote_set_config", { enabled, lan, port });
+}
+export function RemoteStartPairing() {
+  return invoke("remote_start_pairing");
+}
+export function RemoteRevokeDevice(id) {
+  return invoke("remote_revoke_device", { id });
+}
+export function RemoteSetTerminalLabels(project, labels) {
+  return invoke("remote_set_terminal_labels", { project, labels });
+}
+export function TerminalPresentControl(id, realmKind, realmId, label) {
+  return invoke("terminal_present_control", { id, realmKind, realmId, label });
+}
+export function TerminalUnpresentControl(id, realmKind, realmId) {
+  return invoke("terminal_unpresent_control", { id, realmKind, realmId });
+}
+export function TerminalClaimControl(id, realmKind, realmId, label) {
+  return invoke("terminal_claim_control", { id, realmKind, realmId, label });
+}
+export function TerminalControlOwner(id) {
+  return invoke("terminal_control_owner", { id });
+}
 export function LoadTerminals() {
   return invoke("load_terminals");
 }

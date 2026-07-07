@@ -1,0 +1,367 @@
+import { useCallback, useEffect, useState } from "react";
+import { Modal } from "./ui/Modal";
+import { PlusIcon } from "./icons";
+import {
+  RemoteState,
+  RemoteSetConfig,
+  RemoteStartPairing,
+  RemoteRevokeDevice,
+} from "../../bridge/commands";
+
+interface Device {
+  id: string;
+  name: string;
+  createdAt: number;
+}
+
+interface RemoteStateShape {
+  enabled: boolean;
+  lan: boolean;
+  port: number;
+  running: boolean;
+  host: string | null;
+  tailscaleHost: string | null;
+  hasPendingCode: boolean;
+  devices: Device[];
+}
+
+interface Pairing {
+  code: string;
+  url: string;
+  svg: string | null;
+  host: string;
+  port: number;
+}
+
+const DEFAULT_STATE: RemoteStateShape = {
+  enabled: false,
+  lan: false,
+  port: 8765,
+  running: false,
+  host: null,
+  tailscaleHost: null,
+  hasPendingCode: false,
+  devices: [],
+};
+
+function SmartphoneIcon({ size = 18 }: { size?: number } = {}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="5" y="2" width="14" height="20" rx="2.5" />
+      <path d="M11 18h2" />
+    </svg>
+  );
+}
+
+function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={enabled}
+      onClick={() => onChange(!enabled)}
+      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+        enabled ? "bg-[var(--accent-green)]" : "bg-[var(--bg-active)]"
+      }`}
+    >
+      <span
+        className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
+          enabled ? "translate-x-4" : "translate-x-0.5"
+        }`}
+      />
+    </button>
+  );
+}
+
+function Row({
+  label,
+  description,
+  children,
+}: {
+  label: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-[var(--text-primary)]">{label}</p>
+        <p className="text-[11px] leading-relaxed text-[var(--text-muted)]">{description}</p>
+      </div>
+      <div className="shrink-0">{children}</div>
+    </div>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
+      {children}
+    </h2>
+  );
+}
+
+export function MobileSettingsPane() {
+  const [state, setState] = useState<RemoteStateShape>(DEFAULT_STATE);
+  const [pairing, setPairing] = useState<Pairing | null>(null);
+  const [pairingBusy, setPairingBusy] = useState(false);
+
+  const refresh = useCallback(async () => {
+    try {
+      const s = (await RemoteState()) as RemoteStateShape;
+      setState({ ...DEFAULT_STATE, ...s });
+    } catch {
+      /* server may be starting; leave defaults */
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const apply = useCallback(
+    async (next: Partial<Pick<RemoteStateShape, "enabled" | "lan" | "port">>) => {
+      const merged = { ...state, ...next };
+      setState(merged);
+      try {
+        const s = (await RemoteSetConfig(merged.enabled, merged.lan, merged.port)) as RemoteStateShape;
+        setState({ ...DEFAULT_STATE, ...s });
+      } catch {
+        void refresh();
+      }
+    },
+    [state, refresh],
+  );
+
+  const startPairing = useCallback(async () => {
+    setPairingBusy(true);
+    try {
+      const p = (await RemoteStartPairing()) as Pairing;
+      setPairing(p);
+      await refresh();
+    } finally {
+      setPairingBusy(false);
+    }
+  }, [refresh]);
+
+  const revoke = useCallback(
+    async (id: string) => {
+      try {
+        const s = (await RemoteRevokeDevice(id)) as RemoteStateShape;
+        setState({ ...DEFAULT_STATE, ...s });
+      } catch {
+        void refresh();
+      }
+    },
+    [refresh],
+  );
+
+  const reachable = state.host ? `${state.host}:${state.port}` : `port ${state.port}`;
+  const live = state.enabled && state.running;
+
+  return (
+    <>
+      <div
+        className="mt-2 flex items-start gap-3 rounded-xl px-4 py-3"
+        style={{ backgroundColor: "color-mix(in srgb, var(--accent-green) 8%, transparent)" }}
+      >
+        <span className="mt-px shrink-0 text-[10px] font-semibold uppercase tracking-wide text-[var(--accent-green-text)]">
+          Private beta
+        </span>
+        <p className="text-[12px] leading-relaxed text-[var(--text-muted)]">
+          The lpm mobile app is in a private beta with a small group of testers. A wider release is
+          coming soon.
+        </p>
+      </div>
+
+      <div className="mt-6 flex items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-4">
+        <div
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors"
+          style={{
+            backgroundColor: live
+              ? "color-mix(in srgb, var(--accent-green) 15%, transparent)"
+              : "var(--bg-active)",
+            color: live ? "var(--accent-green)" : "var(--text-muted)",
+          }}
+        >
+          <SmartphoneIcon />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-[var(--text-primary)]">Remote control</p>
+          <div className="mt-0.5 flex items-center gap-1.5 text-[12px]">
+            <span
+              className="h-1.5 w-1.5 shrink-0 rounded-full"
+              style={{
+                backgroundColor: live
+                  ? "var(--accent-green)"
+                  : state.enabled
+                    ? "var(--accent-amber)"
+                    : "var(--text-muted)",
+              }}
+            />
+            {live ? (
+              <span className="text-[var(--text-secondary)]">
+                Live <span className="font-mono text-[var(--text-muted)]">{reachable}</span>
+              </span>
+            ) : state.enabled ? (
+              <span className="text-[var(--text-muted)]">Starting…</span>
+            ) : (
+              <span className="text-[var(--text-muted)]">Off — turn on to let a paired phone connect</span>
+            )}
+          </div>
+        </div>
+        <Toggle enabled={state.enabled} onChange={(v) => apply({ enabled: v })} />
+      </div>
+
+      {state.enabled && (
+        <div className="mt-3 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
+          <Row
+            label="Local network access"
+            description="Off keeps the server on this Mac only. On exposes it to your local network — pair over a Tailscale tailnet for encrypted access away from home."
+          >
+            <Toggle enabled={state.lan} onChange={(v) => apply({ lan: v })} />
+          </Row>
+          <Row label="Port" description="The port the mobile app connects to.">
+            <input
+              type="number"
+              value={state.port}
+              min={1024}
+              max={65535}
+              onChange={(e) => setState((s) => ({ ...s, port: Number(e.target.value) || 0 }))}
+              onBlur={() => apply({ port: state.port })}
+              className="w-20 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-sm tabular-nums text-[var(--text-primary)] outline-none focus:border-[var(--accent-cyan)]"
+            />
+          </Row>
+        </div>
+      )}
+
+      <div className="mt-8">
+        <SectionLabel>Paired devices</SectionLabel>
+        <div className="overflow-hidden rounded-xl border border-[var(--border)]">
+          <div className="divide-y divide-[var(--border)]">
+            {state.devices.length === 0 ? (
+              <p className="px-4 py-5 text-center text-[12px] text-[var(--text-muted)]">
+                No devices paired yet.
+              </p>
+            ) : (
+              state.devices.map((d) => (
+                <div key={d.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-active)] text-[var(--text-muted)]">
+                    <SmartphoneIcon size={16} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-[var(--text-primary)]">
+                      {d.name || "Device"}
+                    </p>
+                    <p className="text-[11px] text-[var(--text-muted)]">
+                      Paired {new Date(d.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => revoke(d.id)}
+                    className="shrink-0 rounded-md px-2.5 py-1 text-xs text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"
+                  >
+                    Revoke
+                  </button>
+                </div>
+              ))
+            )}
+            <button
+              onClick={startPairing}
+              disabled={pairingBusy}
+              className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-60"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-dashed border-[var(--border)] text-[var(--text-muted)]">
+                <PlusIcon />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-[var(--text-primary)]">
+                  {pairingBusy ? "Preparing…" : "Add a device"}
+                </p>
+                <p className="text-[11px] text-[var(--text-muted)]">
+                  Scan a one-time QR code from the mobile app.
+                </p>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-8">
+        <SectionLabel>Using lpm away from home</SectionLabel>
+        <div className="rounded-xl border border-[var(--border)] px-4 py-3">
+          <p className="text-[12px] leading-relaxed text-[var(--text-muted)]">
+            Keep this Mac awake with remote control on — every command still runs here. On the same
+            Wi-Fi, your phone connects directly. To use lpm over cellular or another network, put
+            both devices on a{" "}
+            <span className="font-medium text-[var(--text-secondary)]">Tailscale</span> tailnet — the
+            pairing QR includes this Mac's Tailscale address, so scanning it works from anywhere on
+            the tailnet.
+          </p>
+          {state.tailscaleHost && (
+            <p className="mt-2 text-[12px] leading-relaxed text-[var(--text-muted)]">
+              Tailscale address:{" "}
+              <span className="font-mono text-[var(--text-secondary)]">{state.tailscaleHost}</span>
+            </p>
+          )}
+        </div>
+      </div>
+
+      <PairingModal pairing={pairing} onClose={() => setPairing(null)} />
+    </>
+  );
+}
+
+function PairingModal({ pairing, onClose }: { pairing: Pairing | null; onClose: () => void }) {
+  return (
+    <Modal
+      open={pairing !== null}
+      onClose={onClose}
+      zIndexClassName="z-[60]"
+      contentClassName="w-[420px] rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-6 shadow-xl"
+    >
+      {pairing && (
+        <>
+          <h3 className="text-base font-semibold text-[var(--text-primary)]">Pair a device</h3>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">
+            In the lpm mobile app, tap Add device and scan this code. It works once and expires
+            after a device pairs.
+          </p>
+          <div className="mt-4 flex flex-col items-center gap-3">
+            {pairing.svg ? (
+              <div
+                className="rounded-lg bg-white p-3"
+                // The Rust side builds the QR as a self-contained SVG string.
+                dangerouslySetInnerHTML={{ __html: pairing.svg }}
+              />
+            ) : (
+              <div className="text-[11px] text-[var(--text-muted)]">QR unavailable — enter the code manually.</div>
+            )}
+            <div className="text-center">
+              <p className="font-mono text-lg tracking-widest text-[var(--text-primary)]">{pairing.code}</p>
+              <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+                {pairing.host}:{pairing.port}
+              </p>
+            </div>
+          </div>
+          <div className="mt-5 flex justify-end gap-2">
+            <button
+              onClick={onClose}
+              className="rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-85"
+            >
+              Done
+            </button>
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}

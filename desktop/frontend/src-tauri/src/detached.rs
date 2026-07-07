@@ -213,6 +213,15 @@ fn attach_events(app: &AppHandle, project_name: &str, label: &str, win: &tauri::
         }
         WindowEvent::Destroyed => {
             app.state::<DetachedState>().labels.lock().unwrap().remove(&name);
+            // Release any terminal control this window held, so a closed
+            // detached window never strands ownership (its React unmount may not
+            // run when the webview is torn down abruptly). Ownership transfers to
+            // a remaining presenter (e.g. the main window).
+            let realm =
+                crate::control::Owner::new("window", crate::control::detached_window_id(&name), "");
+            for (id, owner) in app.state::<crate::control::ControlState>().drop_surface(&realm) {
+                crate::control::broadcast(&app, &id, &owner);
+            }
         }
         _ => {}
     });

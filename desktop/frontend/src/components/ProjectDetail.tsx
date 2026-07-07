@@ -200,6 +200,70 @@ export function ProjectDetail({
     }
   }, [spawnTasks, project.actions, project.name, consumeSpawnTasks, handleRunAction, switchDetailView]);
 
+  // Run an action / open a terminal on behalf of the mobile app. The store
+  // activated this project; run once per `nonce` (a repeat request bumps it) with
+  // a ref latch so StrictMode's double-invoke doesn't spawn twice.
+  const pendingRemoteAction = useAppStore((s) => s.pendingRemoteAction);
+  const clearPendingRemoteAction = useAppStore((s) => s.clearPendingRemoteAction);
+  const selectedProject = useAppStore((s) => s.selected);
+  const remoteActionConsumed = useRef(0);
+  useEffect(() => {
+    if (
+      !pendingRemoteAction ||
+      pendingRemoteAction.projectName !== project.name ||
+      selectedProject !== project.name ||
+      remoteActionConsumed.current === pendingRemoteAction.nonce
+    ) {
+      return;
+    }
+    remoteActionConsumed.current = pendingRemoteAction.nonce;
+    const { action } = pendingRemoteAction;
+    clearPendingRemoteAction();
+    switchDetailView("terminal");
+    if (action) {
+      const found = findActionByPath(project.actions ?? [], action);
+      if (found) handleRunAction(found);
+    } else {
+      terminalRef.current?.createTerminal();
+    }
+  }, [
+    pendingRemoteAction,
+    selectedProject,
+    project.name,
+    project.actions,
+    handleRunAction,
+    switchDetailView,
+    clearPendingRemoteAction,
+  ]);
+
+  // Mobile relay: close / rename / pin a terminal tab, addressed by id. Same
+  // nonce ref-latch as run-action so StrictMode can't double-fire.
+  const pendingRemoteTerminalOp = useAppStore((s) => s.pendingRemoteTerminalOp);
+  const clearPendingRemoteTerminalOp = useAppStore((s) => s.clearPendingRemoteTerminalOp);
+  const remoteTerminalOpConsumed = useRef(0);
+  useEffect(() => {
+    if (
+      !pendingRemoteTerminalOp ||
+      pendingRemoteTerminalOp.projectName !== project.name ||
+      selectedProject !== project.name ||
+      remoteTerminalOpConsumed.current === pendingRemoteTerminalOp.nonce
+    ) {
+      return;
+    }
+    remoteTerminalOpConsumed.current = pendingRemoteTerminalOp.nonce;
+    const { op, id, label, order } = pendingRemoteTerminalOp;
+    clearPendingRemoteTerminalOp();
+    if (op === "close") terminalRef.current?.remoteCloseTerminal(id);
+    else if (op === "rename") terminalRef.current?.remoteRenameTerminal(id, label);
+    else if (op === "pin") terminalRef.current?.remoteTogglePin(id);
+    else if (op === "reorder") terminalRef.current?.remoteReorderTerminals(order);
+  }, [
+    pendingRemoteTerminalOp,
+    selectedProject,
+    project.name,
+    clearPendingRemoteTerminalOp,
+  ]);
+
   const parentProject = useAppStore((s) => findParentProject(project, s.projects));
   const displayName = projectDisplayName(project, parentProject);
 

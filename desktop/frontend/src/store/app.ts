@@ -81,7 +81,7 @@ export type View =
   | "branch-instructions"
   | "template";
 
-export type SettingsTab = "general" | "notifications" | "terminal" | "shortcuts" | "tts" | "ai" | "global-config" | "templates" | "backup";
+export type SettingsTab = "general" | "notifications" | "terminal" | "shortcuts" | "tts" | "ai" | "global-config" | "templates" | "backup" | "mobile";
 
 export interface SSHProjectParams {
   name: string;
@@ -184,6 +184,31 @@ interface AppState {
   pendingGeneratorRun: { projectName: string; spec: GeneratorRunSpec } | null;
   runGenerator: (opts: { folder: string; name: string; spec: GeneratorRunSpec }) => Promise<void>;
   clearPendingGeneratorRun: () => void;
+  // A run-action / new-terminal request relayed from the mobile app. `action` is
+  // the action's (possibly composite) name, or null for a plain new terminal.
+  // `nonce` lets an already-mounted ProjectDetail re-fire on repeat requests.
+  pendingRemoteAction: { projectName: string; action: string | null; nonce: number } | null;
+  triggerRemoteAction: (projectName: string, action: string | null) => void;
+  clearPendingRemoteAction: () => void;
+  // A terminal-tab op (close / rename / pin / reorder) relayed from the mobile
+  // app. Addressed by terminal id, except reorder which carries the full new id
+  // order. Consumed by the mounted ProjectDetail.
+  pendingRemoteTerminalOp: {
+    projectName: string;
+    op: "close" | "rename" | "pin" | "reorder";
+    id: string;
+    label: string;
+    order: string[];
+    nonce: number;
+  } | null;
+  triggerRemoteTerminalOp: (
+    projectName: string,
+    op: "close" | "rename" | "pin" | "reorder",
+    id: string,
+    label: string,
+    order: string[],
+  ) => void;
+  clearPendingRemoteTerminalOp: () => void;
   bulkDuplicate: (
     name: string,
     count: number,
@@ -787,6 +812,43 @@ export const useAppStore = create<AppState>((set, get) => ({
   pendingGeneratorRun: null,
 
   clearPendingGeneratorRun: () => set({ pendingGeneratorRun: null }),
+
+  pendingRemoteAction: null,
+
+  // Mount/activate the target project (only a mounted ProjectDetail has a live
+  // TerminalView to run in), then park the request for its consumer effect.
+  triggerRemoteAction: (projectName, action) =>
+    set((s) => ({
+      selected: projectName,
+      view: "projects",
+      visited: new Set([...s.visited, projectName]),
+      pendingRemoteAction: {
+        projectName,
+        action,
+        nonce: (s.pendingRemoteAction?.nonce ?? 0) + 1,
+      },
+    })),
+
+  clearPendingRemoteAction: () => set({ pendingRemoteAction: null }),
+
+  pendingRemoteTerminalOp: null,
+
+  triggerRemoteTerminalOp: (projectName, op, id, label, order) =>
+    set((s) => ({
+      selected: projectName,
+      view: "projects",
+      visited: new Set([...s.visited, projectName]),
+      pendingRemoteTerminalOp: {
+        projectName,
+        op,
+        id,
+        label,
+        order,
+        nonce: (s.pendingRemoteTerminalOp?.nonce ?? 0) + 1,
+      },
+    })),
+
+  clearPendingRemoteTerminalOp: () => set({ pendingRemoteTerminalOp: null }),
 
   runGenerator: async ({ folder, name, spec }) => {
     try {

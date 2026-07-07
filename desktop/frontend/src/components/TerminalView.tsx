@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, useImperativeHandle } from "react";
 import { toast } from "sonner";
 import { EventsOn } from "../../bridge/runtime";
-import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus, FocusMainWindow } from "../../bridge/commands";
+import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus, FocusMainWindow, RemoteSetTerminalLabels } from "../../bridge/commands";
 import { IS_MIRROR_WINDOW, requestRunInDuplicates } from "../mirror";
 
 // Log streaming is refcounted per viewer in Rust; the two windows that can watch
@@ -12,6 +12,7 @@ import type { ITheme } from "@xterm/xterm";
 import { disposePaneSession, type PaneHandle } from "./Pane";
 import { disposeInteractivePaneSession, isInteractivePaneSessionDead, type InteractivePaneHandle } from "./InteractivePane";
 import { collectTerminals, isTabPinned, isTerminalTab } from "../paneTree";
+import { detectAICLI } from "../slashCommands";
 import { PaneLayout } from "./PaneLayout";
 import { TerminalTabDnd } from "./TerminalTabDnd";
 import { BulkDuplicateDialog, type DuplicatePromptSeed } from "./BulkDuplicateDialog";
@@ -58,6 +59,11 @@ export interface TerminalViewHandle {
   // Submit a command into the focused pane's active terminal. Returns false
   // (with a toast) when no live terminal is focused.
   sendCommandToActive(cmd: string): boolean;
+  // Terminal-tab ops relayed from the mobile app, addressed by terminal id.
+  remoteCloseTerminal(id: string): void;
+  remoteRenameTerminal(id: string, label: string): void;
+  remoteTogglePin(id: string): void;
+  remoteReorderTerminals(order: string[]): void;
 }
 
 export function TerminalView({ projectName, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, runningPaneIDs, donePaneIDs, waitingPaneIDs, errorPaneIDs, visible = true, ref }: TerminalViewProps) {
@@ -102,6 +108,10 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     renameTerminal,
     toggleTabPinned,
     reorderTerminals,
+    remoteCloseTerminal,
+    remoteRenameTerminal,
+    remoteTogglePin,
+    remoteReorderTerminals,
     moveTerminal,
     splitPane,
     closePane,
@@ -225,20 +235,47 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   // composer's mention memos, so reuse the prior array while the id/label set is
   // unchanged. Non-PTY tabs (browser, review) have no xterm session, so they're
   // left out.
-  const allTerminalsRef = useRef<{ id: string; label: string }[]>([]);
+  // {id, label, cli}: cli is detected from each terminal's launch command (empty
+  // for plain shells), used only by the remote push. Identity-stabilized (the tree
+  // gets a fresh reference each drag frame) so consumers/effects don't churn.
+  const allTerminalsRef = useRef<
+    { id: string; label: string; cli: string; pinned: boolean; emoji: string }[]
+  >([]);
   const allTerminals = useMemo(() => {
     const next = tree
       ? collectTerminals(tree)
           .filter(isTerminalTab)
-          .map((t) => ({ id: t.id, label: t.label }))
+          .map((t) => ({
+            id: t.id,
+            label: t.label,
+            cli: detectAICLI(t.startCmd) ?? "",
+            pinned: t.pinned === true,
+            emoji: t.emoji ?? "",
+          }))
       : [];
     const prev = allTerminalsRef.current;
-    if (prev.length === next.length && prev.every((p, i) => p.id === next[i].id && p.label === next[i].label)) {
+    if (
+      prev.length === next.length &&
+      prev.every(
+        (p, i) =>
+          p.id === next[i].id &&
+          p.label === next[i].label &&
+          p.cli === next[i].cli &&
+          p.pinned === next[i].pinned &&
+          p.emoji === next[i].emoji,
+      )
+    ) {
       return prev;
     }
     allTerminalsRef.current = next;
     return next;
   }, [tree]);
+
+  // Mirror the live id -> {label, cli} mapping to the remote server so paired
+  // phones show the same terminal names and offer the same slash commands.
+  useEffect(() => {
+    void RemoteSetTerminalLabels(projectName, allTerminals);
+  }, [projectName, allTerminals]);
 
   useEffect(() => {
     return () => {
@@ -660,8 +697,26 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
   useImperativeHandle(
     ref,
-    () => ({ createTerminal, createTerminalWithCmd, resumeFromHistory, sendCommandToActive }),
-    [createTerminal, createTerminalWithCmd, resumeFromHistory, sendCommandToActive],
+    () => ({
+      createTerminal,
+      createTerminalWithCmd,
+      resumeFromHistory,
+      sendCommandToActive,
+      remoteCloseTerminal,
+      remoteRenameTerminal,
+      remoteTogglePin,
+      remoteReorderTerminals,
+    }),
+    [
+      createTerminal,
+      createTerminalWithCmd,
+      resumeFromHistory,
+      sendCommandToActive,
+      remoteCloseTerminal,
+      remoteRenameTerminal,
+      remoteTogglePin,
+      remoteReorderTerminals,
+    ],
   );
 
   return (

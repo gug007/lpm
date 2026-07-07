@@ -100,6 +100,10 @@ export interface UseTerminalsResult {
   ) => void;
   toggleTabPinned: (paneId: string, tabIdx: number) => void;
   reorderTerminals: (paneId: string, order: string[]) => void;
+  remoteCloseTerminal: (termId: string) => void;
+  remoteRenameTerminal: (termId: string, label: string) => void;
+  remoteTogglePin: (termId: string) => void;
+  remoteReorderTerminals: (order: string[]) => void;
   moveTerminal: (fromPaneId: string, termId: string, toPaneId: string, toIdx?: number) => void;
   splitPane: (paneId: string, direction: SplitDirection) => Promise<void>;
   closePane: (paneId: string) => void;
@@ -998,6 +1002,57 @@ export function useTerminals(
     [getPane, closeOtherTerminals],
   );
 
+  // Pane-agnostic id resolvers for callers (the mobile relay) that only know a
+  // terminal's id, not which pane holds it: walk the tree to locate the tab,
+  // then run the normal index-based handler. A missing id is a safe no-op.
+  const locateTerminal = useCallback((termId: string) => {
+    const current = treeRef.current;
+    if (!current) return null;
+    for (const pane of collectPanes(current)) {
+      const idx = pane.tabs.findIndex((t) => t.id === termId);
+      if (idx >= 0) return { paneId: pane.id, idx };
+    }
+    return null;
+  }, []);
+  const remoteCloseTerminal = useCallback(
+    (termId: string) => {
+      const hit = locateTerminal(termId);
+      if (hit) closeTerminal(hit.paneId, hit.idx);
+    },
+    [locateTerminal, closeTerminal],
+  );
+  const remoteRenameTerminal = useCallback(
+    (termId: string, label: string) => {
+      const hit = locateTerminal(termId);
+      if (hit && label.trim()) renameTerminal(hit.paneId, hit.idx, label.trim());
+    },
+    [locateTerminal, renameTerminal],
+  );
+  const remoteTogglePin = useCallback(
+    (termId: string) => {
+      const hit = locateTerminal(termId);
+      if (hit) toggleTabPinned(hit.paneId, hit.idx);
+    },
+    [locateTerminal, toggleTabPinned],
+  );
+  // The phone shows a flat list across all panes and sends the full new id order.
+  // Reorder each pane by its terminals' relative order in that list (a terminal
+  // stays in its own pane; cross-pane moves aren't expressed by a flat reorder).
+  const remoteReorderTerminals = useCallback(
+    (order: string[]) => {
+      const current = treeRef.current;
+      if (!current) return;
+      for (const pane of collectPanes(current)) {
+        const paneIds = new Set(pane.tabs.map((t) => t.id));
+        const paneOrder = order.filter((id) => paneIds.has(id));
+        if (paneOrder.length === pane.tabs.length && paneOrder.length > 0) {
+          reorderTerminals(pane.id, paneOrder);
+        }
+      }
+    },
+    [reorderTerminals],
+  );
+
   // Owner side of action forwarding: execute the actions a mirror window sends
   // for this project against the authoritative tree. This map is the single
   // list of everything a mirror may do; the result flows back to the mirror
@@ -1089,6 +1144,10 @@ export function useTerminals(
     renameTerminal,
     toggleTabPinned,
     reorderTerminals,
+    remoteCloseTerminal,
+    remoteRenameTerminal,
+    remoteTogglePin,
+    remoteReorderTerminals,
     moveTerminal,
     splitPane,
     closePane,
