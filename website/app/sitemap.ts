@@ -5,6 +5,7 @@ import {
   CONFIG_PATH,
   GIT_TERMINAL_MAC_PATH,
   MAC_TERMINAL_DEVELOPERS_PATH,
+  MOBILE_PATH,
   PRIVACY_PATH,
   REVIEW_CHANGES_PATH,
   SITE_URL,
@@ -25,6 +26,7 @@ const LAST_MODIFIED: Record<string, string> = {
   [GIT_TERMINAL_MAC_PATH]: "2026-06-12",
   [SSH_TERMINAL_MAC_PATH]: "2026-06-12",
   [REVIEW_CHANGES_PATH]: "2026-07-03",
+  [MOBILE_PATH]: "2026-07-07",
   [VS_BASE_PATH]: "2026-06-12",
   [vsPath("foreman")]: "2026-06-12",
   [vsPath("overmind")]: "2026-06-12",
@@ -92,6 +94,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     {
       url: `${SITE_URL}${REVIEW_CHANGES_PATH}`,
       lastModified: lastModified(REVIEW_CHANGES_PATH),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}${MOBILE_PATH}`,
+      lastModified: lastModified(MOBILE_PATH),
       changeFrequency: "monthly",
       priority: 0.8,
     },

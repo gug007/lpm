@@ -43,6 +43,13 @@ targets:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        # iPad must support all four orientations to satisfy App Store multitasking
+        # validation (error 90474). iPhone keeps three (no upside-down).
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         # Required — the QR scanner crashes on open without a camera usage string.
         NSCameraUsageDescription: Scan the pairing QR code shown by lpm on your Mac.
         NSLocalNetworkUsageDescription: Connect to lpm running on your Mac.

@@ -4,6 +4,7 @@ import {
   BEST_TERMINAL_MAC_PATH,
   GIT_TERMINAL_MAC_PATH,
   MAC_TERMINAL_DEVELOPERS_PATH,
+  MOBILE_PATH,
   PRIVACY_PATH,
   SSH_TERMINAL_MAC_PATH,
   STATS_PATH,
@@ -91,6 +92,15 @@ export function Footer() {
             className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
           >
             Best terminal for Claude Code &amp; Codex
+          </Link>
+          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
+            ·
+          </span>
+          <Link
+            href={MOBILE_PATH}
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            iPhone companion
           </Link>
         </nav>
         <nav

@@ -32,45 +32,138 @@ struct PairingView: View {
     @State private var code = ""
     @State private var scanning = false
 
+    private var trimmedHost: String {
+        host.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var trimmedCode: String {
+        code.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canPair: Bool {
+        !trimmedHost.isEmpty && !trimmedCode.isEmpty
+    }
+
     var body: some View {
-        VStack(spacing: 20) {
-            Text("Pair with your Mac")
-                .font(.title2).bold()
-            Text("In lpm on your Mac, open Settings → Mobile devices → Add device, then scan the QR (or enter the code below).")
-                .font(.footnote).foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: 14) {
+                    Image(systemName: "macbook.and.iphone")
+                        .font(.system(size: 42, weight: .semibold))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(.blue)
 
-            Button {
-                scanning = true
-            } label: {
-                Label("Scan QR code", systemImage: "qrcode.viewfinder")
-                    .frame(maxWidth: .infinity)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Pair with your Mac")
+                            .font(.largeTitle.weight(.bold))
+
+                        Text("Open lpm Settings on your Mac, add a mobile device, then scan the QR code or enter the pairing details.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(.top, 28)
+
+                Button {
+                    scanning = true
+                } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "qrcode.viewfinder")
+                            .font(.system(size: 23, weight: .medium))
+                            .foregroundStyle(.white)
+                            .frame(width: 42, height: 42)
+                            .background(.blue, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Scan QR Code")
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+                            Text("Use the code from lpm on your Mac")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(16)
+                    .background(
+                        Color(uiColor: .secondarySystemGroupedBackground),
+                        in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    )
+                }
+                .buttonStyle(.plain)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("ENTER MANUALLY")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    VStack(spacing: 0) {
+                        PairingFieldRow(
+                            systemImage: "network",
+                            placeholder: "Mac host or Tailnet IP",
+                            text: $host,
+                            keyboardType: .URL,
+                            autocapitalization: .never
+                        )
+
+                        Divider().padding(.leading, 56)
+
+                        PairingFieldRow(
+                            systemImage: "number",
+                            placeholder: "Port",
+                            text: $port,
+                            keyboardType: .numberPad,
+                            autocapitalization: .never
+                        )
+
+                        Divider().padding(.leading, 56)
+
+                        PairingFieldRow(
+                            systemImage: "key",
+                            placeholder: "Pairing code",
+                            text: $code,
+                            autocapitalization: .characters
+                        )
+                    }
+                    .background(
+                        Color(uiColor: .secondarySystemGroupedBackground),
+                        in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    )
+                }
+
+                VStack(spacing: 12) {
+                    Button {
+                        model.pair(hosts: [trimmedHost], port: Int(port) ?? 8765, code: trimmedCode)
+                    } label: {
+                        Text("Pair")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.roundedRectangle(radius: 14))
+                    .disabled(!canPair)
+
+                    if case .failed(let err) = model.connection {
+                        Text(err)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal)
+                    }
+                }
             }
-            .buttonStyle(.borderedProminent)
-
-            Text("or enter it manually")
-                .font(.caption2).foregroundStyle(.secondary)
-
-            VStack(spacing: 10) {
-                TextField("Mac host or Tailnet IP", text: $host)
-                    .textInputAutocapitalization(.never).autocorrectionDisabled()
-                TextField("Port", text: $port).keyboardType(.numberPad)
-                TextField("Pairing code (e.g. AB12-CD34)", text: $code)
-                    .textInputAutocapitalization(.characters)
-            }
-            .textFieldStyle(.roundedBorder)
-
-            Button("Pair") {
-                model.pair(hosts: [host], port: Int(port) ?? 8765, code: code)
-            }
-            .buttonStyle(.bordered)
-            .disabled(host.isEmpty || code.isEmpty)
-
-            if case .failed(let err) = model.connection {
-                Text(err).font(.caption).foregroundStyle(.red)
-            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 32)
         }
-        .padding()
+        .scrollDismissesKeyboard(.interactively)
+        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .sheet(isPresented: $scanning) {
             QRScannerView { payload in
                 host = payload.host
@@ -79,6 +172,31 @@ struct PairingView: View {
                 model.pair(hosts: payload.hosts, port: payload.port, code: payload.code)
             }
         }
+    }
+}
+
+struct PairingFieldRow: View {
+    let systemImage: String
+    let placeholder: String
+    @Binding var text: String
+    var keyboardType: UIKeyboardType = .default
+    var autocapitalization: TextInputAutocapitalization? = nil
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 26)
+
+            TextField(placeholder, text: $text)
+                .font(.body)
+                .keyboardType(keyboardType)
+                .textInputAutocapitalization(autocapitalization)
+                .autocorrectionDisabled()
+        }
+        .frame(minHeight: 52)
+        .padding(.horizontal, 16)
     }
 }
 
