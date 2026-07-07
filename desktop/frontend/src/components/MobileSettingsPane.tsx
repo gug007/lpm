@@ -19,6 +19,7 @@ interface RemoteStateShape {
   enabled: boolean;
   lan: boolean;
   port: number;
+  tailscale: boolean;
   running: boolean;
   host: string | null;
   tailscaleHost: string | null;
@@ -31,6 +32,7 @@ interface Pairing {
   url: string;
   svg: string | null;
   host: string;
+  hosts: string[];
   port: number;
 }
 
@@ -38,6 +40,7 @@ const DEFAULT_STATE: RemoteStateShape = {
   enabled: false,
   lan: false,
   port: 8765,
+  tailscale: true,
   running: false,
   host: null,
   tailscaleHost: null,
@@ -138,11 +141,16 @@ export function MobileSettingsPane() {
   );
 
   const apply = useCallback(
-    async (next: Partial<Pick<RemoteStateShape, "enabled" | "lan" | "port">>) => {
+    async (next: Partial<Pick<RemoteStateShape, "enabled" | "lan" | "port" | "tailscale">>) => {
       const merged = { ...state, ...next };
       setState(merged);
       try {
-        const s = (await RemoteSetConfig(merged.enabled, merged.lan, merged.port)) as RemoteStateShape;
+        const s = (await RemoteSetConfig(
+          merged.enabled,
+          merged.lan,
+          merged.port,
+          merged.tailscale,
+        )) as RemoteStateShape;
         setState({ ...DEFAULT_STATE, ...s });
       } catch {
         void refresh();
@@ -307,19 +315,31 @@ export function MobileSettingsPane() {
 
       <div className="mt-8">
         <SectionLabel>Using lpm away from home</SectionLabel>
-        <div className="rounded-xl border border-[var(--border)] px-4 py-3">
-          <p className="text-[12px] leading-relaxed text-[var(--text-muted)]">
+        <div className="overflow-hidden rounded-xl border border-[var(--border)]">
+          <p className="px-4 py-3 text-[12px] leading-relaxed text-[var(--text-muted)]">
             Keep this Mac awake with remote control on — every command still runs here. On the same
             Wi-Fi, your phone connects directly. To use lpm over cellular or another network, put
             both devices on a{" "}
-            <span className="font-medium text-[var(--text-secondary)]">Tailscale</span> tailnet — the
-            pairing QR includes this Mac's Tailscale address, so scanning it works from anywhere on
-            the tailnet.
+            <span className="font-medium text-[var(--text-secondary)]">Tailscale</span> tailnet and
+            include this Mac's Tailscale address in the pairing QR below, so scanning it works from
+            anywhere on the tailnet.
           </p>
-          {state.tailscaleHost && (
-            <p className="mt-2 text-[12px] leading-relaxed text-[var(--text-muted)]">
-              Tailscale address:{" "}
-              <span className="font-mono text-[var(--text-secondary)]">{state.tailscaleHost}</span>
+          {state.tailscaleHost ? (
+            <div className="border-t border-[var(--border)]">
+              <Row
+                label="Add Tailscale address to QR"
+                description={`Advertises ${state.tailscaleHost} in the pairing QR so the phone can reach this Mac over the tailnet.`}
+              >
+                <Toggle
+                  enabled={state.tailscale}
+                  onChange={(v) => apply({ tailscale: v })}
+                />
+              </Row>
+            </div>
+          ) : (
+            <p className="border-t border-[var(--border)] px-4 py-3 text-[12px] leading-relaxed text-[var(--text-muted)]">
+              No Tailscale address detected on this Mac yet. Once this Mac joins a tailnet, its
+              address can be added to the pairing QR here.
             </p>
           )}
         </div>
@@ -357,9 +377,13 @@ function PairingModal({ pairing, onClose }: { pairing: Pairing | null; onClose: 
             )}
             <div className="text-center">
               <p className="font-mono text-lg tracking-widest text-[var(--text-primary)]">{pairing.code}</p>
-              <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-                {pairing.host}:{pairing.port}
-              </p>
+              <div className="mt-1 space-y-0.5">
+                {(pairing.hosts?.length ? pairing.hosts : [pairing.host]).map((h) => (
+                  <p key={h} className="font-mono text-[11px] text-[var(--text-muted)]">
+                    {h}:{pairing.port}
+                  </p>
+                ))}
+              </div>
             </div>
           </div>
           <div className="mt-5 flex justify-end gap-2">

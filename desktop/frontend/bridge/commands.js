@@ -304,8 +304,8 @@ export function LoadSettings() {
 export function RemoteState() {
   return invoke("remote_state");
 }
-export function RemoteSetConfig(enabled, lan, port) {
-  return invoke("remote_set_config", { enabled, lan, port });
+export function RemoteSetConfig(enabled, lan, port, tailscale) {
+  return invoke("remote_set_config", { enabled, lan, port, tailscale });
 }
 export function RemoteStartPairing() {
   return invoke("remote_start_pairing");

@@ -57,14 +57,28 @@ struct Device {
     created_at: i64,
 }
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(default)]
 struct RemoteConfig {
     enabled: bool,
     lan: bool,  // bind 0.0.0.0 (reachable on LAN/tailnet) vs 127.0.0.1 (loopback only)
     port: u16,  // 0 => DEFAULT_PORT
     pairing_code: String, // non-empty while an unused pairing code is outstanding
+    tailscale: bool, // advertise this Mac's Tailscale address in the pairing QR
     devices: Vec<Device>,
+}
+
+impl Default for RemoteConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            lan: false,
+            port: 0,
+            pairing_code: String::new(),
+            tailscale: true, // away-from-home works out of the box; the toggle opts out
+            devices: Vec::new(),
+        }
+    }
 }
 
 fn effective_port(p: u16) -> u16 {
@@ -1020,16 +1034,19 @@ fn tailscale_ip() -> Option<String> {
 }
 
 /// Addresses to advertise for pairing, most-preferred first: the LAN IP (lowest
-/// latency at home) then the Tailscale IP (reachable away from home). The phone
-/// probes them and keeps whichever it can reach.
-fn candidate_hosts() -> Vec<String> {
+/// latency at home) then the Tailscale IP (reachable away from home, when the
+/// away-from-home toggle is on). The phone probes them and keeps whichever it
+/// can reach.
+fn candidate_hosts(include_tailscale: bool) -> Vec<String> {
     let mut hosts = Vec::new();
     if let Some(ip) = primary_lan_ip() {
         hosts.push(ip);
     }
-    if let Some(ip) = tailscale_ip() {
-        if !hosts.contains(&ip) {
-            hosts.push(ip);
+    if include_tailscale {
+        if let Some(ip) = tailscale_ip() {
+            if !hosts.contains(&ip) {
+                hosts.push(ip);
+            }
         }
     }
     if hosts.is_empty() {
@@ -1059,6 +1076,7 @@ fn state_value(hub: &RemoteHub) -> Value {
         "enabled": cfg.enabled,
         "lan": cfg.lan,
         "port": effective_port(cfg.port),
+        "tailscale": cfg.tailscale,
         "running": hub.inner.running.load(Ordering::Relaxed),
         "host": primary_lan_ip(),
         "tailscaleHost": tailscale_ip(),
@@ -1123,12 +1141,14 @@ pub fn remote_set_config(
     enabled: bool,
     lan: bool,
     port: u16,
+    tailscale: bool,
 ) -> Result<Value, String> {
     {
         let mut cfg = hub.inner.config.lock().unwrap();
         cfg.enabled = enabled;
         cfg.lan = lan;
         cfg.port = port;
+        cfg.tailscale = tailscale;
         let snapshot = cfg.clone();
         drop(cfg);
         save_config(&snapshot)?;
@@ -1155,7 +1175,7 @@ pub fn remote_start_pairing(app: AppHandle, hub: State<'_, RemoteHub>) -> Result
         let snapshot = cfg.clone();
         drop(cfg);
         save_config(&snapshot)?;
-        (candidate_hosts(), port)
+        (candidate_hosts(snapshot.tailscale), port)
     };
     apply(&hub, &app); // ensure the listener is up so the phone can connect
     // Every candidate address as a repeated `h=` param; the phone tries each and
@@ -1280,6 +1300,7 @@ mod tests {
             lan: true,
             port: 9000,
             pairing_code: "AB12-CD34".into(),
+            tailscale: true,
             devices: vec![Device {
                 id: "d1".into(),
                 name: "iPhone".into(),
