@@ -22,6 +22,19 @@ enum Wire {
     static func projects() -> String { json(["t": "projects"]) }
     static func sidebar() -> String { json(["t": "sidebar"]) }
     static func terminals(project: String) -> String { json(["t": "terminals", "project": project]) }
+    static func slash(id: String, project: String) -> String {
+        json(["t": "slash", "id": id, "project": project])
+    }
+    static func upload(id: String, data: String, mime: String) -> String {
+        json(["t": "upload", "id": id, "data": data, "mime": mime])
+    }
+    static func mentions(project: String) -> String { json(["t": "mentions", "project": project]) }
+    static func history(project: String, q: String) -> String {
+        json(["t": "history", "project": project, "q": q])
+    }
+    static func historyAdd(project: String, id: String, label: String, text: String) -> String {
+        json(["t": "historyAdd", "project": project, "id": id, "label": label, "text": text])
+    }
     static func status(project: String) -> String { json(["t": "status", "project": project]) }
     static func sub(id: String) -> String { json(["t": "sub", "id": id]) }
     static func unsub(id: String) -> String { json(["t": "unsub", "id": id]) }
@@ -59,6 +72,10 @@ enum Wire {
         case projects([Project])
         case sidebar(order: [String], groups: [ProjectFolder])
         case terminals(project: String, [TerminalInfo])
+        case slash(id: String, [SlashCommand])
+        case mentions(project: String, [MentionEntry])
+        case history(project: String, [HistoryRow])
+        case upload(id: String, path: String)
         case status(project: String, [StatusEntry])
         case seed(id: String, cols: Int, rows: Int, data: String)
         case output(id: String, data: String)
@@ -90,6 +107,19 @@ enum Wire {
             case "terminals":
                 return .terminals(project: obj["project"] as? String ?? "",
                                   (obj["terminals"] as? [[String: Any]] ?? []).map(TerminalInfo.init))
+            case "slash":
+                return .slash(id: obj["id"] as? String ?? "",
+                              (obj["commands"] as? [[String: Any]] ?? []).map(SlashCommand.init))
+            case "mentions":
+                return .mentions(project: obj["project"] as? String ?? "",
+                                 (obj["entries"] as? [[String: Any]] ?? []).map(MentionEntry.init))
+            case "history":
+                return .history(project: obj["project"] as? String ?? "",
+                                (obj["rows"] as? [[String: Any]] ?? []).map(HistoryRow.init))
+            case "upload":
+                let ok = obj["ok"] as? Bool ?? false
+                return .upload(id: obj["id"] as? String ?? "",
+                               path: ok ? (obj["path"] as? String ?? "") : "")
             case "status":
                 return .status(project: obj["project"] as? String ?? "",
                                (obj["status"] as? [[String: Any]] ?? []).map(StatusEntry.init))
@@ -169,6 +199,56 @@ struct TerminalInfo: Identifiable {
         cols = o["cols"] as? Int ?? 80
         rows = o["rows"] as? Int ?? 24
         remote = o["remote"] as? Bool ?? false
+    }
+}
+
+/// One recalled message (mirrors the Rust HistoryRow). Drafts are filtered out by
+/// the UI; only sent prompts are offered for recall.
+struct HistoryRow: Identifiable {
+    let id: String
+    let text: String
+    let terminalLabel: String
+    let isDraft: Bool
+
+    init(_ o: [String: Any]) {
+        id = o["id"] as? String ?? ""
+        text = o["text"] as? String ?? ""
+        terminalLabel = o["terminalLabel"] as? String ?? ""
+        isDraft = o["isDraft"] as? Bool ?? false
+    }
+}
+
+/// One @-mention target: a project file/dir (relative path the agent resolves).
+/// `changed` marks a git working-tree change, surfaced first in the menu.
+struct MentionEntry: Identifiable {
+    let path: String
+    let dir: Bool
+    let changed: Bool
+
+    var id: String { path }
+
+    init(_ o: [String: Any]) {
+        path = o["path"] as? String ?? ""
+        dir = o["dir"] as? Bool ?? false
+        changed = o["changed"] as? Bool ?? false
+    }
+}
+
+/// One slash-command autocomplete entry (mirrors the Rust AgentCommand): a CLI
+/// built-in or a project/user command discovered on disk.
+struct SlashCommand: Identifiable {
+    let name: String        // no leading "/", e.g. "review" or "prompts:draftpr"
+    let description: String
+    let argumentHint: String
+    let source: String      // builtin | project | user
+
+    var id: String { name }
+
+    init(_ o: [String: Any]) {
+        name = o["name"] as? String ?? ""
+        description = o["description"] as? String ?? ""
+        argumentHint = o["argumentHint"] as? String ?? ""
+        source = o["source"] as? String ?? ""
     }
 }
 

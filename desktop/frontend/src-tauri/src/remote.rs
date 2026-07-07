@@ -122,6 +122,10 @@ struct HubInner {
     // so the frontend is the only source of the id->label mapping. Upsert-only:
     // dead ids linger harmlessly since only live sessions are ever reported.
     labels: Mutex<HashMap<String, String>>,
+    // Live terminal id -> AI CLI ("claude"/"codex"/…), detected by the frontend
+    // from the terminal's launch command; empty/absent for plain shells. Drives
+    // the mobile composer's slash-command autocomplete.
+    clis: Mutex<HashMap<String, String>>,
     config: Mutex<RemoteConfig>,
     next_id: AtomicU64,
     generation: AtomicU64, // bumped on every (re)start to retire old accept/conn threads
@@ -528,6 +532,119 @@ fn handle_msg(
             drop(labels);
             send(ws, json!({ "t": "terminals", "project": project, "terminals": terms }))?;
         }
+        "slash" => {
+            // Slash-command autocomplete for a terminal: the frontend registered
+            // which AI CLI the terminal runs (detected from its launch command);
+            // scan that CLI's built-ins + the project's custom commands.
+            let id = str_field("id").unwrap_or_default();
+            let project = str_field("project").unwrap_or_default();
+            let cli = hub.inner.clis.lock().unwrap().get(&id).cloned().unwrap_or_default();
+            let commands = if cli.is_empty() {
+                json!([])
+            } else {
+                let cwd = config::project_root(&project).map(|(r, _)| r).unwrap_or_default();
+                match crate::aigen::list_agent_commands(cli, cwd) {
+                    Ok(cmds) => serde_json::to_value(cmds).unwrap_or_else(|_| json!([])),
+                    Err(_) => json!([]),
+                }
+            };
+            send(ws, json!({ "t": "slash", "id": id, "commands": commands }))?;
+        }
+        "mentions" => {
+            // @-mention autocomplete: the project's files/dirs (relative paths the
+            // agent resolves), with git working-tree changes flagged and surfaced
+            // first. The phone fetches once and filters locally.
+            let project = str_field("project").unwrap_or_default();
+            let cwd = config::project_root(&project).map(|(r, _)| r).unwrap_or_default();
+            let changed: HashSet<String> = if cwd.is_empty() {
+                HashSet::new()
+            } else {
+                crate::git::git_changed_files(cwd.clone())
+                    .into_iter()
+                    .map(|c| c.path)
+                    .collect()
+            };
+            let files = if cwd.is_empty() {
+                Vec::new()
+            } else {
+                crate::files::list_dir_files(cwd).unwrap_or_default()
+            };
+            let mut seen = HashSet::new();
+            let mut entries: Vec<Value> = Vec::new();
+            for f in &files {
+                seen.insert(f.path.clone());
+                let ch = changed.contains(&f.path);
+                entries.push(json!({ "path": f.path, "dir": f.is_dir, "changed": ch }));
+            }
+            // Changed files the walk skipped (e.g. inside an ignored dir) still count.
+            for p in &changed {
+                if !seen.contains(p) {
+                    entries.push(json!({ "path": p, "dir": false, "changed": true }));
+                }
+            }
+            send(ws, json!({ "t": "mentions", "project": project, "entries": entries }))?;
+        }
+        "history" => {
+            // Recall: recent sent prompts for this project (scoped by project, not
+            // terminal, because the desktop records under a stable historyKey the
+            // phone doesn't have — the ephemeral pty id wouldn't match).
+            let project = str_field("project").unwrap_or_default();
+            let input = crate::message_history::QueryInput {
+                scope: "project".into(),
+                terminal_id: String::new(),
+                project_name: project.clone(),
+                terminal_label: String::new(),
+                collection: String::new(),
+                search: str_field("q").unwrap_or_default(),
+                cursor_at: None,
+                cursor_seq: None,
+                limit: 100,
+            };
+            let rows = crate::message_history::message_history_query(
+                app.state::<crate::message_history::MessageHistoryState>(),
+                input,
+            )
+            .unwrap_or_default();
+            let rows = serde_json::to_value(rows).unwrap_or_else(|_| json!([]));
+            send(ws, json!({ "t": "history", "project": project, "rows": rows }))?;
+        }
+        "historyAdd" => {
+            // Record a prompt the phone sent so it joins the shared history (and
+            // shows up on the desktop too).
+            let text = str_field("text").unwrap_or_default();
+            if !text.trim().is_empty() {
+                let input = crate::message_history::AddInput {
+                    text,
+                    project_name: str_field("project").unwrap_or_default(),
+                    terminal_id: str_field("id").unwrap_or_default(),
+                    terminal_label: str_field("label").unwrap_or_default(),
+                    images: Default::default(),
+                };
+                let _ = crate::message_history::message_history_add(
+                    app.state::<crate::message_history::MessageHistoryState>(),
+                    input,
+                );
+            }
+        }
+        "upload" => {
+            // The phone sends a base64 image; save it to a temp file on the Mac and
+            // return its path (paste-quoted, scp'd first for a remote pane). The
+            // phone drops the path into the composer, which pastes it so an agent
+            // like Claude Code loads the image.
+            let id = str_field("id").unwrap_or_default();
+            let data = str_field("data").unwrap_or_default();
+            let mime = str_field("mime").unwrap_or_else(|| "image/png".to_string());
+            let res = crate::upload::upload_clipboard_image_for_terminal(
+                app.state::<pty::PtyState>(),
+                id.clone(),
+                data,
+                mime,
+            );
+            match res {
+                Ok(path) => send(ws, json!({ "t": "upload", "id": id, "ok": true, "path": path }))?,
+                Err(e) => send(ws, json!({ "t": "upload", "id": id, "ok": false, "error": e }))?,
+            }
+        }
         "status" => {
             let project = str_field("project").unwrap_or_default();
             let list = app.state::<Arc<StatusStore>>().list(&project);
@@ -711,16 +828,25 @@ pub fn remote_state(hub: State<'_, RemoteHub>) -> Value {
     state_value(&hub)
 }
 
-/// Register the current terminal id -> label mapping (from the frontend tab tree)
-/// so remote clients can show the same names the desktop does. Upsert-only.
+/// Register the current terminal id -> {label, cli} mapping (from the frontend tab
+/// tree) so remote clients can show the same names the desktop does and offer the
+/// right slash commands. Upsert-only.
 #[tauri::command]
 pub fn remote_set_terminal_labels(hub: State<'_, RemoteHub>, labels: Vec<Value>) {
-    let mut map = hub.inner.labels.lock().unwrap();
+    let mut label_map = hub.inner.labels.lock().unwrap();
+    let mut cli_map = hub.inner.clis.lock().unwrap();
     for item in labels {
         let id = item.get("id").and_then(Value::as_str).unwrap_or("");
+        if id.is_empty() {
+            continue;
+        }
         let label = item.get("label").and_then(Value::as_str).unwrap_or("");
-        if !id.is_empty() && !label.is_empty() {
-            map.insert(id.to_string(), label.to_string());
+        if !label.is_empty() {
+            label_map.insert(id.to_string(), label.to_string());
+        }
+        let cli = item.get("cli").and_then(Value::as_str).unwrap_or("");
+        if !cli.is_empty() {
+            cli_map.insert(id.to_string(), cli.to_string());
         }
     }
 }

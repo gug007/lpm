@@ -12,6 +12,7 @@ import type { ITheme } from "@xterm/xterm";
 import { disposePaneSession, type PaneHandle } from "./Pane";
 import { disposeInteractivePaneSession, isInteractivePaneSessionDead, type InteractivePaneHandle } from "./InteractivePane";
 import { collectTerminals, isTabPinned, isTerminalTab } from "../paneTree";
+import { detectAICLI } from "../slashCommands";
 import { PaneLayout } from "./PaneLayout";
 import { TerminalTabDnd } from "./TerminalTabDnd";
 import { BulkDuplicateDialog, type DuplicatePromptSeed } from "./BulkDuplicateDialog";
@@ -225,23 +226,29 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   // composer's mention memos, so reuse the prior array while the id/label set is
   // unchanged. Non-PTY tabs (browser, review) have no xterm session, so they're
   // left out.
-  const allTerminalsRef = useRef<{ id: string; label: string }[]>([]);
+  // {id, label, cli}: cli is detected from each terminal's launch command (empty
+  // for plain shells), used only by the remote push. Identity-stabilized (the tree
+  // gets a fresh reference each drag frame) so consumers/effects don't churn.
+  const allTerminalsRef = useRef<{ id: string; label: string; cli: string }[]>([]);
   const allTerminals = useMemo(() => {
     const next = tree
       ? collectTerminals(tree)
           .filter(isTerminalTab)
-          .map((t) => ({ id: t.id, label: t.label }))
+          .map((t) => ({ id: t.id, label: t.label, cli: detectAICLI(t.startCmd) ?? "" }))
       : [];
     const prev = allTerminalsRef.current;
-    if (prev.length === next.length && prev.every((p, i) => p.id === next[i].id && p.label === next[i].label)) {
+    if (
+      prev.length === next.length &&
+      prev.every((p, i) => p.id === next[i].id && p.label === next[i].label && p.cli === next[i].cli)
+    ) {
       return prev;
     }
     allTerminalsRef.current = next;
     return next;
   }, [tree]);
 
-  // Mirror the live id -> label mapping to the remote server so paired phones
-  // show the same terminal names as the desktop tabs.
+  // Mirror the live id -> {label, cli} mapping to the remote server so paired
+  // phones show the same terminal names and offer the same slash commands.
   useEffect(() => {
     void RemoteSetTerminalLabels(allTerminals);
   }, [allTerminals]);

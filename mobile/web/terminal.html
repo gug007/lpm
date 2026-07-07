@@ -171,6 +171,19 @@
   window.lpmSeed = b64 => { term.reset(); term.write(b64ToStr(b64)); refit(); };
   window.lpmSetTopInset = px => document.documentElement.style.setProperty('--top-inset', px + 'px');
 
+  // Submit a composed message the way the desktop composer does (InteractivePane
+  // submitInput, string case): wrap the body in bracketed-paste markers when the
+  // running program enabled them — so newlines are pasted content, not executed —
+  // neutralize ESC so the body can't break out of the paste, then a trailing CR
+  // submits.
+  window.lpmSubmit = b64 => {
+    const body = b64ToStr(b64).replace(/\r?\n/g, '\r');
+    const wrapped = term.modes.bracketedPasteMode
+      ? '\x1b[200~' + body.replace(/\x1b/g, '␛') + '\x1b[201~'
+      : body;
+    post('input', wrapped + '\r');
+  };
+
   new ResizeObserver(() => refit()).observe(document.getElementById('term'));
   // Don't auto-focus on load — that would pop the keyboard open every time the
   // terminal opens. The user taps the terminal to focus and type.

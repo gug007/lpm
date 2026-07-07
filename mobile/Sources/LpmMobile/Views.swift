@@ -276,11 +276,15 @@ struct TerminalScreen: View {
     }
 
     var body: some View {
-        // Full-screen terminal that flows UP under the translucent nav bar, so the
-        // header is see-through to the terminal behind it.
-        WebTerminalView(term: term, topInset: statusBarHeight)
-            .environmentObject(model)
-            .ignoresSafeArea()
+        // Terminal flows UP under the translucent nav bar (see-through header); the
+        // composer sits below it and rides above the keyboard when it opens.
+        VStack(spacing: 0) {
+            WebTerminalView(term: term, topInset: statusBarHeight)
+                .environmentObject(model)
+                .ignoresSafeArea(.container, edges: .top)
+            TerminalComposer(termId: term.id, project: term.project, label: term.label)
+                .environmentObject(model)
+        }
             .navigationTitle(term.label)
             .navigationBarTitleDisplayMode(.inline)
             // ~50%-transparent dark bar, scoped to the terminal only, so the

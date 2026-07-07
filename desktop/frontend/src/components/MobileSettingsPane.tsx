@@ -160,6 +160,19 @@ export function MobileSettingsPane() {
 
   return (
     <>
+      <div className="mt-6 flex items-start gap-3 rounded-lg border border-[var(--border)] px-4 py-3">
+        <span
+          className="mt-px shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--accent-green)]"
+          style={{ backgroundColor: "color-mix(in srgb, var(--accent-green) 14%, transparent)" }}
+        >
+          Private beta
+        </span>
+        <p className="text-[12px] leading-relaxed text-[var(--text-muted)]">
+          The lpm mobile app is currently in a private beta with a small group of testers. A
+          wider release is coming soon.
+        </p>
+      </div>
+
       <Section
         title="Mobile devices"
         description="Control this Mac's terminals and projects from the lpm mobile app. Your phone becomes a live mirror of your terminals — every command still runs here, on your Mac."

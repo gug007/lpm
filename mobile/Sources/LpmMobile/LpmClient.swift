@@ -24,6 +24,10 @@ final class LpmClient: NSObject {
     var onProjects: (([Project]) -> Void)?
     var onSidebar: ((_ order: [String], _ groups: [ProjectFolder]) -> Void)?
     var onTerminals: ((_ project: String, _ terminals: [TerminalInfo]) -> Void)?
+    var onSlash: ((_ id: String, _ commands: [SlashCommand]) -> Void)?
+    var onUpload: ((_ id: String, _ path: String) -> Void)?
+    var onMentions: ((_ project: String, _ entries: [MentionEntry]) -> Void)?
+    var onHistory: ((_ project: String, _ rows: [HistoryRow]) -> Void)?
     var onStatus: ((_ project: String, _ entries: [StatusEntry]) -> Void)?
     var onProjectsChanged: (() -> Void)?
     var onStatusChanged: ((_ project: String) -> Void)?
@@ -82,6 +86,13 @@ final class LpmClient: NSObject {
     func requestProjects() { send(Wire.projects()) }
     func requestSidebar() { send(Wire.sidebar()) }
     func requestTerminals(project: String) { send(Wire.terminals(project: project)) }
+    func requestSlash(id: String, project: String) { send(Wire.slash(id: id, project: project)) }
+    func uploadImage(_ id: String, _ b64: String, mime: String) { send(Wire.upload(id: id, data: b64, mime: mime)) }
+    func requestMentions(project: String) { send(Wire.mentions(project: project)) }
+    func requestHistory(project: String, q: String) { send(Wire.history(project: project, q: q)) }
+    func recordHistory(project: String, id: String, label: String, text: String) {
+        send(Wire.historyAdd(project: project, id: id, label: label, text: text))
+    }
     func requestStatus(project: String) { send(Wire.status(project: project)) }
     func startProject(_ name: String, profile: String = "") { send(Wire.start(name: name, profile: profile)) }
     func stopProject(_ name: String) { send(Wire.stop(name: name)) }
@@ -138,6 +149,10 @@ final class LpmClient: NSObject {
             case .projects(let p): self.onProjects?(p)
             case .sidebar(let order, let groups): self.onSidebar?(order, groups)
             case .terminals(let proj, let t): self.onTerminals?(proj, t)
+            case .slash(let id, let cmds): self.onSlash?(id, cmds)
+            case .upload(let id, let path): self.onUpload?(id, path)
+            case .mentions(let proj, let entries): self.onMentions?(proj, entries)
+            case .history(let proj, let rows): self.onHistory?(proj, rows)
             case .status(let proj, let s): self.onStatus?(proj, s)
             case .seed(let id, let c, let r, let d): self.onSeed?(id, c, r, d)
             case .output(let id, let d): self.onOutput?(id, d)

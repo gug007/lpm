@@ -80,6 +80,8 @@ struct WebTerminalView: UIViewRepresentable {
             onSeed: { [coordinator] _, _, data in coordinator.seed(data) },
             onOutput: { [coordinator] data in coordinator.feed(data) }
         )
+        // The composer submits through here so the page can apply bracketed-paste.
+        model.terminalSubmit[term.id] = { [coordinator] text in coordinator.submit(text) }
         return web
     }
 
@@ -90,6 +92,7 @@ struct WebTerminalView: UIViewRepresentable {
     static func dismantleUIView(_ web: WKWebView, coordinator: Coordinator) {
         let c = web.configuration.userContentController
         ["input", "resize", "ready"].forEach { c.removeScriptMessageHandler(forName: $0) }
+        coordinator.model?.terminalSubmit[coordinator.termId] = nil
         coordinator.model?.unsubscribe(coordinator.termId)
     }
 
@@ -109,6 +112,12 @@ struct WebTerminalView: UIViewRepresentable {
         private var pendingSeed: String?
 
         init(model: AppModel, termId: String) { self.model = model; self.termId = termId }
+
+        /// Submit a composed message via the page's bracketed-paste-aware helper.
+        func submit(_ text: String) {
+            let b64 = Data(text.utf8).base64EncodedString()
+            web?.evaluateJavaScript("window.lpmSubmit('\(b64)')")
+        }
 
         func seed(_ data: String) {
             // A seed resets the emulator and replays the whole screen, so any output
