@@ -43,6 +43,13 @@ enum Wire {
         "\u{0}HEX:" + bytes.map { String(format: "%02x", $0) }.joined()
     }
 
+    /// The desktop shows `label || name`; an empty label string (common in YAML)
+    /// must fall back to another key too, not just a missing one.
+    static func label(_ o: [String: Any], fallback key: String) -> String {
+        let lbl = (o["label"] as? String) ?? ""
+        return lbl.isEmpty ? (o[key] as? String ?? "") : lbl
+    }
+
     // MARK: Inbound
 
     enum Inbound {
@@ -116,11 +123,7 @@ struct Project: Identifiable {
 
     init(_ o: [String: Any]) {
         name = o["name"] as? String ?? ""
-        // Desktop shows label||name; an empty label string must fall back to the
-        // name too (many projects have `label: ""` in their YAML), not just a
-        // missing one.
-        let lbl = (o["label"] as? String) ?? ""
-        label = lbl.isEmpty ? (o["name"] as? String ?? "") : lbl
+        label = Wire.label(o, fallback: "name")
         running = o["running"] as? Bool ?? false
         isRemote = o["isRemote"] as? Bool ?? false
         statusEntries = (o["statusEntries"] as? [[String: Any]] ?? []).map(StatusEntry.init)
@@ -152,6 +155,7 @@ struct Service: Identifiable {
 
 struct TerminalInfo: Identifiable {
     let id: String
+    let label: String
     let project: String
     let cols: Int
     let rows: Int
@@ -159,6 +163,8 @@ struct TerminalInfo: Identifiable {
 
     init(_ o: [String: Any]) {
         id = o["id"] as? String ?? ""
+        // The desktop tab name; falls back to the id for older servers.
+        label = Wire.label(o, fallback: "id")
         project = o["project"] as? String ?? ""
         cols = o["cols"] as? Int ?? 80
         rows = o["rows"] as? Int ?? 24

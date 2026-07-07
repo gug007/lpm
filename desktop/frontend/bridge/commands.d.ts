@@ -103,6 +103,7 @@ export function RemoteState(...args: any[]): Promise<any>;
 export function RemoteSetConfig(...args: any[]): Promise<any>;
 export function RemoteStartPairing(...args: any[]): Promise<any>;
 export function RemoteRevokeDevice(...args: any[]): Promise<any>;
+export function RemoteSetTerminalLabels(...args: any[]): Promise<any>;
 export function LoadTerminals(...args: any[]): Promise<any>;
 export function MoveProjectRoot(...args: any[]): Promise<any>;
 export function NotesAddMessage(...args: any[]): Promise<any>;

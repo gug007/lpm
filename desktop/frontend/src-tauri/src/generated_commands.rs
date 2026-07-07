@@ -153,6 +153,7 @@ macro_rules! all_command_handlers {
         focus_main_window,
         remote_revoke_device,
         remote_set_config,
+        remote_set_terminal_labels,
         remote_start_pairing,
         remote_state,
         remove_port_forward,

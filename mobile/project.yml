@@ -13,19 +13,17 @@ options:
     iOS: "17.0"
   createIntermediateGroups: true
 
-packages:
-  SwiftTerm:
-    url: https://github.com/migueldeicaza/SwiftTerm
-    from: "1.2.0"
-
 targets:
   LpmMobile:
     type: application
     platform: iOS
     sources:
       - Sources/LpmMobile
-    dependencies:
-      - package: SwiftTerm
+      # xterm.js + the terminal host page, copied into the app bundle as a
+      # preserved folder ("web/") so the WKWebView loads them offline with their
+      # relative paths (xterm/xterm.js …) intact.
+      - path: web
+        type: folder
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cx.lpm.mobile

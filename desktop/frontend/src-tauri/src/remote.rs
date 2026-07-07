@@ -117,6 +117,11 @@ struct Client {
 struct HubInner {
     clients: Mutex<HashMap<u64, Client>>,
     rings: Mutex<HashMap<String, VecDeque<u8>>>,
+    // Live terminal id -> display label, pushed from the frontend (which owns the
+    // tab tree). terminals.json persists labels but strips the ephemeral pty id,
+    // so the frontend is the only source of the id->label mapping. Upsert-only:
+    // dead ids linger harmlessly since only live sessions are ever reported.
+    labels: Mutex<HashMap<String, String>>,
     config: Mutex<RemoteConfig>,
     next_id: AtomicU64,
     generation: AtomicU64, // bumped on every (re)start to retire old accept/conn threads
@@ -506,6 +511,21 @@ fn handle_msg(
         "terminals" => {
             let project = str_field("project").unwrap_or_default();
             let terms = pty::remote_terminals(&app.state::<pty::PtyState>(), &project);
+            // Attach the desktop's tab label to each terminal (falling back to the
+            // id when the frontend hasn't registered one, e.g. an unopened project).
+            let labels = hub.inner.labels.lock().unwrap();
+            let terms: Vec<Value> = terms
+                .iter()
+                .map(|t| {
+                    let mut o = serde_json::to_value(t).unwrap_or_else(|_| json!({}));
+                    let label = labels.get(&t.id).cloned().unwrap_or_else(|| t.id.clone());
+                    if let Some(m) = o.as_object_mut() {
+                        m.insert("label".into(), json!(label));
+                    }
+                    o
+                })
+                .collect();
+            drop(labels);
             send(ws, json!({ "t": "terminals", "project": project, "terminals": terms }))?;
         }
         "status" => {
@@ -689,6 +709,20 @@ fn state_value(hub: &RemoteHub) -> Value {
 #[tauri::command]
 pub fn remote_state(hub: State<'_, RemoteHub>) -> Value {
     state_value(&hub)
+}
+
+/// Register the current terminal id -> label mapping (from the frontend tab tree)
+/// so remote clients can show the same names the desktop does. Upsert-only.
+#[tauri::command]
+pub fn remote_set_terminal_labels(hub: State<'_, RemoteHub>, labels: Vec<Value>) {
+    let mut map = hub.inner.labels.lock().unwrap();
+    for item in labels {
+        let id = item.get("id").and_then(Value::as_str).unwrap_or("");
+        let label = item.get("label").and_then(Value::as_str).unwrap_or("");
+        if !id.is_empty() && !label.is_empty() {
+            map.insert(id.to_string(), label.to_string());
+        }
+    }
 }
 
 #[tauri::command]

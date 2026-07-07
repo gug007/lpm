@@ -313,6 +313,9 @@ export function RemoteStartPairing() {
 export function RemoteRevokeDevice(id) {
   return invoke("remote_revoke_device", { id });
 }
+export function RemoteSetTerminalLabels(labels) {
+  return invoke("remote_set_terminal_labels", { labels });
+}
 export function LoadTerminals() {
   return invoke("load_terminals");
 }

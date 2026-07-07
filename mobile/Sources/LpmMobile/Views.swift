@@ -1,8 +1,5 @@
 import SwiftUI
-#if canImport(SwiftTerm)
 import UIKit
-import SwiftTerm
-#endif
 
 // Root view: show pairing until we have a credential, then the projects list.
 struct ContentView: View {
@@ -107,6 +104,10 @@ struct ProjectsView: View {
                 }
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            ProjectsHeader(total: model.projects.count, connection: model.connection)
+        }
+        .toolbar(.hidden, for: .navigationBar)
         .navigationTitle("Projects")
         .navigationDestination(for: String.self) { name in
             if let p = model.projects.first(where: { $0.name == name }) {
@@ -115,6 +116,72 @@ struct ProjectsView: View {
         }
         .overlay {
             if model.projects.isEmpty { ContentUnavailableView("No projects", systemImage: "folder") }
+        }
+    }
+}
+
+/// Compact, minimal screen header: the title with a subtle inline project count
+/// on the left and a live connection indicator on the right, over a hairline.
+/// Pinned above the list (which scrolls beneath it) via `safeAreaInset`.
+struct ProjectsHeader: View {
+    let total: Int
+    let connection: LpmClient.State
+
+    var body: some View {
+        HStack(spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("Projects")
+                    .font(.system(size: 26, weight: .bold))
+                if total > 0 {
+                    Text("·")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.quaternary)
+                    Text("\(total)")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                        .monospacedDigit()
+                }
+            }
+            Spacer(minLength: 8)
+            ConnectionIndicator(state: connection)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(.bar)
+        .overlay(alignment: .bottom) { Divider() }
+    }
+}
+
+/// A dot + one-word status for the live link to the Mac. The dot carries the
+/// color; it pulses while the socket is still connecting.
+struct ConnectionIndicator: View {
+    let state: LpmClient.State
+
+    private var tint: SwiftUI.Color {
+        switch state {
+        case .ready: return .green
+        case .connecting: return .orange
+        case .failed: return .red
+        case .idle: return .gray
+        }
+    }
+    private var label: String {
+        switch state {
+        case .ready: return "live"
+        case .connecting: return "connecting"
+        case .failed, .idle: return "offline"
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "circle.fill")
+                .font(.system(size: 7))
+                .foregroundStyle(tint)
+                .symbolEffect(.pulse, isActive: state == .connecting)
+            Text(label)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
         }
     }
 }
@@ -145,15 +212,26 @@ struct ProjectRow: View {
 
     var body: some View {
         HStack {
-            Circle()
-                .fill(project.running ? .green : .secondary)
-                .frame(width: 8, height: 8)
+            RunningDot(running: project.running)
             Text(project.label)
             Spacer()
             if let s = project.statusEntries.first {
                 StatusBadge(value: s.value)
             }
         }
+    }
+}
+
+/// The green (running) / grey (stopped) status dot, shared across the projects
+/// list and the project detail header.
+struct RunningDot: View {
+    let running: Bool
+    var size: CGFloat = 8
+
+    var body: some View {
+        Circle()
+            .fill(running ? .green : .secondary)
+            .frame(width: size, height: size)
     }
 }
 
@@ -176,112 +254,40 @@ struct StatusBadge: View {
     }
 }
 
-struct ProjectDetail: View {
-    @EnvironmentObject var model: AppModel
-    let project: Project
-
-    var body: some View {
-        List {
-            Section("Project") {
-                Button(project.running ? "Stop" : "Start") {
-                    project.running ? model.stopProject(project) : model.startProject(project)
-                }
-            }
-            Section("Terminals") {
-                let terms = model.terminals[project.name] ?? []
-                if terms.isEmpty {
-                    Text("No open terminals").foregroundStyle(.secondary)
-                } else {
-                    ForEach(terms) { t in
-                        NavigationLink(t.id) { TerminalScreen(term: t) }
-                    }
-                }
-            }
-        }
-        .navigationTitle(project.label)
-        .onAppear { model.loadTerminals(project.name) }
-    }
-}
-
-/// A single terminal: SwiftTerm renders output the client streams in, and feeds
-/// keystrokes back. The keyboard accessory supplies Ctrl/Esc/Tab/arrows.
+/// A single terminal: xterm.js (in a WKWebView) renders output the client streams
+/// in and posts keystrokes back — the same emulator the desktop uses, so rendering
+/// matches and scrollback works. The nav bar floats translucently over the top.
 struct TerminalScreen: View {
     @EnvironmentObject var model: AppModel
     let term: TerminalInfo
 
+    // Pad the terminal down by the status-bar strip only, so the clock doesn't
+    // land on terminal text, while the title/back row still overlaps the top rows
+    // (visible through the translucent bar). Read the status-bar height directly
+    // rather than guessing the nav-bar height off the safe area — the direct value
+    // is correct across orientations and device shapes.
+    private var statusBarHeight: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.statusBarManager?.statusBarFrame.height ?? 0
+    }
+
     var body: some View {
-        TerminalRepresentable(term: term)
+        // Full-screen terminal that flows UP under the translucent nav bar, so the
+        // header is see-through to the terminal behind it.
+        WebTerminalView(term: term, topInset: statusBarHeight)
             .environmentObject(model)
-            .navigationTitle(term.id)
+            .ignoresSafeArea()
+            .navigationTitle(term.label)
             .navigationBarTitleDisplayMode(.inline)
-            .ignoresSafeArea(.container, edges: .bottom)
+            // ~50%-transparent dark bar, scoped to the terminal only, so the
+            // terminal shows through the header. The height stays stable (the
+            // global appearance proxy pins large titles off in every state); only
+            // this screen's bar background is overridden. `.dark` keeps the
+            // title/back button white.
+            .toolbarBackground(SwiftUI.Color(white: 0.1).opacity(0.5), for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
     }
 }
 
-#if canImport(SwiftTerm)
-struct TerminalRepresentable: UIViewRepresentable {
-    @EnvironmentObject var model: AppModel
-    let term: TerminalInfo
-
-    func makeUIView(context: Context) -> SwiftTerm.TerminalView {
-        let view = SwiftTerm.TerminalView()
-        // A fixed monospace font makes the phone's column count deterministic and
-        // legible; SwiftTerm reports the resulting cols/rows via sizeChanged, which
-        // we forward as a PTY resize so the remote app repaints at the phone's size.
-        view.font = UIFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-        view.terminalDelegate = context.coordinator
-        model.subscribe(
-            term.id,
-            onSeed: { _, _, data in
-                // Reset before replaying scrollback so a TUI's absolute-positioned
-                // redraws (Claude Code) don't overlap earlier content.
-                view.getTerminal().resetToInitialState()
-                view.feed(text: data)
-            },
-            onOutput: { data in view.feed(text: data) }
-        )
-        return view
-    }
-
-    func updateUIView(_ uiView: SwiftTerm.TerminalView, context: Context) {}
-
-    static func dismantleUIView(_ uiView: SwiftTerm.TerminalView, coordinator: Coordinator) {
-        coordinator.model?.unsubscribe(coordinator.termId)
-    }
-
-    func makeCoordinator() -> Coordinator { Coordinator(model: model, termId: term.id) }
-
-    final class Coordinator: NSObject, TerminalViewDelegate {
-        weak var model: AppModel?
-        let termId: String
-        init(model: AppModel, termId: String) { self.model = model; self.termId = termId }
-
-        // Keystrokes → server. SwiftTerm hands us raw bytes; send UTF-8 verbatim,
-        // hex-frame anything else (matches the desktop's write_terminal contract).
-        func send(source: TerminalView, data: ArraySlice<UInt8>) {
-            let bytes = Array(data)
-            let text = String(bytes: bytes, encoding: .utf8) ?? Wire.hexFrame(bytes)
-            MainActor.assumeIsolated { model?.input(termId, text) }
-        }
-        func scrolled(source: TerminalView, position: Double) {}
-        func setTerminalTitle(source: TerminalView, title: String) {}
-        func requestOpenLink(source: TerminalView, link: String, params: [String: String]) {}
-        func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
-            // The desktop owns geometry; only nudge when we're the active viewer.
-            MainActor.assumeIsolated { model?.resize(termId, cols: newCols, rows: newRows) }
-        }
-        func clipboardCopy(source: TerminalView, content: Data) {}
-        func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
-        func rangeChanged(source: TerminalView, startY: Int, endY: Int) {}
-    }
-}
-#else
-// Placeholder shown until SwiftTerm is added to the Xcode target (see README).
-struct TerminalRepresentable: View {
-    let term: TerminalInfo
-    var body: some View {
-        ContentUnavailableView("Add SwiftTerm", systemImage: "terminal",
-                               description: Text("Add the SwiftTerm package to render \(term.id)."))
-    }
-}
-#endif

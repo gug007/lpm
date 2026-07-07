@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, useImperativeHandle } from "react";
 import { toast } from "sonner";
 import { EventsOn } from "../../bridge/runtime";
-import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus, FocusMainWindow } from "../../bridge/commands";
+import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus, FocusMainWindow, RemoteSetTerminalLabels } from "../../bridge/commands";
 import { IS_MIRROR_WINDOW, requestRunInDuplicates } from "../mirror";
 
 // Log streaming is refcounted per viewer in Rust; the two windows that can watch
@@ -239,6 +239,12 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     allTerminalsRef.current = next;
     return next;
   }, [tree]);
+
+  // Mirror the live id -> label mapping to the remote server so paired phones
+  // show the same terminal names as the desktop tabs.
+  useEffect(() => {
+    void RemoteSetTerminalLabels(allTerminals);
+  }, [allTerminals]);
 
   useEffect(() => {
     return () => {
