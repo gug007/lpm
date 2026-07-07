@@ -87,6 +87,10 @@ struct WebTerminalView: UIViewRepresentable {
 
     func updateUIView(_ web: WKWebView, context: Context) {
         context.coordinator.applyTopInset(topInset)
+        // Re-assert the PTY size when this phone becomes the owner: taking control
+        // triggers no new xterm sizeChanged on its own, so without this the PTY
+        // would stay at the previous owner's geometry.
+        context.coordinator.controlChanged(controlled: model.isControlled(term.id))
     }
 
     static func dismantleUIView(_ web: WKWebView, coordinator: Coordinator) {
@@ -110,8 +114,22 @@ struct WebTerminalView: UIViewRepresentable {
         // A seed that arrives before the page is ready; only the latest matters
         // since it's a full snapshot of the screen.
         private var pendingSeed: String?
+        // Last size xterm fitted to, and whether this phone currently owns the
+        // terminal — so ownership handoff can re-drive the PTY to the phone's size.
+        private var lastCols = 0
+        private var lastRows = 0
+        private var wasControlled = false
 
         init(model: AppModel, termId: String) { self.model = model; self.termId = termId }
+
+        /// On gaining ownership, resend the last fitted size so the PTY resizes to
+        /// this phone (model.resize drops sizes while not the owner, and a claim
+        /// fires no fresh sizeChanged).
+        func controlChanged(controlled: Bool) {
+            defer { wasControlled = controlled }
+            guard controlled, !wasControlled, lastCols > 0, lastRows > 0 else { return }
+            model?.resize(termId, cols: lastCols, rows: lastRows)
+        }
 
         /// Submit a composed message via the page's bracketed-paste-aware helper.
         func submit(_ text: String) {
@@ -160,6 +178,8 @@ struct WebTerminalView: UIViewRepresentable {
             case "resize":
                 if let d = msg.body as? [String: Any],
                    let cols = d["cols"] as? Int, let rows = d["rows"] as? Int {
+                    lastCols = cols
+                    lastRows = rows
                     model?.resize(termId, cols: cols, rows: rows)
                 }
             case "ready":

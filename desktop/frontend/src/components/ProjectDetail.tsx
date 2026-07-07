@@ -236,6 +236,33 @@ export function ProjectDetail({
     clearPendingRemoteAction,
   ]);
 
+  // Mobile relay: close / rename / pin a terminal tab, addressed by id. Same
+  // nonce ref-latch as run-action so StrictMode can't double-fire.
+  const pendingRemoteTerminalOp = useAppStore((s) => s.pendingRemoteTerminalOp);
+  const clearPendingRemoteTerminalOp = useAppStore((s) => s.clearPendingRemoteTerminalOp);
+  const remoteTerminalOpConsumed = useRef(0);
+  useEffect(() => {
+    if (
+      !pendingRemoteTerminalOp ||
+      pendingRemoteTerminalOp.projectName !== project.name ||
+      selectedProject !== project.name ||
+      remoteTerminalOpConsumed.current === pendingRemoteTerminalOp.nonce
+    ) {
+      return;
+    }
+    remoteTerminalOpConsumed.current = pendingRemoteTerminalOp.nonce;
+    const { op, id, label } = pendingRemoteTerminalOp;
+    clearPendingRemoteTerminalOp();
+    if (op === "close") terminalRef.current?.remoteCloseTerminal(id);
+    else if (op === "rename") terminalRef.current?.remoteRenameTerminal(id, label);
+    else if (op === "pin") terminalRef.current?.remoteTogglePin(id);
+  }, [
+    pendingRemoteTerminalOp,
+    selectedProject,
+    project.name,
+    clearPendingRemoteTerminalOp,
+  ]);
+
   const parentProject = useAppStore((s) => findParentProject(project, s.projects));
   const displayName = projectDisplayName(project, parentProject);
 

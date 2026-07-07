@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { ITheme } from "@xterm/xterm";
-import { InteractivePane, type InteractivePaneHandle } from "./InteractivePane";
+import { type InteractivePaneHandle } from "./InteractivePane";
+import { InteractiveTab } from "./InteractiveTab";
 import { BrowserPane } from "./BrowserPane";
 import { BrowserMirrorPlaceholder } from "./BrowserMirrorPlaceholder";
 import { IS_MIRROR_WINDOW } from "../mirror";
@@ -534,13 +535,13 @@ function PaneViewImpl(props: PaneViewProps) {
                   />
                 </ErrorBoundary>
               ) : (
-                <InteractivePane
-                  ref={(el) => onRegisterTerminalHandle(t.id, el)}
+                <InteractiveTab
                   terminalId={t.id}
                   visible={visible && isActive}
                   fontSize={fontSize}
                   themeOverride={themeOverride}
                   cwd={interactiveCwd}
+                  paneRef={(el) => onRegisterTerminalHandle(t.id, el)}
                 />
               )}
             </div>

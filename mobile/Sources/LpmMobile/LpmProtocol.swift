@@ -38,6 +38,8 @@ enum Wire {
     static func status(project: String) -> String { json(["t": "status", "project": project]) }
     static func sub(id: String) -> String { json(["t": "sub", "id": id]) }
     static func unsub(id: String) -> String { json(["t": "unsub", "id": id]) }
+    /// Take control of a terminal shown live elsewhere (the "Take control" button).
+    static func claim(id: String) -> String { json(["t": "claim", "id": id]) }
     static func input(id: String, data: String) -> String { json(["t": "in", "id": id, "d": data]) }
     static func resize(id: String, cols: Int, rows: Int) -> String {
         json(["t": "resize", "id": id, "cols": cols, "rows": rows])
@@ -47,6 +49,15 @@ enum Wire {
     }
     static func newTerminal(project: String) -> String {
         json(["t": "newTerminal", "project": project])
+    }
+    static func closeTerminal(project: String, id: String) -> String {
+        json(["t": "closeTerminal", "project": project, "id": id])
+    }
+    static func renameTerminal(project: String, id: String, label: String) -> String {
+        json(["t": "renameTerminal", "project": project, "id": id, "label": label])
+    }
+    static func pinTerminal(project: String, id: String) -> String {
+        json(["t": "pinTerminal", "project": project, "id": id])
     }
     static func start(name: String, profile: String = "") -> String {
         json(["t": "start", "name": name, "profile": profile])
@@ -83,7 +94,8 @@ enum Wire {
         case history(project: String, [HistoryRow])
         case upload(id: String, path: String)
         case status(project: String, [StatusEntry])
-        case seed(id: String, cols: Int, rows: Int, data: String)
+        case seed(id: String, cols: Int, rows: Int, data: String, owner: ControlOwner?)
+        case control(id: String, owner: ControlOwner?)
         case output(id: String, data: String)
         case exit(id: String, code: Int)
         case projectsChanged
@@ -133,7 +145,11 @@ enum Wire {
                 return .seed(id: obj["id"] as? String ?? "",
                              cols: obj["cols"] as? Int ?? 80,
                              rows: obj["rows"] as? Int ?? 24,
-                             data: obj["data"] as? String ?? "")
+                             data: obj["data"] as? String ?? "",
+                             owner: ControlOwner(obj["owner"]))
+            case "control":
+                return .control(id: obj["id"] as? String ?? "",
+                                owner: ControlOwner(obj["owner"]))
             case "o":
                 return .output(id: obj["id"] as? String ?? "", data: obj["d"] as? String ?? "")
             case "exit":
@@ -147,13 +163,34 @@ enum Wire {
     }
 }
 
+/// Which surface currently owns (renders live + drives the size of) a terminal.
+/// A terminal is controllable in exactly one place at a time; when the desktop
+/// (or another phone) owns it, this phone shows a "take control" placeholder.
+/// `kind` is "window" or "mobile"; equality is on (kind, id).
+struct ControlOwner: Equatable {
+    let kind: String
+    let id: String
+    let label: String
+
+    /// Parses the `owner` field (an object, or null when nobody owns it).
+    init?(_ o: Any?) {
+        guard let d = o as? [String: Any] else { return nil }
+        kind = d["kind"] as? String ?? ""
+        id = d["id"] as? String ?? ""
+        label = d["label"] as? String ?? ""
+    }
+}
+
 struct Project: Identifiable {
     let name: String
     let label: String
     let running: Bool
     let isRemote: Bool
     let statusEntries: [StatusEntry]
-    let services: [Service]
+    let services: [Service]      // currently running
+    let allServices: [Service]   // every configured service
+    let profiles: [Profile]
+    let activeProfile: String
     let actions: [Action]
 
     var id: String { name }
@@ -165,20 +202,26 @@ struct Project: Identifiable {
         isRemote = o["isRemote"] as? Bool ?? false
         statusEntries = (o["statusEntries"] as? [[String: Any]] ?? []).map(StatusEntry.init)
         services = (o["services"] as? [[String: Any]] ?? []).map(Service.init)
+        allServices = (o["allServices"] as? [[String: Any]] ?? []).map(Service.init)
+        profiles = (o["profiles"] as? [[String: Any]] ?? []).map(Profile.init)
+        activeProfile = o["activeProfile"] as? String ?? ""
         actions = (o["actions"] as? [[String: Any]] ?? []).map(Action.init)
     }
 
     private init(name: String, label: String, running: Bool, isRemote: Bool,
-                 statusEntries: [StatusEntry], services: [Service], actions: [Action]) {
+                 statusEntries: [StatusEntry], services: [Service], allServices: [Service],
+                 profiles: [Profile], activeProfile: String, actions: [Action]) {
         self.name = name; self.label = label; self.running = running; self.isRemote = isRemote
-        self.statusEntries = statusEntries; self.services = services; self.actions = actions
+        self.statusEntries = statusEntries; self.services = services; self.allServices = allServices
+        self.profiles = profiles; self.activeProfile = activeProfile; self.actions = actions
     }
 
     /// A copy with fresh status — used by the status-changed push, which must not
     /// erase the project's services/actions (a partial dict rebuild would).
     func withStatus(_ entries: [StatusEntry]) -> Project {
         Project(name: name, label: label, running: running, isRemote: isRemote,
-                statusEntries: entries, services: services, actions: actions)
+                statusEntries: entries, services: services, allServices: allServices,
+                profiles: profiles, activeProfile: activeProfile, actions: actions)
     }
 }
 
@@ -230,8 +273,24 @@ struct ProjectFolder: Identifiable {
 
 struct Service: Identifiable {
     let name: String
+    let port: Int
     var id: String { name }
-    init(_ o: [String: Any]) { name = o["name"] as? String ?? "" }
+    init(_ o: [String: Any]) {
+        name = o["name"] as? String ?? ""
+        port = o["port"] as? Int ?? 0
+    }
+}
+
+/// A named bundle of services (mirrors the desktop ProfileInfo). Starting a profile
+/// runs exactly its listed services.
+struct Profile: Identifiable {
+    let name: String
+    let services: [String]
+    var id: String { name }
+    init(_ o: [String: Any]) {
+        name = o["name"] as? String ?? ""
+        services = o["services"] as? [String] ?? []
+    }
 }
 
 struct TerminalInfo: Identifiable {
@@ -241,6 +300,7 @@ struct TerminalInfo: Identifiable {
     let cols: Int
     let rows: Int
     let remote: Bool
+    let pinned: Bool
 
     init(_ o: [String: Any]) {
         id = o["id"] as? String ?? ""
@@ -250,6 +310,7 @@ struct TerminalInfo: Identifiable {
         cols = o["cols"] as? Int ?? 80
         rows = o["rows"] as? Int ?? 24
         remote = o["remote"] as? Bool ?? false
+        pinned = o["pinned"] as? Bool ?? false
     }
 }
 

@@ -316,6 +316,18 @@ export function RemoteRevokeDevice(id) {
 export function RemoteSetTerminalLabels(labels) {
   return invoke("remote_set_terminal_labels", { labels });
 }
+export function TerminalPresentControl(id, realmKind, realmId, label) {
+  return invoke("terminal_present_control", { id, realmKind, realmId, label });
+}
+export function TerminalUnpresentControl(id, realmKind, realmId) {
+  return invoke("terminal_unpresent_control", { id, realmKind, realmId });
+}
+export function TerminalClaimControl(id, realmKind, realmId, label) {
+  return invoke("terminal_claim_control", { id, realmKind, realmId, label });
+}
+export function TerminalControlOwner(id) {
+  return invoke("terminal_control_owner", { id });
+}
 export function LoadTerminals() {
   return invoke("load_terminals");
 }

@@ -6,6 +6,8 @@ import SwiftUI
 struct ProjectDetail: View {
     @EnvironmentObject var model: AppModel
     let project: Project
+    @State private var renaming: TerminalInfo?
+    @State private var renameText = ""
 
     // Current project object (fresh status/actions) from the store; falls back to
     // the one we were pushed with.
@@ -16,24 +18,6 @@ struct ProjectDetail: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 26) {
-                ProjectHeroCard(project: live) {
-                    live.running ? model.stopProject(live) : model.startProject(live)
-                }
-
-                if !actions.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        DetailSectionHeader(title: "Actions", count: actions.count)
-                        VStack(spacing: 10) {
-                            ForEach(actions) { a in
-                                Button { model.runAction(project.name, action: a.name) } label: {
-                                    ActionCard(action: a)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                }
-
                 VStack(alignment: .leading, spacing: 12) {
                     DetailSectionHeader(title: "Terminals", count: terminals.count) {
                         Button { model.newTerminal(project.name) } label: {
@@ -47,10 +31,12 @@ struct ProjectDetail: View {
                     } else {
                         VStack(spacing: 10) {
                             ForEach(terminals) { t in
-                                NavigationLink { TerminalScreen(term: t) } label: {
-                                    TerminalCard(term: t)
-                                }
-                                .buttonStyle(.plain)
+                                TerminalRow(
+                                    term: t,
+                                    onRename: { renameText = t.label; renaming = t },
+                                    onTogglePin: { model.pinTerminal(project.name, id: t.id) },
+                                    onClose: { model.closeTerminal(project.name, id: t.id) }
+                                )
                             }
                         }
                     }
@@ -61,65 +47,114 @@ struct ProjectDetail: View {
         .background(Color(.systemGroupedBackground))
         .navigationTitle(project.label)
         .navigationBarTitleDisplayMode(.inline)
+        .alert("Rename terminal", isPresented: Binding(
+            get: { renaming != nil },
+            set: { if !$0 { renaming = nil } }
+        )) {
+            TextField("Name", text: $renameText)
+            Button("Cancel", role: .cancel) { renaming = nil }
+            Button("Rename") {
+                let name = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let t = renaming, !name.isEmpty {
+                    model.renameTerminal(project.name, id: t.id, label: name)
+                }
+                renaming = nil
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                ProjectRunControl(project: live,
+                                  actions: actions,
+                                  onStart: { profile in model.startProject(live, profile: profile) },
+                                  onStop: { model.stopProject(live) },
+                                  onToggleService: { model.toggleService(live.name, service: $0) },
+                                  onRunAction: { model.runAction(live.name, action: $0) })
+            }
+        }
         .onAppear { model.loadTerminals(project.name) }
     }
 }
 
-/// Identity + primary action. The avatar seeds its tint from the project name so
-/// projects are visually distinct at a glance.
-private struct ProjectHeroCard: View {
+/// The project's control menu in the nav bar: a single "more" button whose native
+/// menu holds Start/Stop, the run-actions submenu, and (when present) profiles and
+/// per-service toggles.
+private struct ProjectRunControl: View {
     let project: Project
-    let onToggle: () -> Void
+    let actions: [Action]
+    let onStart: (_ profile: String) -> Void
+    let onStop: () -> Void
+    let onToggleService: (_ service: String) -> Void
+    let onRunAction: (_ name: String) -> Void
 
     private var running: Bool { project.running }
-
-    private var tint: SwiftUI.Color {
-        let palette: [SwiftUI.Color] = [.blue, .purple, .pink, .orange, .teal, .indigo, .green]
-        return palette[abs(project.name.hashValue) % palette.count]
-    }
+    private var runningServices: Set<String> { Set(project.services.map(\.name)) }
 
     var body: some View {
-        VStack(spacing: 18) {
-            HStack(spacing: 14) {
-                Text(String(project.label.prefix(1)).uppercased())
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .frame(width: 56, height: 56)
-                    .background(
-                        LinearGradient(colors: [tint, tint.opacity(0.7)],
-                                       startPoint: .topLeading, endPoint: .bottomTrailing)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        Menu {
+            Button {
+                running ? onStop() : onStart(project.activeProfile)
+            } label: {
+                Label(running ? "Stop" : "Start",
+                      systemImage: running ? "stop.fill" : "play.fill")
+            }
 
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(project.label)
-                        .font(.system(size: 22, weight: .bold))
-                        .lineLimit(1)
-                    HStack(spacing: 6) {
-                        RunningDot(running: running, size: 7)
-                        Text(running ? "Running" : "Stopped")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(.secondary)
+            if !actions.isEmpty {
+                Menu {
+                    ForEach(actions) { a in
+                        Button { onRunAction(a.name) } label: { actionLabel(a) }
+                    }
+                } label: {
+                    Label("Actions", systemImage: "bolt")
+                }
+            }
+
+            if !project.profiles.isEmpty {
+                Section("Profiles") {
+                    ForEach(project.profiles) { p in
+                        Button { onStart(p.name) } label: { profileLabel(p) }
                     }
                 }
-                Spacer(minLength: 0)
             }
-
-            Button(action: onToggle) {
-                HStack(spacing: 8) {
-                    Image(systemName: running ? "stop.fill" : "play.fill")
-                    Text(running ? "Stop" : "Start")
+            if !project.allServices.isEmpty {
+                Section("Services") {
+                    ForEach(project.allServices) { s in
+                        Button { onToggleService(s.name) } label: { serviceLabel(s) }
+                    }
                 }
-                .font(.system(size: 16, weight: .semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .foregroundStyle(running ? SwiftUI.Color.red : .white)
-                .background(running ? SwiftUI.Color.red.opacity(0.12) : SwiftUI.Color.green)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
+        } label: {
+            Image(systemName: running ? "ellipsis.circle.fill" : "ellipsis.circle")
+                .font(.system(size: 18, weight: .regular))
+                .foregroundStyle(running ? .green : Color.accentColor)
         }
-        .padding(18)
-        .card(radius: 22)
+    }
+
+    @ViewBuilder
+    private func actionLabel(_ a: Action) -> some View {
+        if a.emoji.isEmpty {
+            Text(a.label)
+        } else {
+            Text("\(a.emoji)  \(a.label)")
+        }
+    }
+
+    @ViewBuilder
+    private func profileLabel(_ p: Profile) -> some View {
+        if running && project.activeProfile == p.name {
+            Label(p.name, systemImage: "checkmark")
+        } else {
+            Text(p.name)
+        }
+    }
+
+    @ViewBuilder
+    private func serviceLabel(_ s: Service) -> some View {
+        let title = s.port > 0 ? "\(s.name)  :\(s.port)" : s.name
+        if runningServices.contains(s.name) {
+            Label(title, systemImage: "checkmark")
+        } else {
+            Text(title)
+        }
     }
 }
 
@@ -152,72 +187,70 @@ extension DetailSectionHeader where Trailing == EmptyView {
     }
 }
 
-private struct ActionCard: View {
-    let action: Action
-
-    var body: some View {
-        HStack(spacing: 14) {
-            Group {
-                if action.emoji.isEmpty {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(action.emoji).font(.system(size: 18))
-                }
-            }
-            .frame(width: 40, height: 40)
-            .background(Color(.tertiarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-            Text(action.label)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-
-            Spacer(minLength: 8)
-
-            Image(systemName: "play.fill")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.tertiary)
-        }
-        .padding(14)
-        .card()
-    }
-}
-
-private struct TerminalCard: View {
+/// One terminal: tap the row to open it, or use the ⋯ menu for the same tab
+/// actions as the desktop (Rename / Pin / Close).
+private struct TerminalRow: View {
     let term: TerminalInfo
+    let onRename: () -> Void
+    let onTogglePin: () -> Void
+    let onClose: () -> Void
 
     var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: "terminal.fill")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 40, height: 40)
-                .background(Color(.tertiarySystemGroupedBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        HStack(spacing: 0) {
+            NavigationLink { TerminalScreen(term: term) } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: "terminal.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 40, height: 40)
+                        .background(Color(.tertiarySystemGroupedBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-            Text(term.label)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
+                    if term.pinned {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.orange)
+                    }
+                    Text(term.label)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
 
-            Spacer(minLength: 8)
+                    Spacer(minLength: 8)
 
-            if term.remote {
-                Text("remote")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 7).padding(.vertical, 3)
-                    .background(Color(.tertiarySystemGroupedBackground))
-                    .clipShape(Capsule())
+                    if term.remote {
+                        Text("remote")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 7).padding(.vertical, 3)
+                            .background(Color(.tertiarySystemGroupedBackground))
+                            .clipShape(Capsule())
+                    }
+                }
+                .padding(.leading, 14)
+                .padding(.vertical, 14)
+                .contentShape(Rectangle())
             }
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.tertiary)
+            .buttonStyle(.plain)
+
+            Menu {
+                Button(action: onRename) { Label("Rename", systemImage: "pencil") }
+                Button(action: onTogglePin) {
+                    Label(term.pinned ? "Unpin" : "Pin",
+                          systemImage: term.pinned ? "pin.slash" : "pin")
+                }
+                Button(role: .destructive, action: onClose) {
+                    Label("Close", systemImage: "xmark")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44)
+                    .frame(maxHeight: .infinity)
+                    .contentShape(Rectangle())
+            }
         }
-        .padding(14)
         .card()
     }
 }

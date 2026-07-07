@@ -190,6 +190,22 @@ interface AppState {
   pendingRemoteAction: { projectName: string; action: string | null; nonce: number } | null;
   triggerRemoteAction: (projectName: string, action: string | null) => void;
   clearPendingRemoteAction: () => void;
+  // A terminal-tab op (close / rename / pin) relayed from the mobile app,
+  // addressed by terminal id. Consumed by the mounted ProjectDetail.
+  pendingRemoteTerminalOp: {
+    projectName: string;
+    op: "close" | "rename" | "pin";
+    id: string;
+    label: string;
+    nonce: number;
+  } | null;
+  triggerRemoteTerminalOp: (
+    projectName: string,
+    op: "close" | "rename" | "pin",
+    id: string,
+    label: string,
+  ) => void;
+  clearPendingRemoteTerminalOp: () => void;
   bulkDuplicate: (
     name: string,
     count: number,
@@ -811,6 +827,24 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
 
   clearPendingRemoteAction: () => set({ pendingRemoteAction: null }),
+
+  pendingRemoteTerminalOp: null,
+
+  triggerRemoteTerminalOp: (projectName, op, id, label) =>
+    set((s) => ({
+      selected: projectName,
+      view: "projects",
+      visited: new Set([...s.visited, projectName]),
+      pendingRemoteTerminalOp: {
+        projectName,
+        op,
+        id,
+        label,
+        nonce: (s.pendingRemoteTerminalOp?.nonce ?? 0) + 1,
+      },
+    })),
+
+  clearPendingRemoteTerminalOp: () => set({ pendingRemoteTerminalOp: null }),
 
   runGenerator: async ({ folder, name, spec }) => {
     try {

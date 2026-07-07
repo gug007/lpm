@@ -13,6 +13,24 @@ const detachedParam = new URLSearchParams(window.location.search).get("detached"
 export const IS_MIRROR_WINDOW = detachedParam !== null;
 export const MIRROR_PROJECT = detachedParam;
 
+// This webview's identity for terminal control ownership (see
+// `store/terminalControl`). A terminal is shown live in exactly one surface;
+// the others show a "take control" placeholder. `id` is stable per window (only
+// one detached window exists per project, and a project's terminal ids are
+// project-scoped, so `detached:<project>` never collides for a given terminal);
+// `label` is the human name shown in the placeholder.
+export interface Realm {
+  kind: "window";
+  id: string;
+  label: string;
+}
+// `id` MUST match the Rust side: `control::detached_window_id` builds the same
+// `detached:<project>` string for the close-time control release, so a closed
+// detached window is recognized and never strands ownership. Keep in lockstep.
+export const REALM: Realm = IS_MIRROR_WINDOW
+  ? { kind: "window", id: `detached:${MIRROR_PROJECT}`, label: "Detached window" }
+  : { kind: "window", id: "main", label: "Main window" };
+
 // Cross-window transport is Tauri's global event bus (EventsEmit/EventsOn): an
 // emit from either window is delivered to listeners in every window, the same
 // mechanism `pty-output-<id>` already rides. The protocol is self-healing: the

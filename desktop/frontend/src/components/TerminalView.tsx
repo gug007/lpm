@@ -59,6 +59,10 @@ export interface TerminalViewHandle {
   // Submit a command into the focused pane's active terminal. Returns false
   // (with a toast) when no live terminal is focused.
   sendCommandToActive(cmd: string): boolean;
+  // Terminal-tab ops relayed from the mobile app, addressed by terminal id.
+  remoteCloseTerminal(id: string): void;
+  remoteRenameTerminal(id: string, label: string): void;
+  remoteTogglePin(id: string): void;
 }
 
 export function TerminalView({ projectName, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, runningPaneIDs, donePaneIDs, waitingPaneIDs, errorPaneIDs, visible = true, ref }: TerminalViewProps) {
@@ -103,6 +107,9 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     renameTerminal,
     toggleTabPinned,
     reorderTerminals,
+    remoteCloseTerminal,
+    remoteRenameTerminal,
+    remoteTogglePin,
     moveTerminal,
     splitPane,
     closePane,
@@ -229,17 +236,28 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   // {id, label, cli}: cli is detected from each terminal's launch command (empty
   // for plain shells), used only by the remote push. Identity-stabilized (the tree
   // gets a fresh reference each drag frame) so consumers/effects don't churn.
-  const allTerminalsRef = useRef<{ id: string; label: string; cli: string }[]>([]);
+  const allTerminalsRef = useRef<{ id: string; label: string; cli: string; pinned: boolean }[]>([]);
   const allTerminals = useMemo(() => {
     const next = tree
       ? collectTerminals(tree)
           .filter(isTerminalTab)
-          .map((t) => ({ id: t.id, label: t.label, cli: detectAICLI(t.startCmd) ?? "" }))
+          .map((t) => ({
+            id: t.id,
+            label: t.label,
+            cli: detectAICLI(t.startCmd) ?? "",
+            pinned: t.pinned === true,
+          }))
       : [];
     const prev = allTerminalsRef.current;
     if (
       prev.length === next.length &&
-      prev.every((p, i) => p.id === next[i].id && p.label === next[i].label && p.cli === next[i].cli)
+      prev.every(
+        (p, i) =>
+          p.id === next[i].id &&
+          p.label === next[i].label &&
+          p.cli === next[i].cli &&
+          p.pinned === next[i].pinned,
+      )
     ) {
       return prev;
     }
@@ -673,8 +691,24 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
   useImperativeHandle(
     ref,
-    () => ({ createTerminal, createTerminalWithCmd, resumeFromHistory, sendCommandToActive }),
-    [createTerminal, createTerminalWithCmd, resumeFromHistory, sendCommandToActive],
+    () => ({
+      createTerminal,
+      createTerminalWithCmd,
+      resumeFromHistory,
+      sendCommandToActive,
+      remoteCloseTerminal,
+      remoteRenameTerminal,
+      remoteTogglePin,
+    }),
+    [
+      createTerminal,
+      createTerminalWithCmd,
+      resumeFromHistory,
+      sendCommandToActive,
+      remoteCloseTerminal,
+      remoteRenameTerminal,
+      remoteTogglePin,
+    ],
   );
 
   return (

@@ -126,6 +126,9 @@ struct HubInner {
     // from the terminal's launch command; empty/absent for plain shells. Drives
     // the mobile composer's slash-command autocomplete.
     clis: Mutex<HashMap<String, String>>,
+    // Live terminal id -> pinned, pushed from the frontend tab tree so the phone
+    // can show the pin state and offer Pin/Unpin in the tab menu.
+    pinned: Mutex<HashMap<String, bool>>,
     config: Mutex<RemoteConfig>,
     next_id: AtomicU64,
     generation: AtomicU64, // bumped on every (re)start to retire old accept/conn threads
@@ -165,6 +168,21 @@ impl RemoteHub {
 
     fn drop_ring(&self, id: &str) {
         self.inner.rings.lock().unwrap().remove(id);
+    }
+
+    /// A paired device's friendly name (for the "Active on <name>" placeholder),
+    /// falling back to a generic label.
+    fn device_name(&self, id: &str) -> String {
+        self.inner
+            .config
+            .lock()
+            .unwrap()
+            .devices
+            .iter()
+            .find(|d| d.id == id)
+            .map(|d| d.name.clone())
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| "iPhone".to_string())
     }
 }
 
@@ -224,6 +242,25 @@ fn broadcast(hub: &RemoteHub, val: Value) {
     for c in clients.values() {
         let _ = c.tx.try_send(payload.clone());
     }
+}
+
+/// Fan out a terminal's new control owner to paired phones. Called from
+/// `control::broadcast` alongside the desktop `app.emit`. No-op when the server
+/// is disabled (no clients to notify).
+pub fn push_control(app: &AppHandle, id: &str, owner: &Option<crate::control::Owner>) {
+    let Some(hub) = app.try_state::<RemoteHub>() else {
+        return;
+    };
+    if !hub.inner.enabled.load(Ordering::Relaxed) {
+        return;
+    }
+    let owner = crate::control::owner_json(owner);
+    broadcast(hub.inner(), json!({ "t": "control", "id": id, "owner": owner }));
+}
+
+/// The control surface for a paired phone.
+fn mobile_owner(hub: &RemoteHub, device_id: &str) -> crate::control::Owner {
+    crate::control::Owner::new("mobile", device_id, hub.device_name(device_id))
 }
 
 // --- lifecycle ---------------------------------------------------------------
@@ -371,7 +408,7 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
                 if msg.is_text() {
                     if let Ok(txt) = msg.to_text() {
                         let txt = txt.to_string();
-                        if handle_msg(&mut ws, &txt, &hub, &app, &subs).is_err() {
+                        if handle_msg(&mut ws, &txt, &hub, &app, &subs, &device_id).is_err() {
                             break;
                         }
                     }
@@ -386,6 +423,13 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
     }
 
     hub.inner.clients.lock().unwrap().remove(&conn_id);
+    // Release any terminal control this phone held so ownership transfers back to
+    // a desktop window (or another presenter) instead of stranding on a gone
+    // client.
+    let owner = mobile_owner(&hub, &device_id);
+    for (id, new_owner) in app.state::<crate::control::ControlState>().drop_surface(&owner) {
+        crate::control::broadcast(&app, &id, &new_owner);
+    }
     let _ = ws.close(None);
     let _ = ws.flush();
 }
@@ -497,6 +541,7 @@ fn handle_msg(
     hub: &RemoteHub,
     app: &AppHandle,
     subs: &Arc<Mutex<HashSet<String>>>,
+    device_id: &str,
 ) -> Result<(), ()> {
     let v: Value = match serde_json::from_str(txt) {
         Ok(v) => v,
@@ -518,6 +563,7 @@ fn handle_msg(
             // Attach the desktop's tab label to each terminal (falling back to the
             // id when the frontend hasn't registered one, e.g. an unopened project).
             let labels = hub.inner.labels.lock().unwrap();
+            let pinned = hub.inner.pinned.lock().unwrap();
             let terms: Vec<Value> = terms
                 .iter()
                 .map(|t| {
@@ -525,11 +571,13 @@ fn handle_msg(
                     let label = labels.get(&t.id).cloned().unwrap_or_else(|| t.id.clone());
                     if let Some(m) = o.as_object_mut() {
                         m.insert("label".into(), json!(label));
+                        m.insert("pinned".into(), json!(pinned.get(&t.id).copied().unwrap_or(false)));
                     }
                     o
                 })
                 .collect();
             drop(labels);
+            drop(pinned);
             send(ws, json!({ "t": "terminals", "project": project, "terminals": terms }))?;
         }
         "slash" => {
@@ -653,17 +701,43 @@ fn handle_msg(
         "sub" => {
             if let Some(id) = str_field("id") {
                 subs.lock().unwrap().insert(id.clone());
+                // Opening a terminal screen on the phone takes control of it (the
+                // surface the user just opened should be where it's live). The
+                // previous owner is pushed a `control` frame and flips to its
+                // placeholder. `owner` in the seed confirms this phone owns it.
+                let (owner, changed) = app
+                    .state::<crate::control::ControlState>()
+                    .claim(&id, mobile_owner(hub, device_id));
+                if changed {
+                    crate::control::broadcast(app, &id, &Some(owner.clone()));
+                }
                 let (cols, rows) =
                     pty::remote_dims(&app.state::<pty::PtyState>(), &id).unwrap_or((80, 24));
                 send(
                     ws,
-                    json!({ "t": "seed", "id": id, "cols": cols, "rows": rows, "data": hub.ring_text(&id) }),
+                    json!({ "t": "seed", "id": id, "cols": cols, "rows": rows, "data": hub.ring_text(&id), "owner": crate::control::owner_json(&Some(owner)) }),
                 )?;
             }
         }
         "unsub" => {
             if let Some(id) = str_field("id") {
                 subs.lock().unwrap().remove(&id);
+                let (owner, changed) = app
+                    .state::<crate::control::ControlState>()
+                    .unpresent(&id, &mobile_owner(hub, device_id));
+                if changed {
+                    crate::control::broadcast(app, &id, &owner);
+                }
+            }
+        }
+        "claim" => {
+            if let Some(id) = str_field("id") {
+                let (owner, changed) = app
+                    .state::<crate::control::ControlState>()
+                    .claim(&id, mobile_owner(hub, device_id));
+                if changed {
+                    crate::control::broadcast(app, &id, &Some(owner));
+                }
             }
         }
         "in" => {
@@ -675,7 +749,15 @@ fn handle_msg(
             let id = str_field("id").unwrap_or_default();
             let cols = v.get("cols").and_then(Value::as_u64).unwrap_or(0) as u16;
             let rows = v.get("rows").and_then(Value::as_u64).unwrap_or(0) as u16;
-            if !id.is_empty() && cols > 0 && rows > 0 {
+            // Only the current owner may drive the single shared PTY geometry —
+            // a non-owning phone must not fight the desktop over it. Absent an
+            // owner (nobody claimed yet) the resize is allowed.
+            let ctrl = app.state::<crate::control::ControlState>();
+            let may_resize = match ctrl.owner_of(&id) {
+                None => true,
+                Some(o) => o.kind == "mobile" && o.id == device_id,
+            };
+            if !id.is_empty() && cols > 0 && rows > 0 && may_resize {
                 let _ = pty::remote_resize(&app.state::<pty::PtyState>(), &id, cols, rows);
             }
         }
@@ -725,6 +807,30 @@ fn handle_msg(
                 let _ = app.emit("remote-run-action", json!({ "project": project }));
             }
             send(ws, json!({ "t": "newTerminal", "ok": true }))?;
+        }
+        // Terminal tab ops (close / rename / pin) are also frontend pane-tree edits,
+        // so they take the same owner-window relay: emit an event the mounted
+        // ProjectDetail resolves back to its tab id and runs the normal handler.
+        "closeTerminal" | "renameTerminal" | "pinTerminal" => {
+            let project = str_field("project").unwrap_or_default();
+            let id = str_field("id").unwrap_or_default();
+            let op = match t {
+                "closeTerminal" => "close",
+                "renameTerminal" => "rename",
+                _ => "pin",
+            };
+            if !project.is_empty() && !id.is_empty() {
+                let _ = app.emit(
+                    "remote-terminal-op",
+                    json!({
+                        "project": project,
+                        "op": op,
+                        "id": id,
+                        "label": str_field("label").unwrap_or_default(),
+                    }),
+                );
+            }
+            send(ws, json!({ "t": t, "ok": true }))?;
         }
         _ => {}
     }
@@ -855,6 +961,7 @@ pub fn remote_state(hub: State<'_, RemoteHub>) -> Value {
 pub fn remote_set_terminal_labels(hub: State<'_, RemoteHub>, labels: Vec<Value>) {
     let mut label_map = hub.inner.labels.lock().unwrap();
     let mut cli_map = hub.inner.clis.lock().unwrap();
+    let mut pin_map = hub.inner.pinned.lock().unwrap();
     for item in labels {
         let id = item.get("id").and_then(Value::as_str).unwrap_or("");
         if id.is_empty() {
@@ -868,6 +975,10 @@ pub fn remote_set_terminal_labels(hub: State<'_, RemoteHub>, labels: Vec<Value>)
         if !cli.is_empty() {
             cli_map.insert(id.to_string(), cli.to_string());
         }
+        pin_map.insert(
+            id.to_string(),
+            item.get("pinned").and_then(Value::as_bool).unwrap_or(false),
+        );
     }
 }
 

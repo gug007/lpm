@@ -20,6 +20,7 @@ final class LpmClient: NSObject {
     var onState: ((State) -> Void)?
     var onOutput: ((_ id: String, _ data: String) -> Void)?
     var onSeed: ((_ id: String, _ cols: Int, _ rows: Int, _ data: String) -> Void)?
+    var onControl: ((_ id: String, _ owner: ControlOwner?) -> Void)?
     var onExit: ((_ id: String, _ code: Int) -> Void)?
     var onProjects: (([Project]) -> Void)?
     var onSidebar: ((_ order: [String], _ groups: [ProjectFolder]) -> Void)?
@@ -42,6 +43,10 @@ final class LpmClient: NSObject {
     private(set) var state: State = .idle
 
     struct Credential { let deviceId: String; let token: String }
+
+    /// This device's id (once paired/authenticated), for comparing against a
+    /// terminal's control owner.
+    var deviceId: String? { credential?.deviceId }
 
     init(endpoint: Endpoint, credential: Credential?, deviceName: String) {
         self.endpoint = endpoint
@@ -96,6 +101,11 @@ final class LpmClient: NSObject {
     func requestStatus(project: String) { send(Wire.status(project: project)) }
     func runAction(project: String, action: String) { send(Wire.runAction(project: project, action: action)) }
     func newTerminal(project: String) { send(Wire.newTerminal(project: project)) }
+    func closeTerminal(project: String, id: String) { send(Wire.closeTerminal(project: project, id: id)) }
+    func renameTerminal(project: String, id: String, label: String) {
+        send(Wire.renameTerminal(project: project, id: id, label: label))
+    }
+    func pinTerminal(project: String, id: String) { send(Wire.pinTerminal(project: project, id: id)) }
     func startProject(_ name: String, profile: String = "") { send(Wire.start(name: name, profile: profile)) }
     func stopProject(_ name: String) { send(Wire.stop(name: name)) }
     func toggleService(_ name: String, service: String) { send(Wire.toggleService(name: name, service: service)) }
@@ -108,6 +118,7 @@ final class LpmClient: NSObject {
         subscribed.remove(id)
         send(Wire.unsub(id: id))
     }
+    func claim(_ id: String) { send(Wire.claim(id: id)) }
     func sendInput(_ id: String, _ data: String) { send(Wire.input(id: id, data: data)) }
     func resize(_ id: String, cols: Int, rows: Int) { send(Wire.resize(id: id, cols: cols, rows: rows)) }
 
@@ -156,7 +167,10 @@ final class LpmClient: NSObject {
             case .mentions(let proj, let entries): self.onMentions?(proj, entries)
             case .history(let proj, let rows): self.onHistory?(proj, rows)
             case .status(let proj, let s): self.onStatus?(proj, s)
-            case .seed(let id, let c, let r, let d): self.onSeed?(id, c, r, d)
+            case .seed(let id, let c, let r, let d, let owner):
+                self.onControl?(id, owner)
+                self.onSeed?(id, c, r, d)
+            case .control(let id, let owner): self.onControl?(id, owner)
             case .output(let id, let d): self.onOutput?(id, d)
             case .exit(let id, let code): self.onExit?(id, code)
             case .projectsChanged: self.onProjectsChanged?()

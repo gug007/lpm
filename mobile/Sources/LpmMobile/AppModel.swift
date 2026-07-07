@@ -19,6 +19,10 @@ final class AppModel: ObservableObject {
     // "group:<id>" tokens; `groups` are the folder defs.
     @Published var sidebarOrder: [String] = []
     @Published var groups: [ProjectFolder] = []
+    // terminal id -> current owner. Absent = nobody/unknown (this phone may show
+    // it). A terminal is rendered live in exactly one surface; when the desktop
+    // (or another phone) owns it, this phone shows a "take control" placeholder.
+    @Published var controlOwner: [String: ControlOwner] = [:]
 
     // Terminal streams go straight to whichever TerminalScreen is subscribed; the
     // emulator (SwiftTerm) holds the buffer, not this model. Seed and live output
@@ -83,13 +87,41 @@ final class AppModel: ObservableObject {
         client?.unsubscribe(id)
     }
     func input(_ id: String, _ data: String) { client?.sendInput(id, data) }
-    func resize(_ id: String, cols: Int, rows: Int) { client?.resize(id, cols: cols, rows: rows) }
+    func resize(_ id: String, cols: Int, rows: Int) {
+        // Only the owner drives the single shared PTY size; a non-owning phone
+        // must not fight the desktop over it (Rust drops it anyway, but don't
+        // even send).
+        guard isControlled(id) else { return }
+        client?.resize(id, cols: cols, rows: rows)
+    }
+
+    /// Whether this phone renders the terminal live (vs. the "take control"
+    /// placeholder): true when it owns the terminal, or while ownership is unknown
+    /// / unclaimed (so a terminal only this phone shows never flips to a placeholder).
+    func isControlled(_ id: String) -> Bool {
+        guard let o = controlOwner[id] else { return true }
+        return o.kind == "mobile" && o.id == client?.deviceId
+    }
+
+    /// The owner's friendly name, for the placeholder ("Active on <name>").
+    func controlOwnerLabel(_ id: String) -> String {
+        controlOwner[id]?.label ?? "another device"
+    }
+
+    /// Take control here (the "Take control" button): this phone becomes the owner
+    /// and the previous owner flips to its own placeholder.
+    func claimControl(_ id: String) { client?.claim(id) }
+
+    private func setControlOwner(_ id: String, _ owner: ControlOwner?) {
+        if let owner { controlOwner[id] = owner } else { controlOwner[id] = nil }
+    }
     /// Send a composed message: the web view wraps it as a bracketed paste (when
     /// the running program enabled that) and appends a CR to submit.
     func submit(_ id: String, _ text: String) { terminalSubmit[id]?(text) }
 
-    func startProject(_ p: Project) { client?.startProject(p.name) }
+    func startProject(_ p: Project, profile: String = "") { client?.startProject(p.name, profile: profile) }
     func stopProject(_ p: Project) { client?.stopProject(p.name) }
+    func toggleService(_ project: String, service: String) { client?.toggleService(project, service: service) }
     func loadTerminals(_ project: String) { client?.requestTerminals(project: project) }
 
     func runAction(_ project: String, action: String) {
@@ -98,6 +130,18 @@ final class AppModel: ObservableObject {
     }
     func newTerminal(_ project: String) {
         client?.newTerminal(project: project)
+        reloadTerminalsSoon(project)
+    }
+    func closeTerminal(_ project: String, id: String) {
+        client?.closeTerminal(project: project, id: id)
+        reloadTerminalsSoon(project)
+    }
+    func renameTerminal(_ project: String, id: String, label: String) {
+        client?.renameTerminal(project: project, id: id, label: label)
+        reloadTerminalsSoon(project)
+    }
+    func pinTerminal(_ project: String, id: String) {
+        client?.pinTerminal(project: project, id: id)
         reloadTerminalsSoon(project)
     }
     /// The desktop creates the terminal + types its command asynchronously (it
@@ -179,6 +223,7 @@ final class AppModel: ObservableObject {
         }
         c.onSeed = { [weak self] id, cols, rows, data in self?.onTerminalSeed[id]?(cols, rows, data) }
         c.onOutput = { [weak self] id, data in self?.onTerminalOutput[id]?(data) }
+        c.onControl = { [weak self] id, owner in self?.setControlOwner(id, owner) }
     }
 }
 

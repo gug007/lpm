@@ -276,14 +276,30 @@ struct TerminalScreen: View {
     }
 
     var body: some View {
+        // A terminal is shown live in exactly one place at a time. When the
+        // desktop (or another phone) owns it, show a "take control" placeholder
+        // instead of a second, mis-sized copy — but keep the web view MOUNTED
+        // underneath so this phone stays subscribed (a presenter / candidate
+        // owner) and takes over instantly on claim.
+        let controlled = model.isControlled(term.id)
         // Terminal flows UP under the translucent nav bar (see-through header); the
         // composer sits below it and rides above the keyboard when it opens.
-        VStack(spacing: 0) {
-            WebTerminalView(term: term, topInset: statusBarHeight)
-                .environmentObject(model)
-                .ignoresSafeArea(.container, edges: .top)
-            TerminalComposer(termId: term.id, project: term.project, label: term.label)
-                .environmentObject(model)
+        return VStack(spacing: 0) {
+            ZStack {
+                WebTerminalView(term: term, topInset: statusBarHeight)
+                    .environmentObject(model)
+                    .ignoresSafeArea(.container, edges: .top)
+                if !controlled {
+                    ControlHandoffView(ownerLabel: model.controlOwnerLabel(term.id)) {
+                        model.claimControl(term.id)
+                    }
+                    .ignoresSafeArea(.container, edges: .top)
+                }
+            }
+            if controlled {
+                TerminalComposer(termId: term.id, project: term.project, label: term.label)
+                    .environmentObject(model)
+            }
         }
             .navigationTitle(term.label)
             .navigationBarTitleDisplayMode(.inline)
@@ -295,6 +311,51 @@ struct TerminalScreen: View {
             .toolbarBackground(SwiftUI.Color(white: 0.1).opacity(0.5), for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
+    }
+}
+
+/// Shown in place of the terminal when another surface (a desktop window or
+/// another phone) currently owns it. "Take control" moves ownership here.
+struct ControlHandoffView: View {
+    let ownerLabel: String
+    let onTakeControl: () -> Void
+    @State private var taking = false
+
+    var body: some View {
+        ZStack {
+            // Match the terminal's ground so there's no flash behind it.
+            SwiftUI.Color(white: 0x1a / 255)
+            VStack(spacing: 16) {
+                Image(systemName: "terminal.fill")
+                    .font(.system(size: 34))
+                    .foregroundColor(.accentColor)
+                VStack(spacing: 4) {
+                    Text("Active on \(ownerLabel)")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    Text("This terminal is shown and controlled elsewhere to keep it sized correctly.")
+                        .font(.footnote)
+                        .foregroundColor(.white.opacity(0.6))
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 280)
+                }
+                Button {
+                    taking = true
+                    onTakeControl()
+                } label: {
+                    Text(taking ? "Taking control…" : "Take control")
+                        .font(.subheadline.weight(.medium))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 9)
+                        .background(Color.accentColor)
+                        .foregroundColor(.white)
+                        .clipShape(Capsule())
+                }
+                .disabled(taking)
+            }
+            .padding(24)
+        }
+        .environment(\.colorScheme, .dark)
     }
 }
 

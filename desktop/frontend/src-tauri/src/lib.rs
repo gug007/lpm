@@ -6,6 +6,7 @@ mod clipboard;
 mod commands_real;
 mod config;
 mod config_cmds;
+mod control;
 mod detached;
 mod dockmenu;
 mod files;
@@ -52,6 +53,7 @@ use browser::*;
 use clipboard::*;
 use commands_real::*;
 use config_cmds::*;
+use control::*;
 use detached::*;
 use files::*;
 use git::*;
@@ -97,6 +99,7 @@ pub fn run() {
         .manage(log_streaming::LogState::default())
         .manage(git::WatchState::default())
         .manage(detached::DetachedState::default())
+        .manage(control::ControlState::default())
         .manage(notes_cmds::NotesState::default())
         .manage(message_history::MessageHistoryState::default())
         .manage(std::sync::Arc::new(status::StatusStore::new()))

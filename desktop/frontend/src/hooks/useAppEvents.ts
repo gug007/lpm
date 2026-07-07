@@ -23,8 +23,14 @@ export function useAmbientAppEvents(): void {
 export function useAppEvents(): void {
   useAmbientAppEvents();
   useEffect(() => {
-    const { selectProject, setView, setFeedbackOpen, addProject, triggerRemoteAction } =
-      useAppStore.getState();
+    const {
+      selectProject,
+      setView,
+      setFeedbackOpen,
+      addProject,
+      triggerRemoteAction,
+      triggerRemoteTerminalOp,
+    } = useAppStore.getState();
 
     const cancelDock = EventsOn("dock-project-selected", (name: string) => {
       selectProject(name);
@@ -36,6 +42,16 @@ export function useAppEvents(): void {
       "remote-run-action",
       (payload: { project: string; action?: string | null }) => {
         if (payload?.project) triggerRemoteAction(payload.project, payload.action ?? null);
+      },
+    );
+    // The mobile app asks to close / rename / pin a terminal tab; the mounted
+    // ProjectDetail resolves the id against its live tab tree and runs it.
+    const cancelRemoteTermOp = EventsOn(
+      "remote-terminal-op",
+      (payload: { project: string; op: "close" | "rename" | "pin"; id: string; label?: string }) => {
+        if (payload?.project && payload?.id && payload?.op) {
+          triggerRemoteTerminalOp(payload.project, payload.op, payload.id, payload.label ?? "");
+        }
       },
     );
     const cancelNavView = EventsOn("navigate-main-view", (view: string) => {
@@ -63,6 +79,7 @@ export function useAppEvents(): void {
     return () => {
       if (typeof cancelDock === "function") cancelDock();
       if (typeof cancelRemoteAction === "function") cancelRemoteAction();
+      if (typeof cancelRemoteTermOp === "function") cancelRemoteTermOp();
       if (typeof cancelNavView === "function") cancelNavView();
       if (typeof cancelNewProject === "function") cancelNewProject();
       if (typeof cancelSettings === "function") cancelSettings();
