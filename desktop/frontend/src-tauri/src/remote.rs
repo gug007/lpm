@@ -129,6 +129,9 @@ struct HubInner {
     // Live terminal id -> pinned, pushed from the frontend tab tree so the phone
     // can show the pin state and offer Pin/Unpin in the tab menu.
     pinned: Mutex<HashMap<String, bool>>,
+    // Live terminal id -> tab emoji (from the frontend tab tree), so the phone can
+    // show the same per-terminal tab icon the desktop does. Empty when unset.
+    emojis: Mutex<HashMap<String, String>>,
     // project -> the ORDERED terminal ids in that project's tab tree (desktop tab
     // order), replaced on each frontend push. The phone's terminal list is emitted
     // in this order and scoped to it (intersected with live PTYs), so it matches
@@ -588,6 +591,7 @@ fn handle_msg(
             // id when the frontend hasn't registered one, e.g. an unopened project).
             let labels = hub.inner.labels.lock().unwrap();
             let pinned = hub.inner.pinned.lock().unwrap();
+            let emojis = hub.inner.emojis.lock().unwrap();
             let terms: Vec<Value> = terms
                 .iter()
                 .map(|t| {
@@ -596,12 +600,14 @@ fn handle_msg(
                     if let Some(m) = o.as_object_mut() {
                         m.insert("label".into(), json!(label));
                         m.insert("pinned".into(), json!(pinned.get(&t.id).copied().unwrap_or(false)));
+                        m.insert("emoji".into(), json!(emojis.get(&t.id).cloned().unwrap_or_default()));
                     }
                     o
                 })
                 .collect();
             drop(labels);
             drop(pinned);
+            drop(emojis);
             send(ws, json!({ "t": "terminals", "project": project, "terminals": terms }))?;
         }
         "slash" => {
@@ -1007,6 +1013,7 @@ pub fn remote_set_terminal_labels(hub: State<'_, RemoteHub>, project: String, la
     let mut label_map = hub.inner.labels.lock().unwrap();
     let mut cli_map = hub.inner.clis.lock().unwrap();
     let mut pin_map = hub.inner.pinned.lock().unwrap();
+    let mut emoji_map = hub.inner.emojis.lock().unwrap();
     let mut ids: Vec<String> = Vec::new();
     for item in &labels {
         let id = item.get("id").and_then(Value::as_str).unwrap_or("");
@@ -1025,6 +1032,10 @@ pub fn remote_set_terminal_labels(hub: State<'_, RemoteHub>, project: String, la
         pin_map.insert(
             id.to_string(),
             item.get("pinned").and_then(Value::as_bool).unwrap_or(false),
+        );
+        emoji_map.insert(
+            id.to_string(),
+            item.get("emoji").and_then(Value::as_str).unwrap_or("").to_string(),
         );
     }
     if !project.is_empty() && !ids.is_empty() {

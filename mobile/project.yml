@@ -18,6 +18,7 @@ targets:
     type: application
     platform: iOS
     sources:
+      - Assets.xcassets
       - Sources/LpmMobile
       # xterm.js + the terminal host page, copied into the app bundle as a
       # preserved folder ("web/") so the WKWebView loads them offline with their

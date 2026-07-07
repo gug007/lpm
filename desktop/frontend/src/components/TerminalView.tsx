@@ -238,7 +238,9 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   // {id, label, cli}: cli is detected from each terminal's launch command (empty
   // for plain shells), used only by the remote push. Identity-stabilized (the tree
   // gets a fresh reference each drag frame) so consumers/effects don't churn.
-  const allTerminalsRef = useRef<{ id: string; label: string; cli: string; pinned: boolean }[]>([]);
+  const allTerminalsRef = useRef<
+    { id: string; label: string; cli: string; pinned: boolean; emoji: string }[]
+  >([]);
   const allTerminals = useMemo(() => {
     const next = tree
       ? collectTerminals(tree)
@@ -248,6 +250,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             label: t.label,
             cli: detectAICLI(t.startCmd) ?? "",
             pinned: t.pinned === true,
+            emoji: t.emoji ?? "",
           }))
       : [];
     const prev = allTerminalsRef.current;
@@ -258,7 +261,8 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
           p.id === next[i].id &&
           p.label === next[i].label &&
           p.cli === next[i].cli &&
-          p.pinned === next[i].pinned,
+          p.pinned === next[i].pinned &&
+          p.emoji === next[i].emoji,
       )
     ) {
       return prev;

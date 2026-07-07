@@ -1,13 +1,14 @@
 import SwiftUI
 
-/// A project's screen: a hero card with the project's identity + a single primary
-/// Start/Stop action, then its open terminals as tappable cards. Custom layout
-/// (not a stock grouped List) for a cleaner, more modern feel.
+/// A project's screen: the project's open terminals as tappable cards, with a
+/// single "more" menu in the nav bar for Start/Stop, actions, and services.
+/// Terminal tab actions (Pin / Rename / Close) live on native swipe gestures.
 struct ProjectDetail: View {
     @EnvironmentObject var model: AppModel
     let project: Project
     @State private var renaming: TerminalInfo?
     @State private var renameText = ""
+    @State private var openTerminal: TerminalInfo?
 
     // Current project object (fresh status/actions) from the store; falls back to
     // the one we were pushed with.
@@ -26,13 +27,31 @@ struct ProjectDetail: View {
                         .terminalRowChrome()
                 } else {
                     ForEach(terminals) { t in
-                        TerminalRow(
-                            term: t,
-                            onRename: { renameText = t.label; renaming = t },
-                            onTogglePin: { model.pinTerminal(project.name, id: t.id) },
-                            onClose: { model.closeTerminal(project.name, id: t.id) }
-                        )
-                        .terminalRowChrome()
+                        TerminalRow(term: t, onOpen: { openTerminal = t })
+                            .terminalRowChrome()
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button {
+                                    model.pinTerminal(project.name, id: t.id)
+                                } label: {
+                                    Label(t.pinned ? "Unpin" : "Pin",
+                                          systemImage: t.pinned ? "pin.slash" : "pin")
+                                }
+                                .tint(.orange)
+                            }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    model.closeTerminal(project.name, id: t.id)
+                                } label: {
+                                    Label("Close", systemImage: "xmark")
+                                }
+                                Button {
+                                    renameText = t.label
+                                    renaming = t
+                                } label: {
+                                    Label("Rename", systemImage: "pencil")
+                                }
+                                .tint(.gray)
+                            }
                     }
                     .onMove(perform: moveTerminals)
                 }
@@ -51,8 +70,12 @@ struct ProjectDetail: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Color(.systemGroupedBackground))
+        .refreshable {
+            model.loadTerminals(project.name)
+        }
         .navigationTitle(project.label)
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0) }
         .alert("Rename terminal", isPresented: Binding(
             get: { renaming != nil },
             set: { if !$0 { renaming = nil } }
@@ -211,70 +234,57 @@ extension DetailSectionHeader where Trailing == EmptyView {
     }
 }
 
-/// One terminal: tap the row to open it, or use the ⋯ menu for the same tab
-/// actions as the desktop (Rename / Pin / Close).
+/// One terminal: tap the card to open it. The same tab actions as the desktop
+/// live on native swipe gestures (Pin from the leading edge; Rename / Close from
+/// the trailing edge).
 private struct TerminalRow: View {
     let term: TerminalInfo
-    let onRename: () -> Void
-    let onTogglePin: () -> Void
-    let onClose: () -> Void
+    let onOpen: () -> Void
 
     var body: some View {
-        HStack(spacing: 0) {
-            NavigationLink { TerminalScreen(term: term) } label: {
-                HStack(spacing: 14) {
-                    Image(systemName: "terminal.fill")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 40, height: 40)
-                        .background(Color(.tertiarySystemGroupedBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                    if term.pinned {
-                        Image(systemName: "pin.fill")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.orange)
-                    }
-                    Text(term.label)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-
-                    Spacer(minLength: 8)
-
-                    if term.remote {
-                        Text("remote")
-                            .font(.system(size: 11, weight: .semibold))
+        Button(action: onOpen) {
+            HStack(spacing: 14) {
+                // Tab icon, matching the desktop: the terminal's emoji when set,
+                // else a generic terminal glyph.
+                Group {
+                    if term.emoji.isEmpty {
+                        Image(systemName: "terminal.fill")
+                            .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(.secondary)
-                            .padding(.horizontal, 7).padding(.vertical, 3)
-                            .background(Color(.tertiarySystemGroupedBackground))
-                            .clipShape(Capsule())
+                    } else {
+                        Text(term.emoji).font(.system(size: 18))
                     }
                 }
-                .padding(.leading, 14)
-                .padding(.vertical, 14)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
+                    .frame(width: 40, height: 40)
+                    .background(Color(.tertiarySystemGroupedBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-            Menu {
-                Button(action: onRename) { Label("Rename", systemImage: "pencil") }
-                Button(action: onTogglePin) {
-                    Label(term.pinned ? "Unpin" : "Pin",
-                          systemImage: term.pinned ? "pin.slash" : "pin")
+                if term.pinned {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.orange)
                 }
-                Button(role: .destructive, action: onClose) {
-                    Label("Close", systemImage: "xmark")
+                Text(term.label)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 8)
+
+                if term.remote {
+                    Text("remote")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 7).padding(.vertical, 3)
+                        .background(Color(.tertiarySystemGroupedBackground))
+                        .clipShape(Capsule())
                 }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 44)
-                    .frame(maxHeight: .infinity)
-                    .contentShape(Rectangle())
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .card()
     }
 }

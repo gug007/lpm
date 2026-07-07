@@ -104,6 +104,7 @@ cols: uint16
 rows: uint16
 remote: bool     // spawned over ssh
 pinned: bool     // desktop tab pin state
+emoji: string    // the tab's emoji icon (empty if unset) — mirrors the desktop tab icon
 ```
 The `label` and `pinned` state come from the desktop's tab tree, which the
 frontend registers with the server (`remote_set_terminal_labels`). terminals.json

@@ -296,7 +296,7 @@ struct Profile: Identifiable {
     }
 }
 
-struct TerminalInfo: Identifiable {
+struct TerminalInfo: Identifiable, Hashable {
     let id: String
     let label: String
     let project: String
@@ -304,6 +304,7 @@ struct TerminalInfo: Identifiable {
     let rows: Int
     let remote: Bool
     let pinned: Bool
+    let emoji: String
 
     init(_ o: [String: Any]) {
         id = o["id"] as? String ?? ""
@@ -314,6 +315,7 @@ struct TerminalInfo: Identifiable {
         rows = o["rows"] as? Int ?? 24
         remote = o["remote"] as? Bool ?? false
         pinned = o["pinned"] as? Bool ?? false
+        emoji = o["emoji"] as? String ?? ""
     }
 }
 
