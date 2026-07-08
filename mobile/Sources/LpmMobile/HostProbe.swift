@@ -88,6 +88,7 @@ private func shortReason(_ error: Error?) -> String {
     guard let e = error as NSError? else { return "failed" }
     switch e.code {
     case NSURLErrorCannotConnectToHost: return "refused"
+    case NSURLErrorAppTransportSecurityRequiresSecureConnection: return "blocked (ATS)"
     case NSURLErrorTimedOut: return "timed out"
     case NSURLErrorNetworkConnectionLost: return "connection lost"
     case NSURLErrorCannotFindHost, NSURLErrorDNSLookupFailed: return "no route"

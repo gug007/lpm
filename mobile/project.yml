@@ -60,9 +60,11 @@ targets:
         NSLocalNetworkUsageDescription: Connect to lpm running on your Mac.
         NSBonjourServices:
           - _lpm._tcp
-        # The desktop server is plaintext ws:// on the LAN (encryption comes from
-        # running over a Tailscale tailnet). App Transport Security blocks cleartext
-        # by default; NSAllowsLocalNetworking permits it for local/private addresses
-        # only — no global ATS opt-out.
+        # The desktop server is plaintext ws:// (encryption comes from running over
+        # a Tailscale tailnet). ATS blocks cleartext by default and
+        # NSAllowsLocalNetworking only exempts local/private addresses — Tailscale's
+        # CGNAT range (100.64.0.0/10) doesn't qualify, so connecting over the tailnet
+        # fails with -1022. NSAllowsArbitraryLoads covers both; it must stand alone,
+        # because iOS ignores it whenever NSAllowsLocalNetworking is also present.
         NSAppTransportSecurity:
-          NSAllowsLocalNetworking: true
+          NSAllowsArbitraryLoads: true
