@@ -20,6 +20,10 @@ targets:
     sources:
       - Assets.xcassets
       - Sources/LpmMobile
+      # Apple privacy manifest — copied into the app bundle root so App Store
+      # uploads pass required-reason-API validation (ITMS-91053).
+      - path: PrivacyInfo.xcprivacy
+        buildPhase: resources
       # xterm.js + the terminal host page, copied into the app bundle as a
       # preserved folder ("web/") so the WKWebView loads them offline with their
       # relative paths (xterm/xterm.js …) intact.
