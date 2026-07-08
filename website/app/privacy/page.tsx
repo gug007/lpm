@@ -18,7 +18,7 @@ export default function PrivacyPage() {
         Privacy Policy
       </h1>
       <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-        Last updated: April 17, 2026
+        Last updated: July 8, 2026
       </p>
 
       <section className="mt-10 space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
@@ -27,9 +27,9 @@ export default function PrivacyPage() {
         </h2>
         <p>
           lpm is an open-source project. The <strong>software itself</strong>{" "}
-          (the macOS desktop app) runs entirely on your machine.
-          It does not collect, transmit, or share any personal data, telemetry,
-          or usage information.
+          (the macOS desktop app and the lpm Link iOS app) runs entirely on your
+          machine. It does not collect, transmit, or share any personal data,
+          telemetry, or usage information.
         </p>
         <p>
           This <strong>website</strong> (lpm.cx) uses a small amount of
@@ -57,6 +57,28 @@ export default function PrivacyPage() {
             </a>{" "}
             so you can verify this for yourself.
           </li>
+        </ul>
+      </section>
+
+      <section className="mt-8 space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          The iOS app (lpm Link)
+        </h2>
+        <ul className="list-disc pl-5 space-y-1">
+          <li>No analytics, tracking, or telemetry. No data is collected.</li>
+          <li>
+            The app communicates only with your own Mac running lpm, over your
+            local network or your private Tailscale network. Nothing is sent to
+            any server we control.
+          </li>
+          <li>
+            Camera access is used solely to scan the pairing QR code shown by
+            lpm on your Mac.
+          </li>
+          <li>
+            The pairing credential is stored in the iOS Keychain on your device.
+          </li>
+          <li>No account is required.</li>
         </ul>
       </section>
 
