@@ -63,16 +63,27 @@ enum Wire {
         json(["t": "reorderTerminals", "project": project, "order": order])
     }
     static func duplicate(name: String, options: DuplicateOptions) -> String {
+        let trim = { (s: String) in s.trimmingCharacters(in: .whitespacesAndNewlines) }
         var obj: [String: Any] = [
             "t": "duplicate",
             "name": name,
             "count": options.count,
+            "labels": options.labels.prefix(options.count).map(trim),
             "excludeUncommitted": options.excludeUncommitted,
             "reinstallDeps": options.reinstallDeps,
             "pullLatest": options.pullLatest,
+            "groupName": trim(options.groupName),
+            "runMode": options.runMode.rawValue,
         ]
-        let label = options.label.trimmingCharacters(in: .whitespacesAndNewlines)
-        if options.count == 1, !label.isEmpty { obj["label"] = label }
+        switch options.runMode {
+        case .action: obj["action"] = options.actionName
+        case .command: obj["command"] = trim(options.command)
+        case .none: break
+        }
+        if options.runMode != .none {
+            let p = trim(options.prompt)
+            if !p.isEmpty { obj["prompt"] = p }
+        }
         return json(obj)
     }
     static func duplicateDefaults() -> String { json(["t": "duplicateDefaults"]) }

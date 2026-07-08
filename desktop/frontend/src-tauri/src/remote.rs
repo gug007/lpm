@@ -856,57 +856,90 @@ fn handle_msg(
             );
             send(ws, result_reply("toggleService", r))?;
         }
-        // Duplicate a project. Unlike a terminal, a duplicate is a pure config +
-        // disk clone with no frontend pane-tree, so run it here directly (like
-        // start/stop) — it works even with no main window open. Mirrors the
-        // desktop modal's core options: a single-copy label, the count of copies
-        // (1–50), and the three git toggles. duplicate_project/_projects emit
-        // `projects-changed` per copy, which the forwarder relays so new copies
-        // show up on the phone's re-request; the reply carries the first name.
+        // Duplicate a project, mirroring the desktop modal. Two paths:
+        //   • No run task → a pure config + disk clone done here directly (like
+        //     start/stop), so it works even with no main window open. Supports
+        //     per-copy labels, count (1–50), the three git toggles, and grouping
+        //     the copies under a sidebar folder.
+        //   • A run task (action/command + prompt) → relayed to the main window's
+        //     bulkDuplicate, because running something in a copy is frontend-owned
+        //     (its mounted ProjectDetail types the command + seeds the AI prompt);
+        //     Rust can't drive a terminal. That path needs the main window open.
+        // Copies emit `projects-changed`, which the forwarder relays so they show
+        // up on the phone's re-request.
         "duplicate" => {
             let name = str_field("name").unwrap_or_default();
-            let label = str_field("label").filter(|l| !l.trim().is_empty());
             let count = v
                 .get("count")
                 .and_then(Value::as_u64)
                 .unwrap_or(1)
                 .clamp(1, 50) as u32;
+            let labels: Vec<String> = v
+                .get("labels")
+                .and_then(Value::as_array)
+                .map(|a| a.iter().map(|x| x.as_str().unwrap_or_default().to_string()).collect())
+                .unwrap_or_default();
             let exclude_uncommitted =
                 v.get("excludeUncommitted").and_then(Value::as_bool).unwrap_or(false);
             let reinstall_deps =
                 v.get("reinstallDeps").and_then(Value::as_bool).unwrap_or(false);
             let pull_latest = v.get("pullLatest").and_then(Value::as_bool).unwrap_or(false);
-            if count <= 1 {
-                let r = crate::projects_crud::duplicate_project(
-                    app.clone(),
-                    name,
-                    label,
-                    exclude_uncommitted,
-                    reinstall_deps,
-                    pull_latest,
-                );
-                match r {
-                    Ok(new_name) => send(ws, json!({ "t": "duplicate", "ok": true, "name": new_name }))?,
-                    Err(e) => send(ws, json!({ "t": "duplicate", "ok": false, "error": e }))?,
+            let group_name = str_field("groupName").unwrap_or_default();
+            let run_mode = str_field("runMode").unwrap_or_default();
+
+            if run_mode == "action" || run_mode == "command" {
+                if app.get_webview_window("main").is_none() {
+                    send(ws, json!({ "t": "duplicate", "ok": false,
+                        "error": "Open the lpm app on your Mac to run actions on copies." }))?;
+                } else {
+                    let prompt = str_field("prompt").filter(|p| !p.trim().is_empty());
+                    let task = if run_mode == "action" {
+                        json!({ "kind": "action", "actionName": str_field("action").unwrap_or_default(), "prompt": prompt })
+                    } else {
+                        json!({ "kind": "command", "command": str_field("command").unwrap_or_default(), "prompt": prompt })
+                    };
+                    let _ = app.emit("remote-bulk-duplicate", json!({
+                        "name": name,
+                        "count": count,
+                        "labels": labels,
+                        "excludeUncommitted": exclude_uncommitted,
+                        "reinstallDeps": reinstall_deps,
+                        "pullLatest": pull_latest,
+                        "groupName": group_name,
+                        "task": task,
+                    }));
+                    send(ws, json!({ "t": "duplicate", "ok": true }))?;
                 }
             } else {
-                // Batch copies are auto-named (the single label field doesn't apply).
-                let r = crate::projects_crud::duplicate_projects(
-                    app.clone(),
-                    name,
-                    count,
-                    exclude_uncommitted,
-                    reinstall_deps,
-                    pull_latest,
-                );
-                match r {
-                    Ok(names) => send(ws, json!({
-                        "t": "duplicate",
-                        "ok": true,
-                        "name": names.first().cloned().unwrap_or_default(),
-                        "names": names,
-                    }))?,
-                    Err(e) => send(ws, json!({ "t": "duplicate", "ok": false, "error": e }))?,
+                // Stop at the first failure, returning the copies made so far —
+                // matches the desktop bulkDuplicate partial-result behavior.
+                let mut created: Vec<String> = Vec::new();
+                let mut err: Option<String> = None;
+                for i in 0..count as usize {
+                    let label = labels.get(i).map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+                    match crate::projects_crud::duplicate_project(
+                        app.clone(),
+                        name.clone(),
+                        label,
+                        exclude_uncommitted,
+                        reinstall_deps,
+                        pull_latest,
+                    ) {
+                        Ok(n) => created.push(n),
+                        Err(e) => { err = Some(e); break; }
+                    }
+                }
+                if created.is_empty() {
+                    send(ws, json!({ "t": "duplicate", "ok": false,
+                        "error": err.unwrap_or_else(|| "Couldn't duplicate the project.".into()) }))?;
+                } else {
+                    if !group_name.trim().is_empty() {
+                        let _ = group_copies_into_folder(&name, group_name.trim(), &created);
+                        let _ = app.emit("projects-changed", ());
+                    }
+                    send(ws, json!({ "t": "duplicate", "ok": true,
+                        "name": created.first().cloned().unwrap_or_default(),
+                        "names": created }))?;
                 }
             }
         }
@@ -1026,6 +1059,116 @@ fn sidebar_json() -> (Value, Value) {
         .and_then(|v| v.get("groups").cloned())
         .unwrap_or_else(|| json!([]));
     (order, groups)
+}
+
+/// Group freshly-created duplicate copies under a sidebar folder, replicating the
+/// desktop's applySidebarLayout: match an existing folder by name (exact, then
+/// case-insensitive) or create one just below the parent, append the copies to its
+/// members, and persist groups.json + settings.json (sidebarOrder/projectOrder).
+fn group_copies_into_folder(parent: &str, group_name: &str, copies: &[String]) -> Result<(), String> {
+    if group_name.is_empty() || copies.is_empty() {
+        return Ok(());
+    }
+    let mut order: Vec<Value> = config::load_settings()
+        .get("sidebarOrder")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut wrap = crate::commands_real::load_groups();
+    let groups = wrap
+        .get_mut("groups")
+        .and_then(Value::as_array_mut)
+        .ok_or("groups.json malformed")?;
+
+    let name_matches = |g: &Value, ci: bool| {
+        g.get("name").and_then(Value::as_str).map(|n| {
+            let n = n.trim();
+            if ci { n.eq_ignore_ascii_case(group_name) } else { n == group_name }
+        }).unwrap_or(false)
+    };
+    let existing = groups
+        .iter()
+        .position(|g| name_matches(g, false))
+        .or_else(|| groups.iter().position(|g| name_matches(g, true)));
+    let group_id = match existing {
+        Some(i) => groups[i].get("id").and_then(Value::as_str).unwrap_or_default().to_string(),
+        None => {
+            let id = uuid::Uuid::new_v4().to_string();
+            groups.push(json!({ "id": id, "name": group_name, "members": [] }));
+            let token = format!("group:{}", id);
+            let at = (top_level_index_of(&order, groups, parent) + 1).min(order.len());
+            order.insert(at, Value::String(token));
+            id
+        }
+    };
+
+    // Detach each copy from wherever it currently sits, then append to the folder.
+    for copy in copies {
+        order.retain(|t| t.as_str() != Some(copy.as_str()));
+        for g in groups.iter_mut() {
+            if let Some(m) = g.get_mut("members").and_then(Value::as_array_mut) {
+                m.retain(|x| x.as_str() != Some(copy.as_str()));
+            }
+        }
+        if let Some(g) = groups
+            .iter_mut()
+            .find(|g| g.get("id").and_then(Value::as_str) == Some(group_id.as_str()))
+        {
+            if let Some(m) = g.get_mut("members").and_then(Value::as_array_mut) {
+                m.push(Value::String(copy.clone()));
+            }
+        }
+    }
+
+    let project_order = flatten_order(&order, groups.as_slice());
+    crate::commands_real::save_groups(wrap.clone())?;
+    config::merge_settings(json!({ "sidebarOrder": order, "projectOrder": project_order }))?;
+    Ok(())
+}
+
+/// The top-level slot of a project: its own loose index, else its folder's token
+/// index, else the end of the order. Mirrors sidebarLayout.ts topLevelIndexOfProject.
+fn top_level_index_of(order: &[Value], groups: &[Value], name: &str) -> usize {
+    if let Some(i) = order.iter().position(|t| t.as_str() == Some(name)) {
+        return i;
+    }
+    if let Some(g) = groups.iter().find(|g| {
+        g.get("members")
+            .and_then(Value::as_array)
+            .map(|m| m.iter().any(|x| x.as_str() == Some(name)))
+            .unwrap_or(false)
+    }) {
+        if let Some(id) = g.get("id").and_then(Value::as_str) {
+            let token = format!("group:{}", id);
+            if let Some(i) = order.iter().position(|t| t.as_str() == Some(token.as_str())) {
+                return i;
+            }
+        }
+    }
+    order.len()
+}
+
+/// Flatten the token order into a flat project name list, expanding each
+/// "group:<id>" token into its members. Mirrors sidebarLayout.ts flattenForProjectOrder.
+fn flatten_order(order: &[Value], groups: &[Value]) -> Vec<String> {
+    let mut out = Vec::new();
+    for token in order {
+        let Some(s) = token.as_str() else { continue };
+        if let Some(id) = s.strip_prefix("group:") {
+            if let Some(g) = groups.iter().find(|g| g.get("id").and_then(Value::as_str) == Some(id)) {
+                if let Some(members) = g.get("members").and_then(Value::as_array) {
+                    for m in members {
+                        if let Some(ms) = m.as_str() {
+                            out.push(ms.to_string());
+                        }
+                    }
+                }
+            }
+        } else {
+            out.push(s.to_string());
+        }
+    }
+    out
 }
 
 fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {

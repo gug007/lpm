@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { toast } from "sonner";
 import { EventsOn } from "../../bridge/runtime";
 import { useAppStore } from "../store/app";
+import type { SpawnTask } from "../types";
 
 // Events safe to handle in every window — they don't reach into
 // main-window-only state (selection, settings view, modals).
@@ -42,6 +43,35 @@ export function useAppEvents(): void {
       "remote-run-action",
       (payload: { project: string; action?: string | null }) => {
         if (payload?.project) triggerRemoteAction(payload.project, payload.action ?? null);
+      },
+    );
+    // The mobile app duplicates a project AND wants to run something in each copy.
+    // Running a task is frontend-owned (the copy's mounted ProjectDetail types the
+    // command + seeds the AI prompt), so the phone relays here and we reuse the
+    // exact bulkDuplicate path the desktop modal uses.
+    const cancelRemoteBulkDup = EventsOn(
+      "remote-bulk-duplicate",
+      (payload: {
+        name: string;
+        count?: number;
+        labels?: string[];
+        excludeUncommitted?: boolean;
+        reinstallDeps?: boolean;
+        pullLatest?: boolean;
+        groupName?: string;
+        task?: SpawnTask | null;
+      }) => {
+        if (!payload?.name) return;
+        const count = Math.max(1, Math.min(50, payload.count ?? 1));
+        const tasks = payload.task ? [payload.task] : [];
+        void useAppStore.getState().bulkDuplicate(payload.name, count, {
+          excludeUncommitted: !!payload.excludeUncommitted,
+          reinstallDeps: !!payload.reinstallDeps,
+          pullLatest: payload.pullLatest ?? true,
+          labels: payload.labels ?? [],
+          tasksPerCopy: Array.from({ length: count }, () => tasks),
+          groupName: payload.groupName ?? "",
+        });
       },
     );
     // The mobile app asks to close / rename / pin / reorder a terminal tab; the
@@ -93,6 +123,7 @@ export function useAppEvents(): void {
     return () => {
       if (typeof cancelDock === "function") cancelDock();
       if (typeof cancelRemoteAction === "function") cancelRemoteAction();
+      if (typeof cancelRemoteBulkDup === "function") cancelRemoteBulkDup();
       if (typeof cancelRemoteTermOp === "function") cancelRemoteTermOp();
       if (typeof cancelNavView === "function") cancelNavView();
       if (typeof cancelNewProject === "function") cancelNewProject();
