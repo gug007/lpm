@@ -856,17 +856,14 @@ fn handle_msg(
             );
             send(ws, result_reply("toggleService", r))?;
         }
-        // Duplicate a project, mirroring the desktop modal. Two paths:
-        //   • No run task → a pure config + disk clone done here directly (like
-        //     start/stop), so it works even with no main window open. Supports
-        //     per-copy labels, count (1–50), the three git toggles, and grouping
-        //     the copies under a sidebar folder.
-        //   • A run task (action/command + prompt) → relayed to the main window's
-        //     bulkDuplicate, because running something in a copy is frontend-owned
-        //     (its mounted ProjectDetail types the command + seeds the AI prompt);
-        //     Rust can't drive a terminal. That path needs the main window open.
-        // Copies emit `projects-changed`, which the forwarder relays so they show
-        // up on the phone's re-request.
+        // Duplicate a project, mirroring the desktop modal. Rust creates the copies
+        // one at a time (a pure config + disk clone, like start/stop — works with no
+        // main window open), streaming a `duplicateProgress` frame per copy so the
+        // phone can show progress, then optionally groups them under a sidebar
+        // folder. A run task (action/command + prompt) is frontend-owned — Rust
+        // can't drive a terminal — so each copy's task is relayed to the main
+        // window's spawnTasks via `remote-run-task`; that part needs the window
+        // open (else the reply carries a `warning`, the copies still exist).
         "duplicate" => {
             let name = str_field("name").unwrap_or_default();
             let count = v
@@ -887,60 +884,65 @@ fn handle_msg(
             let group_name = str_field("groupName").unwrap_or_default();
             let run_mode = str_field("runMode").unwrap_or_default();
 
-            if run_mode == "action" || run_mode == "command" {
-                if app.get_webview_window("main").is_none() {
-                    send(ws, json!({ "t": "duplicate", "ok": false,
-                        "error": "Open the lpm app on your Mac to run actions on copies." }))?;
-                } else {
-                    let prompt = str_field("prompt").filter(|p| !p.trim().is_empty());
-                    let task = if run_mode == "action" {
-                        json!({ "kind": "action", "actionName": str_field("action").unwrap_or_default(), "prompt": prompt })
-                    } else {
-                        json!({ "kind": "command", "command": str_field("command").unwrap_or_default(), "prompt": prompt })
-                    };
-                    let _ = app.emit("remote-bulk-duplicate", json!({
-                        "name": name,
-                        "count": count,
-                        "labels": labels,
-                        "excludeUncommitted": exclude_uncommitted,
-                        "reinstallDeps": reinstall_deps,
-                        "pullLatest": pull_latest,
-                        "groupName": group_name,
-                        "task": task,
-                    }));
-                    send(ws, json!({ "t": "duplicate", "ok": true }))?;
+            // Create copies one at a time, streaming progress; stop at the first
+            // failure and return the copies made so far (matches desktop behavior).
+            let mut created: Vec<String> = Vec::new();
+            let mut err: Option<String> = None;
+            for i in 0..count as usize {
+                let label = labels.get(i).map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+                match crate::projects_crud::duplicate_project(
+                    app.clone(),
+                    name.clone(),
+                    label,
+                    exclude_uncommitted,
+                    reinstall_deps,
+                    pull_latest,
+                ) {
+                    Ok(n) => {
+                        created.push(n.clone());
+                        send(ws, json!({ "t": "duplicateProgress",
+                            "done": created.len(), "total": count, "name": n }))?;
+                    }
+                    Err(e) => { err = Some(e); break; }
                 }
+            }
+
+            if created.is_empty() {
+                send(ws, json!({ "t": "duplicate", "ok": false,
+                    "error": err.unwrap_or_else(|| "Couldn't duplicate the project.".into()) }))?;
             } else {
-                // Stop at the first failure, returning the copies made so far —
-                // matches the desktop bulkDuplicate partial-result behavior.
-                let mut created: Vec<String> = Vec::new();
-                let mut err: Option<String> = None;
-                for i in 0..count as usize {
-                    let label = labels.get(i).map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
-                    match crate::projects_crud::duplicate_project(
-                        app.clone(),
-                        name.clone(),
-                        label,
-                        exclude_uncommitted,
-                        reinstall_deps,
-                        pull_latest,
-                    ) {
-                        Ok(n) => created.push(n),
-                        Err(e) => { err = Some(e); break; }
+                if !group_name.trim().is_empty() {
+                    let _ = group_copies_into_folder(&name, group_name.trim(), &created);
+                    let _ = app.emit("projects-changed", ());
+                }
+                let mut warning: Option<String> = None;
+                if run_mode == "action" || run_mode == "command" {
+                    if app.get_webview_window("main").is_some() {
+                        let prompt = str_field("prompt").filter(|p| !p.trim().is_empty());
+                        let task = if run_mode == "action" {
+                            json!({ "kind": "action", "actionName": str_field("action").unwrap_or_default(), "prompt": prompt })
+                        } else {
+                            json!({ "kind": "command", "command": str_field("command").unwrap_or_default(), "prompt": prompt })
+                        };
+                        for copy in &created {
+                            let _ = app.emit("remote-run-task", json!({ "project": copy, "task": task }));
+                        }
+                    } else {
+                        warning = Some(
+                            "Copies created, but open the lpm app on your Mac to run the task on them.".to_string(),
+                        );
                     }
                 }
-                if created.is_empty() {
-                    send(ws, json!({ "t": "duplicate", "ok": false,
-                        "error": err.unwrap_or_else(|| "Couldn't duplicate the project.".into()) }))?;
-                } else {
-                    if !group_name.trim().is_empty() {
-                        let _ = group_copies_into_folder(&name, group_name.trim(), &created);
-                        let _ = app.emit("projects-changed", ());
-                    }
-                    send(ws, json!({ "t": "duplicate", "ok": true,
-                        "name": created.first().cloned().unwrap_or_default(),
-                        "names": created }))?;
+                if let Some(e) = err {
+                    warning = Some(format!("Stopped after {} — {}", created.len(), e));
                 }
+                let mut reply = json!({ "t": "duplicate", "ok": true,
+                    "name": created.first().cloned().unwrap_or_default(),
+                    "names": created });
+                if let Some(w) = warning {
+                    reply["warning"] = json!(w);
+                }
+                send(ws, reply)?;
             }
         }
         // The desktop duplicate modal seeds its toggles from persisted settings;

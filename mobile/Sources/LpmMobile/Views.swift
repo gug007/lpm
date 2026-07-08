@@ -325,6 +325,51 @@ struct ProjectsView: View {
                 model.duplicateProject(p, options: options)
             }
         }
+        .alert(
+            "Heads up",
+            isPresented: Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } })
+        ) {
+            Button("OK", role: .cancel) { model.notice = nil }
+        } message: {
+            Text(model.notice ?? "")
+        }
+        .safeAreaInset(edge: .bottom) {
+            if let progress = model.duplicateProgress {
+                DuplicateProgressBar(progress: progress)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.default, value: model.duplicateProgress == nil)
+    }
+}
+
+/// A bottom HUD shown while a duplicate batch runs, streaming per-copy progress.
+private struct DuplicateProgressBar: View {
+    let progress: DuplicateProgress
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ProgressView().controlSize(.small)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Duplicating \(progress.source)")
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+                Text(progress.total > 0 ? "\(progress.done) of \(progress.total)" : "Working…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            Spacer()
+            if progress.total > 1 {
+                ProgressView(value: Double(progress.done), total: Double(progress.total))
+                    .frame(width: 64)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal)
+        .padding(.bottom, 6)
     }
 }
 

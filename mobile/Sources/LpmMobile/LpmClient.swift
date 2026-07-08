@@ -31,6 +31,8 @@ final class LpmClient: NSObject {
     var onHistory: ((_ project: String, _ rows: [HistoryRow]) -> Void)?
     var onStatus: ((_ project: String, _ entries: [StatusEntry]) -> Void)?
     var onDuplicateDefaults: ((_ excludeUncommitted: Bool, _ reinstallDeps: Bool, _ pullLatest: Bool) -> Void)?
+    var onDuplicateProgress: ((_ done: Int, _ total: Int, _ name: String) -> Void)?
+    var onDuplicateDone: ((_ error: String?, _ warning: String?) -> Void)?
     var onProjectsChanged: (() -> Void)?
     var onStatusChanged: ((_ project: String) -> Void)?
     // A duplicate/remove failed — the message to surface. Success is silent (the
@@ -339,8 +341,10 @@ final class LpmClient: NSObject {
             // alone (it can race the multi-second clone that blocks this socket).
             case .duplicateDefaults(let excl, let reinstall, let pull):
                 self.onDuplicateDefaults?(excl, reinstall, pull)
-            case .duplicate(_, let error):
-                if let error { self.onActionError?(error) } else { self.onProjectsChanged?() }
+            case .duplicateProgress(let done, let total, let name):
+                self.onDuplicateProgress?(done, total, name)
+            case .duplicate(_, let error, let warning):
+                self.onDuplicateDone?(error, warning)
             case .remove(let error):
                 if let error { self.onActionError?(error) } else { self.onProjectsChanged?() }
             case .projectsChanged: self.onProjectsChanged?()

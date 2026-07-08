@@ -130,7 +130,11 @@ enum Wire {
         // A duplicate/remove reply. `error` is nil on success; `name` is the new
         // duplicate's name (duplicate only). The projects list refreshes off the
         // `projects-changed` push, so these carry only the failure to surface.
-        case duplicate(name: String, error: String?)
+        // A per-copy progress tick while a duplicate batch runs.
+        case duplicateProgress(done: Int, total: Int, name: String)
+        // The final duplicate result. `error` is nil on success; `warning` is a
+        // non-fatal note (e.g. copies made but the run task needs the Mac app open).
+        case duplicate(name: String, error: String?, warning: String?)
         // The desktop's persisted duplicate-modal toggle defaults.
         case duplicateDefaults(excludeUncommitted: Bool, reinstallDeps: Bool, pullLatest: Bool)
         case remove(error: String?)
@@ -190,10 +194,15 @@ enum Wire {
                 return .output(id: obj["id"] as? String ?? "", data: obj["d"] as? String ?? "")
             case "exit":
                 return .exit(id: obj["id"] as? String ?? "", code: obj["code"] as? Int ?? 0)
+            case "duplicateProgress":
+                return .duplicateProgress(done: obj["done"] as? Int ?? 0,
+                                          total: obj["total"] as? Int ?? 0,
+                                          name: obj["name"] as? String ?? "")
             case "duplicate":
                 let ok = obj["ok"] as? Bool ?? false
                 return .duplicate(name: obj["name"] as? String ?? "",
-                                  error: ok ? nil : (obj["error"] as? String ?? "Couldn't duplicate the project."))
+                                  error: ok ? nil : (obj["error"] as? String ?? "Couldn't duplicate the project."),
+                                  warning: obj["warning"] as? String)
             case "duplicateDefaults":
                 return .duplicateDefaults(
                     excludeUncommitted: obj["excludeUncommitted"] as? Bool ?? false,

@@ -222,6 +222,7 @@ interface AppState {
     },
   ) => Promise<void>;
   consumeSpawnTasks: (name: string) => void;
+  queueSpawnTask: (name: string, task: SpawnTask) => void;
   removeProject: (name: string) => Promise<void>;
   removeProjectCascade: (name: string) => Promise<void>;
   removeProjectFromDisk: (name: string) => Promise<void>;
@@ -1013,6 +1014,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       delete next[name];
       return { spawnTasks: next };
     }),
+
+  // Queue a task to run in a project and mount it so the auto-run effect fires —
+  // the seam the mobile app uses to run a task in a freshly-created duplicate.
+  queueSpawnTask: (name, task) => {
+    set((s) => ({ spawnTasks: { ...s.spawnTasks, [name]: [task] } }));
+    get().markVisited(name);
+  },
 
   removeProject: (name) =>
     runProjectRemoval(set, get, name, [name], () => RemoveProject(name)),

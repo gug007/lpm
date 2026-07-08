@@ -32,6 +32,11 @@ final class AppModel: ObservableObject {
     // The duplicate modal's initial toggle state, mirrored from the desktop's
     // persisted settings so the phone's modal opens with matching defaults.
     @Published var duplicateDefaults = DuplicateOptions()
+    // Live progress of an in-flight duplicate batch (nil when idle).
+    @Published var duplicateProgress: DuplicateProgress?
+    // A non-fatal notice to show once (e.g. copies made but a run task needs the
+    // Mac app open). Distinct from actionError, which is a hard failure.
+    @Published var notice: String?
 
     // Terminal streams go straight to whichever TerminalScreen is subscribed; the
     // emulator (SwiftTerm) holds the buffer, not this model. Seed and live output
@@ -270,6 +275,7 @@ final class AppModel: ObservableObject {
     /// new copy streams in via the projects-changed push; a failure surfaces in
     /// actionError.
     func duplicateProject(_ p: Project, options: DuplicateOptions) {
+        duplicateProgress = DuplicateProgress(source: p.label, done: 0, total: options.count)
         client?.duplicateProject(p.name, options: options)
     }
     /// Remove a project — offered only for duplicates, whose folder is deleted from
@@ -467,6 +473,25 @@ final class AppModel: ObservableObject {
             self.duplicateDefaults.excludeUncommitted = excl
             self.duplicateDefaults.reinstallDeps = reinstall
             self.duplicateDefaults.pullLatest = pull
+        }
+        c.onDuplicateProgress = { [weak self] done, total, name in
+            guard let self else { return }
+            if var p = self.duplicateProgress {
+                p.done = done
+                p.total = total
+                self.duplicateProgress = p
+            } else {
+                self.duplicateProgress = DuplicateProgress(source: name, done: done, total: total)
+            }
+        }
+        c.onDuplicateDone = { [weak self] error, warning in
+            guard let self else { return }
+            self.duplicateProgress = nil
+            if let error {
+                self.actionError = error
+            } else if let warning {
+                self.notice = warning
+            }
         }
         c.onStatus = { [weak self] proj, entries in
             guard let self else { return }

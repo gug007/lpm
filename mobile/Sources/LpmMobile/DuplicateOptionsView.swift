@@ -5,6 +5,13 @@ enum RunMode: String, CaseIterable {
     case none, action, command
 }
 
+/// Live progress of a running duplicate batch, shown as a HUD on the projects list.
+struct DuplicateProgress {
+    let source: String
+    var done: Int
+    var total: Int
+}
+
 /// The duplicate options, mirroring the desktop "Duplicate project" modal: how
 /// many copies (1–50), a per-copy display label, an optional sidebar folder to
 /// group them under, the three git toggles, and an optional task to run in each
