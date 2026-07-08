@@ -167,21 +167,45 @@
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     return new TextDecoder('utf-8').decode(bytes);
   }
-  window.lpmFeed = b64 => term.write(b64ToStr(b64));
-  window.lpmSeed = b64 => { term.reset(); term.write(b64ToStr(b64)); refit(); };
+  // Time of the last server write, so submit can wait for the terminal to settle
+  // after a paste before sending the submitting CR (see lpmSubmit).
+  let lastOutputAt = 0;
+  window.lpmFeed = b64 => { lastOutputAt = performance.now(); term.write(b64ToStr(b64)); };
+  window.lpmSeed = b64 => { lastOutputAt = performance.now(); term.reset(); term.write(b64ToStr(b64)); refit(); };
   window.lpmSetTopInset = px => document.documentElement.style.setProperty('--top-inset', px + 'px');
 
   // Submit a composed message the way the desktop composer does (InteractivePane
-  // submitInput, string case): wrap the body in bracketed-paste markers when the
-  // running program enabled them — so newlines are pasted content, not executed —
-  // neutralize ESC so the body can't break out of the paste, then a trailing CR
-  // submits.
-  window.lpmSubmit = b64 => {
+  // submitInput): wrap the body in bracketed-paste markers when the running program
+  // enabled them — so newlines are pasted content, not executed — and neutralize ESC
+  // so the body can't break out of the paste.
+  //
+  // The submitting CR is then sent SEPARATELY, gated on the terminal settling: a CR
+  // glued onto the paste-end marker arrives while Claude Code is still doing its async
+  // "[Pasted text]" redraw and gets swallowed, so the first send would only paste and
+  // never submit. Wait for output to go quiet (capped by a ceiling) before the CR.
+  const PASTE_QUIET_MS = 100, PASTE_CEILING_MS = 1500, QUIET_POLL_MS = 20;
+  let delivering = false;
+  window.lpmSubmit = async b64 => {
+    if (delivering) return;
     const body = b64ToStr(b64).replace(/\r?\n/g, '\r');
-    const wrapped = term.modes.bracketedPasteMode
-      ? '\x1b[200~' + body.replace(/\x1b/g, '␛') + '\x1b[201~'
-      : body;
-    post('input', wrapped + '\r');
+    if (!term.modes.bracketedPasteMode) { post('input', body + '\r'); return; }
+    delivering = true;
+    try {
+      post('input', '\x1b[200~' + body.replace(/\x1b/g, '␛') + '\x1b[201~');
+      const sentAt = performance.now();
+      await new Promise(resolve => {
+        const check = () => {
+          const now = performance.now();
+          const settled = lastOutputAt >= sentAt && now - lastOutputAt >= PASTE_QUIET_MS;
+          if (settled || now - sentAt >= PASTE_CEILING_MS) resolve();
+          else setTimeout(check, QUIET_POLL_MS);
+        };
+        setTimeout(check, QUIET_POLL_MS);
+      });
+      post('input', '\r');
+    } finally {
+      delivering = false;
+    }
   };
 
   new ResizeObserver(() => refit()).observe(document.getElementById('term'));
