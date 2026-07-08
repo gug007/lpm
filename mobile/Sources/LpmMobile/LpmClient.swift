@@ -32,6 +32,9 @@ final class LpmClient: NSObject {
     var onStatus: ((_ project: String, _ entries: [StatusEntry]) -> Void)?
     var onProjectsChanged: (() -> Void)?
     var onStatusChanged: ((_ project: String) -> Void)?
+    // A duplicate/remove failed — the message to surface. Success is silent (the
+    // `projects-changed` push refreshes the list on its own).
+    var onActionError: ((_ message: String) -> Void)?
 
     private var endpoint: Endpoint
     private var credential: Credential?
@@ -247,6 +250,10 @@ final class LpmClient: NSObject {
     func reorderTerminals(project: String, order: [String]) {
         send(Wire.reorderTerminals(project: project, order: order))
     }
+    func duplicateProject(_ name: String, options: DuplicateOptions) {
+        send(Wire.duplicate(name: name, options: options))
+    }
+    func removeProject(_ name: String) { send(Wire.remove(name: name)) }
     func startProject(_ name: String, profile: String = "") { send(Wire.start(name: name, profile: profile)) }
     func stopProject(_ name: String) { send(Wire.stop(name: name)) }
     func toggleService(_ name: String, service: String) { send(Wire.toggleService(name: name, service: service)) }
@@ -324,6 +331,14 @@ final class LpmClient: NSObject {
             case .control(let id, let owner): self.onControl?(id, owner)
             case .output(let id, let d): self.onOutput?(id, d)
             case .exit(let id, let code): self.onExit?(id, code)
+            // A duplicate/remove reply lands only after the desktop finished the
+            // folder clone/delete and rewrote its config, so a re-request is
+            // guaranteed to reflect it — don't rely on the projects-changed push
+            // alone (it can race the multi-second clone that blocks this socket).
+            case .duplicate(_, let error):
+                if let error { self.onActionError?(error) } else { self.onProjectsChanged?() }
+            case .remove(let error):
+                if let error { self.onActionError?(error) } else { self.onProjectsChanged?() }
             case .projectsChanged: self.onProjectsChanged?()
             case .statusChanged(let proj): self.onStatusChanged?(proj)
             case .pong, .unknown: break

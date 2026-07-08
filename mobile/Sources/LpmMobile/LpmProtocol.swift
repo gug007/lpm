@@ -62,6 +62,20 @@ enum Wire {
     static func reorderTerminals(project: String, order: [String]) -> String {
         json(["t": "reorderTerminals", "project": project, "order": order])
     }
+    static func duplicate(name: String, options: DuplicateOptions) -> String {
+        var obj: [String: Any] = [
+            "t": "duplicate",
+            "name": name,
+            "count": options.count,
+            "excludeUncommitted": options.excludeUncommitted,
+            "reinstallDeps": options.reinstallDeps,
+            "pullLatest": options.pullLatest,
+        ]
+        let label = options.label.trimmingCharacters(in: .whitespacesAndNewlines)
+        if options.count == 1, !label.isEmpty { obj["label"] = label }
+        return json(obj)
+    }
+    static func remove(name: String) -> String { json(["t": "remove", "name": name]) }
     static func start(name: String, profile: String = "") -> String {
         json(["t": "start", "name": name, "profile": profile])
     }
@@ -101,6 +115,11 @@ enum Wire {
         case control(id: String, owner: ControlOwner?)
         case output(id: String, data: String)
         case exit(id: String, code: Int)
+        // A duplicate/remove reply. `error` is nil on success; `name` is the new
+        // duplicate's name (duplicate only). The projects list refreshes off the
+        // `projects-changed` push, so these carry only the failure to surface.
+        case duplicate(name: String, error: String?)
+        case remove(error: String?)
         case projectsChanged
         case statusChanged(project: String)
         case pong
@@ -157,6 +176,13 @@ enum Wire {
                 return .output(id: obj["id"] as? String ?? "", data: obj["d"] as? String ?? "")
             case "exit":
                 return .exit(id: obj["id"] as? String ?? "", code: obj["code"] as? Int ?? 0)
+            case "duplicate":
+                let ok = obj["ok"] as? Bool ?? false
+                return .duplicate(name: obj["name"] as? String ?? "",
+                                  error: ok ? nil : (obj["error"] as? String ?? "Couldn't duplicate the project."))
+            case "remove":
+                let ok = obj["ok"] as? Bool ?? false
+                return .remove(error: ok ? nil : (obj["error"] as? String ?? "Couldn't remove the project."))
             case "projects-changed": return .projectsChanged
             case "status-changed": return .statusChanged(project: obj["project"] as? String ?? "")
             case "pong": return .pong
@@ -189,6 +215,9 @@ struct Project: Identifiable {
     let label: String
     let running: Bool
     let isRemote: Bool
+    // The project this is a duplicate of; empty for originals. Drives whether the
+    // phone offers "Remove" (only duplicates, whose folders are deleted on remove).
+    let parentName: String
     let statusEntries: [StatusEntry]
     let services: [Service]      // currently running
     let allServices: [Service]   // every configured service
@@ -197,12 +226,14 @@ struct Project: Identifiable {
     let actions: [Action]
 
     var id: String { name }
+    var isDuplicate: Bool { !parentName.isEmpty }
 
     init(_ o: [String: Any]) {
         name = o["name"] as? String ?? ""
         label = Wire.label(o, fallback: "name")
         running = o["running"] as? Bool ?? false
         isRemote = o["isRemote"] as? Bool ?? false
+        parentName = o["parentName"] as? String ?? ""
         statusEntries = (o["statusEntries"] as? [[String: Any]] ?? []).map(StatusEntry.init)
         services = (o["services"] as? [[String: Any]] ?? []).map(Service.init)
         allServices = (o["allServices"] as? [[String: Any]] ?? []).map(Service.init)
@@ -211,10 +242,11 @@ struct Project: Identifiable {
         actions = (o["actions"] as? [[String: Any]] ?? []).map(Action.init)
     }
 
-    private init(name: String, label: String, running: Bool, isRemote: Bool,
+    private init(name: String, label: String, running: Bool, isRemote: Bool, parentName: String,
                  statusEntries: [StatusEntry], services: [Service], allServices: [Service],
                  profiles: [Profile], activeProfile: String, actions: [Action]) {
         self.name = name; self.label = label; self.running = running; self.isRemote = isRemote
+        self.parentName = parentName
         self.statusEntries = statusEntries; self.services = services; self.allServices = allServices
         self.profiles = profiles; self.activeProfile = activeProfile; self.actions = actions
     }
@@ -222,7 +254,7 @@ struct Project: Identifiable {
     /// A copy with fresh status — used by the status-changed push, which must not
     /// erase the project's services/actions (a partial dict rebuild would).
     func withStatus(_ entries: [StatusEntry]) -> Project {
-        Project(name: name, label: label, running: running, isRemote: isRemote,
+        Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
                 statusEntries: entries, services: services, allServices: allServices,
                 profiles: profiles, activeProfile: activeProfile, actions: actions)
     }

@@ -222,6 +222,12 @@ struct ProjectsView: View {
     @EnvironmentObject var model: AppModel
     @State private var expandedOverride: [String: Bool] = [:]
     @State private var confirmingLogout = false
+    // The duplicate pending removal-confirmation. Removing deletes its folder from
+    // disk, so it always routes through a confirmation dialog.
+    @State private var removing: Project?
+    // The project whose duplicate-options sheet is open. Duplicating opens the
+    // options sheet (count, label, git toggles) rather than firing immediately.
+    @State private var duplicating: Project?
 
     private func isExpanded(_ g: ProjectFolder) -> Bool { expandedOverride[g.id] ?? !g.collapsed }
 
@@ -229,22 +235,25 @@ struct ProjectsView: View {
         List {
             ForEach(model.sidebarItems) { item in
                 switch item {
-                case .project(let p):
-                    NavigationLink(value: p.name) { ProjectRow(project: p) }
+                case .project(let row):
+                    NavigationLink(value: row.project.name) { ProjectRow(project: row.project) }
+                        .projectRowActions(row.project, removing: $removing, duplicating: $duplicating)
                 case .folder(let g, let members):
-                    FolderHeader(name: g.name, count: members.count, expanded: isExpanded(g)) {
+                    FolderHeader(name: g.name, count: members.filter { !$0.isChild }.count, expanded: isExpanded(g)) {
                         expandedOverride[g.id] = !isExpanded(g)
                     }
                     if isExpanded(g) {
-                        ForEach(members) { p in
-                            NavigationLink(value: p.name) {
-                                ProjectRow(project: p).padding(.leading, 20)
+                        ForEach(members) { row in
+                            NavigationLink(value: row.project.name) {
+                                ProjectRow(project: row.project).padding(.leading, 20)
                             }
+                            .projectRowActions(row.project, removing: $removing, duplicating: $duplicating)
                         }
                     }
                 }
             }
         }
+        .refreshable { await model.refreshProjects() }
         .navigationTitle("Projects")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -292,6 +301,80 @@ struct ProjectsView: View {
         } message: {
             Text("This device will be unpaired. You'll need to scan a new QR code to reconnect.")
         }
+        .confirmationDialog(
+            "Remove duplicate?",
+            isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
+            titleVisibility: .visible,
+            presenting: removing
+        ) { p in
+            Button("Remove", role: .destructive) { model.removeProject(p); removing = nil }
+            Button("Cancel", role: .cancel) { removing = nil }
+        } message: { p in
+            Text("This deletes “\(p.label)” and its folder from disk. This can't be undone.")
+        }
+        .alert(
+            "Couldn't complete that",
+            isPresented: Binding(get: { model.actionError != nil }, set: { if !$0 { model.actionError = nil } })
+        ) {
+            Button("OK", role: .cancel) { model.actionError = nil }
+        } message: {
+            Text(model.actionError ?? "")
+        }
+        .sheet(item: $duplicating) { p in
+            DuplicateOptionsView(project: p) { options in
+                model.duplicateProject(p, options: options)
+            }
+        }
+    }
+}
+
+/// The project-list row actions, matching the desktop context menu but scoped to
+/// what's safe from a phone: Duplicate for any local project, and Remove for a
+/// duplicate (which deletes its folder). Offered as both a swipe and a long-press
+/// context menu; Remove always routes through a confirmation via `removing`.
+private struct ProjectRowActions: ViewModifier {
+    @EnvironmentObject var model: AppModel
+    let project: Project
+    @Binding var removing: Project?
+    @Binding var duplicating: Project?
+
+    func body(content: Content) -> some View {
+        content
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                if project.isDuplicate {
+                    Button(role: .destructive) { removing = project } label: {
+                        Label("Remove", systemImage: "trash")
+                    }
+                }
+                if !project.isRemote {
+                    Button { duplicating = project } label: {
+                        Label("Duplicate", systemImage: "plus.square.on.square")
+                    }
+                    .tint(.indigo)
+                }
+            }
+            .contextMenu {
+                if !project.isRemote {
+                    Button { duplicating = project } label: {
+                        Label("Duplicate", systemImage: "plus.square.on.square")
+                    }
+                }
+                if project.isDuplicate {
+                    Button(role: .destructive) { removing = project } label: {
+                        Label("Remove duplicate", systemImage: "trash")
+                    }
+                }
+            }
+    }
+}
+
+private extension View {
+    func projectRowActions(
+        _ project: Project,
+        removing: Binding<Project?>,
+        duplicating: Binding<Project?>
+    ) -> some View {
+        modifier(ProjectRowActions(project: project, removing: removing, duplicating: duplicating))
     }
 }
 
@@ -340,7 +423,6 @@ struct FolderHeader: View {
             HStack(spacing: 8) {
                 Image(systemName: expanded ? "chevron.down" : "chevron.right")
                     .font(.caption2).foregroundStyle(.secondary)
-                Image(systemName: "folder").foregroundStyle(.secondary)
                 Text(name).fontWeight(.medium)
                 Spacer()
                 Text("\(count)").font(.caption).foregroundStyle(.secondary)

@@ -64,6 +64,8 @@ any live connection.
 | `{ "t": "closeTerminal", "project": "<name>", "id": "<termId>" }` | `{ "t": "closeTerminal", "ok": true }` — owner-window relay; kills the terminal and removes its tab. Re-request `terminals` to refresh |
 | `{ "t": "renameTerminal", "project": "<name>", "id": "<termId>", "label": "<new>" }` | `{ "t": "renameTerminal", "ok": true }` — relay; renames the desktop tab (a `terminals.json` write, no PTY op) |
 | `{ "t": "pinTerminal", "project": "<name>", "id": "<termId>" }` | `{ "t": "pinTerminal", "ok": true }` — relay; toggles the tab's pinned flag |
+| `{ "t": "duplicate", "name": "<name>", "count": N, "label": "<label>", "excludeUncommitted": bool, "reinstallDeps": bool, "pullLatest": bool }` | `{ "t": "duplicate", "ok": true, "name": "<new name>", "names": ["<new name>"…] }` / `{ "ok": false, "error": "…" }` — clones the project's folder + config, mirroring the desktop modal's core options. `count` (1–50, default 1) makes a batch; `label` is the display label for a single copy (ignored when `count > 1`, which auto-names each); the three git toggles map to the backend (`excludeUncommitted`/`reinstallDeps`/`pullLatest`, all default false). Runs directly on the desktop (no main window needed); each new copy reaches the phone via the `projects-changed` push. `name` is the first copy's name; `names` lists all created |
+| `{ "t": "remove", "name": "<name>" }` | `{ "t": "remove", "ok": true }` / `{ "ok": false, "error": "…" }` — tears down the project and, for a duplicate, deletes its folder from disk. Refuses an original that still has duplicates referencing it. The phone only offers this for duplicates |
 | `{ "t": "start", "name": "<name>", "profile": "" }` | `{ "t": "start", "ok": true }` / `{ "ok": false, "error": "…" }` |
 | `{ "t": "stop", "name": "<name>" }` | `{ "t": "stop", "ok": … }` |
 | `{ "t": "toggleService", "name": "<name>", "service": "<svc>" }` | `{ "t": "toggleService", "ok": … }` |
@@ -92,6 +94,7 @@ profiles: [ { name, services } ]
 activeProfile: string
 statusEntries: [StatusEntry]
 isRemote: bool
+parentName: string        // the project this is a duplicate of; empty for originals — the phone offers Remove only when set
 actions: [ActionInfo]     // recursive: { name (composite parent:child), label, emoji, cmd, type, display, children[] … }
 ```
 

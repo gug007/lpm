@@ -26,6 +26,9 @@ final class AppModel: ObservableObject {
     // it). A terminal is rendered live in exactly one surface; when the desktop
     // (or another phone) owns it, this phone shows a "take control" placeholder.
     @Published var controlOwner: [String: ControlOwner] = [:]
+    // A failed duplicate/remove message to show once (e.g. "cannot duplicate an
+    // SSH project"). The list itself refreshes off the projects-changed push.
+    @Published var actionError: String?
 
     // Terminal streams go straight to whichever TerminalScreen is subscribed; the
     // emulator (SwiftTerm) holds the buffer, not this model. Seed and live output
@@ -206,6 +209,7 @@ final class AppModel: ObservableObject {
         sidebarOrder = []
         groups = []
         controlOwner = [:]
+        actionError = nil
         paired = false
     }
 
@@ -259,8 +263,30 @@ final class AppModel: ObservableObject {
 
     func startProject(_ p: Project, profile: String = "") { client?.startProject(p.name, profile: profile) }
     func stopProject(_ p: Project) { client?.stopProject(p.name) }
+    /// Clone a project (folder + config) with the chosen duplicate options. Each
+    /// new copy streams in via the projects-changed push; a failure surfaces in
+    /// actionError.
+    func duplicateProject(_ p: Project, options: DuplicateOptions) {
+        client?.duplicateProject(p.name, options: options)
+    }
+    /// Remove a project — offered only for duplicates, whose folder is deleted from
+    /// disk. The list refreshes off the projects-changed push.
+    func removeProject(_ p: Project) { client?.removeProject(p.name) }
     func toggleService(_ project: String, service: String) { client?.toggleService(project, service: service) }
     func loadTerminals(_ project: String) { client?.requestTerminals(project: project) }
+
+    /// Pull-to-refresh on the projects list: re-request projects + sidebar when
+    /// live, or kick a reconnect when the link is down. The brief wait lets the
+    /// round-trip land so the refresh control reflects a real update.
+    func refreshProjects() async {
+        if case .ready = connection {
+            client?.requestProjects()
+            client?.requestSidebar()
+        } else {
+            reconnectIfNeeded()
+        }
+        try? await Task.sleep(nanoseconds: 500_000_000)
+    }
 
     func runAction(_ project: String, action: String) {
         client?.runAction(project: project, action: action)
@@ -311,32 +337,66 @@ final class AppModel: ObservableObject {
         client?.recordHistory(project: project, id: id, label: label, text: text)
     }
 
-    /// The projects list arranged like the desktop sidebar: folders (with their
-    /// members) and top-level projects, in `sidebarOrder`. Falls back to a flat
-    /// list before the layout has loaded, and appends any project the order
-    /// doesn't mention so nothing silently disappears.
+    /// The projects list arranged exactly like the desktop sidebar (a port of
+    /// Sidebar.tsx's tree build): walk `sidebarOrder`, emitting each folder with
+    /// its members and each loose (non-duplicate, non-member) project, with every
+    /// duplicate nested immediately after its parent. Folders/loose projects
+    /// missing from the order are appended so nothing vanishes. A duplicate whose
+    /// parent is gone counts as top-level (mirrors the desktop's `isDuplicate`).
     var sidebarItems: [SidebarItem] {
         let byName = Dictionary(projects.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
-        guard !sidebarOrder.isEmpty else { return projects.map { .project($0) } }
+        // project name -> folder id
+        var membership: [String: String] = [:]
+        for g in groups { for m in g.members { membership[m] = g.id } }
 
-        var items: [SidebarItem] = []
-        var covered = Set<String>()
+        // A duplicate only when its parent is still present — an orphan is loose.
+        func isDup(_ p: Project) -> Bool { !p.parentName.isEmpty && byName[p.parentName] != nil }
+
+        // Duplicates not explicitly placed in a folder nest under their parent,
+        // in project-list order (which the server already sorts by projectOrder).
+        var childrenByParent: [String: [Project]] = [:]
+        for p in projects where isDup(p) && membership[p.name] == nil {
+            childrenByParent[p.parentName, default: []].append(p)
+        }
+        let groupsById = Dictionary(groups.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+
+        var out: [SidebarItem] = []
+        var rendered = Set<String>()
+
+        // A project plus its nested duplicate children, each flagged for indent.
+        func rows(for p: Project) -> [SidebarRow] {
+            rendered.insert(p.name)
+            var r = [SidebarRow(project: p, isChild: false)]
+            for child in childrenByParent[p.name] ?? [] {
+                rendered.insert(child.name)
+                r.append(SidebarRow(project: child, isChild: true))
+            }
+            return r
+        }
+
+        var seenGroups = Set<String>()
+        func emitGroup(_ g: ProjectFolder) {
+            seenGroups.insert(g.id)
+            let memberRows = g.members.compactMap { byName[$0] }.flatMap { rows(for: $0) }
+            out.append(.folder(g, memberRows))
+        }
+
         for token in sidebarOrder {
             if token.hasPrefix("group:") {
                 let gid = String(token.dropFirst("group:".count))
-                guard let g = groups.first(where: { $0.id == gid }) else { continue }
-                let members = g.members.compactMap { byName[$0] }
-                members.forEach { covered.insert($0.name) }
-                items.append(.folder(g, members))
-            } else if let p = byName[token] {
-                covered.insert(p.name)
-                items.append(.project(p))
+                if let g = groupsById[gid], !seenGroups.contains(gid) { emitGroup(g) }
+            } else if let p = byName[token], !rendered.contains(token),
+                      !isDup(p), membership[token] == nil {
+                out.append(contentsOf: rows(for: p).map(SidebarItem.project))
             }
         }
-        for p in projects where !covered.contains(p.name) {
-            items.append(.project(p))
+        // Folders missing from the order (defensive), then brand-new loose
+        // projects not yet persisted into it — matching the desktop's tail passes.
+        for g in groups where !seenGroups.contains(g.id) { emitGroup(g) }
+        for p in projects where !rendered.contains(p.name) && !isDup(p) && membership[p.name] == nil {
+            out.append(contentsOf: rows(for: p).map(SidebarItem.project))
         }
-        return items
+        return out
     }
 
     /// Turn a raw client failure into something the pairing screen can act on:
@@ -397,6 +457,7 @@ final class AppModel: ObservableObject {
             c.requestSidebar()
         }
         c.onStatusChanged = { proj in c.requestStatus(project: proj) }
+        c.onActionError = { [weak self] message in self?.actionError = message }
         c.onStatus = { [weak self] proj, entries in
             guard let self else { return }
             if let idx = self.projects.firstIndex(where: { $0.name == proj }) {
@@ -410,14 +471,23 @@ final class AppModel: ObservableObject {
     }
 }
 
-/// One row of the projects screen: a top-level project or a folder + its members.
+/// A rendered project row: the project plus whether it's a nested duplicate,
+/// which the list indents under its parent — mirroring the desktop's `isChild`.
+struct SidebarRow: Identifiable {
+    let project: Project
+    let isChild: Bool
+    var id: String { project.name }
+}
+
+/// One row of the projects screen: a top-level project (possibly a nested
+/// duplicate) or a folder + its members (each member carries its own indent flag).
 enum SidebarItem: Identifiable {
-    case project(Project)
-    case folder(ProjectFolder, [Project])
+    case project(SidebarRow)
+    case folder(ProjectFolder, [SidebarRow])
 
     var id: String {
         switch self {
-        case .project(let p): return "p:" + p.name
+        case .project(let r): return "p:" + r.project.name
         case .folder(let g, _): return "g:" + g.id
         }
     }

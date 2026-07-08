@@ -856,6 +856,68 @@ fn handle_msg(
             );
             send(ws, result_reply("toggleService", r))?;
         }
+        // Duplicate a project. Unlike a terminal, a duplicate is a pure config +
+        // disk clone with no frontend pane-tree, so run it here directly (like
+        // start/stop) — it works even with no main window open. Mirrors the
+        // desktop modal's core options: a single-copy label, the count of copies
+        // (1–50), and the three git toggles. duplicate_project/_projects emit
+        // `projects-changed` per copy, which the forwarder relays so new copies
+        // show up on the phone's re-request; the reply carries the first name.
+        "duplicate" => {
+            let name = str_field("name").unwrap_or_default();
+            let label = str_field("label").filter(|l| !l.trim().is_empty());
+            let count = v
+                .get("count")
+                .and_then(Value::as_u64)
+                .unwrap_or(1)
+                .clamp(1, 50) as u32;
+            let exclude_uncommitted =
+                v.get("excludeUncommitted").and_then(Value::as_bool).unwrap_or(false);
+            let reinstall_deps =
+                v.get("reinstallDeps").and_then(Value::as_bool).unwrap_or(false);
+            let pull_latest = v.get("pullLatest").and_then(Value::as_bool).unwrap_or(false);
+            if count <= 1 {
+                let r = crate::projects_crud::duplicate_project(
+                    app.clone(),
+                    name,
+                    label,
+                    exclude_uncommitted,
+                    reinstall_deps,
+                    pull_latest,
+                );
+                match r {
+                    Ok(new_name) => send(ws, json!({ "t": "duplicate", "ok": true, "name": new_name }))?,
+                    Err(e) => send(ws, json!({ "t": "duplicate", "ok": false, "error": e }))?,
+                }
+            } else {
+                // Batch copies are auto-named (the single label field doesn't apply).
+                let r = crate::projects_crud::duplicate_projects(
+                    app.clone(),
+                    name,
+                    count,
+                    exclude_uncommitted,
+                    reinstall_deps,
+                    pull_latest,
+                );
+                match r {
+                    Ok(names) => send(ws, json!({
+                        "t": "duplicate",
+                        "ok": true,
+                        "name": names.first().cloned().unwrap_or_default(),
+                        "names": names,
+                    }))?,
+                    Err(e) => send(ws, json!({ "t": "duplicate", "ok": false, "error": e }))?,
+                }
+            }
+        }
+        // Remove a project (the phone only offers this for duplicates, whose
+        // folders are deleted from disk). Also a direct config/disk op;
+        // remove_project refuses to delete an original that still has duplicates.
+        "remove" => {
+            let name = str_field("name").unwrap_or_default();
+            let r = crate::projects_crud::remove_project(app.clone(), name);
+            send(ws, result_reply("remove", r))?;
+        }
         // Run an action / open a new terminal. A terminal is a frontend pane-tree +
         // command-injection concept, not a raw pty op — spawning one from Rust would
         // orphan it (no tab, label, or command typed in). So relay to the owner

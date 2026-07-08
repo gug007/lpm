@@ -2,6 +2,9 @@
 LpmMobile.xcodeproj/
 Info.plist
 
+# Local signing team override for run.sh (personal; never committed).
+.team
+
 # Swift/Xcode build artifacts
 .build/
 build/
