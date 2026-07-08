@@ -31,9 +31,13 @@ enum HostProbe {
         }
     }
 
-    /// True if a WebSocket handshake to `ws://host:port/` completes within the
-    /// timeout. lpm answers the upgrade (101) before any auth, so a bare open is
-    /// enough to prove the port is reachable; we tear the socket down immediately.
+    /// True if a WebSocket to `ws://host:port/` connects within the timeout. lpm
+    /// answers the upgrade (101) before any auth, so a bare open proves the port
+    /// is reachable. Reachability is signalled two ways, whichever fires first:
+    /// the delegate's `didOpenWithProtocol`, and a `sendPing` round-trip — the
+    /// ping also *drives* the connection, since a `URLSessionWebSocketTask` may
+    /// not complete its handshake (or fire the open callback) until something is
+    /// sent. We tear the socket down as soon as either resolves.
     private static func opens(_ host: String, port: Int, timeout: TimeInterval) async -> Bool {
         guard let url = URL(string: "ws://\(host):\(port)/") else { return false }
         let gate = OpenGate()
@@ -48,6 +52,7 @@ enum HostProbe {
             await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
                 gate.attach(cont)
                 task.resume()
+                task.sendPing { error in gate.finish(error == nil) }
                 DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { gate.finish(false) }
             }
         } onCancel: {
