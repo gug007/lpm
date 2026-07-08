@@ -79,10 +79,11 @@ final class AppModel: ObservableObject {
         connection = .connecting
         Task { @MainActor in
             // The probe uses the real WebSocket transport, so if none respond the
-            // live connection wouldn't either — fail fast and name what was tried
-            // rather than spin on a generic hint for the whole connect timeout.
-            guard let host = await HostProbe.firstReachable(hosts, port: port) else {
-                connection = .failed(unreachableMessage(hosts))
+            // live connection wouldn't either — fail fast and report each host's
+            // reason rather than spin on a generic hint for the whole timeout.
+            let (winner, outcomes) = await HostProbe.race(hosts, port: port)
+            guard let host = winner else {
+                connection = .failed(probeDiagnostic(outcomes, hosts: hosts))
                 return
             }
             client?.disconnect()
@@ -308,6 +309,16 @@ final class AppModel: ObservableObject {
         let list = hosts.filter { !$0.isEmpty }.joined(separator: ", ")
         let target = list.isEmpty ? "your Mac" : "your Mac at \(list)"
         return "Couldn't reach \(target) — none of its addresses responded. On cellular, open the Tailscale app and make sure it's connected on both devices."
+    }
+
+    /// Per-host probe reasons for the pairing screen — e.g. "192.168.0.80: timed
+    /// out · 100.92.155.108: refused" — so LAN-blocked vs Tailscale-down is
+    /// obvious without another debugging round-trip.
+    private func probeDiagnostic(_ outcomes: [HostProbe.Outcome], hosts: [String]) -> String {
+        let detail = outcomes.isEmpty
+            ? hosts.filter { !$0.isEmpty }.joined(separator: ", ")
+            : outcomes.map { "\($0.host): \($0.detail)" }.joined(separator: " · ")
+        return "Couldn't reach your Mac — \(detail). On cellular, open the Tailscale app and confirm it's connected on both devices."
     }
 
     private func wire(_ c: LpmClient) {

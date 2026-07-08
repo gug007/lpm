@@ -13,33 +13,52 @@ import Foundation
 /// look unreachable and the phone would fall back to the (unroutable) LAN IP.
 /// URLSession evaluates the VPN path correctly, matching the real connection.
 enum HostProbe {
-    static func firstReachable(_ hosts: [String], port: Int, timeout: TimeInterval = 4) async -> String? {
-        let candidates = hosts.filter { !$0.isEmpty }
-        guard candidates.count > 1 else { return candidates.first }
+    /// One host's probe result, with a short human-readable reason for diagnostics
+    /// on the pairing screen (e.g. "100.92.155.108: refused").
+    struct Outcome {
+        let host: String
+        let reachable: Bool
+        let detail: String
+    }
 
-        return await withTaskGroup(of: String?.self) { group in
+    /// Race all candidates; return the first reachable host (cancelling the rest),
+    /// plus the outcomes gathered so far. When none are reachable, `winner` is nil
+    /// and `outcomes` holds every host's failure reason. A single candidate skips
+    /// the probe entirely — the live connection will exercise it directly.
+    static func race(_ hosts: [String], port: Int, timeout: TimeInterval = 6) async -> (winner: String?, outcomes: [Outcome]) {
+        let candidates = hosts.filter { !$0.isEmpty }
+        guard candidates.count > 1 else { return (candidates.first, []) }
+
+        return await withTaskGroup(of: Outcome.self) { group in
             for host in candidates {
-                group.addTask { await opens(host, port: port, timeout: timeout) ? host : nil }
+                group.addTask { await open(host, port: port, timeout: timeout) }
             }
-            for await result in group {
-                if let host = result {
+            var outcomes: [Outcome] = []
+            for await r in group {
+                outcomes.append(r)
+                if r.reachable {
                     group.cancelAll()
-                    return host
+                    return (r.host, outcomes)
                 }
             }
-            return nil
+            return (nil, outcomes)
         }
     }
 
-    /// True if a WebSocket to `ws://host:port/` connects within the timeout. lpm
-    /// answers the upgrade (101) before any auth, so a bare open proves the port
-    /// is reachable. Reachability is signalled two ways, whichever fires first:
+    static func firstReachable(_ hosts: [String], port: Int, timeout: TimeInterval = 6) async -> String? {
+        await race(hosts, port: port, timeout: timeout).winner
+    }
+
+    /// Probe one host. Reachability is signalled two ways, whichever fires first:
     /// the delegate's `didOpenWithProtocol`, and a `sendPing` round-trip — the
     /// ping also *drives* the connection, since a `URLSessionWebSocketTask` may
     /// not complete its handshake (or fire the open callback) until something is
-    /// sent. We tear the socket down as soon as either resolves.
-    private static func opens(_ host: String, port: Int, timeout: TimeInterval) async -> Bool {
-        guard let url = URL(string: "ws://\(host):\(port)/") else { return false }
+    /// sent. lpm answers the WS upgrade before any auth, so a bare open proves the
+    /// port is reachable; we tear the socket down as soon as either resolves.
+    private static func open(_ host: String, port: Int, timeout: TimeInterval) async -> Outcome {
+        guard let url = URL(string: "ws://\(host):\(port)/") else {
+            return Outcome(host: host, reachable: false, detail: "bad address")
+        }
         let gate = OpenGate()
         let config = URLSessionConfiguration.ephemeral
         config.waitsForConnectivity = false
@@ -48,25 +67,41 @@ enum HostProbe {
         gate.bind(session)
         let task = session.webSocketTask(with: url)
 
-        return await withTaskCancellationHandler {
-            await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+        let detail = await withTaskCancellationHandler {
+            await withCheckedContinuation { (cont: CheckedContinuation<String, Never>) in
                 gate.attach(cont)
                 task.resume()
-                task.sendPing { error in gate.finish(error == nil) }
-                DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { gate.finish(false) }
+                task.sendPing { error in gate.finish(error == nil ? "ok" : shortReason(error)) }
+                DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { gate.finish("timed out") }
             }
         } onCancel: {
-            gate.finish(false)
+            gate.finish("cancelled")
         }
+        return Outcome(host: host, reachable: detail == "ok" || detail == "open", detail: detail)
+    }
+}
+
+/// A short, human-readable label for a URLSession failure, for the on-phone
+/// diagnostic ("refused" vs "no route" vs "timed out" tells LAN-blocked apart
+/// from Tailscale-down at a glance).
+private func shortReason(_ error: Error?) -> String {
+    guard let e = error as NSError? else { return "failed" }
+    switch e.code {
+    case NSURLErrorCannotConnectToHost: return "refused"
+    case NSURLErrorTimedOut: return "timed out"
+    case NSURLErrorNetworkConnectionLost: return "connection lost"
+    case NSURLErrorCannotFindHost, NSURLErrorDNSLookupFailed: return "no route"
+    case NSURLErrorNotConnectedToInternet: return "phone offline"
+    default: return "failed (\(e.code))"
     }
 }
 
 /// Resolves one probe's continuation exactly once, whichever of the WebSocket
-/// open, a transport failure, the timeout, or task cancellation gets there
-/// first, and tears the session down. `@unchecked Sendable` because access is
-/// serialized by the lock, not the type system.
+/// open, the ping round-trip, a transport failure, the timeout, or task
+/// cancellation gets there first, and tears the session down. `@unchecked
+/// Sendable` because access is serialized by the lock, not the type system.
 private final class OpenGate: NSObject, URLSessionWebSocketDelegate, URLSessionTaskDelegate, @unchecked Sendable {
-    private var cont: CheckedContinuation<Bool, Never>?
+    private var cont: CheckedContinuation<String, Never>?
     private var done = false
     private let lock = NSLock()
     private var session: URLSession?
@@ -79,18 +114,18 @@ private final class OpenGate: NSObject, URLSessionWebSocketDelegate, URLSessionT
         lock.unlock()
     }
 
-    func attach(_ c: CheckedContinuation<Bool, Never>) {
+    func attach(_ c: CheckedContinuation<String, Never>) {
         lock.lock()
         if done {
             lock.unlock()
-            c.resume(returning: false)
+            c.resume(returning: "cancelled")
             return
         }
         cont = c
         lock.unlock()
     }
 
-    func finish(_ ok: Bool) {
+    func finish(_ detail: String) {
         lock.lock()
         if done {
             lock.unlock()
@@ -102,14 +137,14 @@ private final class OpenGate: NSObject, URLSessionWebSocketDelegate, URLSessionT
         cont = nil
         lock.unlock()
         s?.invalidateAndCancel()
-        pending?.resume(returning: ok)
+        pending?.resume(returning: detail)
     }
 
     func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol proto: String?) {
-        finish(true)
+        finish("open")
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        finish(false)
+        finish(shortReason(error))
     }
 }
