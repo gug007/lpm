@@ -39,6 +39,9 @@ final class AppModel: ObservableObject {
     var terminalSubmit: [String: (String) -> Void] = [:]
 
     private var client: LpmClient?
+    // The addresses the current attempt is racing, so a failure can name exactly
+    // what it tried (LAN vs Tailscale) instead of a generic "can't reach".
+    private var attemptHosts: [String] = []
 
     func bootstrap() {
         guard let cred = Keychain.load() else { paired = false; return }
@@ -51,6 +54,7 @@ final class AppModel: ObservableObject {
     private func connectBest(credential: LpmClient.Credential) {
         let hosts = savedHosts()
         let port = savedPort()
+        attemptHosts = hosts
         connection = .connecting
         Task { @MainActor in
             let host = await HostProbe.firstReachable(hosts, port: port) ?? hosts.first ?? "127.0.0.1"
@@ -71,9 +75,16 @@ final class AppModel: ObservableObject {
     func pair(hosts: [String], port: Int, code: String) {
         persistHosts(hosts)
         UserDefaults.standard.set(port, forKey: "lpm.port")
+        attemptHosts = hosts
         connection = .connecting
         Task { @MainActor in
-            let host = await HostProbe.firstReachable(hosts, port: port) ?? hosts.first ?? "127.0.0.1"
+            // The probe uses the real WebSocket transport, so if none respond the
+            // live connection wouldn't either — fail fast and name what was tried
+            // rather than spin on a generic hint for the whole connect timeout.
+            guard let host = await HostProbe.firstReachable(hosts, port: port) else {
+                connection = .failed(unreachableMessage(hosts))
+                return
+            }
             client?.disconnect()
             let c = LpmClient(endpoint: .init(host: host, port: port),
                               credential: nil, deviceName: UIDevice.current.name)
@@ -280,11 +291,31 @@ final class AppModel: ObservableObject {
         return items
     }
 
+    /// Turn a raw client failure into something the pairing screen can act on:
+    /// the generic offline hint becomes the exact addresses tried (LAN vs
+    /// Tailscale), and a server-side code rejection reads as a code problem — so
+    /// "wrong network" and "bad/expired code" never look the same.
+    private func userFacing(_ s: LpmClient.State) -> LpmClient.State {
+        guard case .failed(let msg) = s else { return s }
+        if msg == LpmClient.offlineHint { return .failed(unreachableMessage(attemptHosts)) }
+        if msg == "pairing rejected" {
+            return .failed("Pairing code rejected. On your Mac, tap Add device for a fresh code, then scan again.")
+        }
+        return s
+    }
+
+    private func unreachableMessage(_ hosts: [String]) -> String {
+        let list = hosts.filter { !$0.isEmpty }.joined(separator: ", ")
+        let target = list.isEmpty ? "your Mac" : "your Mac at \(list)"
+        return "Couldn't reach \(target) — none of its addresses responded. On cellular, open the Tailscale app and make sure it's connected on both devices."
+    }
+
     private func wire(_ c: LpmClient) {
         c.onState = { [weak self] s in
-            self?.connection = s
+            guard let self else { return }
+            self.connection = self.userFacing(s)
             if case .ready = s {
-                self?.paired = true
+                self.paired = true
                 c.requestProjects()
                 c.requestSidebar()
             }

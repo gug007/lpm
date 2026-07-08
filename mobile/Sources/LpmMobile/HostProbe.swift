@@ -1,19 +1,25 @@
 import Foundation
-import Network
 
 /// Picks a reachable address for the Mac from the candidates the pairing QR
-/// advertised (its LAN IP and, when present, its Tailscale IP). It races a cheap
-/// TCP connect against each and returns the first to succeed, so the phone lands
-/// on the LAN address at home and the Tailscale address away — from one QR, with
-/// no manual entry and no fixed ordering penalty.
+/// advertised (its LAN IP and, when present, its Tailscale IP). It races an
+/// actual WebSocket open against each and returns the first to succeed, so the
+/// phone lands on the LAN address at home and the Tailscale address away — from
+/// one QR, with no manual entry and no fixed ordering penalty.
+///
+/// The probe opens a real `ws://host:port/` via URLSession — the exact transport
+/// the live connection uses — rather than a raw `NWConnection`. That matters on
+/// cellular: over a Tailscale tunnel a low-level `NWConnection` to the tailnet IP
+/// often stalls in `.waiting` and never reports `.ready`, so it would wrongly
+/// look unreachable and the phone would fall back to the (unroutable) LAN IP.
+/// URLSession evaluates the VPN path correctly, matching the real connection.
 enum HostProbe {
-    static func firstReachable(_ hosts: [String], port: Int, timeout: TimeInterval = 2.5) async -> String? {
+    static func firstReachable(_ hosts: [String], port: Int, timeout: TimeInterval = 4) async -> String? {
         let candidates = hosts.filter { !$0.isEmpty }
         guard candidates.count > 1 else { return candidates.first }
 
         return await withTaskGroup(of: String?.self) { group in
             for host in candidates {
-                group.addTask { await reachable(host, port: port, timeout: timeout) ? host : nil }
+                group.addTask { await opens(host, port: port, timeout: timeout) ? host : nil }
             }
             for await result in group {
                 if let host = result {
@@ -25,23 +31,24 @@ enum HostProbe {
         }
     }
 
-    private static func reachable(_ host: String, port: Int, timeout: TimeInterval) async -> Bool {
-        guard let nwPort = NWEndpoint.Port(rawValue: UInt16(port)) else { return false }
-        let conn = NWConnection(host: NWEndpoint.Host(host), port: nwPort, using: .tcp)
-        let gate = ProbeGate(conn)
+    /// True if a WebSocket handshake to `ws://host:port/` completes within the
+    /// timeout. lpm answers the upgrade (101) before any auth, so a bare open is
+    /// enough to prove the port is reachable; we tear the socket down immediately.
+    private static func opens(_ host: String, port: Int, timeout: TimeInterval) async -> Bool {
+        guard let url = URL(string: "ws://\(host):\(port)/") else { return false }
+        let gate = OpenGate()
+        let config = URLSessionConfiguration.ephemeral
+        config.waitsForConnectivity = false
+        config.timeoutIntervalForRequest = timeout
+        let session = URLSession(configuration: config, delegate: gate, delegateQueue: nil)
+        gate.bind(session)
+        let task = session.webSocketTask(with: url)
 
         return await withTaskCancellationHandler {
             await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
                 gate.attach(cont)
-                conn.stateUpdateHandler = { state in
-                    switch state {
-                    case .ready: gate.finish(true)
-                    case .failed, .cancelled: gate.finish(false)
-                    default: break
-                    }
-                }
+                task.resume()
                 DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { gate.finish(false) }
-                conn.start(queue: .global())
             }
         } onCancel: {
             gate.finish(false)
@@ -49,17 +56,23 @@ enum HostProbe {
     }
 }
 
-/// Resolves one probe's continuation exactly once, whichever of the connect
-/// callback, the timeout, or task cancellation gets there first, and tears the
-/// connection down. `@unchecked Sendable` because access is serialized by the
-/// lock, not the type system.
-private final class ProbeGate: @unchecked Sendable {
-    private let conn: NWConnection
+/// Resolves one probe's continuation exactly once, whichever of the WebSocket
+/// open, a transport failure, the timeout, or task cancellation gets there
+/// first, and tears the session down. `@unchecked Sendable` because access is
+/// serialized by the lock, not the type system.
+private final class OpenGate: NSObject, URLSessionWebSocketDelegate, URLSessionTaskDelegate, @unchecked Sendable {
     private var cont: CheckedContinuation<Bool, Never>?
     private var done = false
     private let lock = NSLock()
+    private var session: URLSession?
 
-    init(_ conn: NWConnection) { self.conn = conn }
+    /// The session to tear down on finish. Held until `finish` so the timeout and
+    /// cancellation paths (which fire before any delegate callback) can cancel it.
+    func bind(_ s: URLSession) {
+        lock.lock()
+        session = s
+        lock.unlock()
+    }
 
     func attach(_ c: CheckedContinuation<Bool, Never>) {
         lock.lock()
@@ -80,9 +93,18 @@ private final class ProbeGate: @unchecked Sendable {
         }
         done = true
         let pending = cont
+        let s = session
         cont = nil
         lock.unlock()
-        conn.cancel()
+        s?.invalidateAndCancel()
         pending?.resume(returning: ok)
+    }
+
+    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol proto: String?) {
+        finish(true)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        finish(false)
     }
 }
