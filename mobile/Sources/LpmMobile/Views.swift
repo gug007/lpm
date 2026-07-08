@@ -321,7 +321,7 @@ struct ProjectsView: View {
             Text(model.actionError ?? "")
         }
         .sheet(item: $duplicating) { p in
-            DuplicateOptionsView(project: p) { options in
+            DuplicateOptionsView(project: p, defaults: model.duplicateDefaults) { options in
                 model.duplicateProject(p, options: options)
             }
         }

@@ -75,6 +75,7 @@ enum Wire {
         if options.count == 1, !label.isEmpty { obj["label"] = label }
         return json(obj)
     }
+    static func duplicateDefaults() -> String { json(["t": "duplicateDefaults"]) }
     static func remove(name: String) -> String { json(["t": "remove", "name": name]) }
     static func start(name: String, profile: String = "") -> String {
         json(["t": "start", "name": name, "profile": profile])
@@ -119,6 +120,8 @@ enum Wire {
         // duplicate's name (duplicate only). The projects list refreshes off the
         // `projects-changed` push, so these carry only the failure to surface.
         case duplicate(name: String, error: String?)
+        // The desktop's persisted duplicate-modal toggle defaults.
+        case duplicateDefaults(excludeUncommitted: Bool, reinstallDeps: Bool, pullLatest: Bool)
         case remove(error: String?)
         case projectsChanged
         case statusChanged(project: String)
@@ -180,6 +183,11 @@ enum Wire {
                 let ok = obj["ok"] as? Bool ?? false
                 return .duplicate(name: obj["name"] as? String ?? "",
                                   error: ok ? nil : (obj["error"] as? String ?? "Couldn't duplicate the project."))
+            case "duplicateDefaults":
+                return .duplicateDefaults(
+                    excludeUncommitted: obj["excludeUncommitted"] as? Bool ?? false,
+                    reinstallDeps: obj["reinstallDeps"] as? Bool ?? false,
+                    pullLatest: obj["pullLatest"] as? Bool ?? true)
             case "remove":
                 let ok = obj["ok"] as? Bool ?? false
                 return .remove(error: ok ? nil : (obj["error"] as? String ?? "Couldn't remove the project."))

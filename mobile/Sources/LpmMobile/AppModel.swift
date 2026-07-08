@@ -29,6 +29,9 @@ final class AppModel: ObservableObject {
     // A failed duplicate/remove message to show once (e.g. "cannot duplicate an
     // SSH project"). The list itself refreshes off the projects-changed push.
     @Published var actionError: String?
+    // The duplicate modal's initial toggle state, mirrored from the desktop's
+    // persisted settings so the phone's modal opens with matching defaults.
+    @Published var duplicateDefaults = DuplicateOptions()
 
     // Terminal streams go straight to whichever TerminalScreen is subscribed; the
     // emulator (SwiftTerm) holds the buffer, not this model. Seed and live output
@@ -437,6 +440,7 @@ final class AppModel: ObservableObject {
                 self.paired = true
                 c.requestProjects()
                 c.requestSidebar()
+                c.requestDuplicateDefaults()
             }
         }
         c.onProjects = { [weak self] p in
@@ -458,6 +462,12 @@ final class AppModel: ObservableObject {
         }
         c.onStatusChanged = { proj in c.requestStatus(project: proj) }
         c.onActionError = { [weak self] message in self?.actionError = message }
+        c.onDuplicateDefaults = { [weak self] excl, reinstall, pull in
+            guard let self else { return }
+            self.duplicateDefaults.excludeUncommitted = excl
+            self.duplicateDefaults.reinstallDeps = reinstall
+            self.duplicateDefaults.pullLatest = pull
+        }
         c.onStatus = { [weak self] proj, entries in
             guard let self else { return }
             if let idx = self.projects.firstIndex(where: { $0.name == proj }) {

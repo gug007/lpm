@@ -21,7 +21,19 @@ struct DuplicateOptionsView: View {
     let onConfirm: (DuplicateOptions) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var options = DuplicateOptions()
+    @State private var options: DuplicateOptions
+
+    init(project: Project, defaults: DuplicateOptions, onConfirm: @escaping (DuplicateOptions) -> Void) {
+        self.project = project
+        self.onConfirm = onConfirm
+        // count/label always start fresh; the toggles seed from the desktop's
+        // persisted duplicate settings.
+        var seed = DuplicateOptions()
+        seed.excludeUncommitted = defaults.excludeUncommitted
+        seed.reinstallDeps = defaults.reinstallDeps
+        seed.pullLatest = defaults.pullLatest
+        _options = State(initialValue: seed)
+    }
 
     private var single: Bool { options.count == 1 }
 

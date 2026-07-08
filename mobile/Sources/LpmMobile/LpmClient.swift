@@ -30,6 +30,7 @@ final class LpmClient: NSObject {
     var onMentions: ((_ project: String, _ entries: [MentionEntry]) -> Void)?
     var onHistory: ((_ project: String, _ rows: [HistoryRow]) -> Void)?
     var onStatus: ((_ project: String, _ entries: [StatusEntry]) -> Void)?
+    var onDuplicateDefaults: ((_ excludeUncommitted: Bool, _ reinstallDeps: Bool, _ pullLatest: Bool) -> Void)?
     var onProjectsChanged: (() -> Void)?
     var onStatusChanged: ((_ project: String) -> Void)?
     // A duplicate/remove failed — the message to surface. Success is silent (the
@@ -253,6 +254,7 @@ final class LpmClient: NSObject {
     func duplicateProject(_ name: String, options: DuplicateOptions) {
         send(Wire.duplicate(name: name, options: options))
     }
+    func requestDuplicateDefaults() { send(Wire.duplicateDefaults()) }
     func removeProject(_ name: String) { send(Wire.remove(name: name)) }
     func startProject(_ name: String, profile: String = "") { send(Wire.start(name: name, profile: profile)) }
     func stopProject(_ name: String) { send(Wire.stop(name: name)) }
@@ -335,6 +337,8 @@ final class LpmClient: NSObject {
             // folder clone/delete and rewrote its config, so a re-request is
             // guaranteed to reflect it — don't rely on the projects-changed push
             // alone (it can race the multi-second clone that blocks this socket).
+            case .duplicateDefaults(let excl, let reinstall, let pull):
+                self.onDuplicateDefaults?(excl, reinstall, pull)
             case .duplicate(_, let error):
                 if let error { self.onActionError?(error) } else { self.onProjectsChanged?() }
             case .remove(let error):

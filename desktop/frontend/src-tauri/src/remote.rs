@@ -910,6 +910,19 @@ fn handle_msg(
                 }
             }
         }
+        // The desktop duplicate modal seeds its toggles from persisted settings;
+        // the phone fetches the same values so its modal opens with matching
+        // defaults. Fallbacks mirror BulkDuplicateDialog (pullLatest defaults on).
+        "duplicateDefaults" => {
+            let s = config::load_settings();
+            let b = |k: &str, d: bool| s.get(k).and_then(Value::as_bool).unwrap_or(d);
+            send(ws, json!({
+                "t": "duplicateDefaults",
+                "excludeUncommitted": b("duplicateExcludeUncommitted", false),
+                "reinstallDeps": b("duplicateReinstallDeps", false),
+                "pullLatest": b("duplicatePullLatest", true),
+            }))?;
+        }
         // Remove a project (the phone only offers this for duplicates, whose
         // folders are deleted from disk). Also a direct config/disk op;
         // remove_project refuses to delete an original that still has duplicates.
