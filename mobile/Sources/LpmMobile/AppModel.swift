@@ -42,6 +42,12 @@ final class AppModel: ObservableObject {
     // The addresses the current attempt is racing, so a failure can name exactly
     // what it tried (LAN vs Tailscale) instead of a generic "can't reach".
     private var attemptHosts: [String] = []
+    // Guards the opportunistic host migration in onState against overlapping
+    // re-probes while one is already in flight.
+    private var repicking = false
+    // The host the live client was built for, so migration only rebuilds when a
+    // *different* address becomes reachable.
+    private var currentHost: String?
 
     func bootstrap() {
         guard let cred = Keychain.load() else { paired = false; return }
@@ -57,13 +63,52 @@ final class AppModel: ObservableObject {
         attemptHosts = hosts
         connection = .connecting
         Task { @MainActor in
-            let host = await HostProbe.firstReachable(hosts, port: port) ?? hosts.first ?? "127.0.0.1"
+            var winner = await HostProbe.firstReachable(hosts, port: port)
+            if winner == nil {
+                // On foreground the Tailscale on-demand tunnel may not be up yet;
+                // give it a moment and probe once more before falling back.
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                winner = await HostProbe.firstReachable(hosts, port: port)
+            }
+            // When nothing answers, prefer the Tailscale (CGNAT) address over the
+            // LAN IP — the LAN IP is unroutable on cellular, so retrying it spins.
+            let host = winner ?? Self.cgnatHost(hosts) ?? hosts.first ?? "127.0.0.1"
             connect(host: host, port: port, credential: credential)
+        }
+    }
+
+    /// A Tailscale CGNAT address (100.64.0.0/10) from the candidates, if any:
+    /// an IPv4 whose first octet is 100 and second is in 64...127.
+    private static func cgnatHost(_ hosts: [String]) -> String? {
+        hosts.first { host in
+            let octets = host.split(separator: ".").compactMap { Int($0) }
+            return octets.count == 4 && octets[0] == 100 && (64...127).contains(octets[1])
+        }
+    }
+
+    /// A live client only ever retries the one host it was built with, so a phone
+    /// that roams (LAN → cellular) keeps hammering an address that's now
+    /// unroutable. Once its retries stop being patient — the client surfaces
+    /// `offlineHint` — re-probe the saved hosts and, if a *different* one is now
+    /// reachable, migrate the live connection to it. Otherwise do nothing: the
+    /// failed state (and Retry button) stays visible, and the client re-emits
+    /// `offlineHint` on each slow retry (~20s), so this re-probes periodically
+    /// with no timer.
+    private func repickHostIfStale(_ s: LpmClient.State, from c: LpmClient) {
+        guard case .failed(LpmClient.offlineHint) = s,
+              c === client, !repicking, let cred = Keychain.load() else { return }
+        repicking = true
+        Task { @MainActor in
+            defer { repicking = false }
+            let winner = await HostProbe.firstReachable(savedHosts(), port: savedPort())
+            guard let winner, winner != currentHost, c === client else { return }
+            connect(host: winner, port: savedPort(), credential: cred)
         }
     }
 
     func connect(host: String, port: Int, credential: LpmClient.Credential) {
         client?.disconnect()
+        currentHost = host
         let c = LpmClient(endpoint: .init(host: host, port: port),
                           credential: credential,
                           deviceName: UIDevice.current.name)
@@ -87,6 +132,7 @@ final class AppModel: ObservableObject {
                 return
             }
             client?.disconnect()
+            currentHost = host
             let c = LpmClient(endpoint: .init(host: host, port: port),
                               credential: nil, deviceName: UIDevice.current.name)
             wire(c)
@@ -143,6 +189,7 @@ final class AppModel: ObservableObject {
     func logout() {
         client?.disconnect()
         client = nil
+        currentHost = nil
         Keychain.clear()
         UserDefaults.standard.removeObject(forKey: "lpm.host")
         UserDefaults.standard.removeObject(forKey: "lpm.hosts")
@@ -325,6 +372,7 @@ final class AppModel: ObservableObject {
         c.onState = { [weak self] s in
             guard let self else { return }
             self.connection = self.userFacing(s)
+            self.repickHostIfStale(s, from: c)
             if case .ready = s {
                 self.paired = true
                 c.requestProjects()
