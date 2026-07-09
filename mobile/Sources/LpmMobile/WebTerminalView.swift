@@ -38,6 +38,9 @@ enum TerminalWebPool {
 struct WebTerminalView: UIViewRepresentable {
     @EnvironmentObject var model: AppModel
     let term: TerminalInfo
+    /// Fired once, when the first screen content renders — lets the host screen
+    /// drop its loading spinner.
+    var onFirstContent: (() -> Void)? = nil
     /// Top safe-area inset so xterm's content clears the translucent nav bar.
     var topInset: CGFloat = 0
 
@@ -71,6 +74,7 @@ struct WebTerminalView: UIViewRepresentable {
         web.loadFileURL(dir.appendingPathComponent("terminal.html"), allowingReadAccessTo: dir)
 
         context.coordinator.topInset = topInset
+        context.coordinator.onFirstContent = onFirstContent
         // Capture only the coordinator, not `context` — these closures outlive this
         // call (held by the subscription until unsubscribe), and closing over the
         // context would keep the whole SwiftUI environment alive with them.
@@ -105,7 +109,9 @@ struct WebTerminalView: UIViewRepresentable {
         let termId: String
         weak var web: WKWebView?
         var topInset: CGFloat = 0
+        var onFirstContent: (() -> Void)?
         private var ready = false
+        private var announcedContent = false
         // Live output is coalesced: instead of one evaluateJavaScript per server
         // message (each a cross-process hop to WebContent), we accumulate bytes and
         // flush a single write per runloop tick. Big win under bursty output.
@@ -158,11 +164,19 @@ struct WebTerminalView: UIViewRepresentable {
             let b64 = feedBuffer.base64EncodedString()
             feedBuffer.removeAll(keepingCapacity: true)
             web?.evaluateJavaScript("window.lpmFeed('\(b64)')")
+            announceContent()
         }
 
         private func evalSeed(_ data: String) {
             let b64 = Data(data.utf8).base64EncodedString()
             web?.evaluateJavaScript("window.lpmSeed('\(b64)')")
+            announceContent()
+        }
+
+        private func announceContent() {
+            guard !announcedContent else { return }
+            announcedContent = true
+            onFirstContent?()
         }
 
         func applyTopInset(_ inset: CGFloat) {

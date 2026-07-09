@@ -14,6 +14,9 @@ struct ProjectDetail: View {
     // the one we were pushed with.
     private var live: Project { model.projects.first(where: { $0.name == project.name }) ?? project }
     private var terminals: [TerminalInfo] { model.terminals[project.name] ?? [] }
+    // nil vs [] tells "still loading" apart from "no terminals".
+    private var terminalsLoaded: Bool { model.terminals[project.name] != nil }
+    private var creating: Bool { model.creatingTerminals.contains(project.name) }
     private var actions: [Action] { live.actions.flatMap { $0.runnableLeaves } }
 
     var body: some View {
@@ -22,7 +25,12 @@ struct ProjectDetail: View {
         // with cleared row chrome so the custom `.card()` rows keep their look.
         List {
             Section {
-                if terminals.isEmpty {
+                if !terminalsLoaded {
+                    ForEach(0..<3, id: \.self) { _ in
+                        TerminalCardSkeleton()
+                            .terminalRowChrome()
+                    }
+                } else if terminals.isEmpty && !creating {
                     EmptyTerminalsCard()
                         .terminalRowChrome()
                 } else {
@@ -54,6 +62,10 @@ struct ProjectDetail: View {
                             }
                     }
                     .onMove(perform: moveTerminals)
+                    if creating {
+                        TerminalCardSkeleton()
+                            .terminalRowChrome()
+                    }
                 }
             } header: {
                 DetailSectionHeader(title: "Tabs", count: terminals.count) {
@@ -70,6 +82,8 @@ struct ProjectDetail: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Color(.systemGroupedBackground))
+        .animation(.default, value: terminalsLoaded)
+        .animation(.default, value: creating)
         .refreshable {
             model.loadTerminals(project.name)
         }
@@ -93,6 +107,7 @@ struct ProjectDetail: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 ProjectRunControl(project: live,
+                                  pending: model.pendingRun[live.name] != nil,
                                   actions: actions,
                                   onStart: { profile in model.startProject(live, profile: profile) },
                                   onStop: { model.stopProject(live) },
@@ -127,6 +142,7 @@ private extension View {
 /// per-service toggles.
 private struct ProjectRunControl: View {
     let project: Project
+    let pending: Bool
     let actions: [Action]
     let onStart: (_ profile: String) -> Void
     let onStop: () -> Void
@@ -170,9 +186,14 @@ private struct ProjectRunControl: View {
                 }
             }
         } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(running ? .green : .primary)
+            if pending {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(running ? .green : .primary)
+            }
         }
     }
 

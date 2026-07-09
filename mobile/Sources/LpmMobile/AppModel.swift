@@ -37,6 +37,14 @@ final class AppModel: ObservableObject {
     // A non-fatal notice to show once (e.g. copies made but a run task needs the
     // Mac app open). Distinct from actionError, which is a hard failure.
     @Published var notice: String?
+    // project -> desired running state while a Start/Stop is in flight, so the UI
+    // can spin until the projects push confirms it (or a timeout gives up).
+    @Published var pendingRun: [String: Bool] = [:]
+    // Projects with a new-terminal/run-action in flight: the desktop creates the
+    // terminal asynchronously, so show a placeholder row until it appears.
+    @Published var creatingTerminals: Set<String> = []
+    private var creatingBaseline: [String: Int] = [:]
+    private var creatingGen: [String: Int] = [:]
 
     // Terminal streams go straight to whichever TerminalScreen is subscribed; the
     // emulator (SwiftTerm) holds the buffer, not this model. Seed and live output
@@ -218,6 +226,10 @@ final class AppModel: ObservableObject {
         groups = []
         controlOwner = [:]
         actionError = nil
+        pendingRun = [:]
+        creatingTerminals = []
+        creatingBaseline = [:]
+        creatingGen = [:]
         paired = false
     }
 
@@ -269,8 +281,22 @@ final class AppModel: ObservableObject {
     /// the running program enabled that) and appends a CR to submit.
     func submit(_ id: String, _ text: String) { terminalSubmit[id]?(text) }
 
-    func startProject(_ p: Project, profile: String = "") { client?.startProject(p.name, profile: profile) }
-    func stopProject(_ p: Project) { client?.stopProject(p.name) }
+    func startProject(_ p: Project, profile: String = "") {
+        markRunPending(p.name, desired: true)
+        client?.startProject(p.name, profile: profile)
+    }
+    func stopProject(_ p: Project) {
+        markRunPending(p.name, desired: false)
+        client?.stopProject(p.name)
+    }
+    /// Show the in-flight spinner until the projects push confirms the desired
+    /// state; give up after a timeout so a lost request can't spin forever.
+    private func markRunPending(_ name: String, desired: Bool) {
+        pendingRun[name] = desired
+        DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self] in
+            if self?.pendingRun[name] == desired { self?.pendingRun[name] = nil }
+        }
+    }
     /// Clone a project (folder + config) with the chosen duplicate options. Each
     /// new copy streams in via the projects-changed push; a failure surfaces in
     /// actionError.
@@ -299,11 +325,27 @@ final class AppModel: ObservableObject {
 
     func runAction(_ project: String, action: String) {
         client?.runAction(project: project, action: action)
+        markTerminalCreating(project)
         reloadTerminalsSoon(project)
     }
     func newTerminal(_ project: String) {
         client?.newTerminal(project: project)
+        markTerminalCreating(project)
         reloadTerminalsSoon(project)
+    }
+    /// Show a placeholder terminal row until the terminals push grows past the
+    /// count at request time, or a timeout gives up (e.g. a run task that needs
+    /// the Mac app open never spawned one).
+    private func markTerminalCreating(_ project: String) {
+        creatingBaseline[project] = terminals[project]?.count ?? 0
+        creatingTerminals.insert(project)
+        let gen = (creatingGen[project] ?? 0) + 1
+        creatingGen[project] = gen
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+            guard let self, self.creatingGen[project] == gen else { return }
+            self.creatingTerminals.remove(project)
+            self.creatingBaseline[project] = nil
+        }
     }
     func closeTerminal(_ project: String, id: String) {
         client?.closeTerminal(project: project, id: id)
@@ -450,14 +492,25 @@ final class AppModel: ObservableObject {
             }
         }
         c.onProjects = { [weak self] p in
-            self?.projects = p
-            self?.projectsLoaded = true
+            guard let self else { return }
+            self.projects = p
+            self.projectsLoaded = true
+            for proj in p where self.pendingRun[proj.name] == proj.running {
+                self.pendingRun[proj.name] = nil
+            }
         }
         c.onSidebar = { [weak self] order, groups in
             self?.sidebarOrder = order
             self?.groups = groups
         }
-        c.onTerminals = { [weak self] proj, t in self?.terminals[proj] = t }
+        c.onTerminals = { [weak self] proj, t in
+            guard let self else { return }
+            self.terminals[proj] = t
+            if let base = self.creatingBaseline[proj], t.count > base {
+                self.creatingBaseline[proj] = nil
+                self.creatingTerminals.remove(proj)
+            }
+        }
         c.onSlash = { [weak self] id, cmds in self?.slashCommands[id] = cmds }
         c.onUpload = { [weak self] id, path in if !path.isEmpty { self?.pendingImagePath[id] = path } }
         c.onMentions = { [weak self] proj, entries in self?.mentions[proj] = entries }

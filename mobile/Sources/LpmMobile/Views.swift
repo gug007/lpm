@@ -236,8 +236,11 @@ struct ProjectsView: View {
             ForEach(model.sidebarItems) { item in
                 switch item {
                 case .project(let row):
-                    NavigationLink(value: row.project.name) { ProjectRow(project: row.project) }
-                        .projectRowActions(row.project, removing: $removing, duplicating: $duplicating)
+                    NavigationLink(value: row.project.name) {
+                        ProjectRow(project: row.project,
+                                   pending: model.pendingRun[row.project.name] != nil)
+                    }
+                    .projectRowActions(row.project, removing: $removing, duplicating: $duplicating)
                 case .folder(let g, let members):
                     FolderHeader(name: g.name, count: members.filter { !$0.isChild }.count, expanded: isExpanded(g)) {
                         expandedOverride[g.id] = !isExpanded(g)
@@ -245,7 +248,9 @@ struct ProjectsView: View {
                     if isExpanded(g) {
                         ForEach(members) { row in
                             NavigationLink(value: row.project.name) {
-                                ProjectRow(project: row.project).padding(.leading, 20)
+                                ProjectRow(project: row.project,
+                                           pending: model.pendingRun[row.project.name] != nil)
+                                    .padding(.leading, 20)
                             }
                             .projectRowActions(row.project, removing: $removing, duplicating: $duplicating)
                         }
@@ -291,10 +296,11 @@ struct ProjectsView: View {
                             .buttonStyle(.borderedProminent)
                     }
                 } else {
-                    ProgressView().controlSize(.large)
+                    ProjectListSkeleton()
                 }
             }
         }
+        .animation(.default, value: model.projectsLoaded)
         .confirmationDialog("Log out of this Mac?", isPresented: $confirmingLogout, titleVisibility: .visible) {
             Button("Log out", role: .destructive) { model.logout() }
             Button("Cancel", role: .cancel) {}
@@ -479,10 +485,18 @@ struct FolderHeader: View {
 
 struct ProjectRow: View {
     let project: Project
+    var pending: Bool = false
 
     var body: some View {
         HStack {
-            RunningDot(running: project.running)
+            Group {
+                if pending {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    RunningDot(running: project.running)
+                }
+            }
+            .frame(width: 14)
             Text(project.label)
             Spacer()
             if let s = project.statusEntries.first {
@@ -588,6 +602,8 @@ struct TerminalScreen: View {
     @EnvironmentObject var model: AppModel
     let term: TerminalInfo
     @StateObject private var keyboard = KeyboardObserver()
+    // Flips when the first screen snapshot renders, hiding the loading spinner.
+    @State private var hasContent = false
 
     var body: some View {
         // A terminal is shown live in exactly one place at a time. When the
@@ -601,8 +617,13 @@ struct TerminalScreen: View {
         // above the keyboard when it opens.
         return VStack(spacing: 0) {
             ZStack {
-                WebTerminalView(term: term)
+                WebTerminalView(term: term, onFirstContent: {
+                    withAnimation(.easeOut(duration: 0.2)) { hasContent = true }
+                })
                     .environmentObject(model)
+                if controlled && !hasContent {
+                    TerminalLoadingView()
+                }
                 if !controlled {
                     ControlHandoffView(ownerLabel: model.controlOwnerLabel(term.id)) {
                         model.claimControl(term.id)
@@ -620,6 +641,12 @@ struct TerminalScreen: View {
             .ignoresSafeArea(.keyboard, edges: .bottom)
             .navigationTitle(term.label)
             .navigationBarTitleDisplayMode(.inline)
+            // Fallback: never leave the spinner up if no snapshot ever arrives
+            // (e.g. the link drops mid-open).
+            .task {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                withAnimation { hasContent = true }
+            }
             // Solid black bar matching the terminal ground, scoped to this screen —
             // the terminal sits below it (safe area), so the bar reads as one
             // continuous black surface with the terminal instead of letting the
