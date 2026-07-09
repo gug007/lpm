@@ -42,13 +42,13 @@ struct GitReviewView: View {
                     if s.files.isEmpty {
                         noChangesSection
                     } else {
-                        ForEach(Array(s.files.enumerated()), id: \.element.id) { index, file in
+                        changedFilesHeader(s)
+                        ForEach(s.files) { file in
                             GitFileSection(
                                 project: name,
                                 file: file,
                                 selected: !deselected.contains(file.path),
                                 toggle: { toggle(file.path) },
-                                headerInfo: index == 0 ? (total: s.files.count, reviewed: reviewedCount(s)) : nil,
                                 onAsk: { diffText in asking = AskContext(path: file.path, diffText: diffText) }
                             )
                             .id("file-" + file.path)
@@ -185,6 +185,28 @@ struct GitReviewView: View {
 
     // MARK: sections
 
+    /// The "Changed files (N)" label as a plain row (not a Section header, which
+    /// would pin to the top while scrolling in a .plain list).
+    private func changedFilesHeader(_ s: GitSnapshot) -> some View {
+        Section {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Changed files (\(s.files.count))")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                if reviewedCount(s) > 0 {
+                    Text("\(reviewedCount(s)) of \(s.files.count) reviewed")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.top, 10)
+            .padding(.bottom, 2)
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+        }
+    }
+
     private var noChangesSection: some View {
         Section {
             HStack(spacing: 12) {
@@ -309,7 +331,6 @@ private struct GitFileSection: View {
     let file: GitFile
     let selected: Bool
     let toggle: () -> Void
-    let headerInfo: (total: Int, reviewed: Int)?
     let onAsk: (String) -> Void
 
     @State private var collapsed = false
@@ -337,10 +358,6 @@ private struct GitFileSection: View {
             if !collapsed {
                 content
             }
-        } header: {
-            if let headerInfo {
-                sectionHeader(headerInfo)
-            }
         }
         .onAppear {
             collapsed = viewed
@@ -351,18 +368,6 @@ private struct GitFileSection: View {
     private var askButton: some View {
         Button { onAsk(promptDiff) } label: {
             Label("Ask agent…", systemImage: "sparkles")
-        }
-    }
-
-    private func sectionHeader(_ info: (total: Int, reviewed: Int)) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("Changed files (\(info.total))")
-            if info.reviewed > 0 {
-                Text("\(info.reviewed) of \(info.total) reviewed")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .textCase(nil)
-            }
         }
     }
 
