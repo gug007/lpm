@@ -1,7 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("../../bridge/commands", () => new Proxy({}, { get: () => vi.fn() }));
-vi.mock("../../bridge/runtime", () => new Proxy({}, { get: () => vi.fn() }));
+// vi.mock hoists above any const, so the factories are inlined. `then` must
+// stay undefined: a function there makes the mocked module thenable and
+// vitest awaits it forever.
+vi.mock("../../bridge/commands", () =>
+  new Proxy({}, {
+    has: () => true,
+    get: (_t, prop) => (prop === "then" ? undefined : vi.fn()),
+  }));
+vi.mock("../../bridge/runtime", () =>
+  new Proxy({}, {
+    has: () => true,
+    get: (_t, prop) => (prop === "then" ? undefined : vi.fn()),
+  }));
 
 import { useAppStore } from "./app";
 

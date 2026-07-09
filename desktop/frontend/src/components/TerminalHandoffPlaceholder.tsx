@@ -32,8 +32,8 @@ export function TerminalHandoffPlaceholder({
           Active in {ownerLabel}
         </div>
         <div className="max-w-xs text-xs text-[var(--text-muted)]">
-          This terminal is shown and controlled elsewhere to keep it sized
-          correctly. Take control to move it here.
+          This terminal is shown and controlled elsewhere. Take control to
+          move it here.
         </div>
       </div>
       <button

@@ -30,9 +30,6 @@ struct ProjectDetail: View {
                         TerminalCardSkeleton()
                             .terminalRowChrome()
                     }
-                } else if terminals.isEmpty && !creating {
-                    EmptyTerminalsCard()
-                        .terminalRowChrome()
                 } else {
                     ForEach(terminals) { t in
                         TerminalRow(term: t, onOpen: { openTerminal = t })
@@ -82,6 +79,14 @@ struct ProjectDetail: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Color(.systemGroupedBackground))
+        // Full-space overlay (not a list row): ContentUnavailableView is greedy
+        // and inside a row it stretches the row — and its action button — to
+        // fill the expanse.
+        .overlay {
+            if terminalsLoaded && terminals.isEmpty && !creating {
+                EmptyTerminalsView(onNew: { model.newTerminal(project.name) })
+            }
+        }
         .animation(.default, value: terminalsLoaded)
         .animation(.default, value: creating)
         .refreshable {
@@ -310,20 +315,20 @@ private struct TerminalRow: View {
     }
 }
 
-private struct EmptyTerminalsCard: View {
+private struct EmptyTerminalsView: View {
+    let onNew: () -> Void
+
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "terminal")
-                .font(.system(size: 15))
-                .foregroundStyle(.tertiary)
-            Text("No open terminals")
-                .font(.system(size: 15))
-                .foregroundStyle(.secondary)
-            Spacer()
+        ContentUnavailableView {
+            Label("No Terminals", systemImage: "terminal")
+        } description: {
+            Text("Open a terminal to work in this project.")
+        } actions: {
+            Button(action: onNew) {
+                Label("New Terminal", systemImage: "plus")
+            }
+            .buttonStyle(.borderedProminent)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity)
-        .card()
     }
 }
 

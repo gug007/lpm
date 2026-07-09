@@ -668,35 +668,21 @@ struct ControlHandoffView: View {
         ZStack {
             // Match the terminal's black ground so there's no flash behind it.
             SwiftUI.Color.black
-            VStack(spacing: 16) {
-                Image(systemName: "terminal.fill")
-                    .font(.system(size: 34))
-                    .foregroundColor(.accentColor)
-                VStack(spacing: 4) {
-                    Text("Active on \(ownerLabel)")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                    Text("This terminal is shown and controlled elsewhere to keep it sized correctly.")
-                        .font(.footnote)
-                        .foregroundColor(.white.opacity(0.6))
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: 280)
-                }
+            ContentUnavailableView {
+                Label("Active on \(ownerLabel)", systemImage: "terminal.fill")
+            } description: {
+                Text("This terminal is shown and controlled elsewhere.")
+            } actions: {
                 Button {
                     taking = true
                     onTakeControl()
                 } label: {
                     Text(taking ? "Taking control…" : "Take control")
-                        .font(.subheadline.weight(.medium))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 9)
-                        .background(Color.accentColor)
-                        .foregroundColor(.white)
-                        .clipShape(Capsule())
                 }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
                 .disabled(taking)
             }
-            .padding(24)
         }
         .environment(\.colorScheme, .dark)
     }

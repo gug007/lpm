@@ -308,6 +308,11 @@ private struct HistoryView: View {
                     }
                     .listStyle(.plain)
                     .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always))
+                    .overlay {
+                        if filtered.isEmpty {
+                            ContentUnavailableView.search(text: query)
+                        }
+                    }
                 }
             }
             .navigationTitle("History")
