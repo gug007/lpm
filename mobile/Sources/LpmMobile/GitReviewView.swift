@@ -39,7 +39,6 @@ struct GitReviewView: View {
         ScrollViewReader { proxy in
             List {
                 if let s = snapshot, s.isRepo {
-                    branchSection(s)
                     if s.files.isEmpty {
                         noChangesSection
                     } else {
@@ -186,54 +185,6 @@ struct GitReviewView: View {
 
     // MARK: sections
 
-    private func branchSection(_ s: GitSnapshot) -> some View {
-        Section {
-            HStack(spacing: 14) {
-                Image(systemName: "arrow.trianglehead.branch")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 34, height: 34)
-                    .background(Color(.tertiarySystemFill),
-                                in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(s.detached ? "Detached HEAD" : s.branch)
-                        .font(.headline)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    HStack(spacing: 8) {
-                        if s.ahead > 0 { TrackingBadge(icon: "arrow.up", count: s.ahead) }
-                        if s.behind > 0 { TrackingBadge(icon: "arrow.down", count: s.behind) }
-                        if !s.hasUpstream {
-                            Text("No upstream")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                        } else if s.ahead == 0 && s.behind == 0 {
-                            Text("Up to date")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                Spacer(minLength: 8)
-                if canPush(s) {
-                    Button(action: { model.gitPush(name) }) {
-                        if pushing {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Text("Push").fontWeight(.semibold)
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .buttonBorderShape(.capsule)
-                    .controlSize(.small)
-                    .disabled(pushing || committing)
-                }
-            }
-            .padding(.vertical, 4)
-        }
-    }
-
     private var noChangesSection: some View {
         Section {
             HStack(spacing: 12) {
@@ -326,8 +277,6 @@ struct GitReviewView: View {
 
     // MARK: actions
 
-    private func canPush(_ s: GitSnapshot) -> Bool { s.ahead > 0 || !s.hasUpstream }
-
     private func toggle(_ path: String) {
         if deselected.contains(path) { deselected.remove(path) } else { deselected.insert(path) }
     }
@@ -339,21 +288,6 @@ struct GitReviewView: View {
     private func refresh() async {
         model.loadGit(name)
         try? await Task.sleep(nanoseconds: 600_000_000)
-    }
-}
-
-/// An ahead/behind badge (↑N or ↓M) for the branch header.
-private struct TrackingBadge: View {
-    let icon: String
-    let count: Int
-
-    var body: some View {
-        HStack(spacing: 2) {
-            Image(systemName: icon).font(.system(size: 9, weight: .bold))
-            Text("\(count)").monospacedDigit()
-        }
-        .font(.caption2.weight(.semibold))
-        .foregroundStyle(.secondary)
     }
 }
 
