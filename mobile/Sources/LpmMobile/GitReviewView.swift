@@ -6,6 +6,7 @@ import SwiftUI
 /// GitHub CLI is available — a "Create Pull Request" flow.
 struct GitReviewView: View {
     @EnvironmentObject var model: AppModel
+    @Environment(\.scenePhase) private var scenePhase
     let project: Project
 
     @State private var message = ""
@@ -13,6 +14,8 @@ struct GitReviewView: View {
     // changes are picked up automatically and deselections survive a refresh.
     @State private var deselected: Set<String> = []
     @State private var showPrSheet = false
+    @State private var asking: AskContext?
+    @State private var openTerminal: TerminalInfo?
 
     private var name: String { project.name }
     private var snapshot: GitSnapshot? { model.gitSnapshots[name] }
@@ -33,58 +36,120 @@ struct GitReviewView: View {
     }
 
     var body: some View {
-        List {
-            if let s = snapshot, s.isRepo {
-                branchSection(s)
-                if s.files.isEmpty {
-                    noChangesSection
-                } else {
-                    ForEach(Array(s.files.enumerated()), id: \.element.id) { index, file in
-                        GitFileSection(
-                            project: name,
-                            file: file,
-                            selected: !deselected.contains(file.path),
-                            toggle: { toggle(file.path) },
-                            headerTitle: index == 0 ? "Changed files (\(s.files.count))" : nil
-                        )
+        ScrollViewReader { proxy in
+            List {
+                if let s = snapshot, s.isRepo {
+                    branchSection(s)
+                    if s.files.isEmpty {
+                        noChangesSection
+                    } else {
+                        ForEach(Array(s.files.enumerated()), id: \.element.id) { index, file in
+                            GitFileSection(
+                                project: name,
+                                file: file,
+                                selected: !deselected.contains(file.path),
+                                toggle: { toggle(file.path) },
+                                headerInfo: index == 0 ? (total: s.files.count, reviewed: reviewedCount(s)) : nil,
+                                onAsk: { diffText in asking = AskContext(path: file.path, diffText: diffText) }
+                            )
+                            .id("file-" + file.path)
+                        }
+                        commitSection
                     }
-                    commitSection
-                }
-                if s.ghCli {
-                    prSection
+                    if s.ghCli {
+                        prSection
+                    }
                 }
             }
-        }
-        .listStyle(.insetGrouped)
-        .scrollDismissesKeyboard(.interactively)
-        .navigationTitle("Changes")
-        .navigationBarTitleDisplayMode(.inline)
-        .refreshable { await refresh() }
-        .overlay { stateOverlay }
-        .animation(.default, value: snapshot?.files.count ?? -1)
-        .onAppear { if snapshot == nil { model.loadGit(name) } }
-        .onChange(of: model.gitGeneratedMessage[name]) { _, m in
-            if let m {
-                message = m
-                model.consumeGitGeneratedMessage(name)
+            .listStyle(.insetGrouped)
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle("Changes")
+            .navigationBarTitleDisplayMode(.inline)
+            .refreshable { await refresh() }
+            .overlay { stateOverlay }
+            .animation(.default, value: snapshot?.files.count ?? -1)
+            .toolbar {
+                if let s = snapshot, s.isRepo, !s.files.isEmpty {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        jumpMenu(s, proxy: proxy)
+                    }
+                }
             }
-        }
-        .onChange(of: model.gitCommitTick[name]) { _, _ in
-            message = ""
-            deselected = []
-        }
-        .alert(
-            "Something went wrong",
-            isPresented: Binding(get: { model.gitOpError[name] != nil },
-                                 set: { if !$0 { model.gitOpError[name] = nil } })
-        ) {
-            Button("OK", role: .cancel) { model.gitOpError[name] = nil }
-        } message: {
-            Text(model.gitOpError[name] ?? "")
-        }
-        .sheet(isPresented: $showPrSheet) {
-            GitPrSheet(project: project)
+            .onAppear {
+                if snapshot == nil { model.loadGit(name) }
+                model.watchGit(name)
+            }
+            .onDisappear { model.unwatchGit(name) }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { model.refreshWatchedGit(name) }
+            }
+            .onChange(of: model.gitGeneratedMessage[name]) { _, m in
+                if let m {
+                    message = m
+                    model.consumeGitGeneratedMessage(name)
+                }
+            }
+            .onChange(of: model.gitCommitTick[name]) { _, _ in
+                message = ""
+                deselected = []
+            }
+            .alert(
+                "Something went wrong",
+                isPresented: Binding(get: { model.gitOpError[name] != nil },
+                                     set: { if !$0 { model.gitOpError[name] = nil } })
+            ) {
+                Button("OK", role: .cancel) { model.gitOpError[name] = nil }
+            } message: {
+                Text(model.gitOpError[name] ?? "")
+            }
+            .sheet(isPresented: $showPrSheet) {
+                GitPrSheet(project: project)
+                    .environmentObject(model)
+            }
+            .sheet(item: $asking) { ctx in
+                AgentAskSheet(project: project, path: ctx.path, diffText: ctx.diffText) { term, prompt in
+                    sendToAgent(term, prompt)
+                }
                 .environmentObject(model)
+            }
+            .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0) }
+        }
+    }
+
+    private func sendToAgent(_ term: TerminalInfo, _ prompt: String) {
+        model.recordHistory(project: name, id: term.id, label: term.label, text: prompt)
+        model.pendingAgentPrompt[term.id] = prompt
+        asking = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            openTerminal = term
+        }
+    }
+
+    private func reviewedCount(_ s: GitSnapshot) -> Int {
+        s.files.filter { model.isViewed(name, path: $0.path) }.count
+    }
+
+    private func jumpMenu(_ s: GitSnapshot, proxy: ScrollViewProxy) -> some View {
+        Menu {
+            ForEach(s.files) { f in
+                Button {
+                    withAnimation { proxy.scrollTo("file-" + f.path, anchor: .top) }
+                } label: {
+                    Label((f.path as NSString).lastPathComponent, systemImage: jumpSymbol(f.status))
+                }
+            }
+        } label: {
+            Image(systemName: "list.bullet")
+        }
+    }
+
+    private func jumpSymbol(_ status: String) -> String {
+        switch status {
+        case "added": return "plus.circle"
+        case "deleted": return "minus.circle"
+        case "renamed": return "arrow.right.circle"
+        case "untracked": return "questionmark.circle"
+        default: return "pencil.circle"
         }
     }
 
@@ -266,13 +331,21 @@ private struct TrackingBadge: View {
 /// the file's diff rendered inline. The diff is fetched lazily on first appearance
 /// (so opening the screen doesn't request every file at once) and capped — very
 /// long diffs offer "Show full diff", which pushes the lazy full-screen view.
+/// One "Ask agent…" invocation: the file path and the diff text to attach.
+struct AskContext: Identifiable {
+    let id = UUID()
+    let path: String
+    let diffText: String
+}
+
 private struct GitFileSection: View {
     @EnvironmentObject var model: AppModel
     let project: String
     let file: GitFile
     let selected: Bool
     let toggle: () -> Void
-    let headerTitle: String?
+    let headerInfo: (total: Int, reviewed: Int)?
+    let onAsk: (String) -> Void
 
     private let inlineCap = 200
     @State private var collapsed = false
@@ -281,22 +354,49 @@ private struct GitFileSection: View {
     private var result: GitDiffResult? { model.gitDiffs[key] }
     private var loading: Bool { model.gitDiffLoading.contains(key) }
     private var error: String? { model.gitDiffError[key] }
+    private var parsed: ParsedDiff? { model.parsedDiff(project, path: file.path) }
+    private var viewed: Bool { model.isViewed(project, path: file.path) }
+    private var promptDiff: String {
+        guard let result, !result.binary else { return "" }
+        return ParsedDiff.promptDiff(result.diff)
+    }
 
     var body: some View {
         Section {
             header
+                .contextMenu { askButton }
             if !collapsed {
                 content
                     .listRowInsets(EdgeInsets())
                     .listRowSeparator(.hidden)
+                    .contextMenu { askButton }
             }
         } header: {
-            if let headerTitle {
-                Text(headerTitle)
+            if let headerInfo {
+                sectionHeader(headerInfo)
             }
         }
         .onAppear {
+            collapsed = viewed
             if result == nil && !loading { model.loadGitDiff(project, path: file.path) }
+        }
+    }
+
+    private var askButton: some View {
+        Button { onAsk(promptDiff) } label: {
+            Label("Ask agent…", systemImage: "sparkles")
+        }
+    }
+
+    private func sectionHeader(_ info: (total: Int, reviewed: Int)) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Changed files (\(info.total))")
+            if info.reviewed > 0 {
+                Text("\(info.reviewed) of \(info.total) reviewed")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .textCase(nil)
+            }
         }
     }
 
@@ -312,19 +412,33 @@ private struct GitFileSection: View {
             Button {
                 withAnimation(.easeInOut(duration: 0.15)) { collapsed.toggle() }
             } label: {
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     GitStatusBadge(status: file.status)
                     Text(file.path)
                         .font(.system(size: 15))
                         .lineLimit(1)
                         .truncationMode(.head)
                         .foregroundStyle(.primary)
-                    Spacer(minLength: 0)
+                    Spacer(minLength: 6)
+                    if let parsed {
+                        DiffStat(added: parsed.addedCount, removed: parsed.removedCount)
+                    }
                     Image(systemName: collapsed ? "chevron.right" : "chevron.down")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
                 .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                let nowViewed = !viewed
+                model.toggleViewed(project, path: file.path)
+                withAnimation(.easeInOut(duration: 0.15)) { collapsed = nowViewed }
+            } label: {
+                Image(systemName: viewed ? "checkmark.seal.fill" : "checkmark.seal")
+                    .font(.system(size: 18))
+                    .foregroundStyle(viewed ? Color.green : Color.secondary)
             }
             .buttonStyle(.plain)
         }
@@ -337,14 +451,36 @@ private struct GitFileSection: View {
                 InlineNote(icon: "doc.badge.gearshape", text: "Binary file")
             } else if result.diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 InlineNote(icon: "doc.plaintext", text: "No changes to show")
-            } else if let parsed = model.parsedDiff(project, path: file.path) {
+            } else if let parsed {
                 InlineDiff(parsed: parsed, cap: inlineCap, project: project, file: file)
+            } else {
+                InlineDiffLoading()
             }
         } else if let error {
             InlineDiffError(message: error) { model.loadGitDiff(project, path: file.path) }
         } else {
             InlineDiffLoading()
         }
+    }
+}
+
+/// The per-file "+N −M" change counts shown in the section header once the diff
+/// has been parsed.
+private struct DiffStat: View {
+    let added: Int
+    let removed: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if added > 0 {
+                Text("+\(added)").foregroundStyle(.green)
+            }
+            if removed > 0 {
+                Text("−\(removed)").foregroundStyle(.red)
+            }
+        }
+        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+        .monospacedDigit()
     }
 }
 
@@ -361,7 +497,8 @@ private struct InlineDiff: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(parsed.lines.prefix(cap))) { line in
-                        DiffLineRow(line: line, width: parsed.contentWidth)
+                        DiffLineRow(line: line, gutterWidth: parsed.gutterWidth,
+                                    contentWidth: parsed.contentWidth)
                     }
                 }
             }

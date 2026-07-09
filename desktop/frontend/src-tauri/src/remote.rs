@@ -420,6 +420,11 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
     );
     let _ = ws.get_ref().set_read_timeout(Some(POLL));
 
+    // Per-connection working-tree watchers (project -> watcher). Local to this
+    // connection so they stop deterministically on teardown below, which also
+    // covers device revocation (the loop self-exits, then this scope drops).
+    let mut watches: HashMap<String, RemoteWatch> = HashMap::new();
+
     'main: loop {
         // Retire on server restart or when this device is revoked.
         if hub.inner.generation.load(Ordering::SeqCst) != generation || !hub.device_exists(&device_id) {
@@ -447,7 +452,7 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
                 if msg.is_text() {
                     if let Ok(txt) = msg.to_text() {
                         let txt = txt.to_string();
-                        if handle_msg(&mut ws, &txt, &hub, &app, &subs, &device_id, &out).is_err() {
+                        if handle_msg(&mut ws, &txt, &hub, &app, &subs, &device_id, &out, &mut watches).is_err() {
                             break;
                         }
                     }
@@ -462,6 +467,11 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
     }
 
     hub.inner.clients.lock().unwrap().remove(&conn_id);
+    // Stop this connection's working-tree watchers (dropping the map would also
+    // end their threads, but flag them first to short-circuit any in-flight debounce).
+    for (_, w) in watches.drain() {
+        w.stop.store(true, Ordering::SeqCst);
+    }
     // Release any terminal control this phone held so ownership transfers back to
     // a desktop window (or another presenter) instead of stranding on a gone
     // client.
@@ -703,6 +713,79 @@ fn git_push_flags() -> Vec<String> {
     flags
 }
 
+// --- live working-tree watch (per connection) --------------------------------
+
+/// One project's filesystem watcher for a single phone connection. Dropping it
+/// closes the notify channel, which ends the debounce thread; the `stop` flag is
+/// an explicit belt-and-suspenders for the mid-debounce window.
+struct RemoteWatch {
+    stop: Arc<AtomicBool>,
+    _watcher: notify::RecommendedWatcher,
+}
+
+/// Watch a project's working tree for this connection and push a debounced
+/// `git-changed` frame to the client's outbound queue on each burst of changes,
+/// so the phone's review screen refreshes while an agent edits. Mirrors git.rs's
+/// start_watching_project (same should_ignore filter + DEBOUNCE coalescing), but
+/// delivers over the wire instead of the app event bus. The push carries no
+/// payload beyond the project — the phone re-requests `git` + the diffs it wants.
+fn start_git_watch(cwd: &str, project: &str, out: &SyncSender<String>) -> Result<RemoteWatch, String> {
+    use notify::{RecursiveMode, Watcher};
+
+    // FSEvents delivers canonical paths; canonicalize so should_ignore's strip_prefix matches.
+    let path = std::fs::canonicalize(cwd)
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| cwd.to_string());
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let (tx, rx) = mpsc::channel::<()>();
+    let root = path.clone();
+    let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
+        if let Ok(ev) = res {
+            for p in &ev.paths {
+                let full = p.to_string_lossy();
+                if !crate::git::should_ignore(&root, &full) {
+                    let _ = tx.send(());
+                    break;
+                }
+            }
+        }
+    })
+    .map_err(|e| e.to_string())?;
+    watcher
+        .watch(std::path::Path::new(&path), RecursiveMode::Recursive)
+        .map_err(|e| e.to_string())?;
+
+    let (project, out, thread_stop) = (project.to_string(), out.clone(), stop.clone());
+    std::thread::spawn(move || loop {
+        if rx.recv().is_err() {
+            return; // watcher dropped (connection torn down / unwatched)
+        }
+        if thread_stop.load(Ordering::SeqCst) {
+            return;
+        }
+        // Coalesce a burst of edits into one push after DEBOUNCE of quiet.
+        loop {
+            match rx.recv_timeout(crate::git::DEBOUNCE) {
+                Ok(_) => continue,
+                Err(mpsc::RecvTimeoutError::Timeout) => break,
+                Err(mpsc::RecvTimeoutError::Disconnected) => return,
+            }
+        }
+        if thread_stop.load(Ordering::SeqCst) {
+            return;
+        }
+        // Overflow-drop like the rest of the outbound path: a full queue means the
+        // phone is behind and will re-seed; the next burst pushes again.
+        let _ = out.try_send(json!({ "t": "git-changed", "project": project }).to_string());
+    });
+
+    Ok(RemoteWatch {
+        stop,
+        _watcher: watcher,
+    })
+}
+
 /// Queue a phone run-action/new-terminal request and wake the main window's
 /// listener. Delivery is pull-based (remote_take_run_actions) so a request
 /// that lands before the listener is mounted is picked up on mount instead of
@@ -720,6 +803,7 @@ fn handle_msg(
     subs: &Arc<Mutex<HashSet<String>>>,
     device_id: &str,
     out: &SyncSender<String>,
+    watches: &mut HashMap<String, RemoteWatch>,
 ) -> Result<(), ()> {
     let v: Value = match serde_json::from_str(txt) {
         Ok(v) => v,
@@ -760,6 +844,7 @@ fn handle_msg(
             let labels = hub.inner.labels.lock().unwrap();
             let pinned = hub.inner.pinned.lock().unwrap();
             let emojis = hub.inner.emojis.lock().unwrap();
+            let clis = hub.inner.clis.lock().unwrap();
             let terms: Vec<Value> = terms
                 .iter()
                 .map(|t| {
@@ -769,6 +854,7 @@ fn handle_msg(
                         m.insert("label".into(), json!(label));
                         m.insert("pinned".into(), json!(pinned.get(&t.id).copied().unwrap_or(false)));
                         m.insert("emoji".into(), json!(emojis.get(&t.id).cloned().unwrap_or_default()));
+                        m.insert("cli".into(), json!(clis.get(&t.id).cloned().unwrap_or_default()));
                     }
                     o
                 })
@@ -776,6 +862,7 @@ fn handle_msg(
             drop(labels);
             drop(pinned);
             drop(emojis);
+            drop(clis);
             send(ws, json!({ "t": "terminals", "project": project, "terminals": terms }))?;
         }
         "slash" => {
@@ -1322,6 +1409,36 @@ fn handle_msg(
                 }
                 Err(e) => send(ws, json!({ "t": "gitDiscardAll", "project": project, "ok": false, "error": e }))?,
             }
+        }
+        // Live review: watch a project's working tree for this connection and push a
+        // debounced `git-changed` when files change, so the phone's review screen
+        // self-refreshes while an agent edits. Watchers are per-connection (held in
+        // `watches`) and torn down on gitUnwatch, connection close, and revocation
+        // (the map drops with the connection). Watching an already-watched project
+        // is a no-op.
+        "gitWatch" => {
+            let project = str_field("project").unwrap_or_default();
+            if watches.contains_key(&project) {
+                send(ws, json!({ "t": "gitWatch", "project": project, "ok": true }))?;
+            } else {
+                match config::project_root(&project) {
+                    Ok((cwd, _)) => match start_git_watch(&cwd, &project, out) {
+                        Ok(w) => {
+                            watches.insert(project.clone(), w);
+                            send(ws, json!({ "t": "gitWatch", "project": project, "ok": true }))?;
+                        }
+                        Err(e) => send(ws, json!({ "t": "gitWatch", "project": project, "ok": false, "error": e }))?,
+                    },
+                    Err(e) => send(ws, json!({ "t": "gitWatch", "project": project, "ok": false, "error": e }))?,
+                }
+            }
+        }
+        "gitUnwatch" => {
+            let project = str_field("project").unwrap_or_default();
+            if let Some(w) = watches.remove(&project) {
+                w.stop.store(true, Ordering::SeqCst);
+            }
+            send(ws, json!({ "t": "gitUnwatch", "project": project, "ok": true }))?;
         }
         "gitGenMessage" => {
             let project = str_field("project").unwrap_or_default();

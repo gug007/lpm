@@ -55,6 +55,7 @@ final class LpmClient: NSObject {
     var onGitBranches: ((_ project: String, _ current: String, _ branches: [GitBranch], _ error: String?) -> Void)?
     var onGitCheckout: ((_ project: String, _ error: String?) -> Void)?
     var onGitDiscardAll: ((_ project: String, _ error: String?) -> Void)?
+    var onGitChanged: ((_ project: String) -> Void)?
 
     private var endpoint: Endpoint
     private var credential: Credential?
@@ -63,6 +64,7 @@ final class LpmClient: NSObject {
     private var session: URLSession!
     private var task: URLSessionWebSocketTask?
     private let subscribed = NSMutableSet() // termIds we auto-re-sub on reconnect
+    private let watchedProjects = NSMutableSet() // projects we auto-re-watch on reconnect
     private(set) var state: State = .idle
 
     // Requests made while the link is down or half-dead, delivered on the next
@@ -314,6 +316,14 @@ final class LpmClient: NSObject {
         send(Wire.gitCheckout(project: project, branch: branch, remote: remote))
     }
     func gitDiscardAll(project: String) { send(Wire.gitDiscardAll(project: project)) }
+    func watchGit(project: String) {
+        watchedProjects.add(project)
+        sendLive(Wire.gitWatch(project: project))
+    }
+    func unwatchGit(project: String) {
+        watchedProjects.remove(project)
+        sendLive(Wire.gitUnwatch(project: project))
+    }
 
     func subscribe(_ id: String) {
         subscribed.add(id)
@@ -410,6 +420,8 @@ final class LpmClient: NSObject {
                 self.onConnected()
                 // Re-subscribe to any terminals we were watching before a drop.
                 for id in self.subscribed { self.sendLive(Wire.sub(id: id as! String)) }
+                // Re-watch git for any review screen that was open before a drop.
+                for p in self.watchedProjects { self.sendLive(Wire.gitWatch(project: p as! String)) }
                 self.flushPending()
             case .error(let e):
                 self.fatal(e)
@@ -459,6 +471,7 @@ final class LpmClient: NSObject {
                 self.onGitBranches?(proj, current, branches, error)
             case .gitCheckout(let proj, let error): self.onGitCheckout?(proj, error)
             case .gitDiscardAll(let proj, let error): self.onGitDiscardAll?(proj, error)
+            case .gitChanged(let proj): self.onGitChanged?(proj)
             case .pong, .unknown: break
         }
     }

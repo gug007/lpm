@@ -65,6 +65,10 @@ final class AppModel: ObservableObject {
     // same bracketed-paste wrapping the desktop does (which needs xterm's live
     // bracketed-paste mode). Registered by WebTerminalView.
     var terminalSubmit: [String: (String) -> Void] = [:]
+    // A prompt queued to submit into a terminal as soon as its web view is mounted
+    // and seeded (used by "Ask agent…", which navigates to a terminal that may not
+    // be on screen yet). Flushed + cleared by WebTerminalView once ready.
+    var pendingAgentPrompt: [String: String] = [:]
 
     // MARK: git review state (keyed by project)
 
@@ -94,6 +98,12 @@ final class AppModel: ObservableObject {
     @Published var gitDiffs: [String: GitDiffResult] = [:]
     @Published var gitDiffLoading: Set<String> = []
     @Published var gitDiffError: [String: String] = [:]
+    // Bumped when a background-built ParsedDiff lands in the cache, so views that
+    // read parsedDiff() re-evaluate and swap their loading state for the diff.
+    @Published var gitParsedTick = 0
+    // Files the user marked "viewed" on the review screen, keyed by project. Session
+    // scoped: kept across snapshot refreshes, cleared on logout.
+    @Published var gitViewed: [String: Set<String>] = [:]
     // Git menu ops (Pull/Fetch/Discard) in flight; their failures also surface via
     // gitOpError, presented on the project screen when the review screen is closed.
     @Published var gitPulling: Set<String> = []
@@ -115,6 +125,9 @@ final class AppModel: ObservableObject {
     // scrolling the review list doesn't re-parse a file's diff on every body
     // evaluation. Invalidated when a fresh diff for that key arrives.
     private var parsedDiffCache: [String: ParsedDiff] = [:]
+    // Debounce per project for the git-changed push, so a burst of file writes
+    // collapses into one refresh.
+    private var gitChangedWork: [String: DispatchWorkItem] = [:]
 
     private var client: LpmClient?
     // The addresses the current attempt is racing, so a failure can name exactly
@@ -319,6 +332,10 @@ final class AppModel: ObservableObject {
         gitCheckoutTick = [:]
         gitOpGen = [:]
         parsedDiffCache = [:]
+        gitChangedWork.values.forEach { $0.cancel() }
+        gitChangedWork = [:]
+        gitViewed = [:]
+        pendingAgentPrompt = [:]
         paired = false
     }
 
@@ -494,15 +511,25 @@ final class AppModel: ObservableObject {
 
     func diffKey(_ project: String, _ path: String) -> String { project + "\n" + path }
 
-    /// The parsed + measured diff for a file, computed once and cached. Returns
-    /// nil when the diff hasn't loaded or is binary (nothing to render as text).
+    /// The parsed + highlighted diff for a file. Read-only: the value is built off
+    /// the main thread when the diff arrives (see onGitDiff) and cached; nil until
+    /// that lands, so views keep showing their loading state.
     func parsedDiff(_ project: String, path: String) -> ParsedDiff? {
-        let key = diffKey(project, path)
-        guard let result = gitDiffs[key], !result.binary else { return nil }
-        if let cached = parsedDiffCache[key] { return cached }
-        let parsed = ParsedDiff(result.diff)
-        parsedDiffCache[key] = parsed
-        return parsed
+        parsedDiffCache[diffKey(project, path)]
+    }
+
+    /// Build ParsedDiff (parse + syntax highlight) off the main thread, then
+    /// publish it into the cache — but only if the file's diff hasn't changed
+    /// underneath us. The tick nudges observing views to re-read the cache.
+    private func buildParsedDiff(key: String, diff: String, ext: String) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let parsed = ParsedDiff(diff, ext: ext)
+            DispatchQueue.main.async {
+                guard let self, self.gitDiffs[key]?.diff == diff else { return }
+                self.parsedDiffCache[key] = parsed
+                self.gitParsedTick &+= 1
+            }
+        }
     }
 
     /// Load the repository snapshot for the review screen. Coalesces concurrent
@@ -588,6 +615,42 @@ final class AppModel: ObservableObject {
             guard let self, self.gitCreatingPr.remove(project) != nil else { return }
             self.gitPrError[project] = "Pull request creation timed out. Try again."
         }
+    }
+
+    /// Ask the Mac to watch this project's working tree while the review screen is
+    /// open, so file changes push `git-changed`. The client re-sends on reconnect.
+    func watchGit(_ project: String) { client?.watchGit(project: project) }
+    func unwatchGit(_ project: String) {
+        gitChangedWork[project]?.cancel()
+        gitChangedWork[project] = nil
+        client?.unwatchGit(project: project)
+    }
+
+    /// A `git-changed` push (or a foreground return): reload the snapshot and
+    /// re-fetch the diffs already loaded for this project, leaving selection,
+    /// viewed, and collapse state untouched. Coalesced so a burst collapses to one.
+    private func gitChangedDebounced(_ project: String) {
+        gitChangedWork[project]?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.refreshWatchedGit(project) }
+        gitChangedWork[project] = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+    }
+
+    func refreshWatchedGit(_ project: String) {
+        loadGit(project)
+        let prefix = project + "\n"
+        for key in gitDiffs.keys where key.hasPrefix(prefix) {
+            loadGitDiff(project, path: String(key.dropFirst(prefix.count)))
+        }
+    }
+
+    func isViewed(_ project: String, path: String) -> Bool {
+        gitViewed[project]?.contains(path) ?? false
+    }
+    func toggleViewed(_ project: String, path: String) {
+        var set = gitViewed[project] ?? []
+        if set.contains(path) { set.remove(path) } else { set.insert(path) }
+        gitViewed[project] = set
     }
 
     func consumeGitGeneratedMessage(_ project: String) { gitGeneratedMessage[project] = nil }
@@ -871,6 +934,9 @@ final class AppModel: ObservableObject {
                 self.parsedDiffCache[key] = nil
                 self.gitDiffs[key] = result
                 self.gitDiffError[key] = nil
+                if !result.binary && !result.diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    self.buildParsedDiff(key: key, diff: result.diff, ext: (path as NSString).pathExtension)
+                }
             } else {
                 self.gitDiffError[key] = error ?? "Couldn't load the diff."
             }
@@ -945,6 +1011,7 @@ final class AppModel: ObservableObject {
             self.gitDiscarding.remove(project)
             if let error { self.gitOpError[project] = error } else { self.loadGit(project) }
         }
+        c.onGitChanged = { [weak self] project in self?.gitChangedDebounced(project) }
         c.onGitBranches = { [weak self] project, current, branches, error in
             guard let self else { return }
             self.clearGitTimeout("branches", project)

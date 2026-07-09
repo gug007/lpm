@@ -177,6 +177,18 @@ struct WebTerminalView: UIViewRepresentable {
             guard !announcedContent else { return }
             announcedContent = true
             onFirstContent?()
+            flushPendingPrompt()
+        }
+
+        /// If "Ask agent…" queued a prompt for this terminal, submit it once the
+        /// screen has seeded — a short delay lets xterm apply the seed (which turns
+        /// on the running program's bracketed-paste mode) before the paste lands.
+        private func flushPendingPrompt() {
+            guard let model, let prompt = model.pendingAgentPrompt[termId] else { return }
+            model.pendingAgentPrompt[termId] = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.submit(prompt)
+            }
         }
 
         func applyTopInset(_ inset: CGFloat) {

@@ -841,14 +841,18 @@ pub fn create_pull_request(
 
 // ---- file watcher (port of watcher.go) --------------------------------------
 
-const DEBOUNCE: Duration = Duration::from_millis(400);
+pub(crate) const DEBOUNCE: Duration = Duration::from_millis(400);
 
 // .git entries worth a refresh (commit/checkout/merge/rebase markers).
 const GIT_FILE_ALLOW: &[&str] = &[
     "HEAD", "index", "packed-refs", "ORIG_HEAD", "MERGE_HEAD", "CHERRY_PICK_HEAD",
     "REBASE_HEAD", "REVERT_HEAD", "BISECT_HEAD",
 ];
-fn should_ignore(root: &str, full: &str) -> bool {
+
+/// Whether a filesystem event path is irrelevant to a git working-tree refresh
+/// (inside .git except the tracked refs/markers, or an ignored build dir). Shared
+/// with remote.rs's per-connection working-tree watcher.
+pub(crate) fn should_ignore(root: &str, full: &str) -> bool {
     let rel = match full.strip_prefix(root) {
         Some(r) => r.trim_start_matches('/'),
         None => return true,

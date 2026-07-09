@@ -121,6 +121,8 @@ enum Wire {
         json(["t": "gitCheckout", "project": project, "branch": branch, "remote": remote])
     }
     static func gitDiscardAll(project: String) -> String { json(["t": "gitDiscardAll", "project": project]) }
+    static func gitWatch(project: String) -> String { json(["t": "gitWatch", "project": project]) }
+    static func gitUnwatch(project: String) -> String { json(["t": "gitUnwatch", "project": project]) }
 
     /// Frame raw non-UTF-8 input the way the desktop expects (null + "HEX:" + hex).
     static func hexFrame(_ bytes: [UInt8]) -> String {
@@ -183,6 +185,8 @@ enum Wire {
         case gitBranches(project: String, current: String, branches: [GitBranch], error: String?)
         case gitCheckout(project: String, error: String?)
         case gitDiscardAll(project: String, error: String?)
+        // Server push: watched files changed for this project (already debounced).
+        case gitChanged(project: String)
         case pong
         case unknown
 
@@ -319,6 +323,7 @@ enum Wire {
                 let ok = obj["ok"] as? Bool ?? false
                 return .gitDiscardAll(project: obj["project"] as? String ?? "",
                                       error: ok ? nil : (obj["error"] as? String ?? "Couldn't discard changes."))
+            case "git-changed": return .gitChanged(project: obj["project"] as? String ?? "")
             case "pong": return .pong
             default: return .unknown
             }
@@ -471,6 +476,9 @@ struct TerminalInfo: Identifiable, Hashable {
     let remote: Bool
     let pinned: Bool
     let emoji: String
+    // The AI CLI this terminal runs (e.g. "claude"), as detected by the desktop;
+    // empty for a plain shell or an older server.
+    let cli: String
 
     init(_ o: [String: Any]) {
         id = o["id"] as? String ?? ""
@@ -482,6 +490,7 @@ struct TerminalInfo: Identifiable, Hashable {
         remote = o["remote"] as? Bool ?? false
         pinned = o["pinned"] as? Bool ?? false
         emoji = o["emoji"] as? String ?? ""
+        cli = o["cli"] as? String ?? ""
     }
 }
 
