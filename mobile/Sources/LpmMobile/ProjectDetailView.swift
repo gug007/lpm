@@ -1,14 +1,14 @@
 import SwiftUI
 
-/// A project's screen: the project's open terminals as tappable cards, with a
-/// single "more" menu in the nav bar for Start/Stop, actions, and services.
-/// Terminal tab actions (Pin / Rename / Close) live on native swipe gestures.
+/// A project's screen: the project's open terminals as a native inset-grouped
+/// list, with a nav-bar "+" for new terminals and a "more" menu for Start/Stop,
+/// actions, and services. Terminal tab actions (Pin / Rename / Close) live on
+/// native swipe gestures.
 struct ProjectDetail: View {
     @EnvironmentObject var model: AppModel
     let project: Project
     @State private var renaming: TerminalInfo?
     @State private var renameText = ""
-    @State private var openTerminal: TerminalInfo?
 
     // Current project object (fresh status/actions) from the store; falls back to
     // the one we were pushed with.
@@ -20,65 +20,60 @@ struct ProjectDetail: View {
     private var actions: [Action] { live.actions.flatMap { $0.runnableLeaves } }
 
     var body: some View {
-        // A List (not a ScrollView) so the terminal rows support native
-        // drag-to-reorder via `.onMove` (long-press a row and drag). Styled plain
-        // with cleared row chrome so the custom `.card()` rows keep their look.
         List {
-            Section {
-                if !terminalsLoaded {
+            if !terminalsLoaded {
+                Section("Tabs") {
                     ForEach(0..<3, id: \.self) { _ in
-                        TerminalCardSkeleton()
-                            .terminalRowChrome()
+                        TerminalRowSkeleton()
                     }
-                } else {
+                }
+            } else if !terminals.isEmpty || creating {
+                Section {
                     ForEach(terminals) { t in
-                        TerminalRow(term: t, onOpen: { openTerminal = t })
-                            .terminalRowChrome()
-                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                                Button {
-                                    model.pinTerminal(project.name, id: t.id)
-                                } label: {
-                                    Label(t.pinned ? "Unpin" : "Pin",
-                                          systemImage: t.pinned ? "pin.slash" : "pin")
-                                }
-                                .tint(.orange)
+                        NavigationLink(value: t) {
+                            TerminalRow(term: t)
+                        }
+                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                            Button {
+                                model.pinTerminal(project.name, id: t.id)
+                            } label: {
+                                Label(t.pinned ? "Unpin" : "Pin",
+                                      systemImage: t.pinned ? "pin.slash" : "pin")
                             }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    model.closeTerminal(project.name, id: t.id)
-                                } label: {
-                                    Label("Close", systemImage: "xmark")
-                                }
-                                Button {
-                                    renameText = t.label
-                                    renaming = t
-                                } label: {
-                                    Label("Rename", systemImage: "pencil")
-                                }
-                                .tint(.gray)
+                            .tint(.orange)
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                model.closeTerminal(project.name, id: t.id)
+                            } label: {
+                                Label("Close", systemImage: "xmark")
                             }
+                            Button {
+                                renameText = t.label
+                                renaming = t
+                            } label: {
+                                Label("Rename", systemImage: "pencil")
+                            }
+                            .tint(.gray)
+                        }
                     }
                     .onMove(perform: moveTerminals)
                     if creating {
-                        TerminalCardSkeleton()
-                            .terminalRowChrome()
+                        TerminalRowSkeleton()
+                    }
+                } header: {
+                    HStack {
+                        Text("Tabs")
+                        Spacer()
+                        if !terminals.isEmpty {
+                            Text("\(terminals.count)")
+                                .monospacedDigit()
+                        }
                     }
                 }
-            } header: {
-                DetailSectionHeader(title: "Tabs", count: terminals.count) {
-                    Button { model.newTerminal(project.name) } label: {
-                        Label("New", systemImage: "plus")
-                            .font(.system(size: 13, weight: .semibold))
-                    }
-                    .tint(.accentColor)
-                }
-                .textCase(nil)
-                .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 8, trailing: 20))
             }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .background(Color(.systemGroupedBackground))
+        .listStyle(.insetGrouped)
         // Full-space overlay (not a list row): ContentUnavailableView is greedy
         // and inside a row it stretches the row — and its action button — to
         // fill the expanse.
@@ -94,7 +89,8 @@ struct ProjectDetail: View {
         }
         .navigationTitle(project.label)
         .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0) }
+        .navigationSubtitleCompat(live.running ? "Running" : "Stopped")
+        .navigationDestination(for: TerminalInfo.self) { TerminalScreen(term: $0) }
         .alert("Rename terminal", isPresented: Binding(
             get: { renaming != nil },
             set: { if !$0 { renaming = nil } }
@@ -119,6 +115,14 @@ struct ProjectDetail: View {
                                   onToggleService: { model.toggleService(live.name, service: $0) },
                                   onRunAction: { model.runAction(live.name, action: $0) })
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    model.newTerminal(project.name)
+                } label: {
+                    Label("New Terminal", systemImage: "plus")
+                }
+                .disabled(creating)
+            }
         }
         .onAppear { model.loadTerminals(project.name) }
     }
@@ -130,15 +134,14 @@ struct ProjectDetail: View {
     }
 }
 
-/// Strips a List row's default chrome so a custom `.card()` row keeps its look:
-/// transparent background, no separators, and the same insets/spacing the old
-/// ScrollView cards used.
 private extension View {
-    func terminalRowChrome() -> some View {
-        self
-            .listRowInsets(EdgeInsets(top: 5, leading: 20, bottom: 5, trailing: 20))
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
+    @ViewBuilder
+    func navigationSubtitleCompat(_ subtitle: String) -> some View {
+        if #available(iOS 26.0, *) {
+            navigationSubtitle(subtitle)
+        } else {
+            self
+        }
     }
 }
 
@@ -196,7 +199,6 @@ private struct ProjectRunControl: View {
                     .controlSize(.small)
             } else {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(running ? .green : .primary)
             }
         }
@@ -231,87 +233,52 @@ private struct ProjectRunControl: View {
     }
 }
 
-private struct DetailSectionHeader<Trailing: View>: View {
-    let title: String
-    let count: Int
-    @ViewBuilder var trailing: Trailing
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Text(title.uppercased())
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
-            if count > 0 {
-                Text("\(count)")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-                    .monospacedDigit()
-            }
-            Spacer()
-            trailing
-        }
-        .padding(.horizontal, 4)
-    }
-}
-
-extension DetailSectionHeader where Trailing == EmptyView {
-    init(title: String, count: Int) {
-        self.init(title: title, count: count) { EmptyView() }
-    }
-}
-
-/// One terminal: tap the card to open it. The same tab actions as the desktop
+/// One terminal row: a Settings-style icon tile, the tab name, and pinned/remote
+/// indicators. Tapping pushes the terminal; the same tab actions as the desktop
 /// live on native swipe gestures (Pin from the leading edge; Rename / Close from
 /// the trailing edge).
 private struct TerminalRow: View {
     let term: TerminalInfo
-    let onOpen: () -> Void
 
     var body: some View {
-        Button(action: onOpen) {
-            HStack(spacing: 14) {
-                // Tab icon, matching the desktop: the terminal's emoji when set,
-                // else a generic terminal glyph.
-                Group {
-                    if term.emoji.isEmpty {
-                        Image(systemName: "terminal.fill")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text(term.emoji).font(.system(size: 18))
-                    }
-                }
-                    .frame(width: 40, height: 40)
-                    .background(Color(.tertiarySystemGroupedBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                if term.pinned {
-                    Image(systemName: "pin.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.orange)
-                }
-                Text(term.label)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-
-                Spacer(minLength: 8)
-
-                if term.remote {
-                    Text("remote")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 7).padding(.vertical, 3)
-                        .background(Color(.tertiarySystemGroupedBackground))
-                        .clipShape(Capsule())
+        HStack(spacing: 12) {
+            Group {
+                if term.emoji.isEmpty {
+                    Image(systemName: "terminal.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 36, height: 36)
+                        .background(Color.accentColor.gradient,
+                                    in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                } else {
+                    Text(term.emoji)
+                        .font(.system(size: 20))
+                        .frame(width: 36, height: 36)
+                        .background(Color(.tertiarySystemFill),
+                                    in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 14)
-            .contentShape(Rectangle())
+
+            Text(term.label)
+                .lineLimit(1)
+
+            Spacer(minLength: 8)
+
+            if term.pinned {
+                Image(systemName: "pin.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+            if term.remote {
+                Text("Remote")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color(.tertiarySystemFill), in: Capsule())
+            }
         }
-        .buttonStyle(.plain)
-        .card()
+        .padding(.vertical, 4)
     }
 }
 
@@ -328,15 +295,7 @@ private struct EmptyTerminalsView: View {
                 Label("New Terminal", systemImage: "plus")
             }
             .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.capsule)
         }
-    }
-}
-
-private extension View {
-    /// The shared card chrome: a grouped-background fill clipped to a continuous
-    /// rounded rectangle. Callers add their own padding.
-    func card(radius: CGFloat = 16) -> some View {
-        background(Color(.secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
     }
 }

@@ -81,20 +81,18 @@ struct ProjectListSkeleton: View {
     }
 }
 
-/// Ghost of a terminal card, shown while the tab list loads or a new terminal
+/// Ghost of a terminal row, shown while the tab list loads or a new terminal
 /// is being created on the Mac.
-struct TerminalCardSkeleton: View {
+struct TerminalRowSkeleton: View {
     var body: some View {
-        HStack(spacing: 14) {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .fill(Color(.tertiarySystemFill))
-                .frame(width: 40, height: 40)
+                .frame(width: 36, height: 36)
             SkeletonBar(width: 132)
             Spacer()
         }
-        .padding(14)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.vertical, 4)
         .shimmer()
         .transition(.opacity)
     }
