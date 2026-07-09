@@ -47,6 +47,13 @@ final class AppModel: ObservableObject {
     // an id outside this set means the new terminal has landed.
     private var creatingBaseline: [String: Set<String>] = [:]
     private var creatingGen: [String: Int] = [:]
+    // project -> terminal ids with a close in flight. The row is removed
+    // optimistically (the destructive swipe already animated it away) and
+    // filtered from incoming lists until the desktop confirms the close, so a
+    // stale response can't flash the row back. A timeout gives up and reloads,
+    // resurfacing the row if the close actually failed.
+    private var closingTerminals: [String: Set<String>] = [:]
+    private var closingGen: [String: Int] = [:]
 
     // Terminal streams go straight to whichever TerminalScreen is subscribed; the
     // emulator (SwiftTerm) holds the buffer, not this model. Seed and live output
@@ -232,6 +239,8 @@ final class AppModel: ObservableObject {
         creatingTerminals = []
         creatingBaseline = [:]
         creatingGen = [:]
+        closingTerminals = [:]
+        closingGen = [:]
         paired = false
     }
 
@@ -353,7 +362,17 @@ final class AppModel: ObservableObject {
         }
     }
     func closeTerminal(_ project: String, id: String) {
+        closingTerminals[project, default: []].insert(id)
+        terminals[project]?.removeAll { $0.id == id }
         client?.closeTerminal(project: project, id: id)
+        let gen = (closingGen[id] ?? 0) + 1
+        closingGen[id] = gen
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+            guard let self, self.closingGen[id] == gen,
+                  self.closingTerminals[project]?.contains(id) == true else { return }
+            self.closingTerminals[project]?.remove(id)
+            self.loadTerminals(project)
+        }
         reloadTerminalsSoon(project)
     }
     func renameTerminal(_ project: String, id: String, label: String) {
@@ -510,8 +529,16 @@ final class AppModel: ObservableObject {
         }
         c.onTerminals = { [weak self] proj, t in
             guard let self else { return }
-            self.terminals[proj] = t
-            if let base = self.creatingBaseline[proj], t.contains(where: { !base.contains($0.id) }) {
+            var list = t
+            if var closing = self.closingTerminals[proj] {
+                // Ids no longer in the list are confirmed closed; the rest are
+                // still in flight and stay hidden.
+                closing.formIntersection(t.map(\.id))
+                self.closingTerminals[proj] = closing.isEmpty ? nil : closing
+                list.removeAll { closing.contains($0.id) }
+            }
+            self.terminals[proj] = list
+            if let base = self.creatingBaseline[proj], list.contains(where: { !base.contains($0.id) }) {
                 self.creatingBaseline[proj] = nil
                 self.creatingTerminals.remove(proj)
             }
