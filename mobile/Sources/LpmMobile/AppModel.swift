@@ -128,6 +128,12 @@ final class AppModel: ObservableObject {
     // Debounce per project for the git-changed push, so a burst of file writes
     // collapses into one refresh.
     private var gitChangedWork: [String: DispatchWorkItem] = [:]
+    // The file stamp each loaded diff was fetched at, keyed by diffKey, so a
+    // live refresh only re-fetches diffs whose file actually changed.
+    private var gitDiffStamp: [String: String] = [:]
+    // Projects whose next snapshot arrival should reconcile loaded diffs against
+    // the new stamps (set by a git-changed refresh, consumed in onGit).
+    private var pendingWatchRefresh: Set<String> = []
 
     private var client: LpmClient?
     // The addresses the current attempt is racing, so a failure can name exactly
@@ -334,6 +340,8 @@ final class AppModel: ObservableObject {
         parsedDiffCache = [:]
         gitChangedWork.values.forEach { $0.cancel() }
         gitChangedWork = [:]
+        gitDiffStamp = [:]
+        pendingWatchRefresh = []
         gitViewed = [:]
         pendingAgentPrompt = [:]
         paired = false
@@ -636,12 +644,39 @@ final class AppModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
     }
 
+    /// Reload the snapshot; the diff reconciliation (which needs the new stamps)
+    /// runs in onGit once that snapshot lands.
     func refreshWatchedGit(_ project: String) {
+        pendingWatchRefresh.insert(project)
         loadGit(project)
+    }
+
+    /// After a watched snapshot arrives: re-fetch loaded diffs whose file stamp
+    /// changed (or is unknown on either side), and drop diffs for files that left
+    /// the snapshot. Untouched files keep their cached parse.
+    private func reconcileWatchedDiffs(_ project: String) {
+        guard let files = gitSnapshots[project]?.files else { return }
+        let stampByPath = Dictionary(files.map { ($0.path, $0.stamp) }, uniquingKeysWith: { a, _ in a })
         let prefix = project + "\n"
-        for key in gitDiffs.keys where key.hasPrefix(prefix) {
-            loadGitDiff(project, path: String(key.dropFirst(prefix.count)))
+        for key in Array(gitDiffs.keys) where key.hasPrefix(prefix) {
+            let path = String(key.dropFirst(prefix.count))
+            if let newStamp = stampByPath[path] {
+                let remembered = gitDiffStamp[key] ?? ""
+                if newStamp.isEmpty || remembered.isEmpty || newStamp != remembered {
+                    loadGitDiff(project, path: path)
+                }
+            } else {
+                gitDiffs[key] = nil
+                parsedDiffCache[key] = nil
+                gitDiffStamp[key] = nil
+                gitDiffError[key] = nil
+                gitDiffLoading.remove(key)
+            }
         }
+    }
+
+    private func recordDiffStamp(_ project: String, path: String, key: String) {
+        gitDiffStamp[key] = gitSnapshots[project]?.files.first { $0.path == path }?.stamp ?? ""
     }
 
     func isViewed(_ project: String, path: String) -> Bool {
@@ -921,6 +956,9 @@ final class AppModel: ObservableObject {
             if let snapshot {
                 self.gitSnapshots[project] = snapshot
                 self.gitLoadError[project] = nil
+                if self.pendingWatchRefresh.remove(project) != nil {
+                    self.reconcileWatchedDiffs(project)
+                }
             } else {
                 self.gitLoadError[project] = error ?? "Couldn't read the repository."
             }
@@ -931,9 +969,17 @@ final class AppModel: ObservableObject {
             self.clearGitTimeout("diff\n" + path, project)
             self.gitDiffLoading.remove(key)
             if let result {
+                // Identical diff already parsed: keep the existing parse, just
+                // refresh the remembered stamp and drop the loading state.
+                if !result.binary, self.gitDiffs[key]?.diff == result.diff, self.parsedDiffCache[key] != nil {
+                    self.gitDiffError[key] = nil
+                    self.recordDiffStamp(project, path: path, key: key)
+                    return
+                }
                 self.parsedDiffCache[key] = nil
                 self.gitDiffs[key] = result
                 self.gitDiffError[key] = nil
+                self.recordDiffStamp(project, path: path, key: key)
                 if !result.binary && !result.diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     self.buildParsedDiff(key: key, diff: result.diff, ext: (path as NSString).pathExtension)
                 }

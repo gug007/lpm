@@ -61,7 +61,7 @@ struct GitReviewView: View {
                     }
                 }
             }
-            .listStyle(.insetGrouped)
+            .listStyle(.plain)
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Changes")
             .navigationBarTitleDisplayMode(.inline)
@@ -69,6 +69,9 @@ struct GitReviewView: View {
             .overlay { stateOverlay }
             .animation(.default, value: snapshot?.files.count ?? -1)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    principalTitle
+                }
                 if let s = snapshot, s.isRepo, !s.files.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
                         jumpMenu(s, proxy: proxy)
@@ -127,6 +130,34 @@ struct GitReviewView: View {
 
     private func reviewedCount(_ s: GitSnapshot) -> Int {
         s.files.filter { model.isViewed(name, path: $0.path) }.count
+    }
+
+    /// Aggregate +added −removed across the files whose diffs have parsed.
+    private var totals: (added: Int, removed: Int) {
+        var added = 0, removed = 0
+        for file in snapshot?.files ?? [] {
+            if let parsed = model.parsedDiff(name, path: file.path) {
+                added += parsed.addedCount
+                removed += parsed.removedCount
+            }
+        }
+        return (added, removed)
+    }
+
+    /// The two-line nav title: "Changes" over the aggregate +A −D, GitHub-style.
+    private var principalTitle: some View {
+        let t = totals
+        return VStack(spacing: 1) {
+            Text("Changes").font(.headline)
+            if t.added > 0 || t.removed > 0 {
+                HStack(spacing: 6) {
+                    Text("+\(t.added)").foregroundStyle(.green)
+                    Text("−\(t.removed)").foregroundStyle(.red)
+                }
+                .font(.footnote.weight(.semibold))
+                .monospacedDigit()
+            }
+        }
     }
 
     private func jumpMenu(_ s: GitSnapshot, proxy: ScrollViewProxy) -> some View {
@@ -326,11 +357,6 @@ private struct TrackingBadge: View {
     }
 }
 
-/// One changed file as its own section: a header row with the commit-selection
-/// checkmark, a colored status badge, the path, and a collapse chevron; below it
-/// the file's diff rendered inline. The diff is fetched lazily on first appearance
-/// (so opening the screen doesn't request every file at once) and capped — very
-/// long diffs offer "Show full diff", which pushes the lazy full-screen view.
 /// One "Ask agent…" invocation: the file path and the diff text to attach.
 struct AskContext: Identifiable {
     let id = UUID()
@@ -338,6 +364,11 @@ struct AskContext: Identifiable {
     let diffText: String
 }
 
+/// One changed file as its own section (GitHub "Files changed" style): a full-bleed
+/// header bar (commit checkmark, collapse chevron, monospaced path, +N −M, viewed
+/// circle, ellipsis menu) followed by the whole diff — one wrapping List row per
+/// line, edge-to-edge. Diffs fetch lazily on first appearance; the List virtualizes
+/// the rows, so even huge diffs render fully with no cap.
 private struct GitFileSection: View {
     @EnvironmentObject var model: AppModel
     let project: String
@@ -347,8 +378,9 @@ private struct GitFileSection: View {
     let headerInfo: (total: Int, reviewed: Int)?
     let onAsk: (String) -> Void
 
-    private let inlineCap = 200
     @State private var collapsed = false
+    @State private var expanded = false
+    private let softCap = 600
 
     private var key: String { model.diffKey(project, file.path) }
     private var result: GitDiffResult? { model.gitDiffs[key] }
@@ -363,13 +395,13 @@ private struct GitFileSection: View {
 
     var body: some View {
         Section {
-            header
+            headerBar
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color(.secondarySystemGroupedBackground))
                 .contextMenu { askButton }
             if !collapsed {
                 content
-                    .listRowInsets(EdgeInsets())
-                    .listRowSeparator(.hidden)
-                    .contextMenu { askButton }
             }
         } header: {
             if let headerInfo {
@@ -400,8 +432,8 @@ private struct GitFileSection: View {
         }
     }
 
-    private var header: some View {
-        HStack(spacing: 12) {
+    private var headerBar: some View {
+        HStack(spacing: 10) {
             Button(action: toggle) {
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
@@ -413,9 +445,11 @@ private struct GitFileSection: View {
                 withAnimation(.easeInOut(duration: 0.15)) { collapsed.toggle() }
             } label: {
                 HStack(spacing: 8) {
-                    GitStatusBadge(status: file.status)
+                    Image(systemName: collapsed ? "chevron.right" : "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
                     Text(file.path)
-                        .font(.system(size: 15))
+                        .font(.system(size: 13, design: .monospaced))
                         .lineLimit(1)
                         .truncationMode(.head)
                         .foregroundStyle(.primary)
@@ -423,9 +457,6 @@ private struct GitFileSection: View {
                     if let parsed {
                         DiffStat(added: parsed.addedCount, removed: parsed.removedCount)
                     }
-                    Image(systemName: collapsed ? "chevron.right" : "chevron.down")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
                 }
                 .contentShape(Rectangle())
             }
@@ -436,36 +467,114 @@ private struct GitFileSection: View {
                 model.toggleViewed(project, path: file.path)
                 withAnimation(.easeInOut(duration: 0.15)) { collapsed = nowViewed }
             } label: {
-                Image(systemName: viewed ? "checkmark.seal.fill" : "checkmark.seal")
+                Image(systemName: viewed ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 18))
                     .foregroundStyle(viewed ? Color.green : Color.secondary)
             }
             .buttonStyle(.plain)
+
+            Menu {
+                askButton
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .bottom) { Divider() }
     }
 
     @ViewBuilder
     private var content: some View {
         if let result {
             if result.binary {
-                InlineNote(icon: "doc.badge.gearshape", text: "Binary file")
+                stateRow { InlineNote(icon: "doc.badge.gearshape", text: "Binary file") }
             } else if result.diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                InlineNote(icon: "doc.plaintext", text: "No changes to show")
+                stateRow { InlineNote(icon: "doc.plaintext", text: "No changes to show") }
             } else if let parsed {
-                InlineDiff(parsed: parsed, cap: inlineCap, project: project, file: file)
+                let blocks = shownBlocks(parsed)
+                ForEach(blocks) { block in
+                    blockRow(block)
+                }
+                if blocks.count < parsed.blocks.count {
+                    showAllRow(total: parsed.lines.count)
+                }
             } else {
-                InlineDiffLoading()
+                stateRow { InlineDiffLoading() }
             }
         } else if let error {
-            InlineDiffError(message: error) { model.loadGitDiff(project, path: file.path) }
+            stateRow { InlineDiffError(message: error) { model.loadGitDiff(project, path: file.path) } }
         } else {
-            InlineDiffLoading()
+            stateRow { InlineDiffLoading() }
         }
+    }
+
+    /// Whole hunks up to the soft line cap (unless expanded), so a monster file
+    /// doesn't realize thousands of merged-Text lines in one row at once.
+    private func shownBlocks(_ parsed: ParsedDiff) -> [DiffBlock] {
+        if expanded { return parsed.blocks }
+        var result: [DiffBlock] = []
+        var lines = 0
+        for block in parsed.blocks {
+            if block.kind == .code {
+                if lines > 0 && lines + block.lineCount > softCap { break }
+                lines += block.lineCount
+            }
+            result.append(block)
+        }
+        if result.count < parsed.blocks.count, result.last?.kind == .hunk {
+            result.removeLast()
+        }
+        return result
+    }
+
+    @ViewBuilder
+    private func blockRow(_ block: DiffBlock) -> some View {
+        if block.kind == .hunk {
+            HunkSeparator(label: block.hunkLabel, context: block.hunkContext, indent: block.indentHint)
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color(.secondarySystemFill))
+        } else {
+            DiffCodeBlock(block: block)
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color(.systemBackground))
+        }
+    }
+
+    private func showAllRow(total: Int) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) { expanded = true }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.down")
+                Text("Show all \(total) lines")
+            }
+            .font(.footnote.weight(.medium))
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.vertical, 12)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.tint)
+        .listRowInsets(EdgeInsets())
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color(.secondarySystemGroupedBackground))
+    }
+
+    private func stateRow<V: View>(@ViewBuilder _ content: () -> V) -> some View {
+        content()
+            .listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
     }
 }
 
-/// The per-file "+N −M" change counts shown in the section header once the diff
-/// has been parsed.
+/// The per-file "+N −M" change counts shown in the header once the diff has parsed.
 private struct DiffStat: View {
     let added: Int
     let removed: Int
@@ -481,44 +590,6 @@ private struct DiffStat: View {
         }
         .font(.system(size: 12, weight: .semibold, design: .monospaced))
         .monospacedDigit()
-    }
-}
-
-/// The capped, horizontally scrolling inline diff for a file section. Vertical
-/// scrolling stays with the enclosing List; only this column scrolls sideways.
-private struct InlineDiff: View {
-    let parsed: ParsedDiff
-    let cap: Int
-    let project: String
-    let file: GitFile
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(parsed.lines.prefix(cap))) { line in
-                        DiffLineRow(line: line, gutterWidth: parsed.gutterWidth,
-                                    contentWidth: parsed.contentWidth)
-                    }
-                }
-            }
-
-            if parsed.lines.count > cap {
-                Divider()
-                NavigationLink {
-                    GitDiffView(project: project, file: file)
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "arrow.down.forward.and.arrow.up.backward")
-                        Text("Show full diff · \(parsed.lines.count) lines")
-                    }
-                    .font(.footnote.weight(.medium))
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 12)
-                }
-            }
-        }
-        .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 10, bottomTrailingRadius: 10, style: .continuous))
     }
 }
 
@@ -571,41 +642,6 @@ private struct InlineDiffError: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-    }
-}
-
-/// A one-letter status chip colored by change kind: added green, modified orange,
-/// deleted red, renamed blue, untracked gray.
-struct GitStatusBadge: View {
-    let status: String
-
-    private var letter: String {
-        switch status {
-        case "added": return "A"
-        case "deleted": return "D"
-        case "renamed": return "R"
-        case "untracked": return "U"
-        case "modified": return "M"
-        default: return "•"
-        }
-    }
-    private var color: Color {
-        switch status {
-        case "added": return .green
-        case "deleted": return .red
-        case "renamed": return .blue
-        case "untracked": return .gray
-        case "modified": return .orange
-        default: return .gray
-        }
-    }
-
-    var body: some View {
-        Text(letter)
-            .font(.system(size: 12, weight: .bold, design: .monospaced))
-            .foregroundStyle(color)
-            .frame(width: 22, height: 22)
-            .background(color.opacity(0.16), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 

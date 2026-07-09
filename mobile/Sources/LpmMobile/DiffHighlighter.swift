@@ -4,12 +4,7 @@ import UIKit
 /// full-screen list, and the width measurement all agree on the monospaced font.
 enum DiffTypography {
     static let codeFont = UIFont.monospacedSystemFont(ofSize: 13, weight: .regular)
-    static let gutterFont = UIFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-    static let hunkLabelFont = UIFont.monospacedSystemFont(ofSize: 11, weight: .semibold)
-    static let hunkContextFont = UIFont.monospacedSystemFont(ofSize: 11, weight: .regular)
     static let charWidth: CGFloat = ("0" as NSString).size(withAttributes: [.font: codeFont]).width
-    static let codeRowHeight: CGFloat = ceil(codeFont.lineHeight) + 2
-    static let hunkRowHeight: CGFloat = ceil(hunkContextFont.lineHeight) + 10
 }
 
 /// A best-effort, dependency-free per-line syntax highlighter keyed by file

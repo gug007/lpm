@@ -566,6 +566,9 @@ struct GitFile: Identifiable, Hashable {
     let path: String
     let status: String
     let staged: Bool
+    // Opaque change token from the server; may be absent on older servers (treated
+    // as "changed" by the live-refresh comparison).
+    let stamp: String
 
     var id: String { path }
 
@@ -573,6 +576,7 @@ struct GitFile: Identifiable, Hashable {
         path = o["path"] as? String ?? ""
         status = o["status"] as? String ?? "modified"
         staged = o["staged"] as? Bool ?? false
+        stamp = o["stamp"] as? String ?? ""
     }
 }
 
@@ -603,7 +607,7 @@ struct GitSnapshot {
     }
 }
 
-/// A single file's unified diff, ready for GitDiffView to parse and render.
+/// A single file's unified diff, ready for the review screen to parse and render.
 struct GitDiffResult {
     let diff: String
     let binary: Bool

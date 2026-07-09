@@ -713,6 +713,27 @@ fn git_push_flags() -> Vec<String> {
     flags
 }
 
+/// A cheap working-tree fingerprint for a changed file, so the phone can tell
+/// whether a file's diff is stale between snapshots without refetching it:
+/// `"<size>-<mtime_nanos>"` for a file on disk, `"gone"` for a missing path (a
+/// deleted file), `"0"` on any other metadata error (the phone treats an
+/// unknown/changed stamp as stale, so always-refetch is the safe degradation).
+fn file_stamp(cwd: &str, path: &str) -> String {
+    match std::fs::metadata(std::path::Path::new(cwd).join(path)) {
+        Ok(m) => {
+            let nanos = m
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_nanos())
+                .unwrap_or(0);
+            format!("{}-{}", m.len(), nanos)
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => "gone".to_string(),
+        Err(_) => "0".to_string(),
+    }
+}
+
 // --- live working-tree watch (per connection) --------------------------------
 
 /// One project's filesystem watcher for a single phone connection. Dropping it
@@ -1274,8 +1295,19 @@ fn handle_msg(
                             "branch": "", "detached": false, "hasUpstream": false, "ahead": 0, "behind": 0,
                             "defaultBranch": "", "ghCli": false, "files": [] }))?;
                     } else {
-                        let files = crate::git::git_changed_files(cwd.clone());
-                        let files = serde_json::to_value(&files).unwrap_or_else(|_| json!([]));
+                        // Enrich each ChangedFile with a `stamp` (a working-tree
+                        // fingerprint) so the phone can skip refetching diffs of
+                        // files that didn't change between `git-changed` snapshots.
+                        let files: Vec<Value> = crate::git::git_changed_files(cwd.clone())
+                            .iter()
+                            .map(|f| {
+                                let mut o = serde_json::to_value(f).unwrap_or_else(|_| json!({}));
+                                if let Some(m) = o.as_object_mut() {
+                                    m.insert("stamp".into(), json!(file_stamp(&cwd, &f.path)));
+                                }
+                                o
+                            })
+                            .collect();
                         send(ws, json!({ "t": "git", "project": project, "ok": true, "isRepo": true,
                             "branch": st.branch, "detached": st.detached, "hasUpstream": st.has_upstream,
                             "ahead": st.ahead, "behind": st.behind,
