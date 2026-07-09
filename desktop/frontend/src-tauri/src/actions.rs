@@ -8,9 +8,10 @@
 // resolves its environment on the far side.
 // RunAction streams combined stdout+stderr line-by-line via "action-output" and
 // finishes with "action-done"; it returns immediately. RunActionBackground runs
-// the same command synchronously and returns a trimmed error tail on failure;
-// each run registers under a caller-supplied run id so CancelActionBackground
-// can reap its process tree mid-flight.
+// the same command synchronously, streaming lines via "action-bg-output" (keyed
+// by run id) and returning a trimmed error tail on failure; each run registers
+// under a caller-supplied run id so CancelActionBackground can reap its process
+// tree mid-flight.
 // stderr is merged into stdout via dup2(1,2) so lines interleave in write order,
 // matching Go's single os.Pipe.
 use crate::{config, ports, proctree};
@@ -45,6 +46,13 @@ struct ActionDone {
     success: bool,
     #[serde(skip_serializing_if = "String::is_empty")]
     error: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ActionBgOutput {
+    run_id: String,
+    line: String,
 }
 
 struct ActionPlan {
@@ -211,32 +219,60 @@ pub fn run_action_background(
     let on_exit = plan.on_exit.take();
 
     let mut cmd = action_command(&plan);
+    cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::piped());
     merge_stderr_into_stdout(&mut cmd); // stdout carries combined output
-    // Own process group so a cancel can signal the whole tree without touching us.
-    cmd.process_group(0);
-    let child = cmd.spawn().map_err(|e| e.to_string())?;
+    // New session: own group so a cancel can signal the whole tree without
+    // touching us, and — unlike process_group(0) — no controlling terminal.
+    // With one (app launched from a terminal, e.g. `tauri dev`) the interactive
+    // login shell sees its group in the background and self-stops with SIGTTIN
+    // before running the command; it opens /dev/tty directly, so a null stdin
+    // alone doesn't prevent that.
+    unsafe {
+        cmd.pre_exec(|| {
+            if libc::setsid() == -1 {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
+    let mut child = cmd.spawn().map_err(|e| e.to_string())?;
+    let stdout = child.stdout.take().ok_or("failed to capture action output")?;
     background_runs()
         .lock()
         .unwrap()
         .insert(run_id.clone(), BackgroundRun { pid: child.id() as i32, cancelled: false });
-    let out = child.wait_with_output();
+
+    // Stream lines so the run toast can preview output live; keep a bounded
+    // tail for the failure message.
+    let mut tail: Vec<u8> = Vec::new();
+    for line in std::io::BufReader::new(stdout).lines() {
+        let Ok(l) = line else { break };
+        tail.extend_from_slice(l.as_bytes());
+        tail.push(b'\n');
+        if tail.len() > 4096 {
+            let cut = tail.len() - 2048;
+            tail.drain(..cut);
+        }
+        let _ = app.emit("action-bg-output", ActionBgOutput { run_id: run_id.clone(), line: l });
+    }
+    let status = child.wait();
     let cancelled = background_runs()
         .lock()
         .unwrap()
         .remove(&run_id)
         .map(|r| r.cancelled)
         .unwrap_or(false);
-    let out = out.map_err(|e| e.to_string())?;
+    let status = status.map_err(|e| e.to_string())?;
     if let Some(f) = on_exit {
         f(); // push the sync mirror regardless of exit status (matches Go)
     }
     if cancelled {
         return Err(CANCELLED_ERR.into());
     }
-    if !out.status.success() {
-        let run_err = exit_status_string(Some(out.status));
-        let tail = config::trim_tail(&out.stdout, 500);
+    if !status.success() {
+        let run_err = exit_status_string(Some(status));
+        let tail = config::trim_tail(&tail, 500);
         return Err(if tail.is_empty() { run_err } else { format!("{run_err}: {tail}") });
     }
     Ok(())

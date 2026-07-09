@@ -9,6 +9,11 @@ import {
 import type { TerminalViewHandle } from "../components/TerminalView";
 import type { ActionInfo } from "../types";
 import { useAppStore } from "../store/app";
+import {
+  showBackgroundRunToast,
+  type BackgroundRunStatus,
+} from "../components/BackgroundRunToast";
+import { trackBackgroundRun } from "../store/backgroundRuns";
 
 export interface UseProjectActionsOptions {
   projectName: string;
@@ -119,23 +124,24 @@ export function useProjectActions({
     }
     if (action.type === "background") {
       const runId = crypto.randomUUID();
-      const toastId = toast.loading(`${action.label}…`, {
-        duration: Infinity,
-        cancel: {
-          label: "Cancel",
-          onClick: () => void CancelActionBackground(runId).catch(() => {}),
-        },
-      });
-      const settled = { cancel: undefined, duration: 4000 };
+      const startedAt = Date.now();
+      trackBackgroundRun(runId);
+      const show = (status: BackgroundRunStatus, error?: string) =>
+        showBackgroundRunToast({
+          runId,
+          label: action.label,
+          status,
+          startedAt,
+          error,
+          onCancel: () => void CancelActionBackground(runId).catch(() => {}),
+        });
+      show("running");
       try {
         await RunActionBackground(projectName, action.name, inputValues, runId);
-        toast.success(`${action.label} done`, { id: toastId, ...settled });
+        show("success");
       } catch (err) {
-        if (String(err) === "cancelled") {
-          toast.info(`${action.label} cancelled`, { id: toastId, ...settled });
-        } else {
-          toast.error(`${action.label}: ${err}`, { id: toastId, ...settled });
-        }
+        if (String(err) === "cancelled") show("cancelled");
+        else show("error", String(err));
       }
       return;
     }
