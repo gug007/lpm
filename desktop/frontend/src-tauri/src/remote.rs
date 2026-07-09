@@ -153,6 +153,11 @@ struct HubInner {
     // any tab tree — never appear. Unlike labels (upsert-only), this is
     // authoritative membership + order.
     tree_ids: Mutex<HashMap<String, Vec<String>>>,
+    // Queued phone requests to run an action / open a terminal. The frontend
+    // drains this via remote_take_run_actions — the emitted event is only a
+    // wake-up, so a request survives arriving before the main window's
+    // listener is mounted (app just launched, window re-created).
+    pending_run_actions: Mutex<Vec<Value>>,
     config: Mutex<RemoteConfig>,
     next_id: AtomicU64,
     generation: AtomicU64, // bumped on every (re)start to retire old accept/conn threads
@@ -583,6 +588,15 @@ fn result_reply(kind: &str, r: Result<(), String>) -> Value {
     }
 }
 
+/// Queue a phone run-action/new-terminal request and wake the main window's
+/// listener. Delivery is pull-based (remote_take_run_actions) so a request
+/// that lands before the listener is mounted is picked up on mount instead of
+/// being lost with a fire-and-forget emit.
+fn queue_run_action(hub: &RemoteHub, app: &AppHandle, req: Value) {
+    hub.inner.pending_run_actions.lock().unwrap().push(req);
+    let _ = app.emit("remote-run-action", ());
+}
+
 fn handle_msg(
     ws: &mut WebSocket<TcpStream>,
     txt: &str,
@@ -974,17 +988,27 @@ fn handle_msg(
         "runAction" => {
             let project = str_field("project").unwrap_or_default();
             let action = str_field("action").unwrap_or_default();
-            if !project.is_empty() && !action.is_empty() {
-                let _ = app.emit("remote-run-action", json!({ "project": project, "action": action }));
+            if app.get_webview_window("main").is_none() {
+                send(ws, json!({ "t": "runAction", "ok": false, "project": project,
+                    "error": "Open the lpm app on your Mac to run actions." }))?;
+            } else {
+                if !project.is_empty() && !action.is_empty() {
+                    queue_run_action(hub, app, json!({ "project": project, "action": action }));
+                }
+                send(ws, json!({ "t": "runAction", "ok": true }))?;
             }
-            send(ws, json!({ "t": "runAction", "ok": true }))?;
         }
         "newTerminal" => {
             let project = str_field("project").unwrap_or_default();
-            if !project.is_empty() {
-                let _ = app.emit("remote-run-action", json!({ "project": project }));
+            if app.get_webview_window("main").is_none() {
+                send(ws, json!({ "t": "newTerminal", "ok": false, "project": project,
+                    "error": "Open the lpm app on your Mac to open a new terminal." }))?;
+            } else {
+                if !project.is_empty() {
+                    queue_run_action(hub, app, json!({ "project": project }));
+                }
+                send(ws, json!({ "t": "newTerminal", "ok": true }))?;
             }
-            send(ws, json!({ "t": "newTerminal", "ok": true }))?;
         }
         // Terminal tab ops (close / rename / pin) are also frontend pane-tree edits,
         // so they take the same owner-window relay: emit an event the mounted
@@ -1319,6 +1343,14 @@ pub fn remote_state(hub: State<'_, RemoteHub>) -> Value {
 /// phone's list to the actual tab tree so orphaned PTYs don't show. An empty push
 /// (e.g. a mirror window before it has adopted the tree) is ignored for the set,
 /// since a genuinely-empty project simply has no live PTYs to list.
+/// Drain the queued phone run-action/new-terminal requests (oldest first).
+/// Called by the main window on mount and on each `remote-run-action` wake-up;
+/// take-and-clear so a request is executed exactly once.
+#[tauri::command]
+pub fn remote_take_run_actions(hub: State<'_, RemoteHub>) -> Vec<Value> {
+    std::mem::take(&mut *hub.inner.pending_run_actions.lock().unwrap())
+}
+
 #[tauri::command]
 pub fn remote_set_terminal_labels(hub: State<'_, RemoteHub>, project: String, labels: Vec<Value>) {
     let mut label_map = hub.inner.labels.lock().unwrap();

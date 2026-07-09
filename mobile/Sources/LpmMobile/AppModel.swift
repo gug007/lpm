@@ -553,6 +553,12 @@ final class AppModel: ObservableObject {
         }
         c.onStatusChanged = { proj in c.requestStatus(project: proj) }
         c.onActionError = { [weak self] message in self?.actionError = message }
+        c.onActionFailed = { [weak self] proj, message in
+            guard let self else { return }
+            self.creatingBaseline[proj] = nil
+            self.creatingTerminals.remove(proj)
+            self.actionError = message
+        }
         c.onDuplicateDefaults = { [weak self] excl, reinstall, pull in
             guard let self else { return }
             self.duplicateDefaults.excludeUncommitted = excl

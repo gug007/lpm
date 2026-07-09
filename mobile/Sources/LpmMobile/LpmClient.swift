@@ -38,6 +38,9 @@ final class LpmClient: NSObject {
     // A duplicate/remove failed — the message to surface. Success is silent (the
     // `projects-changed` push refreshes the list on its own).
     var onActionError: ((_ message: String) -> Void)?
+    // A runAction/newTerminal the Mac couldn't execute — stop the creating
+    // placeholder for the project and surface the message.
+    var onActionFailed: ((_ project: String, _ message: String) -> Void)?
 
     private var endpoint: Endpoint
     private var credential: Credential?
@@ -47,6 +50,16 @@ final class LpmClient: NSObject {
     private var task: URLSessionWebSocketTask?
     private let subscribed = NSMutableSet() // termIds we auto-re-sub on reconnect
     private(set) var state: State = .idle
+
+    // Requests made while the link is down or half-dead, delivered on the next
+    // `ready`. iOS kills the socket seconds after backgrounding and the
+    // heartbeat can take a while to notice, so the tap that comes right after
+    // reopening the app (often the very send that exposes the dead socket)
+    // would otherwise vanish silently. Live traffic (keystrokes, resizes,
+    // subscriptions) is deliberately excluded: replaying stale input after a
+    // reconnect is worse than dropping it, and subscriptions re-send on ready.
+    private var pendingSends: [String] = []
+    private let maxPendingSends = 32
 
     // Reconnection. Over a cellular Tailscale path the tunnel flaps (direct ↔
     // DERP), so a connection can establish and drop within seconds; the client
@@ -116,6 +129,7 @@ final class LpmClient: NSObject {
         wantConnected = false
         cancelReconnect()
         teardownTask()
+        pendingSends.removeAll()
         set(.idle)
     }
 
@@ -129,10 +143,12 @@ final class LpmClient: NSObject {
         self.task = task
         task.resume()
         // Handshake: pair if we have a one-time code, else auth with our token.
+        // Sent raw — the queueing `send` holds frames until `ready`, which the
+        // handshake itself produces.
         if let code = pairingCode {
-            send(Wire.pair(code: code, name: deviceName))
+            transmit(Wire.pair(code: code, name: deviceName), requeueOnFailure: false)
         } else if let c = credential {
-            send(Wire.auth(deviceId: c.deviceId, token: c.token))
+            transmit(Wire.auth(deviceId: c.deviceId, token: c.token), requeueOnFailure: false)
         } else {
             return fatal("no credential")
         }
@@ -163,6 +179,7 @@ final class LpmClient: NSObject {
         wantConnected = false
         cancelReconnect()
         teardownTask()
+        pendingSends.removeAll()
         set(.failed(msg))
     }
 
@@ -264,27 +281,64 @@ final class LpmClient: NSObject {
 
     func subscribe(_ id: String) {
         subscribed.add(id)
-        send(Wire.sub(id: id))
+        sendLive(Wire.sub(id: id))
     }
     func unsubscribe(_ id: String) {
         subscribed.remove(id)
-        send(Wire.unsub(id: id))
+        sendLive(Wire.unsub(id: id))
     }
     func claim(_ id: String) { send(Wire.claim(id: id)) }
-    func sendInput(_ id: String, _ data: String) { send(Wire.input(id: id, data: data)) }
-    func resize(_ id: String, cols: Int, rows: Int) { send(Wire.resize(id: id, cols: cols, rows: rows)) }
+    func sendInput(_ id: String, _ data: String) { sendLive(Wire.input(id: id, data: data)) }
+    func resize(_ id: String, cols: Int, rows: Int) { sendLive(Wire.resize(id: id, cols: cols, rows: rows)) }
 
     // MARK: plumbing
 
+    /// Reliable request send: queued while the link isn't ready, re-queued when
+    /// the socket turns out to be dead, flushed on the next `ready`.
     private func send(_ text: String) {
-        guard let t = task else { return }
+        guard task != nil, case .ready = state else {
+            enqueue(text)
+            return
+        }
+        transmit(text, requeueOnFailure: true)
+    }
+
+    /// Fire-and-forget send for live traffic (keystrokes, resizes, sub/unsub):
+    /// dropped rather than replayed stale after a reconnect.
+    private func sendLive(_ text: String) {
+        guard task != nil else { return }
+        transmit(text, requeueOnFailure: false)
+    }
+
+    private func transmit(_ text: String, requeueOnFailure: Bool) {
+        guard let t = task else {
+            if requeueOnFailure { enqueue(text) }
+            return
+        }
         t.send(.string(text)) { [weak self] err in
             guard err != nil else { return }
             self?.main {
-                guard let self, t === self.task else { return } // ignore a stale task's send
+                guard let self else { return }
+                if requeueOnFailure { self.enqueue(text) }
+                guard t === self.task else { return } // ignore a stale task's send
                 self.transientFailure("send failed")
             }
         }
+    }
+
+    private func enqueue(_ text: String) {
+        guard wantConnected else { return }
+        pendingSends.append(text)
+        if pendingSends.count > maxPendingSends {
+            pendingSends.removeFirst(pendingSends.count - maxPendingSends)
+        }
+    }
+
+    private func flushPending() {
+        guard case .ready = state, !pendingSends.isEmpty else { return }
+        let queued = pendingSends
+        pendingSends.removeAll()
+        for frame in queued { transmit(frame, requeueOnFailure: true) }
     }
 
     private func receiveLoop(_ task: URLSessionWebSocketTask) {
@@ -313,12 +367,14 @@ final class LpmClient: NSObject {
                 Keychain.save(deviceId: deviceId, token: token)
                 self.set(.ready)
                 self.onConnected()
+                self.flushPending()
                 self.onProjectsChanged?()
             case .ready:
                 self.set(.ready)
                 self.onConnected()
                 // Re-subscribe to any terminals we were watching before a drop.
-                for id in self.subscribed { self.send(Wire.sub(id: id as! String)) }
+                for id in self.subscribed { self.sendLive(Wire.sub(id: id as! String)) }
+                self.flushPending()
             case .error(let e):
                 self.fatal(e)
             case .projects(let p): self.onProjects?(p)
@@ -347,6 +403,8 @@ final class LpmClient: NSObject {
                 self.onDuplicateDone?(error, warning)
             case .remove(let error):
                 if let error { self.onActionError?(error) } else { self.onProjectsChanged?() }
+            case .actionFailed(let project, let error):
+                self.onActionFailed?(project, error)
             case .projectsChanged: self.onProjectsChanged?()
             case .statusChanged(let proj): self.onStatusChanged?(proj)
             case .pong, .unknown: break

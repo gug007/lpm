@@ -155,6 +155,7 @@ macro_rules! all_command_handlers {
         remote_set_config,
         remote_set_terminal_labels,
         remote_start_pairing,
+        remote_take_run_actions,
         remote_state,
         remove_port_forward,
         remove_project,

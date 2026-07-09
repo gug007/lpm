@@ -171,6 +171,12 @@ export function useTerminals(
   const broadcastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ratioForwardTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Settles when the mount restore is done (tree applied, or nothing to
+  // restore). Terminal creation awaits this: a create that races the restore —
+  // e.g. a mobile "new terminal" request that just mounted this project — would
+  // otherwise land first and be wiped by the restore's setTree.
+  const restoreSettled = useRef<Promise<void>>(Promise.resolve());
+
   // Mirror -> owner action forwarding: the mirror can't spawn/stop PTYs or
   // restructure the tree (its tree is overwritten by every owner broadcast), so
   // it sends the action by name and the owner executes it; the result comes
@@ -364,6 +370,9 @@ export function useTerminals(
     const persistedTree = saved.panes ?? legacyEntriesToTree(saved.terminals);
     if (!persistedTree) return;
 
+    let settle!: () => void;
+    restoreSettled.current = new Promise((r) => (settle = r));
+
     // Pane ids are regenerated on reify, so we look the previously focused
     // pane up by its position in the tree and map it to its new id.
     const savedFocusedPath = saved.focusedPanePath;
@@ -375,23 +384,32 @@ export function useTerminals(
       if (cancelled || !restored) {
         allStartedIds.forEach((id) => StopTerminal(id).catch(() => {}));
         if (!cancelled) onCountRef.current?.(0);
+        settle();
         return;
       }
       setTree(restored);
+      // Sync the ref now: a create awaiting `restoreSettled` resumes in a
+      // microtask, before the re-render updates treeRef, and must append to
+      // the restored tree rather than start a fresh root pane.
+      treeRef.current = restored;
       const savedFocusedLeaf = savedFocusedPath
         ? paneAtPath(restored, savedFocusedPath)
         : null;
-      setFocusedPaneId(savedFocusedLeaf?.id ?? firstPaneId(restored));
+      const focused = savedFocusedLeaf?.id ?? firstPaneId(restored);
+      setFocusedPaneId(focused);
+      focusedRef.current = focused;
       const all = collectTerminals(restored);
       onCountRef.current?.(all.length);
       all.forEach((t) => {
         const cmd = t.resumeCmd ?? t.startCmd;
         if (cmd) scheduleCmdInject(t.id, cmd);
       });
+      settle();
     })();
 
     return () => {
       cancelled = true;
+      settle();
       allStartedIds.forEach((id) => StopTerminal(id).catch(() => {}));
     };
   }, [projectName, scheduleCmdInject]);
@@ -462,6 +480,7 @@ export function useTerminals(
 
   const createTerminal = useCallback(async () => {
     if (IS_MIRROR_WINDOW) return forward("createTerminal");
+    await restoreSettled.current;
     try {
       const id = await StartTerminal(projectName);
       addTerminal(makeTerminal(id, pickTerminalLabel(treeRef.current)));
@@ -471,6 +490,7 @@ export function useTerminals(
   const createTerminalWithCmd = useCallback(
     async (label: string, cmd: string, opts?: TerminalStartOpts) => {
       if (IS_MIRROR_WINDOW) return forward("createTerminalWithCmd", label, cmd, opts);
+      await restoreSettled.current;
       // When reuse is requested, find an existing live terminal tagged with
       // the same actionName. A dead session (process exited) falls through
       // so the user gets a fresh PTY instead of typing into a dead tab.

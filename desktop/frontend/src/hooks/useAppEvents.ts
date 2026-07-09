@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { EventsOn } from "../../bridge/runtime";
+import { RemoteTakeRunActions } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
 import type { SpawnTask } from "../types";
 
@@ -36,15 +37,22 @@ export function useAppEvents(): void {
     const cancelDock = EventsOn("dock-project-selected", (name: string) => {
       selectProject(name);
     });
-    // The mobile app asks to run an action / open a terminal; activate the target
-    // project and park the request for its ProjectDetail to execute (only the
-    // mounted view owns the terminal tree).
-    const cancelRemoteAction = EventsOn(
-      "remote-run-action",
-      (payload: { project: string; action?: string | null }) => {
-        if (payload?.project) triggerRemoteAction(payload.project, payload.action ?? null);
-      },
-    );
+    // The mobile app asks to run an action / open a terminal. Requests are
+    // queued in Rust and pulled here (the event is just a wake-up), so one that
+    // arrives before this listener mounts is drained on mount instead of lost.
+    // Each request activates the target project and parks for its ProjectDetail
+    // to execute (only the mounted view owns the terminal tree).
+    const drainRemoteActions = async () => {
+      const pending: Array<{ project?: string; action?: string | null }> =
+        (await RemoteTakeRunActions().catch(() => [])) ?? [];
+      for (const req of pending) {
+        if (req?.project) triggerRemoteAction(req.project, req.action ?? null);
+      }
+    };
+    const cancelRemoteAction = EventsOn("remote-run-action", () => {
+      void drainRemoteActions();
+    });
+    void drainRemoteActions();
     // The mobile app duplicated a project (Rust already created the copy) and wants
     // to run a task in it. Running a task is frontend-owned — the copy's mounted
     // ProjectDetail types the command + seeds the AI prompt — so queue it into

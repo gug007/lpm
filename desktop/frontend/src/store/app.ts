@@ -510,6 +510,12 @@ async function runProjectRemoval(
   }
 }
 
+// Monotonic id for phone-relayed requests (run-action / terminal-op). Never
+// derived from the pending slot: it is cleared after each consume, so a
+// derived nonce would restart at 1 and match the consumer's already-consumed
+// latch — silently dropping every request after the first.
+let remoteRequestNonce = 0;
+
 const projectsByName = (projects: ProjectInfo[]): Map<string, ProjectInfo> =>
   new Map(projects.map((p) => [p.name, p]));
 
@@ -826,7 +832,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       pendingRemoteAction: {
         projectName,
         action,
-        nonce: (s.pendingRemoteAction?.nonce ?? 0) + 1,
+        nonce: ++remoteRequestNonce,
       },
     })),
 
@@ -845,7 +851,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         id,
         label,
         order,
-        nonce: (s.pendingRemoteTerminalOp?.nonce ?? 0) + 1,
+        nonce: ++remoteRequestNonce,
       },
     })),
 

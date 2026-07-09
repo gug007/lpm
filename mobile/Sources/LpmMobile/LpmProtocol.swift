@@ -138,6 +138,9 @@ enum Wire {
         // The desktop's persisted duplicate-modal toggle defaults.
         case duplicateDefaults(excludeUncommitted: Bool, reinstallDeps: Bool, pullLatest: Bool)
         case remove(error: String?)
+        // A runAction/newTerminal request the Mac couldn't execute (e.g. the
+        // app isn't open there). Success acks carry nothing and stay .unknown.
+        case actionFailed(project: String, error: String)
         case projectsChanged
         case statusChanged(project: String)
         case pong
@@ -211,6 +214,10 @@ enum Wire {
             case "remove":
                 let ok = obj["ok"] as? Bool ?? false
                 return .remove(error: ok ? nil : (obj["error"] as? String ?? "Couldn't remove the project."))
+            case "runAction", "newTerminal":
+                if obj["ok"] as? Bool ?? true { return .unknown }
+                return .actionFailed(project: obj["project"] as? String ?? "",
+                                     error: obj["error"] as? String ?? "Couldn't reach the lpm app on your Mac.")
             case "projects-changed": return .projectsChanged
             case "status-changed": return .statusChanged(project: obj["project"] as? String ?? "")
             case "pong": return .pong
