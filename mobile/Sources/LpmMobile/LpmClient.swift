@@ -41,6 +41,20 @@ final class LpmClient: NSObject {
     // A runAction/newTerminal the Mac couldn't execute — stop the creating
     // placeholder for the project and surface the message.
     var onActionFailed: ((_ project: String, _ message: String) -> Void)?
+    // Git review replies, one callback per request kind. `error` is nil on
+    // success; a nil `snapshot` means the `git` request hard-failed.
+    var onGit: ((_ project: String, _ snapshot: GitSnapshot?, _ error: String?) -> Void)?
+    var onGitDiff: ((_ project: String, _ path: String, _ result: GitDiffResult?, _ error: String?) -> Void)?
+    var onGitCommit: ((_ project: String, _ error: String?) -> Void)?
+    var onGitPush: ((_ project: String, _ error: String?) -> Void)?
+    var onGitGenMessage: ((_ project: String, _ message: String?, _ error: String?) -> Void)?
+    var onGitGenPr: ((_ project: String, _ title: String?, _ body: String?, _ error: String?) -> Void)?
+    var onGitCreatePr: ((_ project: String, _ url: String?, _ error: String?) -> Void)?
+    var onGitPull: ((_ project: String, _ error: String?) -> Void)?
+    var onGitFetch: ((_ project: String, _ error: String?) -> Void)?
+    var onGitBranches: ((_ project: String, _ current: String, _ branches: [GitBranch], _ error: String?) -> Void)?
+    var onGitCheckout: ((_ project: String, _ error: String?) -> Void)?
+    var onGitDiscardAll: ((_ project: String, _ error: String?) -> Void)?
 
     private var endpoint: Endpoint
     private var credential: Credential?
@@ -279,6 +293,28 @@ final class LpmClient: NSObject {
     func stopProject(_ name: String) { send(Wire.stop(name: name)) }
     func toggleService(_ name: String, service: String) { send(Wire.toggleService(name: name, service: service)) }
 
+    // Git review requests. The fast ones (git/gitDiff/gitCommit) reply quickly;
+    // push/generate/create-PR do real work on the Mac and can take a long while,
+    // so the model arms generous timeouts around them.
+    func requestGit(project: String) { send(Wire.git(project: project)) }
+    func requestGitDiff(project: String, path: String) { send(Wire.gitDiff(project: project, path: path)) }
+    func gitCommit(project: String, message: String, files: [String]) {
+        send(Wire.gitCommit(project: project, message: message, files: files))
+    }
+    func gitPush(project: String) { send(Wire.gitPush(project: project)) }
+    func gitGenMessage(project: String, files: [String]) { send(Wire.gitGenMessage(project: project, files: files)) }
+    func gitGenPr(project: String) { send(Wire.gitGenPr(project: project)) }
+    func gitCreatePr(project: String, title: String, body: String) {
+        send(Wire.gitCreatePr(project: project, title: title, body: body))
+    }
+    func gitPull(project: String) { send(Wire.gitPull(project: project)) }
+    func gitFetch(project: String) { send(Wire.gitFetch(project: project)) }
+    func requestGitBranches(project: String) { send(Wire.gitBranches(project: project)) }
+    func gitCheckout(project: String, branch: String, remote: String) {
+        send(Wire.gitCheckout(project: project, branch: branch, remote: remote))
+    }
+    func gitDiscardAll(project: String) { send(Wire.gitDiscardAll(project: project)) }
+
     func subscribe(_ id: String) {
         subscribed.add(id)
         sendLive(Wire.sub(id: id))
@@ -407,6 +443,22 @@ final class LpmClient: NSObject {
                 self.onActionFailed?(project, error)
             case .projectsChanged: self.onProjectsChanged?()
             case .statusChanged(let proj): self.onStatusChanged?(proj)
+            case .git(let proj, let snapshot, let error):
+                self.onGit?(proj, snapshot, error)
+            case .gitDiff(let proj, let path, let diff, let binary, let truncated, let error):
+                let result = error == nil ? GitDiffResult(diff: diff, binary: binary, truncated: truncated) : nil
+                self.onGitDiff?(proj, path, result, error)
+            case .gitCommit(let proj, let error): self.onGitCommit?(proj, error)
+            case .gitPush(let proj, let error): self.onGitPush?(proj, error)
+            case .gitGenMessage(let proj, let message, let error): self.onGitGenMessage?(proj, message, error)
+            case .gitGenPr(let proj, let title, let body, let error): self.onGitGenPr?(proj, title, body, error)
+            case .gitCreatePr(let proj, let url, let error): self.onGitCreatePr?(proj, url, error)
+            case .gitPull(let proj, let error): self.onGitPull?(proj, error)
+            case .gitFetch(let proj, let error): self.onGitFetch?(proj, error)
+            case .gitBranches(let proj, let current, let branches, let error):
+                self.onGitBranches?(proj, current, branches, error)
+            case .gitCheckout(let proj, let error): self.onGitCheckout?(proj, error)
+            case .gitDiscardAll(let proj, let error): self.onGitDiscardAll?(proj, error)
             case .pong, .unknown: break
         }
     }

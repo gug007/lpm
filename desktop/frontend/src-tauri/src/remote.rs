@@ -405,6 +405,9 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
     };
 
     let (tx, rx) = mpsc::sync_channel::<String>(OUT_QUEUE);
+    // A clone of this client's outbound queue for slow handlers (network/AI git
+    // ops) to reply through from a worker thread, so they never block this loop.
+    let out = tx.clone();
     let subs = Arc::new(Mutex::new(HashSet::new()));
     let conn_id = hub.inner.next_id.fetch_add(1, Ordering::SeqCst) + 1;
     hub.inner.clients.lock().unwrap().insert(
@@ -444,7 +447,7 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
                 if msg.is_text() {
                     if let Ok(txt) = msg.to_text() {
                         let txt = txt.to_string();
-                        if handle_msg(&mut ws, &txt, &hub, &app, &subs, &device_id).is_err() {
+                        if handle_msg(&mut ws, &txt, &hub, &app, &subs, &device_id, &out).is_err() {
                             break;
                         }
                     }
@@ -588,6 +591,118 @@ fn result_reply(kind: &str, r: Result<(), String>) -> Value {
     }
 }
 
+/// Like `result_reply` but echoes the `project` the phone addressed, so a reply
+/// can be matched to its request even with several projects in flight.
+fn git_result_reply(kind: &str, project: &str, r: Result<(), String>) -> Value {
+    match r {
+        Ok(()) => json!({ "t": kind, "project": project, "ok": true }),
+        Err(e) => json!({ "t": kind, "project": project, "ok": false, "error": e }),
+    }
+}
+
+const GIT_DIFF_CAP: usize = 400 * 1024; // per-file diff byte cap sent to the phone
+
+/// Cap a diff at ~400 KB, truncating at a line boundary so the phone never
+/// receives a half-line. Returns (text, truncated).
+fn cap_git_diff(diff: &str) -> (String, bool) {
+    if diff.len() <= GIT_DIFF_CAP {
+        return (diff.to_string(), false);
+    }
+    let bytes = diff.as_bytes();
+    let mut cut = GIT_DIFF_CAP.min(bytes.len());
+    while cut > 0 && bytes[cut - 1] != b'\n' {
+        cut -= 1;
+    }
+    if cut == 0 {
+        // A single line longer than the cap: fall back to the nearest char boundary.
+        cut = GIT_DIFF_CAP.min(bytes.len());
+        while cut > 0 && !diff.is_char_boundary(cut) {
+            cut -= 1;
+        }
+    }
+    (diff[..cut].to_string(), true)
+}
+
+/// AI generation options (CLI, model, effort, fast) from persisted settings,
+/// mirroring the desktop's git panel: `aiCli` defaults to "claude", the rest empty.
+fn git_ai_opts() -> (String, String, String, bool) {
+    let s = config::load_settings();
+    let cli = s
+        .get("aiCli")
+        .and_then(Value::as_str)
+        .filter(|c| !c.is_empty())
+        .unwrap_or("claude")
+        .to_string();
+    let model = s.get("aiModel").and_then(Value::as_str).unwrap_or("").to_string();
+    let effort = s.get("aiEffort").and_then(Value::as_str).unwrap_or("").to_string();
+    let fast = s.get("aiFast").and_then(Value::as_bool).unwrap_or(false);
+    (cli, model, effort, fast)
+}
+
+/// A persisted git-options object (e.g. `gitPull`/`gitFetch`/`gitPush`), or an
+/// empty object when unset — the base for the flag builders below, which mirror
+/// the desktop's gitOptions.ts so the phone's Pull/Fetch/Push behave identically.
+fn git_settings(key: &str) -> Value {
+    config::load_settings().get(key).cloned().unwrap_or_else(|| json!({}))
+}
+
+/// Pull strategy + flags from `gitPull`, mirroring normalizeGitPull/pullFlags:
+/// strategy defaults to "ff" (valid: ff | ff-only | rebase), `--autostash` and
+/// `--no-verify` per their bools.
+fn git_pull_opts() -> (String, Vec<String>) {
+    let o = git_settings("gitPull");
+    let strategy = match o.get("strategy").and_then(Value::as_str) {
+        Some(s @ ("ff" | "ff-only" | "rebase")) => s.to_string(),
+        _ => "ff".to_string(),
+    };
+    let mut flags = Vec::new();
+    if o.get("autostash").and_then(Value::as_bool).unwrap_or(false) {
+        flags.push("--autostash".to_string());
+    }
+    if o.get("noVerify").and_then(Value::as_bool).unwrap_or(false) {
+        flags.push("--no-verify".to_string());
+    }
+    (strategy, flags)
+}
+
+/// Fetch flags from `gitFetch`, mirroring fetchFlags: `--all`/`--prune` default
+/// on, `--prune-tags`/`--tags` default off.
+fn git_fetch_flags() -> Vec<String> {
+    let o = git_settings("gitFetch");
+    let b = |k: &str, d: bool| o.get(k).and_then(Value::as_bool).unwrap_or(d);
+    let mut flags = Vec::new();
+    if b("all", true) {
+        flags.push("--all".to_string());
+    }
+    if b("prune", true) {
+        flags.push("--prune".to_string());
+    }
+    if b("pruneTags", false) {
+        flags.push("--prune-tags".to_string());
+    }
+    if b("tags", false) {
+        flags.push("--tags".to_string());
+    }
+    flags
+}
+
+/// Push flags from `gitPush`, mirroring pushFlags: `--force-with-lease` when
+/// mode is "force-with-lease" (default "default"), `--no-verify`/`--tags` off.
+fn git_push_flags() -> Vec<String> {
+    let o = git_settings("gitPush");
+    let mut flags = Vec::new();
+    if o.get("mode").and_then(Value::as_str) == Some("force-with-lease") {
+        flags.push("--force-with-lease".to_string());
+    }
+    if o.get("noVerify").and_then(Value::as_bool).unwrap_or(false) {
+        flags.push("--no-verify".to_string());
+    }
+    if o.get("tags").and_then(Value::as_bool).unwrap_or(false) {
+        flags.push("--tags".to_string());
+    }
+    flags
+}
+
 /// Queue a phone run-action/new-terminal request and wake the main window's
 /// listener. Delivery is pull-based (remote_take_run_actions) so a request
 /// that lands before the listener is mounted is picked up on mount instead of
@@ -604,6 +719,7 @@ fn handle_msg(
     app: &AppHandle,
     subs: &Arc<Mutex<HashSet<String>>>,
     device_id: &str,
+    out: &SyncSender<String>,
 ) -> Result<(), ()> {
     let v: Value = match serde_json::from_str(txt) {
         Ok(v) => v,
@@ -1050,6 +1166,230 @@ fn handle_msg(
                 );
             }
             send(ws, json!({ "t": t, "ok": true }))?;
+        }
+        // Git review & ship. Fast, local ops (status, per-file diff, commit, branch
+        // list, checkout, discard-all) reply inline like the handlers above. The
+        // slow ops — pull/push/fetch and PR creation (network) and the AI
+        // message/title/body generators — must NOT block this client's loop or its
+        // live terminal I/O stalls, so each runs on a worker thread and delivers its
+        // typed reply through the client's outbound queue (`out`), consistent with
+        // the overflow-drop policy. Pull/push/fetch flags mirror the desktop's git
+        // options (gitOptions.ts) via the persisted settings helpers. project_root
+        // is resolved inline first: a bad project is a cheap synchronous failure, so
+        // it replies `ok:false` here rather than spawning.
+        "git" => {
+            let project = str_field("project").unwrap_or_default();
+            match config::project_root(&project) {
+                Ok((cwd, _)) => {
+                    let st = crate::git::git_status(cwd.clone());
+                    if !st.is_git_repo {
+                        send(ws, json!({ "t": "git", "project": project, "ok": true, "isRepo": false,
+                            "branch": "", "detached": false, "hasUpstream": false, "ahead": 0, "behind": 0,
+                            "defaultBranch": "", "ghCli": false, "files": [] }))?;
+                    } else {
+                        let files = crate::git::git_changed_files(cwd.clone());
+                        let files = serde_json::to_value(&files).unwrap_or_else(|_| json!([]));
+                        send(ws, json!({ "t": "git", "project": project, "ok": true, "isRepo": true,
+                            "branch": st.branch, "detached": st.detached, "hasUpstream": st.has_upstream,
+                            "ahead": st.ahead, "behind": st.behind,
+                            "defaultBranch": crate::git::git_default_branch(cwd),
+                            "ghCli": crate::git::check_ghcli(), "files": files }))?;
+                    }
+                }
+                Err(e) => send(ws, json!({ "t": "git", "project": project, "ok": false, "error": e }))?,
+            }
+        }
+        "gitDiff" => {
+            let project = str_field("project").unwrap_or_default();
+            let path = str_field("path").unwrap_or_default();
+            match config::project_root(&project) {
+                Ok((cwd, _)) => match crate::git::git_diff(cwd, vec![path.clone()]) {
+                    Ok(diff) => {
+                        // git renders a binary change as a `Binary files … differ`
+                        // / `GIT binary patch` line rather than hunks — surface it
+                        // as binary with no diff body instead of shipping the marker.
+                        let binary = diff
+                            .lines()
+                            .any(|l| l.starts_with("Binary files ") || l.starts_with("GIT binary patch"));
+                        if binary {
+                            send(ws, json!({ "t": "gitDiff", "project": project, "path": path,
+                                "ok": true, "diff": "", "binary": true, "truncated": false }))?;
+                        } else {
+                            let (diff, truncated) = cap_git_diff(&diff);
+                            send(ws, json!({ "t": "gitDiff", "project": project, "path": path,
+                                "ok": true, "diff": diff, "binary": false, "truncated": truncated }))?;
+                        }
+                    }
+                    Err(e) => send(ws, json!({ "t": "gitDiff", "project": project, "path": path, "ok": false, "error": e }))?,
+                },
+                Err(e) => send(ws, json!({ "t": "gitDiff", "project": project, "path": path, "ok": false, "error": e }))?,
+            }
+        }
+        "gitCommit" => {
+            let project = str_field("project").unwrap_or_default();
+            let message = str_field("message").unwrap_or_default();
+            let files: Vec<String> = v
+                .get("files")
+                .and_then(Value::as_array)
+                .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+                .unwrap_or_default();
+            match config::project_root(&project) {
+                Ok((cwd, _)) => {
+                    let r = crate::git::git_commit(cwd, message, files);
+                    send(ws, git_result_reply("gitCommit", &project, r))?;
+                }
+                Err(e) => send(ws, json!({ "t": "gitCommit", "project": project, "ok": false, "error": e }))?,
+            }
+        }
+        "gitPush" => {
+            let project = str_field("project").unwrap_or_default();
+            match config::project_root(&project) {
+                Ok((cwd, _)) => {
+                    let flags = git_push_flags();
+                    let out = out.clone();
+                    std::thread::spawn(move || {
+                        let r = crate::git::git_push(cwd, flags);
+                        let _ = out.try_send(git_result_reply("gitPush", &project, r).to_string());
+                    });
+                }
+                Err(e) => send(ws, json!({ "t": "gitPush", "project": project, "ok": false, "error": e }))?,
+            }
+        }
+        "gitPull" => {
+            let project = str_field("project").unwrap_or_default();
+            match config::project_root(&project) {
+                Ok((cwd, _)) => {
+                    let (strategy, flags) = git_pull_opts();
+                    let out = out.clone();
+                    std::thread::spawn(move || {
+                        let r = crate::git::pull_branch(cwd, strategy, flags);
+                        let _ = out.try_send(git_result_reply("gitPull", &project, r).to_string());
+                    });
+                }
+                Err(e) => send(ws, json!({ "t": "gitPull", "project": project, "ok": false, "error": e }))?,
+            }
+        }
+        "gitFetch" => {
+            let project = str_field("project").unwrap_or_default();
+            match config::project_root(&project) {
+                Ok((cwd, _)) => {
+                    let flags = git_fetch_flags();
+                    let out = out.clone();
+                    std::thread::spawn(move || {
+                        let r = crate::git::git_fetch_all(cwd, flags);
+                        let _ = out.try_send(git_result_reply("gitFetch", &project, r).to_string());
+                    });
+                }
+                Err(e) => send(ws, json!({ "t": "gitFetch", "project": project, "ok": false, "error": e }))?,
+            }
+        }
+        "gitBranches" => {
+            let project = str_field("project").unwrap_or_default();
+            match config::project_root(&project) {
+                Ok((cwd, _)) => match crate::git::list_branches(cwd.clone()) {
+                    Ok(branches) => {
+                        // `Branch` serializes camelCase and omits `remote` when empty
+                        // (serde skip_serializing_if), so a local branch carries no
+                        // `remote` field at all.
+                        let branches = serde_json::to_value(&branches).unwrap_or_else(|_| json!([]));
+                        let current = crate::git::git_status(cwd).branch;
+                        send(ws, json!({ "t": "gitBranches", "project": project, "ok": true,
+                            "current": current, "branches": branches }))?;
+                    }
+                    Err(e) => send(ws, json!({ "t": "gitBranches", "project": project, "ok": false, "error": e }))?,
+                },
+                Err(e) => send(ws, json!({ "t": "gitBranches", "project": project, "ok": false, "error": e }))?,
+            }
+        }
+        "gitCheckout" => {
+            let project = str_field("project").unwrap_or_default();
+            let branch = str_field("branch").unwrap_or_default();
+            let remote = str_field("remote").unwrap_or_default();
+            match config::project_root(&project) {
+                Ok((cwd, _)) => {
+                    let r = crate::git::checkout_branch(cwd, branch, remote);
+                    send(ws, git_result_reply("gitCheckout", &project, r))?;
+                }
+                Err(e) => send(ws, json!({ "t": "gitCheckout", "project": project, "ok": false, "error": e }))?,
+            }
+        }
+        "gitDiscardAll" => {
+            let project = str_field("project").unwrap_or_default();
+            match config::project_root(&project) {
+                Ok((cwd, _)) => {
+                    let r = crate::git::git_discard_all(cwd);
+                    send(ws, git_result_reply("gitDiscardAll", &project, r))?;
+                }
+                Err(e) => send(ws, json!({ "t": "gitDiscardAll", "project": project, "ok": false, "error": e }))?,
+            }
+        }
+        "gitGenMessage" => {
+            let project = str_field("project").unwrap_or_default();
+            let files: Vec<String> = v
+                .get("files")
+                .and_then(Value::as_array)
+                .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+                .unwrap_or_default();
+            match config::project_root(&project) {
+                Ok((cwd, _)) => {
+                    let (cli, model, effort, fast) = git_ai_opts();
+                    let (app, out) = (app.clone(), out.clone());
+                    std::thread::spawn(move || {
+                        let reply = match crate::aigen::generate_commit_message(
+                            app, project.clone(), cwd, cli, model, effort, fast, files, String::new(),
+                        ) {
+                            Ok(message) => json!({ "t": "gitGenMessage", "project": project, "ok": true, "message": message }),
+                            Err(e) => json!({ "t": "gitGenMessage", "project": project, "ok": false, "error": e }),
+                        };
+                        let _ = out.try_send(reply.to_string());
+                    });
+                }
+                Err(e) => send(ws, json!({ "t": "gitGenMessage", "project": project, "ok": false, "error": e }))?,
+            }
+        }
+        "gitGenPr" => {
+            let project = str_field("project").unwrap_or_default();
+            match config::project_root(&project) {
+                Ok((cwd, _)) => {
+                    let (cli, model, effort, fast) = git_ai_opts();
+                    let (app, out) = (app.clone(), out.clone());
+                    std::thread::spawn(move || {
+                        let base = crate::git::git_default_branch(cwd.clone());
+                        let reply = match crate::aigen::generate_pr_title(
+                            app.clone(), project.clone(), cwd.clone(), cli.clone(), model.clone(), effort.clone(), fast, base.clone(),
+                        ) {
+                            Ok(title) => match crate::aigen::generate_pr_description(
+                                app, project.clone(), cwd, cli, model, effort, fast, base,
+                            ) {
+                                Ok(body) => json!({ "t": "gitGenPr", "project": project, "ok": true, "title": title, "body": body }),
+                                Err(e) => json!({ "t": "gitGenPr", "project": project, "ok": false, "error": e }),
+                            },
+                            Err(e) => json!({ "t": "gitGenPr", "project": project, "ok": false, "error": e }),
+                        };
+                        let _ = out.try_send(reply.to_string());
+                    });
+                }
+                Err(e) => send(ws, json!({ "t": "gitGenPr", "project": project, "ok": false, "error": e }))?,
+            }
+        }
+        "gitCreatePr" => {
+            let project = str_field("project").unwrap_or_default();
+            let title = str_field("title").unwrap_or_default();
+            let body = str_field("body").unwrap_or_default();
+            match config::project_root(&project) {
+                Ok((cwd, _)) => {
+                    let out = out.clone();
+                    std::thread::spawn(move || {
+                        let base = crate::git::git_default_branch(cwd.clone());
+                        let reply = match crate::git::create_pull_request(cwd, title, body, base) {
+                            Ok(url) => json!({ "t": "gitCreatePr", "project": project, "ok": true, "url": url }),
+                            Err(e) => json!({ "t": "gitCreatePr", "project": project, "ok": false, "error": e }),
+                        };
+                        let _ = out.try_send(reply.to_string());
+                    });
+                }
+                Err(e) => send(ws, json!({ "t": "gitCreatePr", "project": project, "ok": false, "error": e }))?,
+            }
         }
         _ => {}
     }

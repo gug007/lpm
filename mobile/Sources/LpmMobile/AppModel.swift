@@ -66,6 +66,56 @@ final class AppModel: ObservableObject {
     // bracketed-paste mode). Registered by WebTerminalView.
     var terminalSubmit: [String: (String) -> Void] = [:]
 
+    // MARK: git review state (keyed by project)
+
+    // The last-loaded repository snapshot, and the load's error/in-flight state.
+    @Published var gitSnapshots: [String: GitSnapshot] = [:]
+    @Published var gitLoadError: [String: String] = [:]
+    @Published var gitLoading: Set<String> = []
+    // Long ops in flight, so each affordance can show its own spinner and
+    // conflicting ops can be serialized.
+    @Published var gitPushing: Set<String> = []
+    @Published var gitCommitting: Set<String> = []
+    @Published var gitGeneratingMessage: Set<String> = []
+    @Published var gitGeneratingPr: Set<String> = []
+    @Published var gitCreatingPr: Set<String> = []
+    // Push/commit/generate-message failures surface on the review screen; PR
+    // draft/create failures surface inside the PR sheet, kept separate so an open
+    // sheet's error doesn't also fire the screen's alert.
+    @Published var gitOpError: [String: String] = [:]
+    @Published var gitPrError: [String: String] = [:]
+    // One-shot signals the view consumes then clears: a generated commit message,
+    // a bumped counter on a successful commit, a drafted PR, a created PR's URL.
+    @Published var gitGeneratedMessage: [String: String] = [:]
+    @Published var gitCommitTick: [String: Int] = [:]
+    @Published var gitPrDraft: [String: GitPrDraft] = [:]
+    @Published var gitCreatedPrURL: [String: String] = [:]
+    // Per-file diffs, keyed by diffKey(project, path).
+    @Published var gitDiffs: [String: GitDiffResult] = [:]
+    @Published var gitDiffLoading: Set<String> = []
+    @Published var gitDiffError: [String: String] = [:]
+    // Git menu ops (Pull/Fetch/Discard) in flight; their failures also surface via
+    // gitOpError, presented on the project screen when the review screen is closed.
+    @Published var gitPulling: Set<String> = []
+    @Published var gitFetching: Set<String> = []
+    @Published var gitDiscarding: Set<String> = []
+    // Switch-branch sheet state: the loaded branch list + current branch, load/
+    // checkout errors (kept separate so they show inside the sheet), the branch
+    // being checked out, and a tick the sheet observes to dismiss on success.
+    @Published var gitBranches: [String: [GitBranch]] = [:]
+    @Published var gitCurrentBranch: [String: String] = [:]
+    @Published var gitBranchesLoading: Set<String> = []
+    @Published var gitBranchError: [String: String] = [:]
+    @Published var gitCheckingOut: [String: String] = [:]
+    @Published var gitCheckoutTick: [String: Int] = [:]
+    // Generation counters that invalidate a pending op timeout once its reply
+    // lands, so a late timeout can't clear a newer in-flight op.
+    private var gitOpGen: [String: Int] = [:]
+    // Parsed diffs (line classification + measured width), keyed by diffKey, so
+    // scrolling the review list doesn't re-parse a file's diff on every body
+    // evaluation. Invalidated when a fresh diff for that key arrives.
+    private var parsedDiffCache: [String: ParsedDiff] = [:]
+
     private var client: LpmClient?
     // The addresses the current attempt is racing, so a failure can name exactly
     // what it tried (LAN vs Tailscale) instead of a generic "can't reach".
@@ -241,6 +291,34 @@ final class AppModel: ObservableObject {
         creatingGen = [:]
         closingTerminals = [:]
         closingGen = [:]
+        gitSnapshots = [:]
+        gitLoadError = [:]
+        gitLoading = []
+        gitPushing = []
+        gitCommitting = []
+        gitGeneratingMessage = []
+        gitGeneratingPr = []
+        gitCreatingPr = []
+        gitOpError = [:]
+        gitPrError = [:]
+        gitGeneratedMessage = [:]
+        gitCommitTick = [:]
+        gitPrDraft = [:]
+        gitCreatedPrURL = [:]
+        gitDiffs = [:]
+        gitDiffLoading = []
+        gitDiffError = [:]
+        gitPulling = []
+        gitFetching = []
+        gitDiscarding = []
+        gitBranches = [:]
+        gitCurrentBranch = [:]
+        gitBranchesLoading = []
+        gitBranchError = [:]
+        gitCheckingOut = [:]
+        gitCheckoutTick = [:]
+        gitOpGen = [:]
+        parsedDiffCache = [:]
         paired = false
     }
 
@@ -410,6 +488,185 @@ final class AppModel: ObservableObject {
     func loadHistory(_ project: String, q: String = "") { client?.requestHistory(project: project, q: q) }
     func recordHistory(project: String, id: String, label: String, text: String) {
         client?.recordHistory(project: project, id: id, label: label, text: text)
+    }
+
+    // MARK: git review
+
+    func diffKey(_ project: String, _ path: String) -> String { project + "\n" + path }
+
+    /// The parsed + measured diff for a file, computed once and cached. Returns
+    /// nil when the diff hasn't loaded or is binary (nothing to render as text).
+    func parsedDiff(_ project: String, path: String) -> ParsedDiff? {
+        let key = diffKey(project, path)
+        guard let result = gitDiffs[key], !result.binary else { return nil }
+        if let cached = parsedDiffCache[key] { return cached }
+        let parsed = ParsedDiff(result.diff)
+        parsedDiffCache[key] = parsed
+        return parsed
+    }
+
+    /// Load the repository snapshot for the review screen. Coalesces concurrent
+    /// loads; a timeout clears the spinner (and surfaces an error if nothing had
+    /// loaded) so a dropped link can't spin forever.
+    func loadGit(_ project: String) {
+        guard !gitLoading.contains(project) else { return }
+        gitLoading.insert(project)
+        gitLoadError[project] = nil
+        client?.requestGit(project: project)
+        armGitTimeout("git", project, seconds: 25) { [weak self] in
+            guard let self, self.gitLoading.remove(project) != nil else { return }
+            if self.gitSnapshots[project] == nil {
+                self.gitLoadError[project] = "Couldn't reach your Mac. Pull to refresh."
+            }
+        }
+    }
+
+    func loadGitDiff(_ project: String, path: String) {
+        let key = diffKey(project, path)
+        guard !gitDiffLoading.contains(key) else { return }
+        gitDiffLoading.insert(key)
+        gitDiffError[key] = nil
+        client?.requestGitDiff(project: project, path: path)
+        armGitTimeout("diff\n" + path, project, seconds: 30) { [weak self] in
+            guard let self, self.gitDiffLoading.remove(key) != nil else { return }
+            if self.gitDiffs[key] == nil {
+                self.gitDiffError[key] = "Couldn't load the diff. Try again."
+            }
+        }
+    }
+
+    func gitCommit(_ project: String, message: String, files: [String]) {
+        guard !gitCommitting.contains(project) else { return }
+        gitCommitting.insert(project)
+        gitOpError[project] = nil
+        client?.gitCommit(project: project, message: message, files: files)
+        armGitTimeout("commit", project, seconds: 120) { [weak self] in
+            guard let self, self.gitCommitting.remove(project) != nil else { return }
+            self.gitOpError[project] = "Commit timed out. Check your Mac and try again."
+        }
+    }
+
+    func gitPush(_ project: String) {
+        guard !gitPushing.contains(project) else { return }
+        gitPushing.insert(project)
+        gitOpError[project] = nil
+        client?.gitPush(project: project)
+        armGitTimeout("push", project, seconds: 120) { [weak self] in
+            guard let self, self.gitPushing.remove(project) != nil else { return }
+            self.gitOpError[project] = "Push timed out. Check your Mac and try again."
+        }
+    }
+
+    func gitGenMessage(_ project: String, files: [String]) {
+        guard !gitGeneratingMessage.contains(project) else { return }
+        gitGeneratingMessage.insert(project)
+        gitOpError[project] = nil
+        client?.gitGenMessage(project: project, files: files)
+        armGitTimeout("genMessage", project, seconds: 120) { [weak self] in
+            guard let self, self.gitGeneratingMessage.remove(project) != nil else { return }
+            self.gitOpError[project] = "Message generation timed out. Try again."
+        }
+    }
+
+    func gitGenPr(_ project: String) {
+        guard !gitGeneratingPr.contains(project) else { return }
+        gitGeneratingPr.insert(project)
+        gitPrError[project] = nil
+        client?.gitGenPr(project: project)
+        armGitTimeout("genPr", project, seconds: 120) { [weak self] in
+            guard let self, self.gitGeneratingPr.remove(project) != nil else { return }
+            self.gitPrError[project] = "Draft generation timed out. Try again."
+        }
+    }
+
+    func gitCreatePr(_ project: String, title: String, body: String) {
+        guard !gitCreatingPr.contains(project) else { return }
+        gitCreatingPr.insert(project)
+        gitPrError[project] = nil
+        client?.gitCreatePr(project: project, title: title, body: body)
+        armGitTimeout("createPr", project, seconds: 120) { [weak self] in
+            guard let self, self.gitCreatingPr.remove(project) != nil else { return }
+            self.gitPrError[project] = "Pull request creation timed out. Try again."
+        }
+    }
+
+    func consumeGitGeneratedMessage(_ project: String) { gitGeneratedMessage[project] = nil }
+    func consumeGitPrDraft(_ project: String) { gitPrDraft[project] = nil }
+    func consumeGitCreatedPrURL(_ project: String) { gitCreatedPrURL[project] = nil }
+
+    func gitPull(_ project: String) {
+        guard !gitPulling.contains(project) else { return }
+        gitPulling.insert(project)
+        gitOpError[project] = nil
+        client?.gitPull(project: project)
+        armGitTimeout("pull", project, seconds: 120) { [weak self] in
+            guard let self, self.gitPulling.remove(project) != nil else { return }
+            self.gitOpError[project] = "Pull timed out. Check your Mac and try again."
+        }
+    }
+
+    func gitFetch(_ project: String) {
+        guard !gitFetching.contains(project) else { return }
+        gitFetching.insert(project)
+        gitOpError[project] = nil
+        client?.gitFetch(project: project)
+        armGitTimeout("fetch", project, seconds: 120) { [weak self] in
+            guard let self, self.gitFetching.remove(project) != nil else { return }
+            self.gitOpError[project] = "Fetch timed out. Check your Mac and try again."
+        }
+    }
+
+    func gitDiscardAll(_ project: String) {
+        guard !gitDiscarding.contains(project) else { return }
+        gitDiscarding.insert(project)
+        gitOpError[project] = nil
+        client?.gitDiscardAll(project: project)
+        armGitTimeout("discard", project, seconds: 60) { [weak self] in
+            guard let self, self.gitDiscarding.remove(project) != nil else { return }
+            self.gitOpError[project] = "Discarding changes timed out. Try again."
+        }
+    }
+
+    func loadGitBranches(_ project: String) {
+        guard !gitBranchesLoading.contains(project) else { return }
+        gitBranchesLoading.insert(project)
+        gitBranchError[project] = nil
+        client?.requestGitBranches(project: project)
+        armGitTimeout("branches", project, seconds: 30) { [weak self] in
+            guard let self, self.gitBranchesLoading.remove(project) != nil else { return }
+            if self.gitBranches[project] == nil {
+                self.gitBranchError[project] = "Couldn't load branches. Try again."
+            }
+        }
+    }
+
+    func gitCheckout(_ project: String, branch: String, remote: String) {
+        guard gitCheckingOut[project] == nil else { return }
+        gitCheckingOut[project] = branch
+        gitBranchError[project] = nil
+        client?.gitCheckout(project: project, branch: branch, remote: remote)
+        armGitTimeout("checkout", project, seconds: 60) { [weak self] in
+            guard let self, self.gitCheckingOut[project] != nil else { return }
+            self.gitCheckingOut[project] = nil
+            self.gitBranchError[project] = "Switching branch timed out. Try again."
+        }
+    }
+
+    /// Arm a one-shot timeout for a git op, invalidated when its reply lands (which
+    /// bumps the same key's generation). `op` identifies the op within a project.
+    private func armGitTimeout(_ op: String, _ project: String, seconds: Double, _ fire: @escaping () -> Void) {
+        let key = op + "\u{0}" + project
+        let gen = (gitOpGen[key] ?? 0) + 1
+        gitOpGen[key] = gen
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
+            guard let self, self.gitOpGen[key] == gen else { return }
+            fire()
+        }
+    }
+
+    private func clearGitTimeout(_ op: String, _ project: String) {
+        let key = op + "\u{0}" + project
+        gitOpGen[key] = (gitOpGen[key] ?? 0) + 1
     }
 
     /// The projects list arranged exactly like the desktop sidebar (a port of
@@ -594,7 +851,133 @@ final class AppModel: ObservableObject {
         c.onSeed = { [weak self] id, cols, rows, data in self?.onTerminalSeed[id]?(cols, rows, data) }
         c.onOutput = { [weak self] id, data in self?.onTerminalOutput[id]?(data) }
         c.onControl = { [weak self] id, owner in self?.setControlOwner(id, owner) }
+        c.onGit = { [weak self] project, snapshot, error in
+            guard let self else { return }
+            self.clearGitTimeout("git", project)
+            self.gitLoading.remove(project)
+            if let snapshot {
+                self.gitSnapshots[project] = snapshot
+                self.gitLoadError[project] = nil
+            } else {
+                self.gitLoadError[project] = error ?? "Couldn't read the repository."
+            }
+        }
+        c.onGitDiff = { [weak self] project, path, result, error in
+            guard let self else { return }
+            let key = self.diffKey(project, path)
+            self.clearGitTimeout("diff\n" + path, project)
+            self.gitDiffLoading.remove(key)
+            if let result {
+                self.parsedDiffCache[key] = nil
+                self.gitDiffs[key] = result
+                self.gitDiffError[key] = nil
+            } else {
+                self.gitDiffError[key] = error ?? "Couldn't load the diff."
+            }
+        }
+        c.onGitCommit = { [weak self] project, error in
+            guard let self else { return }
+            self.clearGitTimeout("commit", project)
+            self.gitCommitting.remove(project)
+            if let error {
+                self.gitOpError[project] = error
+            } else {
+                self.gitCommitTick[project, default: 0] += 1
+                self.loadGit(project)
+            }
+        }
+        c.onGitPush = { [weak self] project, error in
+            guard let self else { return }
+            self.clearGitTimeout("push", project)
+            self.gitPushing.remove(project)
+            if let error {
+                self.gitOpError[project] = error
+            } else {
+                self.loadGit(project)
+            }
+        }
+        c.onGitGenMessage = { [weak self] project, message, error in
+            guard let self else { return }
+            self.clearGitTimeout("genMessage", project)
+            self.gitGeneratingMessage.remove(project)
+            if let message {
+                self.gitGeneratedMessage[project] = message
+            } else if let error {
+                self.gitOpError[project] = error
+            }
+        }
+        c.onGitGenPr = { [weak self] project, title, body, error in
+            guard let self else { return }
+            self.clearGitTimeout("genPr", project)
+            self.gitGeneratingPr.remove(project)
+            if let title, let body {
+                self.gitPrDraft[project] = GitPrDraft(title: title, body: body)
+            } else if let error {
+                self.gitPrError[project] = error
+            }
+        }
+        c.onGitCreatePr = { [weak self] project, url, error in
+            guard let self else { return }
+            self.clearGitTimeout("createPr", project)
+            self.gitCreatingPr.remove(project)
+            if let url {
+                self.gitCreatedPrURL[project] = url
+                self.loadGit(project)
+            } else if let error {
+                self.gitPrError[project] = error
+            }
+        }
+        c.onGitPull = { [weak self] project, error in
+            guard let self else { return }
+            self.clearGitTimeout("pull", project)
+            self.gitPulling.remove(project)
+            if let error { self.gitOpError[project] = error } else { self.loadGit(project) }
+        }
+        c.onGitFetch = { [weak self] project, error in
+            guard let self else { return }
+            self.clearGitTimeout("fetch", project)
+            self.gitFetching.remove(project)
+            if let error { self.gitOpError[project] = error } else { self.loadGit(project) }
+        }
+        c.onGitDiscardAll = { [weak self] project, error in
+            guard let self else { return }
+            self.clearGitTimeout("discard", project)
+            self.gitDiscarding.remove(project)
+            if let error { self.gitOpError[project] = error } else { self.loadGit(project) }
+        }
+        c.onGitBranches = { [weak self] project, current, branches, error in
+            guard let self else { return }
+            self.clearGitTimeout("branches", project)
+            self.gitBranchesLoading.remove(project)
+            if let error {
+                self.gitBranchError[project] = error
+            } else {
+                self.gitBranches[project] = branches
+                self.gitCurrentBranch[project] = current
+                self.gitBranchError[project] = nil
+            }
+        }
+        c.onGitCheckout = { [weak self] project, error in
+            guard let self else { return }
+            self.clearGitTimeout("checkout", project)
+            self.gitCheckingOut[project] = nil
+            if let error {
+                self.gitBranchError[project] = error
+            } else {
+                self.gitCheckoutTick[project, default: 0] += 1
+                self.loadGit(project)
+                self.client?.requestProjects()
+                self.client?.requestSidebar()
+            }
+        }
     }
+}
+
+/// A generated pull-request draft (title + body), filled into the PR sheet's
+/// editable fields.
+struct GitPrDraft: Equatable {
+    var title: String
+    var body: String
 }
 
 /// A rendered project row: the project plus whether it's a nested duplicate,

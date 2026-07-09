@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// A project's screen: the project's open terminals as a native inset-grouped
 /// list, with a nav-bar "+" for new terminals and a "more" menu for Start/Stop,
@@ -10,6 +11,10 @@ struct ProjectDetail: View {
     @State private var renaming: TerminalInfo?
     @State private var renameText = ""
     @State private var openTerminal: TerminalInfo?
+    @State private var showChanges = false
+    @State private var showBranchSheet = false
+    @State private var showPrSheet = false
+    @State private var confirmingDiscard = false
 
     // Current project object (fresh status/actions) from the store; falls back to
     // the one we were pushed with.
@@ -19,6 +24,12 @@ struct ProjectDetail: View {
     private var terminalsLoaded: Bool { model.terminals[project.name] != nil }
     private var creating: Bool { model.creatingTerminals.contains(project.name) }
     private var actions: [Action] { live.actions.flatMap { $0.runnableLeaves } }
+    // Changed-file count for the Review Changes menu item; nil until the snapshot
+    // loads (or when the project isn't a git repo).
+    private var changedCount: Int? {
+        guard let s = model.gitSnapshots[project.name], s.isRepo else { return nil }
+        return s.files.count
+    }
 
     var body: some View {
         // A plain List (not insetGrouped) so each terminal renders as its own
@@ -92,6 +103,36 @@ struct ProjectDetail: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationSubtitleCompat(live.running ? "Running" : "Stopped")
         .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0) }
+        .navigationDestination(isPresented: $showChanges) { GitReviewView(project: live) }
+        .sheet(isPresented: $showBranchSheet) {
+            GitBranchSheet(project: live).environmentObject(model)
+        }
+        .sheet(isPresented: $showPrSheet) {
+            GitPrSheet(project: live).environmentObject(model)
+        }
+        .confirmationDialog(
+            "Discard all changes?",
+            isPresented: $confirmingDiscard,
+            titleVisibility: .visible
+        ) {
+            Button("Discard changes", role: .destructive) { model.gitDiscardAll(live.name) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This permanently discards every uncommitted change in this project. This can't be undone.")
+        }
+        // Presented only while the review screen (which owns its own copy of this
+        // alert) is closed, so a single gitOpError can't fire two alerts at once.
+        .alert(
+            "Something went wrong",
+            isPresented: Binding(
+                get: { !showChanges && model.gitOpError[live.name] != nil },
+                set: { if !$0 { model.gitOpError[live.name] = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { model.gitOpError[live.name] = nil }
+        } message: {
+            Text(model.gitOpError[live.name] ?? "")
+        }
         .alert("Rename terminal", isPresented: Binding(
             get: { renaming != nil },
             set: { if !$0 { renaming = nil } }
@@ -111,10 +152,16 @@ struct ProjectDetail: View {
                 ProjectRunControl(project: live,
                                   pending: model.pendingRun[live.name] != nil,
                                   actions: actions,
+                                  changedCount: changedCount,
                                   onStart: { profile in model.startProject(live, profile: profile) },
                                   onStop: { model.stopProject(live) },
                                   onToggleService: { model.toggleService(live.name, service: $0) },
-                                  onRunAction: { model.runAction(live.name, action: $0) })
+                                  onRunAction: { model.runAction(live.name, action: $0) },
+                                  onReviewChanges: { showChanges = true },
+                                  onSwitchBranch: { showBranchSheet = true },
+                                  onCreatePr: { showPrSheet = true },
+                                  onDiscard: { confirmingDiscard = true })
+                    .environmentObject(model)
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -125,7 +172,10 @@ struct ProjectDetail: View {
                 .disabled(creating)
             }
         }
-        .onAppear { model.loadTerminals(project.name) }
+        .onAppear {
+            model.loadTerminals(project.name)
+            model.loadGit(project.name)
+        }
     }
 
     private func moveTerminals(from source: IndexSet, to destination: Int) {
@@ -179,16 +229,29 @@ private struct TabsSectionHeader: View {
 /// menu holds Start/Stop, the run-actions submenu, and (when present) profiles and
 /// per-service toggles.
 private struct ProjectRunControl: View {
+    @EnvironmentObject var model: AppModel
     let project: Project
     let pending: Bool
     let actions: [Action]
+    let changedCount: Int?
     let onStart: (_ profile: String) -> Void
     let onStop: () -> Void
     let onToggleService: (_ service: String) -> Void
     let onRunAction: (_ name: String) -> Void
+    let onReviewChanges: () -> Void
+    let onSwitchBranch: () -> Void
+    let onCreatePr: () -> Void
+    let onDiscard: () -> Void
 
     private var running: Bool { project.running }
     private var runningServices: Set<String> { Set(project.services.map(\.name)) }
+
+    private var name: String { project.name }
+    private var pulling: Bool { model.gitPulling.contains(name) }
+    private var pushing: Bool { model.gitPushing.contains(name) }
+    private var fetching: Bool { model.gitFetching.contains(name) }
+    private var branch: String { model.gitSnapshots[name]?.branch ?? "" }
+    private var ghCli: Bool { model.gitSnapshots[name]?.ghCli ?? false }
 
     var body: some View {
         Menu {
@@ -198,6 +261,15 @@ private struct ProjectRunControl: View {
                 Label(running ? "Stop" : "Start",
                       systemImage: running ? "stop.fill" : "play.fill")
             }
+
+            Button(action: onReviewChanges) {
+                Label("Review Changes", systemImage: "checklist")
+                if let changedCount, changedCount > 0 {
+                    Text("\(changedCount) changed file\(changedCount == 1 ? "" : "s")")
+                }
+            }
+
+            gitMenu
 
             if !actions.isEmpty {
                 Menu {
@@ -231,6 +303,45 @@ private struct ProjectRunControl: View {
                 Image(systemName: "ellipsis")
                     .foregroundStyle(running ? .green : .primary)
             }
+        }
+    }
+
+    /// The desktop's project Git submenu, adapted to mobile: sync ops that fire
+    /// directly (disabled while in flight), then branch/PR navigation, then
+    /// copy-branch and the destructive discard. Review Changes sits on the main
+    /// menu, one level up.
+    private var gitMenu: some View {
+        Menu {
+            Button { model.gitPull(name) } label: { Label("Pull", systemImage: "arrow.down") }
+                .disabled(pulling)
+            Button { model.gitPush(name) } label: { Label("Push", systemImage: "arrow.up") }
+                .disabled(pushing)
+            Button { model.gitFetch(name) } label: { Label("Fetch", systemImage: "arrow.triangle.2.circlepath") }
+                .disabled(fetching)
+
+            Divider()
+
+            Button(action: onSwitchBranch) {
+                Label("Switch Branch…", systemImage: "arrow.trianglehead.branch")
+            }
+            if ghCli {
+                Button(action: onCreatePr) {
+                    Label("Create Pull Request…", systemImage: "arrow.triangle.pull")
+                }
+            }
+
+            Divider()
+
+            Button { UIPasteboard.general.string = branch } label: {
+                Label("Copy Branch Name", systemImage: "doc.on.doc")
+            }
+            .disabled(branch.isEmpty)
+            Button(role: .destructive, action: onDiscard) {
+                Label("Discard All Changes…", systemImage: "trash")
+            }
+            .disabled((changedCount ?? 0) == 0)
+        } label: {
+            Label("Git", systemImage: "arrow.trianglehead.branch")
         }
     }
 

@@ -72,6 +72,38 @@ any live connection.
 | `{ "t": "toggleService", "name": "<name>", "service": "<svc>" }` | `{ "t": "toggleService", "ok": … }` |
 | `{ "t": "ping" }` | `{ "t": "pong" }` |
 
+### Git review & ship
+
+Review a project's working-tree changes and ship them (pull, push, fetch, switch
+branch, commit, open a PR, discard) from the phone — mirroring the desktop's
+project Git submenu. Every reply echoes the `project` it was addressed to, so a
+reply can be matched to its request even with several in flight. The **local**
+ops (`git` status, `gitDiff`, `gitCommit`, `gitBranches`, `gitCheckout`,
+`gitDiscardAll`) reply inline; the **network / AI** ops (`gitPull`, `gitPush`,
+`gitFetch`, `gitCreatePr`, and the AI generators) are slow and run on a worker
+thread on the desktop, so their reply arrives asynchronously — there is no
+separate ack, the phone just waits for the typed reply below.
+
+Pull, push, and fetch take no flags from the phone: the desktop applies the
+user's persisted git options (`gitPull` `{strategy, autostash, noVerify}`,
+`gitPush` `{mode, noVerify, tags}`, `gitFetch` `{all, prune, pruneTags, tags}`),
+identical to the desktop submenu, so behavior stays consistent across surfaces.
+
+| Request | Reply |
+|---|---|
+| `{ "t": "git", "project": "<name>" }` | `{ "t": "git", "project": "<name>", "ok": true, "isRepo": bool, "branch": "…", "detached": bool, "hasUpstream": bool, "ahead": N, "behind": N, "defaultBranch": "…", "ghCli": bool, "files": [{ path, status, staged }…] }` — the project's git status + changed files in one shot. `status` ∈ `added`\|`deleted`\|`renamed`\|`modified`\|`untracked`. `ghCli` reports whether the `gh` CLI is available (gates the "Open PR" affordance). When the project isn't a git repo: `ok:true, isRepo:false` with empty/zero fields. On a bad project: `{ "ok": false, "error": "…" }` |
+| `{ "t": "gitDiff", "project": "<name>", "path": "<file>" }` | `{ "t": "gitDiff", "project": "<name>", "path": "<file>", "ok": true, "diff": "<unified diff>", "binary": bool, "truncated": bool }` — the unified diff (HEAD vs working tree) for one file, including untracked files. A binary file returns `binary:true, diff:""`. The diff is capped at ~400 KB, truncated at a line boundary with `truncated:true` when it exceeds that. Errors → `{ "ok": false, "error": "…" }` |
+| `{ "t": "gitCommit", "project": "<name>", "message": "…", "files": ["<path>"…] }` | `{ "t": "gitCommit", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — stages exactly the given files (resetting the index first) and commits them with `message` |
+| `{ "t": "gitPush", "project": "<name>" }` | `{ "t": "gitPush", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — `git push -u origin HEAD`, applying the persisted `gitPush` flags (`--force-with-lease` when `mode=="force-with-lease"`, `--no-verify`, `--tags`). Async (network) |
+| `{ "t": "gitPull", "project": "<name>" }` | `{ "t": "gitPull", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — pulls with the persisted `gitPull` strategy (`ff` default \| `ff-only` \| `rebase`) and flags (`--autostash`, `--no-verify`). Async (network) |
+| `{ "t": "gitFetch", "project": "<name>" }` | `{ "t": "gitFetch", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — fetches with the persisted `gitFetch` flags (`--all`, `--prune` default on; `--prune-tags`, `--tags` default off). Async (network) |
+| `{ "t": "gitBranches", "project": "<name>" }` | `{ "t": "gitBranches", "project": "<name>", "ok": true, "current": "<branch>", "branches": [{ name, committerDate, remote? }…] }` / `{ "ok": false, "error": "…" }` — the branch list for the "Switch branch" picker (local + remote, newest first). `remote` is **omitted** for a local branch (present only for a remote-tracking one). `current` is the checked-out branch. Inline |
+| `{ "t": "gitCheckout", "project": "<name>", "branch": "<name>", "remote": "<remote>" }` | `{ "t": "gitCheckout", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — checks out `branch`; pass the `remote` from a `gitBranches` entry to create a local tracking branch (empty `remote` for a plain local checkout). Inline |
+| `{ "t": "gitDiscardAll", "project": "<name>" }` | `{ "t": "gitDiscardAll", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — discards all working-tree changes (reset + clean). Inline |
+| `{ "t": "gitGenMessage", "project": "<name>", "files": ["<path>"…] }` | `{ "t": "gitGenMessage", "project": "<name>", "ok": true, "message": "…" }` / `{ "ok": false, "error": "…" }` — AI-drafts a commit message from the diff of the given files. Async (AI). Uses the desktop's persisted AI settings (`aiCli` default `claude`, `aiModel`, `aiEffort`, `aiFast`) |
+| `{ "t": "gitGenPr", "project": "<name>" }` | `{ "t": "gitGenPr", "project": "<name>", "ok": true, "title": "…", "body": "…" }` / `{ "ok": false, "error": "…" }` — AI-drafts a PR title and description for the current branch vs the default branch. Async (AI); same AI settings as above |
+| `{ "t": "gitCreatePr", "project": "<name>", "title": "…", "body": "…" }` | `{ "t": "gitCreatePr", "project": "<name>", "ok": true, "url": "<pr url>" }` / `{ "ok": false, "error": "…" }` — pushes the current branch and opens a PR via the `gh` CLI against the default branch, returning its URL. Async (network) |
+
 ### Server-initiated pushes (desktop → phone)
 
 | Frame | Meaning |

@@ -97,6 +97,31 @@ enum Wire {
     }
     static func ping() -> String { json(["t": "ping"]) }
 
+    // MARK: git review
+
+    static func git(project: String) -> String { json(["t": "git", "project": project]) }
+    static func gitDiff(project: String, path: String) -> String {
+        json(["t": "gitDiff", "project": project, "path": path])
+    }
+    static func gitCommit(project: String, message: String, files: [String]) -> String {
+        json(["t": "gitCommit", "project": project, "message": message, "files": files])
+    }
+    static func gitPush(project: String) -> String { json(["t": "gitPush", "project": project]) }
+    static func gitGenMessage(project: String, files: [String]) -> String {
+        json(["t": "gitGenMessage", "project": project, "files": files])
+    }
+    static func gitGenPr(project: String) -> String { json(["t": "gitGenPr", "project": project]) }
+    static func gitCreatePr(project: String, title: String, body: String) -> String {
+        json(["t": "gitCreatePr", "project": project, "title": title, "body": body])
+    }
+    static func gitPull(project: String) -> String { json(["t": "gitPull", "project": project]) }
+    static func gitFetch(project: String) -> String { json(["t": "gitFetch", "project": project]) }
+    static func gitBranches(project: String) -> String { json(["t": "gitBranches", "project": project]) }
+    static func gitCheckout(project: String, branch: String, remote: String) -> String {
+        json(["t": "gitCheckout", "project": project, "branch": branch, "remote": remote])
+    }
+    static func gitDiscardAll(project: String) -> String { json(["t": "gitDiscardAll", "project": project]) }
+
     /// Frame raw non-UTF-8 input the way the desktop expects (null + "HEX:" + hex).
     static func hexFrame(_ bytes: [UInt8]) -> String {
         "\u{0}HEX:" + bytes.map { String(format: "%02x", $0) }.joined()
@@ -143,6 +168,21 @@ enum Wire {
         case actionFailed(project: String, error: String)
         case projectsChanged
         case statusChanged(project: String)
+        // Git review replies. Each carries the project it belongs to; `error` is
+        // nil on success. `git` returns nil snapshot only on a hard failure — a
+        // non-repo is a successful snapshot with isRepo == false.
+        case git(project: String, snapshot: GitSnapshot?, error: String?)
+        case gitDiff(project: String, path: String, diff: String, binary: Bool, truncated: Bool, error: String?)
+        case gitCommit(project: String, error: String?)
+        case gitPush(project: String, error: String?)
+        case gitGenMessage(project: String, message: String?, error: String?)
+        case gitGenPr(project: String, title: String?, body: String?, error: String?)
+        case gitCreatePr(project: String, url: String?, error: String?)
+        case gitPull(project: String, error: String?)
+        case gitFetch(project: String, error: String?)
+        case gitBranches(project: String, current: String, branches: [GitBranch], error: String?)
+        case gitCheckout(project: String, error: String?)
+        case gitDiscardAll(project: String, error: String?)
         case pong
         case unknown
 
@@ -220,6 +260,65 @@ enum Wire {
                                      error: obj["error"] as? String ?? "Couldn't reach the lpm app on your Mac.")
             case "projects-changed": return .projectsChanged
             case "status-changed": return .statusChanged(project: obj["project"] as? String ?? "")
+            case "git":
+                let ok = obj["ok"] as? Bool ?? false
+                return .git(project: obj["project"] as? String ?? "",
+                            snapshot: ok ? GitSnapshot(obj) : nil,
+                            error: ok ? nil : (obj["error"] as? String ?? "Couldn't read the repository."))
+            case "gitDiff":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitDiff(project: obj["project"] as? String ?? "",
+                                path: obj["path"] as? String ?? "",
+                                diff: obj["diff"] as? String ?? "",
+                                binary: obj["binary"] as? Bool ?? false,
+                                truncated: obj["truncated"] as? Bool ?? false,
+                                error: ok ? nil : (obj["error"] as? String ?? "Couldn't load the diff."))
+            case "gitCommit":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitCommit(project: obj["project"] as? String ?? "",
+                                  error: ok ? nil : (obj["error"] as? String ?? "Couldn't commit."))
+            case "gitPush":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitPush(project: obj["project"] as? String ?? "",
+                                error: ok ? nil : (obj["error"] as? String ?? "Couldn't push."))
+            case "gitGenMessage":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitGenMessage(project: obj["project"] as? String ?? "",
+                                      message: ok ? (obj["message"] as? String ?? "") : nil,
+                                      error: ok ? nil : (obj["error"] as? String ?? "Couldn't generate a message."))
+            case "gitGenPr":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitGenPr(project: obj["project"] as? String ?? "",
+                                 title: ok ? (obj["title"] as? String ?? "") : nil,
+                                 body: ok ? (obj["body"] as? String ?? "") : nil,
+                                 error: ok ? nil : (obj["error"] as? String ?? "Couldn't draft the pull request."))
+            case "gitCreatePr":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitCreatePr(project: obj["project"] as? String ?? "",
+                                    url: ok ? (obj["url"] as? String ?? "") : nil,
+                                    error: ok ? nil : (obj["error"] as? String ?? "Couldn't create the pull request."))
+            case "gitPull":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitPull(project: obj["project"] as? String ?? "",
+                                error: ok ? nil : (obj["error"] as? String ?? "Couldn't pull."))
+            case "gitFetch":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitFetch(project: obj["project"] as? String ?? "",
+                                 error: ok ? nil : (obj["error"] as? String ?? "Couldn't fetch."))
+            case "gitBranches":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitBranches(project: obj["project"] as? String ?? "",
+                                    current: obj["current"] as? String ?? "",
+                                    branches: ok ? (obj["branches"] as? [[String: Any]] ?? []).map(GitBranch.init) : [],
+                                    error: ok ? nil : (obj["error"] as? String ?? "Couldn't list branches."))
+            case "gitCheckout":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitCheckout(project: obj["project"] as? String ?? "",
+                                    error: ok ? nil : (obj["error"] as? String ?? "Couldn't switch branch."))
+            case "gitDiscardAll":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitDiscardAll(project: obj["project"] as? String ?? "",
+                                      error: ok ? nil : (obj["error"] as? String ?? "Couldn't discard changes."))
             case "pong": return .pong
             default: return .unknown
             }
@@ -449,5 +548,72 @@ struct StatusEntry: Identifiable {
         value = o["value"] as? String ?? ""
         priority = o["priority"] as? Int ?? 0
         timestamp = o["timestamp"] as? Int ?? 0
+    }
+}
+
+/// One changed file in the working tree (mirrors the desktop git status row).
+/// `status` is one of added | deleted | renamed | modified | untracked.
+struct GitFile: Identifiable, Hashable {
+    let path: String
+    let status: String
+    let staged: Bool
+
+    var id: String { path }
+
+    init(_ o: [String: Any]) {
+        path = o["path"] as? String ?? ""
+        status = o["status"] as? String ?? "modified"
+        staged = o["staged"] as? Bool ?? false
+    }
+}
+
+/// A repository snapshot for the review screen: the branch and its relation to the
+/// upstream, whether the GitHub CLI is available for PRs, and the changed files.
+/// `isRepo` false is a valid snapshot (the project just isn't a git repo).
+struct GitSnapshot {
+    let isRepo: Bool
+    let branch: String
+    let detached: Bool
+    let hasUpstream: Bool
+    let ahead: Int
+    let behind: Int
+    let defaultBranch: String
+    let ghCli: Bool
+    let files: [GitFile]
+
+    init(_ o: [String: Any]) {
+        isRepo = o["isRepo"] as? Bool ?? false
+        branch = o["branch"] as? String ?? ""
+        detached = o["detached"] as? Bool ?? false
+        hasUpstream = o["hasUpstream"] as? Bool ?? false
+        ahead = o["ahead"] as? Int ?? 0
+        behind = o["behind"] as? Int ?? 0
+        defaultBranch = o["defaultBranch"] as? String ?? ""
+        ghCli = o["ghCli"] as? Bool ?? false
+        files = (o["files"] as? [[String: Any]] ?? []).map(GitFile.init)
+    }
+}
+
+/// A single file's unified diff, ready for GitDiffView to parse and render.
+struct GitDiffResult {
+    let diff: String
+    let binary: Bool
+    let truncated: Bool
+}
+
+/// A branch offered in the switch-branch sheet. `remote` is the remote name for a
+/// remote-only branch (e.g. "origin") and empty for a local branch.
+struct GitBranch: Identifiable, Hashable {
+    let name: String
+    let committerDate: String
+    let remote: String
+
+    var id: String { remote.isEmpty ? name : remote + "/" + name }
+    var isRemote: Bool { !remote.isEmpty }
+
+    init(_ o: [String: Any]) {
+        name = o["name"] as? String ?? ""
+        committerDate = o["committerDate"] as? String ?? ""
+        remote = o["remote"] as? String ?? ""
     }
 }
