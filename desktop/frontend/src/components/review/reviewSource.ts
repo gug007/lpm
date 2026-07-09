@@ -4,6 +4,7 @@ import {
   GitChangedFilesRef,
   GitChangedFilesStaged,
   GitFileDiff,
+  GitFileDiffs,
   GitFileDiffRef,
   GitFileDiffStaged,
 } from "../../../bridge/commands";
@@ -19,7 +20,10 @@ export type FileDiffResult = {
   original?: string;
   modified?: string;
   binary?: boolean;
+  tooLarge?: boolean;
 };
+
+export type FileDiffRequest = { path: string; status?: string };
 
 // One descriptor per review source owns its label, whether it is editable, and
 // how to list its changed files / fetch one file's diff. Threading the mode as
@@ -28,7 +32,19 @@ export interface ReviewSource {
   label: string;
   editable: boolean;
   listChanged: (root: string, base: string) => Promise<ChangedFile[]>;
-  fetchDiff: (root: string, path: string, base: string) => Promise<FileDiffResult>;
+  fetchDiff: (
+    root: string,
+    path: string,
+    base: string,
+    status?: string,
+  ) => Promise<FileDiffResult>;
+  // Batch of `fetchDiff`: one backend call resolves every requested file's diff,
+  // keyed by path. Used by the all-files pool to avoid one command per file.
+  fetchDiffs: (
+    root: string,
+    files: FileDiffRequest[],
+    base: string,
+  ) => Promise<Record<string, FileDiffResult>>;
 }
 
 export const REVIEW_SOURCES: Record<ReviewMode, ReviewSource> = {
@@ -36,7 +52,8 @@ export const REVIEW_SOURCES: Record<ReviewMode, ReviewSource> = {
     label: "Working tree",
     editable: true,
     listChanged: (root) => GitChangedFiles(root),
-    fetchDiff: (root, path) => GitFileDiff(root, path),
+    fetchDiff: (root, path, _base, status) => GitFileDiff(root, path, status),
+    fetchDiffs: (root, files, base) => GitFileDiffs(root, files, "working", base),
   },
   base: {
     label: "vs Base",
@@ -44,12 +61,14 @@ export const REVIEW_SOURCES: Record<ReviewMode, ReviewSource> = {
     listChanged: (root, base) =>
       base ? GitChangedFilesRef(root, base) : Promise.resolve([]),
     fetchDiff: (root, path, base) => GitFileDiffRef(root, path, base),
+    fetchDiffs: (root, files, base) => GitFileDiffs(root, files, "base", base),
   },
   staged: {
     label: "Staged",
     editable: false,
     listChanged: (root) => GitChangedFilesStaged(root),
     fetchDiff: (root, path) => GitFileDiffStaged(root, path),
+    fetchDiffs: (root, files, base) => GitFileDiffs(root, files, "staged", base),
   },
 };
 

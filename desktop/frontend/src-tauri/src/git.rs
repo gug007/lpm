@@ -1,7 +1,7 @@
 // Git subsystem — port of desktop/git.go + desktop/watcher.go. All commands are
 // synchronous `git`/`gh` subprocess wrappers; the watcher uses the `notify`
 // crate. Struct JSON field names must match what the frontend deserializes.
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -348,7 +348,12 @@ pub struct FileDiff {
     original: String,
     modified: String,
     binary: bool,
+    too_large: bool,
 }
+
+// Either side beyond this ships two full strings over IPC and makes Monaco diff
+// them; past it we render a placeholder instead (like the binary case).
+const MAX_DIFF_SIDE_BYTES: usize = 4 * 1024 * 1024;
 
 fn is_binary(bytes: &[u8]) -> bool {
     bytes.iter().take(8000).any(|&b| b == 0)
@@ -371,12 +376,19 @@ fn rename_source(cwd: &str, new_path: &str) -> Option<String> {
 /// HEAD vs working-tree content of one file, for a side-by-side (Monaco) view.
 /// `original` is empty for an added file, `modified` empty for a deleted one.
 #[tauri::command(async)]
-pub fn git_file_diff(cwd: String, path: String) -> Result<FileDiff, String> {
+pub fn git_file_diff(
+    cwd: String,
+    path: String,
+    status: Option<String>,
+) -> Result<FileDiff, String> {
     let work = std::path::Path::new(&cwd).join(&path);
     let mod_bytes = std::fs::read(&work).unwrap_or_default();
 
     let mut orig_bytes = git_bytes(&cwd, &["show", &format!("HEAD:{path}")]);
-    if orig_bytes.is_empty() && work.exists() {
+    // The rename probe is a full `git status` scan; only a renamed file needs it.
+    // A missing status (legacy caller) keeps the old always-probe behavior.
+    let probe = matches!(status.as_deref(), Some("renamed") | None);
+    if probe && orig_bytes.is_empty() && work.exists() {
         if let Some(src) = rename_source(&cwd, &path) {
             orig_bytes = git_bytes(&cwd, &["show", &format!("HEAD:{src}")]);
         }
@@ -412,12 +424,22 @@ fn file_diff_from_blobs(orig: Vec<u8>, modi: Vec<u8>) -> FileDiff {
             original: String::new(),
             modified: String::new(),
             binary: true,
+            too_large: false,
+        };
+    }
+    if orig.len() > MAX_DIFF_SIDE_BYTES || modi.len() > MAX_DIFF_SIDE_BYTES {
+        return FileDiff {
+            original: String::new(),
+            modified: String::new(),
+            binary: false,
+            too_large: true,
         };
     }
     FileDiff {
         original: String::from_utf8_lossy(&orig).into_owned(),
         modified: String::from_utf8_lossy(&modi).into_owned(),
         binary: false,
+        too_large: false,
     }
 }
 
@@ -455,6 +477,128 @@ pub fn git_file_diff_staged(cwd: String, path: String) -> Result<FileDiff, Strin
     let orig = git_bytes(&cwd, &["show", &format!("HEAD:{path}")]);
     let modi = git_bytes(&cwd, &["show", &format!(":{path}")]);
     Ok(file_diff_from_blobs(orig, modi))
+}
+
+/// One file's blob specs for a batch diff. `status` mirrors the changed-file
+/// status so a renamed file's original side can fall back to its old path.
+#[derive(Deserialize)]
+pub struct FileDiffRequest {
+    pub path: String,
+    pub status: Option<String>,
+}
+
+/// The `<size>` from a `cat-file --batch` header (`<oid> <type> <size>`); None on
+/// a miss line (`<spec> missing`) or anything else that doesn't end in a count.
+fn cat_file_size(header: &str) -> Option<usize> {
+    header.trim_end().rsplit(' ').next()?.parse().ok()
+}
+
+/// `cat-file --batch` is newline-delimited, so a spec must be a single line. A
+/// tracked path may legally contain `\n`/`\r`; such a spec is treated as a miss
+/// rather than written, which would split into two lines and desync the stream.
+fn cat_file_spec_ok(spec: &str) -> bool {
+    !spec.contains('\n') && !spec.contains('\r')
+}
+
+/// Fetch one blob from a running `cat-file --batch`: write its spec, read the
+/// header, then exactly `size` bytes plus the trailing newline. Missing/unreadable
+/// specs yield empty bytes (matching `git_bytes`). Write-one-read-one keeps the
+/// single pipe from deadlocking on a large blob.
+fn cat_file_blob(
+    stdin: &mut std::process::ChildStdin,
+    stdout: &mut std::io::BufReader<std::process::ChildStdout>,
+    spec: &str,
+) -> Vec<u8> {
+    use std::io::{BufRead, Read, Write};
+    if !cat_file_spec_ok(spec) {
+        return Vec::new();
+    }
+    if writeln!(stdin, "{spec}").and_then(|_| stdin.flush()).is_err() {
+        return Vec::new();
+    }
+    let mut header = String::new();
+    if stdout.read_line(&mut header).is_err() {
+        return Vec::new();
+    }
+    let Some(size) = cat_file_size(&header) else {
+        return Vec::new();
+    };
+    let mut buf = vec![0u8; size];
+    if stdout.read_exact(&mut buf).is_err() {
+        return Vec::new();
+    }
+    let _ = stdout.read_exact(&mut [0u8; 1]); // trailing newline
+    buf
+}
+
+/// Batch of `git_file_diff` for the all-files review: one `cat-file --batch`
+/// process fetches every original-side blob (and index-side for staged) instead
+/// of spawning `git show` per file. `source` is the ReviewMode; `base` (resolved
+/// once) is only used for `"base"`.
+#[tauri::command(async)]
+pub fn git_file_diffs(
+    cwd: String,
+    files: Vec<FileDiffRequest>,
+    source: String,
+    base: String,
+) -> Result<HashMap<String, FileDiff>, String> {
+    let mut out = HashMap::new();
+    if files.is_empty() {
+        return Ok(out);
+    }
+    let resolved_base = if source == "base" {
+        Some(resolve_base(&cwd, &base)?)
+    } else {
+        None
+    };
+
+    let mut child = Command::new("git")
+        .args(["cat-file", "--batch"])
+        .current_dir(&cwd)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    let mut stdin = child.stdin.take().ok_or("cat-file stdin unavailable")?;
+    let mut stdout =
+        std::io::BufReader::new(child.stdout.take().ok_or("cat-file stdout unavailable")?);
+
+    for f in &files {
+        let path = &f.path;
+        let (orig, modi) = match source.as_str() {
+            "staged" => (
+                cat_file_blob(&mut stdin, &mut stdout, &format!("HEAD:{path}")),
+                cat_file_blob(&mut stdin, &mut stdout, &format!(":{path}")),
+            ),
+            "base" => {
+                let base_ref = resolved_base.as_deref().unwrap_or_default();
+                (
+                    cat_file_blob(&mut stdin, &mut stdout, &format!("{base_ref}:{path}")),
+                    cat_file_blob(&mut stdin, &mut stdout, &format!("HEAD:{path}")),
+                )
+            }
+            _ => {
+                let work = std::path::Path::new(&cwd).join(path);
+                let modi = std::fs::read(&work).unwrap_or_default();
+                let mut orig = cat_file_blob(&mut stdin, &mut stdout, &format!("HEAD:{path}"));
+                // A rename's original lives under its old path; probe only when the
+                // new path has no HEAD blob but a working file exists (renames are
+                // rare, so the extra status scan here is fine).
+                if f.status.as_deref() == Some("renamed") && orig.is_empty() && work.exists() {
+                    if let Some(src) = rename_source(&cwd, path) {
+                        orig = cat_file_blob(&mut stdin, &mut stdout, &format!("HEAD:{src}"));
+                    }
+                }
+                (orig, modi)
+            }
+        };
+        out.insert(path.clone(), file_diff_from_blobs(orig, modi));
+    }
+
+    drop(stdin); // EOF so cat-file exits before we reap it
+    let _ = child.wait();
+    Ok(out)
 }
 
 #[tauri::command(async)]
@@ -843,6 +987,26 @@ pub fn create_pull_request(
 
 pub(crate) const DEBOUNCE: Duration = Duration::from_millis(400);
 
+// Beyond this many distinct files in one quiet window, drop the per-path list and
+// tell consumers to refetch everything — tracking each path stops paying off.
+const CHANGE_CAP: usize = 100;
+
+// One coalesced filesystem change: a specific working-tree file, or a `.git`
+// metadata change (commit/checkout/…) where any file's HEAD-side blob may differ.
+enum Change {
+    File(String),
+    Unknown,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GitChangedPayload {
+    path: String,
+    // Repo-relative paths that changed this window, or null for "unknown /
+    // everything" so consumers do a full refresh.
+    files: Option<Vec<String>>,
+}
+
 // .git entries worth a refresh (commit/checkout/merge/rebase markers).
 const GIT_FILE_ALLOW: &[&str] = &[
     "HEAD", "index", "packed-refs", "ORIG_HEAD", "MERGE_HEAD", "CHERRY_PICK_HEAD",
@@ -922,17 +1086,31 @@ pub fn start_watching_project(
     }
 
     let stop = Arc::new(AtomicBool::new(false));
-    let (tx, rx) = std::sync::mpsc::channel::<()>();
+    let (tx, rx) = std::sync::mpsc::channel::<Change>();
     let root = path.clone();
 
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
         if let Ok(ev) = res {
             for p in &ev.paths {
                 let full = p.to_string_lossy();
-                if !should_ignore(&root, &full) {
-                    let _ = tx.send(());
-                    break;
+                if should_ignore(&root, &full) {
+                    continue;
                 }
+                let rel = full
+                    .strip_prefix(&root)
+                    .map(|r| r.trim_start_matches('/'))
+                    .unwrap_or("");
+                if rel.is_empty() {
+                    continue;
+                }
+                // An allow-listed .git entry (HEAD/index/refs/…) means a commit or
+                // checkout: any file's HEAD-side blob may have moved, so refetch all.
+                let change = if rel.split('/').next() == Some(".git") {
+                    Change::Unknown
+                } else {
+                    Change::File(rel.to_string())
+                };
+                let _ = tx.send(change);
             }
         }
     })
@@ -944,16 +1122,26 @@ pub fn start_watching_project(
     let emit_path = path.clone();
     let emit_stop = stop.clone();
     std::thread::spawn(move || loop {
-        if rx.recv().is_err() {
-            return; // watcher dropped
-        }
+        let first = match rx.recv() {
+            Ok(c) => c,
+            Err(_) => return, // watcher dropped
+        };
         if emit_stop.load(Ordering::SeqCst) {
             return;
         }
-        // coalesce a burst into one emit after 400ms of quiet
+        // coalesce a burst into one emit after 400ms of quiet, accumulating the
+        // set of changed paths so consumers can reconcile only what moved
+        let mut files: HashSet<String> = HashSet::new();
+        let mut unknown = matches!(first, Change::Unknown);
+        if let Change::File(p) = first {
+            files.insert(p);
+        }
         loop {
             match rx.recv_timeout(DEBOUNCE) {
-                Ok(_) => continue,
+                Ok(Change::Unknown) => unknown = true,
+                Ok(Change::File(p)) => {
+                    files.insert(p);
+                }
                 Err(RecvTimeoutError::Timeout) => break,
                 Err(RecvTimeoutError::Disconnected) => return,
             }
@@ -961,7 +1149,18 @@ pub fn start_watching_project(
         if emit_stop.load(Ordering::SeqCst) {
             return;
         }
-        let _ = app.emit("git-changed", &emit_path);
+        if files.len() > CHANGE_CAP {
+            unknown = true;
+        }
+        let payload = GitChangedPayload {
+            path: emit_path.clone(),
+            files: if unknown {
+                None
+            } else {
+                Some(files.into_iter().collect())
+            },
+        };
+        let _ = app.emit("git-changed", &payload);
     });
 
     *guard = Some(ActiveWatch {
@@ -978,4 +1177,26 @@ pub fn stop_watching_project(state: State<'_, WatchState>) -> Result<(), String>
         old.stop.store(true, Ordering::SeqCst);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{cat_file_size, cat_file_spec_ok};
+
+    #[test]
+    fn cat_file_size_parses_hit_and_miss() {
+        assert_eq!(cat_file_size("3f1a9c blob 42\n"), Some(42));
+        assert_eq!(cat_file_size("3f1a9c blob 0\n"), Some(0));
+        assert_eq!(cat_file_size("HEAD:missing.txt missing\n"), None);
+        assert_eq!(cat_file_size("HEAD:foo bar.txt missing"), None);
+        assert_eq!(cat_file_size(""), None);
+    }
+
+    #[test]
+    fn cat_file_spec_ok_rejects_embedded_newlines() {
+        assert!(cat_file_spec_ok("HEAD:src/main.rs"));
+        assert!(cat_file_spec_ok("HEAD:file with spaces.txt"));
+        assert!(!cat_file_spec_ok("HEAD:weird\nname.txt"));
+        assert!(!cat_file_spec_ok("HEAD:weird\rname.txt"));
+    }
 }

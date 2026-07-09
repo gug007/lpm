@@ -53,6 +53,7 @@ type FileEntry = {
   dirty: boolean;
   editable: boolean;
   binary: boolean;
+  tooLarge: boolean;
 };
 
 const EMPTY_DIRTY: Set<string> = new Set();
@@ -62,6 +63,7 @@ const TREE_WIDTH_MAX = 480;
 const FONT_SIZE_KEY = "lpm:reviewFontSize";
 const FONT_SIZE_MIN = 8;
 const FONT_SIZE_MAX = 32;
+const SIDE_BY_SIDE_KEY = "lpm:reviewSideBySide";
 // Wheel delta accumulated per one-point font step during ⌘/pinch zoom.
 const ZOOM_WHEEL_STEP = 40;
 const VIEW_OPTIONS = [
@@ -98,7 +100,11 @@ export function DiffReviewPane({
   const orderedFiles = useMemo(() => flattenNodes(tree), [tree]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [binaryPath, setBinaryPath] = useState<string | null>(null);
-  const [sideBySide, setSideBySide] = useState(true);
+  const [tooLargePath, setTooLargePath] = useState<string | null>(null);
+  const [sideBySide, setSideBySide] = useState(() => {
+    const v = localStorage.getItem(SIDE_BY_SIDE_KEY);
+    return v === null ? true : v === "true";
+  });
   const [viewMode, setViewMode] = useState<PaneViewMode>("all");
   // The single-file editor is a heavyweight diff editor only the "single" view
   // uses; the default "all" view is driven entirely by the pool. Latch on first
@@ -171,8 +177,8 @@ export function DiffReviewPane({
 
   const fetchDiff = useCallback(
     (m: ReviewMode, path: string): Promise<FileDiffResult> =>
-      REVIEW_SOURCES[m].fetchDiff(projectRoot, path, baseRef.current),
-    [projectRoot],
+      REVIEW_SOURCES[m].fetchDiff(projectRoot, path, baseRef.current, statusOf(path)),
+    [projectRoot, statusOf],
   );
 
   const zoomBy = useCallback((delta: number) => {
@@ -234,9 +240,10 @@ export function DiffReviewPane({
       const editor = editorRef.current;
       if (!editor) return;
       persistViewState();
-      if (entry.binary || !entry.models) {
+      if (entry.binary || entry.tooLarge || !entry.models) {
         withSuppressed(() => editor.setModel(null));
         setBinaryPath(entry.binary ? entry.path : null);
+        setTooLargePath(entry.tooLarge ? entry.path : null);
       } else {
         const models = entry.models;
         withSuppressed(() => {
@@ -244,6 +251,7 @@ export function DiffReviewPane({
           editor.updateOptions({ readOnly: !entry.editable });
         });
         setBinaryPath(null);
+        setTooLargePath(null);
       }
       const prev = displayedRef.current;
       displayedRef.current = key;
@@ -294,9 +302,11 @@ export function DiffReviewPane({
       if (token !== reqRef.current) return;
 
       const binary = !!diff.binary;
-      const original = binary ? "" : diff.original ?? "";
-      const modified = binary ? "" : diff.modified ?? "";
-      const models = binary
+      const tooLarge = !!diff.tooLarge;
+      const noEditor = binary || tooLarge;
+      const original = noEditor ? "" : diff.original ?? "";
+      const modified = noEditor ? "" : diff.modified ?? "";
+      const models = noEditor
         ? null
         : makeDiffModels(monaco, "review", m, path, original, modified);
       const entry: FileEntry = {
@@ -307,8 +317,9 @@ export function DiffReviewPane({
         cleanVersionId: models ? models.modified.getAlternativeVersionId() : 0,
         original,
         dirty: false,
-        editable: isEditable(m, path, binary),
+        editable: isEditable(m, path, noEditor),
         binary,
+        tooLarge,
       };
       cacheRef.current.set(key, entry);
       swapTo(key, entry, token);
@@ -319,7 +330,7 @@ export function DiffReviewPane({
   // Reconcile the active file against disk on repo changes: clean buffers follow
   // the new content, dirty buffers raise a conflict instead of being clobbered,
   // and an unchanged file is a no-op so the viewport never thrashes.
-  const reconcileActive = useCallback(async () => {
+  const reconcileActive = useCallback(async (changedFiles?: string[] | null) => {
     if (savingRef.current) return; // our own save in flight; its echo is a no-op
     if (!activeRef.current) return; // hidden tab: catch up on becoming active
     const key = displayedRef.current;
@@ -328,6 +339,13 @@ export function DiffReviewPane({
     const entry = cacheRef.current.get(key);
     if (!entry || entry.binary || !entry.models) return;
     const { mode: m, path } = entry;
+    // A targeted git-changed event lists the files that moved; if the displayed
+    // file isn't among them, its diff can't have changed — skip the refetch.
+    if (
+      Array.isArray(changedFiles) &&
+      !changedFiles.some((f) => f.toLowerCase() === path.toLowerCase())
+    )
+      return;
 
     const token = ++reqRef.current;
     let diff: FileDiffResult;
@@ -337,7 +355,7 @@ export function DiffReviewPane({
       return;
     }
     if (token !== reqRef.current || displayedRef.current !== key) return;
-    if (diff.binary) return;
+    if (diff.binary || diff.tooLarge) return;
 
     // A file can change status (e.g. modified -> deleted) under us; keep the
     // editable gate and the editor's readOnly in sync.
@@ -551,6 +569,7 @@ export function DiffReviewPane({
   }, [selectedPath, mode, ready, viewMode, selectFile]);
 
   useEffect(() => {
+    localStorage.setItem(SIDE_BY_SIDE_KEY, String(sideBySide));
     editorRef.current?.updateOptions({ renderSideBySide: sideBySide });
   }, [sideBySide]);
 
@@ -613,7 +632,12 @@ export function DiffReviewPane({
   }, [active, reconcileActive]);
 
   const activeEditable =
-    !!selectedPath && isEditable(mode, selectedPath, binaryPath === selectedPath);
+    !!selectedPath &&
+    isEditable(
+      mode,
+      selectedPath,
+      binaryPath === selectedPath || tooLargePath === selectedPath,
+    );
   const activeDirty = !!selectedPath && dirtyPaths.has(selectedPath);
 
   return (
@@ -623,13 +647,11 @@ export function DiffReviewPane({
         <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-muted)]">
           {viewMode === "all" ? "All files" : selectedPath ?? "Review"}
         </span>
-        {viewMode === "single" && (
-          <SegmentedControl
-            value={sideBySide ? "split" : "unified"}
-            options={VIEW_OPTIONS}
-            onChange={(v) => setSideBySide(v === "split")}
-          />
-        )}
+        <SegmentedControl
+          value={sideBySide ? "split" : "unified"}
+          options={VIEW_OPTIONS}
+          onChange={(v) => setSideBySide(v === "split")}
+        />
         <SegmentedControl
           value={viewMode}
           options={PANE_VIEW_OPTIONS}
@@ -726,11 +748,19 @@ export function DiffReviewPane({
           <div
             ref={hostRef}
             className="h-full w-full"
-            style={{ visibility: binaryPath || !selectedPath ? "hidden" : "visible" }}
+            style={{
+              visibility:
+                binaryPath || tooLargePath || !selectedPath ? "hidden" : "visible",
+            }}
           />
           {selectedPath && binaryPath === selectedPath && (
             <div className="absolute inset-0">
               <BinaryFilePlaceholder path={selectedPath} />
+            </div>
+          )}
+          {selectedPath && tooLargePath === selectedPath && (
+            <div className="absolute inset-0">
+              <BinaryFilePlaceholder path={selectedPath} message="File too large to diff" />
             </div>
           )}
           {!selectedPath && (
@@ -755,12 +785,14 @@ export function DiffReviewPane({
             in its per-file editors survive a view toggle. */}
         <div className={viewMode === "single" ? "hidden" : "min-w-0 flex-1"}>
           <MonacoDiffPool
+            key={mode}
             ref={stackRef}
             projectRoot={projectRoot}
             files={orderedFiles}
             mode={mode}
             baseBranch={baseBranch}
             fontSize={fontSize}
+            sideBySide={sideBySide}
             active={active && viewMode === "all"}
             onActiveFileChange={setSelectedPath}
           />

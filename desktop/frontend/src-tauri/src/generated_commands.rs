@@ -79,6 +79,7 @@ macro_rules! all_command_handlers {
         git_diff,
         git_diff_branch,
         git_file_diff,
+        git_file_diffs,
         git_file_diff_ref,
         git_file_diff_staged,
         git_discard_all,

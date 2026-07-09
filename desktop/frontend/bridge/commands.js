@@ -178,8 +178,11 @@ export function GitDiff(cwd, files) {
 export function GitDiffBranch(cwd, base) {
   return invoke("git_diff_branch", { cwd, base });
 }
-export function GitFileDiff(cwd, path) {
-  return invoke("git_file_diff", { cwd, path });
+export function GitFileDiff(cwd, path, status) {
+  return invoke("git_file_diff", { cwd, path, status });
+}
+export function GitFileDiffs(cwd, files, source, base) {
+  return invoke("git_file_diffs", { cwd, files, source, base });
 }
 export function GitFileDiffRef(cwd, path, base) {
   return invoke("git_file_diff_ref", { cwd, path, base });
