@@ -307,6 +307,33 @@ export function MessageHistorySetFolder(messageId, folderId) {
 export function LoadSettings() {
   return invoke("load_settings");
 }
+export function RemoteState() {
+  return invoke("remote_state");
+}
+export function RemoteSetConfig(enabled, lan, port, tailscale) {
+  return invoke("remote_set_config", { enabled, lan, port, tailscale });
+}
+export function RemoteStartPairing() {
+  return invoke("remote_start_pairing");
+}
+export function RemoteRevokeDevice(id) {
+  return invoke("remote_revoke_device", { id });
+}
+export function RemoteSetTerminalLabels(project, labels) {
+  return invoke("remote_set_terminal_labels", { project, labels });
+}
+export function TerminalPresentControl(id, realmKind, realmId, label) {
+  return invoke("terminal_present_control", { id, realmKind, realmId, label });
+}
+export function TerminalUnpresentControl(id, realmKind, realmId) {
+  return invoke("terminal_unpresent_control", { id, realmKind, realmId });
+}
+export function TerminalClaimControl(id, realmKind, realmId, label) {
+  return invoke("terminal_claim_control", { id, realmKind, realmId, label });
+}
+export function TerminalControlOwner(id) {
+  return invoke("terminal_control_owner", { id });
+}
 export function LoadTerminals() {
   return invoke("load_terminals");
 }
@@ -505,8 +532,8 @@ export function SetProjectLabel(name, label) {
 export function MoveProjectRoot(name, newRoot) {
   return invoke("move_project_root", { name, newRoot });
 }
-export function StartLogStreaming(projectName) {
-  return invoke("start_log_streaming", { projectName });
+export function StartLogStreaming(projectName, viewer) {
+  return invoke("start_log_streaming", { projectName, viewer });
 }
 export function StartProject(name, profile) {
   return invoke("start_project", { name, profile });
@@ -538,8 +565,8 @@ export function StartWatchingProject(path) {
 export function StopAll() {
   return invoke("stop_all");
 }
-export function StopLogStreaming(projectName) {
-  return invoke("stop_log_streaming", { projectName });
+export function StopLogStreaming(projectName, viewer) {
+  return invoke("stop_log_streaming", { projectName, viewer });
 }
 export function StopProject(name) {
   return invoke("stop_project", { name });

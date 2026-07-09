@@ -25,6 +25,7 @@ import { useAIPicker } from "../hooks/useAIPicker";
 import { aiEffectiveFast } from "../types";
 import { EventsEmit } from "../../bridge/runtime";
 import { getSettings, saveSettings } from "../store/settings";
+import { DEFAULT_PUSH_CONFIG, pushFlags } from "../gitOptions";
 import { ChangedFilesTree } from "./ChangedFilesTree";
 import { SideBySideDiffModal } from "./SideBySideDiffModal";
 import { Tooltip } from "./ui/Tooltip";
@@ -274,7 +275,8 @@ export function CommitModal({
       await GitCommit(projectPath, message.trim(), Array.from(selected));
       if (andPush) {
         setBusy("push");
-        await GitPush(projectPath);
+        const pushCfg = getSettings().gitPush ?? DEFAULT_PUSH_CONFIG;
+        await GitPush(projectPath, pushFlags(pushCfg));
         toast.success("Committed and pushed");
       } else {
         toast.success("Committed successfully");

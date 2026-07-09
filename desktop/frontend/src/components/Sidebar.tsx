@@ -517,7 +517,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     const status = computeStatus(project);
     const isDetached = detached.has(project.name);
     const isSelf = project.name === detachedSelf;
-    const isSelected = selected === project.name && (!isDetached || isSelf);
+    // A detached project is now mirrored (live in both windows), so the main
+    // window highlights it when selected like any other project.
+    const isSelected = selected === project.name;
     const isContextTarget = contextMenu?.name === project.name;
     const isBusy = duplicatingNames.includes(project.name) || removingNames.has(project.name);
     const parent = project.parentName ? projectByName.get(project.parentName) : undefined;
@@ -584,7 +586,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           {isDetached && !isSelf && (
             <span
               className="shrink-0 text-[var(--text-muted)]"
-              title="Open in a separate window — click to focus"
+              title="Also open in a separate window"
             >
               <DetachIcon />
             </span>

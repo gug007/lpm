@@ -1,11 +1,18 @@
 import { useState, useEffect, useMemo, useRef, useCallback, useImperativeHandle } from "react";
 import { toast } from "sonner";
 import { EventsOn } from "../../bridge/runtime";
-import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus } from "../../bridge/commands";
+import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus, FocusMainWindow, RemoteSetTerminalLabels } from "../../bridge/commands";
+import { IS_MIRROR_WINDOW, requestRunInDuplicates } from "../mirror";
+
+// Log streaming is refcounted per viewer in Rust; the two windows that can watch
+// one project's logs must identify themselves so pausing one doesn't stop the
+// shared poller for the other.
+const LOG_VIEWER = IS_MIRROR_WINDOW ? "mirror" : "main";
 import type { ITheme } from "@xterm/xterm";
 import { disposePaneSession, type PaneHandle } from "./Pane";
 import { disposeInteractivePaneSession, isInteractivePaneSessionDead, type InteractivePaneHandle } from "./InteractivePane";
 import { collectTerminals, isTabPinned, isTerminalTab } from "../paneTree";
+import { detectAICLI } from "../slashCommands";
 import { PaneLayout } from "./PaneLayout";
 import { TerminalTabDnd } from "./TerminalTabDnd";
 import { BulkDuplicateDialog, type DuplicatePromptSeed } from "./BulkDuplicateDialog";
@@ -52,6 +59,11 @@ export interface TerminalViewHandle {
   // Submit a command into the focused pane's active terminal. Returns false
   // (with a toast) when no live terminal is focused.
   sendCommandToActive(cmd: string): boolean;
+  // Terminal-tab ops relayed from the mobile app, addressed by terminal id.
+  remoteCloseTerminal(id: string): void;
+  remoteRenameTerminal(id: string, label: string): void;
+  remoteTogglePin(id: string): void;
+  remoteReorderTerminals(order: string[]): void;
 }
 
 export function TerminalView({ projectName, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, runningPaneIDs, donePaneIDs, waitingPaneIDs, errorPaneIDs, visible = true, ref }: TerminalViewProps) {
@@ -96,6 +108,10 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     renameTerminal,
     toggleTabPinned,
     reorderTerminals,
+    remoteCloseTerminal,
+    remoteRenameTerminal,
+    remoteTogglePin,
+    remoteReorderTerminals,
     moveTerminal,
     splitPane,
     closePane,
@@ -108,7 +124,15 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
   const servicesKey = services.map((s) => s.name).join(",");
   const stableServices = useMemo(() => services, [servicesKey]);
-  const servicePorts = useServicePorts(projectName, visible && services.length > 0, servicesKey);
+  // Only the owner runs the 3s system-wide lsof port scan. A detached project is
+  // mounted in both windows, so gating the mirror off avoids doubling a load the
+  // freeze audit already flagged; the mirror's service tabs simply omit port
+  // labels rather than running a second scanner.
+  const servicePorts = useServicePorts(
+    projectName,
+    !IS_MIRROR_WINDOW && visible && services.length > 0,
+    servicesKey,
+  );
 
   // Ensure a root pane exists whenever there's something to host — either
   // a running service (so its tab has somewhere to live) or after the
@@ -211,20 +235,47 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   // composer's mention memos, so reuse the prior array while the id/label set is
   // unchanged. Non-PTY tabs (browser, review) have no xterm session, so they're
   // left out.
-  const allTerminalsRef = useRef<{ id: string; label: string }[]>([]);
+  // {id, label, cli}: cli is detected from each terminal's launch command (empty
+  // for plain shells), used only by the remote push. Identity-stabilized (the tree
+  // gets a fresh reference each drag frame) so consumers/effects don't churn.
+  const allTerminalsRef = useRef<
+    { id: string; label: string; cli: string; pinned: boolean; emoji: string }[]
+  >([]);
   const allTerminals = useMemo(() => {
     const next = tree
       ? collectTerminals(tree)
           .filter(isTerminalTab)
-          .map((t) => ({ id: t.id, label: t.label }))
+          .map((t) => ({
+            id: t.id,
+            label: t.label,
+            cli: detectAICLI(t.startCmd) ?? "",
+            pinned: t.pinned === true,
+            emoji: t.emoji ?? "",
+          }))
       : [];
     const prev = allTerminalsRef.current;
-    if (prev.length === next.length && prev.every((p, i) => p.id === next[i].id && p.label === next[i].label)) {
+    if (
+      prev.length === next.length &&
+      prev.every(
+        (p, i) =>
+          p.id === next[i].id &&
+          p.label === next[i].label &&
+          p.cli === next[i].cli &&
+          p.pinned === next[i].pinned &&
+          p.emoji === next[i].emoji,
+      )
+    ) {
       return prev;
     }
     allTerminalsRef.current = next;
     return next;
   }, [tree]);
+
+  // Mirror the live id -> {label, cli} mapping to the remote server so paired
+  // phones show the same terminal names and offer the same slash commands.
+  useEffect(() => {
+    void RemoteSetTerminalLabels(projectName, allTerminals);
+  }, [projectName, allTerminals]);
 
   useEffect(() => {
     return () => {
@@ -333,7 +384,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     let prevPollOutputs: string[] = [];
 
     try {
-      StartLogStreaming(projectName).catch(() => {});
+      StartLogStreaming(projectName, LOG_VIEWER).catch(() => {});
       const cancel = EventsOn("log-update", (update: { project: string; pane: number; content: string }) => {
         if (update?.project !== projectName) return;
         setOutputs((prev) => {
@@ -374,14 +425,14 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
     const onVisibility = () => {
       if (shouldPause()) {
-        StopLogStreaming(projectName).catch(() => {});
+        StopLogStreaming(projectName, LOG_VIEWER).catch(() => {});
         if (pollInterval) {
           clearInterval(pollInterval);
           pollInterval = null;
         }
       } else {
         if (streaming) {
-          StartLogStreaming(projectName).catch(() => {});
+          StartLogStreaming(projectName, LOG_VIEWER).catch(() => {});
         } else if (!pollInterval) {
           poll();
           pollInterval = setInterval(poll, 1000);
@@ -393,7 +444,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     return () => {
       if (eventCleanup) eventCleanup();
       if (pollInterval) clearInterval(pollInterval);
-      StopLogStreaming(projectName).catch(() => {});
+      StopLogStreaming(projectName, LOG_VIEWER).catch(() => {});
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [projectName, stableServices]);
@@ -405,9 +456,9 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     }
     if (stableServices.length === 0) return;
     if (visible) {
-      StartLogStreaming(projectName).catch(() => {});
+      StartLogStreaming(projectName, LOG_VIEWER).catch(() => {});
     } else {
-      StopLogStreaming(projectName).catch(() => {});
+      StopLogStreaming(projectName, LOG_VIEWER).catch(() => {});
     }
   }, [visible, projectName, stableServices.length]);
 
@@ -646,8 +697,26 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
   useImperativeHandle(
     ref,
-    () => ({ createTerminal, createTerminalWithCmd, resumeFromHistory, sendCommandToActive }),
-    [createTerminal, createTerminalWithCmd, resumeFromHistory, sendCommandToActive],
+    () => ({
+      createTerminal,
+      createTerminalWithCmd,
+      resumeFromHistory,
+      sendCommandToActive,
+      remoteCloseTerminal,
+      remoteRenameTerminal,
+      remoteTogglePin,
+      remoteReorderTerminals,
+    }),
+    [
+      createTerminal,
+      createTerminalWithCmd,
+      resumeFromHistory,
+      sendCommandToActive,
+      remoteCloseTerminal,
+      remoteRenameTerminal,
+      remoteTogglePin,
+      remoteReorderTerminals,
+    ],
   );
 
   return (
@@ -741,7 +810,16 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             duplicateRunHere.current = null;
             setDuplicateSeed(null);
             if (runHere) await runHere();
-            void bulkDuplicate(projectName, count, opts);
+            // In a mirror window, copy #1 runs in the shared PTY here, but the
+            // copies themselves must be created in the main window's store —
+            // that's where they mount and auto-run their seeded tasks. Forward
+            // the request and raise the main window so the user sees them spawn.
+            if (IS_MIRROR_WINDOW) {
+              requestRunInDuplicates({ project: projectName, count, opts: opts as unknown as Record<string, unknown> });
+              void FocusMainWindow(projectName);
+            } else {
+              void bulkDuplicate(projectName, count, opts);
+            }
           }}
         />
       )}

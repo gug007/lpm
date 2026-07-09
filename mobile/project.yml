@@ -1,0 +1,76 @@
+# XcodeGen spec — turns the Swift sources here into a runnable iOS app.
+#
+#   brew install xcodegen        # once
+#   cd mobile && xcodegen generate
+#   open LpmMobile.xcodeproj
+#
+# Then set your signing team in Signing & Capabilities and run on a physical
+# iPhone (the Simulator can't reach your Mac's LAN/tailnet).
+name: LpmMobile
+options:
+  bundleIdPrefix: cx.lpm
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+targets:
+  LpmMobile:
+    type: application
+    platform: iOS
+    sources:
+      - Assets.xcassets
+      - Sources/LpmMobile
+      # Apple privacy manifest — copied into the app bundle root so App Store
+      # uploads pass required-reason-API validation (ITMS-91053).
+      - path: PrivacyInfo.xcprivacy
+        buildPhase: resources
+      # xterm.js + the terminal host page, copied into the app bundle as a
+      # preserved folder ("web/") so the WKWebView loads them offline with their
+      # relative paths (xterm/xterm.js …) intact.
+      - path: web
+        type: folder
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cx.lpm.mobile
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        # Automatic signing, team-agnostic so this file stays portable. run.sh
+        # injects DEVELOPMENT_TEAM at build time (from the env or an untracked
+        # mobile/.team file); Xcode's GUI auto-picks your logged-in team on ⌘R.
+        CODE_SIGN_STYLE: Automatic
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: lpm
+        # Export compliance: the app implements no encryption of its own — transport
+        # is plaintext ws:// (privacy comes from Tailscale, not the app) and the only
+        # crypto is the OS Keychain, which is exempt. Declaring this false stops App
+        # Store Connect from prompting for export-compliance docs on every build.
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # iPad must support all four orientations to satisfy App Store multitasking
+        # validation (error 90474). iPhone keeps three (no upside-down).
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # Required — the QR scanner crashes on open without a camera usage string.
+        NSCameraUsageDescription: Scan the pairing QR code shown by lpm on your Mac.
+        NSLocalNetworkUsageDescription: Connect to lpm running on your Mac.
+        NSBonjourServices:
+          - _lpm._tcp
+        # The desktop server is plaintext ws:// (encryption comes from running over
+        # a Tailscale tailnet). ATS blocks cleartext by default and
+        # NSAllowsLocalNetworking only exempts local/private addresses — Tailscale's
+        # CGNAT range (100.64.0.0/10) doesn't qualify, so connecting over the tailnet
+        # fails with -1022. NSAllowsArbitraryLoads covers both; it must stand alone,
+        # because iOS ignores it whenever NSAllowsLocalNetworking is also present.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true

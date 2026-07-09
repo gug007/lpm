@@ -26,6 +26,7 @@ import { useAppEvents } from "./hooks/useAppEvents";
 import { useProjectWatcher } from "./hooks/useProjectWatcher";
 import { getSettings, saveSettings } from "./store/settings";
 import { useAppStore } from "./store/app";
+import { onRunInDuplicates } from "./mirror";
 
 import { InstallTmux, TmuxInstalled } from "../bridge/commands";
 
@@ -72,13 +73,12 @@ export default function App() {
   const moveProjectsToGroup = useAppStore((s) => s.moveProjectsToGroup);
   const detachProject = useAppStore((s) => s.detachProject);
   const attachProject = useAppStore((s) => s.attachProject);
-  const focusDetachedProject = useAppStore((s) => s.focusDetachedProject);
   const refreshAfterRename = useAppStore((s) => s.refreshAfterRename);
 
-  const handleSelect = async (name: string) => {
-    // Race guard: if the window closed between sidebar paint and click,
-    // fall back to in-pane selection instead of swallowing the click.
-    if (detached.has(name) && (await focusDetachedProject(name))) return;
+  const handleSelect = (name: string) => {
+    // The main window owns every project's terminals, including detached ones
+    // (mirrored into their own window). Clicking a detached project shows it
+    // inline here rather than redirecting to its window — it's live in both.
     selectProject(name);
   };
 
@@ -94,6 +94,20 @@ export default function App() {
   useProjectsSync();
   useAppEvents();
   const isFullscreen = useIsFullscreen();
+
+  // A mirror (detached) window can trigger run-in-duplicates but can't create
+  // the copies itself — they mount and auto-run in this main window's store.
+  useEffect(
+    () =>
+      onRunInDuplicates((p) =>
+        bulkDuplicate(
+          p.project,
+          p.count,
+          p.opts as Parameters<typeof bulkDuplicate>[2],
+        ),
+      ),
+    [bulkDuplicate],
+  );
 
   useEffect(() => {
     TmuxInstalled().then(setTmuxReady);
@@ -141,12 +155,12 @@ export default function App() {
     if (projects.length > 0) pruneVisitedToProjects();
   }, [projects, pruneVisitedToProjects]);
 
-  // Hide detached projects from main-window content — their detail view
-  // lives in their own window, and rendering it inline too would duplicate
-  // terminal mounts and steal focus from the detached webview.
+  // The main window owns every project's terminals, so a detached project stays
+  // mounted here (its detached window is a mirror that adopts these live PTYs).
+  // Detached projects are always kept mounted — even when not selected — so the
+  // owner exists for the mirror to attach to (e.g. a window restored at launch).
   const visitedProjects = projects.filter(
-    (p) =>
-      !detached.has(p.name) && (p.name === selected || visited.has(p.name)),
+    (p) => detached.has(p.name) || p.name === selected || visited.has(p.name),
   );
 
   if (tmuxReady === null) {

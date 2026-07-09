@@ -81,7 +81,7 @@ export type View =
   | "branch-instructions"
   | "template";
 
-export type SettingsTab = "general" | "notifications" | "terminal" | "shortcuts" | "tts" | "ai" | "global-config" | "templates" | "backup";
+export type SettingsTab = "general" | "notifications" | "terminal" | "shortcuts" | "tts" | "ai" | "global-config" | "templates" | "backup" | "mobile";
 
 export interface SSHProjectParams {
   name: string;
@@ -184,6 +184,31 @@ interface AppState {
   pendingGeneratorRun: { projectName: string; spec: GeneratorRunSpec } | null;
   runGenerator: (opts: { folder: string; name: string; spec: GeneratorRunSpec }) => Promise<void>;
   clearPendingGeneratorRun: () => void;
+  // A run-action / new-terminal request relayed from the mobile app. `action` is
+  // the action's (possibly composite) name, or null for a plain new terminal.
+  // `nonce` lets an already-mounted ProjectDetail re-fire on repeat requests.
+  pendingRemoteAction: { projectName: string; action: string | null; nonce: number } | null;
+  triggerRemoteAction: (projectName: string, action: string | null) => void;
+  clearPendingRemoteAction: () => void;
+  // A terminal-tab op (close / rename / pin / reorder) relayed from the mobile
+  // app. Addressed by terminal id, except reorder which carries the full new id
+  // order. Consumed by the mounted ProjectDetail.
+  pendingRemoteTerminalOp: {
+    projectName: string;
+    op: "close" | "rename" | "pin" | "reorder";
+    id: string;
+    label: string;
+    order: string[];
+    nonce: number;
+  } | null;
+  triggerRemoteTerminalOp: (
+    projectName: string,
+    op: "close" | "rename" | "pin" | "reorder",
+    id: string,
+    label: string,
+    order: string[],
+  ) => void;
+  clearPendingRemoteTerminalOp: () => void;
   bulkDuplicate: (
     name: string,
     count: number,
@@ -197,6 +222,7 @@ interface AppState {
     },
   ) => Promise<void>;
   consumeSpawnTasks: (name: string) => void;
+  queueSpawnTask: (name: string, task: SpawnTask) => void;
   removeProject: (name: string) => Promise<void>;
   removeProjectCascade: (name: string) => Promise<void>;
   removeProjectFromDisk: (name: string) => Promise<void>;
@@ -788,6 +814,43 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   clearPendingGeneratorRun: () => set({ pendingGeneratorRun: null }),
 
+  pendingRemoteAction: null,
+
+  // Mount/activate the target project (only a mounted ProjectDetail has a live
+  // TerminalView to run in), then park the request for its consumer effect.
+  triggerRemoteAction: (projectName, action) =>
+    set((s) => ({
+      selected: projectName,
+      view: "projects",
+      visited: new Set([...s.visited, projectName]),
+      pendingRemoteAction: {
+        projectName,
+        action,
+        nonce: (s.pendingRemoteAction?.nonce ?? 0) + 1,
+      },
+    })),
+
+  clearPendingRemoteAction: () => set({ pendingRemoteAction: null }),
+
+  pendingRemoteTerminalOp: null,
+
+  triggerRemoteTerminalOp: (projectName, op, id, label, order) =>
+    set((s) => ({
+      selected: projectName,
+      view: "projects",
+      visited: new Set([...s.visited, projectName]),
+      pendingRemoteTerminalOp: {
+        projectName,
+        op,
+        id,
+        label,
+        order,
+        nonce: (s.pendingRemoteTerminalOp?.nonce ?? 0) + 1,
+      },
+    })),
+
+  clearPendingRemoteTerminalOp: () => set({ pendingRemoteTerminalOp: null }),
+
   runGenerator: async ({ folder, name, spec }) => {
     try {
       await CreateProject(name, folder);
@@ -951,6 +1014,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       delete next[name];
       return { spawnTasks: next };
     }),
+
+  // Queue a task to run in a project and mount it so the auto-run effect fires —
+  // the seam the mobile app uses to run a task in a freshly-created duplicate.
+  queueSpawnTask: (name, task) => {
+    set((s) => ({ spawnTasks: { ...s.spawnTasks, [name]: [task] } }));
+    get().markVisited(name);
+  },
 
   removeProject: (name) =>
     runProjectRemoval(set, get, name, [name], () => RemoveProject(name)),
@@ -1139,6 +1209,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const raw = (await ListDetachedProjects()) as string[] | null;
       const next = new Set<string>(raw ?? []);
+      // Every detached project must stay marked visited so the main window (the
+      // terminals' owner) keeps its ProjectDetail mounted even when unselected.
+      // Windows restored at launch reach the store only through this path — not
+      // detachProject — so without this a restored detached window's close would
+      // unmount the owner and StopTerminal-kill the project's live PTYs.
+      for (const name of next) get().markVisited(name);
       set((s) => {
         if (s.detached.size === next.size && [...s.detached].every((n) => next.has(n))) {
           return s;
@@ -1153,16 +1229,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   detachProject: async (name) => {
     try {
       await DetachProject(name);
+      // Mark visited so the main window keeps this project's ProjectDetail
+      // mounted (as the terminals' owner) even when it isn't selected — and so
+      // closing the detached window later doesn't unmount + kill the live PTYs
+      // the user never selected it inline.
+      get().markVisited(name);
       set((s) => {
-        const detached = s.detached.has(name)
-          ? s.detached
-          : new Set<string>([...s.detached, name]);
-        // Clear inline selection so lastSelectedProject persistence
-        // doesn't carry the now-detached project, and so EmptyState
-        // shows in the main pane without needing a derived guard.
-        const selected = s.selected === name ? null : s.selected;
-        if (detached === s.detached && selected === s.selected) return s;
-        return { detached, selected };
+        if (s.detached.has(name)) return s;
+        // Keep the project selected in the main window: the main window stays
+        // the owner of its live terminals, and the detached window opens as a
+        // co-interactive mirror of them — the project is now live in both.
+        return { detached: new Set<string>([...s.detached, name]) };
       });
     } catch (err) {
       toast.error(`Failed to detach ${name}: ${err}`);
