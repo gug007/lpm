@@ -293,8 +293,10 @@ final class LpmClient: NSObject {
     }
     func requestDuplicateDefaults() { send(Wire.duplicateDefaults()) }
     func removeProject(_ name: String) { send(Wire.remove(name: name)) }
-    func sendApnsToken(token: String, env: String, key: String) {
-        send(Wire.apnsToken(token: token, env: env, key: key))
+    func sendApnsToken(token: String, env: String, key: String,
+                       notifyWaiting: Bool, notifyDone: Bool, notifyError: Bool) {
+        send(Wire.apnsToken(token: token, env: env, key: key,
+                            notifyWaiting: notifyWaiting, notifyDone: notifyDone, notifyError: notifyError))
     }
     func startProject(_ name: String, profile: String = "") { send(Wire.start(name: name, profile: profile)) }
     func stopProject(_ name: String) { send(Wire.stop(name: name)) }

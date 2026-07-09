@@ -61,6 +61,10 @@ targets:
       path: Info.plist
       properties:
         CFBundleDisplayName: lpm
+        # Wake the app for silent background pushes that withdraw delivered
+        # notifications (agent status cleared on the Mac).
+        UIBackgroundModes:
+          - remote-notification
         # Export compliance: the transport is plaintext ws:// (privacy comes from
         # Tailscale, not the app), and the only crypto is OS-provided — the Keychain
         # plus CryptoKit AES-GCM used to decrypt push-notification payloads. Both are

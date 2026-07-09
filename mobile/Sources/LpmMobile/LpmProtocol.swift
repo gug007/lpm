@@ -98,8 +98,10 @@ enum Wire {
     static func ping() -> String { json(["t": "ping"]) }
     /// Register (or refresh) this device's push identity. `key` is the base64
     /// AES-256 push key shared with the notification extension.
-    static func apnsToken(token: String, env: String, key: String) -> String {
-        json(["t": "apnsToken", "token": token, "env": env, "key": key])
+    static func apnsToken(token: String, env: String, key: String,
+                          notifyWaiting: Bool, notifyDone: Bool, notifyError: Bool) -> String {
+        json(["t": "apnsToken", "token": token, "env": env, "key": key,
+              "notify": ["waiting": notifyWaiting, "done": notifyDone, "error": notifyError]])
     }
 
     // MARK: git review

@@ -1,5 +1,4 @@
 import UserNotifications
-import CryptoKit
 
 /// Decrypts an lpm push payload and rewrites the notification with the real
 /// project / terminal / status. The payload is sealed with the phone's shared push
@@ -23,17 +22,14 @@ final class NotificationService: UNNotificationServiceExtension {
 
     private func rewritten(_ original: UNNotificationContent) -> UNNotificationContent? {
         guard let blob = original.userInfo["blob"] as? String,
-              let sealed = Data(base64Encoded: blob),
-              let keyData = PushKey.load(),
-              let box = try? AES.GCM.SealedBox(combined: sealed),
-              let plaintext = try? AES.GCM.open(box, using: SymmetricKey(data: keyData)),
-              let payload = try? JSONSerialization.jsonObject(with: plaintext) as? [String: Any],
+              let payload = PushPayload.open(blob: blob),
               let project = payload["project"] as? String, !project.isEmpty,
               let mutable = original.mutableCopy() as? UNMutableNotificationContent
         else { return nil }
 
         let terminal = payload["terminal"] as? String ?? ""
         let status = payload["status"] as? String ?? ""
+        let statusKey = payload["key"] as? String ?? ""
 
         mutable.title = project
         mutable.body = body(terminal: terminal, status: status)
@@ -41,6 +37,9 @@ final class NotificationService: UNNotificationServiceExtension {
         mutable.threadIdentifier = project
         var info = mutable.userInfo
         info["project"] = project
+        // Carry the status entry key so a later background clear / foreground
+        // reconcile can find and withdraw exactly this notification.
+        info["statusKey"] = statusKey
         mutable.userInfo = info
         return mutable
     }

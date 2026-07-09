@@ -235,6 +235,7 @@ struct ProjectsView: View {
     @EnvironmentObject var model: AppModel
     @State private var expandedOverride: [String: Bool] = [:]
     @State private var confirmingLogout = false
+    @State private var showingNotifications = false
     // The duplicate pending removal-confirmation. Removing deletes its folder from
     // disk, so it always routes through a confirmation dialog.
     @State private var removing: Project?
@@ -280,6 +281,9 @@ struct ProjectsView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    Button { showingNotifications = true } label: {
+                        Label("Notifications", systemImage: "bell.badge")
+                    }
                     Button(role: .destructive) { confirmingLogout = true } label: {
                         Label("Log out", systemImage: "rectangle.portrait.and.arrow.right")
                     }
@@ -343,6 +347,9 @@ struct ProjectsView: View {
             DuplicateOptionsView(project: p, defaults: model.duplicateDefaults) { options in
                 model.duplicateProject(p, options: options)
             }
+        }
+        .sheet(isPresented: $showingNotifications) {
+            NotificationSettingsSheet()
         }
         .alert(
             "Heads up",

@@ -51,7 +51,11 @@ const DEFAULT_PUSH_RELAY: &str = "https://lpm.cx/api/push"; // APNs relay (holds
 
 // --- persisted config (~/.lpm/remote.json) -----------------------------------
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(default)]
 struct Device {
     id: String,
@@ -64,6 +68,33 @@ struct Device {
     apns_token: String,
     apns_env: String,
     push_key: String,
+    // Per-device notification prefs (from the phone's `notify` object). Absent on
+    // older records/frames, so each defaults to enabled.
+    #[serde(default = "default_true")]
+    push_waiting: bool,
+    #[serde(default = "default_true")]
+    push_done: bool,
+    #[serde(default = "default_true")]
+    push_error: bool,
+}
+
+// Manual Default (not derived) so `..Default::default()` agrees with serde: the
+// three prefs must start true, but a derived Default would make them false.
+impl Default for Device {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            name: String::new(),
+            token_hash: String::new(),
+            created_at: 0,
+            apns_token: String::new(),
+            apns_env: String::new(),
+            push_key: String::new(),
+            push_waiting: true,
+            push_done: true,
+            push_error: true,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -1041,9 +1072,19 @@ fn handle_msg(
             let token = str_field("token").unwrap_or_default();
             let env = str_field("env").unwrap_or_default();
             let key = str_field("key").unwrap_or_default();
+            // Per-device notification prefs: a missing `notify` object or any missing
+            // field means that class stays enabled.
+            let notify = v.get("notify");
+            let pref = |name: &str| {
+                notify
+                    .and_then(|n| n.get(name))
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true)
+            };
+            let prefs = (pref("waiting"), pref("done"), pref("error"));
             match validate_apns(&token, &env, &key) {
                 Ok(()) => {
-                    set_apns_token(hub, device_id, &token, &env, &key);
+                    set_apns_token(hub, device_id, &token, &env, &key, prefs);
                     send(ws, json!({ "t": "apnsToken", "ok": true }))?;
                 }
                 Err(e) => send(ws, json!({ "t": "apnsToken", "ok": false, "error": e }))?,
@@ -1750,7 +1791,14 @@ fn validate_apns(token: &str, env: &str, key: &str) -> Result<(), String> {
 
 /// Persist a device's push identity on its config record. Returns false when the
 /// device id isn't paired (a stale/forged connection).
-fn set_apns_token(hub: &RemoteHub, device_id: &str, token: &str, env: &str, key: &str) -> bool {
+fn set_apns_token(
+    hub: &RemoteHub,
+    device_id: &str,
+    token: &str,
+    env: &str,
+    key: &str,
+    prefs: (bool, bool, bool),
+) -> bool {
     let mut cfg = hub.inner.config.lock().unwrap();
     let Some(d) = cfg.devices.iter_mut().find(|d| d.id == device_id) else {
         return false;
@@ -1758,6 +1806,7 @@ fn set_apns_token(hub: &RemoteHub, device_id: &str, token: &str, env: &str, key:
     d.apns_token = token.to_string();
     d.apns_env = env.to_string();
     d.push_key = key.to_string();
+    (d.push_waiting, d.push_done, d.push_error) = prefs;
     let snapshot = cfg.clone();
     drop(cfg);
     let _ = save_config(&snapshot);
@@ -1784,14 +1833,21 @@ fn clear_apns_token(hub: &RemoteHub, device_id: &str) {
 
 /// Given the connection-independent dedup map (per (project, status key) → last
 /// pushed (value, ts)) and a project's current pushable entries, return the
-/// entries whose value is new or changed — worth a push — and update the map in
-/// place: this project's vanished keys are dropped, other projects untouched.
+/// entries whose value is new or changed — worth a push — plus the keys that
+/// vanished from this project since the last event (their previously-pushed
+/// notifications need withdrawing). Updates the map in place: this project's
+/// vanished keys are dropped, other projects untouched.
 fn dedup_status_pushes(
     seen: &mut HashMap<(String, String), (String, i64)>,
     project: &str,
     entries: &[(String, String, i64)],
-) -> Vec<(String, String, i64)> {
+) -> (Vec<(String, String, i64)>, Vec<String>) {
     let current: HashSet<&str> = entries.iter().map(|(k, _, _)| k.as_str()).collect();
+    let vanished: Vec<String> = seen
+        .keys()
+        .filter(|(p, k)| p == project && !current.contains(k.as_str()))
+        .map(|(_, k)| k.clone())
+        .collect();
     seen.retain(|(p, k), _| p != project || current.contains(k.as_str()));
     let mut push = Vec::new();
     for (key, value, ts) in entries {
@@ -1802,7 +1858,16 @@ fn dedup_status_pushes(
             push.push((key.clone(), value.clone(), *ts));
         }
     }
-    push
+    (push, vanished)
+}
+
+/// The `apns-collapse-id` for an alert about a status entry: sha-256 hex of
+/// `"<project>|<key>"` truncated to 60 chars, so a later transition on the same
+/// pane replaces the shown notification instead of stacking a new one.
+fn push_collapse_id(project: &str, key: &str) -> String {
+    let mut id = sha256_hex(format!("{project}|{key}").as_bytes());
+    id.truncate(60);
+    id
 }
 
 /// Seal a notification plaintext with AES-256-GCM under the device push key,
@@ -1820,20 +1885,38 @@ fn seal_push(key: &[u8; 32], plaintext: &[u8]) -> Option<String> {
 }
 
 /// A single device to notify: its id (for a 410 cleanup), the relay routing
-/// fields, and the decoded 32-byte push key.
+/// fields, the decoded 32-byte push key, and its per-status delivery prefs.
 struct PushDevice {
     id: String,
     token: String,
     env: String,
     key: [u8; 32],
+    push_waiting: bool,
+    push_done: bool,
+    push_error: bool,
+}
+
+impl PushDevice {
+    /// Whether this device opted in to notifications for the given status value.
+    fn wants(&self, status: &str) -> bool {
+        match status {
+            STATUS_WAITING => self.push_waiting,
+            STATUS_DONE => self.push_done,
+            STATUS_ERROR => self.push_error,
+            _ => false,
+        }
+    }
 }
 
 /// One notification to seal + send: the resolved terminal label, status value,
-/// and the entry's timestamp.
+/// the entry's timestamp, its status `key` (so a later clear can find it), and
+/// the `apns-collapse-id` derived from (project, key).
 struct PushJob {
     terminal: String,
     value: String,
     ts: i64,
+    key: String,
+    collapse_id: String,
 }
 
 /// On an agent status transition, push an APNs notification to every registered
@@ -1860,49 +1943,76 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
         entries.iter().map(|(k, v, t, _)| (k.clone(), v.clone(), *t)).collect();
 
     // Update the dedup map on every event (a transition fact, independent of who's
-    // connected) and take only the new/changed entries.
-    let deltas = {
+    // connected): the new/changed entries to alert on, and the keys that vanished
+    // and whose delivered notifications now need withdrawing.
+    let (deltas, vanished_keys) = {
         let mut seen = hub.inner.push_dedup.lock().unwrap();
         dedup_status_pushes(&mut seen, project, &plain)
     };
-    if deltas.is_empty() {
+    if deltas.is_empty() && vanished_keys.is_empty() {
         return;
     }
+    let want_alert = !deltas.is_empty();
+    let want_clear = !vanished_keys.is_empty();
 
-    // Recipients: registered devices with a token, minus those holding a live socket.
-    let connected: HashSet<String> = hub
-        .inner
-        .clients
-        .lock()
-        .unwrap()
-        .values()
-        .map(|c| c.device_id.clone())
-        .collect();
-    let (relay, recipients) = {
-        let cfg = hub.inner.config.lock().unwrap();
-        let recipients: Vec<PushDevice> = cfg
-            .devices
-            .iter()
-            .filter(|d| !d.apns_token.is_empty() && !connected.contains(&d.id))
-            .filter_map(|d| {
-                let bytes = base64::engine::general_purpose::STANDARD.decode(&d.push_key).ok()?;
-                let key: [u8; 32] = bytes.try_into().ok()?;
-                Some(PushDevice {
-                    id: d.id.clone(),
-                    token: d.apns_token.clone(),
-                    env: d.apns_env.clone(),
-                    key,
-                })
-            })
-            .collect();
-        (cfg.effective_relay(), recipients)
+    // Alerts skip devices holding a live socket (the app is foregrounded and
+    // already got the `status-changed` frame); clears don't, since a foregrounded
+    // phone's already-delivered notifications still need pruning.
+    let connected: HashSet<String> = if want_alert {
+        hub.inner.clients.lock().unwrap().values().map(|c| c.device_id.clone()).collect()
+    } else {
+        HashSet::new()
     };
-    if recipients.is_empty() {
+    let (relay, recipients, clear_recipients) = {
+        let cfg = hub.inner.config.lock().unwrap();
+        let mk = |d: &Device| -> Option<PushDevice> {
+            let bytes = base64::engine::general_purpose::STANDARD.decode(&d.push_key).ok()?;
+            let key: [u8; 32] = bytes.try_into().ok()?;
+            Some(PushDevice {
+                id: d.id.clone(),
+                token: d.apns_token.clone(),
+                env: d.apns_env.clone(),
+                key,
+                push_waiting: d.push_waiting,
+                push_done: d.push_done,
+                push_error: d.push_error,
+            })
+        };
+        // Alert recipients: registered token, not connected, opted in to some kind.
+        let recipients: Vec<PushDevice> = if want_alert {
+            cfg.devices
+                .iter()
+                .filter(|d| {
+                    !d.apns_token.is_empty()
+                        && !connected.contains(&d.id)
+                        && (d.push_waiting || d.push_done || d.push_error)
+                })
+                .filter_map(|d| mk(d))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        // Clear recipients: any registered token, ignoring notify prefs and the
+        // connected exclusion (a clear only removes, so it's idempotent/harmless).
+        let clear_recipients: Vec<PushDevice> = if want_clear {
+            cfg.devices
+                .iter()
+                .filter(|d| !d.apns_token.is_empty())
+                .filter_map(|d| mk(d))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        (cfg.effective_relay(), recipients, clear_recipients)
+    };
+    if recipients.is_empty() && clear_recipients.is_empty() {
         return;
     }
 
     // Resolve terminal labels best-effort (empty when the pane id is unknown).
-    let jobs: Vec<PushJob> = {
+    let jobs: Vec<PushJob> = if recipients.is_empty() {
+        Vec::new()
+    } else {
         let labels = hub.inner.labels.lock().unwrap();
         deltas
             .into_iter()
@@ -1911,7 +2021,8 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
                     .get(&key)
                     .and_then(|pane| labels.get(pane).cloned())
                     .unwrap_or_default();
-                PushJob { terminal, value, ts }
+                let collapse_id = push_collapse_id(project, &key);
+                PushJob { terminal, value, ts, key, collapse_id }
             })
             .collect()
     };
@@ -1928,41 +2039,89 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
                 return;
             }
         };
+
+        // Alert pushes, one per (device, wanted job).
         for dev in &recipients {
-            for job in &jobs {
+            for job in jobs.iter().filter(|j| dev.wants(&j.value)) {
                 let plaintext = json!({
                     "project": project,
                     "terminal": job.terminal,
                     "status": job.value,
                     "ts": job.ts,
+                    "key": job.key,
                 })
                 .to_string();
                 let Some(blob) = seal_push(&dev.key, plaintext.as_bytes()) else {
                     continue;
                 };
-                let body = json!({ "token": dev.token, "env": dev.env, "blob": blob }).to_string();
-                match client
-                    .post(&relay)
-                    .header("content-type", "application/json")
-                    .body(body)
-                    .send()
-                {
-                    Ok(resp) => {
-                        let status = resp.status().as_u16();
-                        if status == 410 {
-                            // Token is dead — clear it and stop pushing to this device.
-                            clear_apns_token(&hub, &dev.id);
-                            break;
-                        }
-                        if !(200..300).contains(&status) {
-                            eprintln!("warning: push relay returned {status}");
-                        }
-                    }
-                    Err(e) => eprintln!("warning: push relay POST failed: {e}"),
+                let body = json!({
+                    "token": dev.token,
+                    "env": dev.env,
+                    "blob": blob,
+                    "collapseId": job.collapse_id,
+                })
+                .to_string();
+                if post_push(&client, &relay, &hub, &dev.id, body) {
+                    break;
                 }
             }
         }
+
+        // Withdrawal: one batched background push per registered device.
+        if !clear_recipients.is_empty() {
+            let clear_plaintext = json!({
+                "clear": vanished_keys
+                    .iter()
+                    .map(|k| json!({ "project": project, "key": k }))
+                    .collect::<Vec<_>>(),
+            })
+            .to_string();
+            for dev in &clear_recipients {
+                let Some(blob) = seal_push(&dev.key, clear_plaintext.as_bytes()) else {
+                    continue;
+                };
+                let body = json!({
+                    "token": dev.token,
+                    "env": dev.env,
+                    "blob": blob,
+                    "type": "background",
+                })
+                .to_string();
+                post_push(&client, &relay, &hub, &dev.id, body);
+            }
+        }
     });
+}
+
+/// POST one sealed push body to the relay. Returns true when the relay reported
+/// the device token dead (HTTP 410 / Unregistered) and cleared it, so the caller
+/// stops pushing to that device.
+fn post_push(
+    client: &reqwest::blocking::Client,
+    relay: &str,
+    hub: &RemoteHub,
+    device_id: &str,
+    body: String,
+) -> bool {
+    match client
+        .post(relay)
+        .header("content-type", "application/json")
+        .body(body)
+        .send()
+    {
+        Ok(resp) => {
+            let status = resp.status().as_u16();
+            if status == 410 {
+                clear_apns_token(hub, device_id);
+                return true;
+            }
+            if !(200..300).contains(&status) {
+                eprintln!("warning: push relay returned {status}");
+            }
+        }
+        Err(e) => eprintln!("warning: push relay POST failed: {e}"),
+    }
+    false
 }
 
 fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {
@@ -2332,6 +2491,9 @@ mod tests {
                 apns_token: "deadbeef".into(),
                 apns_env: "sandbox".into(),
                 push_key: base64::engine::general_purpose::STANDARD.encode([7u8; 32]),
+                push_waiting: true,
+                push_done: false,
+                push_error: true,
             }],
         };
         let s = serde_json::to_string(&cfg).unwrap();
@@ -2348,11 +2510,15 @@ mod tests {
             back.devices[0].push_key,
             base64::engine::general_purpose::STANDARD.encode([7u8; 32])
         );
+        assert!(back.devices[0].push_waiting);
+        assert!(!back.devices[0].push_done);
+        assert!(back.devices[0].push_error);
     }
 
     // Old remote.json (written before push support) has neither the device push
     // fields nor push_relay; #[serde(default)] must load it with empty defaults and
-    // the effective relay must fall back to the built-in endpoint.
+    // the effective relay must fall back to the built-in endpoint. The per-status
+    // notification prefs are absent too and must default to enabled, not false.
     #[test]
     fn old_json_loads_with_default_push_fields() {
         let json = r#"{
@@ -2368,6 +2534,9 @@ mod tests {
         assert!(cfg.devices[0].apns_token.is_empty());
         assert!(cfg.devices[0].apns_env.is_empty());
         assert!(cfg.devices[0].push_key.is_empty());
+        assert!(cfg.devices[0].push_waiting);
+        assert!(cfg.devices[0].push_done);
+        assert!(cfg.devices[0].push_error);
     }
 
     #[test]
@@ -2389,28 +2558,44 @@ mod tests {
         let mut seen = HashMap::new();
         let e = |k: &str, v: &str, ts: i64| (k.to_string(), v.to_string(), ts);
 
-        // First sighting of both -> both push.
-        let out = dedup_status_pushes(&mut seen, "proj", &[e("a", "Waiting", 1), e("b", "Done", 1)]);
+        // First sighting of both -> both push, nothing vanished yet.
+        let (out, vanished) = dedup_status_pushes(&mut seen, "proj", &[e("a", "Waiting", 1), e("b", "Done", 1)]);
         assert_eq!(out.len(), 2);
+        assert!(vanished.is_empty());
 
         // Identical re-report -> nothing.
-        let out = dedup_status_pushes(&mut seen, "proj", &[e("a", "Waiting", 2), e("b", "Done", 2)]);
+        let (out, vanished) = dedup_status_pushes(&mut seen, "proj", &[e("a", "Waiting", 2), e("b", "Done", 2)]);
         assert!(out.is_empty(), "unchanged values dedup");
+        assert!(vanished.is_empty());
 
         // a's value changed -> only a pushes.
-        let out = dedup_status_pushes(&mut seen, "proj", &[e("a", "Error", 3), e("b", "Done", 3)]);
+        let (out, vanished) = dedup_status_pushes(&mut seen, "proj", &[e("a", "Error", 3), e("b", "Done", 3)]);
         assert_eq!(out, vec![e("a", "Error", 3)]);
+        assert!(vanished.is_empty());
 
-        // b vanished from the store -> its map entry is dropped, so if it reappears
-        // with the same value it counts as new again.
-        let out = dedup_status_pushes(&mut seen, "proj", &[e("a", "Error", 4)]);
+        // b vanished from the store -> reported once (for withdrawal), and its map
+        // entry is dropped so if it reappears it counts as new again.
+        let (out, vanished) = dedup_status_pushes(&mut seen, "proj", &[e("a", "Error", 4)]);
         assert!(out.is_empty());
-        let out = dedup_status_pushes(&mut seen, "proj", &[e("a", "Error", 5), e("b", "Done", 5)]);
+        assert_eq!(vanished, vec!["b".to_string()], "b's vanish reported once");
+        let (out, vanished) = dedup_status_pushes(&mut seen, "proj", &[e("a", "Error", 5), e("b", "Done", 5)]);
         assert_eq!(out, vec![e("b", "Done", 5)], "b re-notifies after vanishing");
+        assert!(vanished.is_empty(), "b's vanish not re-reported on the next event");
 
         // A different project's key with the same name is independent.
-        let out = dedup_status_pushes(&mut seen, "other", &[e("a", "Error", 6)]);
+        let (out, vanished) = dedup_status_pushes(&mut seen, "other", &[e("a", "Error", 6)]);
         assert_eq!(out, vec![e("a", "Error", 6)]);
+        assert!(vanished.is_empty());
+    }
+
+    #[test]
+    fn collapse_id_is_deterministic_hex_60() {
+        let id = push_collapse_id("web-app", "pane-1");
+        assert_eq!(id.len(), 60);
+        assert!(id.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_eq!(id, push_collapse_id("web-app", "pane-1"), "deterministic");
+        assert_ne!(id, push_collapse_id("web-app", "pane-2"), "key participates");
+        assert_ne!(id, push_collapse_id("other", "pane-1"), "project participates");
     }
 
     #[test]
@@ -2430,5 +2615,33 @@ mod tests {
         // A fresh seal uses a fresh random nonce -> different ciphertext.
         let blob2 = seal_push(&key, plaintext).unwrap();
         assert_ne!(blob, blob2, "random nonce per seal");
+    }
+
+    #[test]
+    fn push_device_wants_filters_by_prefs() {
+        let dev = |w: bool, d: bool, e: bool| PushDevice {
+            id: "d".into(),
+            token: "t".into(),
+            env: "sandbox".into(),
+            key: [0u8; 32],
+            push_waiting: w,
+            push_done: d,
+            push_error: e,
+        };
+        let jobs = [STATUS_WAITING, STATUS_DONE, STATUS_ERROR];
+
+        // Only Done enabled -> only the Done job survives.
+        let only_done = dev(false, true, false);
+        let kept: Vec<_> = jobs.iter().filter(|s| only_done.wants(s)).collect();
+        assert_eq!(kept, vec![&STATUS_DONE]);
+
+        // All enabled -> all survive; an unknown status is never wanted.
+        let all = dev(true, true, true);
+        assert!(jobs.iter().all(|s| all.wants(s)));
+        assert!(!all.wants("Running"));
+
+        // All disabled -> nothing survives (such a device is dropped upstream).
+        let none = dev(false, false, false);
+        assert!(!jobs.iter().any(|s| none.wants(s)));
     }
 }

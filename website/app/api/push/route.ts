@@ -1,4 +1,9 @@
-import { loadApnsConfig, sendPush, type ApnsEnv } from "@/lib/apns";
+import {
+  loadApnsConfig,
+  sendPush,
+  type ApnsEnv,
+  type ApnsPushType,
+} from "@/lib/apns";
 
 export const runtime = "nodejs";
 
@@ -28,6 +33,10 @@ function rateLimited(token: string): boolean {
   return false;
 }
 
+function isValidCollapseId(id: unknown): id is string {
+  return typeof id === "string" && /^[\x21-\x7e]{1,64}$/.test(id);
+}
+
 function isValidBlob(blob: unknown): blob is string {
   return (
     typeof blob === "string" &&
@@ -50,11 +59,18 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   if (!body || typeof body !== "object") return badRequest();
-  const { token, env, blob } = body as Record<string, unknown>;
+  const { token, env, blob, type, collapseId } = body as Record<string, unknown>;
 
   if (typeof token !== "string" || !TOKEN_RE.test(token)) return badRequest();
   if (env !== "production" && env !== "sandbox") return badRequest();
   if (!isValidBlob(blob)) return badRequest();
+  if (type !== undefined && type !== "alert" && type !== "background") {
+    return badRequest();
+  }
+  const pushType: ApnsPushType = type === "background" ? "background" : "alert";
+  if (collapseId !== undefined && !isValidCollapseId(collapseId)) {
+    return badRequest();
+  }
 
   const config = loadApnsConfig();
   if (!config) {
@@ -68,16 +84,27 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ ok: false, reason: "rate limited" }, { status: 429 });
   }
 
-  const payload = JSON.stringify({
-    aps: {
-      alert: { title: "lpm", body: "Activity on your Mac" },
-      sound: "default",
-      "mutable-content": 1,
-    },
-    blob,
-  });
+  const payload = JSON.stringify(
+    pushType === "background"
+      ? { aps: { "content-available": 1 }, blob }
+      : {
+          aps: {
+            alert: { title: "lpm", body: "Activity on your Mac" },
+            sound: "default",
+            "mutable-content": 1,
+          },
+          blob,
+        },
+  );
 
-  const result = await sendPush(env as ApnsEnv, token, payload, config);
+  const result = await sendPush(
+    env as ApnsEnv,
+    token,
+    payload,
+    config,
+    pushType,
+    typeof collapseId === "string" ? collapseId : undefined,
+  );
   if (!result) {
     return Response.json(
       { ok: false, reason: "apns unreachable" },

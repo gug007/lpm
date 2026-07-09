@@ -115,29 +115,50 @@ encrypted, so the relay sees only opaque blobs and device tokens.
 
 | Request | Reply |
 |---|---|
-| `{ "t": "apnsToken", "token": "<hex APNs device token>", "env": "production"\|"sandbox", "key": "<base64 32-byte push key>" }` | `{ "t": "apnsToken", "ok": true }` — registers (or refreshes) this device's push identity; sent after every successful `auth`, since the token can rotate. `env` is the APNs environment the build's token belongs to (debug builds → `sandbox`, TestFlight/App Store → `production`). `key` is the phone-generated AES-256 push key; the phone keeps **one** push key (Keychain, shared with the notification extension) and registers the same key with every paired Mac, so the extension never has to guess which key decrypts. All three fields persist on the device record in `remote.json` |
+| `{ "t": "apnsToken", "token": "<hex APNs device token>", "env": "production"\|"sandbox", "key": "<base64 32-byte push key>", "notify": { "waiting": bool, "done": bool, "error": bool } }` | `{ "t": "apnsToken", "ok": true }` — registers (or refreshes) this device's push identity; sent after every successful `auth`, since the token can rotate, and re-sent immediately when the user changes notification preferences. `env` is the APNs environment the build's token belongs to (debug builds → `sandbox`, TestFlight/App Store → `production`). `key` is the phone-generated AES-256 push key; the phone keeps **one** push key (Keychain, shared with the notification extension) and registers the same key with every paired Mac, so the extension never has to guess which key decrypts. `notify` selects which status kinds this device wants pushed; the desktop filters **before** sealing/sending, so a disabled kind never leaves the Mac. Omitted (older phones) → all three enabled; all-false = notifications off while staying registered. Everything persists on the device record in `remote.json` |
 
 **When the desktop pushes.** On an agent status transition to `Waiting`, `Done`,
 or `Error` (the same `status-changed` signal that drives the socket push), for
 every registered device that does **not** currently hold a live authed
 connection (a live socket means the app is foregrounded and already sees the
-change). Transitions are deduped per (project, status key) so a re-reported
-identical status never re-notifies.
+change), filtered by that device's `notify` preferences. Transitions are deduped
+per (project, status key) so a re-reported identical status never re-notifies.
 
 **Payload encryption.** The notification plaintext is JSON:
 ```
-{ "project": "<name>", "terminal": "<tab label>", "status": "Waiting"|"Done"|"Error", "ts": <unix millis> }
+{ "project": "<name>", "terminal": "<tab label>", "status": "Waiting"|"Done"|"Error", "ts": <unix millis>, "key": "<status entry key>" }
 ```
-(`terminal` may be empty when the pane label is unknown.) It is sealed with
+(`terminal` may be empty when the pane label is unknown; `key` identifies the
+status entry so a later clear can find this notification.) It is sealed with
 AES-256-GCM under the device's push key, encoded as `nonce(12) || ciphertext ||
 tag(16)` in standard base64 — CryptoKit's `AES.GCM.SealedBox(combined:)` format.
+
+**Withdrawing notifications.** When a pushed status is cleared on the desktop
+(tab-click dismiss, pane close, agent moving on), the desktop sends a **silent
+background push** per registered device whose blob plaintext is:
+```
+{ "clear": [ { "project": "<name>", "key": "<status entry key>" }… ] }
+```
+The app wakes briefly, decrypts, and removes the delivered notifications whose
+`(project, key)` match. Clears are sent regardless of `notify` preferences (they
+can only remove). Best-effort by design: iOS throttles background pushes and
+drops them entirely for force-quit apps, so the phone also **reconciles on
+foreground** — after reconnecting and refreshing projects, it prunes delivered
+notifications whose status entry no longer exists. Alert pushes also carry an
+`apns-collapse-id` derived from `(project, key)` (sha-256 hex, truncated to 60
+chars), so a status change on the same pane (Waiting → Done) replaces the
+displayed notification instead of stacking a new one.
 
 **Relay contract.** The desktop POSTs JSON to the relay
 (`https://lpm.cx/api/push` by default; `pushRelay` in `remote.json` overrides,
 e.g. for a local `next dev`):
 ```
-{ "token": "<hex device token>", "env": "production"|"sandbox", "blob": "<base64 sealed payload>" }
+{ "token": "<hex device token>", "env": "production"|"sandbox", "blob": "<base64 sealed payload>", "type": "alert"|"background", "collapseId": "<≤64 chars>" }
 ```
+`type` defaults to `alert`. `background` sends a silent push (`content-available:
+1`, `apns-push-type: background`, priority 5, no alert/sound) carrying only the
+`blob` — used for notification withdrawal. `collapseId` is optional and only
+meaningful for alerts; it becomes the `apns-collapse-id` header.
 The relay signs an APNs provider JWT with its `.p8` key (env vars
 `APNS_KEY` / `APNS_KEY_ID` / `APNS_TEAM_ID` / `APNS_TOPIC`, topic defaulting to
 `cx.lpm.mobile`) and forwards to the matching APNs environment as an `alert`
@@ -225,7 +246,7 @@ Most keystrokes are UTF-8 and sent verbatim in `d`. For raw non-UTF-8 bytes
 `d` with the null byte + `HEX:` and hex-encode the remainder. Server contract
 (`pty::remote_write`):
 ```
-d = " HEX:" + hex(bytes)   // decoded to raw bytes
+d = "\0HEX:" + hex(bytes)   // decoded to raw bytes
 d = "<utf-8 text>"              // sent as-is
 ```
 

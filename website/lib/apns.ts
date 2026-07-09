@@ -59,11 +59,15 @@ function signProviderToken(config: ApnsConfig): string {
   return value;
 }
 
+export type ApnsPushType = "alert" | "background";
+
 export function sendPush(
   env: ApnsEnv,
   deviceToken: string,
   payload: string,
   config: ApnsConfig,
+  pushType: ApnsPushType = "alert",
+  collapseId?: string,
 ): Promise<ApnsResult | null> {
   return new Promise((resolve) => {
     let jwt: string;
@@ -91,16 +95,20 @@ export function sendPush(
 
     session.on("error", () => finish(null));
 
-    const req = session.request({
+    const headers: Record<string, string> = {
       ":method": "POST",
       ":path": `/3/device/${deviceToken}`,
       authorization: `bearer ${jwt}`,
       "apns-topic": config.topic,
-      "apns-push-type": "alert",
-      "apns-priority": "10",
+      "apns-push-type": pushType,
+      "apns-priority": pushType === "background" ? "5" : "10",
       "apns-expiration": String(Math.floor(Date.now() / 1000) + EXPIRATION_SECONDS),
       "content-type": "application/json",
-    });
+    };
+    if (pushType === "alert" && collapseId) {
+      headers["apns-collapse-id"] = collapseId;
+    }
+    const req = session.request(headers);
 
     req.setTimeout(REQUEST_TIMEOUT_MS, () => finish(null));
     req.on("error", () => finish(null));

@@ -19,6 +19,24 @@ final class AppModel: ObservableObject {
     @Published var mentions: [String: [MentionEntry]] = [:] // project -> @-mention targets
     @Published var history: [String: [HistoryRow]] = [:] // project -> recent sent prompts
     @Published var paired: Bool = false
+
+    // Notification preferences. The per-type toggles keep their stored values even
+    // when the master is off; the effective values sent to the desktop are
+    // `notifyEnabled && notifyX`. Any change re-sends the (idempotent) apnsToken
+    // frame so the desktop's per-device prefs stay in sync.
+    @Published var notifyEnabled: Bool = AppModel.loadBoolPref(AppModel.notifyEnabledKey) {
+        didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
+    }
+    @Published var notifyWaiting: Bool = AppModel.loadBoolPref(AppModel.notifyWaitingKey) {
+        didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
+    }
+    @Published var notifyDone: Bool = AppModel.loadBoolPref(AppModel.notifyDoneKey) {
+        didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
+    }
+    @Published var notifyError: Bool = AppModel.loadBoolPref(AppModel.notifyErrorKey) {
+        didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
+    }
+
     // Sidebar folders, matching the desktop: `order` interleaves project names and
     // "group:<id>" tokens; `groups` are the folder defs.
     @Published var sidebarOrder: [String] = []
@@ -393,7 +411,28 @@ final class AppModel: ObservableObject {
         let env = "production"
         #endif
         let key = PushKey.loadOrCreate().base64EncodedString()
-        client.sendApnsToken(token: hex, env: env, key: key)
+        client.sendApnsToken(token: hex, env: env, key: key,
+                             notifyWaiting: notifyEnabled && notifyWaiting,
+                             notifyDone: notifyEnabled && notifyDone,
+                             notifyError: notifyEnabled && notifyError)
+    }
+
+    static let notifyEnabledKey = "lpm.notify.enabled"
+    static let notifyWaitingKey = "lpm.notify.waiting"
+    static let notifyDoneKey = "lpm.notify.done"
+    static let notifyErrorKey = "lpm.notify.error"
+
+    // Absent keys default to enabled, so a fresh install opts in to every push type.
+    private static func loadBoolPref(_ key: String) -> Bool {
+        UserDefaults.standard.object(forKey: key) as? Bool ?? true
+    }
+
+    private func persistNotifyPrefs() {
+        let d = UserDefaults.standard
+        d.set(notifyEnabled, forKey: Self.notifyEnabledKey)
+        d.set(notifyWaiting, forKey: Self.notifyWaitingKey)
+        d.set(notifyDone, forKey: Self.notifyDoneKey)
+        d.set(notifyError, forKey: Self.notifyErrorKey)
     }
 
     // Terminal wiring used by TerminalScreen.
@@ -907,6 +946,31 @@ final class AppModel: ObservableObject {
         return "Couldn't reach your Mac — \(detail). On cellular, open the Tailscale app and confirm it's connected on both devices."
     }
 
+    /// Foreground backstop for notification withdrawal: iOS drops background clear
+    /// pushes for suspended/force-quit apps, so after each projects refresh we prune
+    /// delivered notifications whose status entry no longer exists. Only touches
+    /// notifications for a project that's in this list (leaving unknown projects and
+    /// just-arrived alerts whose status hasn't synced yet alone) and only when the
+    /// project's live status keys no longer include the notification's key.
+    private func reconcileNotifications(_ projects: [Project]) {
+        var liveKeys: [String: Set<String>] = [:]
+        for project in projects {
+            liveKeys[project.name] = Set(project.statusEntries.map(\.key))
+        }
+        let center = UNUserNotificationCenter.current()
+        center.getDeliveredNotifications { delivered in
+            let stale = delivered.compactMap { note -> String? in
+                let info = note.request.content.userInfo
+                guard let project = info["project"] as? String,
+                      let key = info["statusKey"] as? String,
+                      let keys = liveKeys[project], !keys.contains(key)
+                else { return nil }
+                return note.request.identifier
+            }
+            if !stale.isEmpty { center.removeDeliveredNotifications(withIdentifiers: stale) }
+        }
+    }
+
     private func wire(_ c: LpmClient) {
         c.onState = { [weak self] s in
             guard let self else { return }
@@ -931,6 +995,7 @@ final class AppModel: ObservableObject {
             for proj in p where self.pendingRun[proj.name] == proj.running {
                 self.pendingRun[proj.name] = nil
             }
+            self.reconcileNotifications(p)
         }
         c.onSidebar = { [weak self] order, groups in
             self?.sidebarOrder = order
