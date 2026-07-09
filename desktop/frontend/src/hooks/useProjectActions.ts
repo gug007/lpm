@@ -1,6 +1,7 @@
 import { useState, type RefObject } from "react";
 import { toast } from "sonner";
 import {
+  CancelActionBackground,
   CheckActionPortConflict,
   RunAction,
   RunActionBackground,
@@ -117,11 +118,25 @@ export function useProjectActions({
       return;
     }
     if (action.type === "background") {
-      toast.promise(RunActionBackground(projectName, action.name, inputValues), {
-        loading: `${action.label}…`,
-        success: `${action.label} done`,
-        error: (err) => `${action.label}: ${err}`,
+      const runId = crypto.randomUUID();
+      const toastId = toast.loading(`${action.label}…`, {
+        duration: Infinity,
+        cancel: {
+          label: "Cancel",
+          onClick: () => void CancelActionBackground(runId).catch(() => {}),
+        },
       });
+      const settled = { cancel: undefined, duration: 4000 };
+      try {
+        await RunActionBackground(projectName, action.name, inputValues, runId);
+        toast.success(`${action.label} done`, { id: toastId, ...settled });
+      } catch (err) {
+        if (String(err) === "cancelled") {
+          toast.info(`${action.label} cancelled`, { id: toastId, ...settled });
+        } else {
+          toast.error(`${action.label}: ${err}`, { id: toastId, ...settled });
+        }
+      }
       return;
     }
     try {

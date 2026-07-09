@@ -19,6 +19,9 @@ export function AttachProject(projectName) {
 export function BrowseFolder(defaultDir) {
   return invoke("browse_folder", { defaultDir });
 }
+export function CancelActionBackground(runId) {
+  return invoke("cancel_action_background", { runId });
+}
 export function CheckActionPortConflict(projectName, actionName) {
   return invoke("check_action_port_conflict", { projectName, actionName });
 }
@@ -469,8 +472,8 @@ export function ResumeTTS() {
 export function RunAction(projectName, actionName, inputValues) {
   return invoke("run_action", { projectName, actionName, inputValues });
 }
-export function RunActionBackground(projectName, actionName, inputValues) {
-  return invoke("run_action_background", { projectName, actionName, inputValues });
+export function RunActionBackground(projectName, actionName, inputValues, runId) {
+  return invoke("run_action_background", { projectName, actionName, inputValues, runId });
 }
 export function SaveBranchNameInstructions(content) {
   return invoke("save_branch_name_instructions", { content });

@@ -8,16 +8,32 @@
 // resolves its environment on the far side.
 // RunAction streams combined stdout+stderr line-by-line via "action-output" and
 // finishes with "action-done"; it returns immediately. RunActionBackground runs
-// the same command synchronously and returns a trimmed error tail on failure.
+// the same command synchronously and returns a trimmed error tail on failure;
+// each run registers under a caller-supplied run id so CancelActionBackground
+// can reap its process tree mid-flight.
 // stderr is merged into stdout via dup2(1,2) so lines interleave in write order,
 // matching Go's single os.Pipe.
-use crate::{config, ports};
+use crate::{config, ports, proctree};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::io::BufRead;
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::process::{Command, ExitStatus, Stdio};
+use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Emitter};
+
+pub const CANCELLED_ERR: &str = "cancelled";
+
+struct BackgroundRun {
+    pid: i32,
+    cancelled: bool,
+}
+
+static BACKGROUND_RUNS: OnceLock<Mutex<HashMap<String, BackgroundRun>>> = OnceLock::new();
+
+fn background_runs() -> &'static Mutex<HashMap<String, BackgroundRun>> {
+    BACKGROUND_RUNS.get_or_init(|| Mutex::new(HashMap::new()))
+}
 
 #[derive(Serialize, Clone)]
 struct ActionOutput {
@@ -188,21 +204,56 @@ pub fn run_action_background(
     project_name: String,
     action_name: String,
     input_values: HashMap<String, String>,
+    run_id: String,
 ) -> Result<(), String> {
     let mut plan = resolve_action_command(&app, &project_name, &action_name, &input_values)?;
     ports::format_action_port(&action_name, &plan.ports)?;
     let on_exit = plan.on_exit.take();
 
     let mut cmd = action_command(&plan);
-    merge_stderr_into_stdout(&mut cmd); // out.stdout carries combined output
-    let out = cmd.output().map_err(|e| e.to_string())?;
+    cmd.stdout(Stdio::piped());
+    merge_stderr_into_stdout(&mut cmd); // stdout carries combined output
+    // Own process group so a cancel can signal the whole tree without touching us.
+    cmd.process_group(0);
+    let child = cmd.spawn().map_err(|e| e.to_string())?;
+    background_runs()
+        .lock()
+        .unwrap()
+        .insert(run_id.clone(), BackgroundRun { pid: child.id() as i32, cancelled: false });
+    let out = child.wait_with_output();
+    let cancelled = background_runs()
+        .lock()
+        .unwrap()
+        .remove(&run_id)
+        .map(|r| r.cancelled)
+        .unwrap_or(false);
+    let out = out.map_err(|e| e.to_string())?;
     if let Some(f) = on_exit {
         f(); // push the sync mirror regardless of exit status (matches Go)
+    }
+    if cancelled {
+        return Err(CANCELLED_ERR.into());
     }
     if !out.status.success() {
         let run_err = exit_status_string(Some(out.status));
         let tail = config::trim_tail(&out.stdout, 500);
         return Err(if tail.is_empty() { run_err } else { format!("{run_err}: {tail}") });
     }
+    Ok(())
+}
+
+#[tauri::command(async)]
+pub fn cancel_action_background(run_id: String) -> Result<(), String> {
+    let pid = {
+        let mut runs = background_runs().lock().unwrap();
+        match runs.get_mut(&run_id) {
+            Some(run) => {
+                run.cancelled = true;
+                run.pid
+            }
+            None => return Ok(()), // already finished
+        }
+    };
+    proctree::kill_tree_async(pid);
     Ok(())
 }

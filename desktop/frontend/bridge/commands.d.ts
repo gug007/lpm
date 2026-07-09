@@ -5,6 +5,7 @@ export function AckTerminalData(...args: any[]): Promise<any>;
 export function AddPortForward(...args: any[]): Promise<any>;
 export function AttachProject(...args: any[]): Promise<any>;
 export function BrowseFolder(...args: any[]): Promise<any>;
+export function CancelActionBackground(...args: any[]): Promise<any>;
 export function CheckAICLIs(...args: any[]): Promise<any>;
 export function ListAgentCommands(...args: any[]): Promise<any>;
 export function CheckActionPortConflict(...args: any[]): Promise<any>;

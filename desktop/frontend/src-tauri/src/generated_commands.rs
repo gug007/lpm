@@ -19,6 +19,7 @@ macro_rules! all_command_handlers {
         attach_project,
         browse_folder,
         browser_back,
+        cancel_action_background,
         browser_forward,
         browser_reload,
         close_browser,
