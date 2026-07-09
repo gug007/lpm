@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import UIKit
+import UserNotifications
 
 /// Top-level observable state: the connection, the project list, and per-project
 /// status. Views observe this; the client drives it.
@@ -37,6 +38,9 @@ final class AppModel: ObservableObject {
     // A non-fatal notice to show once (e.g. copies made but a run task needs the
     // Mac app open). Distinct from actionError, which is a hard failure.
     @Published var notice: String?
+    // A project a notification tap wants to open, consumed by ContentView to
+    // deep-link into its detail (stashed until the projects list has loaded).
+    @Published var pendingOpenProject: String?
     // project -> desired running state while a Start/Stop is in flight, so the UI
     // can spin until the projects push confirms it (or a timeout gives up).
     @Published var pendingRun: [String: Bool] = [:]
@@ -136,6 +140,12 @@ final class AppModel: ObservableObject {
     private var pendingWatchRefresh: Set<String> = []
 
     private var client: LpmClient?
+    // The hex APNs device token (once registration succeeds). The token and a live
+    // authed connection can land in either order; whichever is second sends the
+    // apnsToken frame (idempotent, re-sent on every reconnect).
+    private var apnsTokenHex: String?
+    // Ask for notification permission only once; iOS no-ops a repeat prompt.
+    private var didRequestPushAuthorization = false
     // The addresses the current attempt is racing, so a failure can name exactly
     // what it tried (LAN vs Tailscale) instead of a generic "can't reach".
     private var attemptHosts: [String] = []
@@ -345,6 +355,45 @@ final class AppModel: ObservableObject {
         gitViewed = [:]
         pendingAgentPrompt = [:]
         paired = false
+    }
+
+    // MARK: push notifications
+
+    /// The APNs device token arrived (from the app delegate). Store it and send the
+    /// registration frame if the connection is already live.
+    func setApnsDeviceToken(_ hex: String) {
+        apnsTokenHex = hex
+        sendApnsTokenIfPossible()
+    }
+
+    /// After the first `ready`: ask for notification permission once, then register
+    /// for remote notifications (registering again after a denial is a no-op).
+    private func requestPushRegistration() {
+        if didRequestPushAuthorization {
+            UIApplication.shared.registerForRemoteNotifications()
+            return
+        }
+        didRequestPushAuthorization = true
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in
+            DispatchQueue.main.async {
+                UIApplication.shared.registerForRemoteNotifications()
+            }
+        }
+    }
+
+    /// Register (or refresh) this device's push identity: the APNs token, the build's
+    /// APNs environment, and the shared push key. Sent whenever both a token and a
+    /// live authed connection exist — re-sent after every reconnect since the token
+    /// can rotate and the frame is idempotent.
+    private func sendApnsTokenIfPossible() {
+        guard let hex = apnsTokenHex, case .ready = connection, let client else { return }
+        #if DEBUG
+        let env = "sandbox"
+        #else
+        let env = "production"
+        #endif
+        let key = PushKey.loadOrCreate().base64EncodedString()
+        client.sendApnsToken(token: hex, env: env, key: key)
     }
 
     // Terminal wiring used by TerminalScreen.
@@ -868,7 +917,12 @@ final class AppModel: ObservableObject {
                 c.requestProjects()
                 c.requestSidebar()
                 c.requestDuplicateDefaults()
+                self.requestPushRegistration()
+                self.sendApnsTokenIfPossible()
             }
+        }
+        c.onApnsToken = { ok in
+            if !ok { print("apns: server rejected token registration") }
         }
         c.onProjects = { [weak self] p in
             guard let self else { return }

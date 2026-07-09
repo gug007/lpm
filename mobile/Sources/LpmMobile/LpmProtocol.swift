@@ -96,6 +96,11 @@ enum Wire {
         json(["t": "toggleService", "name": name, "service": service])
     }
     static func ping() -> String { json(["t": "ping"]) }
+    /// Register (or refresh) this device's push identity. `key` is the base64
+    /// AES-256 push key shared with the notification extension.
+    static func apnsToken(token: String, env: String, key: String) -> String {
+        json(["t": "apnsToken", "token": token, "env": env, "key": key])
+    }
 
     // MARK: git review
 
@@ -187,6 +192,8 @@ enum Wire {
         case gitDiscardAll(project: String, error: String?)
         // Server push: watched files changed for this project (already debounced).
         case gitChanged(project: String)
+        // Ack for an apnsToken registration.
+        case apnsToken(ok: Bool)
         case pong
         case unknown
 
@@ -324,6 +331,7 @@ enum Wire {
                 return .gitDiscardAll(project: obj["project"] as? String ?? "",
                                       error: ok ? nil : (obj["error"] as? String ?? "Couldn't discard changes."))
             case "git-changed": return .gitChanged(project: obj["project"] as? String ?? "")
+            case "apnsToken": return .apnsToken(ok: obj["ok"] as? Bool ?? false)
             case "pong": return .pong
             default: return .unknown
             }

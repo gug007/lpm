@@ -24,8 +24,10 @@
 // binds to loopback by default and LAN exposure is an explicit opt-in — run it
 // over a Tailscale tailnet (encrypted) for away-from-home access. Native TLS
 // (rcgen + rustls, both already in the dependency graph) is a tracked follow-up.
-use crate::status::StatusStore;
+use crate::status::{StatusStore, STATUS_DONE, STATUS_ERROR, STATUS_WAITING};
 use crate::{config, pty, services};
+use aes_gcm::aead::{Aead, KeyInit};
+use aes_gcm::{Aes256Gcm, Nonce};
 use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -45,6 +47,7 @@ const RING_CAP: usize = 96 * 1024; // recent scrollback seeded to a joining phon
 const POLL: Duration = Duration::from_millis(25); // read-timeout / outbound-drain cadence
 const AUTH_TIMEOUT: Duration = Duration::from_secs(20);
 const OUT_QUEUE: usize = 1024; // per-client outbound depth; overflow drops (phone re-seeds)
+const DEFAULT_PUSH_RELAY: &str = "https://lpm.cx/api/push"; // APNs relay (holds the signing key)
 
 // --- persisted config (~/.lpm/remote.json) -----------------------------------
 
@@ -55,6 +58,12 @@ struct Device {
     name: String,
     token_hash: String, // sha256(token) hex — the raw token lives only on the phone
     created_at: i64,
+    // Push identity (registered via `apnsToken` after each auth). apns_token is the
+    // hex APNs device token; apns_env is "production"|"sandbox"; push_key is the
+    // phone's base64 AES-256 key the notification payload is sealed under.
+    apns_token: String,
+    apns_env: String,
+    push_key: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -65,6 +74,7 @@ struct RemoteConfig {
     port: u16,  // 0 => DEFAULT_PORT
     pairing_code: String, // non-empty while an unused pairing code is outstanding
     tailscale: bool, // advertise this Mac's Tailscale address in the pairing QR
+    push_relay: String, // override for the APNs relay URL (empty => DEFAULT_PUSH_RELAY)
     devices: Vec<Device>,
 }
 
@@ -76,7 +86,20 @@ impl Default for RemoteConfig {
             port: 0,
             pairing_code: String::new(),
             tailscale: true, // away-from-home works out of the box; the toggle opts out
+            push_relay: String::new(),
             devices: Vec::new(),
+        }
+    }
+}
+
+impl RemoteConfig {
+    /// The APNs relay URL to POST sealed notifications to: the configured override
+    /// when set, else the lpm website's default endpoint.
+    fn effective_relay(&self) -> String {
+        if self.push_relay.trim().is_empty() {
+            DEFAULT_PUSH_RELAY.to_string()
+        } else {
+            self.push_relay.clone()
         }
     }
 }
@@ -158,6 +181,10 @@ struct HubInner {
     // wake-up, so a request survives arriving before the main window's
     // listener is mounted (app just launched, window re-created).
     pending_run_actions: Mutex<Vec<Value>>,
+    // (project, status key) -> last (value, ts) pushed as an APNs notification, so a
+    // re-reported identical status never re-notifies. Connection-independent (a push
+    // is a transition fact, not per-device); recomputed on every status-changed.
+    push_dedup: Mutex<HashMap<(String, String), (String, i64)>>,
     config: Mutex<RemoteConfig>,
     next_id: AtomicU64,
     generation: AtomicU64, // bumped on every (re)start to retire old accept/conn threads
@@ -564,6 +591,7 @@ fn pair_device(hub: &RemoteHub, code: &str, name: &str) -> Option<(String, Strin
         name: name.chars().take(64).collect(),
         token_hash: sha256_hex(token.as_bytes()),
         created_at: crate::status::now_millis(),
+        ..Default::default()
     };
     let id = device.id.clone();
     cfg.devices.push(device);
@@ -1003,6 +1031,23 @@ fn handle_msg(
             let project = str_field("project").unwrap_or_default();
             let list = app.state::<Arc<StatusStore>>().list(&project);
             send(ws, json!({ "t": "status", "project": project, "status": list }))?;
+        }
+        // Register (or refresh) this device's push identity: the APNs device token,
+        // its environment, and the phone's AES key the sealed payload is encrypted
+        // under. Sent after every successful auth (the token can rotate). Persisted
+        // on the device record so a later status transition can push while the phone
+        // is backgrounded and its socket is gone.
+        "apnsToken" => {
+            let token = str_field("token").unwrap_or_default();
+            let env = str_field("env").unwrap_or_default();
+            let key = str_field("key").unwrap_or_default();
+            match validate_apns(&token, &env, &key) {
+                Ok(()) => {
+                    set_apns_token(hub, device_id, &token, &env, &key);
+                    send(ws, json!({ "t": "apnsToken", "ok": true }))?;
+                }
+                Err(e) => send(ws, json!({ "t": "apnsToken", "ok": false, "error": e }))?,
+            }
         }
         "sub" => {
             if let Some(id) = str_field("id") {
@@ -1686,15 +1731,251 @@ fn flatten_order(order: &[Value], groups: &[Value]) -> Vec<String> {
     out
 }
 
+// --- APNs push notifications -------------------------------------------------
+
+/// Validate an `apnsToken` registration: token is non-empty hex ≤200 chars, env
+/// is one of the two APNs environments, and key base64-decodes to 32 bytes.
+fn validate_apns(token: &str, env: &str, key: &str) -> Result<(), String> {
+    if token.is_empty() || token.len() > 200 || !token.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err("invalid token".into());
+    }
+    if env != "production" && env != "sandbox" {
+        return Err("invalid env".into());
+    }
+    match base64::engine::general_purpose::STANDARD.decode(key) {
+        Ok(k) if k.len() == 32 => Ok(()),
+        _ => Err("invalid key".into()),
+    }
+}
+
+/// Persist a device's push identity on its config record. Returns false when the
+/// device id isn't paired (a stale/forged connection).
+fn set_apns_token(hub: &RemoteHub, device_id: &str, token: &str, env: &str, key: &str) -> bool {
+    let mut cfg = hub.inner.config.lock().unwrap();
+    let Some(d) = cfg.devices.iter_mut().find(|d| d.id == device_id) else {
+        return false;
+    };
+    d.apns_token = token.to_string();
+    d.apns_env = env.to_string();
+    d.push_key = key.to_string();
+    let snapshot = cfg.clone();
+    drop(cfg);
+    let _ = save_config(&snapshot);
+    true
+}
+
+/// Clear a device's stored APNs token (kept paired) after the relay reports it
+/// dead (HTTP 410 / Unregistered), so a stale install stops generating traffic.
+fn clear_apns_token(hub: &RemoteHub, device_id: &str) {
+    let mut cfg = hub.inner.config.lock().unwrap();
+    let mut changed = false;
+    if let Some(d) = cfg.devices.iter_mut().find(|d| d.id == device_id) {
+        if !d.apns_token.is_empty() {
+            d.apns_token.clear();
+            changed = true;
+        }
+    }
+    if changed {
+        let snapshot = cfg.clone();
+        drop(cfg);
+        let _ = save_config(&snapshot);
+    }
+}
+
+/// Given the connection-independent dedup map (per (project, status key) → last
+/// pushed (value, ts)) and a project's current pushable entries, return the
+/// entries whose value is new or changed — worth a push — and update the map in
+/// place: this project's vanished keys are dropped, other projects untouched.
+fn dedup_status_pushes(
+    seen: &mut HashMap<(String, String), (String, i64)>,
+    project: &str,
+    entries: &[(String, String, i64)],
+) -> Vec<(String, String, i64)> {
+    let current: HashSet<&str> = entries.iter().map(|(k, _, _)| k.as_str()).collect();
+    seen.retain(|(p, k), _| p != project || current.contains(k.as_str()));
+    let mut push = Vec::new();
+    for (key, value, ts) in entries {
+        let mk = (project.to_string(), key.clone());
+        let changed = seen.get(&mk).map(|(v, _)| v != value).unwrap_or(true);
+        if changed {
+            seen.insert(mk, (value.clone(), *ts));
+            push.push((key.clone(), value.clone(), *ts));
+        }
+    }
+    push
+}
+
+/// Seal a notification plaintext with AES-256-GCM under the device push key,
+/// encoded as `nonce(12) || ciphertext || tag(16)` in standard base64 — the
+/// CryptoKit `AES.GCM.SealedBox(combined:)` format the phone's extension opens.
+fn seal_push(key: &[u8; 32], plaintext: &[u8]) -> Option<String> {
+    let cipher = Aes256Gcm::new_from_slice(key).ok()?;
+    let mut nonce = [0u8; 12];
+    getrandom::getrandom(&mut nonce).ok()?;
+    let sealed = cipher.encrypt(Nonce::from_slice(&nonce), plaintext).ok()?;
+    let mut out = Vec::with_capacity(nonce.len() + sealed.len());
+    out.extend_from_slice(&nonce);
+    out.extend_from_slice(&sealed);
+    Some(base64::engine::general_purpose::STANDARD.encode(out))
+}
+
+/// A single device to notify: its id (for a 410 cleanup), the relay routing
+/// fields, and the decoded 32-byte push key.
+struct PushDevice {
+    id: String,
+    token: String,
+    env: String,
+    key: [u8; 32],
+}
+
+/// One notification to seal + send: the resolved terminal label, status value,
+/// and the entry's timestamp.
+struct PushJob {
+    terminal: String,
+    value: String,
+    ts: i64,
+}
+
+/// On an agent status transition, push an APNs notification to every registered
+/// device that isn't currently holding a live socket (a live socket means the app
+/// is foregrounded and already got the `status-changed` frame). Never blocks the
+/// event listener: all the network work runs on a spawned thread.
+fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
+    if project.is_empty() {
+        return;
+    }
+
+    // The project's pushable entries (Waiting/Done/Error), with pane id for label
+    // resolution. Non-pushable statuses (Running) never notify.
+    let store = app.state::<Arc<StatusStore>>();
+    let entries: Vec<(String, String, i64, String)> = store
+        .list(project)
+        .into_iter()
+        .filter(|e| matches!(e.value.as_str(), STATUS_WAITING | STATUS_DONE | STATUS_ERROR))
+        .map(|e| (e.key, e.value, e.timestamp, e.pane_id))
+        .collect();
+    let pane_of: HashMap<String, String> =
+        entries.iter().map(|(k, _, _, p)| (k.clone(), p.clone())).collect();
+    let plain: Vec<(String, String, i64)> =
+        entries.iter().map(|(k, v, t, _)| (k.clone(), v.clone(), *t)).collect();
+
+    // Update the dedup map on every event (a transition fact, independent of who's
+    // connected) and take only the new/changed entries.
+    let deltas = {
+        let mut seen = hub.inner.push_dedup.lock().unwrap();
+        dedup_status_pushes(&mut seen, project, &plain)
+    };
+    if deltas.is_empty() {
+        return;
+    }
+
+    // Recipients: registered devices with a token, minus those holding a live socket.
+    let connected: HashSet<String> = hub
+        .inner
+        .clients
+        .lock()
+        .unwrap()
+        .values()
+        .map(|c| c.device_id.clone())
+        .collect();
+    let (relay, recipients) = {
+        let cfg = hub.inner.config.lock().unwrap();
+        let recipients: Vec<PushDevice> = cfg
+            .devices
+            .iter()
+            .filter(|d| !d.apns_token.is_empty() && !connected.contains(&d.id))
+            .filter_map(|d| {
+                let bytes = base64::engine::general_purpose::STANDARD.decode(&d.push_key).ok()?;
+                let key: [u8; 32] = bytes.try_into().ok()?;
+                Some(PushDevice {
+                    id: d.id.clone(),
+                    token: d.apns_token.clone(),
+                    env: d.apns_env.clone(),
+                    key,
+                })
+            })
+            .collect();
+        (cfg.effective_relay(), recipients)
+    };
+    if recipients.is_empty() {
+        return;
+    }
+
+    // Resolve terminal labels best-effort (empty when the pane id is unknown).
+    let jobs: Vec<PushJob> = {
+        let labels = hub.inner.labels.lock().unwrap();
+        deltas
+            .into_iter()
+            .map(|(key, value, ts)| {
+                let terminal = pane_of
+                    .get(&key)
+                    .and_then(|pane| labels.get(pane).cloned())
+                    .unwrap_or_default();
+                PushJob { terminal, value, ts }
+            })
+            .collect()
+    };
+
+    let (hub, project) = (hub.clone(), project.to_string());
+    std::thread::spawn(move || {
+        let client = match reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(10))
+            .build()
+        {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("warning: push relay client init failed: {e}");
+                return;
+            }
+        };
+        for dev in &recipients {
+            for job in &jobs {
+                let plaintext = json!({
+                    "project": project,
+                    "terminal": job.terminal,
+                    "status": job.value,
+                    "ts": job.ts,
+                })
+                .to_string();
+                let Some(blob) = seal_push(&dev.key, plaintext.as_bytes()) else {
+                    continue;
+                };
+                let body = json!({ "token": dev.token, "env": dev.env, "blob": blob }).to_string();
+                match client
+                    .post(&relay)
+                    .header("content-type", "application/json")
+                    .body(body)
+                    .send()
+                {
+                    Ok(resp) => {
+                        let status = resp.status().as_u16();
+                        if status == 410 {
+                            // Token is dead — clear it and stop pushing to this device.
+                            clear_apns_token(&hub, &dev.id);
+                            break;
+                        }
+                        if !(200..300).contains(&status) {
+                            eprintln!("warning: push relay returned {status}");
+                        }
+                    }
+                    Err(e) => eprintln!("warning: push relay POST failed: {e}"),
+                }
+            }
+        }
+    });
+}
+
 fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {
     let h = hub.clone();
     app.listen("projects-changed", move |_| {
         broadcast(&h, json!({ "t": "projects-changed" }));
     });
     let h = hub.clone();
+    let a = app.clone();
     app.listen("status-changed", move |e| {
         let project = serde_json::from_str::<String>(e.payload()).unwrap_or_default();
         broadcast(&h, json!({ "t": "status-changed", "project": project }));
+        push_notifications(&h, &a, &project);
     });
 }
 
@@ -2042,18 +2323,112 @@ mod tests {
             port: 9000,
             pairing_code: "AB12-CD34".into(),
             tailscale: true,
+            push_relay: "http://localhost:3000/api/push".into(),
             devices: vec![Device {
                 id: "d1".into(),
                 name: "iPhone".into(),
                 token_hash: sha256_hex(b"t"),
                 created_at: 42,
+                apns_token: "deadbeef".into(),
+                apns_env: "sandbox".into(),
+                push_key: base64::engine::general_purpose::STANDARD.encode([7u8; 32]),
             }],
         };
         let s = serde_json::to_string(&cfg).unwrap();
         let back: RemoteConfig = serde_json::from_str(&s).unwrap();
         assert_eq!(back.port, 9000);
         assert!(back.enabled && back.lan);
+        assert_eq!(back.push_relay, "http://localhost:3000/api/push");
+        assert_eq!(back.effective_relay(), "http://localhost:3000/api/push");
         assert_eq!(back.devices.len(), 1);
         assert_eq!(back.devices[0].id, "d1");
+        assert_eq!(back.devices[0].apns_token, "deadbeef");
+        assert_eq!(back.devices[0].apns_env, "sandbox");
+        assert_eq!(
+            back.devices[0].push_key,
+            base64::engine::general_purpose::STANDARD.encode([7u8; 32])
+        );
+    }
+
+    // Old remote.json (written before push support) has neither the device push
+    // fields nor push_relay; #[serde(default)] must load it with empty defaults and
+    // the effective relay must fall back to the built-in endpoint.
+    #[test]
+    fn old_json_loads_with_default_push_fields() {
+        let json = r#"{
+            "enabled": true, "lan": false, "port": 0, "pairing_code": "",
+            "tailscale": true,
+            "devices": [{ "id": "d1", "name": "iPhone",
+                          "token_hash": "abc", "created_at": 1 }]
+        }"#;
+        let cfg: RemoteConfig = serde_json::from_str(json).unwrap();
+        assert!(cfg.push_relay.is_empty());
+        assert_eq!(cfg.effective_relay(), DEFAULT_PUSH_RELAY);
+        assert_eq!(cfg.devices.len(), 1);
+        assert!(cfg.devices[0].apns_token.is_empty());
+        assert!(cfg.devices[0].apns_env.is_empty());
+        assert!(cfg.devices[0].push_key.is_empty());
+    }
+
+    #[test]
+    fn validate_apns_enforces_shape() {
+        let key = base64::engine::general_purpose::STANDARD.encode([1u8; 32]);
+        assert!(validate_apns("abc123", "production", &key).is_ok());
+        assert!(validate_apns("ABCDEF", "sandbox", &key).is_ok());
+        assert!(validate_apns("", "production", &key).is_err(), "empty token");
+        assert!(validate_apns("xyz", "production", &key).is_err(), "non-hex token");
+        assert!(validate_apns(&"a".repeat(201), "production", &key).is_err(), "over-long token");
+        assert!(validate_apns("ab", "staging", &key).is_err(), "bad env");
+        let short = base64::engine::general_purpose::STANDARD.encode([1u8; 16]);
+        assert!(validate_apns("ab", "production", &short).is_err(), "16-byte key");
+        assert!(validate_apns("ab", "production", "not base64!!").is_err(), "bad base64");
+    }
+
+    #[test]
+    fn dedup_pushes_new_and_changed_only() {
+        let mut seen = HashMap::new();
+        let e = |k: &str, v: &str, ts: i64| (k.to_string(), v.to_string(), ts);
+
+        // First sighting of both -> both push.
+        let out = dedup_status_pushes(&mut seen, "proj", &[e("a", "Waiting", 1), e("b", "Done", 1)]);
+        assert_eq!(out.len(), 2);
+
+        // Identical re-report -> nothing.
+        let out = dedup_status_pushes(&mut seen, "proj", &[e("a", "Waiting", 2), e("b", "Done", 2)]);
+        assert!(out.is_empty(), "unchanged values dedup");
+
+        // a's value changed -> only a pushes.
+        let out = dedup_status_pushes(&mut seen, "proj", &[e("a", "Error", 3), e("b", "Done", 3)]);
+        assert_eq!(out, vec![e("a", "Error", 3)]);
+
+        // b vanished from the store -> its map entry is dropped, so if it reappears
+        // with the same value it counts as new again.
+        let out = dedup_status_pushes(&mut seen, "proj", &[e("a", "Error", 4)]);
+        assert!(out.is_empty());
+        let out = dedup_status_pushes(&mut seen, "proj", &[e("a", "Error", 5), e("b", "Done", 5)]);
+        assert_eq!(out, vec![e("b", "Done", 5)], "b re-notifies after vanishing");
+
+        // A different project's key with the same name is independent.
+        let out = dedup_status_pushes(&mut seen, "other", &[e("a", "Error", 6)]);
+        assert_eq!(out, vec![e("a", "Error", 6)]);
+    }
+
+    #[test]
+    fn seal_push_roundtrips() {
+        let key = [9u8; 32];
+        let plaintext = br#"{"project":"web","terminal":"Ultracode","status":"Waiting","ts":123}"#;
+        let blob = seal_push(&key, plaintext).expect("seal");
+
+        // Decrypt the combined SealedBox exactly as the phone's extension would.
+        let raw = base64::engine::general_purpose::STANDARD.decode(&blob).unwrap();
+        assert!(raw.len() > 12 + 16, "nonce + ciphertext + tag");
+        let (nonce, sealed) = raw.split_at(12);
+        let cipher = Aes256Gcm::new_from_slice(&key).unwrap();
+        let opened = cipher.decrypt(Nonce::from_slice(nonce), sealed).expect("open");
+        assert_eq!(opened, plaintext);
+
+        // A fresh seal uses a fresh random nonce -> different ciphertext.
+        let blob2 = seal_push(&key, plaintext).unwrap();
+        assert_ne!(blob, blob2, "random nonce per seal");
     }
 }

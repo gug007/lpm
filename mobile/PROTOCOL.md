@@ -106,6 +106,53 @@ identical to the desktop submenu, so behavior stays consistent across surfaces.
 | `{ "t": "gitGenPr", "project": "<name>" }` | `{ "t": "gitGenPr", "project": "<name>", "ok": true, "title": "…", "body": "…" }` / `{ "ok": false, "error": "…" }` — AI-drafts a PR title and description for the current branch vs the default branch. Async (AI); same AI settings as above |
 | `{ "t": "gitCreatePr", "project": "<name>", "title": "…", "body": "…" }` | `{ "t": "gitCreatePr", "project": "<name>", "ok": true, "url": "<pr url>" }` / `{ "ok": false, "error": "…" }` — pushes the current branch and opens a PR via the `gh` CLI against the default branch, returning its URL. Async (network) |
 
+### Push notifications (APNs)
+
+While the app is backgrounded its socket dies, so agent status changes reach the
+phone as APNs pushes instead. The desktop sends them via a relay (the lpm
+website) that holds the APNs signing key; notification content is end-to-end
+encrypted, so the relay sees only opaque blobs and device tokens.
+
+| Request | Reply |
+|---|---|
+| `{ "t": "apnsToken", "token": "<hex APNs device token>", "env": "production"\|"sandbox", "key": "<base64 32-byte push key>" }` | `{ "t": "apnsToken", "ok": true }` — registers (or refreshes) this device's push identity; sent after every successful `auth`, since the token can rotate. `env` is the APNs environment the build's token belongs to (debug builds → `sandbox`, TestFlight/App Store → `production`). `key` is the phone-generated AES-256 push key; the phone keeps **one** push key (Keychain, shared with the notification extension) and registers the same key with every paired Mac, so the extension never has to guess which key decrypts. All three fields persist on the device record in `remote.json` |
+
+**When the desktop pushes.** On an agent status transition to `Waiting`, `Done`,
+or `Error` (the same `status-changed` signal that drives the socket push), for
+every registered device that does **not** currently hold a live authed
+connection (a live socket means the app is foregrounded and already sees the
+change). Transitions are deduped per (project, status key) so a re-reported
+identical status never re-notifies.
+
+**Payload encryption.** The notification plaintext is JSON:
+```
+{ "project": "<name>", "terminal": "<tab label>", "status": "Waiting"|"Done"|"Error", "ts": <unix millis> }
+```
+(`terminal` may be empty when the pane label is unknown.) It is sealed with
+AES-256-GCM under the device's push key, encoded as `nonce(12) || ciphertext ||
+tag(16)` in standard base64 — CryptoKit's `AES.GCM.SealedBox(combined:)` format.
+
+**Relay contract.** The desktop POSTs JSON to the relay
+(`https://lpm.cx/api/push` by default; `pushRelay` in `remote.json` overrides,
+e.g. for a local `next dev`):
+```
+{ "token": "<hex device token>", "env": "production"|"sandbox", "blob": "<base64 sealed payload>" }
+```
+The relay signs an APNs provider JWT with its `.p8` key (env vars
+`APNS_KEY` / `APNS_KEY_ID` / `APNS_TEAM_ID` / `APNS_TOPIC`, topic defaulting to
+`cx.lpm.mobile`) and forwards to the matching APNs environment as an `alert`
+push, priority 10, expiring after ~6h (a stale approval ping is noise):
+```
+{ "aps": { "alert": { "title": "lpm", "body": "Activity on your Mac" }, "sound": "default", "mutable-content": 1 }, "blob": "<base64>" }
+```
+The `aps.alert` is a deliberately generic fallback: the phone's notification
+service extension decrypts `blob` and rewrites the title/body (e.g.
+"web-app — agent is waiting"); if decryption fails the generic text shows and
+nothing leaks. Relay replies `{ "ok": true }` or
+`{ "ok": false, "status": <apns http status>, "reason": "<apns reason>" }`; on
+`410`/`Unregistered` the desktop clears that device's stored token so dead
+installs stop generating traffic.
+
 ### Server-initiated pushes (desktop → phone)
 
 | Frame | Meaning |

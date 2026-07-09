@@ -56,6 +56,8 @@ final class LpmClient: NSObject {
     var onGitCheckout: ((_ project: String, _ error: String?) -> Void)?
     var onGitDiscardAll: ((_ project: String, _ error: String?) -> Void)?
     var onGitChanged: ((_ project: String) -> Void)?
+    // The desktop acknowledged (or rejected) an apnsToken registration.
+    var onApnsToken: ((_ ok: Bool) -> Void)?
 
     private var endpoint: Endpoint
     private var credential: Credential?
@@ -291,6 +293,9 @@ final class LpmClient: NSObject {
     }
     func requestDuplicateDefaults() { send(Wire.duplicateDefaults()) }
     func removeProject(_ name: String) { send(Wire.remove(name: name)) }
+    func sendApnsToken(token: String, env: String, key: String) {
+        send(Wire.apnsToken(token: token, env: env, key: key))
+    }
     func startProject(_ name: String, profile: String = "") { send(Wire.start(name: name, profile: profile)) }
     func stopProject(_ name: String) { send(Wire.stop(name: name)) }
     func toggleService(_ name: String, service: String) { send(Wire.toggleService(name: name, service: service)) }
@@ -472,6 +477,7 @@ final class LpmClient: NSObject {
             case .gitCheckout(let proj, let error): self.onGitCheckout?(proj, error)
             case .gitDiscardAll(let proj, let error): self.onGitDiscardAll?(proj, error)
             case .gitChanged(let proj): self.onGitChanged?(proj)
+            case .apnsToken(let ok): self.onApnsToken?(ok)
             case .pong, .unknown: break
         }
     }

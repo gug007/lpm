@@ -5,11 +5,13 @@ import UIKit
 struct ContentView: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.scenePhase) private var scenePhase
+    // Nav path so a notification tap can deep-link straight to a project's detail.
+    @State private var path: [String] = []
 
     var body: some View {
         Group {
             if model.paired {
-                NavigationStack { ProjectsView() }
+                NavigationStack(path: $path) { ProjectsView() }
             } else {
                 PairingView()
             }
@@ -17,11 +19,22 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.reconnectIfNeeded() }
         }
+        // Consume a pending notification-tap target once its project is loaded
+        // (a cold-launch tap may land before the projects list has arrived).
+        .onChange(of: model.pendingOpenProject) { _, _ in consumePendingOpen() }
+        .onChange(of: model.projectsLoaded) { _, _ in consumePendingOpen() }
         .onAppear {
             model.bootstrap()
             // Warm WebKit now so the first terminal opens without the ~2s cold start.
             TerminalWebPool.prewarm()
         }
+    }
+
+    private func consumePendingOpen() {
+        guard let project = model.pendingOpenProject, !project.isEmpty,
+              model.projects.contains(where: { $0.name == project }) else { return }
+        path = [project]
+        model.pendingOpenProject = nil
     }
 }
 

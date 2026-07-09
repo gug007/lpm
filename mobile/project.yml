@@ -20,6 +20,9 @@ targets:
     sources:
       - Assets.xcassets
       - Sources/LpmMobile
+      # Push-key + crypto shared with the notification service extension (the same
+      # files are compiled into both targets).
+      - Sources/Shared
       # Apple privacy manifest — copied into the app bundle root so App Store
       # uploads pass required-reason-API validation (ITMS-91053).
       - path: PrivacyInfo.xcprivacy
@@ -40,14 +43,29 @@ targets:
         # injects DEVELOPMENT_TEAM at build time (from the env or an untracked
         # mobile/.team file); Xcode's GUI auto-picks your logged-in team on ⌘R.
         CODE_SIGN_STYLE: Automatic
+    # aps-environment lets the app receive APNs pushes (distribution signing
+    # rewrites `development` to `production`). The shared keychain access group lets
+    # the notification service extension read the push key.
+    entitlements:
+      path: LpmMobile.entitlements
+      properties:
+        aps-environment: development
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)cx.lpm.mobile.shared
+    dependencies:
+      # Embed the notification service extension as a plugin so pushes get decrypted
+      # and rewritten on-device.
+      - target: LpmMobileNotificationService
+        embed: true
     info:
       path: Info.plist
       properties:
         CFBundleDisplayName: lpm
-        # Export compliance: the app implements no encryption of its own — transport
-        # is plaintext ws:// (privacy comes from Tailscale, not the app) and the only
-        # crypto is the OS Keychain, which is exempt. Declaring this false stops App
-        # Store Connect from prompting for export-compliance docs on every build.
+        # Export compliance: the transport is plaintext ws:// (privacy comes from
+        # Tailscale, not the app), and the only crypto is OS-provided — the Keychain
+        # plus CryptoKit AES-GCM used to decrypt push-notification payloads. Both are
+        # exempt, so this stays false and App Store Connect stops prompting for
+        # export-compliance docs on every build.
         ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
@@ -74,3 +92,33 @@ targets:
         # because iOS ignores it whenever NSAllowsLocalNetworking is also present.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
+
+  # Notification service extension: decrypts a push payload on-device and rewrites
+  # the notification with the real project/terminal/status. Its bundle id must be
+  # prefixed by the app's, and it shares the push key via the same keychain group.
+  LpmMobileNotificationService:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Sources/NotificationService
+      - Sources/Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cx.lpm.mobile.notificationservice
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+    entitlements:
+      path: LpmMobileNotificationService.entitlements
+      properties:
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)cx.lpm.mobile.shared
+    info:
+      path: NotificationService-Info.plist
+      properties:
+        CFBundleDisplayName: lpm
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService

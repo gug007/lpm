@@ -3,6 +3,7 @@ import UIKit
 
 @main
 struct LpmMobileApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var model = AppModel()
 
     init() {
@@ -23,7 +24,9 @@ struct LpmMobileApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView().environmentObject(model)
+            ContentView()
+                .environmentObject(model)
+                .onAppear { appDelegate.attach(model) }
         }
     }
 }
