@@ -43,7 +43,9 @@ final class AppModel: ObservableObject {
     // Projects with a new-terminal/run-action in flight: the desktop creates the
     // terminal asynchronously, so show a placeholder row until it appears.
     @Published var creatingTerminals: Set<String> = []
-    private var creatingBaseline: [String: Int] = [:]
+    // Terminal ids present when the create was requested; a response containing
+    // an id outside this set means the new terminal has landed.
+    private var creatingBaseline: [String: Set<String>] = [:]
     private var creatingGen: [String: Int] = [:]
 
     // Terminal streams go straight to whichever TerminalScreen is subscribed; the
@@ -333,18 +335,21 @@ final class AppModel: ObservableObject {
         markTerminalCreating(project)
         reloadTerminalsSoon(project)
     }
-    /// Show a placeholder terminal row until the terminals push grows past the
-    /// count at request time, or a timeout gives up (e.g. a run task that needs
-    /// the Mac app open never spawned one).
+    /// Show a placeholder terminal row until a terminals response contains an id
+    /// that wasn't there at request time, or a timeout gives up (e.g. a run task
+    /// that needs the Mac app open never spawned one). The give-up refreshes the
+    /// list one last time so the screen converges to the Mac's truth instead of
+    /// going stale-empty.
     private func markTerminalCreating(_ project: String) {
-        creatingBaseline[project] = terminals[project]?.count ?? 0
+        creatingBaseline[project] = Set(terminals[project]?.map(\.id) ?? [])
         creatingTerminals.insert(project)
         let gen = (creatingGen[project] ?? 0) + 1
         creatingGen[project] = gen
-        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 14) { [weak self] in
             guard let self, self.creatingGen[project] == gen else { return }
             self.creatingTerminals.remove(project)
             self.creatingBaseline[project] = nil
+            self.loadTerminals(project)
         }
     }
     func closeTerminal(_ project: String, id: String) {
@@ -371,10 +376,10 @@ final class AppModel: ObservableObject {
         client?.reorderTerminals(project: project, order: order)
     }
     /// The desktop creates the terminal + types its command asynchronously (it
-    /// waits for the shell prompt to settle), so poll the list a few times for the
-    /// new terminal to show up.
+    /// waits for the shell prompt to settle, which can take several seconds), so
+    /// poll the list until the new terminal shows up.
     private func reloadTerminalsSoon(_ project: String) {
-        for delay in [0.6, 1.5, 3.0] {
+        for delay in [0.6, 1.5, 3.0, 5.0, 8.0, 12.0] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 self?.loadTerminals(project)
             }
@@ -506,7 +511,7 @@ final class AppModel: ObservableObject {
         c.onTerminals = { [weak self] proj, t in
             guard let self else { return }
             self.terminals[proj] = t
-            if let base = self.creatingBaseline[proj], t.count > base {
+            if let base = self.creatingBaseline[proj], t.contains(where: { !base.contains($0.id) }) {
                 self.creatingBaseline[proj] = nil
                 self.creatingTerminals.remove(proj)
             }
