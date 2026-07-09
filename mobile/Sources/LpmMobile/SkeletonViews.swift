@@ -85,14 +85,16 @@ struct ProjectListSkeleton: View {
 /// is being created on the Mac.
 struct TerminalRowSkeleton: View {
     var body: some View {
-        HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+        HStack(spacing: 16) {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color(.tertiarySystemFill))
-                .frame(width: 36, height: 36)
+                .frame(width: 40, height: 40)
             SkeletonBar(width: 132)
             Spacer()
         }
-        .padding(.vertical, 4)
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground),
+                    in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .shimmer()
         .transition(.opacity)
     }
