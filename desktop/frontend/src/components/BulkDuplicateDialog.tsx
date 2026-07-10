@@ -122,6 +122,11 @@ export function BulkDuplicateDialog({
   // Persisted open/closed state of the collapsible cards (collapsed by default).
   const [runOpen, setRunOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  // Bumped each time the dialog opens. Keys the shared prompt composer so it
+  // remounts against the freshly reset state below — the dialog can stay mounted
+  // across open/close (Sidebar's Duplicate), and without this a reopened field
+  // would keep seeding from the previous session's retained draft.
+  const [openSession, setOpenSession] = useState(0);
 
   // Default each label to the copy's would-be name (`<original>-<id>`), the
   // same scheme the backend uses for the folder, so the field shows the copy's
@@ -184,6 +189,7 @@ export function BulkDuplicateDialog({
     // and summarized in the section header, so the dialog opens uncluttered.
     setRunOpen(seeded ? false : (s.duplicateRunSectionOpen ?? false));
     setOptionsOpen(s.duplicateOptionsSectionOpen ?? false);
+    setOpenSession((n) => n + 1);
   }, [open, project?.name]);
 
   const toggleRunOpen = () => {
@@ -731,8 +737,9 @@ export function BulkDuplicateDialog({
                 {showPrompt && (
                   <div className="mt-3 field-reveal">
                     <InputComposer
+                      key={openSession}
                       onChange={setComposer}
-                      defaultValue={seed?.prompt}
+                      defaultValue={composer}
                       placeholder="Type a task for an AI agent, and paste or attach images…"
                       history={composerHistory}
                       aiCwd={aiCwd}
