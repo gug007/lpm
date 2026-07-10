@@ -1789,6 +1789,39 @@ fn validate_apns(token: &str, env: &str, key: &str) -> Result<(), String> {
     }
 }
 
+/// Register `token`/`env`/`key`/`prefs` on the device with `device_id`, and strip
+/// the push identity from every OTHER record still holding the same `apns_token`.
+/// An APNs token uniquely identifies a physical device+app install, so any other
+/// record carrying it is a stale pairing (phone reinstalled / re-scanned the QR)
+/// that would otherwise keep receiving pushes under its old, fail-open prefs.
+/// Stale records stay paired — only their push identity is cleared. Returns false
+/// when `device_id` isn't paired.
+fn apply_apns_token(
+    devices: &mut [Device],
+    device_id: &str,
+    token: &str,
+    env: &str,
+    key: &str,
+    prefs: (bool, bool, bool),
+) -> bool {
+    if !devices.iter().any(|d| d.id == device_id) {
+        return false;
+    }
+    for d in devices.iter_mut() {
+        if d.id == device_id {
+            d.apns_token = token.to_string();
+            d.apns_env = env.to_string();
+            d.push_key = key.to_string();
+            (d.push_waiting, d.push_done, d.push_error) = prefs;
+        } else if d.apns_token == token {
+            d.apns_token.clear();
+            d.apns_env.clear();
+            d.push_key.clear();
+        }
+    }
+    true
+}
+
 /// Persist a device's push identity on its config record. Returns false when the
 /// device id isn't paired (a stale/forged connection).
 fn set_apns_token(
@@ -1800,13 +1833,9 @@ fn set_apns_token(
     prefs: (bool, bool, bool),
 ) -> bool {
     let mut cfg = hub.inner.config.lock().unwrap();
-    let Some(d) = cfg.devices.iter_mut().find(|d| d.id == device_id) else {
+    if !apply_apns_token(&mut cfg.devices, device_id, token, env, key, prefs) {
         return false;
-    };
-    d.apns_token = token.to_string();
-    d.apns_env = env.to_string();
-    d.push_key = key.to_string();
-    (d.push_waiting, d.push_done, d.push_error) = prefs;
+    }
     let snapshot = cfg.clone();
     drop(cfg);
     let _ = save_config(&snapshot);
@@ -2472,6 +2501,62 @@ mod tests {
     fn effective_port_defaults_zero() {
         assert_eq!(effective_port(0), DEFAULT_PORT);
         assert_eq!(effective_port(9000), 9000);
+    }
+
+    #[test]
+    fn apply_apns_token_clears_stale_duplicate_records() {
+        let b64 = |b: [u8; 32]| base64::engine::general_purpose::STANDARD.encode(b);
+        let mut devices = vec![
+            // A stale pairing for the same physical phone, still holding "deadbeef"
+            // with fail-open prefs.
+            Device {
+                id: "old".into(),
+                apns_token: "deadbeef".into(),
+                apns_env: "production".into(),
+                push_key: b64([1u8; 32]),
+                ..Default::default()
+            },
+            // The freshly re-paired record that now registers "deadbeef".
+            Device { id: "new".into(), ..Default::default() },
+            // A different physical device — must be left untouched.
+            Device {
+                id: "other".into(),
+                apns_token: "cafe".into(),
+                apns_env: "production".into(),
+                push_key: b64([2u8; 32]),
+                ..Default::default()
+            },
+        ];
+
+        let key = b64([9u8; 32]);
+        assert!(apply_apns_token(&mut devices, "new", "deadbeef", "sandbox", &key, (true, false, true)));
+
+        let new = devices.iter().find(|d| d.id == "new").unwrap();
+        assert_eq!(new.apns_token, "deadbeef");
+        assert_eq!(new.apns_env, "sandbox");
+        assert_eq!(new.push_key, key);
+        assert_eq!((new.push_waiting, new.push_done, new.push_error), (true, false, true));
+
+        // The stale record survives but loses its push identity, so it stops pushing.
+        let old = devices.iter().find(|d| d.id == "old").unwrap();
+        assert!(old.apns_token.is_empty());
+        assert!(old.apns_env.is_empty());
+        assert!(old.push_key.is_empty());
+
+        // A device with a different token keeps everything.
+        let other = devices.iter().find(|d| d.id == "other").unwrap();
+        assert_eq!(other.apns_token, "cafe");
+        assert_eq!(other.apns_env, "production");
+        assert_eq!(other.push_key, b64([2u8; 32]));
+
+        assert_eq!(devices.len(), 3);
+
+        // An unknown device id reports not-paired and mutates nothing — not even
+        // other records holding the same token.
+        assert!(!apply_apns_token(&mut devices, "ghost", "deadbeef", "sandbox", &key, (true, true, true)));
+        let new = devices.iter().find(|d| d.id == "new").unwrap();
+        assert_eq!(new.apns_token, "deadbeef");
+        assert_eq!((new.push_waiting, new.push_done, new.push_error), (true, false, true));
     }
 
     #[test]

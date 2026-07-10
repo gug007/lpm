@@ -54,12 +54,12 @@ export function ClaudeAccountRow({
   }
 
   return (
-    <div className="group flex items-center gap-3 px-4 py-2.5 text-sm">
+    <div className="group flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-[var(--bg-hover)]">
       <span
         className={`h-2 w-2 shrink-0 rounded-full ${
           signedIn
             ? "bg-[var(--accent-green)]"
-            : "border border-[var(--text-muted)] bg-transparent"
+            : "border border-[var(--text-muted)]"
         }`}
         title={signedIn ? "Signed in" : "Not signed in"}
       />
@@ -78,13 +78,13 @@ export function ClaudeAccountRow({
       {!signedIn && (
         <button
           onClick={onSignIn}
-          className="shrink-0 rounded-md bg-[var(--accent-green)] px-2.5 py-1 text-[11px] font-medium text-white transition-opacity hover:opacity-90"
+          className="shrink-0 rounded-md border border-[var(--border)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-active)]"
         >
           Sign in
         </button>
       )}
       <span
-        className="shrink-0 rounded-md bg-[var(--bg-secondary)] px-2 py-1 text-[10px] text-[var(--text-muted)]"
+        className="shrink-0 text-[11px] text-[var(--text-muted)]"
         title={usage.length > 0 ? `Used by ${usage.join(", ")}` : "Not assigned to any project"}
       >
         {usageLabel}

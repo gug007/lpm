@@ -10,6 +10,11 @@ struct NotificationSettingsSheet: View {
     // actually deliver anything, so we surface a jump to Settings.
     @State private var systemDenied = false
 
+    private var isConnected: Bool {
+        if case .ready = model.connection { return true }
+        return false
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -35,7 +40,12 @@ struct NotificationSettingsSheet: View {
                     Toggle("Finished", isOn: $model.notifyDone)
                     Toggle("Error", isOn: $model.notifyError)
                 } footer: {
-                    Text("Waiting for you: an agent needs your input or approval. Finished: a run wrapped up. Error: something went wrong.")
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Waiting for you: an agent needs your input or approval. Finished: a run wrapped up. Error: something went wrong.")
+                        if !isConnected {
+                            Text("Not connected to your Mac — changes apply the next time this phone connects.")
+                        }
+                    }
                 }
                 .disabled(!model.notifyEnabled)
                 .opacity(model.notifyEnabled ? 1 : 0.4)

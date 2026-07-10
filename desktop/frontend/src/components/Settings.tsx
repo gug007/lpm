@@ -647,8 +647,6 @@ export function Settings({
                 accounts={accounts}
                 statuses={accountStatuses}
                 usage={accountUsage}
-                onAddAccount={() => setAddingAccount(true)}
-                onSignIn={(acc) => setLoginAccount(acc)}
               />
               {accounts.map((acc) => (
                 <ClaudeAccountRow
