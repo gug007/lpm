@@ -10,27 +10,47 @@ const FAQS: QA[] = [
   {
     question: "Do I need lpm on my Mac to use the iOS app?",
     answer:
-      "Yes. The iOS app is a companion, not a standalone terminal. Every project, service, and AI agent runs on your Mac inside lpm — the phone is a live display and input client that pairs with it. Install lpm on your Mac first, then pair your iPhone.",
+      "Yes. The iOS app is a companion, not a standalone terminal. Every project, service, and AI agent runs on your Mac inside lpm — the phone is a live display and input client that pairs with it. Install lpm on your Mac first, then pair your iPhone or iPad.",
+  },
+  {
+    question: "Can I prompt Claude Code and Codex from my phone?",
+    answer:
+      "Yes. Each terminal has a full prompt composer: type or dictate a prompt, run an AI rewrite and pick from variants, use slash commands for the agent in that terminal, @-mention changed files, branches, terminal output, or service logs, and attach images. Your prompt goes to the real agent session running on your Mac.",
+  },
+  {
+    question: "Can I review a git diff and commit or push from my phone?",
+    answer:
+      "Yes. A full review screen shows inline diffs of every changed file with add and delete stats, and it refreshes as the agent keeps editing. You can select files and commit with an AI-generated message, then pull, push, fetch, switch branches, or open a GitHub pull request with an AI-drafted title and body — all from the phone.",
+  },
+  {
+    question: "Will I get a notification when Claude Code finishes or is waiting?",
+    answer:
+      "Yes. Even with the app closed, you get a push the moment an agent is waiting on you, finishes, or hits an error, with a separate on/off toggle for each kind. Tapping the notification deep-links straight to the project, and it withdraws itself if you handle the agent on your Mac instead.",
   },
   {
     question: "Does my code or terminal output go through the cloud?",
     answer:
-      "No. The phone connects directly to lpm running on your Mac over your own network. There is no lpm server in the middle. Terminal output, keystrokes, and project data never pass through a third-party service.",
+      "No. Terminal output, keystrokes, diffs, and files all travel directly between your phone and your Mac — there is no server in the middle for any of it. The only thing that leaves your network is a push notification, and it is end-to-end encrypted with a key only your iPhone holds; the delivery relay sees an opaque blob it cannot read.",
   },
   {
     question: "Can I use it when I'm away from home?",
     answer:
-      "Yes. On the same Wi-Fi it works out of the box. Away from your network, put both your Mac and iPhone on a Tailscale tailnet and connect to your Mac's tailnet address — that gives you an encrypted link from anywhere. Native TLS is a planned follow-up.",
+      "Yes. On the same Wi-Fi it works out of the box. Away from your network, put both your Mac and iPhone on a Tailscale tailnet and connect to your Mac's tailnet address for an encrypted link from anywhere. The pairing QR code carries both your local and tailnet addresses, so the app uses whichever it can reach.",
   },
   {
     question: "Is it safe to control my dev machine from my phone?",
     answer:
-      "Pairing issues a per-device token that lives only in your iPhone's Keychain; your Mac stores just its hash. By default the server listens only on your Mac, and you explicitly opt in to reach it over your local network or a tailnet. You can revoke any device from lpm Settings at any time, which immediately drops its connection.",
+      "Pairing issues a per-device token that lives only in your iPhone's Keychain; your Mac stores just its hash. By default the connection listens only on your Mac, and you explicitly opt in to reach it over your local network or a tailnet. You can revoke any device from lpm Settings at any time, which immediately drops its connection.",
   },
   {
-    question: "What can I actually do from the phone?",
+    question: "Does it work on iPad?",
     answer:
-      "Watch any terminal stream live with full scrollback, type into a running session, answer or correct an AI agent, start and stop projects, toggle individual services, run saved actions, open new terminals, and send an image from your phone into a terminal's composer. You also see when an agent flips to Waiting so you know the moment it needs you.",
+      "Yes. The companion runs on iPhone and iPad, on iOS and iPadOS 17 or later. Both pair with lpm on your Mac the same way — scan the QR code once and you're in.",
+  },
+  {
+    question: "Do I need an account to use it?",
+    answer:
+      "No. There is no account and no sign-in. You pair a device by scanning a QR code from lpm's Settings on your Mac (or entering the host and code by hand), and that's it.",
   },
   {
     question: "Does the agent keep running if my phone locks or disconnects?",

@@ -10,13 +10,13 @@ const CARDS: { icon: LucideIcon; title: string; body: string }[] = [
   },
   {
     icon: Laptop,
-    title: "Nothing runs in the cloud",
-    body: "There's no lpm server in the middle. Your phone connects directly to your Mac on your own network. No project data, no terminal output, and no keystrokes ever pass through a third party.",
+    title: "Your code stays between phone and Mac",
+    body: "Your phone connects directly to your Mac — no server in the middle. Terminal output, keystrokes, diffs, and files never pass through anyone else. The one thing that leaves your network is a push notification, and it travels as an end-to-end encrypted blob only your iPhone can open.",
   },
   {
     icon: ShieldCheck,
     title: "You choose the reach",
-    body: "By default the server only listens on your Mac. Opt in to your local network when you want the phone on the same Wi-Fi, or use a Tailscale tailnet for encrypted access from anywhere. You decide how far it goes.",
+    body: "By default the connection only listens on your Mac. Opt in to your local network when you want the phone on the same Wi-Fi, or use a Tailscale tailnet for encrypted access from anywhere. You decide how far it goes.",
   },
 ];
 

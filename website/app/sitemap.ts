@@ -28,7 +28,7 @@ const LAST_MODIFIED: Record<string, string> = {
   [GIT_TERMINAL_MAC_PATH]: "2026-06-12",
   [SSH_TERMINAL_MAC_PATH]: "2026-06-12",
   [REVIEW_CHANGES_PATH]: "2026-07-03",
-  [MOBILE_PATH]: "2026-07-07",
+  [MOBILE_PATH]: "2026-07-10",
   [VS_BASE_PATH]: "2026-06-12",
   [vsPath("foreman")]: "2026-06-12",
   [vsPath("overmind")]: "2026-06-12",

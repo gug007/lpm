@@ -24,8 +24,8 @@ const STEPS: Step[] = [
     body: (
       <>
         In <strong>Settings → Mobile devices</strong> on your Mac, add a device
-        to reveal a one-time QR code. Open the lpm app on your iPhone and scan
-        it. Pairing is one tap — no account, no sign-in.
+        to reveal a one-time QR code. Open the lpm app on your iPhone or iPad and
+        scan it. Pairing is one tap — no account, no sign-in.
       </>
     ),
   },
@@ -54,7 +54,9 @@ const STEPS: Step[] = [
         >
           Tailscale
         </a>{" "}
-        tailnet and connect to your Mac from anywhere — your terminals follow you.
+        tailnet. The QR code carries both your local and tailnet addresses, so
+        the app connects over whichever one it can reach — your terminals follow
+        you.
       </>
     ),
   },

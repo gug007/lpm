@@ -1,10 +1,8 @@
 import {
-  BellRing,
-  Image,
+  Fingerprint,
+  Keyboard,
   MonitorSmartphone,
-  Play,
-  SlidersHorizontal,
-  TerminalSquare,
+  MousePointerClick,
   type LucideIcon,
 } from "lucide-react";
 import { FeatureCard } from "@/components/feature-card";
@@ -20,38 +18,29 @@ const FEATURES: Feature[] = [
   {
     icon: MonitorSmartphone,
     title: "A live mirror, not a screenshot",
-    body: "Every terminal on your Mac streams to your phone character by character, with full scrollback. It's the same session — what you see on the phone is exactly what's on the Mac, updating as it happens.",
+    body: "Every terminal on your Mac streams to your phone character by character, with full scrollback. It's the same session — what you see on the phone is exactly what's on the Mac, updating as it happens. Leave the app and come back and it re-seeds the live view instantly.",
   },
   {
-    icon: TerminalSquare,
-    title: "Type straight into a running agent",
+    icon: Fingerprint,
+    title: "Take control with one tap",
+    body: "A terminal is live in one place at a time. When it's active on your Mac, your phone shows a Take control button — tap it and the session hands off to your hand, keystrokes and all. Tap away on the Mac and it hands right back.",
+  },
+  {
+    icon: Keyboard,
+    title: "The keys a terminal actually needs",
     body: (
       <>
-        Tap into any terminal and start typing. Your keystrokes go to the real
-        session on your Mac, so you can answer a prompt, correct an agent, or run{" "}
-        <code className="text-xs">git status</code> — all from the couch.
+        A special-keys row sits above the keyboard: <code className="text-xs">esc</code>,{" "}
+        <code className="text-xs">tab</code>, <code className="text-xs">ctrl+C</code>,{" "}
+        arrows, enter, and paste. Answer a prompt, interrupt a run, or drive a
+        full-screen TUI without hunting for keys your phone doesn&rsquo;t have.
       </>
     ),
   },
   {
-    icon: BellRing,
-    title: "Know the moment an agent needs you",
-    body: "When Claude Code or Codex finishes or stops to ask a question, the project's status flips to Waiting on your phone. The idle time between a stall and your reply disappears.",
-  },
-  {
-    icon: Play,
-    title: "Start, stop, and switch projects",
-    body: "Browse every project from your phone, start or stop the whole stack, and toggle individual services on and off. Spin up the API before you're back at your desk so it's ready when you sit down.",
-  },
-  {
-    icon: SlidersHorizontal,
-    title: "Run actions and open terminals remotely",
-    body: "Trigger a saved action — a test run, a linter, a deploy script — or open a fresh terminal in any project. It runs on your Mac in the normal flow and shows up the next time you look.",
-  },
-  {
-    icon: Image,
-    title: "Send a screenshot to your agent",
-    body: "Snap or pick an image on your phone and drop it into the composer. lpm moves it onto your Mac and pastes the path so the agent can read it — handy for a bug screenshot or a design reference on the go.",
+    icon: MousePointerClick,
+    title: "Scroll it like a native app",
+    body: "Flick to scroll back through output with your thumb — even inside full-screen terminal apps that normally trap the mouse. The scrollback you'd reach for on the Mac is right there under your finger.",
   },
 ];
 
@@ -60,9 +49,9 @@ export default function Features() {
     <section className="py-20 sm:py-24">
       <div className="max-w-3xl mx-auto px-6">
         <SectionHeader
-          eyebrow="What you can do from your phone"
-          title="The detached-window experience, in your pocket"
-          description="Six things the lpm iOS app lets you do without walking back to your Mac."
+          eyebrow="The live terminal"
+          title="Your Mac terminals, live in your pocket"
+          description="Not a status page and not a remote desktop — the real session, streamed to your phone and ready for your thumbs."
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {FEATURES.map(({ icon, title, body }) => (
