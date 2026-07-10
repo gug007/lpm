@@ -4,6 +4,7 @@
 use crate::config::{self, Ctx, ResolveError};
 
 /// Exit-coded error for the CLI. `NotFound`/usage -> 2, everything else -> 1.
+#[derive(Debug)]
 pub enum RunError {
     NotFound(String),
     Internal(String),

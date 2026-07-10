@@ -1,15 +1,22 @@
 // Unix-socket status server — port of desktop/socket.go.
 //
-// Agents inside panes (via installed Claude/Codex hooks) connect to
-// ~/.lpm/lpm.sock and send shell-quoted text commands:
+// Agents inside panes (via installed Claude/Codex hooks) and the `lpm` CLI
+// connect to ~/.lpm/lpm.sock and send shell-quoted text commands:
 //   ping
 //   set_status <project> <key> <value> [--icon=X] [--color=X] [--priority=N] [--pid=N] [--pane=X]
 //   clear_status <project> <key>
 //   list_status <project>
+//   start_project <project> [--profile=X]
+//   stop_project <project>
+//   start_service <project> <service>
+//   stop_service <project> <service>
+//   restart_service <project> <service>
 // Each line gets a single-line reply. set_status/clear_status mutate the
 // StatusStore and emit "status-changed"; a Done/Waiting/Error transition also
-// plays the configured native notification sound (sound.rs). std::thread (no
-// tokio), matching the pty/tmux house style.
+// plays the configured native notification sound (sound.rs). The start/stop/
+// service verbs delegate to `services::*` (the app stays the single owner of
+// run-state, port forwards, and UI events) and reply OK / ERROR: <msg>.
+// std::thread (no tokio), matching the pty/tmux house style.
 use crate::status::{now_millis, StatusEntry, StatusStore};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
@@ -17,7 +24,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::sync::Arc;
 use std::time::Duration;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 /// Bind the socket and serve forever on a background thread. Failure is logged,
 /// not fatal — the rest of the app still runs (badges just stay dark).
@@ -72,8 +79,83 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "set_status" => cmd_set_status(args, store, app),
         "clear_status" => cmd_clear_status(args, store, app),
         "list_status" => cmd_list_status(args, store),
+        "start_project" => cmd_start_project(args, app),
+        "stop_project" => cmd_stop_project(args, app),
+        "start_service" => cmd_set_service(args, app, true),
+        "stop_service" => cmd_set_service(args, app, false),
+        "restart_service" => cmd_restart_service(args, app),
         _ => "ERROR: unknown command".into(),
     }
+}
+
+/// `OK` on success, `ERROR: <msg>` otherwise. Shared reply shape for the control
+/// verbs so failures pass the underlying `services::*` text straight through.
+fn reply(r: Result<(), String>) -> String {
+    match r {
+        Ok(()) => "OK".into(),
+        Err(e) => format!("ERROR: {e}"),
+    }
+}
+
+fn cmd_start_project(args: &[String], app: &AppHandle) -> String {
+    let (positional, options) = parse_options(args);
+    if positional.is_empty() {
+        return "ERROR: usage: start_project <project> [--profile=X]".into();
+    }
+    let profile = options.get("profile").cloned().unwrap_or_default();
+    reply(crate::services::start_project(
+        app.clone(),
+        app.state::<crate::services::ServiceState>(),
+        positional[0].clone(),
+        profile,
+    ))
+}
+
+fn cmd_stop_project(args: &[String], app: &AppHandle) -> String {
+    let (positional, _) = parse_options(args);
+    if positional.is_empty() {
+        return "ERROR: usage: stop_project <project>".into();
+    }
+    let project = &positional[0];
+    // Idempotent: a project whose session is already gone is treated as stopped,
+    // since `do_stop_project` would otherwise error on the missing tmux session.
+    match crate::config::spawn_info(project) {
+        Ok(info) if !crate::tmux::session_exists(&info.session) => return "OK".into(),
+        Err(e) => return format!("ERROR: {e}"),
+        _ => {}
+    }
+    reply(crate::services::stop_project_internal(
+        app,
+        &app.state::<crate::services::ServiceState>(),
+        project,
+    ))
+}
+
+fn cmd_set_service(args: &[String], app: &AppHandle, on: bool) -> String {
+    let (positional, _) = parse_options(args);
+    if positional.len() < 2 {
+        let verb = if on { "start_service" } else { "stop_service" };
+        return format!("ERROR: usage: {verb} <project> <service>");
+    }
+    reply(crate::services::set_service_running(
+        app,
+        &app.state::<crate::services::ServiceState>(),
+        &positional[0],
+        &positional[1],
+        on,
+    ))
+}
+
+fn cmd_restart_service(args: &[String], app: &AppHandle) -> String {
+    let (positional, _) = parse_options(args);
+    if positional.len() < 2 {
+        return "ERROR: usage: restart_service <project> <service>".into();
+    }
+    reply(crate::services::restart_service_by_name(
+        &app.state::<crate::services::ServiceState>(),
+        &positional[0],
+        &positional[1],
+    ))
 }
 
 fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> String {
@@ -200,5 +282,16 @@ mod tests {
         let (_, opts) = parse_options(&a);
         assert_eq!(opts.get("color").unwrap(), "");
         assert_eq!(opts.get("pane").unwrap(), "x");
+    }
+
+    #[test]
+    fn start_project_parses_profile_flag() {
+        let a: Vec<String> = ["myproj", "--profile=staging"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let (pos, opts) = parse_options(&a);
+        assert_eq!(pos, ["myproj"]);
+        assert_eq!(opts.get("profile").unwrap(), "staging");
     }
 }

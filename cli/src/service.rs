@@ -3,13 +3,21 @@
 
 use std::net::TcpListener;
 
-/// Whether something is currently listening on a local TCP port. Mirrors the
-/// app's `ports::can_bind` probe: a failed bind means the port is taken.
-fn port_listening(port: i64) -> Option<bool> {
+/// Whether something is currently listening on a local TCP port. Based on the
+/// app's `ports::can_bind` probe, but only an `AddrInUse` failure counts as
+/// "listening": a bind refused for another reason (e.g. `PermissionDenied` on a
+/// privileged port like 1, which `lpm wait --port` may be handed) is not a
+/// detectable listener, so it reads as not-listening rather than a false
+/// positive.
+pub fn port_listening(port: i64) -> Option<bool> {
     if port <= 0 || port > 65535 {
         return None;
     }
-    Some(TcpListener::bind(("127.0.0.1", port as u16)).is_err())
+    match TcpListener::bind(("127.0.0.1", port as u16)) {
+        Ok(_) => Some(false),
+        Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => Some(true),
+        Err(_) => Some(false),
+    }
 }
 
 /// Running verdict for one service.

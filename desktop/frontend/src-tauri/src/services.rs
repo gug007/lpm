@@ -166,6 +166,63 @@ pub fn stop_all(app: AppHandle, state: State<'_, ServiceState>) -> Result<(), St
     Ok(())
 }
 
+/// Drive a single service to a desired running state by NAME, idempotently.
+/// Shared by the UI toggle and the socket `start_service`/`stop_service` verbs.
+///
+/// `on`:
+/// - project not running → start it with just this service (a no-op when `!on`);
+/// - already in the target state → `Ok(())`;
+/// - turning on → split a new pane; turning off the last one → stop the project;
+///   turning off a non-last one → kill its pane.
+pub fn set_service_running(
+    app: &AppHandle,
+    state: &State<'_, ServiceState>,
+    name: &str,
+    service_name: &str,
+    on: bool,
+) -> Result<(), String> {
+    let info = config::spawn_info(name)?;
+    if !info.services.contains_key(service_name) {
+        return Err(format!("service {service_name:?} not found in project {name:?}"));
+    }
+
+    if !tmux::session_exists(&info.session) {
+        return if on {
+            do_start_with_services(app, state, name, vec![service_name.to_string()])
+        } else {
+            Ok(()) // already stopped
+        };
+    }
+
+    let running = config::resolve_running_services(&info, &state.get(name));
+    let is_running = running.iter().any(|s| s == service_name);
+    if is_running == on {
+        return Ok(()); // already in the desired state
+    }
+
+    let next = if on {
+        // turn on: split a new pane at the end
+        let svc = info.services.get(service_name).cloned().unwrap_or_default();
+        tmux::split_session_pane(&info.session, &info.root, &svc.cmd, &svc.cwd, &svc.env, ssh_of(&info))?;
+        let mut next = running.clone();
+        next.push(service_name.to_string());
+        next
+    } else if running.len() == 1 {
+        // turning off the only running service stops the whole project
+        return do_stop_project(app, state, name);
+    } else {
+        // turn off a non-last service: kill its pane (by ordinal)
+        let idx = running.iter().position(|s| s == service_name).unwrap();
+        let pane_id = resolve_pane_id(&info.session, idx)?;
+        tmux::kill_pane(&pane_id)?;
+        running.into_iter().filter(|s| s != service_name).collect()
+    };
+
+    state.set(name, RunState { profile: String::new(), services: next });
+    let _ = app.emit("projects-changed", ());
+    Ok(())
+}
+
 #[tauri::command(async)]
 pub fn toggle_project_service(
     app: AppHandle,
@@ -174,32 +231,25 @@ pub fn toggle_project_service(
     service_name: String,
 ) -> Result<(), String> {
     let info = config::spawn_info(&name)?;
-    if !tmux::session_exists(&info.session) {
-        return do_start_with_services(&app, &state, &name, vec![service_name]);
-    }
-    let running = config::resolve_running_services(&info, &state.get(&name));
+    let currently_on = tmux::session_exists(&info.session)
+        && config::resolve_running_services(&info, &state.get(&name))
+            .iter()
+            .any(|s| s == &service_name);
+    set_service_running(&app, &state, &name, &service_name, !currently_on)
+}
 
-    let next = if !running.contains(&service_name) {
-        // turn on: split a new pane at the end
-        let svc = info.services.get(&service_name).cloned().unwrap_or_default();
-        tmux::split_session_pane(&info.session, &info.root, &svc.cmd, &svc.cwd, &svc.env, ssh_of(&info))?;
-        let mut next = running.clone();
-        next.push(service_name);
-        next
-    } else if running.len() == 1 {
-        // turning off the only running service stops the whole project
-        return do_stop_project(&app, &state, &name);
-    } else {
-        // turn off a non-last service: kill its pane (by ordinal)
-        let idx = running.iter().position(|s| s == &service_name).unwrap();
-        let pane_id = resolve_pane_id(&info.session, idx)?;
-        tmux::kill_pane(&pane_id)?;
-        running.into_iter().filter(|s| s != &service_name).collect()
-    };
-
-    state.set(&name, RunState { profile: String::new(), services: next });
-    let _ = app.emit("projects-changed", ());
-    Ok(())
+/// Re-run the `idx`-th running service's command in its (cleared) pane.
+/// `running` is the resolved running-service list; `idx` indexes into it.
+fn restart_service_at(
+    info: &config::SpawnInfo,
+    running: &[String],
+    idx: usize,
+) -> Result<(), String> {
+    let svc_name = running.get(idx).ok_or_else(|| format!("pane index {idx} out of range"))?;
+    let svc = info.services.get(svc_name).cloned().unwrap_or_default();
+    let pane_id = resolve_pane_id(&info.session, idx)?;
+    // build_command lives in tmux; reuse split's command form via a fresh send.
+    tmux::restart_service_pane(&pane_id, &info.root, &svc.cwd, &svc.env, &svc.cmd, ssh_of(info))
 }
 
 #[tauri::command(async)]
@@ -211,12 +261,28 @@ pub fn start_service(
     let info = config::spawn_info(&project_name)?;
     let running = config::resolve_running_services(&info, &state.get(&project_name));
     let idx = usize::try_from(pane_index).map_err(|_| "invalid pane index".to_string())?;
-    let svc_name = running.get(idx).ok_or_else(|| format!("pane index {idx} out of range"))?;
-    let svc = info.services.get(svc_name).cloned().unwrap_or_default();
-    let pane_id = resolve_pane_id(&info.session, idx)?;
-    // Re-run the service command in its (cleared) pane. build_command lives in
-    // tmux; reuse split's command form via a fresh send.
-    tmux::restart_service_pane(&pane_id, &info.root, &svc.cwd, &svc.env, &svc.cmd, ssh_of(&info))
+    restart_service_at(&info, &running, idx)
+}
+
+/// Restart a running service by NAME (socket `restart_service`). Errors when the
+/// service is unknown or not currently running.
+pub fn restart_service_by_name(
+    state: &State<'_, ServiceState>,
+    project_name: &str,
+    service_name: &str,
+) -> Result<(), String> {
+    let info = config::spawn_info(project_name)?;
+    if !info.services.contains_key(service_name) {
+        return Err(format!(
+            "service {service_name:?} not found in project {project_name:?}"
+        ));
+    }
+    let running = config::resolve_running_services(&info, &state.get(project_name));
+    let idx = running
+        .iter()
+        .position(|s| s == service_name)
+        .ok_or_else(|| format!("service {service_name:?} is not running"))?;
+    restart_service_at(&info, &running, idx)
 }
 
 #[tauri::command(async)]
