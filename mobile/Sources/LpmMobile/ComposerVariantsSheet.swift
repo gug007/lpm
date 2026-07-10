@@ -50,7 +50,7 @@ struct ComposerVariantsSheet: View {
             .onAppear { seedDrafts() }
         }
         .presentationDetents([.large])
-        .environment(\.colorScheme, .dark)
+        .preferredColorScheme(.dark)
     }
 
     private func seedDrafts() {

@@ -656,7 +656,7 @@ struct TerminalScreen: View {
             }
         }
             .padding(.bottom, keyboard.height)
-            .background(SwiftUI.Color.black)
+            .background(SwiftUI.Color.black.ignoresSafeArea(.all, edges: .all))
             .animation(.easeOut(duration: keyboard.duration), value: keyboard.height)
             .ignoresSafeArea(.keyboard, edges: .bottom)
             .navigationTitle(term.label)

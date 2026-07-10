@@ -79,7 +79,7 @@ struct ComposerActionsSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
-        .environment(\.colorScheme, .dark)
+        .preferredColorScheme(.dark)
     }
 
     private let freeformKey = "__freeform__"

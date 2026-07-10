@@ -141,6 +141,6 @@ private struct AttachmentPreview: View {
             }
             .navigationBarTitleDisplayMode(.inline)
         }
-        .environment(\.colorScheme, .dark)
+        .preferredColorScheme(.dark)
     }
 }

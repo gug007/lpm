@@ -48,7 +48,7 @@ struct HistoryScreen: View {
             .safeAreaInset(edge: .top, spacing: 0) { filterBar }
             .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always))
         }
-        .environment(\.colorScheme, .dark)
+        .preferredColorScheme(.dark)
         .onAppear { model.loadHistoryFolders() }
         .onDisappear { model.historyScreenDidClose() }
         .onChange(of: filter) { _, _ in reload() }

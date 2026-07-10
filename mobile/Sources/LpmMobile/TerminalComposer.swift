@@ -22,6 +22,7 @@ struct TerminalComposer: View {
     @State private var showFiles = false
     @State private var showHistory = false
     @State private var showActions = false
+    @State private var showRewriteHint = false
     @State private var dupSeed: DupSeed?
     @State private var sendWarning: String?
     @State private var pendingLog: PendingLog?
@@ -197,14 +198,23 @@ struct TerminalComposer: View {
     private var inputRow: some View {
         HStack(alignment: .bottom, spacing: 8) {
             plusMenu
-            Button { showActions = true } label: {
+            Button {
+                if canRewrite { showActions = true } else { showRewriteHint = true }
+            } label: {
                 Image(systemName: "sparkles")
                     .font(.system(size: 22))
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(canRewrite ? SwiftUI.Color.accentColor : SwiftUI.Color.secondary)
                     .frame(width: 30, height: 38)
             }
-            .disabled(!canRewrite)
+            .disabled(store.transforming)
+            .popover(isPresented: $showRewriteHint, arrowEdge: .bottom) {
+                Text("Type a message first — then tap to rewrite it with AI.")
+                    .font(.footnote)
+                    .padding(12)
+                    .presentationCompactAdaptation(.popover)
+                    .preferredColorScheme(.dark)
+            }
 
             field
 
