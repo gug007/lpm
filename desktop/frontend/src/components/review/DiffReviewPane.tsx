@@ -642,20 +642,24 @@ export function DiffReviewPane({
 
   return (
     <div ref={rootRef} className="flex h-full min-h-0 flex-col bg-[var(--bg-primary)]">
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-[var(--border)] px-2.5">
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-secondary)]/20 px-3">
         <DiffSourceModeToggle mode={mode} onChange={setMode} />
         <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-muted)]">
-          {viewMode === "all" ? "All files" : selectedPath ?? "Review"}
+          {viewMode === "single" ? selectedPath ?? "Select a file" : ""}
         </span>
         <SegmentedControl
           value={sideBySide ? "split" : "unified"}
           options={VIEW_OPTIONS}
           onChange={(v) => setSideBySide(v === "split")}
+          variant="subtle"
+          ariaLabel="Diff layout"
         />
         <SegmentedControl
           value={viewMode}
           options={PANE_VIEW_OPTIONS}
           onChange={(v) => setViewMode(v as PaneViewMode)}
+          variant="subtle"
+          ariaLabel="File view"
         />
         {viewMode === "single" && activeEditable && activeDirty && (
           <button
@@ -673,6 +677,7 @@ export function DiffReviewPane({
           onZoom={zoomBy}
           onReset={zoomReset}
         />
+        <div className="h-4 w-px shrink-0 bg-[var(--border)]" />
         <Tooltip content="Refresh changes" side="bottom">
           <button
             onClick={() => refresh()}

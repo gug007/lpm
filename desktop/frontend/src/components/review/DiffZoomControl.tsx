@@ -10,7 +10,7 @@ interface DiffZoomControlProps {
 }
 
 const btn =
-  "flex h-7 w-6 shrink-0 items-center justify-center rounded-md text-sm leading-none text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--text-muted)]";
+  "flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-sm leading-none text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--text-muted)]";
 
 export function DiffZoomControl({
   fontSize,
@@ -22,7 +22,7 @@ export function DiffZoomControl({
 }: DiffZoomControlProps) {
   const pct = Math.round((fontSize / baseFontSize) * 100);
   return (
-    <div className="flex shrink-0 items-center">
+    <div className="flex shrink-0 items-center rounded-lg bg-[var(--bg-secondary)]/70 p-0.5">
       <Tooltip content="Zoom out" side="bottom">
         <button
           onClick={() => onZoom(-1)}
@@ -37,7 +37,7 @@ export function DiffZoomControl({
         <button
           onClick={onReset}
           aria-label="Reset zoom"
-          className="h-7 min-w-[3.25rem] rounded-md px-1 text-[11px] tabular-nums text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          className="h-6 min-w-[2.75rem] rounded-md px-1 text-[10px] font-medium tabular-nums text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         >
           {pct}%
         </button>

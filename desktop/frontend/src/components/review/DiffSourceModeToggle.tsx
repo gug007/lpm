@@ -9,5 +9,13 @@ interface DiffSourceModeToggleProps {
 }
 
 export function DiffSourceModeToggle({ mode, onChange }: DiffSourceModeToggleProps) {
-  return <SegmentedControl value={mode} options={OPTIONS} onChange={onChange} />;
+  return (
+    <SegmentedControl
+      value={mode}
+      options={OPTIONS}
+      onChange={onChange}
+      variant="subtle"
+      ariaLabel="Change source"
+    />
+  );
 }
