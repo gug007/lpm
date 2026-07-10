@@ -436,22 +436,30 @@ final class LpmClient: NSObject {
     private func receiveLoop(_ task: URLSessionWebSocketTask) {
         task.receive { [weak self] result in
             guard let self else { return }
-            self.main {
-                guard task === self.task else { return } // a superseded task's callback
-                switch result {
-                case .failure:
+            switch result {
+            case .failure:
+                self.main {
+                    guard task === self.task else { return } // a superseded task's callback
                     self.transientFailure("disconnected")
-                case .success(let message):
-                    if case .string(let text) = message { self.handle(text) }
+                }
+            case .success(let message):
+                // Parse off the main thread — this completion runs on URLSession's
+                // background serial callback queue, and parse (text → JSON → value
+                // structs) touches nothing @MainActor. Then hop to main only to
+                // dispatch the already-parsed frame. The serial callback queue plus
+                // the ordered main.async preserves frame order exactly.
+                let frame: Wire.Inbound? = { if case .string(let text) = message { return Wire.Inbound.parse(text) } else { return nil } }()
+                self.main {
+                    guard task === self.task else { return } // a superseded task's callback
+                    if let frame { self.dispatch(frame) }
                     self.receiveLoop(task)
                 }
             }
         }
     }
 
-    /// Handle one inbound frame. Always called on the main queue (from receiveLoop).
-    private func handle(_ text: String) {
-        let frame = Wire.Inbound.parse(text)
+    /// Dispatch one parsed inbound frame. Always called on the main queue.
+    private func dispatch(_ frame: Wire.Inbound) {
         switch frame {
             case .paired(let deviceId, let token):
                 self.credential = Credential(deviceId: deviceId, token: token)

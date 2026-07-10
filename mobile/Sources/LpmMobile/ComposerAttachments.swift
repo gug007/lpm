@@ -5,19 +5,27 @@ import SwiftUI
 /// (spinner / failed), and a remove button; tapping opens a preview. The Mac path
 /// each upload returns is held on the chip and appended to the message on send —
 /// it never appears in the text field.
-struct ComposerAttachments: View {
-    @ObservedObject var store: ComposerStore
+struct ComposerAttachments: View, Equatable {
+    let attachments: [Attachment]
+    let onRetry: (UUID) -> Void
+    let onRemove: (UUID) -> Void
     @State private var previewing: Attachment?
 
+    // Only re-render when the chips' rendered content actually changes (add/remove,
+    // upload state, thumbnail arrival) — not on every keystroke that re-runs the
+    // parent composer body. Closures are excluded from the comparison.
+    static func == (a: ComposerAttachments, b: ComposerAttachments) -> Bool {
+        a.attachments.map(\.renderToken) == b.attachments.map(\.renderToken)
+    }
+
     var body: some View {
-        let attachments = store.attachments
         if !attachments.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(attachments) { att in
                         AttachmentChip(attachment: att,
-                                       onTap: { att.isFailed ? store.retryUpload(att.id) : (previewing = att) },
-                                       onRemove: { store.removeAttachment(att.id) })
+                                       onTap: { att.isFailed ? onRetry(att.id) : (previewing = att) },
+                                       onRemove: { onRemove(att.id) })
                     }
                 }
                 .padding(.horizontal, 12)

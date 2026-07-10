@@ -161,17 +161,24 @@
 
   // Swift → JS bridge. Output is base64(UTF-8) to survive the evaluateJavaScript
   // string boundary without escaping headaches.
-  function b64ToStr(b64) {
+  function b64ToBytes(b64) {
     const bin = atob(b64);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return new TextDecoder('utf-8').decode(bytes);
+    return bytes;
+  }
+  function b64ToStr(b64) {
+    return new TextDecoder('utf-8').decode(b64ToBytes(b64));
   }
   // Time of the last server write, so submit can wait for the terminal to settle
   // after a paste before sending the submitting CR (see lpmSubmit).
+  //
+  // Output goes to term.write as a Uint8Array: xterm's WriteBuffer decodes UTF-8
+  // internally (same decoder path), so wide chars / emoji render identically while
+  // skipping a full TextDecoder pass + intermediate JS string on every chunk.
   let lastOutputAt = 0;
-  window.lpmFeed = b64 => { lastOutputAt = performance.now(); term.write(b64ToStr(b64)); };
-  window.lpmSeed = b64 => { lastOutputAt = performance.now(); term.reset(); term.write(b64ToStr(b64)); refit(); };
+  window.lpmFeed = b64 => { lastOutputAt = performance.now(); term.write(b64ToBytes(b64)); };
+  window.lpmSeed = b64 => { lastOutputAt = performance.now(); term.reset(); term.write(b64ToBytes(b64)); refit(); };
   window.lpmSetTopInset = px => document.documentElement.style.setProperty('--top-inset', px + 'px');
 
   // Return the last `n` lines of the terminal buffer (viewport + scrollback) as

@@ -129,6 +129,9 @@ struct WebTerminalView: UIViewRepresentable {
         private var lastCols = 0
         private var lastRows = 0
         private var wasControlled = false
+        // The top inset last pushed to the page, so an unchanged inset (the common
+        // updateUIView case) skips a redundant cross-process evaluateJavaScript.
+        private var lastAppliedInset = Int.min
 
         init(model: AppModel, termId: String) { self.model = model; self.termId = termId }
 
@@ -207,7 +210,10 @@ struct WebTerminalView: UIViewRepresentable {
         func applyTopInset(_ inset: CGFloat) {
             topInset = inset
             guard ready else { return }
-            web?.evaluateJavaScript("window.lpmSetTopInset(\(Int(inset)))")
+            let px = Int(inset)
+            guard px != lastAppliedInset else { return }
+            lastAppliedInset = px
+            web?.evaluateJavaScript("window.lpmSetTopInset(\(px))")
         }
 
         func userContentController(_ c: WKUserContentController, didReceive msg: WKScriptMessage) {
@@ -223,6 +229,7 @@ struct WebTerminalView: UIViewRepresentable {
                 }
             case "ready":
                 ready = true
+                lastAppliedInset = Int(topInset)
                 web?.evaluateJavaScript("window.lpmSetTopInset(\(Int(topInset)))")
                 // Seed first (full snapshot), then any output that arrived after it.
                 // No auto-focus: opening a terminal shouldn't raise the keyboard —

@@ -31,6 +31,18 @@ struct Attachment: Identifiable {
     }
     var isPending: Bool { if case .uploading = status { return true }; return false }
     var isFailed: Bool { if case .failed = status { return true }; return false }
+
+    /// A compact value that changes whenever anything the chips render changes,
+    /// for cheap Equatable diffing of the attachments row.
+    var renderToken: String {
+        let state: String
+        switch status {
+        case .uploading: state = "u"
+        case .uploaded(let p): state = "d:" + p
+        case .failed(let e): state = "f:" + e
+        }
+        return "\(id.uuidString)|\(state)|\(thumbnail == nil ? 0 : 1)"
+    }
 }
 
 /// One prepared prompt: its own text and attachments. Terminals can hold several
@@ -158,43 +170,101 @@ final class ComposerStore: ObservableObject {
 
     // MARK: attachments
 
+    /// Append an image placeholder chip (main, in call order so multi-select keeps
+    /// selection order) and return its id; the caller fills it once encoded.
+    @discardableResult
+    func reserveImagePlaceholder() -> UUID {
+        let att = Attachment(kind: .image, filename: "image.jpg", mime: "image/jpeg", thumbnail: nil)
+        if tabs.indices.contains(activeIndex) { tabs[activeIndex].attachments.append(att) }
+        return att.id
+    }
+
+    /// A camera/clipboard image: reserve its chip, then downscale + JPEG-encode off
+    /// the main thread before sending.
     func addImage(_ image: UIImage) {
-        guard let jpeg = image.downscaledForUpload(maxDimension: 2048).jpegData(compressionQuality: 0.7) else { return }
-        var att = Attachment(kind: .image, filename: "image.jpg", mime: "image/jpeg",
-                             thumbnail: image.downscaledForUpload(maxDimension: 240))
-        startUpload(&att, base64: jpeg.base64EncodedString(), mime: "image/jpeg", name: nil)
+        let id = reserveImagePlaceholder()
+        encodeImageOffMain(id, image: image)
+    }
+
+    /// Fill a reserved placeholder from Photos-picker Data: decode + encode all off
+    /// the main thread so a 10-photo selection never serializes on it.
+    func fillImageUpload(_ id: UUID, data: Data?) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let result = data.flatMap { UIImage(data: $0) }.flatMap { Self.encodeImageForUpload($0) }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if let result { self.beginUpload(id, b64: result.b64, mime: "image/jpeg", name: nil, thumbnail: result.thumb) }
+                // Encode failed before any upload existed — nothing to retry, so
+                // drop the placeholder (the pre-placeholder behavior).
+                else { self.removeAttachment(id) }
+            }
+        }
+    }
+
+    private func encodeImageOffMain(_ id: UUID, image: UIImage) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let result = Self.encodeImageForUpload(image)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if let result { self.beginUpload(id, b64: result.b64, mime: "image/jpeg", name: nil, thumbnail: result.thumb) }
+                else { self.removeAttachment(id) }
+            }
+        }
+    }
+
+    /// Downscale + JPEG-encode + base64 + build a thumbnail — pure CPU work, safe to
+    /// run off the actor.
+    private nonisolated static func encodeImageForUpload(_ image: UIImage) -> (b64: String, thumb: UIImage)? {
+        guard let b64 = image.downscaledForUpload(maxDimension: 2048)
+            .jpegData(compressionQuality: 0.7)?.base64EncodedString() else { return nil }
+        return (b64, image.downscaledForUpload(maxDimension: 240))
     }
 
     func addFile(_ url: URL) {
-        let scoped = url.startAccessingSecurityScopedResource()
-        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        guard let data = try? Data(contentsOf: url) else { return }
         let name = url.lastPathComponent
         let mime = (UTType(filenameExtension: url.pathExtension)?.preferredMIMEType) ?? "application/octet-stream"
-        var att = Attachment(kind: .file, filename: name, mime: mime, thumbnail: nil)
-        startUpload(&att, base64: data.base64EncodedString(), mime: mime, name: name)
+        let att = Attachment(kind: .file, filename: name, mime: mime, thumbnail: nil)
+        let id = att.id
+        if tabs.indices.contains(activeIndex) { tabs[activeIndex].attachments.append(att) }
+        // Read + base64-encode off the main thread (a large file blocks it otherwise).
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let scoped = url.startAccessingSecurityScopedResource()
+            let b64 = (try? Data(contentsOf: url))?.base64EncodedString()
+            if scoped { url.stopAccessingSecurityScopedResource() }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if let b64 { self.beginUpload(id, b64: b64, mime: mime, name: name, thumbnail: nil) }
+                else { self.removeAttachment(id) }
+            }
+        }
     }
 
-    /// Append the chip and fire its upload, tagged with a fresh reqId the server
-    /// echoes so the reply matches this exact chip regardless of arrival order.
-    private func startUpload(_ att: inout Attachment, base64: String, mime: String, name: String?) {
-        guard tabs.indices.contains(activeIndex) else { return }
+    /// Set the chip's thumbnail and fire its upload (main). Called after encoding.
+    private func beginUpload(_ id: UUID, b64: String, mime: String, name: String?, thumbnail: UIImage?) {
+        if let thumbnail { updateAttachment(id) { $0.thumbnail = thumbnail } }
+        dispatchUpload(id, b64: b64, mime: mime, name: name)
+    }
+
+    /// Tag the chip with a fresh reqId the server echoes (so the reply matches this
+    /// exact chip regardless of arrival order), retain the payload for retry, record
+    /// FIFO order (old-server fallback), and send.
+    private func dispatchUpload(_ id: UUID, b64: String, mime: String, name: String?) {
         let reqId = UUID().uuidString
-        att.reqId = reqId
-        uploadPayloads[att.id] = (base64, mime, name)
-        pendingOrder.append(att.id)
-        tabs[activeIndex].attachments.append(att)
-        model?.sendUpload(termId, b64: base64, mime: mime, name: name, reqId: reqId)
+        uploadPayloads[id] = (b64, mime, name)
+        pendingOrder.append(id)
+        updateAttachment(id) { att in att.status = .uploading; att.reqId = reqId }
+        model?.sendUpload(termId, b64: b64, mime: mime, name: name, reqId: reqId)
+    }
+
+    private func failUpload(_ id: UUID) {
+        updateAttachment(id) { $0.status = .failed("Upload failed") }
     }
 
     /// Retry a failed upload with its retained payload and a new reqId (so a late
     /// reply for the prior attempt can't mis-resolve this chip).
     func retryUpload(_ id: UUID) {
         guard let payload = uploadPayloads[id] else { return }
-        let reqId = UUID().uuidString
-        pendingOrder.append(id)
-        updateAttachment(id) { att in att.status = .uploading; att.reqId = reqId }
-        model?.sendUpload(termId, b64: payload.b64, mime: payload.mime, name: payload.name, reqId: reqId)
+        dispatchUpload(id, b64: payload.b64, mime: payload.mime, name: payload.name)
     }
 
     func removeAttachment(_ id: UUID) {

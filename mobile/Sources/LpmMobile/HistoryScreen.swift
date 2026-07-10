@@ -228,12 +228,16 @@ struct HistoryScreen: View {
         return base.isEmpty ? paths : item.text + (item.text.hasSuffix(" ") ? "" : " ") + paths
     }
 
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .abbreviated
+        return f
+    }()
+
     private func relativeTime(_ millis: Int) -> String {
         guard millis > 0 else { return "" }
         let date = Date(timeIntervalSince1970: Double(millis) / 1000)
-        let fmt = RelativeDateTimeFormatter()
-        fmt.unitsStyle = .abbreviated
-        return fmt.localizedString(for: date, relativeTo: Date())
+        return Self.relativeFormatter.localizedString(for: date, relativeTo: Date())
     }
 }
 

@@ -26,6 +26,12 @@ struct TerminalComposer: View {
     @State private var dupSeed: DupSeed?
     @State private var sendWarning: String?
     @State private var pendingLog: PendingLog?
+    // Memoized @-mention results: the expensive filter over the (unbounded) source
+    // arrays runs once per mention-fragment change into these, instead of ~6× per
+    // keystroke via the menu args / animation values.
+    @State private var cachedMentionFiles: [MentionEntry] = []
+    @State private var cachedBranches: [GitBranch] = []
+    @State private var cachedServices: [ServiceInfo] = []
     @FocusState private var focused: Bool
 
     private var termId: String { store.termId }
@@ -79,32 +85,33 @@ struct TerminalComposer: View {
         return String(frag)
     }
     private var mentionActive: Bool { mentionQuery != nil }
-    private var changedMentions: [MentionEntry] {
-        filteredMentions.filter { $0.changed }
+    // Derived by partitioning the cached ≤50 result (cheap); source order preserved,
+    // Changes before Files — same grouping/ordering as before.
+    private var changedMentions: [MentionEntry] { cachedMentionFiles.filter { $0.changed } }
+    private var fileMentions: [MentionEntry] { cachedMentionFiles.filter { !$0.changed } }
+    private var hasMentionContent: Bool {
+        !cachedMentionFiles.isEmpty || !cachedBranches.isEmpty || !cachedServices.isEmpty || mentionActive
     }
-    private var fileMentions: [MentionEntry] {
-        filteredMentions.filter { !$0.changed }
-    }
-    private var filteredMentions: [MentionEntry] {
-        guard let q = mentionQuery else { return [] }
+
+    /// Recompute the memoized mention results from the current fragment + sources.
+    /// Runs on fragment change and when a source array loads — not per keystroke.
+    private func recomputeMentions() {
+        guard let q = mentionQuery else {
+            cachedMentionFiles = []; cachedBranches = []; cachedServices = []
+            return
+        }
         let all = model.mentions[project] ?? []
         let hits = q.isEmpty ? all : all.filter { $0.path.localizedCaseInsensitiveContains(q) }
-        return Array(hits.prefix(50))
-    }
-    // Branches only surface once a fragment is typed (desktop behavior).
-    private var branchMentions: [GitBranch] {
-        guard let q = mentionQuery, !q.isEmpty else { return [] }
-        let all = model.gitBranches[project] ?? []
-        return Array(all.filter { $0.name.localizedCaseInsensitiveContains(q) }.prefix(20))
-    }
-    private var serviceMentions: [ServiceInfo] {
-        guard let q = mentionQuery else { return [] }
-        let all = (model.services[project] ?? []).filter { $0.running && $0.paneIndex != nil }
-        return q.isEmpty ? all : all.filter { $0.name.localizedCaseInsensitiveContains(q) }
-    }
-    private var hasMentionContent: Bool {
-        !changedMentions.isEmpty || !fileMentions.isEmpty || !branchMentions.isEmpty
-            || !serviceMentions.isEmpty || mentionActive
+        cachedMentionFiles = Array(hits.prefix(50))
+        // Branches only surface once a fragment is typed (desktop behavior).
+        if q.isEmpty {
+            cachedBranches = []
+        } else {
+            let allBranches = model.gitBranches[project] ?? []
+            cachedBranches = Array(allBranches.filter { $0.name.localizedCaseInsensitiveContains(q) }.prefix(20))
+        }
+        let running = (model.services[project] ?? []).filter { $0.running && $0.paneIndex != nil }
+        cachedServices = q.isEmpty ? running : running.filter { $0.name.localizedCaseInsensitiveContains(q) }
     }
 
     private var sendState: ComposerStore.SendState { store.sendState() }
@@ -115,9 +122,75 @@ struct TerminalComposer: View {
         }
     }
 
+    // Stable per-tab summaries for the (Equatable) strip. The active tab's preview
+    // is blank so typing into it doesn't invalidate the strip every keystroke.
+    private var tabStripItems: [TabStripItem] {
+        store.tabs.enumerated().map { index, tab in
+            TabStripItem(id: tab.id,
+                         preview: index == store.activeIndex ? "" : tab.preview,
+                         attachmentCount: tab.attachments.count)
+        }
+    }
+
     private func key(_ seq: String) { model.input(termId, seq) }
 
     var body: some View {
+        composerStack
+            .background(ground)
+            .environment(\.colorScheme, .dark)
+            .animation(.easeOut(duration: 0.12), value: slashMatches.count)
+            .animation(.easeOut(duration: 0.12), value: hasMentionContent)
+            .animation(.easeOut(duration: 0.15), value: store.transforming)
+            .onAppear {
+                model.loadSlash(termId, project: project)
+                model.loadMentions(project)
+                model.loadComposerActions()
+                model.loadServices(project)
+                model.loadGitBranches(project)
+            }
+            .onChange(of: photoItems) { _, items in if !items.isEmpty { loadPhotos(items) } }
+            .onChange(of: model.serviceLogsResult) { _, _ in flushPendingLog() }
+            // Recompute memoized mentions on fragment change or a source load.
+            .onChange(of: mentionQuery) { _, _ in recomputeMentions() }
+            .onChange(of: mentionsCount) { _, _ in if mentionActive { recomputeMentions() } }
+            .onChange(of: branchesCount) { _, _ in if mentionActive { recomputeMentions() } }
+            .onChange(of: servicesCount) { _, _ in if mentionActive { recomputeMentions() } }
+            .photosPicker(isPresented: $showPhotoPicker, selection: $photoItems,
+                          maxSelectionCount: 10, matching: .images, photoLibrary: .shared())
+            .fileImporter(isPresented: $showFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
+                if case .success(let urls) = result { for u in urls { store.addFile(u) } }
+            }
+            .sheet(isPresented: $showCamera) {
+                CameraPicker { image in store.addImage(image) }.ignoresSafeArea()
+            }
+            .sheet(isPresented: $showHistory) {
+                HistoryScreen(project: project,
+                              onLoad: { text in store.text = text; focused = true },
+                              onSendNow: { text in sendRaw(text) })
+                    .environmentObject(model)
+            }
+            .sheet(isPresented: $showActions) {
+                ComposerActionsSheet(store: store).environmentObject(model)
+            }
+            .sheet(isPresented: $store.showVariants, onDismiss: { store.variantsSheetDismissed() }) {
+                ComposerVariantsSheet(store: store)
+            }
+            .sheet(item: $dupSeed) { seed in dupSheet(seed) }
+            .modifier(ComposerAlerts(sendWarning: $sendWarning, transformError: $store.transformError))
+    }
+
+    @ViewBuilder private func dupSheet(_ seed: DupSeed) -> some View {
+        if let proj = model.projects.first(where: { $0.name == project }) {
+            DuplicateOptionsView(project: proj, defaults: model.duplicateDefaults,
+                                 seedPrompt: seed.prompt, seedCount: max(1, seed.count - 1)) { options in
+                model.duplicateProject(proj, options: options)
+                // The current terminal is copy #1: run the same prompt here.
+                sendRaw(seed.prompt)
+            }
+        }
+    }
+
+    @ViewBuilder private var composerStack: some View {
         VStack(spacing: 0) {
             if store.transforming {
                 transformLockBar
@@ -128,70 +201,30 @@ struct TerminalComposer: View {
             } else if mentionActive && hasMentionContent {
                 ComposerMentionMenu(
                     changed: changedMentions, files: fileMentions,
-                    branches: branchMentions, services: serviceMentions,
+                    branches: cachedBranches, services: cachedServices,
                     pickPath: pickPath, pickBranch: pickBranch,
                     pickTerminalOutput: pickTerminalOutput, pickServiceLog: pickServiceLog)
                 Divider().opacity(0.5)
             }
-            ComposerTabStrip(store: store)
-            ComposerAttachments(store: store)
+            ComposerTabStrip(items: tabStripItems, activeIndex: store.activeIndex,
+                             onSwitch: { store.switchTab($0) },
+                             onClose: { store.closeTab($0) })
+                .equatable()
+            ComposerAttachments(attachments: store.attachments,
+                                onRetry: { store.retryUpload($0) },
+                                onRemove: { store.removeAttachment($0) })
+                .equatable()
             SpecialKeyBar(key: key, onPaste: pasteClipboard)
             Divider().opacity(0.5)
             inputRow
         }
-        .background(ground)
-        .environment(\.colorScheme, .dark)
-        .animation(.easeOut(duration: 0.12), value: slashMatches.count)
-        .animation(.easeOut(duration: 0.12), value: hasMentionContent)
-        .animation(.easeOut(duration: 0.15), value: store.transforming)
-        .onAppear {
-            model.loadSlash(termId, project: project)
-            model.loadMentions(project)
-            model.loadComposerActions()
-            model.loadServices(project)
-            model.loadGitBranches(project)
-        }
-        .onChange(of: photoItems) { _, items in if !items.isEmpty { loadPhotos(items) } }
-        .onChange(of: model.serviceLogsResult) { _, _ in flushPendingLog() }
-        .photosPicker(isPresented: $showPhotoPicker, selection: $photoItems,
-                      maxSelectionCount: 10, matching: .images, photoLibrary: .shared())
-        .fileImporter(isPresented: $showFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
-            if case .success(let urls) = result { for u in urls { store.addFile(u) } }
-        }
-        .sheet(isPresented: $showCamera) {
-            CameraPicker { image in store.addImage(image) }.ignoresSafeArea()
-        }
-        .sheet(isPresented: $showHistory) {
-            HistoryScreen(project: project,
-                          onLoad: { text in store.text = text; focused = true },
-                          onSendNow: { text in sendRaw(text) })
-                .environmentObject(model)
-        }
-        .sheet(isPresented: $showActions) {
-            ComposerActionsSheet(store: store).environmentObject(model)
-        }
-        .sheet(isPresented: $store.showVariants, onDismiss: { store.variantsSheetDismissed() }) {
-            ComposerVariantsSheet(store: store)
-        }
-        .sheet(item: $dupSeed) { seed in
-            if let proj = model.projects.first(where: { $0.name == project }) {
-                DuplicateOptionsView(project: proj, defaults: model.duplicateDefaults,
-                                     seedPrompt: seed.prompt, seedCount: max(1, seed.count - 1)) { options in
-                    model.duplicateProject(proj, options: options)
-                    // The current terminal is copy #1: run the same prompt here.
-                    sendRaw(seed.prompt)
-                }
-            }
-        }
-        .alert("Heads up", isPresented: Binding(
-            get: { sendWarning != nil }, set: { if !$0 { sendWarning = nil } })) {
-            Button("OK", role: .cancel) { sendWarning = nil }
-        } message: { Text(sendWarning ?? "") }
-        .alert("Rewrite failed", isPresented: Binding(
-            get: { store.transformError != nil }, set: { if !$0 { store.transformError = nil } })) {
-            Button("OK", role: .cancel) { store.transformError = nil }
-        } message: { Text(store.transformError ?? "") }
     }
+
+    // Cheap Int change-proxies for the @Published source dicts, so the mention
+    // recompute hooks key off a simple property (not a subscript+coalesce expr).
+    private var mentionsCount: Int { model.mentions[project]?.count ?? 0 }
+    private var branchesCount: Int { model.gitBranches[project]?.count ?? 0 }
+    private var servicesCount: Int { model.services[project]?.count ?? 0 }
 
     // MARK: input row
 
@@ -417,12 +450,13 @@ struct TerminalComposer: View {
     }
 
     private func loadPhotos(_ items: [PhotosPickerItem]) {
-        for item in items {
+        // Reserve ordered placeholder chips on main so they keep selection order,
+        // even though the loads/encodes below finish in arbitrary order.
+        let ids = items.map { _ in store.reserveImagePlaceholder() }
+        for (item, id) in zip(items, ids) {
             Task {
-                if let data = try? await item.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data) {
-                    await MainActor.run { store.addImage(image) }
-                }
+                let data = try? await item.loadTransferable(type: Data.self)
+                await MainActor.run { store.fillImageUpload(id, data: data) }
             }
         }
         photoItems = []
@@ -435,6 +469,25 @@ private struct DupSeed: Identifiable {
     let id = UUID()
     let count: Int
     let prompt: String
+}
+
+/// The composer's two one-shot alerts, factored out of the body to keep its
+/// modifier chain small enough for the Swift type-checker.
+private struct ComposerAlerts: ViewModifier {
+    @Binding var sendWarning: String?
+    @Binding var transformError: String?
+
+    func body(content: Content) -> some View {
+        content
+            .alert("Heads up", isPresented: Binding(
+                get: { sendWarning != nil }, set: { if !$0 { sendWarning = nil } })) {
+                Button("OK", role: .cancel) { sendWarning = nil }
+            } message: { Text(sendWarning ?? "") }
+            .alert("Rewrite failed", isPresented: Binding(
+                get: { transformError != nil }, set: { if !$0 { transformError = nil } })) {
+                Button("OK", role: .cancel) { transformError = nil }
+            } message: { Text(transformError ?? "") }
+    }
 }
 
 /// A service-logs mention awaiting its reply, so the composer can inject it inline

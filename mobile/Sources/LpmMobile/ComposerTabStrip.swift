@@ -3,20 +3,38 @@ import SwiftUI
 /// A compact strip of prompt tabs above the composer, shown only when a terminal
 /// holds 2+ prepared prompts. Each chip previews its prompt and switches to it on
 /// tap; the × closes it. New tabs are created from the composer's + menu.
-struct ComposerTabStrip: View {
-    @ObservedObject var store: ComposerStore
+/// A prepared tab summary for the strip. The active tab's `preview` is intentionally
+/// blank so typing into it (which changes its text every keystroke) doesn't
+/// invalidate the strip — the active prompt is already visible in the editor below.
+struct TabStripItem: Equatable, Identifiable {
+    let id: UUID
+    let preview: String
+    let attachmentCount: Int
+}
+
+struct ComposerTabStrip: View, Equatable {
+    let items: [TabStripItem]
+    let activeIndex: Int
+    let onSwitch: (Int) -> Void
+    let onClose: (Int) -> Void
+
+    // Re-render only when the tab set / active tab / attachment counts change, not
+    // on every keystroke re-running the parent body. Closures aren't compared.
+    static func == (a: ComposerTabStrip, b: ComposerTabStrip) -> Bool {
+        a.items == b.items && a.activeIndex == b.activeIndex
+    }
 
     var body: some View {
-        if store.tabs.count > 1 {
+        if items.count > 1 {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
-                    ForEach(Array(store.tabs.enumerated()), id: \.element.id) { index, tab in
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         TabChip(index: index,
-                                preview: tab.preview,
-                                active: index == store.activeIndex,
-                                attachmentCount: tab.attachments.count,
-                                onTap: { store.switchTab(index) },
-                                onClose: { withAnimation(.easeOut(duration: 0.15)) { store.closeTab(index) } })
+                                preview: item.preview,
+                                active: index == activeIndex,
+                                attachmentCount: item.attachmentCount,
+                                onTap: { onSwitch(index) },
+                                onClose: { withAnimation(.easeOut(duration: 0.15)) { onClose(index) } })
                     }
                 }
                 .padding(.horizontal, 12)
