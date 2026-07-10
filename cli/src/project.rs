@@ -169,11 +169,11 @@ pub fn run(ctx: &Ctx, name: &str, as_json: bool) -> Result<(), RunError> {
     } else {
         Vec::new()
     };
-    let hist = terminals::history(&ctx.terminals_path(), &project.file_name, HISTORY_LIMIT);
     // Status is keyed by LPM_PROJECT_NAME == the project file-name stem.
     let status = statussock::list_status(&ctx.socket_path(), &project.file_name);
 
     if as_json {
+        let hist = terminals::history(&ctx.terminals_path(), &project.file_name, HISTORY_LIMIT);
         print!(
             "{}",
             render_json(&project, session_running, &panes, &hist, status.as_deref())
@@ -184,14 +184,7 @@ pub fn run(ctx: &Ctx, name: &str, as_json: bool) -> Result<(), RunError> {
         };
         print!(
             "{}",
-            render_human(
-                &style,
-                &project,
-                session_running,
-                &panes,
-                &hist,
-                status.as_deref()
-            )
+            render_human(&style, &project, session_running, &panes, status.as_deref())
         );
     }
     Ok(())
@@ -325,7 +318,6 @@ fn render_human(
     p: &ResolvedProject,
     session_running: bool,
     panes: &[Pane],
-    hist: &[HistoryEntry],
     status: Option<&[StatusEntry]>,
 ) -> String {
     let now = now_millis();
@@ -421,25 +413,6 @@ fn render_human(
     }
     for t in &p.terminals {
         render_action_line(s, &mut o, t, 1);
-    }
-    if !hist.is_empty() {
-        o.push_str(&format!("  {}\n", s.dim("recent history:")));
-        for h in hist {
-            let label = if h.label.is_empty() {
-                h.action_name.clone()
-            } else {
-                h.label.clone()
-            };
-            o.push_str(&format!(
-                "    {}  {}  {}\n",
-                s.yellow(&label),
-                s.dim(&format!("[{}]", h.action_name)),
-                s.dim(&relative(h.closed_at, now)),
-            ));
-            if !h.resume_cmd.is_empty() {
-                o.push_str(&format!("      {} {}\n", s.dim("resume"), h.resume_cmd));
-            }
-        }
     }
 
     // ---- actions ----
@@ -558,5 +531,25 @@ mod tests {
         assert!(service_status(0, true).running);
         assert!(!service_status(0, false).running);
         assert_eq!(service_status(0, true).source, "session");
+    }
+
+    #[test]
+    fn human_output_omits_recent_history() {
+        let project = ResolvedProject {
+            file_name: "lpm".into(),
+            session: "lpm".into(),
+            root: "/tmp/lpm".into(),
+            label: String::new(),
+            is_remote: false,
+            parent_name: String::new(),
+            services: Vec::new(),
+            profiles: Default::default(),
+            terminals: Vec::new(),
+            actions: Vec::new(),
+        };
+
+        let output = render_human(&Style { on: false }, &project, false, &[], None);
+
+        assert!(!output.contains("recent history:"));
     }
 }
