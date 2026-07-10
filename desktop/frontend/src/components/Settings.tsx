@@ -47,6 +47,8 @@ import { useAppStore, type SettingsTab } from "../store/app";
 import { useAccountsStore } from "../store/accounts";
 import type { ClaudeAccount } from "../types";
 import { ClaudeAccountRow } from "./ClaudeAccountRow";
+import { ClaudeAccountsSetupGuide } from "./ClaudeAccountsSetupGuide";
+import { ClaudeLoginModal } from "./ClaudeLoginModal";
 import { InlineNameEditor } from "./InlineNameEditor";
 import { modalInputDefaults } from "../forms/styles";
 
@@ -189,15 +191,23 @@ export function Settings({
   const [creatingTemplateBusy, setCreatingTemplateBusy] = useState(false);
   const [confirmDeleteTemplate, setConfirmDeleteTemplate] = useState<string | null>(null);
   const accounts = useAccountsStore((s) => s.accounts);
+  const accountStatuses = useAccountsStore((s) => s.statuses);
+  const accountUsage = useAccountsStore((s) => s.usage);
   const addAccount = useAccountsStore((s) => s.add);
   const renameAccount = useAccountsStore((s) => s.rename);
   const removeAccount = useAccountsStore((s) => s.remove);
+  const refreshAccountStatuses = useAccountsStore((s) => s.refreshStatuses);
   const [addingAccount, setAddingAccount] = useState(false);
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState<ClaudeAccount | null>(null);
+  const [loginAccount, setLoginAccount] = useState<ClaudeAccount | null>(null);
 
   useEffect(() => {
     if (showImportOptions) setImportOverwrite(false);
   }, [showImportOptions]);
+
+  useEffect(() => {
+    if (activeTab === "ai") void refreshAccountStatuses();
+  }, [activeTab, refreshAccountStatuses]);
 
   useEffect(() => {
     GetVersion().then(setVersion);
@@ -631,23 +641,28 @@ export function Settings({
 
             <SettingsSection
               title="Claude Accounts"
-              description="Run different projects on different Claude accounts. Add an account here, then assign it in a project's config. That project's terminals and its AI features (commit messages, PR titles, branch names, transforms) all run under the account, so sign in once from a project terminal the first time. If you set CLAUDE_CONFIG_DIR manually in your shell profile (~/.zprofile, ~/.zshrc), remove it — a login shell re-sources it and overrides per-project accounts."
+              description="Run different projects on different Claude accounts."
             >
-              {accounts.length === 0 && !addingAccount && (
-                <div className="px-4 py-3 text-[11px] text-[var(--text-muted)]">
-                  No accounts yet. Projects use your main Claude login.
-                </div>
-              )}
+              <ClaudeAccountsSetupGuide
+                accounts={accounts}
+                statuses={accountStatuses}
+                usage={accountUsage}
+                onAddAccount={() => setAddingAccount(true)}
+                onSignIn={(acc) => setLoginAccount(acc)}
+              />
               {accounts.map((acc) => (
                 <ClaudeAccountRow
                   key={acc.id}
                   id={acc.id}
                   label={acc.label}
+                  status={accountStatuses[acc.id]}
+                  usage={accountUsage[acc.id] ?? []}
                   onRename={(label) =>
                     renameAccount(acc.id, label).catch((err) =>
                       toast.error(`Failed to rename account: ${err}`),
                     )
                   }
+                  onSignIn={() => setLoginAccount(acc)}
                   onDelete={() => setConfirmDeleteAccount(acc)}
                 />
               ))}
@@ -677,6 +692,11 @@ export function Settings({
                 </div>
               )}
             </SettingsSection>
+            <p className="mt-2 text-[11px] leading-relaxed text-[var(--text-muted)]">
+              If you set CLAUDE_CONFIG_DIR manually in your shell profile
+              (~/.zprofile, ~/.zshrc), remove it — a login shell re-sources it and
+              overrides per-project accounts.
+            </p>
             </>
           )}
 
@@ -836,7 +856,19 @@ export function Settings({
                 <span className="font-medium text-[var(--text-primary)]">
                   {confirmDeleteAccount?.label}
                 </span>
-                ? Projects assigned to it will use your main Claude login instead.
+                ? Its sign-in data will be deleted.{" "}
+                {confirmDeleteAccount &&
+                (accountUsage[confirmDeleteAccount.id]?.length ?? 0) > 0 ? (
+                  <>
+                    Used by{" "}
+                    <span className="font-medium text-[var(--text-primary)]">
+                      {accountUsage[confirmDeleteAccount.id].join(", ")}
+                    </span>
+                    {" "}— they will fall back to your main Claude login.
+                  </>
+                ) : (
+                  <>Projects assigned to it will use your main Claude login instead.</>
+                )}
               </>
             }
             onCancel={() => setConfirmDeleteAccount(null)}
@@ -849,6 +881,13 @@ export function Settings({
               setConfirmDeleteAccount(null);
             }}
           />
+
+          {loginAccount && (
+            <ClaudeLoginModal
+              account={loginAccount}
+              onClose={() => setLoginAccount(null)}
+            />
+          )}
 
           <NewTemplateModal
             open={creatingTemplate}

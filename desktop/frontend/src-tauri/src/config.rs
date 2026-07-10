@@ -403,6 +403,72 @@ pub fn remove_claude_account(id: &str) -> Result<(), String> {
     save_claude_accounts(&v)
 }
 
+/// Whether an account is signed in and, if so, its email — derived from a
+/// parsed `.claude.json`. Claude Code writes an `oauthAccount` object once a
+/// login completes, with the address under `emailAddress`; a missing object or
+/// field means "not signed in". Kept pure so it can be unit-tested off a value.
+fn claude_status_from_json(v: &Value) -> (bool, String) {
+    match v.get("oauthAccount") {
+        Some(Value::Object(oa)) => {
+            let email = oa
+                .get("emailAddress")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            (true, email)
+        }
+        _ => (false, String::new()),
+    }
+}
+
+/// Read-only sign-in probe for one account. Missing dir/file/field all read as
+/// "not signed in"; never creates or re-links the account dir (unlike the spawn
+/// path) so status polling stays side-effect free.
+fn account_signin_status(id: &str) -> (bool, String) {
+    let path = claude_account_dir(id).join(".claude.json");
+    match std::fs::read(&path) {
+        Ok(bytes) => serde_json::from_slice::<Value>(&bytes)
+            .map(|v| claude_status_from_json(&v))
+            .unwrap_or((false, String::new())),
+        Err(_) => (false, String::new()),
+    }
+}
+
+/// Per-account sign-in status for every id in accounts.json, as
+/// `{"statuses": [{"id", "signedIn", "email"}, ...]}`.
+pub fn claude_accounts_status() -> Value {
+    let statuses: Vec<Value> = claude_account_ids(&load_claude_accounts())
+        .iter()
+        .map(|id| {
+            let (signed_in, email) = account_signin_status(id);
+            json!({ "id": id, "signedIn": signed_in, "email": email })
+        })
+        .collect();
+    json!({ "statuses": statuses })
+}
+
+/// Which projects effectively resolve to each account id, as
+/// `{"usage": {"<id>": ["projA", ...]}}`. Uses the same tri-state + parent
+/// inheritance the spawn path does (via `effective_claude_account`), so a
+/// duplicate that inherits its parent's pin is counted. Only non-empty pinned
+/// ids appear (explicit-default and inherit-ambient projects are omitted);
+/// project display names are used so the UI can list them verbatim.
+pub fn claude_account_usage() -> Value {
+    let mut usage: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for file in project_names() {
+        let Ok(y) = parse_project_yaml(&file) else {
+            continue;
+        };
+        if let Some(id) = effective_claude_account(&y) {
+            if !id.is_empty() {
+                let display = if y.name.is_empty() { file.clone() } else { y.name.clone() };
+                usage.entry(id).or_default().push(display);
+            }
+        }
+    }
+    json!({ "usage": usage })
+}
+
 pub fn save_generator_icon(src_path: &str, id: &str) -> Result<String, String> {
     std::fs::create_dir_all(generator_icons_dir()).map_err(|e| e.to_string())?;
     let ext = std::path::Path::new(src_path)
@@ -1986,6 +2052,30 @@ mod claude_account_tests {
         // A filename-unsafe id fails validation before any accounts.json read, so
         // this needs no filesystem scaffolding.
         assert_eq!(claude_env_for_account(Some("../etc")), ClaudeEnv::Scrub);
+    }
+
+    #[test]
+    fn signed_in_status_reads_oauth_email() {
+        let v: Value = serde_json::from_str(
+            r#"{"oauthAccount":{"emailAddress":"x@y.com","accountUuid":"u"}}"#,
+        )
+        .unwrap();
+        assert_eq!(claude_status_from_json(&v), (true, "x@y.com".to_string()));
+    }
+
+    #[test]
+    fn signed_in_without_email_field_is_signed_in_with_blank() {
+        let v: Value = serde_json::from_str(r#"{"oauthAccount":{"accountUuid":"u"}}"#).unwrap();
+        assert_eq!(claude_status_from_json(&v), (true, String::new()));
+    }
+
+    #[test]
+    fn missing_oauth_account_is_signed_out() {
+        let v: Value = serde_json::from_str(r#"{"other":1}"#).unwrap();
+        assert_eq!(claude_status_from_json(&v), (false, String::new()));
+        // A non-object oauthAccount is treated as signed out, not a panic.
+        let v2: Value = serde_json::from_str(r#"{"oauthAccount":null}"#).unwrap();
+        assert_eq!(claude_status_from_json(&v2), (false, String::new()));
     }
 }
 

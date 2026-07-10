@@ -283,6 +283,15 @@ export function SaveClaudeAccounts(a) {
 export function RemoveClaudeAccount(id) {
   return invoke("remove_claude_account", { id });
 }
+export function ClaudeAccountsStatus() {
+  return invoke("claude_accounts_status");
+}
+export function ClaudeAccountUsage() {
+  return invoke("claude_account_usage");
+}
+export function StartClaudeLogin(accountId) {
+  return invoke("start_claude_login", { accountId });
+}
 export function MessageHistoryQuery(input) {
   return invoke("message_history_query", { input });
 }

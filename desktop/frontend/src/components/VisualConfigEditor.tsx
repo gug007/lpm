@@ -3,6 +3,7 @@ import { AddNewPicker, type NewItemType } from "./AddNewPicker";
 import { PlusIcon, TrashIcon, ChevronDownIcon, ChevronRightIcon, ZapIcon, PlayIcon, TerminalIcon, LayersIcon } from "./icons";
 import { uniqueKey } from "../uniqueKey";
 import { useAccountsStore } from "../store/accounts";
+import { useAppStore } from "../store/app";
 import {
   parseYaml,
   serializeToYaml,
@@ -37,12 +38,16 @@ function Input({ value, onChange, placeholder, mono }: { value: string; onChange
   );
 }
 
-function Select({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
+function Select({ value, onChange, options, invalid }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; invalid?: boolean }) {
   return (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full border-b border-[var(--border)] bg-transparent px-0.5 pb-1.5 text-[13px] text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--text-secondary)]"
+      className={`w-full border-b bg-transparent px-0.5 pb-1.5 text-[13px] outline-none transition-colors ${
+        invalid
+          ? "border-[var(--accent-red)] text-[var(--accent-red)] focus:border-[var(--accent-red)]"
+          : "border-[var(--border)] text-[var(--text-primary)] focus:border-[var(--text-secondary)]"
+      }`}
     >
       {options.map((o) => (
         <option key={o.value} value={o.value}>{o.label}</option>
@@ -284,6 +289,13 @@ interface VisualConfigEditorProps {
 export function VisualConfigEditor({ content, onChange, isRemote = false }: VisualConfigEditorProps) {
   const form = useMemo(() => parseYaml(content), [content]);
   const accounts = useAccountsStore((s) => s.accounts);
+  const accountStatuses = useAccountsStore((s) => s.statuses);
+  const setView = useAppStore((s) => s.setView);
+  const setSettingsTab = useAppStore((s) => s.setSettingsTab);
+  const openAccountSettings = () => {
+    setSettingsTab("ai");
+    setView("settings");
+  };
   const [pickerOpen, setPickerOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
@@ -345,20 +357,31 @@ export function VisualConfigEditor({ content, onChange, isRemote = false }: Visu
         <Field label="Root directory">
           <Input value={form.root} onChange={(v) => update({ root: v })} placeholder="~/Projects/my-app" mono />
         </Field>
-        {!isRemote && !form.hasSsh && (accounts.length > 0 || form.claudeAccount) && (
+        {!isRemote && !form.hasSsh && (
           <Field label="Claude account">
             <Select
               value={form.claudeAccount === null ? (form.parentName ? INHERIT_OPTION : "") : form.claudeAccount}
               onChange={(v) => update({ claudeAccount: v === INHERIT_OPTION ? null : v })}
+              invalid={Boolean(form.claudeAccount) && !accounts.some((a) => a.id === form.claudeAccount)}
               options={[
                 ...(form.parentName ? [{ value: INHERIT_OPTION, label: "Inherit from parent" }] : []),
-                { value: "", label: "Default" },
-                ...accounts.map((a) => ({ value: a.id, label: a.label })),
+                { value: "", label: "Default (main login)" },
+                ...accounts.map((a) => {
+                  const email = accountStatuses[a.id]?.email;
+                  return { value: a.id, label: email ? `${a.label} — ${email}` : a.label };
+                }),
                 ...(form.claudeAccount && !accounts.some((a) => a.id === form.claudeAccount)
                   ? [{ value: form.claudeAccount, label: "Removed account" }]
                   : []),
               ]}
             />
+            <button
+              type="button"
+              onClick={openAccountSettings}
+              className="self-start text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-secondary)]"
+            >
+              Manage accounts…
+            </button>
           </Field>
         )}
       </div>

@@ -7,6 +7,7 @@ import {
   type AIEffortOption,
 } from "../../types";
 import { CheckIcon } from "../icons";
+import { useMenuMaxHeight } from "../../hooks/useMenuMaxHeight";
 
 interface AICLIMenuProps {
   aiCLIs: Record<string, boolean>;
@@ -32,7 +33,8 @@ export function AICLIMenu({
   placement = "up",
 }: AICLIMenuProps) {
   const [editingActive, setEditingActive] = useState(false);
-  const positionClass = placement === "down" ? "top-full mt-1" : "bottom-full mb-1";
+  const positionClass = placement === "down" ? "top-full mt-1.5" : "bottom-full mb-1.5";
+  const { ref, maxHeight } = useMenuMaxHeight<HTMLDivElement>(placement);
   const availableCLIs = AI_CLI_OPTIONS.filter((o) => aiCLIs[o.value]);
   const activeOption = availableCLIs.find((o) => o.value === selectedCLI);
   const efforts = (onSelectEffort && activeOption?.efforts) || [];
@@ -52,7 +54,9 @@ export function AICLIMenu({
 
   return (
     <div
-      className={`absolute right-0 ${positionClass} z-10 flex overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-lg`}
+      ref={ref}
+      style={{ maxHeight }}
+      className={`absolute right-0 ${positionClass} z-10 flex overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-[0_10px_30px_-8px_rgba(0,0,0,0.35)]`}
     >
       {showEffortPanel && (
         <EffortPanel
@@ -64,7 +68,11 @@ export function AICLIMenu({
           onToggleFast={fastAvailable ? () => onSelectFast!(selectedCLI, !selectedFast) : undefined}
         />
       )}
-      <div className={`flex flex-col py-1.5 ${effortAvailable || fastAvailable ? "w-60" : "w-44"}`}>
+      <div
+        className={`flex min-h-0 flex-col overflow-y-auto p-1.5 ${
+          effortAvailable || fastAvailable ? "w-60" : "w-44"
+        }`}
+      >
         {availableCLIs.map((o) => {
           const cliActive = selectedCLI === o.value;
           const models = o.models ?? [];
@@ -80,7 +88,7 @@ export function AICLIMenu({
           }
           const activeEffortLabel = o.efforts?.find((e) => e.value === selectedEffort)?.label;
           return (
-            <div key={o.value} className="pb-1">
+            <div key={o.value} className="pb-1 last:pb-0">
               <SectionHeader label={o.label} />
               {models.map((m) => {
                 const isActive = cliActive && selectedModel === m.value;
@@ -125,7 +133,7 @@ function EffortPanel({
   onToggleFast?: () => void;
 }) {
   return (
-    <div className="flex w-40 flex-col border-r border-[var(--border)] bg-[var(--bg-secondary)]/40 py-1.5">
+    <div className="flex min-h-0 w-40 flex-col overflow-y-auto border-r border-[var(--border)] bg-[var(--bg-secondary)]/40 p-1.5">
       {efforts.length > 0 && (
         <>
           <SectionHeader label="Effort" />
@@ -171,7 +179,7 @@ function rowBadge(
 
 function SectionHeader({ label }: { label: string }) {
   return (
-    <div className="px-3 pb-1 pt-0.5 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
+    <div className="px-1.5 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
       {label}
     </div>
   );
@@ -195,11 +203,11 @@ function MenuRow({
   return (
     <button
       onClick={onClick}
-      className={`group flex w-full items-center gap-2 py-1.5 pr-3 text-left text-xs transition-colors hover:bg-[var(--bg-hover)] ${
-        indent ? "pl-5" : "pl-3"
+      className={`group flex w-full items-center gap-2 rounded-lg py-1.5 pr-2.5 text-left text-xs transition-colors hover:bg-[var(--bg-hover)] ${
+        indent ? "pl-3.5" : "pl-2.5"
       } ${
         active
-          ? "font-medium text-[var(--text-primary)]"
+          ? "bg-[var(--bg-hover)] font-medium text-[var(--text-primary)]"
           : "text-[var(--text-secondary)]"
       }`}
     >
@@ -214,7 +222,11 @@ function MenuRow({
           {edit}
         </span>
       )}
-      {active && <span className={edit ? "" : "ml-auto"}><CheckIcon /></span>}
+      {active && (
+        <span className={`text-[var(--text-primary)] ${edit ? "" : "ml-auto"}`}>
+          <CheckIcon />
+        </span>
+      )}
     </button>
   );
 }
