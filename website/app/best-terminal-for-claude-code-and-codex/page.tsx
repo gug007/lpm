@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { DemoSection } from "@/components/home/demo";
 import { RelatedPages } from "@/components/related-pages";
-import { AI_AGENTS_PATH, vsPath } from "@/lib/links";
+import { AI_AGENTS_PATH, CLAUDE_ACCOUNTS_PATH, vsPath } from "@/lib/links";
 import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
 import Benefits from "./_components/benefits";
 import Comparison from "./_components/comparison";
@@ -76,6 +76,12 @@ export default function BestTerminalForClaudeCodeAndCodexPage() {
       <Faq />
       <RelatedPages
         links={[
+          {
+            href: CLAUDE_ACCOUNTS_PATH,
+            title: "Multiple Claude Code accounts",
+            description:
+              "Pin a Claude account to each project — work and personal run in parallel, signed in once.",
+          },
           {
             href: vsPath("cmux"),
             title: "lpm vs cmux",

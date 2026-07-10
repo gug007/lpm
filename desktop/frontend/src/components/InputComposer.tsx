@@ -353,6 +353,7 @@ export function InputComposer({
         const params = resolveTransformParams(ai);
         if (count <= 1) {
           const out = await TransformText(
+            history?.projectName ?? null,
             aiCwd,
             params.cli,
             params.model,
@@ -368,7 +369,7 @@ export function InputComposer({
           }
           applyHistoryEntry(text, images);
         } else {
-          const list = await generateVariants(aiCwd, params, action.instruction, value, count);
+          const list = await generateVariants(history?.projectName ?? null, aiCwd, params, action.instruction, value, count);
           if (list.length === 0) {
             toast.error("AI returned an empty response");
             return;

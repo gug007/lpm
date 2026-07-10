@@ -3,6 +3,7 @@ import YAML from "yaml";
 import { AddNewPicker, type NewItemType } from "./AddNewPicker";
 import { PlusIcon, TrashIcon, ChevronDownIcon, ChevronRightIcon, ZapIcon, PlayIcon, TerminalIcon, LayersIcon } from "./icons";
 import { uniqueKey } from "../uniqueKey";
+import { useAccountsStore } from "../store/accounts";
 
 interface ServiceEntry {
   key: string;
@@ -51,6 +52,7 @@ interface ProfileEntry {
 interface ConfigForm {
   name: string;
   root: string;
+  claudeAccount: string;
   services: ServiceEntry[];
   actions: ActionEntry[];
   terminals: TerminalEntry[];
@@ -73,6 +75,7 @@ function parseYaml(yaml: string): ConfigForm {
   return {
     name: raw.name || "",
     root: raw.root || "",
+    claudeAccount: typeof raw.claudeAccount === "string" ? raw.claudeAccount : "",
     services: Object.entries((raw.services as Record<string, unknown>) || {}).map(([key, v]) => {
       const base = parseEntry(key, v);
       const obj = typeof v === "string" ? {} : (v as Record<string, unknown>);
@@ -127,6 +130,7 @@ function serializeToYaml(form: ConfigForm): string {
   const doc: Record<string, unknown> = {};
   if (form.name) doc.name = form.name;
   if (form.root) doc.root = form.root;
+  if (form.claudeAccount) doc.claudeAccount = form.claudeAccount;
 
   if (form.services.length > 0) {
     const svcs: Record<string, unknown> = {};
@@ -444,10 +448,12 @@ function CardHeader({
 interface VisualConfigEditorProps {
   content: string;
   onChange: (yaml: string) => void;
+  isRemote?: boolean;
 }
 
-export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProps) {
+export function VisualConfigEditor({ content, onChange, isRemote = false }: VisualConfigEditorProps) {
   const form = useMemo(() => parseYaml(content), [content]);
+  const accounts = useAccountsStore((s) => s.accounts);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
@@ -509,6 +515,21 @@ export function VisualConfigEditor({ content, onChange }: VisualConfigEditorProp
         <Field label="Root directory">
           <Input value={form.root} onChange={(v) => update({ root: v })} placeholder="~/Projects/my-app" mono />
         </Field>
+        {!isRemote && (accounts.length > 0 || form.claudeAccount) && (
+          <Field label="Claude account">
+            <Select
+              value={form.claudeAccount}
+              onChange={(v) => update({ claudeAccount: v })}
+              options={[
+                { value: "", label: "Default" },
+                ...accounts.map((a) => ({ value: a.id, label: a.label })),
+                ...(form.claudeAccount && !accounts.some((a) => a.id === form.claudeAccount)
+                  ? [{ value: form.claudeAccount, label: "Removed account" }]
+                  : []),
+              ]}
+            />
+          </Field>
+        )}
       </div>
 
       {form.services.length > 0 && (

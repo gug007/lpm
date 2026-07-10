@@ -228,6 +228,110 @@ pub fn save_generators(g: &Value) -> Result<(), String> {
     std::fs::write(generators_path(), data).map_err(|e| e.to_string())
 }
 
+pub const CLAUDE_CONFIG_DIR_ENV: &str = "CLAUDE_CONFIG_DIR";
+
+pub fn accounts_path() -> PathBuf {
+    lpm_dir().join("accounts.json")
+}
+
+pub fn claude_account_dir(id: &str) -> PathBuf {
+    lpm_dir().join("claude-accounts").join(id)
+}
+
+fn default_accounts() -> Value {
+    json!({ "accounts": [] })
+}
+
+pub fn load_claude_accounts() -> Value {
+    match std::fs::read(accounts_path()) {
+        Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_else(|_| default_accounts()),
+        Err(_) => default_accounts(),
+    }
+}
+
+fn claude_account_ids(v: &Value) -> Vec<String> {
+    v.get("accounts")
+        .and_then(Value::as_array)
+        .map(|list| {
+            list.iter()
+                .filter_map(|a| a.get("id").and_then(Value::as_str))
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Ids become directory names under ~/.lpm/claude-accounts, so only allow
+/// filename-safe characters.
+fn valid_claude_account_id(id: &str) -> bool {
+    !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+pub fn save_claude_accounts(v: &Value) -> Result<(), String> {
+    std::fs::create_dir_all(lpm_dir()).map_err(|e| e.to_string())?;
+    let data = serde_json::to_vec_pretty(v).map_err(|e| e.to_string())?;
+    std::fs::write(accounts_path(), data).map_err(|e| e.to_string())?;
+    for id in claude_account_ids(v) {
+        if valid_claude_account_id(&id) {
+            ensure_claude_account_dir(&id)?;
+        }
+    }
+    Ok(())
+}
+
+/// Each account gets its own Claude config dir so logins stay separate, while
+/// settings, memory, skills, and lpm status hooks stay shared with ~/.claude
+/// via symlinks.
+fn ensure_claude_account_dir(id: &str) -> Result<(), String> {
+    let dir = claude_account_dir(id);
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let main = dirs::home_dir().unwrap_or_default().join(".claude");
+    for name in ["settings.json", "CLAUDE.md", "skills", "agents", "commands", "plugins"] {
+        let src = main.join(name);
+        let dst = dir.join(name);
+        if src.exists() && std::fs::symlink_metadata(&dst).is_err() {
+            let _ = std::os::unix::fs::symlink(&src, &dst);
+        }
+    }
+    Ok(())
+}
+
+/// Absolute config dir for a pinned account, or None when the id is unknown
+/// (deleted accounts fall back to the default login). Claude Code keys its
+/// credential store off the literal CLAUDE_CONFIG_DIR string, so the value
+/// must be derived from the id in this one place and nowhere else.
+pub fn claude_config_dir_for_account(id: &str) -> Option<String> {
+    if !valid_claude_account_id(id) {
+        return None;
+    }
+    if !claude_account_ids(&load_claude_accounts()).iter().any(|a| a == id) {
+        return None;
+    }
+    // Re-link on every resolve so assets added to ~/.claude after the account
+    // was created still reach it.
+    let _ = ensure_claude_account_dir(id);
+    Some(claude_account_dir(id).to_string_lossy().into_owned())
+}
+
+/// The project's pinned account id; a duplicate (parent_name set, no own pin)
+/// inherits its parent's, matching how services/profiles/actions layer.
+fn claude_account_of(y: &ProjectYaml) -> String {
+    if !y.claude_account.is_empty() {
+        return y.claude_account.clone();
+    }
+    if y.parent_name.is_empty() {
+        return String::new();
+    }
+    parse_project_yaml(&y.parent_name)
+        .map(|p| p.claude_account)
+        .unwrap_or_default()
+}
+
+pub fn claude_config_dir_for_project(name: &str) -> Option<String> {
+    let y = parse_project_yaml(name).ok()?;
+    claude_config_dir_for_account(&claude_account_of(&y))
+}
+
 pub fn save_generator_icon(src_path: &str, id: &str) -> Result<String, String> {
     std::fs::create_dir_all(generator_icons_dir()).map_err(|e| e.to_string())?;
     let ext = std::path::Path::new(src_path)
@@ -480,6 +584,8 @@ struct ProjectYaml {
     #[serde(default)]
     parent_name: String,
     ssh: Option<SshSettings>,
+    #[serde(rename = "claudeAccount", default)]
+    claude_account: String,
     #[serde(default)]
     services: BTreeMap<String, ServiceDef>,
     #[serde(default)]

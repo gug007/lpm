@@ -1309,6 +1309,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       const params = resolveTransformParams(ai);
       if (count <= 1) {
         const out = await TransformText(
+          projectName,
           cwd,
           params.cli,
           params.model,
@@ -1325,7 +1326,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         if (activeId.current !== startedId) return;
         applyRewrite(editor, text, images);
       } else {
-        const list = await generateVariants(cwd, params, action.instruction, value, count);
+        const list = await generateVariants(projectName, cwd, params, action.instruction, value, count);
         if (list.length === 0) {
           toast.error("AI returned an empty response");
           return;

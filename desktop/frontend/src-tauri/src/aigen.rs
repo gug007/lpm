@@ -332,6 +332,7 @@ struct RunOptions {
     effort: String,
     fast: bool,
     writes: bool,
+    claude_config_dir: Option<String>,
 }
 
 fn build_args(cli: &str, prompt: &str, o: &RunOptions) -> Vec<String> {
@@ -413,13 +414,15 @@ fn run_ai(
     detect(cli)?;
     let args = build_args(cli, prompt, &opts);
 
-    let mut child = Command::new(cli)
-        .args(&args)
+    let mut cmd = Command::new(cli);
+    cmd.args(&args)
         .current_dir(cwd)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("{cli}: start: {e}"))?;
+        .stderr(Stdio::piped());
+    if let Some(dir) = &opts.claude_config_dir {
+        cmd.env(config::CLAUDE_CONFIG_DIR_ENV, dir);
+    }
+    let mut child = cmd.spawn().map_err(|e| format!("{cli}: start: {e}"))?;
 
     let stdout = child.stdout.take().ok_or("no stdout")?;
     // Drain stderr on its own thread so a chatty CLI can't deadlock on a full pipe.
@@ -763,7 +766,7 @@ pub fn generate_commit_message(
         ));
     }
     prompt.push_str(&diff);
-    run_ai(&app, &cli, &cwd, &prompt, ropts(model, effort, fast, false), "commit-msg-progress")
+    run_ai(&app, &cli, &cwd, &prompt, ropts(Some(&project_name), model, effort, fast, false), "commit-msg-progress")
 }
 
 #[tauri::command(async)]
@@ -780,7 +783,7 @@ pub fn generate_pr_title(
     let (diff, log) = pr_diff_and_log(&cwd, &base)?;
     let instr = crate::templates::resolve_instructions(&project_name, "pr-title");
     let prompt = build_pr_prompt(PR_TITLE_PROMPT, &instr, &diff, &log);
-    run_ai(&app, &cli, &cwd, &prompt, ropts(model, effort, fast, false), "pr-title-progress")
+    run_ai(&app, &cli, &cwd, &prompt, ropts(Some(&project_name), model, effort, fast, false), "pr-title-progress")
 }
 
 #[tauri::command(async)]
@@ -797,7 +800,7 @@ pub fn generate_pr_description(
     let (diff, log) = pr_diff_and_log(&cwd, &base)?;
     let instr = crate::templates::resolve_instructions(&project_name, "pr-description");
     let prompt = build_pr_prompt(PR_DESCRIPTION_PROMPT, &instr, &diff, &log);
-    run_ai(&app, &cli, &cwd, &prompt, ropts(model, effort, fast, false), "pr-description-progress")
+    run_ai(&app, &cli, &cwd, &prompt, ropts(Some(&project_name), model, effort, fast, false), "pr-description-progress")
 }
 
 #[tauri::command(async)]
@@ -827,12 +830,13 @@ pub fn generate_branch_name(
     let diff = truncate_diff(&diff, MAX_BRANCH_DIFF);
     let instr = crate::templates::resolve_instructions(&project_name, "branch-name");
     let prompt = build_pr_prompt(BRANCH_NAME_PROMPT, &instr, &diff, &commit_log);
-    run_ai(&app, &cli, &cwd, &prompt, ropts(model, effort, fast, false), "branch-name-progress")
+    run_ai(&app, &cli, &cwd, &prompt, ropts(Some(&project_name), model, effort, fast, false), "branch-name-progress")
 }
 
 #[tauri::command(async)]
 pub fn resolve_merge_conflicts_with_ai(
     app: AppHandle,
+    project_name: Option<String>,
     cwd: String,
     cli: String,
     model: String,
@@ -842,7 +846,7 @@ pub fn resolve_merge_conflicts_with_ai(
     if crate::git::git_merge_conflicts(cwd.clone()).is_empty() {
         return Err("no merge conflicts to resolve".into());
     }
-    run_ai(&app, &cli, &cwd, MERGE_CONFLICT_PROMPT, ropts(model, effort, fast, true), "merge-conflict-progress")
+    run_ai(&app, &cli, &cwd, MERGE_CONFLICT_PROMPT, ropts(project_name.as_deref(), model, effort, fast, true), "merge-conflict-progress")
 }
 
 #[tauri::command(async)]
@@ -863,7 +867,7 @@ pub fn generate_action_yaml(
     let (root, is_remote) = config::project_root(&project_name)?;
     let prompt = build_action_yaml_prompt(&project_name, &root, is_remote, user_prompt, &current_yaml);
     let cwd = if root.is_empty() { ".".to_string() } else { root };
-    run_ai(&app, &cli, &cwd, &prompt, ropts(model, effort, fast, false), "action-yaml-progress")
+    run_ai(&app, &cli, &cwd, &prompt, ropts(Some(&project_name), model, effort, fast, false), "action-yaml-progress")
 }
 
 const TRANSFORM_OUTPUT_RULES: &str = r#"
@@ -881,6 +885,7 @@ Text:
 #[tauri::command(async)]
 pub fn transform_text(
     app: AppHandle,
+    project_name: Option<String>,
     cwd: String,
     cli: String,
     model: String,
@@ -898,7 +903,7 @@ pub fn transform_text(
     }
     let prompt = format!("{instruction}{TRANSFORM_OUTPUT_RULES}{text}");
     let dir = if cwd.trim().is_empty() { ".".to_string() } else { cwd };
-    run_ai(&app, &cli, &dir, &prompt, ropts(model, effort, fast, false), "composer-transform-progress")
+    run_ai(&app, &cli, &dir, &prompt, ropts(project_name.as_deref(), model, effort, fast, false), "composer-transform-progress")
 }
 
 #[tauri::command(async)]
@@ -921,7 +926,7 @@ pub fn generate_project_config(
             "\nAdditional user instructions (follow these precisely, they override defaults):\n{extra}\n"
         ));
     }
-    let result = run_ai(&app, &cli, &root, &prompt, ropts(String::new(), String::new(), false, false), "ai-generate-output")?;
+    let result = run_ai(&app, &cli, &root, &prompt, ropts(Some(&project_name), String::new(), String::new(), false, false), "ai-generate-output")?;
     let yaml = extract_yaml(&result);
     if yaml.is_empty() {
         return Err(format!("no YAML found in {cli} output"));
@@ -929,8 +934,20 @@ pub fn generate_project_config(
     Ok(yaml)
 }
 
-fn ropts(model: String, effort: String, fast: bool, writes: bool) -> RunOptions {
-    RunOptions { model, effort, fast, writes }
+fn ropts(
+    project_name: Option<&str>,
+    model: String,
+    effort: String,
+    fast: bool,
+    writes: bool,
+) -> RunOptions {
+    RunOptions {
+        model,
+        effort,
+        fast,
+        writes,
+        claude_config_dir: project_name.and_then(config::claude_config_dir_for_project),
+    }
 }
 
 fn git_diff_head(cwd: &str) -> String {

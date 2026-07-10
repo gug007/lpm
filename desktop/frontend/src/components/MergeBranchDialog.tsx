@@ -36,6 +36,7 @@ function recordFetch(path: string) {
 
 interface MergeBranchDialogProps {
   open: boolean;
+  projectName: string;
   projectPath: string;
   currentBranch: string;
   branches: main.Branch[];
@@ -49,6 +50,7 @@ type Mode =
 
 export function MergeBranchDialog({
   open,
+  projectName,
   projectPath,
   currentBranch,
   branches,
@@ -203,6 +205,7 @@ export function MergeBranchDialog({
     setProgressLine("");
     try {
       await ResolveMergeConflictsWithAI(
+        projectName,
         projectPath,
         ai.selectedCLI,
         ai.selectedModel,

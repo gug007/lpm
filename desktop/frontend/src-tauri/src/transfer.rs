@@ -102,6 +102,11 @@ fn build_archive(path: &Path) -> Result<(), String> {
             tw.append_path_with_name(&p, name).map_err(|e| e.to_string())?;
         }
     }
+    // Not in TOP_LEVEL_FILES: import merges accounts by id instead of clobbering.
+    let accounts = config::accounts_path();
+    if accounts.is_file() {
+        tw.append_path_with_name(&accounts, "accounts.json").map_err(|e| e.to_string())?;
+    }
     if let Some(data) = sanitized_settings()? {
         let mut h = tar::Header::new_gnu();
         h.set_mode(0o644);
@@ -319,6 +324,13 @@ fn apply_import(tmp: &Path, overwrite: bool, report: &mut ImportReport) -> Resul
         merge_settings_file(&settings_src, &config::settings_path())?;
     }
 
+    // accounts.json: merge by id (incoming wins) so imported pinned projects
+    // resolve without dropping this machine's existing accounts.
+    let accounts_src = tmp.join("accounts.json");
+    if accounts_src.is_file() {
+        merge_accounts_file(&accounts_src)?;
+    }
+
     // zdotdir: copy when absent or overwriting (replacing the old tree).
     let zdot_src = tmp.join("zdotdir");
     if zdot_src.is_dir() {
@@ -333,6 +345,27 @@ fn apply_import(tmp: &Path, overwrite: bool, report: &mut ImportReport) -> Resul
         }
     }
     Ok(())
+}
+
+fn merge_accounts_file(src: &Path) -> Result<(), String> {
+    let incoming: Value = serde_json::from_slice(&std::fs::read(src).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
+    let current = config::load_claude_accounts();
+    let mut merged: Vec<Value> = current
+        .get("accounts")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if let Some(list) = incoming.get("accounts").and_then(Value::as_array) {
+        for acc in list {
+            let Some(id) = acc.get("id").and_then(Value::as_str) else { continue };
+            match merged.iter_mut().find(|a| a.get("id").and_then(Value::as_str) == Some(id)) {
+                Some(existing) => *existing = acc.clone(),
+                None => merged.push(acc.clone()),
+            }
+        }
+    }
+    config::save_claude_accounts(&serde_json::json!({ "accounts": merged }))
 }
 
 fn merge_settings_file(src: &Path, dst: &Path) -> Result<(), String> {

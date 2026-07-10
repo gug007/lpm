@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import {
   AI_AGENTS_PATH,
   BEST_TERMINAL_MAC_PATH,
+  CLAUDE_ACCOUNTS_PATH,
   CONFIG_PATH,
   GIT_TERMINAL_MAC_PATH,
   MAC_TERMINAL_DEVELOPERS_PATH,
@@ -21,6 +22,7 @@ const LAST_MODIFIED: Record<string, string> = {
   "/": "2026-06-12",
   [CONFIG_PATH]: "2026-06-12",
   [AI_AGENTS_PATH]: "2026-06-12",
+  [CLAUDE_ACCOUNTS_PATH]: "2026-07-02",
   [BEST_TERMINAL_MAC_PATH]: "2026-06-12",
   [MAC_TERMINAL_DEVELOPERS_PATH]: "2026-06-12",
   [GIT_TERMINAL_MAC_PATH]: "2026-06-12",
@@ -64,6 +66,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     {
       url: `${SITE_URL}${AI_AGENTS_PATH}`,
       lastModified: lastModified(AI_AGENTS_PATH),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}${CLAUDE_ACCOUNTS_PATH}`,
+      lastModified: lastModified(CLAUDE_ACCOUNTS_PATH),
       changeFrequency: "monthly",
       priority: 0.8,
     },

@@ -29,6 +29,10 @@
       "type": "string",
       "description": "Inherit services/actions/terminals/profiles from another project."
     },
+    "claudeAccount": {
+      "type": "string",
+      "description": "Id of the Claude account this project's terminals use (managed in Settings → AI & Integrations). Omit to use your main Claude login. Has no effect on SSH projects — the remote host has its own Claude login."
+    },
     "ssh": {
       "type": "object",
       "description": "SSH connection — services, actions, and terminals run on the remote host over this connection.",

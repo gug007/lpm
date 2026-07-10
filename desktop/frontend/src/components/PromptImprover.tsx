@@ -34,6 +34,7 @@ export function PromptImprover({ value, onChange, disabled = false }: PromptImpr
       const params = resolveTransformParams(ai);
       if (count <= 1) {
         const out = await TransformText(
+          null,
           ".",
           params.cli,
           params.model,
@@ -49,7 +50,7 @@ export function PromptImprover({ value, onChange, disabled = false }: PromptImpr
         }
         onChange(text);
       } else {
-        const list = await generateVariants(".", params, action.instruction, value, count);
+        const list = await generateVariants(null, ".", params, action.instruction, value, count);
         if (list.length === 0) {
           toast.error("AI returned an empty response");
           return;

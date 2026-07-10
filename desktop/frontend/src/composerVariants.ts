@@ -41,6 +41,7 @@ function variantInstruction(instruction: string, index: number, total: number): 
 // Partial failures are dropped so a few dead runs still yield choices; only when
 // every run fails do we surface the first error to the caller.
 export async function generateVariants(
+  projectName: string | null,
   cwd: string,
   params: TransformParams,
   instruction: string,
@@ -50,6 +51,7 @@ export async function generateVariants(
   const n = clampVariantCount(count);
   const runs = Array.from({ length: n }, (_, i) =>
     TransformText(
+      projectName,
       cwd,
       params.cli,
       params.model,

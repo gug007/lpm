@@ -211,14 +211,22 @@ fn event_safe(s: &str) -> String {
         .collect()
 }
 
+/// Project-level launch inputs resolved once per spawn: root dir, ssh (Some
+/// only when remote), and the pinned Claude account's config dir (applied to
+/// local terminals only — it is a local path).
+struct SpawnTarget {
+    root: String,
+    ssh: Option<config::SshSettings>,
+    claude_config_dir: Option<String>,
+}
+
 fn start_internal(
     app: &AppHandle,
     state: &State<'_, PtyState>,
     project_name: &str,
-    root: &str,
+    target: &SpawnTarget,
     raw_cwd: &str,
     extra_env: &BTreeMap<String, String>,
-    ssh: Option<&config::SshSettings>,
 ) -> Result<String, String> {
     let n = state.counter.fetch_add(1, Ordering::SeqCst) + 1;
     // The id is embedded in Tauri event names (pty-output-<id>, pty-exit-<id>),
@@ -227,6 +235,8 @@ fn start_internal(
     // and the terminal render blank, so sanitize it; the global counter keeps
     // the id unique regardless.
     let id = format!("{}-{n}", event_safe(project_name));
+    let root = target.root.as_str();
+    let ssh = target.ssh.as_ref();
     let is_remote = ssh.is_some();
 
     let mut builder;
@@ -284,6 +294,11 @@ fn start_internal(
         builder.env("LPM_SOCKET_PATH", config::socket_path());
         builder.env("LPM_PROJECT_NAME", project_name);
         builder.env("LPM_PANE_ID", &id);
+        // Pinned Claude account; an explicit CLAUDE_CONFIG_DIR in the action's
+        // env map wins because extra_env is applied after.
+        if let Some(dir) = &target.claude_config_dir {
+            builder.env(config::CLAUDE_CONFIG_DIR_ENV, dir);
+        }
         for (k, v) in extra_env {
             builder.env(k, v);
         }
@@ -365,11 +380,19 @@ fn resolve_restore_cmds(cmd: &str) -> (String, String) {
 
 // --- commands ----------------------------------------------------------------
 
-/// (root, ssh) for a project; ssh is Some(..) only when remote.
-fn resolve_spawn(project_name: &str) -> Result<(String, Option<config::SshSettings>), String> {
+fn resolve_spawn(project_name: &str) -> Result<SpawnTarget, String> {
     let info = config::spawn_info(project_name)?;
+    let claude_config_dir = if info.is_remote {
+        None
+    } else {
+        config::claude_config_dir_for_project(project_name)
+    };
     let ssh = if info.is_remote { Some(info.ssh) } else { None };
-    Ok((info.root, ssh))
+    Ok(SpawnTarget {
+        root: info.root,
+        ssh,
+        claude_config_dir,
+    })
 }
 
 /// (cwd, env, cmd) for a named terminal action, falling back to a plain shell
@@ -391,8 +414,8 @@ pub fn start_terminal(
     state: State<'_, PtyState>,
     project_name: String,
 ) -> Result<String, String> {
-    let (root, ssh) = resolve_spawn(&project_name)?;
-    start_internal(&app, &state, &project_name, &root, "", &BTreeMap::new(), ssh.as_ref())
+    let target = resolve_spawn(&project_name)?;
+    start_internal(&app, &state, &project_name, &target, "", &BTreeMap::new())
 }
 
 #[tauri::command]
@@ -403,9 +426,9 @@ pub fn start_terminal_with_cwd_env(
     cwd: String,
     env: HashMap<String, String>,
 ) -> Result<String, String> {
-    let (root, ssh) = resolve_spawn(&project_name)?;
+    let target = resolve_spawn(&project_name)?;
     let env: BTreeMap<String, String> = env.into_iter().collect();
-    start_internal(&app, &state, &project_name, &root, &cwd, &env, ssh.as_ref())
+    start_internal(&app, &state, &project_name, &target, &cwd, &env)
 }
 
 #[tauri::command]
@@ -415,9 +438,9 @@ pub fn start_terminal_for_restore(
     project_name: String,
     terminal_name: String,
 ) -> Result<String, String> {
-    let (root, ssh) = resolve_spawn(&project_name)?;
+    let target = resolve_spawn(&project_name)?;
     let (cwd, env, _) = resolve_terminal_spawn(&project_name, &terminal_name)?;
-    start_internal(&app, &state, &project_name, &root, &cwd, &env, ssh.as_ref())
+    start_internal(&app, &state, &project_name, &target, &cwd, &env)
 }
 
 #[tauri::command]
@@ -427,11 +450,11 @@ pub fn start_terminal_for_config(
     project_name: String,
     terminal_name: String,
 ) -> Result<TerminalLaunch, String> {
-    let (root, ssh) = resolve_spawn(&project_name)?;
+    let target = resolve_spawn(&project_name)?;
     // On the plain-shell fallback `cmd` is empty, so startCmd is empty and the
     // frontend injects nothing.
     let (cwd, env, cmd) = resolve_terminal_spawn(&project_name, &terminal_name)?;
-    let id = start_internal(&app, &state, &project_name, &root, &cwd, &env, ssh.as_ref())?;
+    let id = start_internal(&app, &state, &project_name, &target, &cwd, &env)?;
     let (start_cmd, resume_cmd) = resolve_restore_cmds(&cmd);
     Ok(TerminalLaunch {
         id,
