@@ -40,6 +40,25 @@ pub fn upload_clipboard_image_for_terminal(
     upload_and_quote_for_terminal(state, terminal_id, vec![local])
 }
 
+/// Save an uploaded blob from the phone and quote its path for pasting. A named
+/// file is saved preserving its original basename (any mime); with no name it
+/// falls back to the mime-keyed clipboard-image path. Both then scp (remote pane)
+/// + shell-quote exactly like an image upload, so existing image callers behave
+/// unchanged.
+pub fn upload_file_for_terminal(
+    state: State<'_, PtyState>,
+    terminal_id: String,
+    b64_data: String,
+    mime_type: String,
+    name: Option<String>,
+) -> Result<String, String> {
+    let local = match name.map(|n| n.trim().to_string()).filter(|n| !n.is_empty()) {
+        Some(name) => clipboard::save_clipboard_file_impl(&b64_data, &name)?,
+        None => clipboard::save_clipboard_image_impl(&b64_data, &mime_type)?,
+    };
+    upload_and_quote_for_terminal(state, terminal_id, vec![local])
+}
+
 fn new_batch_id() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

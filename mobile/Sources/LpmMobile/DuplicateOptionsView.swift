@@ -41,15 +41,34 @@ struct DuplicateOptionsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var options: DuplicateOptions
 
-    init(project: Project, defaults: DuplicateOptions, onConfirm: @escaping (DuplicateOptions) -> Void) {
+    init(project: Project, defaults: DuplicateOptions,
+         seedPrompt: String? = nil, seedCount: Int? = nil,
+         onConfirm: @escaping (DuplicateOptions) -> Void) {
         self.project = project
         self.onConfirm = onConfirm
-        // count/label/run always start fresh; the git toggles seed from the
+        // count/label/run normally start fresh; the git toggles seed from the
         // desktop's persisted duplicate settings.
         var seed = DuplicateOptions()
         seed.excludeUncommitted = defaults.excludeUncommitted
         seed.reinstallDeps = defaults.reinstallDeps
         seed.pullLatest = defaults.pullLatest
+        // From the composer's "Run in N duplicates": pre-seed the composed prompt
+        // and copy count, and pick a run mode that carries the prompt into each copy
+        // (an action if the project has one, else a command the user fills in).
+        if let seedPrompt {
+            seed.prompt = seedPrompt
+            if let seedCount {
+                seed.count = max(1, min(50, seedCount))
+                seed.labels = Array(repeating: "", count: seed.count)
+            }
+            let actions = project.actions.flatMap { $0.runnableLeaves }
+            if let first = actions.first {
+                seed.runMode = .action
+                seed.actionName = first.name
+            } else {
+                seed.runMode = .command
+            }
+        }
         _options = State(initialValue: seed)
     }
 

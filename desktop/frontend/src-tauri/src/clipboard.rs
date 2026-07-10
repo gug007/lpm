@@ -111,6 +111,28 @@ pub fn save_clipboard_image(b64_data: String, mime_type: String) -> Result<Strin
     save_clipboard_image_impl(&b64_data, &mime_type)
 }
 
+/// Decode a base64 file and write it to disk under its ORIGINAL basename,
+/// uniquified via a fresh temp subdirectory so distinct uploads with the same
+/// name never collide and the name an agent sees stays meaningful. Returns the
+/// path (left on disk like the image path — the caller pastes it).
+pub fn save_clipboard_file_impl(b64_data: &str, name: &str) -> Result<String, String> {
+    let bytes = B64
+        .decode(b64_data.as_bytes())
+        .map_err(|e| format!("decode base64: {e}"))?;
+    let base = std::path::Path::new(name)
+        .file_name()
+        .map(|s| s.to_string_lossy().into_owned())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "file".to_string());
+    let mut rb = [0u8; 4];
+    let _ = getrandom::getrandom(&mut rb);
+    let dir = std::env::temp_dir().join(format!("lpm-upload-{}", hex::encode(rb)));
+    std::fs::create_dir_all(&dir).map_err(|e| format!("create upload dir: {e}"))?;
+    let path = dir.join(&base);
+    std::fs::write(&path, &bytes).map_err(|e| format!("write file: {e}"))?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
 /// Write text to the system clipboard via pbcopy. The WKWebView refuses
 /// `navigator.clipboard` writes that aren't tied to a user gesture, which is
 /// exactly the case for OSC 52 writes arriving asynchronously from the PTY.

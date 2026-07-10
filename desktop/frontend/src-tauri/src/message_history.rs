@@ -321,6 +321,27 @@ pub fn message_history_toggle_favorite(
     })
 }
 
+// Toggle a message's favorite flag and return the resulting state, so a caller
+// (the mobile remote) can ack with the new value without a second round-trip.
+pub fn toggle_favorite_state(state: State<MessageHistoryState>, id: &str) -> Result<bool, String> {
+    state.with_conn(|conn| {
+        conn.execute(
+            "UPDATE message_history SET favorite = 1 - favorite WHERE id = ?1",
+            params![id],
+        )
+        .map_err(|e| e.to_string())?;
+        let fav: Option<i64> = conn
+            .query_row(
+                "SELECT favorite FROM message_history WHERE id = ?1",
+                params![id],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?;
+        Ok(fav.unwrap_or(0) != 0)
+    })
+}
+
 // Clear keeps favorited, foldered, and draft messages, so curated saves survive
 // a "clear history".
 #[tauri::command(async)]

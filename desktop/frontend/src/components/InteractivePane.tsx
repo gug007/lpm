@@ -28,10 +28,10 @@ import {
   PASTE_CEILING_MS,
   QUIET_POLL_MS,
   PASTE_IMAGE_CEILING_MS,
-  PASTE_ONE_SHOT_MAX_CHARS,
   CR_VERIFY_GRACE_MS,
   CR_MAX_RETRIES,
-  canOneShotSubmit,
+  canGlueCr,
+  canSkipQuietGate,
   crWasSwallowed,
 } from "./terminal/submitGate";
 import { stripAnsi } from "./terminal/filterLines";
@@ -1160,13 +1160,16 @@ export function InteractivePane({
     // paste markers (when the program enabled them) so its newlines are pasted
     // content, not executed; the trailing CR submits.
     //
-    // A short single-line body (see canOneShotSubmit) goes in one write (body+CR).
-    // Everything else — a multi-line body, an array, or a long single line Claude
-    // Code would collapse into a "[Pasted text]" placeholder — takes the gated
-    // multi-part path: each part waits for the receiver to go quiet, and the final
-    // CR is verified and re-sent if it produced no redraw, since a CR sent into
-    // Claude Code's async placeholder collapse is swallowed and never submits. An
-    // array also preserves multi-part image order.
+    // With bracketed paste OFF (plain shell) a single-line body goes in one write
+    // (body+CR): there's no paste mode to fold the CR into. With bracketed paste ON
+    // (an interactive TUI like Claude Code) the CR must be its own pty write — a CR
+    // glued to the paste's closing marker is read as pasted content, so the text
+    // appears in the input but never submits — so every such body goes through the
+    // gated delivery: the CR is a separate write, verified, and re-sent if it drew
+    // no redraw. A short/uncollapsible body skips only the pre-write quiet gate (it
+    // won't collapse into a "[Pasted text]" placeholder); a longer body, a
+    // multi-line body, or an array still gates each part on the receiver going
+    // quiet, which also preserves multi-part image order.
     submitInput(input: string | string[]) {
       const session = sessionRef.current;
       if (!session || session.sessionDead) return false;
@@ -1181,14 +1184,15 @@ export function InteractivePane({
       const fail = () => session.handleWriteError?.();
       // lpm clears the composer once this returns true, so a re-entrant submit
       // would interleave its writes into an in-flight one; refuse it (the draft is
-      // kept). The one-shot path honors this too though it never sets the flag —
-      // it must not splice a body+CR into a running multi-part delivery.
+      // kept). The glued body+CR path honors this too though it never sets the flag
+      // — it must not splice a body+CR into a running multi-part delivery.
       if (session.delivering) return false;
 
-      // Short, uncollapsible single line: Claude Code won't lift it into a paste
-      // placeholder, so the trailing CR can't be folded into an async collapse —
-      // send it in one zero-latency write and skip the gated path.
-      if (typeof input === "string" && canOneShotSubmit(input, session.term.modes.bracketedPasteMode)) {
+      const bracketed = session.term.modes.bracketedPasteMode;
+
+      // Plain shell (no bracketed paste): a single-line body+CR ships in one
+      // zero-latency write, since there's no paste mode to fold the CR into.
+      if (typeof input === "string" && canGlueCr(input, bracketed)) {
         sendTerminalInput(terminalId, `${wrap(input)}\r`).catch(fail);
         return true;
       }
@@ -1245,7 +1249,12 @@ export function InteractivePane({
         }
       };
 
-      const bracketed = session.term.modes.bracketedPasteMode;
+      // A lone short/uncollapsible body needs no pre-write quiet gate — it never
+      // lifts into a "[Pasted text]" placeholder, so nothing is mid-collapse when
+      // we write it — but its CR must still be a separate verified write, so it
+      // rides the same delivery as one ungated part. A longer/multi-part body keeps
+      // the per-part gate. (canGlueCr already peeled off the plain-shell case.)
+      const skipPartGate = parts.length === 1 && canSkipQuietGate(parts[0], bracketed);
       const deliver = async () => {
         for (const part of parts) {
           if (session.sessionDead) return;
@@ -1258,7 +1267,7 @@ export function InteractivePane({
           await sendTerminalInput(terminalId, wrap(part));
           const sentAt = performance.now();
           if (isImage) await waitUntil(() => visibleImageMarks() > before && settled(), PASTE_IMAGE_CEILING_MS, sentAt);
-          else await waitGated(() => session.lastOutputAt >= sentAt && settled(), PASTE_CEILING_MS, sentAt);
+          else if (!skipPartGate) await waitGated(() => session.lastOutputAt >= sentAt && settled(), PASTE_CEILING_MS, sentAt);
         }
         await submitCr();
       };

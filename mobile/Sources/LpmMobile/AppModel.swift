@@ -14,11 +14,56 @@ final class AppModel: ObservableObject {
     @Published var projectsLoaded = false
     @Published var terminals: [String: [TerminalInfo]] = [:] // project -> terminals
     @Published var slashCommands: [String: [SlashCommand]] = [:] // terminal id -> commands
-    // One-shot: a just-uploaded image's on-Mac path, for the composer to insert.
-    @Published var pendingImagePath: [String: String] = [:] // terminal id -> path
     @Published var mentions: [String: [MentionEntry]] = [:] // project -> @-mention targets
     @Published var history: [String: [HistoryRow]] = [:] // project -> recent sent prompts
     @Published var paired: Bool = false
+
+    // MARK: composer parity
+
+    // The user's enabled AI-rewrite actions (global, from composer-actions.json).
+    @Published var composerActions: [ComposerAction] = []
+    // Per-action remembered variant count (1–5) for the AI-rewrite sheet, keyed by
+    // action id (and "__freeform__" for the custom field). Session-scoped.
+    @Published var actionVariantCounts: [String: Int] = [:]
+    // project -> discovered services (for the @-mention "service logs" source).
+    @Published var services: [String: [ServiceInfo]] = [:]
+    @Published var servicesRunning: [String: Bool] = [:]
+    // Captured service-pane output, keyed by serviceLogsKey; one-shot, consumed by
+    // the composer which injects it inline then clears it.
+    @Published var serviceLogsResult: [String: String] = [:]
+    @Published var serviceLogsError: [String: String] = [:]
+
+    // Rich history screen (historyQuery). The reply carries no echo of its params,
+    // so a per-request generation queue (below) records whether each reply should
+    // replace (first page) or append (next page), and drops superseded replies.
+    @Published var historyItems: [HistoryItem] = []
+    @Published var historyHasMore = false
+    @Published var historyLoading = false
+    @Published var historyLoadingMore = false
+    @Published var historyFolders: [HistoryFolder] = []
+    private var historyQueryParams: (project: String?, search: String?, favoritesOnly: Bool, folder: String?)
+        = (nil, nil, false, nil)
+    // Each request bumps the generation; replies (delivered in request order over
+    // the connection) are matched FIFO, and only the latest generation's reply may
+    // replace/append — a stale reply from a superseded filter/search is dropped.
+    private var historyReqGen = 0
+    private var historyPending: [(gen: Int, paging: Bool)] = []
+    // Whether the history screen is open, so a reconnect re-issues its query fresh.
+    private var historyActive = false
+    // Tracks whether the link was live, so a transition AWAY from ready is detected
+    // as a socket teardown (a transient background→foreground drop goes
+    // .connecting → .ready without ever passing through .failed).
+    private var wasReady = false
+
+    // Per-terminal composer stores (tabs + attachments + transform state), retained
+    // so composer drafts survive leaving/re-entering a terminal. Plain dict (not
+    // @Published): each store is observed individually by its composer.
+    private var composerStores: [String: ComposerStore] = [:]
+    // reqId -> terminal id, routing streamed transform replies to the right store.
+    private var transformRoutes: [String: String] = [:]
+    // terminal id -> a closure that captures the phone's own xterm scrollback,
+    // registered by WebTerminalView (for the @-mention "terminal output" source).
+    var terminalCapture: [String: (_ lines: Int, _ done: @escaping (String) -> Void) -> Void] = [:]
 
     // Notification preferences. The per-type toggles keep their stored values even
     // when the master is off; the effective values sent to the desktop are
@@ -325,9 +370,26 @@ final class AppModel: ObservableObject {
         projectsLoaded = false
         terminals = [:]
         slashCommands = [:]
-        pendingImagePath = [:]
         mentions = [:]
         history = [:]
+        composerActions = []
+        actionVariantCounts = [:]
+        services = [:]
+        servicesRunning = [:]
+        serviceLogsResult = [:]
+        serviceLogsError = [:]
+        historyItems = []
+        historyHasMore = false
+        historyLoading = false
+        historyLoadingMore = false
+        historyFolders = []
+        historyReqGen = 0
+        historyPending = []
+        historyActive = false
+        wasReady = false
+        composerStores = [:]
+        transformRoutes = [:]
+        terminalCapture = [:]
         sidebarOrder = []
         groups = []
         controlOwner = [:]
@@ -555,6 +617,8 @@ final class AppModel: ObservableObject {
     func closeTerminal(_ project: String, id: String) {
         closingTerminals[project, default: []].insert(id)
         terminals[project]?.removeAll { $0.id == id }
+        // Drop the composer draft state for a terminal that's going away.
+        composerStores[id] = nil
         client?.closeTerminal(project: project, id: id)
         let gen = (closingGen[id] ?? 0) + 1
         closingGen[id] = gen
@@ -596,11 +660,141 @@ final class AppModel: ObservableObject {
         }
     }
     func loadSlash(_ id: String, project: String) { client?.requestSlash(id: id, project: project) }
-    func uploadImage(_ id: String, _ b64: String, mime: String) { client?.uploadImage(id, b64, mime: mime) }
     func loadMentions(_ project: String) { client?.requestMentions(project: project) }
     func loadHistory(_ project: String, q: String = "") { client?.requestHistory(project: project, q: q) }
     func recordHistory(project: String, id: String, label: String, text: String) {
         client?.recordHistory(project: project, id: id, label: label, text: text)
+    }
+
+    // MARK: composer parity
+
+    /// The retained composer store for a terminal, created on first access. Holds
+    /// the terminal's prompt tabs, attachments, and in-flight rewrite state so they
+    /// survive leaving and re-entering the terminal screen.
+    func composerStore(for id: String, project: String, label: String) -> ComposerStore {
+        if let s = composerStores[id] { return s }
+        let s = ComposerStore(termId: id, project: project, label: label, model: self)
+        composerStores[id] = s
+        return s
+    }
+
+    func loadComposerActions() { client?.requestComposerActions() }
+
+    /// Upload an attachment blob tagged with a per-upload `reqId` the server echoes;
+    /// `name` saves it under its original basename (files).
+    func sendUpload(_ id: String, b64: String, mime: String, name: String?, reqId: String) {
+        client?.uploadBlob(id, b64, mime: mime, name: name, reqId: reqId)
+    }
+
+    /// Drop the transform route for a reqId (on cancel/timeout, so it can't leak).
+    func clearTransformRoute(_ reqId: String?) {
+        if let reqId { transformRoutes[reqId] = nil }
+    }
+
+    /// Kick off an AI rewrite; returns the reqId the store keeps to match replies.
+    func runTransform(termId: String, project: String, instruction: String,
+                      text: String, variants: Int) -> String {
+        let reqId = UUID().uuidString
+        transformRoutes[reqId] = termId
+        client?.runTransform(reqId: reqId, project: project, instruction: instruction,
+                             text: text, variants: variants)
+        return reqId
+    }
+
+    func loadServices(_ project: String) { client?.requestServices(project: project) }
+    func serviceLogsKey(_ project: String, _ paneIndex: Int) -> String { project + "\n" + String(paneIndex) }
+    func fetchServiceLogs(_ project: String, paneIndex: Int, lines: Int = 200) {
+        client?.requestServiceLogs(project: project, paneIndex: paneIndex, lines: lines)
+    }
+    func consumeServiceLogs(_ key: String) {
+        serviceLogsResult[key] = nil
+        serviceLogsError[key] = nil
+    }
+
+    /// Capture the phone's own xterm scrollback for the "terminal output" mention
+    /// (returns empty when the web view isn't registered yet).
+    func captureTerminalOutput(_ id: String, lines: Int, _ done: @escaping (String) -> Void) {
+        guard let fn = terminalCapture[id] else { done(""); return }
+        fn(lines, done)
+    }
+
+    // History screen (paged historyQuery).
+
+    func loadHistoryFirst(project: String?, search: String?, favoritesOnly: Bool, folder: String?) {
+        historyActive = true
+        historyLoading = true
+        historyLoadingMore = false
+        historyQueryParams = (project, search, favoritesOnly, folder)
+        historyReqGen += 1
+        historyPending.append((historyReqGen, false))
+        client?.requestHistoryQuery(project: project, search: search,
+                                    favoritesOnly: favoritesOnly, folder: folder, before: nil)
+    }
+    /// The history screen closed: stop treating its query as live and clear any
+    /// in-flight paging bookkeeping so a straggler reply can't spin it.
+    func historyScreenDidClose() {
+        historyActive = false
+        historyPending = []
+        historyLoading = false
+        historyLoadingMore = false
+    }
+
+    /// Shared "the socket was replaced" cleanup: fail every in-flight upload (so a
+    /// lost reply can't leave a chip stuck uploading and Send blocked), and reset
+    /// the history paging queue (so one lost reply can't wedge it off-by-one),
+    /// re-issuing the open history query fresh. Runs on any teardown of a live link;
+    /// requests it issues queue on the client and flush on reconnect.
+    private func handleConnectionReset() {
+        for store in composerStores.values { store.failInFlightUploads() }
+        historyPending = []
+        historyLoadingMore = false
+        if historyActive {
+            let p = historyQueryParams
+            loadHistoryFirst(project: p.project, search: p.search,
+                             favoritesOnly: p.favoritesOnly, folder: p.folder)
+        } else {
+            historyLoading = false
+        }
+    }
+    func loadHistoryMore() {
+        guard historyHasMore, !historyLoading, !historyLoadingMore, let last = historyItems.last else { return }
+        historyLoadingMore = true
+        historyReqGen += 1
+        historyPending.append((historyReqGen, true))
+        let p = historyQueryParams
+        client?.requestHistoryQuery(project: p.project, search: p.search,
+                                    favoritesOnly: p.favoritesOnly, folder: p.folder,
+                                    before: (last.at, last.seq))
+    }
+    func loadHistoryFolders() { client?.requestHistoryFolders() }
+    func historySaveDraft(message: String, project: String?, id: String?, label: String?) {
+        client?.historySaveDraft(message: message, project: project, id: id, label: label, images: nil)
+    }
+    func historyToggleFavorite(_ id: String) {
+        if let i = historyItems.firstIndex(where: { $0.id == id }) {
+            let nowFavorite = !historyItems[i].favorite
+            historyItems[i].favorite = nowFavorite
+            // Unfavoriting while viewing the Favorites collection drops the row.
+            if historyQueryParams.favoritesOnly && !nowFavorite { historyItems.remove(at: i) }
+        }
+        client?.historyToggleFavorite(id: id)
+    }
+    func historyDelete(_ id: String) {
+        historyItems.removeAll { $0.id == id }
+        client?.historyDelete(id: id)
+    }
+    func historySetFolder(_ id: String, folder: String?) {
+        if let i = historyItems.firstIndex(where: { $0.id == id }) {
+            historyItems[i].folder = folder
+            // Moving a message out of the folder being viewed drops the row.
+            if let viewing = historyQueryParams.folder, folder != viewing { historyItems.remove(at: i) }
+        }
+        client?.historySetFolder(id: id, folder: folder)
+    }
+    func historyCreateFolder(_ name: String) { client?.historyCreateFolder(name: name) }
+    func historyDeleteFolder(_ id: String) {
+        historyFolders.removeAll { $0.id == id }
+        client?.historyDeleteFolder(id: id, name: nil)
     }
 
     // MARK: git review
@@ -976,7 +1170,12 @@ final class AppModel: ObservableObject {
             guard let self else { return }
             self.connection = self.userFacing(s)
             self.repickHostIfStale(s, from: c)
-            if case .ready = s {
+            let nowReady: Bool = { if case .ready = s { return true }; return false }()
+            // The live socket dropped: any request awaiting a reply is now dead
+            // (the reply can't survive the reconnect). Reset in-flight bookkeeping.
+            if self.wasReady && !nowReady { self.handleConnectionReset() }
+            self.wasReady = nowReady
+            if nowReady {
                 self.paired = true
                 c.requestProjects()
                 c.requestSidebar()
@@ -1018,7 +1217,9 @@ final class AppModel: ObservableObject {
             }
         }
         c.onSlash = { [weak self] id, cmds in self?.slashCommands[id] = cmds }
-        c.onUpload = { [weak self] id, path in if !path.isEmpty { self?.pendingImagePath[id] = path } }
+        c.onUpload = { [weak self] id, reqId, path in
+            self?.composerStores[id]?.resolveUpload(reqId: reqId, path: path)
+        }
         c.onMentions = { [weak self] proj, entries in self?.mentions[proj] = entries }
         c.onHistory = { [weak self] proj, rows in self?.history[proj] = rows.filter { !$0.isDraft } }
         c.onProjectsChanged = {
@@ -1200,6 +1401,57 @@ final class AppModel: ObservableObject {
                 self.loadGit(project)
                 self.client?.requestProjects()
                 self.client?.requestSidebar()
+            }
+        }
+        c.onComposerActions = { [weak self] actions in self?.composerActions = actions }
+        c.onTransformVariant = { [weak self] reqId, idx, text, error in
+            guard let self, let termId = self.transformRoutes[reqId] else { return }
+            self.composerStores[termId]?.receiveTransformVariant(reqId: reqId, idx: idx, text: text, error: error)
+        }
+        c.onTransformDone = { [weak self] reqId, ok in
+            guard let self else { return }
+            let termId = self.transformRoutes[reqId]
+            self.transformRoutes[reqId] = nil
+            if let termId { self.composerStores[termId]?.finishTransform(reqId: reqId, ok: ok) }
+        }
+        c.onServices = { [weak self] project, running, services, error in
+            guard let self, error == nil else { return }
+            self.services[project] = services
+            self.servicesRunning[project] = running
+        }
+        c.onServiceLogs = { [weak self] project, pane, text, error in
+            guard let self else { return }
+            let key = self.serviceLogsKey(project, pane)
+            if let text { self.serviceLogsResult[key] = text; self.serviceLogsError[key] = nil }
+            else { self.serviceLogsError[key] = error ?? "Couldn't read the logs." }
+        }
+        c.onHistoryQuery = { [weak self] items, hasMore in
+            guard let self, !self.historyPending.isEmpty else { return }
+            let req = self.historyPending.removeFirst()
+            // Only the newest in-flight request may mutate the list; a stale reply
+            // from a superseded filter/search is dropped (its loading flags are
+            // cleared by the newest reply, which arrives after it in order).
+            guard req.gen == self.historyReqGen else { return }
+            if req.paging { self.historyItems.append(contentsOf: items) }
+            else { self.historyItems = items }
+            self.historyHasMore = hasMore
+            self.historyLoading = false
+            self.historyLoadingMore = false
+        }
+        c.onHistorySaveDraft = { _ in }
+        c.onHistoryToggleFavorite = { [weak self] id, favorite, error in
+            guard let self, error == nil else { return }
+            if let i = self.historyItems.firstIndex(where: { $0.id == id }), self.historyItems[i].favorite != favorite {
+                self.historyItems[i].favorite = favorite
+            }
+        }
+        c.onHistoryMutated = { [weak self] _, _ in self?.client?.requestHistoryFolders() }
+        c.onHistoryFolders = { [weak self] folders in self?.historyFolders = folders }
+        c.onHistoryCreateFolder = { [weak self] folder, _ in
+            guard let self, let folder else { return }
+            if !self.historyFolders.contains(where: { $0.id == folder.id }) {
+                self.historyFolders.append(folder)
+                self.historyFolders.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
             }
         }
     }

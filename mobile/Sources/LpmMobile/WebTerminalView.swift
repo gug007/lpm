@@ -86,6 +86,9 @@ struct WebTerminalView: UIViewRepresentable {
         )
         // The composer submits through here so the page can apply bracketed-paste.
         model.terminalSubmit[term.id] = { [coordinator] text in coordinator.submit(text) }
+        // The composer's "@ terminal output" mention captures this phone's own
+        // xterm scrollback through here.
+        model.terminalCapture[term.id] = { [coordinator] lines, done in coordinator.capture(lines, done) }
         return web
     }
 
@@ -101,6 +104,7 @@ struct WebTerminalView: UIViewRepresentable {
         let c = web.configuration.userContentController
         ["input", "resize", "ready"].forEach { c.removeScriptMessageHandler(forName: $0) }
         coordinator.model?.terminalSubmit[coordinator.termId] = nil
+        coordinator.model?.terminalCapture[coordinator.termId] = nil
         coordinator.model?.unsubscribe(coordinator.termId)
     }
 
@@ -141,6 +145,15 @@ struct WebTerminalView: UIViewRepresentable {
         func submit(_ text: String) {
             let b64 = Data(text.utf8).base64EncodedString()
             web?.evaluateJavaScript("window.lpmSubmit('\(b64)')")
+        }
+
+        /// Capture the last `lines` of this phone's xterm buffer as text, for the
+        /// composer's "@ terminal output" mention. Returns "" if the page isn't up.
+        func capture(_ lines: Int, _ done: @escaping (String) -> Void) {
+            guard let web else { done(""); return }
+            web.evaluateJavaScript("window.lpmCapture(\(lines))") { result, _ in
+                done(result as? String ?? "")
+            }
         }
 
         func seed(_ data: String) {

@@ -35,7 +35,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::net::{TcpListener, TcpStream};
 use std::os::unix::fs::PermissionsExt;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, SyncSender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -1040,23 +1040,41 @@ fn handle_msg(
             }
         }
         "upload" => {
-            // The phone sends a base64 image; save it to a temp file on the Mac and
+            // The phone sends a base64 blob; save it to a temp file on the Mac and
             // return its path (paste-quoted, scp'd first for a remote pane). The
             // phone drops the path into the composer, which pastes it so an agent
-            // like Claude Code loads the image.
+            // like Claude Code loads it. With `name` the original filename is
+            // preserved for any mime (arbitrary file); without it, an image keyed by
+            // `mime` — so existing image-only callers keep working. Now that
+            // arbitrary (potentially large) files are accepted, the base64 decode +
+            // fs write + possible scp runs on a worker thread and replies via the
+            // out-queue, so it never stalls keystrokes/resizes on this connection.
+            // The optional `reqId` is echoed verbatim so the phone correlates the
+            // reply by id instead of FIFO (which desyncs on a dropped reply); absent
+            // reqId → reply omits it (unchanged for older phones).
             let id = str_field("id").unwrap_or_default();
             let data = str_field("data").unwrap_or_default();
             let mime = str_field("mime").unwrap_or_else(|| "image/png".to_string());
-            let res = crate::upload::upload_clipboard_image_for_terminal(
-                app.state::<pty::PtyState>(),
-                id.clone(),
-                data,
-                mime,
-            );
-            match res {
-                Ok(path) => send(ws, json!({ "t": "upload", "id": id, "ok": true, "path": path }))?,
-                Err(e) => send(ws, json!({ "t": "upload", "id": id, "ok": false, "error": e }))?,
-            }
+            let name = str_field("name");
+            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
+            let (app, out) = (app.clone(), out.clone());
+            std::thread::spawn(move || {
+                let res = crate::upload::upload_file_for_terminal(
+                    app.state::<pty::PtyState>(),
+                    id.clone(),
+                    data,
+                    mime,
+                    name,
+                );
+                let mut reply = match res {
+                    Ok(path) => json!({ "t": "upload", "id": id, "ok": true, "path": path }),
+                    Err(e) => json!({ "t": "upload", "id": id, "ok": false, "error": e }),
+                };
+                if !req_id.is_null() {
+                    reply["reqId"] = req_id;
+                }
+                let _ = out.try_send(reply.to_string());
+            });
         }
         "status" => {
             let project = str_field("project").unwrap_or_default();
@@ -1626,9 +1644,335 @@ fn handle_msg(
                 Err(e) => send(ws, json!({ "t": "gitCreatePr", "project": project, "ok": false, "error": e }))?,
             }
         }
+        // The user's enabled composer AI actions (~/.lpm/composer-actions.json),
+        // so the phone can offer the same rewrite buttons the desktop composer does.
+        "composerActions" => {
+            send(ws, json!({ "t": "composerActions", "actions": composer_actions_enabled() }))?;
+        }
+        // Headless AI rewrite of the composer text, mirroring desktop's
+        // transform_text. `variants` (1..=5) fan out as parallel worker-thread runs;
+        // each replies a `transform` frame as it settles, then one `transformDone`
+        // once all have. AI params come from persisted settings (git_ai_opts), the
+        // same source the git AI generators use. A failed variant is ok:false but
+        // doesn't fail the batch unless every variant fails.
+        "transform" => {
+            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
+            let project = str_field("project").unwrap_or_default();
+            let instruction = str_field("instruction").unwrap_or_default();
+            let text = str_field("text").unwrap_or_default();
+            let variants = v.get("variants").and_then(Value::as_u64).unwrap_or(1).clamp(1, 5) as usize;
+            match config::project_root(&project) {
+                Ok((cwd, _)) => {
+                    let (cli, model, effort, fast) = git_ai_opts();
+                    let project_opt = if project.is_empty() { None } else { Some(project.clone()) };
+                    let remaining = Arc::new(AtomicUsize::new(variants));
+                    let any_ok = Arc::new(AtomicBool::new(false));
+                    for idx in 0..variants {
+                        let instr = if variants == 1 {
+                            instruction.clone()
+                        } else {
+                            variant_instruction(&instruction, idx, variants)
+                        };
+                        let (app, out) = (app.clone(), out.clone());
+                        let (cwd, cli, model, effort) =
+                            (cwd.clone(), cli.clone(), model.clone(), effort.clone());
+                        let (text, project_opt, req_id) = (text.clone(), project_opt.clone(), req_id.clone());
+                        let (remaining, any_ok) = (remaining.clone(), any_ok.clone());
+                        std::thread::spawn(move || {
+                            let reply = match crate::aigen::transform_text(
+                                app, project_opt, cwd, cli, model, effort, fast, instr, text,
+                            ) {
+                                Ok(t) => {
+                                    any_ok.store(true, Ordering::SeqCst);
+                                    json!({ "t": "transform", "reqId": req_id, "idx": idx, "ok": true, "text": t })
+                                }
+                                Err(e) => json!({ "t": "transform", "reqId": req_id, "idx": idx, "ok": false, "error": e }),
+                            };
+                            let _ = out.try_send(reply.to_string());
+                            if remaining.fetch_sub(1, Ordering::SeqCst) == 1 {
+                                let _ = out.try_send(
+                                    json!({ "t": "transformDone", "reqId": req_id, "ok": any_ok.load(Ordering::SeqCst) })
+                                        .to_string(),
+                                );
+                            }
+                        });
+                    }
+                }
+                Err(e) => {
+                    send(ws, json!({ "t": "transform", "reqId": req_id, "idx": 0, "ok": false, "error": e }))?;
+                    send(ws, json!({ "t": "transformDone", "reqId": req_id, "ok": false }))?;
+                }
+            }
+        }
+        // Service discovery: the project's services with their pane index (for
+        // serviceLogs) and running state. Runs on a worker thread — spawn_info +
+        // tmux session listing are subprocess work. When the project isn't running,
+        // every declared service is reported with running:false and no pane index.
+        "services" => {
+            let project = str_field("project").unwrap_or_default();
+            let run_state = app.state::<services::ServiceState>().get(&project);
+            let out = out.clone();
+            std::thread::spawn(move || {
+                let reply = match config::spawn_info(&project) {
+                    Ok(info) => {
+                        let running = crate::tmux::running_sessions().contains(&info.session);
+                        let svc = |name: &str, pane: Option<usize>, run: bool| {
+                            let s = info.services.get(name).cloned().unwrap_or_default();
+                            json!({ "name": name, "paneIndex": pane, "running": run,
+                                "cmd": s.cmd, "port": s.port })
+                        };
+                        let services: Vec<Value> = if running {
+                            config::resolve_running_services(&info, &run_state)
+                                .iter()
+                                .enumerate()
+                                .map(|(i, n)| svc(n, Some(i), true))
+                                .collect()
+                        } else {
+                            info.services.keys().map(|n| svc(n, None, false)).collect()
+                        };
+                        json!({ "t": "services", "project": project, "ok": true,
+                            "running": running, "services": services })
+                    }
+                    Err(e) => json!({ "t": "services", "project": project, "ok": false, "error": e }),
+                };
+                let _ = out.try_send(reply.to_string());
+            });
+        }
+        // Capture a running service pane's recent output, reusing get_service_logs
+        // (tmux pane capture). Subprocess work, so it runs on a worker thread and
+        // replies via the outbound queue. Lines are capped at 200.
+        "serviceLogs" => {
+            let project = str_field("project").unwrap_or_default();
+            let pane_index = v.get("paneIndex").and_then(Value::as_i64).unwrap_or(0);
+            let lines = v.get("lines").and_then(Value::as_i64).unwrap_or(200).clamp(1, 200);
+            let out = out.clone();
+            std::thread::spawn(move || {
+                let reply = match crate::log_streaming::get_service_logs(project.clone(), pane_index, lines) {
+                    Ok(text) => json!({ "t": "serviceLogs", "project": project, "paneIndex": pane_index,
+                        "ok": true, "text": text }),
+                    Err(e) => json!({ "t": "serviceLogs", "project": project, "paneIndex": pane_index,
+                        "ok": false, "error": e }),
+                };
+                let _ = out.try_send(reply.to_string());
+            });
+        }
+        // Paginated history query (keyset, page 60), mirroring the desktop popover.
+        // `project` scopes to that project (else all); `favoritesOnly`/`folder`
+        // select a collection; `before` = the previous page's last {at, seq} cursor.
+        // Items carry the cursor fields (at, seq) so the phone can request the next
+        // page. SQLite is local/fast, so this replies inline like `history`.
+        "historyQuery" => {
+            let project = str_field("project").unwrap_or_default();
+            let (scope, project_name) = if project.is_empty() {
+                ("all".to_string(), String::new())
+            } else {
+                ("project".to_string(), project.clone())
+            };
+            let favorites_only = v.get("favoritesOnly").and_then(Value::as_bool).unwrap_or(false);
+            let folder = str_field("folder").unwrap_or_default();
+            let collection = if favorites_only {
+                "favorites".to_string()
+            } else if !folder.is_empty() {
+                folder
+            } else {
+                String::new()
+            };
+            let before = v.get("before");
+            let cursor_at = before.and_then(|b| b.get("at")).and_then(Value::as_i64);
+            let cursor_seq = before.and_then(|b| b.get("seq")).and_then(Value::as_i64);
+            const PAGE: i64 = 60;
+            let input = crate::message_history::QueryInput {
+                scope,
+                terminal_id: String::new(),
+                project_name,
+                terminal_label: String::new(),
+                collection,
+                search: str_field("search").unwrap_or_default(),
+                cursor_at,
+                cursor_seq,
+                limit: PAGE + 1,
+            };
+            let rows = crate::message_history::message_history_query(
+                app.state::<crate::message_history::MessageHistoryState>(),
+                input,
+            )
+            .unwrap_or_default();
+            let has_more = rows.len() as i64 > PAGE;
+            let items: Vec<Value> = rows
+                .iter()
+                .take(PAGE as usize)
+                .map(|r| {
+                    json!({
+                        "id": r.id, "text": r.text, "images": r.images, "timestamp": r.at,
+                        "favorite": r.favorite, "folder": r.folder_id,
+                        "kind": if r.is_draft { "draft" } else { "sent" },
+                        "project": r.project_name, "at": r.at, "seq": r.seq,
+                    })
+                })
+                .collect();
+            send(ws, json!({ "t": "historyQuery", "items": items, "hasMore": has_more }))?;
+        }
+        // Save the composer's current text as an unsent draft (kept in shared
+        // history, badged as a draft). `message` is the draft text; project/id/label/
+        // images are optional context.
+        "historySaveDraft" => {
+            let text = str_field("message")
+                .or_else(|| v.get("message").and_then(|m| m.get("text")).and_then(Value::as_str).map(str::to_string))
+                .unwrap_or_default();
+            if !text.trim().is_empty() {
+                let images = v
+                    .get("images")
+                    .and_then(Value::as_object)
+                    .map(|o| {
+                        o.iter()
+                            .filter_map(|(k, val)| val.as_str().map(|s| (k.clone(), s.to_string())))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let input = crate::message_history::AddInput {
+                    text,
+                    project_name: str_field("project").unwrap_or_default(),
+                    terminal_id: str_field("id").unwrap_or_default(),
+                    terminal_label: str_field("label").unwrap_or_default(),
+                    images,
+                };
+                let _ = crate::message_history::message_history_save_draft(
+                    app.state::<crate::message_history::MessageHistoryState>(),
+                    input,
+                );
+            }
+            send(ws, json!({ "t": "historySaveDraft", "ok": true }))?;
+        }
+        "historyToggleFavorite" => {
+            let id = str_field("id").unwrap_or_default();
+            match crate::message_history::toggle_favorite_state(
+                app.state::<crate::message_history::MessageHistoryState>(),
+                &id,
+            ) {
+                Ok(fav) => send(ws, json!({ "t": "historyToggleFavorite", "id": id, "ok": true, "favorite": fav }))?,
+                Err(e) => send(ws, json!({ "t": "historyToggleFavorite", "id": id, "ok": false, "error": e }))?,
+            }
+        }
+        // Move a message into a folder, or omit `folder` to remove it from its folder.
+        "historySetFolder" => {
+            let id = str_field("id").unwrap_or_default();
+            let folder = str_field("folder");
+            let r = crate::message_history::message_history_set_folder(
+                app.state::<crate::message_history::MessageHistoryState>(),
+                id,
+                folder,
+            );
+            send(ws, result_reply("historySetFolder", r))?;
+        }
+        "historyDelete" => {
+            let id = str_field("id").unwrap_or_default();
+            let r = crate::message_history::message_history_delete(
+                app.state::<crate::message_history::MessageHistoryState>(),
+                id,
+            );
+            send(ws, result_reply("historyDelete", r))?;
+        }
+        "historyFolders" => {
+            let folders = crate::message_history::message_history_folders(
+                app.state::<crate::message_history::MessageHistoryState>(),
+            )
+            .unwrap_or_default();
+            let folders = serde_json::to_value(folders).unwrap_or_else(|_| json!([]));
+            send(ws, json!({ "t": "historyFolders", "folders": folders }))?;
+        }
+        "historyCreateFolder" => {
+            let name = str_field("name").unwrap_or_default();
+            match crate::message_history::message_history_create_folder(
+                app.state::<crate::message_history::MessageHistoryState>(),
+                name,
+            ) {
+                Ok(f) => send(ws, json!({ "t": "historyCreateFolder", "ok": true,
+                    "folder": serde_json::to_value(f).unwrap_or_else(|_| json!({})) }))?,
+                Err(e) => send(ws, json!({ "t": "historyCreateFolder", "ok": false, "error": e }))?,
+            }
+        }
+        // Delete a folder (its messages are un-filed, not deleted). Accepts the
+        // folder `id`, or resolves a `name` to its id.
+        "historyDeleteFolder" => {
+            let id = match str_field("id").filter(|s| !s.is_empty()) {
+                Some(id) => Some(id),
+                None => {
+                    let name = str_field("name").unwrap_or_default();
+                    crate::message_history::message_history_folders(
+                        app.state::<crate::message_history::MessageHistoryState>(),
+                    )
+                    .unwrap_or_default()
+                    .into_iter()
+                    .find(|f| f.name == name)
+                    .map(|f| f.id)
+                }
+            };
+            match id {
+                Some(id) => {
+                    let r = crate::message_history::message_history_delete_folder(
+                        app.state::<crate::message_history::MessageHistoryState>(),
+                        id,
+                    );
+                    send(ws, result_reply("historyDeleteFolder", r))?;
+                }
+                None => send(ws, json!({ "t": "historyDeleteFolder", "ok": false, "error": "folder not found" }))?,
+            }
+        }
         _ => {}
     }
     Ok(())
+}
+
+/// The composer AI actions the phone should surface: the user's enabled actions
+/// from ~/.lpm/composer-actions.json, or the seeded defaults when the file is
+/// absent (mirrors DEFAULT_COMPOSER_ACTIONS in composerActions.ts — the two
+/// everyday rewrites ship enabled). Each carries a stable id, icon, label, and
+/// instruction, matching the desktop store's JSON shape.
+fn composer_actions_enabled() -> Vec<Value> {
+    let raw = crate::commands_real::load_composer_actions();
+    let list = match &raw {
+        Value::Array(a) => Some(a.clone()),
+        Value::Object(o) => o.get("actions").and_then(Value::as_array).cloned(),
+        _ => None,
+    };
+    let Some(list) = list else {
+        return default_composer_actions();
+    };
+    list.iter()
+        .filter(|a| a.get("enabled").and_then(Value::as_bool).unwrap_or(false))
+        .filter_map(|a| {
+            let id = a.get("id").and_then(Value::as_str).filter(|s| !s.is_empty())?;
+            Some(json!({
+                "id": id,
+                "icon": a.get("icon").and_then(Value::as_str).unwrap_or("sparkles"),
+                "label": a.get("label").and_then(Value::as_str).unwrap_or(""),
+                "instruction": a.get("instruction").and_then(Value::as_str).unwrap_or(""),
+            }))
+        })
+        .collect()
+}
+
+/// The enabled seed actions when no composer-actions.json exists yet, verbatim
+/// from DEFAULT_COMPOSER_ACTIONS in composerActions.ts (the two everyday rewrites
+/// that ship enabled), so a fresh install still offers the same defaults desktop
+/// shows.
+fn default_composer_actions() -> Vec<Value> {
+    vec![
+        json!({ "id": "improve", "icon": "sparkles", "label": "Improve prompt",
+            "instruction": "Rewrite this into a clearer, more specific, well-structured prompt for an AI coding agent. Resolve ambiguous pronouns and references, remove vagueness, and fill in obvious missing context that is already implied. Keep the original intent and do not add new requirements the user didn't imply." }),
+        json!({ "id": "concise", "icon": "minimize", "label": "Make concise",
+            "instruction": "Rewrite this to be as concise and direct as possible while preserving all meaning, intent, and every requirement or constraint. Cut filler and repetition but keep all specifics, file names, and acceptance criteria intact." }),
+    ]
+}
+
+/// Nudge a parallel transform run toward a distinct rewrite, mirroring
+/// composerVariants.ts's variantInstruction so the phone's variant picker isn't
+/// several near-identical outputs — the instruction still leads.
+fn variant_instruction(instruction: &str, index: usize, total: usize) -> String {
+    format!(
+        "{instruction}\n\nGenerate variation {} of {total}: produce a distinct rewrite that differs meaningfully from the other variations in wording, structure, and emphasis, while fully following the instruction above.",
+        index + 1
+    )
 }
 
 fn list_projects_json(app: &AppHandle) -> Value {
@@ -1948,11 +2292,61 @@ struct PushJob {
     collapse_id: String,
 }
 
+/// Decode a device into a `PushDevice`, or None when its push key isn't a valid
+/// 32-byte AES key (so nothing could be sealed to it anyway).
+fn make_push_device(d: &Device) -> Option<PushDevice> {
+    let bytes = base64::engine::general_purpose::STANDARD.decode(&d.push_key).ok()?;
+    let key: [u8; 32] = bytes.try_into().ok()?;
+    Some(PushDevice {
+        id: d.id.clone(),
+        token: d.apns_token.clone(),
+        env: d.apns_env.clone(),
+        key,
+        push_waiting: d.push_waiting,
+        push_done: d.push_done,
+        push_error: d.push_error,
+    })
+}
+
+/// Devices to alert on a new/changed status: a registered token, not currently
+/// connected, opted in to at least one status kind, and a valid push key. The
+/// per-status filter is applied later via `PushDevice::wants`.
+fn alert_recipients(devices: &[Device], connected: &HashSet<String>) -> Vec<PushDevice> {
+    devices
+        .iter()
+        .filter(|d| {
+            !d.apns_token.is_empty()
+                && !connected.contains(&d.id)
+                && (d.push_waiting || d.push_done || d.push_error)
+        })
+        .filter_map(make_push_device)
+        .collect()
+}
+
+/// Devices to send a withdrawal to: any registered token with a valid push key,
+/// ignoring notify prefs and the connected exclusion (a clear only removes, so
+/// it's idempotent/harmless).
+fn clear_recipients(devices: &[Device]) -> Vec<PushDevice> {
+    devices
+        .iter()
+        .filter(|d| !d.apns_token.is_empty())
+        .filter_map(make_push_device)
+        .collect()
+}
+
 /// On an agent status transition, push an APNs notification to every registered
 /// device that isn't currently holding a live socket (a live socket means the app
 /// is foregrounded and already got the `status-changed` frame). Never blocks the
 /// event listener: all the network work runs on a spawned thread.
 fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
+    // Only the instance actually running the remote server can tell which phones
+    // hold a live socket; an unbound instance sees an empty client map and would
+    // treat every phone as away and push everything. Gate on both flags and
+    // behave as if push doesn't exist here. The dedup map is irrelevant while
+    // gated — re-pushing the outstanding statuses after a later re-enable is fine.
+    if !hub.inner.enabled.load(Ordering::Relaxed) || !hub.inner.running.load(Ordering::Relaxed) {
+        return;
+    }
     if project.is_empty() {
         return;
     }
@@ -1992,48 +2386,20 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
     } else {
         HashSet::new()
     };
-    let (relay, recipients, clear_recipients) = {
-        let cfg = hub.inner.config.lock().unwrap();
-        let mk = |d: &Device| -> Option<PushDevice> {
-            let bytes = base64::engine::general_purpose::STANDARD.decode(&d.push_key).ok()?;
-            let key: [u8; 32] = bytes.try_into().ok()?;
-            Some(PushDevice {
-                id: d.id.clone(),
-                token: d.apns_token.clone(),
-                env: d.apns_env.clone(),
-                key,
-                push_waiting: d.push_waiting,
-                push_done: d.push_done,
-                push_error: d.push_error,
-            })
-        };
-        // Alert recipients: registered token, not connected, opted in to some kind.
-        let recipients: Vec<PushDevice> = if want_alert {
-            cfg.devices
-                .iter()
-                .filter(|d| {
-                    !d.apns_token.is_empty()
-                        && !connected.contains(&d.id)
-                        && (d.push_waiting || d.push_done || d.push_error)
-                })
-                .filter_map(|d| mk(d))
-                .collect()
-        } else {
-            Vec::new()
-        };
-        // Clear recipients: any registered token, ignoring notify prefs and the
-        // connected exclusion (a clear only removes, so it's idempotent/harmless).
-        let clear_recipients: Vec<PushDevice> = if want_clear {
-            cfg.devices
-                .iter()
-                .filter(|d| !d.apns_token.is_empty())
-                .filter_map(|d| mk(d))
-                .collect()
-        } else {
-            Vec::new()
-        };
-        (cfg.effective_relay(), recipients, clear_recipients)
+    // Read prefs/registrations from disk, not this instance's startup snapshot:
+    // the config is rewritten on every pref or registration change (possibly by a
+    // second lpm instance), so disk is authoritative at send time. Used locally
+    // only — never written back into hub.inner.config — to avoid clobbering a
+    // concurrent in-memory registration.
+    let cfg = load_config();
+    let relay = cfg.effective_relay();
+    let recipients: Vec<PushDevice> = if want_alert {
+        alert_recipients(&cfg.devices, &connected)
+    } else {
+        Vec::new()
     };
+    let clear_recipients: Vec<PushDevice> =
+        if want_clear { clear_recipients(&cfg.devices) } else { Vec::new() };
     if recipients.is_empty() && clear_recipients.is_empty() {
         return;
     }
@@ -2557,6 +2923,53 @@ mod tests {
         let new = devices.iter().find(|d| d.id == "new").unwrap();
         assert_eq!(new.apns_token, "deadbeef");
         assert_eq!((new.push_waiting, new.push_done, new.push_error), (true, false, true));
+    }
+
+    #[test]
+    fn recipient_selection_honors_prefs_token_key_and_connection() {
+        let b64 = |b: [u8; 32]| base64::engine::general_purpose::STANDARD.encode(b);
+        let dev = |id: &str, token: &str, key: String, prefs: (bool, bool, bool)| Device {
+            id: id.into(),
+            apns_token: token.into(),
+            apns_env: "production".into(),
+            push_key: key,
+            push_waiting: prefs.0,
+            push_done: prefs.1,
+            push_error: prefs.2,
+            ..Default::default()
+        };
+
+        let devices = vec![
+            // Opted in with a valid key: an alert recipient and a clear recipient.
+            dev("opted", "aa", b64([1u8; 32]), (true, false, false)),
+            // All prefs off: excluded from alerts, still a clear recipient.
+            dev("muted", "bb", b64([2u8; 32]), (false, false, false)),
+            // Connected: excluded from alerts, still a clear recipient.
+            dev("connected", "cc", b64([3u8; 32]), (true, true, true)),
+            // No token: excluded from both.
+            dev("notoken", "", b64([4u8; 32]), (true, true, true)),
+            // Wrong-length push key: excluded from both.
+            dev(
+                "badkey",
+                "dd",
+                base64::engine::general_purpose::STANDARD.encode([5u8; 16]),
+                (true, true, true),
+            ),
+        ];
+
+        let connected: HashSet<String> = ["connected".to_string()].into_iter().collect();
+
+        let alert_ids: Vec<String> =
+            alert_recipients(&devices, &connected).into_iter().map(|d| d.id).collect();
+        assert_eq!(alert_ids, vec!["opted".to_string()]);
+
+        let mut clear_ids: Vec<String> =
+            clear_recipients(&devices).into_iter().map(|d| d.id).collect();
+        clear_ids.sort();
+        assert_eq!(
+            clear_ids,
+            vec!["connected".to_string(), "muted".to_string(), "opted".to_string()]
+        );
     }
 
     #[test]

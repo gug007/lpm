@@ -25,8 +25,13 @@ enum Wire {
     static func slash(id: String, project: String) -> String {
         json(["t": "slash", "id": id, "project": project])
     }
-    static func upload(id: String, data: String, mime: String) -> String {
-        json(["t": "upload", "id": id, "data": data, "mime": mime])
+    /// An upload carrying a per-upload `reqId` (UUID) the server echoes back, so the
+    /// phone matches each reply to its chip independent of order (uploads run on a
+    /// worker thread). `name` saves the blob under its original basename (files).
+    static func upload(id: String, data: String, mime: String, name: String?, reqId: String) -> String {
+        var obj: [String: Any] = ["t": "upload", "id": id, "data": data, "mime": mime, "reqId": reqId]
+        if let name, !name.isEmpty { obj["name"] = name }
+        return json(obj)
     }
     static func mentions(project: String) -> String { json(["t": "mentions", "project": project]) }
     static func history(project: String, q: String) -> String {
@@ -131,6 +136,65 @@ enum Wire {
     static func gitWatch(project: String) -> String { json(["t": "gitWatch", "project": project]) }
     static func gitUnwatch(project: String) -> String { json(["t": "gitUnwatch", "project": project]) }
 
+    // MARK: composer parity (AI actions, transform, service logs, rich history)
+
+    static func composerActions() -> String { json(["t": "composerActions"]) }
+    static func transform(reqId: String, project: String, instruction: String,
+                          text: String, variants: Int) -> String {
+        json(["t": "transform", "reqId": reqId, "project": project,
+              "instruction": instruction, "text": text, "variants": variants])
+    }
+    static func services(project: String) -> String { json(["t": "services", "project": project]) }
+    static func serviceLogs(project: String, paneIndex: Int, lines: Int) -> String {
+        json(["t": "serviceLogs", "project": project, "paneIndex": paneIndex, "lines": lines])
+    }
+    static func historyQuery(project: String?, search: String?, favoritesOnly: Bool,
+                             folder: String?, before: (at: Int, seq: Int)?) -> String {
+        var obj: [String: Any] = ["t": "historyQuery"]
+        if let project, !project.isEmpty { obj["project"] = project }
+        if let search, !search.isEmpty { obj["search"] = search }
+        if favoritesOnly { obj["favoritesOnly"] = true }
+        if let folder, !folder.isEmpty { obj["folder"] = folder }
+        if let before { obj["before"] = ["at": before.at, "seq": before.seq] }
+        return json(obj)
+    }
+    static func historySaveDraft(message: String, project: String?, id: String?,
+                                 label: String?, images: [String: String]?) -> String {
+        var obj: [String: Any] = ["t": "historySaveDraft", "message": message]
+        if let project, !project.isEmpty { obj["project"] = project }
+        if let id, !id.isEmpty { obj["id"] = id }
+        if let label, !label.isEmpty { obj["label"] = label }
+        if let images, !images.isEmpty { obj["images"] = images }
+        return json(obj)
+    }
+    static func historyToggleFavorite(id: String) -> String {
+        json(["t": "historyToggleFavorite", "id": id])
+    }
+    static func historySetFolder(id: String, folder: String?) -> String {
+        var obj: [String: Any] = ["t": "historySetFolder", "id": id]
+        if let folder, !folder.isEmpty { obj["folder"] = folder }
+        return json(obj)
+    }
+    static func historyDelete(id: String) -> String { json(["t": "historyDelete", "id": id]) }
+    static func historyFolders() -> String { json(["t": "historyFolders"]) }
+    static func historyCreateFolder(name: String) -> String {
+        json(["t": "historyCreateFolder", "name": name])
+    }
+    static func historyDeleteFolder(id: String?, name: String?) -> String {
+        var obj: [String: Any] = ["t": "historyDeleteFolder"]
+        if let id, !id.isEmpty { obj["id"] = id }
+        if let name, !name.isEmpty { obj["name"] = name }
+        return json(obj)
+    }
+
+    /// A `transform`/`historyQuery` reqId echoes back verbatim as a string or a
+    /// number; normalize either to the string we sent so replies match requests.
+    static func reqIdString(_ v: Any?) -> String {
+        if let s = v as? String { return s }
+        if let n = v as? NSNumber { return n.stringValue }
+        return ""
+    }
+
     /// Frame raw non-UTF-8 input the way the desktop expects (null + "HEX:" + hex).
     static func hexFrame(_ bytes: [UInt8]) -> String {
         "\u{0}HEX:" + bytes.map { String(format: "%02x", $0) }.joined()
@@ -155,7 +219,7 @@ enum Wire {
         case slash(id: String, [SlashCommand])
         case mentions(project: String, [MentionEntry])
         case history(project: String, [HistoryRow])
-        case upload(id: String, path: String)
+        case upload(id: String, reqId: String, path: String)
         case status(project: String, [StatusEntry])
         case seed(id: String, cols: Int, rows: Int, data: String, owner: ControlOwner?)
         case control(id: String, owner: ControlOwner?)
@@ -196,6 +260,23 @@ enum Wire {
         case gitChanged(project: String)
         // Ack for an apnsToken registration.
         case apnsToken(ok: Bool)
+        // Composer parity replies.
+        case composerActions([ComposerAction])
+        // One transform variant settled (`text` on success, `error` on failure);
+        // `reqId` matches it to the request, `idx` to the variant slot.
+        case transformVariant(reqId: String, idx: Int, text: String?, error: String?)
+        // The transform batch finished; `ok` is true if any variant succeeded.
+        case transformDone(reqId: String, ok: Bool)
+        case services(project: String, running: Bool, services: [ServiceInfo], error: String?)
+        case serviceLogs(project: String, paneIndex: Int, text: String?, error: String?)
+        case historyQuery(items: [HistoryItem], hasMore: Bool)
+        case historySaveDraft(ok: Bool)
+        case historyToggleFavorite(id: String, favorite: Bool, error: String?)
+        // setFolder / delete / deleteFolder acks don't echo an id, so the UI updates
+        // optimistically and treats these as confirm-or-refresh signals.
+        case historyMutated(ok: Bool, error: String?)
+        case historyFolders([HistoryFolder])
+        case historyCreateFolder(folder: HistoryFolder?, error: String?)
         case pong
         case unknown
 
@@ -233,6 +314,7 @@ enum Wire {
             case "upload":
                 let ok = obj["ok"] as? Bool ?? false
                 return .upload(id: obj["id"] as? String ?? "",
+                               reqId: Wire.reqIdString(obj["reqId"]),
                                path: ok ? (obj["path"] as? String ?? "") : "")
             case "status":
                 return .status(project: obj["project"] as? String ?? "",
@@ -334,6 +416,48 @@ enum Wire {
                                       error: ok ? nil : (obj["error"] as? String ?? "Couldn't discard changes."))
             case "git-changed": return .gitChanged(project: obj["project"] as? String ?? "")
             case "apnsToken": return .apnsToken(ok: obj["ok"] as? Bool ?? false)
+            case "composerActions":
+                return .composerActions((obj["actions"] as? [[String: Any]] ?? []).map(ComposerAction.init))
+            case "transform":
+                let ok = obj["ok"] as? Bool ?? false
+                return .transformVariant(reqId: Wire.reqIdString(obj["reqId"]),
+                                         idx: obj["idx"] as? Int ?? 0,
+                                         text: ok ? (obj["text"] as? String ?? "") : nil,
+                                         error: ok ? nil : (obj["error"] as? String ?? "The rewrite failed."))
+            case "transformDone":
+                return .transformDone(reqId: Wire.reqIdString(obj["reqId"]), ok: obj["ok"] as? Bool ?? false)
+            case "services":
+                let ok = obj["ok"] as? Bool ?? false
+                return .services(project: obj["project"] as? String ?? "",
+                                 running: obj["running"] as? Bool ?? false,
+                                 services: ok ? (obj["services"] as? [[String: Any]] ?? []).map(ServiceInfo.init) : [],
+                                 error: ok ? nil : (obj["error"] as? String ?? "Couldn't read services."))
+            case "serviceLogs":
+                let ok = obj["ok"] as? Bool ?? false
+                return .serviceLogs(project: obj["project"] as? String ?? "",
+                                    paneIndex: obj["paneIndex"] as? Int ?? 0,
+                                    text: ok ? (obj["text"] as? String ?? "") : nil,
+                                    error: ok ? nil : (obj["error"] as? String ?? "Couldn't read the logs."))
+            case "historyQuery":
+                return .historyQuery(items: (obj["items"] as? [[String: Any]] ?? []).map(HistoryItem.init),
+                                     hasMore: obj["hasMore"] as? Bool ?? false)
+            case "historySaveDraft":
+                return .historySaveDraft(ok: obj["ok"] as? Bool ?? false)
+            case "historyToggleFavorite":
+                let ok = obj["ok"] as? Bool ?? false
+                return .historyToggleFavorite(id: obj["id"] as? String ?? "",
+                                              favorite: obj["favorite"] as? Bool ?? false,
+                                              error: ok ? nil : (obj["error"] as? String ?? "Couldn't update favorite."))
+            case "historySetFolder", "historyDelete", "historyDeleteFolder":
+                let ok = obj["ok"] as? Bool ?? false
+                return .historyMutated(ok: ok, error: ok ? nil : (obj["error"] as? String ?? "Couldn't update history."))
+            case "historyFolders":
+                return .historyFolders((obj["folders"] as? [[String: Any]] ?? []).map(HistoryFolder.init))
+            case "historyCreateFolder":
+                let ok = obj["ok"] as? Bool ?? false
+                return .historyCreateFolder(
+                    folder: ok ? HistoryFolder(obj["folder"] as? [String: Any] ?? [:]) : nil,
+                    error: ok ? nil : (obj["error"] as? String ?? "Couldn't create the folder."))
             case "pong": return .pong
             default: return .unknown
             }
@@ -638,5 +762,86 @@ struct GitBranch: Identifiable, Hashable {
         name = o["name"] as? String ?? ""
         committerDate = o["committerDate"] as? String ?? ""
         remote = o["remote"] as? String ?? ""
+    }
+}
+
+/// One enabled composer AI action (from `~/.lpm/composer-actions.json`). `icon` is
+/// a stable key the phone maps to an SF Symbol; `id` is passed back as the
+/// `transform` instruction source, `label` is the menu title.
+struct ComposerAction: Identifiable {
+    let id: String
+    let icon: String
+    let label: String
+    let instruction: String
+
+    init(_ o: [String: Any]) {
+        id = o["id"] as? String ?? ""
+        icon = o["icon"] as? String ?? ""
+        label = o["label"] as? String ?? ""
+        instruction = o["instruction"] as? String ?? ""
+    }
+}
+
+/// One service in the logs viewer. `paneIndex` is the index to pass to
+/// `serviceLogs` when the project is running (nil when stopped).
+struct ServiceInfo: Identifiable {
+    let name: String
+    let paneIndex: Int?
+    let running: Bool
+    let cmd: String
+    let port: Int
+
+    var id: String { name }
+
+    init(_ o: [String: Any]) {
+        name = o["name"] as? String ?? ""
+        paneIndex = o["paneIndex"] as? Int
+        running = o["running"] as? Bool ?? false
+        cmd = o["cmd"] as? String ?? ""
+        port = o["port"] as? Int ?? 0
+    }
+}
+
+/// One message-history row for the paged history screen. `kind` is "sent" or
+/// "draft"; `at`/`seq` form the keyset cursor for the next page. `favorite` and
+/// `folder` are `var` so the screen can update them optimistically in place.
+struct HistoryItem: Identifiable {
+    let id: String
+    let text: String
+    let images: [String: String]
+    let timestamp: Int
+    var favorite: Bool
+    var folder: String?
+    let kind: String
+    let project: String
+    let at: Int
+    let seq: Int
+
+    var isDraft: Bool { kind == "draft" }
+
+    init(_ o: [String: Any]) {
+        id = o["id"] as? String ?? ""
+        text = o["text"] as? String ?? ""
+        images = o["images"] as? [String: String] ?? [:]
+        timestamp = o["timestamp"] as? Int ?? 0
+        favorite = o["favorite"] as? Bool ?? false
+        folder = o["folder"] as? String
+        kind = o["kind"] as? String ?? "sent"
+        project = o["project"] as? String ?? ""
+        at = o["at"] as? Int ?? 0
+        seq = o["seq"] as? Int ?? 0
+    }
+}
+
+/// A message-history folder with its message count, for the history filter UI.
+struct HistoryFolder: Identifiable {
+    let id: String
+    let name: String
+    let count: Int
+
+    init(_ o: [String: Any]) {
+        id = o["id"] as? String ?? ""
+        name = o["name"] as? String ?? "Folder"
+        count = o["count"] as? Int ?? 0
     }
 }

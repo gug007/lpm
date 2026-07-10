@@ -26,7 +26,7 @@ final class LpmClient: NSObject {
     var onSidebar: ((_ order: [String], _ groups: [ProjectFolder]) -> Void)?
     var onTerminals: ((_ project: String, _ terminals: [TerminalInfo]) -> Void)?
     var onSlash: ((_ id: String, _ commands: [SlashCommand]) -> Void)?
-    var onUpload: ((_ id: String, _ path: String) -> Void)?
+    var onUpload: ((_ id: String, _ reqId: String, _ path: String) -> Void)?
     var onMentions: ((_ project: String, _ entries: [MentionEntry]) -> Void)?
     var onHistory: ((_ project: String, _ rows: [HistoryRow]) -> Void)?
     var onStatus: ((_ project: String, _ entries: [StatusEntry]) -> Void)?
@@ -58,6 +58,18 @@ final class LpmClient: NSObject {
     var onGitChanged: ((_ project: String) -> Void)?
     // The desktop acknowledged (or rejected) an apnsToken registration.
     var onApnsToken: ((_ ok: Bool) -> Void)?
+    // Composer parity replies.
+    var onComposerActions: ((_ actions: [ComposerAction]) -> Void)?
+    var onTransformVariant: ((_ reqId: String, _ idx: Int, _ text: String?, _ error: String?) -> Void)?
+    var onTransformDone: ((_ reqId: String, _ ok: Bool) -> Void)?
+    var onServices: ((_ project: String, _ running: Bool, _ services: [ServiceInfo], _ error: String?) -> Void)?
+    var onServiceLogs: ((_ project: String, _ paneIndex: Int, _ text: String?, _ error: String?) -> Void)?
+    var onHistoryQuery: ((_ items: [HistoryItem], _ hasMore: Bool) -> Void)?
+    var onHistorySaveDraft: ((_ ok: Bool) -> Void)?
+    var onHistoryToggleFavorite: ((_ id: String, _ favorite: Bool, _ error: String?) -> Void)?
+    var onHistoryMutated: ((_ ok: Bool, _ error: String?) -> Void)?
+    var onHistoryFolders: ((_ folders: [HistoryFolder]) -> Void)?
+    var onHistoryCreateFolder: ((_ folder: HistoryFolder?, _ error: String?) -> Void)?
 
     private var endpoint: Endpoint
     private var credential: Credential?
@@ -271,7 +283,9 @@ final class LpmClient: NSObject {
     func requestSidebar() { send(Wire.sidebar()) }
     func requestTerminals(project: String) { send(Wire.terminals(project: project)) }
     func requestSlash(id: String, project: String) { send(Wire.slash(id: id, project: project)) }
-    func uploadImage(_ id: String, _ b64: String, mime: String) { send(Wire.upload(id: id, data: b64, mime: mime)) }
+    func uploadBlob(_ id: String, _ b64: String, mime: String, name: String?, reqId: String) {
+        send(Wire.upload(id: id, data: b64, mime: mime, name: name, reqId: reqId))
+    }
     func requestMentions(project: String) { send(Wire.mentions(project: project)) }
     func requestHistory(project: String, q: String) { send(Wire.history(project: project, q: q)) }
     func recordHistory(project: String, id: String, label: String, text: String) {
@@ -331,6 +345,31 @@ final class LpmClient: NSObject {
         watchedProjects.remove(project)
         sendLive(Wire.gitUnwatch(project: project))
     }
+
+    // Composer parity requests.
+    func requestComposerActions() { send(Wire.composerActions()) }
+    func runTransform(reqId: String, project: String, instruction: String, text: String, variants: Int) {
+        send(Wire.transform(reqId: reqId, project: project, instruction: instruction, text: text, variants: variants))
+    }
+    func requestServices(project: String) { send(Wire.services(project: project)) }
+    func requestServiceLogs(project: String, paneIndex: Int, lines: Int) {
+        send(Wire.serviceLogs(project: project, paneIndex: paneIndex, lines: lines))
+    }
+    func requestHistoryQuery(project: String?, search: String?, favoritesOnly: Bool,
+                             folder: String?, before: (at: Int, seq: Int)?) {
+        send(Wire.historyQuery(project: project, search: search, favoritesOnly: favoritesOnly,
+                               folder: folder, before: before))
+    }
+    func historySaveDraft(message: String, project: String?, id: String?,
+                          label: String?, images: [String: String]?) {
+        send(Wire.historySaveDraft(message: message, project: project, id: id, label: label, images: images))
+    }
+    func historyToggleFavorite(id: String) { send(Wire.historyToggleFavorite(id: id)) }
+    func historySetFolder(id: String, folder: String?) { send(Wire.historySetFolder(id: id, folder: folder)) }
+    func historyDelete(id: String) { send(Wire.historyDelete(id: id)) }
+    func requestHistoryFolders() { send(Wire.historyFolders()) }
+    func historyCreateFolder(name: String) { send(Wire.historyCreateFolder(name: name)) }
+    func historyDeleteFolder(id: String?, name: String?) { send(Wire.historyDeleteFolder(id: id, name: name)) }
 
     func subscribe(_ id: String) {
         subscribed.add(id)
@@ -436,7 +475,7 @@ final class LpmClient: NSObject {
             case .sidebar(let order, let groups): self.onSidebar?(order, groups)
             case .terminals(let proj, let t): self.onTerminals?(proj, t)
             case .slash(let id, let cmds): self.onSlash?(id, cmds)
-            case .upload(let id, let path): self.onUpload?(id, path)
+            case .upload(let id, let reqId, let path): self.onUpload?(id, reqId, path)
             case .mentions(let proj, let entries): self.onMentions?(proj, entries)
             case .history(let proj, let rows): self.onHistory?(proj, rows)
             case .status(let proj, let s): self.onStatus?(proj, s)
@@ -480,6 +519,21 @@ final class LpmClient: NSObject {
             case .gitDiscardAll(let proj, let error): self.onGitDiscardAll?(proj, error)
             case .gitChanged(let proj): self.onGitChanged?(proj)
             case .apnsToken(let ok): self.onApnsToken?(ok)
+            case .composerActions(let actions): self.onComposerActions?(actions)
+            case .transformVariant(let reqId, let idx, let text, let error):
+                self.onTransformVariant?(reqId, idx, text, error)
+            case .transformDone(let reqId, let ok): self.onTransformDone?(reqId, ok)
+            case .services(let proj, let running, let services, let error):
+                self.onServices?(proj, running, services, error)
+            case .serviceLogs(let proj, let pane, let text, let error):
+                self.onServiceLogs?(proj, pane, text, error)
+            case .historyQuery(let items, let hasMore): self.onHistoryQuery?(items, hasMore)
+            case .historySaveDraft(let ok): self.onHistorySaveDraft?(ok)
+            case .historyToggleFavorite(let id, let favorite, let error):
+                self.onHistoryToggleFavorite?(id, favorite, error)
+            case .historyMutated(let ok, let error): self.onHistoryMutated?(ok, error)
+            case .historyFolders(let folders): self.onHistoryFolders?(folders)
+            case .historyCreateFolder(let folder, let error): self.onHistoryCreateFolder?(folder, error)
             case .pong, .unknown: break
         }
     }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { useSettingsStore } from "../store/settings";
 import { useComposerStore } from "../store/composer";
@@ -198,6 +199,7 @@ export function Settings({
   const removeAccount = useAccountsStore((s) => s.remove);
   const refreshAccountStatuses = useAccountsStore((s) => s.refreshStatuses);
   const [addingAccount, setAddingAccount] = useState(false);
+  const [accountsCollapsed, setAccountsCollapsed] = useState(true);
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState<ClaudeAccount | null>(null);
   const [loginAccount, setLoginAccount] = useState<ClaudeAccount | null>(null);
 
@@ -640,8 +642,16 @@ export function Settings({
             </SettingsSection>
 
             <SettingsSection
-              title="Claude Accounts"
+              title="Multiple Claude accounts"
               description="Run different projects on different Claude accounts."
+              collapsible
+              collapsed={accountsCollapsed}
+              onToggle={() => setAccountsCollapsed((c) => !c)}
+              summary={
+                accounts.length > 0
+                  ? `${accounts.length} account${accounts.length === 1 ? "" : "s"}`
+                  : "Set up"
+              }
             >
               <ClaudeAccountsSetupGuide
                 accounts={accounts}
@@ -690,11 +700,13 @@ export function Settings({
                 </div>
               )}
             </SettingsSection>
-            <p className="mt-2 text-[11px] leading-relaxed text-[var(--text-muted)]">
-              If you set CLAUDE_CONFIG_DIR manually in your shell profile
-              (~/.zprofile, ~/.zshrc), remove it — a login shell re-sources it and
-              overrides per-project accounts.
-            </p>
+            {!accountsCollapsed && (
+              <p className="mt-2 text-[11px] leading-relaxed text-[var(--text-muted)]">
+                If you set CLAUDE_CONFIG_DIR manually in your shell profile
+                (~/.zprofile, ~/.zshrc), remove it — a login shell re-sources it
+                and overrides per-project accounts.
+              </p>
+            )}
             </>
           )}
 
@@ -936,16 +948,50 @@ function SettingsSection({
   title,
   description,
   children,
+  collapsible = false,
+  collapsed = false,
+  onToggle,
+  summary,
 }: {
   title: string;
   description?: string;
   children: React.ReactNode;
+  collapsible?: boolean;
+  collapsed?: boolean;
+  onToggle?: () => void;
+  summary?: React.ReactNode;
 }) {
-  return (
-    <div className="mt-6 space-y-1">
-      <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
-        {title}
-      </h2>
+  if (collapsible && collapsed) {
+    return (
+      <div className="mt-6">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="group flex w-full items-center justify-between gap-4 rounded-lg border border-[var(--border)] px-4 py-3 text-left transition-colors hover:bg-[var(--bg-hover)]"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium text-[var(--text-primary)]">
+              {title}
+            </span>
+            {description && (
+              <span className="block text-[11px] text-[var(--text-muted)]">
+                {description}
+              </span>
+            )}
+          </span>
+          <span className="flex shrink-0 items-center gap-2 text-[var(--text-muted)]">
+            {summary && <span className="text-[11px]">{summary}</span>}
+            <ChevronRight
+              size={14}
+              className="transition-colors group-hover:text-[var(--text-primary)]"
+            />
+          </span>
+        </button>
+      </div>
+    );
+  }
+  const content = (
+    <>
       {description && (
         <p className="pb-2 text-[11px] leading-relaxed text-[var(--text-muted)]">
           {description}
@@ -954,6 +1000,29 @@ function SettingsSection({
       <div className="divide-y divide-[var(--border)] rounded-lg border border-[var(--border)]">
         {children}
       </div>
+    </>
+  );
+  return (
+    <div className="mt-6 space-y-1">
+      {collapsible ? (
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex w-full items-center gap-1 text-xs font-medium uppercase tracking-wider text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+        >
+          <span>{title}</span>
+          <ChevronRight size={13} className="rotate-90" />
+        </button>
+      ) : (
+        <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
+          {title}
+        </h2>
+      )}
+      {collapsible ? (
+        <div className="field-reveal space-y-1">{content}</div>
+      ) : (
+        content
+      )}
     </div>
   );
 }

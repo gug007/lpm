@@ -651,7 +651,7 @@ struct TerminalScreen: View {
                 }
             }
             if controlled {
-                TerminalComposer(termId: term.id, project: term.project, label: term.label)
+                TerminalComposer(store: model.composerStore(for: term.id, project: term.project, label: term.label))
                     .environmentObject(model)
             }
         }

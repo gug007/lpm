@@ -174,6 +174,22 @@
   window.lpmSeed = b64 => { lastOutputAt = performance.now(); term.reset(); term.write(b64ToStr(b64)); refit(); };
   window.lpmSetTopInset = px => document.documentElement.style.setProperty('--top-inset', px + 'px');
 
+  // Return the last `n` lines of the terminal buffer (viewport + scrollback) as
+  // plain text, for the composer's "@ terminal output" mention. Trailing blank
+  // lines are trimmed so a mostly-empty screen doesn't inject a wall of newlines.
+  window.lpmCapture = n => {
+    const buf = term.buffer.active;
+    const count = Math.min(n, buf.length);
+    const start = buf.length - count;
+    const lines = [];
+    for (let i = start; i < buf.length; i++) {
+      const line = buf.getLine(i);
+      lines.push(line ? line.translateToString(true) : '');
+    }
+    while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
+    return lines.join('\n');
+  };
+
   // Submit a composed message the way the desktop composer does (InteractivePane
   // submitInput): wrap the body in bracketed-paste markers when the running program
   // enabled them — so newlines are pasted content, not executed — and neutralize ESC
