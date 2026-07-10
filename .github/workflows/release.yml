@@ -79,10 +79,18 @@ jobs:
       # replacing the old manual codesign/notarytool/stapler/create-dmg.sh steps.
       # LPM_VERSION is the version the app reports (option_env! at compile time);
       # --config keeps the bundle's CFBundleShortVersionString in sync.
+      #
+      # The bundled CLI (Contents/MacOS/lpm-cli) is built by beforeBuildCommand
+      # (`npm run build:cli`, scripts/build-cli.sh). LPM_CLI_TARGET pins it to the
+      # same triple tauri is bundling so the x86_64 job cross-builds the CLI
+      # instead of producing a host-arch (arm64) binary; LPM_VERSION flows through
+      # so `lpm --version` matches the app. Tauri's macOS bundler code-signs the
+      # externalBin alongside the app under the hardened runtime.
       - name: Build, sign & notarize
         working-directory: desktop/frontend
         env:
           LPM_VERSION: ${{ env.VERSION }}
+          LPM_CLI_TARGET: ${{ matrix.target }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER_ID }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_KEY_PATH: ${{ runner.temp }}/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8

@@ -42,6 +42,8 @@ macro_rules! all_command_handlers {
         clear_port_suggestions,
         clear_status,
         clear_pane_status,
+        cli_install_status,
+        install_cli,
         create_branch,
         create_project,
         create_project_from_clone,

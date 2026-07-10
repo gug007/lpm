@@ -223,6 +223,12 @@ export function ImportConfig(overwrite) {
 export function InstallKokoro() {
   return invoke("install_kokoro");
 }
+export function InstallCli() {
+  return invoke("install_cli");
+}
+export function CliInstallStatus() {
+  return invoke("cli_install_status");
+}
 export function InstallTmux() {
   return invoke("install_tmux");
 }

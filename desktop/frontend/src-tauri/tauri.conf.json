@@ -4,8 +4,8 @@
   "version": "0.0.1",
   "identifier": "cx.lpm.desktop",
   "build": {
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "npm run build:cli && npm run dev",
+    "beforeBuildCommand": "npm run build:cli && npm run build",
     "devUrl": "http://127.0.0.1:9245",
     "frontendDist": "../dist"
   },
@@ -31,6 +31,7 @@
   "bundle": {
     "active": true,
     "targets": ["app", "dmg"],
+    "externalBin": ["binaries/lpm-cli"],
     "icon": ["icons/icon.icns", "icons/icon.png"],
     "copyright": "© 2026 gug007",
     "macOS": {

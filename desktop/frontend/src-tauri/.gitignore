@@ -1,6 +1,10 @@
 # Rust build output
 /target
 
+# Staged CLI sidecar binaries (built by scripts/build-cli.sh before each
+# tauri build; per-arch, target-triple-suffixed). Build artifacts, never committed.
+/binaries
+
 # Tauri-generated capability schemas
 /gen/schemas
 

@@ -72,6 +72,8 @@ export function GitPruneRemotes(...args: any[]): Promise<any>;
 export function GitPush(...args: any[]): Promise<any>;
 export function GitStatus(...args: any[]): Promise<any>;
 export function ImportConfig(...args: any[]): Promise<any>;
+export function InstallCli(...args: any[]): Promise<any>;
+export function CliInstallStatus(...args: any[]): Promise<any>;
 export function InstallKokoro(...args: any[]): Promise<any>;
 export function InstallTmux(...args: any[]): Promise<any>;
 export function InstallUpdate(...args: any[]): Promise<any>;

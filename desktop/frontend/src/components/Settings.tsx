@@ -25,6 +25,8 @@ import {
   GetVersion,
   CheckForUpdate,
   InstallUpdate,
+  InstallCli,
+  CliInstallStatus,
   CheckClaudeHooks,
   ResetClaudeHooks,
   ExportConfig,
@@ -57,6 +59,9 @@ const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
 type HooksStatus = "idle" | "checking" | "installed" | "missing" | "no-settings";
 type UpdateStatus = "idle" | "checking" | "available" | "up-to-date" | "installing" | "error";
+// Mirrors the `status` field returned by cli_install_status / install_cli.
+// "unavailable" = dev build (no bundled CLI to link); "loading" = pre-fetch.
+type CliStatus = "loading" | "unavailable" | "not-installed" | "installed" | "points-elsewhere";
 
 const HOOKS_DESCRIPTION: Record<HooksStatus, string> = {
   idle: "Display Claude Code running progress in sidebar",
@@ -175,6 +180,9 @@ export function Settings({
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
   const [latestVersion, setLatestVersion] = useState("");
   const [updateError, setUpdateError] = useState("");
+  const [cliStatus, setCliStatus] = useState<CliStatus>("loading");
+  const [cliBusy, setCliBusy] = useState(false);
+  const [cliError, setCliError] = useState("");
   const [hooksStatus, setHooksStatus] = useState<HooksStatus>("idle");
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [resettingHooks, setResettingHooks] = useState(false);
@@ -214,6 +222,27 @@ export function Settings({
   useEffect(() => {
     GetVersion().then(setVersion);
   }, []);
+
+  useEffect(() => {
+    CliInstallStatus()
+      .then((r) => setCliStatus(r.status as CliStatus))
+      .catch(() => setCliStatus("unavailable"));
+  }, []);
+
+  const handleInstallCli = async () => {
+    setCliBusy(true);
+    setCliError("");
+    try {
+      const res = await InstallCli();
+      setCliStatus(res.status as CliStatus);
+      toast.success("Command line tool installed — run `lpm` in any terminal");
+    } catch (err) {
+      setCliError(String(err));
+      toast.error(String(err));
+    } finally {
+      setCliBusy(false);
+    }
+  };
 
   useEffect(() => EventsOn("update-progress", (pct: number) => setInstallProgress(pct)), []);
   useEffect(() => EventsOn("update-status", (status: string) => {
@@ -438,6 +467,24 @@ export function Settings({
                 ) : (
                   <button onClick={handleCheckUpdate} disabled={updateStatus === "checking" || updateStatus === "installing"} className={BTN_SECONDARY}>
                     {updateStatus === "checking" || updateStatus === "installing" ? <RefreshIcon spinning /> : "Check"}
+                  </button>
+                )}
+              </SettingsRow>
+              <SettingsRow
+                label="Command line tool"
+                description={
+                  cliStatus === "installed"
+                    ? "Installed — run `lpm` in any terminal"
+                    : cliStatus === "points-elsewhere"
+                      ? cliError || "Another file occupies /usr/local/bin/lpm"
+                      : cliStatus === "unavailable"
+                        ? "Not available in development builds"
+                        : cliError || "Add the lpm command to your PATH"
+                }
+              >
+                {cliStatus === "unavailable" || cliStatus === "loading" ? null : (
+                  <button onClick={handleInstallCli} disabled={cliBusy} className={BTN_SECONDARY}>
+                    {cliBusy ? <RefreshIcon spinning /> : cliStatus === "installed" ? "Reinstall" : "Install"}
                   </button>
                 )}
               </SettingsRow>
