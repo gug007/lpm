@@ -43,7 +43,7 @@ import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Modal } from "./ui/Modal";
 import { TrafficLights } from "./ui/TrafficLights";
 import { MobileSettingsPane } from "./MobileSettingsPane";
-import { PencilIcon, TrashIcon } from "./icons";
+import { PencilIcon, PlusIcon, TrashIcon } from "./icons";
 import { useAppStore, type SettingsTab } from "../store/app";
 import { useAccountsStore } from "../store/accounts";
 import type { ClaudeAccount } from "../types";
@@ -642,8 +642,8 @@ export function Settings({
             </SettingsSection>
 
             <SettingsSection
-              title="Multiple Claude accounts"
-              description="Run different projects on different Claude accounts."
+              title="Claude accounts"
+              description="Keep each project signed in to the right Claude account."
               collapsible
               collapsed={accountsCollapsed}
               onToggle={() => setAccountsCollapsed((c) => !c)}
@@ -675,7 +675,7 @@ export function Settings({
                 />
               ))}
               {addingAccount ? (
-                <div className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                <div className="flex items-center gap-3 bg-[var(--bg-secondary)]/30 px-4 py-3 text-sm">
                   <InlineNameEditor
                     initial=""
                     placeholder="e.g. Work"
@@ -690,22 +690,27 @@ export function Settings({
                   />
                 </div>
               ) : (
-                <div className="flex items-center justify-end px-4 py-2.5">
+                <div className="flex items-center justify-end bg-[var(--bg-secondary)]/30 px-4 py-3">
                   <button
                     onClick={() => setAddingAccount(true)}
-                    className={BTN_SECONDARY}
+                    className={`${BTN_SECONDARY} flex items-center gap-1.5`}
                   >
+                    <PlusIcon />
                     Add account
                   </button>
                 </div>
               )}
             </SettingsSection>
             {!accountsCollapsed && (
-              <p className="mt-2 text-[11px] leading-relaxed text-[var(--text-muted)]">
-                If you set CLAUDE_CONFIG_DIR manually in your shell profile
-                (~/.zprofile, ~/.zshrc), remove it — a login shell re-sources it
-                and overrides per-project accounts.
-              </p>
+              <div className="mt-3 flex items-start gap-2 px-1 text-[10px] leading-relaxed text-[var(--text-muted)]">
+                <span className="mt-px shrink-0 rounded border border-[var(--border)] px-1.5 py-px font-medium uppercase tracking-wide">
+                  Note
+                </span>
+                <p>
+                  Remove a manually set <code className="text-[var(--text-secondary)]">CLAUDE_CONFIG_DIR</code> from
+                  your shell profile. Login shells re-source it and override project accounts.
+                </p>
+              </div>
             )}
             </>
           )}
@@ -997,7 +1002,7 @@ function SettingsSection({
           {description}
         </p>
       )}
-      <div className="divide-y divide-[var(--border)] rounded-lg border border-[var(--border)]">
+      <div className="divide-y divide-[var(--border)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
         {children}
       </div>
     </>
@@ -1008,10 +1013,10 @@ function SettingsSection({
         <button
           type="button"
           onClick={onToggle}
-          className="flex w-full items-center gap-1 text-xs font-medium uppercase tracking-wider text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+          className="group flex w-full items-center gap-1.5 text-[13px] font-semibold text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
         >
           <span>{title}</span>
-          <ChevronRight size={13} className="rotate-90" />
+          <ChevronRight size={14} className="rotate-90 transition-transform group-hover:translate-y-0.5" />
         </button>
       ) : (
         <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
@@ -1600,4 +1605,3 @@ function PassphraseModal({
     </Modal>
   );
 }
-
