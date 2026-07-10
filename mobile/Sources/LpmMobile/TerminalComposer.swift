@@ -32,6 +32,12 @@ struct TerminalComposer: View {
     @State private var cachedMentionFiles: [MentionEntry] = []
     @State private var cachedBranches: [GitBranch] = []
     @State private var cachedServices: [ServiceInfo] = []
+    // Pill wrap-detection and field sizing: measured pill width plus the probe's
+    // text heights at both layout widths and the single-line reference.
+    @State private var containerWidth: CGFloat = 0
+    @State private var measuredTextHeight: CGFloat = 0
+    @State private var expandedTextHeight: CGFloat = 0
+    @State private var singleLineHeight: CGFloat = 0
     @FocusState private var focused: Bool
 
     private var termId: String { store.termId }
@@ -228,37 +234,140 @@ struct TerminalComposer: View {
 
     // MARK: input row
 
+    // ChatGPT-style single pill: while the prompt fits one line the controls sit
+    // inline (plus · field · send); once it soft-wraps or contains a newline the
+    // field spans the pill's full width with the controls dropped to a bottom row.
+    private let composerCorner: CGFloat = 24
+
     private var inputRow: some View {
-        HStack(alignment: .bottom, spacing: 8) {
-            plusMenu
-            Button {
-                if canRewrite { showActions = true } else { showRewriteHint = true }
-            } label: {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 22))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(canRewrite ? SwiftUI.Color.accentColor : SwiftUI.Color.secondary)
-                    .frame(width: 30, height: 38)
-            }
-            .disabled(store.transforming)
-            .popover(isPresented: $showRewriteHint, arrowEdge: .bottom) {
-                Text("Type a message first — then tap to rewrite it with AI.")
-                    .font(.footnote)
-                    .padding(12)
-                    .presentationCompactAdaptation(.popover)
-                    .preferredColorScheme(.dark)
-            }
+        unifiedField
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+    }
 
-            field
+    // One layout for both states — the TextField and buttons are never swapped
+    // between branches, so their structural identity is stable and focus (the
+    // keyboard) survives the compact ↔ expanded flip. Only paddings animate:
+    // compact reserves side gutters that the bottom-aligned button overlays sit in
+    // (visually inline); expanded trades them for a reserved bottom row.
+    private var unifiedField: some View {
+        fieldStack
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, isExpanded ? 6 : 44)
+            .padding(.top, isExpanded ? 4 : 0)
+            .padding(.bottom, isExpanded ? 40 : 0)
+            .overlay(alignment: .bottomLeading) {
+                plusMenu
+                    .padding(.leading, 6)
+                    .padding(.bottom, isExpanded ? 2 : 1)
+            }
+            .overlay(alignment: .bottomTrailing) {
+                sendButton
+                    .padding(.trailing, 6)
+                    .padding(.bottom, isExpanded ? 2 : 1)
+            }
+            .background(SwiftUI.Color.white.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: composerCorner, style: .continuous))
+            .overlay {
+                if store.transforming {
+                    ShimmerBorder(cornerRadius: composerCorner)
+                        .clipShape(RoundedRectangle(cornerRadius: composerCorner, style: .continuous))
+                }
+            }
+            .background(widthReader)
+            .background(measurementProbe)
+            .animation(.easeOut(duration: 0.15), value: isExpanded)
+    }
 
-            sendButton
+    // The wrap decision is made against a FIXED width — the compact field's text
+    // width — so expanding (which widens the field) never re-narrows the input that
+    // drove the decision, i.e. it can't oscillate at the boundary. A literal newline
+    // is trivially multiline; otherwise the hidden probe reports the text height at
+    // that fixed width and we compare it to a measured single-line height.
+    private var isExpanded: Bool {
+        if store.text.contains("\n") { return true }
+        guard containerWidth > 0, singleLineHeight > 0 else { return false }
+        return measuredTextHeight > singleLineHeight + 1
+    }
+
+    // Pill width minus the compact side gutters (44 each: edge inset + a 36pt
+    // control + gap) and the field's own text insets — the width the field's text
+    // actually gets in the compact layout.
+    private var compactTextWidth: CGFloat {
+        max(1, containerWidth - 88 - 16)
+    }
+
+    // Pill width minus the expanded horizontal padding (6 each side) and the
+    // field's text insets — the text width in the expanded layout.
+    private var expandedTextWidth: CGFloat {
+        max(1, containerWidth - 12 - 16)
+    }
+
+    // The vertical-axis TextField (UITextView-backed) doesn't re-measure its
+    // intrinsic height on a width-only change, so the flip would keep a stale
+    // height until the next edit. The field height is therefore driven from the
+    // probe: one line when compact, the expanded-width text height (probe-capped
+    // at 5 lines) when expanded. 16 = vertical insets; +2 slack so a probe vs.
+    // UITextView metric mismatch can't clip the last line.
+    private var fieldHeight: CGFloat {
+        let line = max(singleLineHeight, 20)
+        let text = isExpanded ? max(expandedTextHeight, line) : line
+        return ceil(text) + 16 + 2
+    }
+
+    // Probe stand-in for the field text: never empty, and a trailing newline gets
+    // a trailing space so the caret's empty last line still counts toward height.
+    private var probeString: String {
+        if store.text.isEmpty { return " " }
+        if store.text.hasSuffix("\n") { return store.text + " " }
+        return store.text
+    }
+
+    private var widthReader: some View {
+        GeometryReader { g in
+            SwiftUI.Color.clear.preference(key: ComposerWidthKey.self, value: g.size.width)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .onPreferenceChange(ComposerWidthKey.self) { containerWidth = $0 }
+    }
+
+    // Off-screen text laid out at both layout widths (compact drives the wrap
+    // decision, expanded drives the field height), plus a single-line reference.
+    private var measurementProbe: some View {
+        VStack {
+            Text(probeString)
+                .font(.body)
+                .lineLimit(5)
+                .frame(width: compactTextWidth, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .background(GeometryReader { g in
+                    SwiftUI.Color.clear.preference(key: ComposerTextHeightKey.self, value: g.size.height)
+                })
+            Text(probeString)
+                .font(.body)
+                .lineLimit(5)
+                .frame(width: expandedTextWidth, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .background(GeometryReader { g in
+                    SwiftUI.Color.clear.preference(key: ComposerExpandedHeightKey.self, value: g.size.height)
+                })
+            Text("M")
+                .font(.body)
+                .background(GeometryReader { g in
+                    SwiftUI.Color.clear.preference(key: ComposerLineHeightKey.self, value: g.size.height)
+                })
+        }
+        .hidden()
+        .onPreferenceChange(ComposerTextHeightKey.self) { measuredTextHeight = $0 }
+        .onPreferenceChange(ComposerExpandedHeightKey.self) { expandedTextHeight = $0 }
+        .onPreferenceChange(ComposerLineHeightKey.self) { singleLineHeight = $0 }
     }
 
     private var plusMenu: some View {
         Menu {
+            Button {
+                if canRewrite { showActions = true } else { showRewriteHint = true }
+            } label: { Label("Rewrite with AI", systemImage: "sparkles") }
+            Divider()
             Button { showPhotoPicker = true } label: {
                 Label("Photo Library", systemImage: "photo.on.rectangle")
             }
@@ -275,22 +384,29 @@ struct TerminalComposer: View {
             Button { store.newTab() } label: { Label("New prompt", systemImage: "plus.bubble") }
             Button { showHistory = true } label: { Label("History", systemImage: "clock.arrow.circlepath") }
         } label: {
-            Image(systemName: "plus.circle.fill")
-                .font(.system(size: 28))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(.secondary)
-                .frame(width: 32, height: 38)
+            Image(systemName: "plus")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .contentShape(Rectangle())
         }
         .disabled(store.transforming)
+        .popover(isPresented: $showRewriteHint, arrowEdge: .bottom) {
+            Text("Type a message first — then tap to rewrite it with AI.")
+                .font(.footnote)
+                .padding(12)
+                .presentationCompactAdaptation(.popover)
+                .preferredColorScheme(.dark)
+        }
     }
 
-    private var field: some View {
+    private var fieldStack: some View {
         ZStack(alignment: .topLeading) {
             if let hint = slashArgumentHint {
                 (Text(store.text).foregroundColor(.clear) + Text(hint).foregroundColor(.secondary.opacity(0.7)))
                     .font(.body)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 8)
                     .allowsHitTesting(false)
             }
             TextField("Message", text: store.textBinding, axis: .vertical)
@@ -299,17 +415,11 @@ struct TerminalComposer: View {
                 .focused($focused)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 8)
                 .disabled(store.transforming)
         }
-        .background(SwiftUI.Color.white.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay {
-            if store.transforming {
-                ShimmerBorder().clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            }
-        }
+        .frame(height: fieldHeight, alignment: .topLeading)
     }
 
     private var sendButton: some View {
@@ -333,6 +443,7 @@ struct TerminalComposer: View {
                 .font(.system(size: 32))
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(canSend ? SwiftUI.Color.accentColor : SwiftUI.Color.secondary)
+                .frame(width: 36, height: 36)
         } primaryAction: {
             send()
         }
@@ -497,12 +608,32 @@ private struct PendingLog: Equatable {
     let label: String
 }
 
+/// Layout measurements for the composer pill: its width, and the probe's text and
+/// single-line heights — combined to decide the inline vs. stacked layout.
+private struct ComposerWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+private struct ComposerTextHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+private struct ComposerExpandedHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+private struct ComposerLineHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
 /// An animated gradient border sweeping around the input while a rewrite runs.
 private struct ShimmerBorder: View {
+    var cornerRadius: CGFloat = 20
     @State private var angle = 0.0
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .strokeBorder(
                 AngularGradient(
                     colors: [SwiftUI.Color.accentColor.opacity(0.1), SwiftUI.Color.accentColor,
