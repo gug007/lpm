@@ -442,7 +442,17 @@ export function Settings({
                   </button>
                 )}
               </SettingsRow>
-              <SettingsRow label="Agent tools" description="Teach AI coding agents to author configs and drive lpm from the command line.">
+              <SettingsRow
+                label="Agent tools"
+                description="Teach AI coding agents to author configs and drive lpm from the command line."
+                details={
+                  <>
+                    <p>Skills teach AI coding agents how lpm works. Claude Code, Codex, Gemini CLI, and OpenCode pick them up automatically.</p>
+                    <p>Agents learn to create and edit project configurations and to start, stop, and duplicate projects on your behalf.</p>
+                    <p>The lpm command line tool is also installed, so agents — and you — can control projects from any terminal.</p>
+                  </>
+                }
+              >
                 <SkillInstallControl />
               </SettingsRow>
               <SettingsRow label="Send feedback" description="Report a bug or share ideas">
@@ -1040,18 +1050,43 @@ function SettingsRow({
   label,
   description,
   children,
+  details,
 }: {
   label: string;
   description: string;
   children: React.ReactNode;
+  details?: React.ReactNode;
 }) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
   return (
-    <div className="flex items-center justify-between gap-4 px-4 py-3">
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-[var(--text-primary)]">{label}</p>
-        <p className="text-[11px] text-[var(--text-muted)]">{description}</p>
+    <div className="px-4 py-3">
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-[var(--text-primary)]">{label}</p>
+          <p className="text-[11px] text-[var(--text-muted)]">{description}</p>
+          {details && (
+            <button
+              type="button"
+              onClick={() => setDetailsOpen((v) => !v)}
+              aria-expanded={detailsOpen}
+              className="mt-1 flex items-center gap-0.5 text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-secondary)]"
+            >
+              Learn more
+              <ChevronRight size={12} className={`transition-transform ${detailsOpen ? "rotate-90" : ""}`} />
+            </button>
+          )}
+        </div>
+        <div className="shrink-0">{children}</div>
       </div>
-      <div className="shrink-0">{children}</div>
+      {details && (
+        <div
+          className={`grid transition-[grid-template-rows] duration-200 ease-out ${detailsOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+        >
+          <div className="overflow-hidden">
+            <div className="space-y-1.5 pt-2 text-xs leading-relaxed text-[var(--text-muted)]">{details}</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
