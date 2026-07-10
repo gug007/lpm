@@ -211,14 +211,22 @@ fn event_safe(s: &str) -> String {
         .collect()
 }
 
+/// Project-level launch inputs resolved once per spawn: root dir, ssh (Some
+/// only when remote), and the Claude account env decision (applied to local
+/// terminals only — the pinned dir is a local path).
+struct SpawnTarget {
+    root: String,
+    ssh: Option<config::SshSettings>,
+    claude_env: config::ClaudeEnv,
+}
+
 fn start_internal(
     app: &AppHandle,
     state: &State<'_, PtyState>,
     project_name: &str,
-    root: &str,
+    target: &SpawnTarget,
     raw_cwd: &str,
     extra_env: &BTreeMap<String, String>,
-    ssh: Option<&config::SshSettings>,
 ) -> Result<String, String> {
     let n = state.counter.fetch_add(1, Ordering::SeqCst) + 1;
     // The id is embedded in Tauri event names (pty-output-<id>, pty-exit-<id>),
@@ -227,7 +235,8 @@ fn start_internal(
     // and the terminal render blank, so sanitize it; the global counter keeps
     // the id unique regardless.
     let id = format!("{}-{n}", event_safe(project_name));
-    let is_remote = ssh.is_some();
+    let root = target.root.as_str();
+    let ssh = target.ssh.as_ref();
 
     let mut builder;
     if let Some(ssh) = ssh {
@@ -284,11 +293,41 @@ fn start_internal(
         builder.env("LPM_SOCKET_PATH", config::socket_path());
         builder.env("LPM_PROJECT_NAME", project_name);
         builder.env("LPM_PANE_ID", &id);
+        // Pinned Claude account; an explicit CLAUDE_CONFIG_DIR in the action's
+        // env map wins because extra_env is applied after. Scrub drops the var
+        // inherited from lpm's own env so an explicit default login can't run
+        // under an ambient CLAUDE_CONFIG_DIR.
+        match &target.claude_env {
+            config::ClaudeEnv::Dir(dir) => {
+                builder.env(config::CLAUDE_CONFIG_DIR_ENV, dir);
+            }
+            config::ClaudeEnv::Scrub => {
+                builder.env_remove(config::CLAUDE_CONFIG_DIR_ENV);
+            }
+            config::ClaudeEnv::Inherit => {}
+        }
         for (k, v) in extra_env {
             builder.env(k, v);
         }
     }
 
+    spawn_with_builder(app, state, id, project_name, ssh.cloned(), builder)
+}
+
+/// Open a PTY for an already-built command, register the session, and start its
+/// I/O threads. Shared by the project-terminal spawn (start_internal) and the
+/// Claude login spawn, which builds its own command outside project resolution.
+/// `declared` port sniffing only applies to remote panes, so it stays empty for
+/// the local-only login pane (ssh == None).
+fn spawn_with_builder(
+    app: &AppHandle,
+    state: &State<'_, PtyState>,
+    id: String,
+    project_name: &str,
+    ssh: Option<config::SshSettings>,
+    builder: CommandBuilder,
+) -> Result<String, String> {
+    let is_remote = ssh.is_some();
     let pair = native_pty_system()
         .openpty(PtySize {
             rows: 24,
@@ -305,7 +344,7 @@ fn start_internal(
     let sess = Arc::new(PtySession {
         id: id.clone(),
         remote: is_remote,
-        ssh: ssh.cloned(),
+        ssh,
         project_name: project_name.to_string(),
         declared: if is_remote { config::declared_service_ports(project_name) } else { HashSet::new() },
         writer: Mutex::new(writer),
@@ -365,11 +404,18 @@ fn resolve_restore_cmds(cmd: &str) -> (String, String) {
 
 // --- commands ----------------------------------------------------------------
 
-/// (root, ssh) for a project; ssh is Some(..) only when remote.
-fn resolve_spawn(project_name: &str) -> Result<(String, Option<config::SshSettings>), String> {
+fn resolve_spawn(project_name: &str) -> Result<SpawnTarget, String> {
     let info = config::spawn_info(project_name)?;
+    // Resolve the env decision here at spawn time — this is where the accounts
+    // validation + symlink ensure side-effects belong, not in the polling paths
+    // that also call spawn_info.
+    let claude_env = config::claude_env_for_account(info.claude_account.as_deref());
     let ssh = if info.is_remote { Some(info.ssh) } else { None };
-    Ok((info.root, ssh))
+    Ok(SpawnTarget {
+        root: info.root,
+        ssh,
+        claude_env,
+    })
 }
 
 /// (cwd, env, cmd) for a named terminal action, falling back to a plain shell
@@ -391,8 +437,8 @@ pub fn start_terminal(
     state: State<'_, PtyState>,
     project_name: String,
 ) -> Result<String, String> {
-    let (root, ssh) = resolve_spawn(&project_name)?;
-    start_internal(&app, &state, &project_name, &root, "", &BTreeMap::new(), ssh.as_ref())
+    let target = resolve_spawn(&project_name)?;
+    start_internal(&app, &state, &project_name, &target, "", &BTreeMap::new())
 }
 
 #[tauri::command]
@@ -403,9 +449,9 @@ pub fn start_terminal_with_cwd_env(
     cwd: String,
     env: HashMap<String, String>,
 ) -> Result<String, String> {
-    let (root, ssh) = resolve_spawn(&project_name)?;
+    let target = resolve_spawn(&project_name)?;
     let env: BTreeMap<String, String> = env.into_iter().collect();
-    start_internal(&app, &state, &project_name, &root, &cwd, &env, ssh.as_ref())
+    start_internal(&app, &state, &project_name, &target, &cwd, &env)
 }
 
 #[tauri::command]
@@ -415,9 +461,9 @@ pub fn start_terminal_for_restore(
     project_name: String,
     terminal_name: String,
 ) -> Result<String, String> {
-    let (root, ssh) = resolve_spawn(&project_name)?;
+    let target = resolve_spawn(&project_name)?;
     let (cwd, env, _) = resolve_terminal_spawn(&project_name, &terminal_name)?;
-    start_internal(&app, &state, &project_name, &root, &cwd, &env, ssh.as_ref())
+    start_internal(&app, &state, &project_name, &target, &cwd, &env)
 }
 
 #[tauri::command]
@@ -427,17 +473,59 @@ pub fn start_terminal_for_config(
     project_name: String,
     terminal_name: String,
 ) -> Result<TerminalLaunch, String> {
-    let (root, ssh) = resolve_spawn(&project_name)?;
+    let target = resolve_spawn(&project_name)?;
     // On the plain-shell fallback `cmd` is empty, so startCmd is empty and the
     // frontend injects nothing.
     let (cwd, env, cmd) = resolve_terminal_spawn(&project_name, &terminal_name)?;
-    let id = start_internal(&app, &state, &project_name, &root, &cwd, &env, ssh.as_ref())?;
+    let id = start_internal(&app, &state, &project_name, &target, &cwd, &env)?;
     let (start_cmd, resume_cmd) = resolve_restore_cmds(&cmd);
     Ok(TerminalLaunch {
         id,
         start_cmd,
         resume_cmd,
     })
+}
+
+/// Spawn a login terminal for a Claude account: an interactive login shell in
+/// the home dir with `CLAUDE_CONFIG_DIR` pinned to the account's isolated dir,
+/// running `claude /login`. The id uses a synthetic "claude-login" session so
+/// its Tauri event ids don't collide with any project's. Bypasses project
+/// resolution but reuses the shared PTY plumbing so the frontend terminal
+/// component attaches unchanged.
+#[tauri::command]
+pub fn start_claude_login(
+    app: AppHandle,
+    state: State<'_, PtyState>,
+    account_id: String,
+) -> Result<String, String> {
+    let dir = config::claude_config_dir_for_account(&account_id)
+        .ok_or_else(|| format!("unknown Claude account: {account_id}"))?;
+    let home = config::expand_home("~");
+    if home.is_empty() {
+        return Err("no home directory".into());
+    }
+    let n = state.counter.fetch_add(1, Ordering::SeqCst) + 1;
+    let id = format!("claude-login-{n}");
+
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+    let mut builder = CommandBuilder::new(&shell);
+    // Interactive login shell that runs the login command and exits, so the
+    // account's profile (PATH etc.) is sourced before `claude` is resolved.
+    builder.arg("-ilc");
+    builder.arg("claude /login");
+    builder.cwd(&home);
+    for (k, v) in std::env::vars() {
+        builder.env(k, v);
+    }
+    builder.env_remove("TMUX");
+    builder.env_remove("TMUX_PANE");
+    builder.env("TERM", "xterm-256color");
+    builder.env("TERM_PROGRAM", "kitty");
+    // Pin the login to this account's config dir. Set last so no inherited
+    // CLAUDE_CONFIG_DIR can leak the login into the wrong account's store.
+    builder.env(config::CLAUDE_CONFIG_DIR_ENV, &dir);
+
+    spawn_with_builder(&app, &state, id, "claude-login", None, builder)
 }
 
 #[tauri::command]

@@ -23,6 +23,17 @@ import { getTerminalTheme, openTerminalLink, TERMINAL_FONT_FAMILY } from "./term
 import { handleCopyShortcut, handleNativeCopy, handleSelectAllShortcut, handleClearShortcut, isCopyShortcut } from "./terminal/copySelection";
 import { ConsoleContextMenu } from "./terminal/ConsoleContextMenu";
 import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
+import {
+  PASTE_QUIET_MS,
+  PASTE_CEILING_MS,
+  QUIET_POLL_MS,
+  PASTE_IMAGE_CEILING_MS,
+  PASTE_ONE_SHOT_MAX_CHARS,
+  CR_VERIFY_GRACE_MS,
+  CR_MAX_RETRIES,
+  canOneShotSubmit,
+  crWasSwallowed,
+} from "./terminal/submitGate";
 import { stripAnsi } from "./terminal/filterLines";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { registerFileDropHandler } from "../fileDrop";
@@ -147,18 +158,6 @@ function writeAppClipboard(text: string): void {
     .then(() => SetClipboardText(text))
     .catch(() => {});
 }
-
-// A multi-part submit gates each paste on the receiver going quiet rather than on
-// a fixed delay: Claude Code resolves a pasted image path into an attachment
-// asynchronously (reading the file, redrawing its line) with no ack, and pasting
-// the next part or the closing CR mid-redraw makes it submit a partial line and
-// re-echo the rest. Output going idle is the implicit ack; the ceiling bounds it.
-const PASTE_QUIET_MS = 100;
-const PASTE_CEILING_MS = 1500;
-const QUIET_POLL_MS = 20;
-// The image gate waits for the rendered placeholder, not for quiet, so it needs a
-// larger ceiling to cover a slow/large file read.
-const PASTE_IMAGE_CEILING_MS = 4000;
 
 function getTerminalRemote(id: string): Promise<boolean> {
   return interactiveSessions.get(id)?.remote ?? Promise.resolve(false);
@@ -1161,10 +1160,13 @@ export function InteractivePane({
     // paste markers (when the program enabled them) so its newlines are pasted
     // content, not executed; the trailing CR submits.
     //
-    // A single-line body goes in one write (body+CR). A multi-line body or an array
-    // is delivered part-by-part with the CR gated on the receiver settling — a CR
-    // sent into Claude Code's async "[Pasted text]" redraw is swallowed and never
-    // submits. An array also preserves multi-part image order.
+    // A short single-line body (see canOneShotSubmit) goes in one write (body+CR).
+    // Everything else — a multi-line body, an array, or a long single line Claude
+    // Code would collapse into a "[Pasted text]" placeholder — takes the gated
+    // multi-part path: each part waits for the receiver to go quiet, and the final
+    // CR is verified and re-sent if it produced no redraw, since a CR sent into
+    // Claude Code's async placeholder collapse is swallowed and never submits. An
+    // array also preserves multi-part image order.
     submitInput(input: string | string[]) {
       const session = sessionRef.current;
       if (!session || session.sessionDead) return false;
@@ -1177,26 +1179,43 @@ export function InteractivePane({
           : body;
       };
       const fail = () => session.handleWriteError?.();
-      if (typeof input === "string" && !/[\r\n]/.test(input)) {
+      // lpm clears the composer once this returns true, so a re-entrant submit
+      // would interleave its writes into an in-flight one; refuse it (the draft is
+      // kept). The one-shot path honors this too though it never sets the flag —
+      // it must not splice a body+CR into a running multi-part delivery.
+      if (session.delivering) return false;
+
+      // Short, uncollapsible single line: Claude Code won't lift it into a paste
+      // placeholder, so the trailing CR can't be folded into an async collapse —
+      // send it in one zero-latency write and skip the gated path.
+      if (typeof input === "string" && canOneShotSubmit(input, session.term.modes.bracketedPasteMode)) {
         sendTerminalInput(terminalId, `${wrap(input)}\r`).catch(fail);
         return true;
       }
+
       const parts = (Array.isArray(input) ? input : [input]).filter((p) => p.length > 0);
       if (parts.length === 0) return false;
-      // lpm clears the composer once this returns true, so a re-entrant submit
-      // would interleave its pastes into this one; refuse it (the draft is kept).
-      if (session.delivering) return false;
       session.delivering = true;
 
+      // Resolves true if `ready` became true, false if it hit the ceiling first.
       const waitUntil = (ready: () => boolean, ceiling: number, sentAt: number) =>
-        new Promise<void>((resolve) => {
+        new Promise<boolean>((resolve) => {
           const check = () => {
-            if (ready() || performance.now() - sentAt >= ceiling) resolve();
+            if (ready()) resolve(true);
+            else if (performance.now() - sentAt >= ceiling) resolve(false);
             else setTimeout(check, QUIET_POLL_MS);
           };
           setTimeout(check, QUIET_POLL_MS);
         });
       const settled = () => performance.now() - session.lastOutputAt >= PASTE_QUIET_MS;
+      // Wait for `gate`; if the ceiling fires without it settling — the receiver is
+      // still redrawing (e.g. an animating spinner keeps output fresh so quiet never
+      // arrives) — grant one more bounded quiet window rather than writing
+      // mid-redraw. If it still never settles, proceed anyway (never hang forever).
+      const waitGated = async (gate: () => boolean, ceiling: number, sentAt: number) => {
+        if (await waitUntil(gate, ceiling, sentAt)) return;
+        await waitUntil(gate, ceiling, performance.now());
+      };
 
       // baseY..length is the viewport; the count climbs once Claude Code lifts a
       // pasted path into an image placeholder.
@@ -1207,6 +1226,23 @@ export function InteractivePane({
           marks += countImageMarkers(buf.getLine(i)?.translateToString(true) ?? "");
         }
         return marks;
+      };
+
+      // Submit, then verify. A real submit redraws immediately, so if no output at
+      // all follows the CR within the grace window it was swallowed mid-collapse:
+      // wait for quiet again (bounded) and re-send, up to CR_MAX_RETRIES. When
+      // output DID follow, never retry — the message likely landed and a stray
+      // extra Enter (e.g. into a permission dialog) would be harmful.
+      const submitCr = async () => {
+        for (let attempt = 0; ; attempt++) {
+          if (session.sessionDead) return;
+          await sendTerminalInput(terminalId, "\r");
+          const crSentAt = performance.now();
+          await waitUntil(() => session.lastOutputAt >= crSentAt, CR_VERIFY_GRACE_MS, crSentAt);
+          if (!crWasSwallowed(session.lastOutputAt, crSentAt)) return;
+          if (attempt >= CR_MAX_RETRIES) return;
+          await waitGated(settled, PASTE_CEILING_MS, performance.now());
+        }
       };
 
       const bracketed = session.term.modes.bracketedPasteMode;
@@ -1222,10 +1258,9 @@ export function InteractivePane({
           await sendTerminalInput(terminalId, wrap(part));
           const sentAt = performance.now();
           if (isImage) await waitUntil(() => visibleImageMarks() > before && settled(), PASTE_IMAGE_CEILING_MS, sentAt);
-          else await waitUntil(() => session.lastOutputAt >= sentAt && settled(), PASTE_CEILING_MS, sentAt);
+          else await waitGated(() => session.lastOutputAt >= sentAt && settled(), PASTE_CEILING_MS, sentAt);
         }
-        if (session.sessionDead) return;
-        await sendTerminalInput(terminalId, "\r");
+        await submitCr();
       };
       deliver()
         .catch(fail)

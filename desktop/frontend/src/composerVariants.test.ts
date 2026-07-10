@@ -31,19 +31,19 @@ describe("generateVariants", () => {
 
   it("runs once with the bare instruction for a single result", async () => {
     transformText.mockResolvedValue("  rewritten  ");
-    const out = await generateVariants(".", params, "Improve", "hello", 1);
+    const out = await generateVariants(null, ".", params, "Improve", "hello", 1);
     expect(out).toEqual(["rewritten"]);
     expect(transformText).toHaveBeenCalledTimes(1);
     // count 1 must not carry the diversity nudge.
-    expect(transformText.mock.calls[0][5]).toBe("Improve");
+    expect(transformText.mock.calls[0][6]).toBe("Improve");
   });
 
   it("fans out N runs with distinct, diversity-nudged instructions", async () => {
-    transformText.mockImplementation((...a: unknown[]) => Promise.resolve(`out:${a[5]}`));
-    const out = await generateVariants(".", params, "Improve", "hello", 3);
+    transformText.mockImplementation((...a: unknown[]) => Promise.resolve(`out:${a[6]}`));
+    const out = await generateVariants(null, ".", params, "Improve", "hello", 3);
     expect(out).toHaveLength(3);
     expect(transformText).toHaveBeenCalledTimes(3);
-    const instructions = transformText.mock.calls.map((c) => c[5] as string);
+    const instructions = transformText.mock.calls.map((c) => c[6] as string);
     instructions.forEach((ins) => expect(ins.startsWith("Improve")).toBe(true));
     expect(new Set(instructions).size).toBe(3); // each run's instruction differs
   });
@@ -52,7 +52,7 @@ describe("generateVariants", () => {
     const replies = ["  keep ", "", "   ", "also"];
     let i = 0;
     transformText.mockImplementation(() => Promise.resolve(replies[i++]));
-    const out = await generateVariants(".", params, "Improve", "hello", 4);
+    const out = await generateVariants(null, ".", params, "Improve", "hello", 4);
     expect(out).toEqual(["keep", "also"]);
   });
 
@@ -64,19 +64,19 @@ describe("generateVariants", () => {
     ];
     let i = 0;
     transformText.mockImplementation(() => replies[i++]);
-    const out = await generateVariants(".", params, "Improve", "hello", 3);
+    const out = await generateVariants(null, ".", params, "Improve", "hello", 3);
     expect(out).toEqual(["good", "great"]);
   });
 
   it("returns nothing when every run is empty", async () => {
     transformText.mockResolvedValue("   ");
-    const out = await generateVariants(".", params, "Improve", "hello", 3);
+    const out = await generateVariants(null, ".", params, "Improve", "hello", 3);
     expect(out).toEqual([]);
   });
 
   it("clamps an out-of-range count before fanning out", async () => {
     transformText.mockResolvedValue("x");
-    await generateVariants(".", params, "Improve", "hello", 99);
+    await generateVariants(null, ".", params, "Improve", "hello", 99);
     expect(transformText).toHaveBeenCalledTimes(MAX_VARIANTS);
   });
 });

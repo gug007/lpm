@@ -186,7 +186,7 @@ export function ConfigEditor({
       )}
 
       {effectiveMode === "form" ? (
-        <VisualConfigEditor content={active.content} onChange={active.setContent} />
+        <VisualConfigEditor content={active.content} onChange={active.setContent} isRemote={isRemote} />
       ) : (
         <div className="relative flex-1 overflow-hidden">
           <MonacoEditor

@@ -228,6 +228,247 @@ pub fn save_generators(g: &Value) -> Result<(), String> {
     std::fs::write(generators_path(), data).map_err(|e| e.to_string())
 }
 
+pub const CLAUDE_CONFIG_DIR_ENV: &str = "CLAUDE_CONFIG_DIR";
+
+pub fn accounts_path() -> PathBuf {
+    lpm_dir().join("accounts.json")
+}
+
+pub fn claude_account_dir(id: &str) -> PathBuf {
+    lpm_dir().join("claude-accounts").join(id)
+}
+
+fn default_accounts() -> Value {
+    json!({ "accounts": [] })
+}
+
+pub fn load_claude_accounts() -> Value {
+    match std::fs::read(accounts_path()) {
+        Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_else(|_| default_accounts()),
+        Err(_) => default_accounts(),
+    }
+}
+
+fn claude_account_ids(v: &Value) -> Vec<String> {
+    v.get("accounts")
+        .and_then(Value::as_array)
+        .map(|list| {
+            list.iter()
+                .filter_map(|a| a.get("id").and_then(Value::as_str))
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Ids become directory names under ~/.lpm/claude-accounts, so only allow
+/// filename-safe characters.
+fn valid_claude_account_id(id: &str) -> bool {
+    !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+pub fn save_claude_accounts(v: &Value) -> Result<(), String> {
+    std::fs::create_dir_all(lpm_dir()).map_err(|e| e.to_string())?;
+    let data = serde_json::to_vec_pretty(v).map_err(|e| e.to_string())?;
+    std::fs::write(accounts_path(), data).map_err(|e| e.to_string())?;
+    for id in claude_account_ids(v) {
+        if valid_claude_account_id(&id) {
+            ensure_claude_account_dir(&id)?;
+        }
+    }
+    Ok(())
+}
+
+/// Each account gets its own Claude config dir so logins stay separate, while
+/// settings, memory, skills, and lpm status hooks stay shared with ~/.claude
+/// via symlinks.
+fn ensure_claude_account_dir(id: &str) -> Result<(), String> {
+    let dir = claude_account_dir(id);
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let main = dirs::home_dir().unwrap_or_default().join(".claude");
+    for name in ["settings.json", "CLAUDE.md", "skills", "agents", "commands", "plugins"] {
+        let src = main.join(name);
+        let dst = dir.join(name);
+        if src.exists() && std::fs::symlink_metadata(&dst).is_err() {
+            let _ = std::os::unix::fs::symlink(&src, &dst);
+        }
+    }
+    Ok(())
+}
+
+/// Absolute config dir for a pinned account, or None when the id is unknown
+/// (deleted accounts fall back to the default login). Claude Code keys its
+/// credential store off the literal CLAUDE_CONFIG_DIR string, so the value
+/// must be derived from the id in this one place and nowhere else.
+pub fn claude_config_dir_for_account(id: &str) -> Option<String> {
+    if !valid_claude_account_id(id) {
+        return None;
+    }
+    if !claude_account_ids(&load_claude_accounts()).iter().any(|a| a == id) {
+        return None;
+    }
+    // Re-link on every resolve so assets added to ~/.claude after the account
+    // was created still reach it.
+    let _ = ensure_claude_account_dir(id);
+    Some(claude_account_dir(id).to_string_lossy().into_owned())
+}
+
+/// How a spawned child should treat `CLAUDE_CONFIG_DIR`. `Scrub` is distinct
+/// from `Inherit`: lpm itself may be launched with `CLAUDE_CONFIG_DIR` exported,
+/// so a project that explicitly wants the default login (or has a stale/invalid
+/// pin) must actively drop the inherited var rather than let it leak through.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ClaudeEnv {
+    Inherit,
+    Scrub,
+    Dir(String),
+}
+
+impl ClaudeEnv {
+    pub fn apply(&self, cmd: &mut std::process::Command) {
+        match self {
+            ClaudeEnv::Dir(dir) => {
+                cmd.env(CLAUDE_CONFIG_DIR_ENV, dir);
+            }
+            ClaudeEnv::Scrub => {
+                cmd.env_remove(CLAUDE_CONFIG_DIR_ENV);
+            }
+            ClaudeEnv::Inherit => {}
+        }
+    }
+}
+
+/// Turn an effective account tri-state into an env decision. `None` (key absent
+/// everywhere) inherits the ambient env; `Some(id)` resolves to that account's
+/// config dir, or `Scrub` when the id is empty (explicit default login) or
+/// unknown (deleted/invalid pin) — an explicit choice never falls back to an
+/// ambient `CLAUDE_CONFIG_DIR`.
+pub fn claude_env_for_account(account: Option<&str>) -> ClaudeEnv {
+    match account {
+        None => ClaudeEnv::Inherit,
+        Some(id) => match claude_config_dir_for_account(id) {
+            Some(dir) => ClaudeEnv::Dir(dir),
+            None => ClaudeEnv::Scrub,
+        },
+    }
+}
+
+/// The project's effective account tri-state. `Some(v)` when `claudeAccount` is
+/// set anywhere in the inheritance chain (even empty, meaning "default login,
+/// don't inherit"); when the key is absent a duplicate (parent_name set)
+/// propagates its parent's value, matching how services/profiles/actions layer.
+/// `None` only when the key is absent on both the project and its parent.
+fn claude_account_of(y: &ProjectYaml) -> Option<String> {
+    if let Some(v) = &y.claude_account {
+        return Some(v.clone());
+    }
+    if y.parent_name.is_empty() {
+        return None;
+    }
+    parse_project_yaml(&y.parent_name).ok().and_then(|p| p.claude_account)
+}
+
+/// The effective account for spawning, `None` for remote projects (which run on
+/// the far side and never get a local `CLAUDE_CONFIG_DIR`). Shared by
+/// `spawn_info` and `claude_env_for_project` so both resolve identically.
+fn effective_claude_account(y: &ProjectYaml) -> Option<String> {
+    if y.ssh.as_ref().map(|s| s.is_remote()).unwrap_or(false) {
+        return None;
+    }
+    claude_account_of(y)
+}
+
+pub fn claude_env_for_project(name: &str) -> ClaudeEnv {
+    let Ok(y) = parse_project_yaml(name) else {
+        return ClaudeEnv::Inherit;
+    };
+    claude_env_for_account(effective_claude_account(&y).as_deref())
+}
+
+/// Remove an account and its isolated Claude config dir. The id is validated
+/// first (it crosses the IPC boundary). The dir is deleted before the accounts
+/// list is rewritten: if the delete fails the account stays listed so the user
+/// can retry, whereas the reverse order would orphan live credentials with no
+/// UI path back to them. `remove_dir_all` unlinks the shared-asset symlinks
+/// without following them, so only the account's own logins are discarded.
+pub fn remove_claude_account(id: &str) -> Result<(), String> {
+    if !valid_claude_account_id(id) {
+        return Err(format!("invalid account id {id:?}"));
+    }
+    remove_dir_all_retry(&claude_account_dir(id))?;
+    let mut v = load_claude_accounts();
+    if let Some(list) = v.get_mut("accounts").and_then(Value::as_array_mut) {
+        list.retain(|a| a.get("id").and_then(Value::as_str) != Some(id));
+    }
+    save_claude_accounts(&v)
+}
+
+/// Whether an account is signed in and, if so, its email — derived from a
+/// parsed `.claude.json`. Claude Code writes an `oauthAccount` object once a
+/// login completes, with the address under `emailAddress`; a missing object or
+/// field means "not signed in". Kept pure so it can be unit-tested off a value.
+fn claude_status_from_json(v: &Value) -> (bool, String) {
+    match v.get("oauthAccount") {
+        Some(Value::Object(oa)) => {
+            let email = oa
+                .get("emailAddress")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            (true, email)
+        }
+        _ => (false, String::new()),
+    }
+}
+
+/// Read-only sign-in probe for one account. Missing dir/file/field all read as
+/// "not signed in"; never creates or re-links the account dir (unlike the spawn
+/// path) so status polling stays side-effect free.
+fn account_signin_status(id: &str) -> (bool, String) {
+    let path = claude_account_dir(id).join(".claude.json");
+    match std::fs::read(&path) {
+        Ok(bytes) => serde_json::from_slice::<Value>(&bytes)
+            .map(|v| claude_status_from_json(&v))
+            .unwrap_or((false, String::new())),
+        Err(_) => (false, String::new()),
+    }
+}
+
+/// Per-account sign-in status for every id in accounts.json, as
+/// `{"statuses": [{"id", "signedIn", "email"}, ...]}`.
+pub fn claude_accounts_status() -> Value {
+    let statuses: Vec<Value> = claude_account_ids(&load_claude_accounts())
+        .iter()
+        .map(|id| {
+            let (signed_in, email) = account_signin_status(id);
+            json!({ "id": id, "signedIn": signed_in, "email": email })
+        })
+        .collect();
+    json!({ "statuses": statuses })
+}
+
+/// Which projects effectively resolve to each account id, as
+/// `{"usage": {"<id>": ["projA", ...]}}`. Uses the same tri-state + parent
+/// inheritance the spawn path does (via `effective_claude_account`), so a
+/// duplicate that inherits its parent's pin is counted. Only non-empty pinned
+/// ids appear (explicit-default and inherit-ambient projects are omitted);
+/// project display names are used so the UI can list them verbatim.
+pub fn claude_account_usage() -> Value {
+    let mut usage: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for file in project_names() {
+        let Ok(y) = parse_project_yaml(&file) else {
+            continue;
+        };
+        if let Some(id) = effective_claude_account(&y) {
+            if !id.is_empty() {
+                let display = if y.name.is_empty() { file.clone() } else { y.name.clone() };
+                usage.entry(id).or_default().push(display);
+            }
+        }
+    }
+    json!({ "usage": usage })
+}
+
 pub fn save_generator_icon(src_path: &str, id: &str) -> Result<String, String> {
     std::fs::create_dir_all(generator_icons_dir()).map_err(|e| e.to_string())?;
     let ext = std::path::Path::new(src_path)
@@ -480,6 +721,8 @@ struct ProjectYaml {
     #[serde(default)]
     parent_name: String,
     ssh: Option<SshSettings>,
+    #[serde(rename = "claudeAccount", default)]
+    claude_account: Option<String>,
     #[serde(default)]
     services: BTreeMap<String, ServiceDef>,
     #[serde(default)]
@@ -1587,6 +1830,11 @@ pub struct SpawnInfo {
     pub ssh: SshSettings, // zero-valued when local
     pub services: BTreeMap<String, ServiceFull>,
     pub profiles: BTreeMap<String, Vec<String>>,
+    /// The effective account tri-state (None=inherit, Some("")=explicit default,
+    /// Some(id)=pinned; always None for remote), decided from this same parse.
+    /// The expensive resolution to an env decision happens at spawn time via
+    /// `claude_env_for_account`, keeping read-only polling paths write-free.
+    pub claude_account: Option<String>,
 }
 
 pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
@@ -1599,6 +1847,7 @@ pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
             ssh: SshSettings::default(),
             services: BTreeMap::new(),
             profiles: BTreeMap::new(),
+            claude_account: None,
         });
     }
     let y = parse_project_yaml(name)?;
@@ -1610,6 +1859,7 @@ pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
     let ssh = y.ssh.clone().unwrap_or_default();
     let is_remote = ssh.is_remote();
     let root = expand_home(&y.root);
+    let claude_account = effective_claude_account(&y);
     let mut services: BTreeMap<String, ServiceFull> =
         y.services.into_iter().map(|(n, d)| (n, d.into_full())).collect();
     let mut profiles = y.profiles;
@@ -1625,6 +1875,7 @@ pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
         ssh,
         services,
         profiles,
+        claude_account,
     })
 }
 
@@ -1756,6 +2007,75 @@ mod repo_merge_tests {
         let mut profiles = BTreeMap::new();
         merge_repo_services_profiles(&dir.path().to_string_lossy(), true, &mut services, &mut profiles);
         assert!(services.is_empty(), "remote repo file lives on the remote; never merged locally");
+    }
+}
+
+#[cfg(test)]
+mod claude_account_tests {
+    use super::*;
+
+    fn account_of(yaml: &str) -> Option<String> {
+        claude_account_of(&serde_yaml::from_str::<ProjectYaml>(yaml).unwrap())
+    }
+
+    #[test]
+    fn explicit_id_is_pinned() {
+        assert_eq!(account_of("claudeAccount: work\n"), Some("work".to_string()));
+    }
+
+    #[test]
+    fn explicit_empty_is_default_login_not_inherited() {
+        // Some("") means "explicitly the default login"; must not fall through
+        // to the parent even when parent_name is set.
+        assert_eq!(account_of("claudeAccount: ''\nparent_name: base\n"), Some(String::new()));
+    }
+
+    #[test]
+    fn absent_without_parent_inherits() {
+        assert_eq!(account_of("name: solo\n"), None);
+    }
+
+    #[test]
+    fn absent_account_inherits_env() {
+        assert_eq!(claude_env_for_account(None), ClaudeEnv::Inherit);
+    }
+
+    #[test]
+    fn explicit_default_scrubs_env() {
+        // An explicit empty id is never a valid account, so it drops any ambient
+        // CLAUDE_CONFIG_DIR rather than resolving to a dir.
+        assert_eq!(claude_env_for_account(Some("")), ClaudeEnv::Scrub);
+    }
+
+    #[test]
+    fn invalid_pin_scrubs_env() {
+        // A filename-unsafe id fails validation before any accounts.json read, so
+        // this needs no filesystem scaffolding.
+        assert_eq!(claude_env_for_account(Some("../etc")), ClaudeEnv::Scrub);
+    }
+
+    #[test]
+    fn signed_in_status_reads_oauth_email() {
+        let v: Value = serde_json::from_str(
+            r#"{"oauthAccount":{"emailAddress":"x@y.com","accountUuid":"u"}}"#,
+        )
+        .unwrap();
+        assert_eq!(claude_status_from_json(&v), (true, "x@y.com".to_string()));
+    }
+
+    #[test]
+    fn signed_in_without_email_field_is_signed_in_with_blank() {
+        let v: Value = serde_json::from_str(r#"{"oauthAccount":{"accountUuid":"u"}}"#).unwrap();
+        assert_eq!(claude_status_from_json(&v), (true, String::new()));
+    }
+
+    #[test]
+    fn missing_oauth_account_is_signed_out() {
+        let v: Value = serde_json::from_str(r#"{"other":1}"#).unwrap();
+        assert_eq!(claude_status_from_json(&v), (false, String::new()));
+        // A non-object oauthAccount is treated as signed out, not a panic.
+        let v2: Value = serde_json::from_str(r#"{"oauthAccount":null}"#).unwrap();
+        assert_eq!(claude_status_from_json(&v2), (false, String::new()));
     }
 }
 

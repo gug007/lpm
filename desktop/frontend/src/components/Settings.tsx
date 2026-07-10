@@ -42,8 +42,14 @@ import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Modal } from "./ui/Modal";
 import { TrafficLights } from "./ui/TrafficLights";
 import { MobileSettingsPane } from "./MobileSettingsPane";
-import { CheckIcon, PencilIcon, TrashIcon } from "./icons";
+import { PencilIcon, TrashIcon } from "./icons";
 import { useAppStore, type SettingsTab } from "../store/app";
+import { useAccountsStore } from "../store/accounts";
+import type { ClaudeAccount } from "../types";
+import { ClaudeAccountRow } from "./ClaudeAccountRow";
+import { ClaudeAccountsSetupGuide } from "./ClaudeAccountsSetupGuide";
+import { ClaudeLoginModal } from "./ClaudeLoginModal";
+import { InlineNameEditor } from "./InlineNameEditor";
 import { modalInputDefaults } from "../forms/styles";
 
 const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -184,10 +190,24 @@ export function Settings({
   const [newTemplateName, setNewTemplateName] = useState("");
   const [creatingTemplateBusy, setCreatingTemplateBusy] = useState(false);
   const [confirmDeleteTemplate, setConfirmDeleteTemplate] = useState<string | null>(null);
+  const accounts = useAccountsStore((s) => s.accounts);
+  const accountStatuses = useAccountsStore((s) => s.statuses);
+  const accountUsage = useAccountsStore((s) => s.usage);
+  const addAccount = useAccountsStore((s) => s.add);
+  const renameAccount = useAccountsStore((s) => s.rename);
+  const removeAccount = useAccountsStore((s) => s.remove);
+  const refreshAccountStatuses = useAccountsStore((s) => s.refreshStatuses);
+  const [addingAccount, setAddingAccount] = useState(false);
+  const [confirmDeleteAccount, setConfirmDeleteAccount] = useState<ClaudeAccount | null>(null);
+  const [loginAccount, setLoginAccount] = useState<ClaudeAccount | null>(null);
 
   useEffect(() => {
     if (showImportOptions) setImportOverwrite(false);
   }, [showImportOptions]);
+
+  useEffect(() => {
+    if (activeTab === "ai") void refreshAccountStatuses();
+  }, [activeTab, refreshAccountStatuses]);
 
   useEffect(() => {
     GetVersion().then(setVersion);
@@ -603,6 +623,7 @@ export function Settings({
           )}
 
           {activeTab === "ai" && (
+            <>
             <SettingsSection title="AI & Integrations">
               <SettingsRow label="Commit Instructions" description="Custom instructions for AI commit messages">
                 <button onClick={() => onNavigate("commit-instructions")} className={BTN_SECONDARY}>Edit</button>
@@ -617,6 +638,64 @@ export function Settings({
                 <button onClick={() => BrowserOpenURL("https://voicetotext.cc")} className={BTN_SECONDARY}>Learn more</button>
               </SettingsRow>
             </SettingsSection>
+
+            <SettingsSection
+              title="Claude Accounts"
+              description="Run different projects on different Claude accounts."
+            >
+              <ClaudeAccountsSetupGuide
+                accounts={accounts}
+                statuses={accountStatuses}
+                usage={accountUsage}
+              />
+              {accounts.map((acc) => (
+                <ClaudeAccountRow
+                  key={acc.id}
+                  id={acc.id}
+                  label={acc.label}
+                  status={accountStatuses[acc.id]}
+                  usage={accountUsage[acc.id] ?? []}
+                  onRename={(label) =>
+                    renameAccount(acc.id, label).catch((err) =>
+                      toast.error(`Failed to rename account: ${err}`),
+                    )
+                  }
+                  onSignIn={() => setLoginAccount(acc)}
+                  onDelete={() => setConfirmDeleteAccount(acc)}
+                />
+              ))}
+              {addingAccount ? (
+                <div className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                  <InlineNameEditor
+                    initial=""
+                    placeholder="e.g. Work"
+                    commitTitle="Add (Esc to cancel)"
+                    onCommit={(label) => {
+                      setAddingAccount(false);
+                      addAccount(label).catch((err) =>
+                        toast.error(`Failed to add account: ${err}`),
+                      );
+                    }}
+                    onCancel={() => setAddingAccount(false)}
+                  />
+                </div>
+              ) : (
+                <div className="flex items-center justify-end px-4 py-2.5">
+                  <button
+                    onClick={() => setAddingAccount(true)}
+                    className={BTN_SECONDARY}
+                  >
+                    Add account
+                  </button>
+                </div>
+              )}
+            </SettingsSection>
+            <p className="mt-2 text-[11px] leading-relaxed text-[var(--text-muted)]">
+              If you set CLAUDE_CONFIG_DIR manually in your shell profile
+              (~/.zprofile, ~/.zshrc), remove it — a login shell re-sources it and
+              overrides per-project accounts.
+            </p>
+            </>
           )}
 
           {activeTab === "global-config" && (
@@ -763,6 +842,50 @@ export function Settings({
               setConfirmDeleteTemplate(null);
             }}
           />
+
+          <ConfirmDialog
+            open={confirmDeleteAccount !== null}
+            title="Remove account"
+            variant="destructive"
+            confirmLabel="Remove"
+            body={
+              <>
+                Remove{" "}
+                <span className="font-medium text-[var(--text-primary)]">
+                  {confirmDeleteAccount?.label}
+                </span>
+                ? Its sign-in data will be deleted.{" "}
+                {confirmDeleteAccount &&
+                (accountUsage[confirmDeleteAccount.id]?.length ?? 0) > 0 ? (
+                  <>
+                    Used by{" "}
+                    <span className="font-medium text-[var(--text-primary)]">
+                      {accountUsage[confirmDeleteAccount.id].join(", ")}
+                    </span>
+                    {" "}— they will fall back to your main Claude login.
+                  </>
+                ) : (
+                  <>Projects assigned to it will use your main Claude login instead.</>
+                )}
+              </>
+            }
+            onCancel={() => setConfirmDeleteAccount(null)}
+            onConfirm={() => {
+              if (confirmDeleteAccount) {
+                removeAccount(confirmDeleteAccount.id).catch((err) =>
+                  toast.error(`Failed to remove account: ${err}`),
+                );
+              }
+              setConfirmDeleteAccount(null);
+            }}
+          />
+
+          {loginAccount && (
+            <ClaudeLoginModal
+              account={loginAccount}
+              onClose={() => setLoginAccount(null)}
+            />
+          )}
 
           <NewTemplateModal
             open={creatingTemplate}
@@ -1064,58 +1187,26 @@ function TemplateRow({
   onDelete: () => void;
 }) {
   const [renaming, setRenaming] = useState(false);
-  const [value, setValue] = useState(name);
-  const dirty = value.trim().length > 0 && value.trim() !== name;
-
-  const startRename = () => {
-    setValue(name);
-    setRenaming(true);
-  };
-
-  const commit = async () => {
-    setRenaming(false);
-    if (!dirty) return;
-    try {
-      await onRename(name, value.trim());
-    } catch {
-      // toast surfaced by store
-    }
-  };
 
   return (
     <div className="flex items-center gap-3 px-4 py-2.5 text-sm">
       {renaming ? (
-        <>
-          <input
-            autoFocus
-            {...modalInputDefaults}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                if (dirty) commit();
-              } else if (e.key === "Escape") {
-                e.preventDefault();
-                setRenaming(false);
-              }
-            }}
-            onFocus={(e) => e.currentTarget.select()}
-            className="min-w-0 flex-1 rounded border border-[var(--accent-cyan)] bg-[var(--bg-primary)] px-1 py-0 font-mono text-[12px] text-[var(--text-primary)] outline-none"
-          />
-          <button
-            onClick={commit}
-            disabled={!dirty}
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-green)] disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--text-muted)]"
-            title="Save (Esc to cancel)"
-          >
-            <CheckIcon />
-          </button>
-        </>
+        <InlineNameEditor
+          initial={name}
+          mono
+          commitTitle="Save (Esc to cancel)"
+          onCommit={(next) => {
+            setRenaming(false);
+            onRename(name, next).catch(() => {
+              // toast surfaced by store
+            });
+          }}
+          onCancel={() => setRenaming(false)}
+        />
       ) : (
         <>
           <button
-            onClick={startRename}
+            onClick={() => setRenaming(true)}
             className="flex-1 truncate text-left font-mono text-[12px] text-[var(--text-primary)] hover:text-[var(--accent-cyan)]"
             title="Rename"
           >

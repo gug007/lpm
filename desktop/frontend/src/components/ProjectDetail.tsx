@@ -549,6 +549,7 @@ export function ProjectDetail({
         showProjectName={showProjectName}
         sidebarCollapsed={sidebarCollapsed}
         showConfigEditor={detailView === "config"}
+        isRemote={project.isRemote}
         onShowConfigEditor={() => switchDetailView("config")}
         onCloseConfigEditor={() => switchDetailView("terminal")}
         onRefresh={onRefresh}

@@ -7,6 +7,7 @@ interface ConfigErrorViewProps {
   showProjectName: boolean;
   sidebarCollapsed: boolean;
   showConfigEditor: boolean;
+  isRemote: boolean;
   onShowConfigEditor: () => void;
   onCloseConfigEditor: () => void;
   onRefresh: (newName?: string) => void;
@@ -18,6 +19,7 @@ export function ConfigErrorView({
   showProjectName,
   sidebarCollapsed,
   showConfigEditor,
+  isRemote,
   onShowConfigEditor,
   onCloseConfigEditor,
   onRefresh,
@@ -36,6 +38,7 @@ export function ConfigErrorView({
             onSaved={onRefresh}
             onBack={onCloseConfigEditor}
             onToggleView={onCloseConfigEditor}
+            isRemote={isRemote}
           />
         </div>
       ) : (

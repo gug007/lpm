@@ -274,6 +274,24 @@ export function SaveGeneratorIcon(srcPath, id) {
 export function SaveGenerators(g) {
   return invoke("save_generators", { g });
 }
+export function LoadClaudeAccounts() {
+  return invoke("load_claude_accounts");
+}
+export function SaveClaudeAccounts(a) {
+  return invoke("save_claude_accounts", { a });
+}
+export function RemoveClaudeAccount(id) {
+  return invoke("remove_claude_account", { id });
+}
+export function ClaudeAccountsStatus() {
+  return invoke("claude_accounts_status");
+}
+export function ClaudeAccountUsage() {
+  return invoke("claude_account_usage");
+}
+export function StartClaudeLogin(accountId) {
+  return invoke("start_claude_login", { accountId });
+}
 export function MessageHistoryQuery(input) {
   return invoke("message_history_query", { input });
 }
@@ -460,8 +478,8 @@ export function ResetClaudeHooks() {
 export function ResizeTerminal(id, cols, rows) {
   return invoke("resize_terminal", { id, cols, rows });
 }
-export function ResolveMergeConflictsWithAI(cwd, cli, model, effort, fast) {
-  return invoke("resolve_merge_conflicts_with_ai", { cwd, cli, model, effort, fast });
+export function ResolveMergeConflictsWithAI(projectName, cwd, cli, model, effort, fast) {
+  return invoke("resolve_merge_conflicts_with_ai", { projectName, cwd, cli, model, effort, fast });
 }
 export function ResolvePortConflict(c) {
   return invoke("resolve_port_conflict", { c });
@@ -592,8 +610,8 @@ export function TmuxInstalled() {
 export function ToggleProjectService(name, serviceName) {
   return invoke("toggle_project_service", { name, serviceName });
 }
-export function TransformText(cwd, cli, model, effort, fast, instruction, text) {
-  return invoke("transform_text", { cwd, cli, model, effort, fast, instruction, text });
+export function TransformText(projectName, cwd, cli, model, effort, fast, instruction, text) {
+  return invoke("transform_text", { projectName, cwd, cli, model, effort, fast, instruction, text });
 }
 export function TrashProject(name) {
   return invoke("trash_project", { name });
