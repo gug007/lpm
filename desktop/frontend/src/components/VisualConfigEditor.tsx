@@ -1,190 +1,20 @@
 import { useState, useMemo } from "react";
-import YAML from "yaml";
 import { AddNewPicker, type NewItemType } from "./AddNewPicker";
 import { PlusIcon, TrashIcon, ChevronDownIcon, ChevronRightIcon, ZapIcon, PlayIcon, TerminalIcon, LayersIcon } from "./icons";
 import { uniqueKey } from "../uniqueKey";
 import { useAccountsStore } from "../store/accounts";
+import {
+  parseYaml,
+  serializeToYaml,
+  type ConfigForm,
+  type ServiceEntry,
+  type ActionEntry,
+  type ActionInputEntry,
+  type TerminalEntry,
+  type ProfileEntry,
+} from "../visualConfigYaml";
 
-interface ServiceEntry {
-  key: string;
-  cmd: string;
-  cwd: string;
-  port: string;
-  env: [string, string][];
-}
-
-interface ActionInputEntry {
-  key: string;
-  label: string;
-  type: string;
-  required: boolean;
-  placeholder: string;
-  default: string;
-  persist: boolean;
-}
-
-interface ActionEntry {
-  key: string;
-  cmd: string;
-  label: string;
-  cwd: string;
-  env: [string, string][];
-  confirm: boolean;
-  display: string;
-  type: string;
-  inputs: ActionInputEntry[];
-}
-
-interface TerminalEntry {
-  key: string;
-  cmd: string;
-  label: string;
-  cwd: string;
-  env: [string, string][];
-  display: string;
-}
-
-interface ProfileEntry {
-  key: string;
-  services: string[];
-}
-
-interface ConfigForm {
-  name: string;
-  root: string;
-  claudeAccount: string;
-  services: ServiceEntry[];
-  actions: ActionEntry[];
-  terminals: TerminalEntry[];
-  profiles: ProfileEntry[];
-}
-
-function parseEntry(key: string, v: unknown): { key: string; cmd: string; cwd: string; env: [string, string][] } {
-  const isStr = typeof v === "string";
-  const obj = isStr ? {} : (v as Record<string, unknown>);
-  return {
-    key,
-    cmd: isStr ? (v as string) : String(obj.cmd || ""),
-    cwd: String(obj.cwd || ""),
-    env: Object.entries((obj.env as Record<string, string>) || {}),
-  };
-}
-
-function parseYaml(yaml: string): ConfigForm {
-  const raw = YAML.parse(yaml) || {};
-  return {
-    name: raw.name || "",
-    root: raw.root || "",
-    claudeAccount: typeof raw.claudeAccount === "string" ? raw.claudeAccount : "",
-    services: Object.entries((raw.services as Record<string, unknown>) || {}).map(([key, v]) => {
-      const base = parseEntry(key, v);
-      const obj = typeof v === "string" ? {} : (v as Record<string, unknown>);
-      return { ...base, port: obj.port ? String(obj.port) : "" };
-    }),
-    actions: Object.entries((raw.actions as Record<string, unknown>) || {}).map(([key, v]) => {
-      const base = parseEntry(key, v);
-      const obj = typeof v === "string" ? {} : (v as Record<string, unknown>);
-      const rawInputs = (obj.inputs as Record<string, unknown>) || {};
-      return {
-        ...base,
-        label: String(obj.label || ""),
-        confirm: Boolean(obj.confirm),
-        display: String(obj.display || ""),
-        type: String(obj.type || ""),
-        inputs: Object.entries(rawInputs).map(([k, inp]) => {
-          const o = (inp as Record<string, unknown>) || {};
-          return {
-            key: k,
-            label: String(o.label || ""),
-            type: String(o.type || "text"),
-            required: Boolean(o.required),
-            placeholder: String(o.placeholder || ""),
-            default: String(o.default || ""),
-            persist: Boolean(o.persist),
-          };
-        }),
-      };
-    }),
-    terminals: Object.entries((raw.terminals as Record<string, unknown>) || {}).map(([key, v]) => {
-      const base = parseEntry(key, v);
-      const obj = typeof v === "string" ? {} : (v as Record<string, unknown>);
-      return { ...base, label: String(obj.label || ""), display: String(obj.display || "") };
-    }),
-    profiles: Object.entries((raw.profiles as Record<string, string[]>) || {}).map(([key, v]) => ({
-      key,
-      services: Array.isArray(v) ? v : [],
-    })),
-  };
-}
-
-function serializeEntry(entry: { cmd: string; cwd: string; env: [string, string][] }, extras: Record<string, unknown>): string | Record<string, unknown> {
-  const hasExtras = entry.cwd || entry.env.length > 0 || Object.values(extras).some(Boolean);
-  if (!hasExtras) return entry.cmd;
-  const obj: Record<string, unknown> = { cmd: entry.cmd };
-  if (entry.cwd) obj.cwd = entry.cwd;
-  if (entry.env.length > 0) obj.env = Object.fromEntries(entry.env.filter(([k]) => k));
-  return { ...obj, ...Object.fromEntries(Object.entries(extras).filter(([, v]) => v)) };
-}
-
-function serializeToYaml(form: ConfigForm): string {
-  const doc: Record<string, unknown> = {};
-  if (form.name) doc.name = form.name;
-  if (form.root) doc.root = form.root;
-  if (form.claudeAccount) doc.claudeAccount = form.claudeAccount;
-
-  if (form.services.length > 0) {
-    const svcs: Record<string, unknown> = {};
-    for (const s of form.services) {
-      if (!s.key) continue;
-      svcs[s.key] = serializeEntry(s, { port: s.port ? (parseInt(s.port, 10) || 0) : 0 });
-    }
-    doc.services = svcs;
-  }
-
-  if (form.actions.length > 0) {
-    const acts: Record<string, unknown> = {};
-    for (const a of form.actions) {
-      if (!a.key) continue;
-      let inputsObj: Record<string, unknown> | undefined;
-      if (a.inputs.length > 0) {
-        inputsObj = {};
-        for (const inp of a.inputs) {
-          if (!inp.key) continue;
-          const o: Record<string, unknown> = {};
-          if (inp.label) o.label = inp.label;
-          if (inp.type && inp.type !== "text") o.type = inp.type;
-          if (inp.required) o.required = true;
-          if (inp.placeholder) o.placeholder = inp.placeholder;
-          if (inp.default) o.default = inp.default;
-          if (inp.persist) o.persist = true;
-          inputsObj[inp.key] = o;
-        }
-      }
-      acts[a.key] = serializeEntry(a, { label: a.label, confirm: a.confirm || undefined, display: a.display, type: a.type, inputs: inputsObj });
-    }
-    doc.actions = acts;
-  }
-
-  if (form.terminals.length > 0) {
-    const terms: Record<string, unknown> = {};
-    for (const t of form.terminals) {
-      if (!t.key) continue;
-      terms[t.key] = serializeEntry(t, { label: t.label, display: t.display });
-    }
-    doc.terminals = terms;
-  }
-
-  if (form.profiles.length > 0) {
-    const profs: Record<string, string[]> = {};
-    for (const p of form.profiles) {
-      if (!p.key) continue;
-      profs[p.key] = p.services.filter(Boolean);
-    }
-    doc.profiles = profs;
-  }
-
-  return YAML.stringify(doc, { lineWidth: 0 });
-}
+const INHERIT_OPTION = "__inherit__";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -457,7 +287,7 @@ export function VisualConfigEditor({ content, onChange, isRemote = false }: Visu
   const [pickerOpen, setPickerOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
-  const update = (patch: Partial<ConfigForm>) => onChange(serializeToYaml({ ...form, ...patch }));
+  const update = (patch: Partial<ConfigForm>) => onChange(serializeToYaml({ ...form, ...patch }, content));
 
   const toggleExpand = (id: number) => {
     setExpanded((prev) => {
@@ -518,9 +348,10 @@ export function VisualConfigEditor({ content, onChange, isRemote = false }: Visu
         {!isRemote && (accounts.length > 0 || form.claudeAccount) && (
           <Field label="Claude account">
             <Select
-              value={form.claudeAccount}
-              onChange={(v) => update({ claudeAccount: v })}
+              value={form.claudeAccount === null ? (form.parentName ? INHERIT_OPTION : "") : form.claudeAccount}
+              onChange={(v) => update({ claudeAccount: v === INHERIT_OPTION ? null : v })}
               options={[
+                ...(form.parentName ? [{ value: INHERIT_OPTION, label: "Inherit from parent" }] : []),
                 { value: "", label: "Default" },
                 ...accounts.map((a) => ({ value: a.id, label: a.label })),
                 ...(form.claudeAccount && !accounts.some((a) => a.id === form.claudeAccount)

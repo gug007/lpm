@@ -382,11 +382,7 @@ fn resolve_restore_cmds(cmd: &str) -> (String, String) {
 
 fn resolve_spawn(project_name: &str) -> Result<SpawnTarget, String> {
     let info = config::spawn_info(project_name)?;
-    let claude_config_dir = if info.is_remote {
-        None
-    } else {
-        config::claude_config_dir_for_project(project_name)
-    };
+    let claude_config_dir = info.claude_config_dir;
     let ssh = if info.is_remote { Some(info.ssh) } else { None };
     Ok(SpawnTarget {
         root: info.root,

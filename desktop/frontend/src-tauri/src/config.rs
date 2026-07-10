@@ -313,22 +313,29 @@ pub fn claude_config_dir_for_account(id: &str) -> Option<String> {
     Some(claude_account_dir(id).to_string_lossy().into_owned())
 }
 
-/// The project's pinned account id; a duplicate (parent_name set, no own pin)
-/// inherits its parent's, matching how services/profiles/actions layer.
+/// The project's effective account id. An explicit `claudeAccount` (even empty,
+/// meaning "default login, don't inherit") wins; when the key is absent a
+/// duplicate (parent_name set) inherits its parent's, matching how
+/// services/profiles/actions layer, else the default login.
 fn claude_account_of(y: &ProjectYaml) -> String {
-    if !y.claude_account.is_empty() {
-        return y.claude_account.clone();
+    if let Some(v) = &y.claude_account {
+        return v.clone();
     }
     if y.parent_name.is_empty() {
         return String::new();
     }
     parse_project_yaml(&y.parent_name)
-        .map(|p| p.claude_account)
+        .map(|p| p.claude_account.unwrap_or_default())
         .unwrap_or_default()
 }
 
 pub fn claude_config_dir_for_project(name: &str) -> Option<String> {
     let y = parse_project_yaml(name).ok()?;
+    // The pin governs local terminals/actions/AI only; SSH projects run on the
+    // remote and never get a CLAUDE_CONFIG_DIR.
+    if y.ssh.as_ref().map(|s| s.is_remote()).unwrap_or(false) {
+        return None;
+    }
     claude_config_dir_for_account(&claude_account_of(&y))
 }
 
@@ -585,7 +592,7 @@ struct ProjectYaml {
     parent_name: String,
     ssh: Option<SshSettings>,
     #[serde(rename = "claudeAccount", default)]
-    claude_account: String,
+    claude_account: Option<String>,
     #[serde(default)]
     services: BTreeMap<String, ServiceDef>,
     #[serde(default)]
@@ -1693,6 +1700,9 @@ pub struct SpawnInfo {
     pub ssh: SshSettings, // zero-valued when local
     pub services: BTreeMap<String, ServiceFull>,
     pub profiles: BTreeMap<String, Vec<String>>,
+    /// The pinned account's CLAUDE_CONFIG_DIR (None for remote/default login),
+    /// resolved from this same parse so terminal spawns don't re-read the YAML.
+    pub claude_config_dir: Option<String>,
 }
 
 pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
@@ -1705,6 +1715,7 @@ pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
             ssh: SshSettings::default(),
             services: BTreeMap::new(),
             profiles: BTreeMap::new(),
+            claude_config_dir: None,
         });
     }
     let y = parse_project_yaml(name)?;
@@ -1716,6 +1727,11 @@ pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
     let ssh = y.ssh.clone().unwrap_or_default();
     let is_remote = ssh.is_remote();
     let root = expand_home(&y.root);
+    let claude_config_dir = if is_remote {
+        None
+    } else {
+        claude_config_dir_for_account(&claude_account_of(&y))
+    };
     let mut services: BTreeMap<String, ServiceFull> =
         y.services.into_iter().map(|(n, d)| (n, d.into_full())).collect();
     let mut profiles = y.profiles;
@@ -1731,6 +1747,7 @@ pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
         ssh,
         services,
         profiles,
+        claude_config_dir,
     })
 }
 
@@ -1862,6 +1879,32 @@ mod repo_merge_tests {
         let mut profiles = BTreeMap::new();
         merge_repo_services_profiles(&dir.path().to_string_lossy(), true, &mut services, &mut profiles);
         assert!(services.is_empty(), "remote repo file lives on the remote; never merged locally");
+    }
+}
+
+#[cfg(test)]
+mod claude_account_tests {
+    use super::*;
+
+    fn account_of(yaml: &str) -> String {
+        claude_account_of(&serde_yaml::from_str::<ProjectYaml>(yaml).unwrap())
+    }
+
+    #[test]
+    fn explicit_id_is_pinned() {
+        assert_eq!(account_of("claudeAccount: work\n"), "work");
+    }
+
+    #[test]
+    fn explicit_empty_is_default_login_not_inherited() {
+        // Some("") means "explicitly the default login"; must not fall through
+        // to the parent even when parent_name is set.
+        assert_eq!(account_of("claudeAccount: ''\nparent_name: base\n"), "");
+    }
+
+    #[test]
+    fn absent_without_parent_is_default_login() {
+        assert_eq!(account_of("name: solo\n"), "");
     }
 }
 

@@ -31,7 +31,7 @@
     },
     "claudeAccount": {
       "type": "string",
-      "description": "Id of the Claude account this project's terminals use (managed in Settings → AI & Integrations). Omit to use your main Claude login. Has no effect on SSH projects — the remote host has its own Claude login."
+      "description": "Id of the Claude account this project's terminals, actions, and AI features use (managed in Settings → AI & Integrations). Omit to use your main Claude login. Has no effect on SSH projects — the remote host has its own Claude login."
     },
     "ssh": {
       "type": "object",

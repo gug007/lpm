@@ -74,8 +74,8 @@ const projectFields: Field[] = [
     required: false,
     description: (
       <>
-        Id of the Claude account this project&rsquo;s terminals and AI features
-        use. Accounts are managed in the desktop app under Settings &rarr; AI
+        Id of the Claude account this project&rsquo;s terminals, actions, and AI
+        features use. Accounts are managed in the desktop app under Settings &rarr; AI
         &amp; Integrations, which also writes this field for you via the
         project form. Omit it to use your main Claude login. Not applied to SSH
         projects — the remote host has its own Claude login.

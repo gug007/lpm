@@ -62,6 +62,10 @@ struct ActionPlan {
     /// Run the command through the user's interactive login shell (local actions),
     /// vs. plain `/bin/sh -c` (remote actions, where cmd_str is an ssh line).
     login_shell: bool,
+    /// Pinned account's CLAUDE_CONFIG_DIR for local actions (None for remote and
+    /// the default login). An explicit CLAUDE_CONFIG_DIR in the action's own env
+    /// is inlined into cmd_str and still wins over this process env.
+    claude_config_dir: Option<String>,
     /// Ran after the action's process exits (e.g. push a sync-mode mirror).
     on_exit: Option<Box<dyn FnOnce() + Send>>,
 }
@@ -105,6 +109,7 @@ fn resolve_action_command(
                 cwd,
                 ports: a.ports,
                 login_shell: false,
+                claude_config_dir: None,
                 on_exit: Some(Box::new(move || crate::sshsync::push_after_action(&app2, &project2))),
             });
         }
@@ -113,6 +118,7 @@ fn resolve_action_command(
             cwd: info.root, // local cwd for the ssh client
             ports: a.ports,
             login_shell: false,
+            claude_config_dir: None,
             on_exit: None,
         })
     } else {
@@ -121,6 +127,7 @@ fn resolve_action_command(
             cwd: config::resolve_cwd(&info.root, &a.cwd),
             ports: a.ports,
             login_shell: true,
+            claude_config_dir: info.claude_config_dir,
             on_exit: None,
         })
     }
@@ -144,7 +151,7 @@ fn merge_stderr_into_stdout(cmd: &mut Command) {
 /// Remote actions keep `/bin/sh -c` — cmd_str is an ssh line that resolves its
 /// environment on the far side.
 fn action_command(plan: &ActionPlan) -> Command {
-    if plan.login_shell {
+    let mut cmd = if plan.login_shell {
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
         let script = format!("cd {} && {}", config::shell_quote(&plan.cwd), plan.cmd_str);
         let mut cmd = Command::new(shell);
@@ -154,7 +161,11 @@ fn action_command(plan: &ActionPlan) -> Command {
         let mut cmd = Command::new("/bin/sh");
         cmd.arg("-c").arg(&plan.cmd_str).current_dir(&plan.cwd);
         cmd
+    };
+    if let Some(dir) = &plan.claude_config_dir {
+        cmd.env(config::CLAUDE_CONFIG_DIR_ENV, dir);
     }
+    cmd
 }
 
 /// Go ProcessState.String(): "exit status N" / "signal: N".

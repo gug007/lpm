@@ -39,7 +39,7 @@ describe("generateVariants", () => {
   });
 
   it("fans out N runs with distinct, diversity-nudged instructions", async () => {
-    transformText.mockImplementation((...a: unknown[]) => Promise.resolve(`out:${a[5]}`));
+    transformText.mockImplementation((...a: unknown[]) => Promise.resolve(`out:${a[6]}`));
     const out = await generateVariants(null, ".", params, "Improve", "hello", 3);
     expect(out).toHaveLength(3);
     expect(transformText).toHaveBeenCalledTimes(3);
