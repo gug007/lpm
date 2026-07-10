@@ -77,17 +77,13 @@ pub fn run(
     control::send_command(ctx, &line)?;
 
     if as_json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&json!({
-                "ok": true,
-                "project": file_name,
-                "action": action_name,
-                "command": command_str,
-                "prompt": prompt,
-            }))
-            .unwrap_or_else(|_| "{}".into())
-        );
+        crate::util::print_json(&json!({
+            "ok": true,
+            "project": file_name,
+            "action": action_name,
+            "command": command_str,
+            "prompt": prompt,
+        }));
     } else {
         let what = action_name
             .as_deref()

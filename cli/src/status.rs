@@ -6,21 +6,14 @@ use crate::config::{self, Ctx};
 use crate::error::{resolve_error, RunError};
 use crate::statussock::{self, StatusEntry};
 use crate::style::Style;
-use crate::util::{now_millis, relative};
+use crate::util::{now_millis, print_json, relative};
 use serde_json::{json, Value};
 use std::io::IsTerminal;
 
 pub fn run(ctx: &Ctx, project: Option<&str>, as_json: bool) -> Result<(), RunError> {
     if !statussock::ping(&ctx.socket_path()) {
         if as_json {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&json!({
-                    "appReachable": false,
-                    "projects": [],
-                }))
-                .unwrap_or_else(|_| "{}".into())
-            );
+            print_json(&json!({ "appReachable": false, "projects": [] }));
         } else {
             println!("lpm app is not running — no live status.");
         }
@@ -43,7 +36,7 @@ pub fn run(ctx: &Ctx, project: Option<&str>, as_json: bool) -> Result<(), RunErr
     }
 
     if as_json {
-        print!("{}", render_json(&groups));
+        print_json(&render_json(&groups));
         return Ok(());
     }
 
@@ -63,7 +56,7 @@ pub fn run(ctx: &Ctx, project: Option<&str>, as_json: bool) -> Result<(), RunErr
     Ok(())
 }
 
-fn render_json(groups: &[(String, Vec<StatusEntry>)]) -> String {
+fn render_json(groups: &[(String, Vec<StatusEntry>)]) -> Value {
     let now = now_millis();
     let projects: Vec<Value> = groups
         .iter()
@@ -83,14 +76,7 @@ fn render_json(groups: &[(String, Vec<StatusEntry>)]) -> String {
             })
         })
         .collect();
-    format!(
-        "{}\n",
-        serde_json::to_string_pretty(&json!({
-            "appReachable": true,
-            "projects": projects,
-        }))
-        .unwrap_or_else(|_| "{}".into())
-    )
+    json!({ "appReachable": true, "projects": projects })
 }
 
 fn status_value(s: &Style, value: &str) -> String {

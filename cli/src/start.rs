@@ -23,15 +23,11 @@ pub fn run(
     control::send_command(ctx, &line)?;
 
     if as_json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&json!({
-                "ok": true,
-                "project": file_name,
-                "profile": profile,
-            }))
-            .unwrap_or_else(|_| "{}".into())
-        );
+        crate::util::print_json(&json!({
+            "ok": true,
+            "project": file_name,
+            "profile": profile,
+        }));
     } else if let Some(p) = profile.filter(|p| !p.is_empty()) {
         println!("started {file_name} (profile {p})");
     } else {

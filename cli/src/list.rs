@@ -8,7 +8,7 @@ use crate::service::service_status;
 use crate::statussock::{self, StatusEntry};
 use crate::style::Style;
 use crate::tmux;
-use crate::util::shorten_home;
+use crate::util::{print_json, shorten_home};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::io::IsTerminal;
@@ -82,7 +82,7 @@ pub fn run(ctx: &Ctx, as_json: bool) -> Result<(), RunError> {
     }
 
     if as_json {
-        print!("{}", render_json(&rows));
+        print_json(&render_json(&rows));
     } else {
         let style = Style {
             on: std::io::stdout().is_terminal(),
@@ -92,7 +92,7 @@ pub fn run(ctx: &Ctx, as_json: bool) -> Result<(), RunError> {
     Ok(())
 }
 
-fn render_json(rows: &[Row]) -> String {
+fn render_json(rows: &[Row]) -> Value {
     let projects: Vec<Value> = rows
         .iter()
         .map(|r| {
@@ -114,11 +114,7 @@ fn render_json(rows: &[Row]) -> String {
             })
         })
         .collect();
-    format!(
-        "{}\n",
-        serde_json::to_string_pretty(&json!({ "projects": projects }))
-            .unwrap_or_else(|_| "{}".into())
-    )
+    json!({ "projects": projects })
 }
 
 fn agent_summary(agents: &BTreeMap<String, usize>) -> String {

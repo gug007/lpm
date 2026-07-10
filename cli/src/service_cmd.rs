@@ -54,16 +54,12 @@ pub fn run(
     match control::send_command(ctx, &line) {
         Ok(_) => {
             if as_json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&json!({
-                        "ok": true,
-                        "project": file_name,
-                        "service": service,
-                        "op": op.word(),
-                    }))
-                    .unwrap_or_else(|_| "{}".into())
-                );
+                crate::util::print_json(&json!({
+                    "ok": true,
+                    "project": file_name,
+                    "service": service,
+                    "op": op.word(),
+                }));
             } else {
                 println!("{} {service} in {file_name}", op.past());
             }

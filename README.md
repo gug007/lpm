@@ -64,9 +64,9 @@ Supports macOS (Apple Silicon & Intel).
 - **Actions** — one-shot commands like tests, migrations, and deploys, runnable from the Actions button
 - **Works with any stack** — if it runs in a terminal, lpm can manage it
 
-## AI Agent Skill
+## AI Agent Skills
 
-lpm includes an agent skill that lets your AI coding agent create and manage lpm configs for you. Install it via [skills.sh](https://skills.sh):
+lpm ships two agent skills: **`lpm-config`** writes and edits project config, and **`lpm-cli`** drives the `lpm` command-line tool to control running projects (start/stop, logs, status, duplicate). Install them via [skills.sh](https://skills.sh):
 
 ```bash
 npx skills add gug007/lpm
@@ -74,4 +74,4 @@ npx skills add gug007/lpm
 
 Then just tell your agent "set up lpm for this project" and it will analyze your codebase, discover services, and write the config.
 
-See [lpm/README.md](lpm/README.md) for details.
+See [lpm-config/README.md](lpm-config/README.md) and [lpm-cli/README.md](lpm-cli/README.md) for details.

@@ -111,18 +111,14 @@ the service-to-pane mapping may be off",
     let text = tail_lines(&text, lines);
 
     if as_json {
-        let out = json!({
+        crate::util::print_json(&json!({
             "project": file_name,
             "service": service_name,
             "paneId": target.id,
             "paneIndex": idx,
             "lines": lines,
             "text": text,
-        });
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&out).unwrap_or_else(|_| "{}".into())
-        );
+        }));
     } else {
         println!("{text}");
     }

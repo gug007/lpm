@@ -76,6 +76,9 @@ enum Commands {
         /// Emit a single machine-readable JSON object (no ANSI).
         #[arg(long)]
         json: bool,
+        /// With --json, include env maps, full action details, and terminal history.
+        #[arg(long)]
+        full: bool,
     },
     /// Print a running service pane's recent output (its scrollback).
     Logs {
@@ -246,7 +249,7 @@ fn main() -> ExitCode {
 
     let result = match cli.command {
         Commands::List { json } => list::run(&ctx, json),
-        Commands::Project { name, json } => project::run(&ctx, name.as_deref(), json),
+        Commands::Project { name, json, full } => project::run(&ctx, name.as_deref(), json, full),
         Commands::Logs {
             service,
             project,

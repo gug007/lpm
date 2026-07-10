@@ -116,22 +116,19 @@ pub fn run(
 
     loop {
         if target.satisfied() {
-            let ms = start.elapsed().as_millis();
+            let ms = start.elapsed().as_millis() as u64;
             if as_json {
-                println!("{}", json!({ "ok": true, "elapsedMs": ms }));
+                crate::util::print_json(&json!({ "ok": true, "elapsedMs": ms }));
             } else {
                 println!("ready after {:.1}s", start.elapsed().as_secs_f64());
             }
             return Ok(());
         }
         if start.elapsed() >= deadline {
-            let ms = start.elapsed().as_millis();
+            let ms = start.elapsed().as_millis() as u64;
             let waiting_for = target.describe();
             if as_json {
-                println!(
-                    "{}",
-                    json!({ "ok": false, "elapsedMs": ms, "waitingFor": waiting_for })
-                );
+                crate::util::print_json(&json!({ "ok": false, "elapsedMs": ms, "waitingFor": waiting_for }));
             }
             return Err(RunError::Internal(format!(
                 "timed out after {timeout}s waiting for {waiting_for}"

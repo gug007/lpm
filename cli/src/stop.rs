@@ -13,11 +13,7 @@ pub fn run(ctx: &Ctx, project: Option<&str>, as_json: bool) -> Result<(), RunErr
     control::send_command(ctx, &format!("stop_project {}", quote_arg(&file_name)))?;
 
     if as_json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&json!({ "ok": true, "project": file_name }))
-                .unwrap_or_else(|_| "{}".into())
-        );
+        crate::util::print_json(&json!({ "ok": true, "project": file_name }));
     } else {
         println!("stopped {file_name}");
     }

@@ -1,6 +1,25 @@
-//! Small time helpers shared across subcommands.
+//! Small shared helpers: time formatting and JSON output.
 
+use serde_json::Value;
+use std::io::IsTerminal;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+/// Serialize a JSON value, pretty (indented) or compact (single line).
+pub fn format_json(value: &Value, pretty: bool) -> String {
+    let out = if pretty {
+        serde_json::to_string_pretty(value)
+    } else {
+        serde_json::to_string(value)
+    };
+    out.unwrap_or_else(|_| "{}".into())
+}
+
+/// Print a JSON value to stdout: pretty on a TTY, compact single-line when piped
+/// or redirected (same terminal gate as `Style`), so agents parsing the output
+/// pay for the fewest tokens.
+pub fn print_json(value: &Value) {
+    println!("{}", format_json(value, std::io::stdout().is_terminal()));
+}
 
 /// Current unix time in milliseconds (0 if the clock is before the epoch).
 pub fn now_millis() -> i64 {
@@ -66,5 +85,16 @@ mod tests {
         assert_eq!(relative(now - 3 * 3_600_000, now), "3h ago");
         assert_eq!(relative(now - 2 * 86_400_000, now), "2d ago");
         assert_eq!(relative(0, now), "unknown");
+    }
+
+    #[test]
+    fn format_json_compact_vs_pretty() {
+        let v = serde_json::json!({ "a": 1, "b": [2, 3] });
+        let compact = format_json(&v, false);
+        let pretty = format_json(&v, true);
+        assert!(!compact.contains('\n'));
+        assert_eq!(compact, r#"{"a":1,"b":[2,3]}"#);
+        assert!(pretty.contains('\n'));
+        assert!(pretty.contains("  "));
     }
 }

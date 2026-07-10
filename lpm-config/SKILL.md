@@ -1,0 +1,844 @@
+---
+name: lpm-config
+description: Create, modify, and delete lpm project configs at ~/.lpm/projects/*.yml. Use whenever the user mentions lpm, asks to set up lpm, create/edit/delete an lpm config, add or remove services, actions, or terminals from lpm, or says "lpm setup", "create lpm config", "add service to lpm", "configure lpm". Also trigger when the user wants to add a button or menu action to run commands, manage dev project processes, start/stop multiple services together, group related commands, set up one-shot commands with confirmation prompts, or configure interactive terminal shells through YAML config files. Also triggers when the user wants a background/silent action, an action that submits a command into the currently open/focused/active terminal (the `command` action type), a split-button with a default plus alternatives, a dropdown menu of related commands, an action pinned to the terminal footer, an SSH/remote project, or a sync-mode action that mirrors a remote directory locally. Also triggers when the user wants an action input to remember the last value chosen and pre-select it next time (`persist`). Also triggers when the user asks to edit lpm config for the current directory (cwd) without naming a project. Also triggers when the user wants to share an lpm config with their team via `.lpm.yml` checked into the repo, create or reference a reusable template under `~/.lpm/templates/`, layer one config on top of another via `extends`, reorder buttons with `position`, pre-flight a port-conflict check with `port` on an action or terminal, or sparse-override a single field of a global action. If the user has lpm installed (~/.lpm/ exists), this skill applies to any request about managing project workflows.
+---
+
+## Instructions
+
+Use this skill to create, modify, and delete [lpm](https://lpm.cx) (Local Project Manager) YAML configuration files. lpm is a macOS app that manages long-running services, one-shot commands (actions), and interactive terminals for dev projects.
+
+To control running projects from the command line (start/stop/logs/status/duplicate), use the `lpm-cli` skill instead.
+
+For the full YAML field reference, see [YAML Schema Reference](references/yaml-schema.md).
+
+### Installation
+
+**Install lpm** (if not already installed): download the macOS app from [lpm.cx](https://lpm.cx), open the `.dmg`, and drag lpm to Applications.
+
+**Install this skill** via [skills.sh](https://skills.sh):
+```bash
+# Interactive — shows available skills
+npx skills add gug007/lpm
+
+# Or install directly
+npx skills add gug007/lpm -s lpm-config
+
+# Install globally (available everywhere)
+npx skills add gug007/lpm -s lpm-config -g
+
+# Update to latest version
+npx skills update lpm-config
+```
+
+**tmux** is required by lpm:
+```bash
+# macOS
+brew install tmux
+# Debian/Ubuntu
+sudo apt install tmux
+```
+
+### When to Use
+
+| User intent | Operation |
+|-------------|-----------|
+| "create lpm config", "set up lpm for this project" | **Create** a new config file |
+| "add service/action/terminal to lpm" | **Modify** an existing config |
+| "change/update lpm config" | **Modify** an existing config |
+| "remove/delete lpm config" | **Delete** a config file |
+| "remove action/service/terminal from lpm" | **Modify** — remove a section entry |
+| "I want a button that runs X" | **Modify** — add action or terminal (defaults to `display: header`, the main button row) |
+| "add a log viewer", "add a watcher" | **Modify** — likely a terminal action with `type: terminal` and `reuse: true` |
+| "make it reuse the same terminal", "only one terminal" | **Modify** — set `type: terminal` + `reuse: true` on the action |
+| "rename the button", "change the label" | **Modify** — update `label` field on the action/terminal |
+| "add a button with a dropdown of actions" | **Modify** — action group with nested `actions` (defaults to `display: header`) |
+| "when I click it, give me options to choose" | **Modify** — could be `inputs` (radio options before running) or an action group (sub-actions). Ask the user which they mean. |
+| "group these actions together" | **Modify** — create an action group with nested `actions` |
+| "duplicate this project for another directory" | **Create** — use `parent_name` for a duplicate project |
+| "make it run in background", "notify when done", "run silently" | **Modify** — add action with `type: background` |
+| "send this to the open terminal", "run in the current/active terminal", "type this into my shell" | **Modify** — add action with `type: command` |
+| "button with a default and alternatives" | **Modify** — split-button action group (parent `cmd` + nested `actions`) |
+| "dropdown of related commands", "menu of sub-actions" | **Modify** — dropdown-only action group (nested `actions`, no parent `cmd`) |
+| "nested menus", "submenu inside a button", "a tree of actions", "multi-level menu" | **Modify** — nest `actions` recursively (any depth → drill menu); split at each level when the node has its own `cmd` |
+| "pin this to the terminal footer", "tiny button next to the branch switcher" | **Modify** — set `display: footer` on the action/terminal |
+| "set up a remote project over ssh", "lpm for this server", "manage services on a remote host" | **Create** — SSH project (use `ssh:` block, omit `root`) |
+| "run this action locally against the remote files", "rsync the remote dir and run it locally", "let my local Claude Code touch the remote repo" | **Modify** — set `mode: sync` on the action (SSH projects only) |
+| "share these actions with the team", "check lpm config into the repo" | **Modify** — write to `<root>/.lpm.yml`, not the personal project file |
+| "reuse this config across projects", "make this a template" | **Create** — write `~/.lpm/templates/<name>.yml` and reference via `extends` in the consumers |
+| "extend another lpm config", "layer on top of template X" | **Modify** — add `extends: [<ref>, ...]` to the current config |
+| "reorder buttons", "make this action come first" | **Modify** — set `position:` (lower renders first) |
+| "make sure port X is free before running this action", "warn if a port is busy" | **Modify** — set `port:` on the action/terminal |
+| "I only want to change the position of a global action" | **Modify** — write a sparse entry like `myAction: {position: 3}` in the project file; `cmd`/`cwd`/`env` inherit from global |
+
+### How to Use
+
+**Step 1: Check that lpm is installed**
+
+```bash
+ls -d /Applications/lpm.app >/dev/null 2>&1 || test -d ~/.lpm
+```
+
+If not found, download the macOS app from [lpm.cx](https://lpm.cx) (see Installation above).
+
+**Step 2: Pick the target project file**
+
+Work out which `~/.lpm/projects/<name>.yml` to edit *before* asking the user anything. Use the cwd as the primary signal.
+
+1. Get the current working directory: `pwd`.
+2. List existing projects: `ls ~/.lpm/projects/*.yml` (empty is fine).
+3. For each project file, read its `root:` line (expand `~` to `$HOME`). A one-liner that works:
+
+   ```bash
+   for f in ~/.lpm/projects/*.yml; do
+     [ -f "$f" ] || continue
+     name=$(basename "$f" .yml)
+     root=$(awk '/^root:/ {print $2; exit}' "$f" | sed "s|^~|$HOME|")
+     printf '%s\t%s\n' "$name" "$root"
+   done
+   ```
+
+4. Match cwd against each `root`:
+   - Exact match (`cwd == root`) wins outright.
+   - Otherwise, any `root` that is a path-component prefix of `cwd` is a candidate. **Longest prefix wins.**
+
+5. Act on the match count:
+
+   | Matches | What to do |
+   |---------|-----------|
+   | 1 | **Silently** edit `~/.lpm/projects/<name>.yml`. No "I'll edit X" line, no confirmation. Apply the change and write the file. |
+   | ≥2 | Ask once: *"cwd is inside multiple lpm projects (`a`, `b`). Which one?"* |
+   | 0 | Offer two options in the same reply: (1) create a new project config for this cwd, (2) pick an existing project by name — list every `~/.lpm/projects/*.yml`. |
+
+**Overrides (these win over cwd detection):**
+- The user names a project explicitly ("add a service to `myapp`") → use that name.
+- The user says "globally" / "to all my projects" / "для всех проектов" → write to `~/.lpm/global.yml` instead.
+- The user says "share with team" / "for everyone on the repo" / "in the repo" / "check it in" → write to `<root>/.lpm.yml` (where `<root>` is the matched project's `root`, or the current cwd if no project matched). Create the file if it doesn't exist. Do not gate on "is this a git repo" — `.lpm.yml` is plain YAML and lpm reads it regardless of VCS.
+- The user says "as a template" / "for reuse across projects" / "save as a template" → write to `~/.lpm/templates/<name>.yml`. Pick `<name>` from the user's wording (e.g. "common-actions") or ask once if there is no obvious name.
+
+**Config layering.** lpm merges four file types in this order, each layer overriding the one below:
+
+| Layer | File | Notes |
+|-------|------|-------|
+| 4 (wins) | `~/.lpm/projects/<name>.yml` | Your personal project — top of stack. |
+| 3 | `<root>/.lpm.yml` | Shared with teammates via the repo. |
+| 2 | `~/.lpm/global.yml` | Your personal global. |
+| 1 | `~/.lpm/templates/<ref>.yml` | Referenced via `extends:` from any layer above. |
+
+Short form: **`templates < global < .lpm.yml < project`** (where `<` means "loses to"). Within `extends: [a, b, c]`, earlier wins: `a` overrides `b` overrides `c`.
+
+**Sparse override:** a higher layer can hold a thin entry that overrides only the fields it sets — e.g. `myAction: {position: 3}` in the project file keeps `cmd`/`cwd`/`env`/`label` from the lower layer's same-named action. **Caveat:** bool fields (`confirm`, `reuse`) treat `false` as "inherit", so you cannot sparse-override a global's `true` to `false`. Redefine the action fully in the higher layer to do that.
+
+**Ambiguity rule.** When the user's intent is ambiguous between layers (e.g. "add a logs button" with both a project file and a `.lpm.yml` present), default to the personal project file and add a single sentence: *"Adding to your personal project file. Say 'share with the team' to put it in `.lpm.yml` instead."*
+
+**Confirmations** are kept only for deleting a config file or overwriting an existing one during a Create flow. Never confirm the target on a single-match cwd.
+
+**Step 3: Execute the operation**
+
+**Create:**
+1. Check if a config already exists at `~/.lpm/projects/<name>.yml` — if so, confirm with the user before overwriting (or switch to **Modify** flow).
+2. Read [YAML Schema Reference](references/yaml-schema.md) for the full field reference.
+3. Auto-detect the project's services first — Rails, Next.js, Go, Django, Flask, Docker Compose, and more all leave recognizable signals in the repo. Draft the config from what you detect, then refine it rather than writing from scratch.
+4. If writing from scratch, analyze the project directory to discover:
+   - **Services** — look at `package.json` scripts, `Makefile`, `docker-compose.yml`, `Procfile`, `mise.toml` for long-running processes (dev servers, watchers, workers).
+   - **Actions** — one-shot commands: test, lint, build, migrate, deploy scripts.
+   - **Terminals** — interactive shells: database consoles, REPLs, log tailers.
+   - **Profiles** — logical groupings of services (frontend-only, full-stack, etc.).
+5. Create directory if needed: `mkdir -p ~/.lpm/projects`
+6. Write the config at `~/.lpm/projects/<name>.yml`.
+
+**Modify:**
+1. Read the existing config: `~/.lpm/projects/<name>.yml`.
+2. Apply the requested changes (add/update/remove entries).
+3. Use the **Smart Guidance** section below to ask the right follow-up questions.
+4. Validate all fields (see Validation below).
+5. Write the updated config back.
+
+**Delete:**
+1. Confirm with the user before removing.
+2. Run: `rm ~/.lpm/projects/<name>.yml`
+
+### Smart Guidance
+
+When the user asks to add something, ask follow-up questions to pick the right config shape. Don't dump all options — ask only what's relevant.
+
+**"Add a button / action that does X"**
+
+1. Is it a long-running/interactive process (log tailer, watcher, REPL) or a one-shot command (test, deploy, migrate)?
+   - **Long-running/interactive** → ask: "Should this always reuse the same terminal pane, or open a new one each time?"
+     - Reuse → `type: terminal`, `reuse: true`
+     - New each time → `type: terminal` (no `reuse`)
+   - **One-shot** → regular action
+2. Where should it appear?
+   - Default — header button row (omit `display`, or set `display: header`)
+   - Compact strip at the bottom of the terminal pane → `display: footer`
+   - Hidden in the overflow menu (legacy) → `display: menu`
+3. Is it destructive? → `confirm: true`
+
+**"Make it run in the background / only tell me when it's done"**
+
+→ Add the action with `type: background`. The command runs hidden and lpm shows a toast on completion. Common fits: builds, migrations, `docker pull`, `git fetch`, dependency installs. Pair with `confirm: true` when it's destructive.
+
+**"Send it to the terminal I'm looking at / run it in the active terminal"**
+
+→ Add the action with `type: command`. lpm types the command into the focused pane's active terminal and presses Enter, so it drives a shell or an already-running program (an AI CLI, a REPL, a `psql` session) instead of opening a new pane. If no terminal is focused, lpm shows a toast asking to open one first.
+
+**"Pin it to the terminal footer / right next to the branch switcher"**
+
+→ Set `display: footer`. The action renders as a compact button in the strip at the bottom of the terminal pane. Use for tight, frequently-used controls (quick-test, redeploy, format) that should always be one click away without taking space in the main button row. Footer also accepts split buttons (parent `cmd` + nested `actions`).
+
+**"Set up a remote project over SSH"**
+
+→ Create a project with an `ssh:` block instead of `root`. Required: `host`, `user`. Optional: `port` (defaults to 22), `key` (identity file path), `dir` (default remote working directory — must be absolute or `~`-prefixed). All services, actions, and terminals run on the remote host over a shared SSH ControlMaster connection. `cwd` values are interpreted as remote paths and are **not** validated locally.
+
+```yaml
+name: prod-api
+ssh:
+  host: api.example.com
+  user: deploy
+  port: 22
+  key: ~/.ssh/id_ed25519
+  dir: ~/apps/api
+services:
+  worker: bin/worker
+```
+
+**"Run this action locally against the remote files" (SSH sync mode)**
+
+→ On SSH projects, set `mode: sync` on the action. lpm rsyncs `ssh.dir` into a local mirror, runs the action locally, then rsyncs changes back. Useful for local tooling that needs filesystem access to the remote repo (local Claude Code, IDE refactors, `prettier --write`, codegen). Default is `mode: remote` (run over SSH on the host) — `sync` is rejected on local projects.
+
+**"Button with a default action plus alternatives" (split button)**
+
+→ Action group with `cmd` on the parent AND nested `actions`. Main click runs the parent's command; chevron opens the children. Example: `deploy` that defaults to staging with production/preview tucked behind it.
+
+**"Dropdown of related commands" (dropdown-only)**
+
+→ Action group with nested `actions` but no parent `cmd`. The whole button opens the menu. Example: a `database` button that expands into migrate / seed / reset.
+
+**"Nested menus" / "a submenu inside a button" / "a tree of actions" (deep nesting)**
+
+→ Nest `actions` **recursively** — a child action can itself have `actions`, to any depth. Each level renders as a drill menu (push/pop + breadcrumb, like the git Pull/Push/Fetch buttons): a row that has its own `actions` drills in; a back arrow walks out. The default-on-the-button rule holds at every level — `cmd` + children → split (label runs, chevron drills in); children with no `cmd` → the row opens the submenu; `cmd` with no children → a leaf that runs. Inheritance (`cwd`/`env`/`mode`) chains down the full path; set `position` per level to order siblings. Users can also rearrange the tree by drag-and-drop in the app, and lpm rewrites this structure.
+
+**"Add a terminal / shell / console"**
+
+→ Goes in `terminals` section. Ask:
+- Should it be a visible button or menu item?
+
+**"This action needs parameters"**
+
+→ Add `inputs`. Ask:
+- What parameters? (name, label, type)
+- Are any required?
+- Should any be a selection from fixed options? → `type: radio` with `options`
+- Any defaults?
+- Should it remember the last value the user picked? → `persist: true` (pre-selects the previous choice next run, per project + action)
+
+**"Add a button with a dropdown" / "button with options"**
+
+This is ambiguous — clarify what the user means:
+- **"When I click, I see a list of sub-actions to pick from"** → dropdown-only action group (nested `actions`, no parent `cmd`). Defaults to the header.
+- **"When I click, the default runs, but I can pick an alternative from a chevron"** → split-button action group (parent `cmd` + nested `actions`). Defaults to the header.
+- **"When I click, it asks me for a parameter then runs"** → single action with `inputs` (e.g. `type: radio` for fixed choices). Defaults to the header.
+
+Ask: "Should the button run a default command with alternatives behind a chevron (split button), open a menu of commands (dropdown), or prompt for a parameter before running (inputs)?"
+
+**"Group related actions together"**
+
+→ Create an action group with nested `actions`. Ask:
+- What's the group name/label?
+- Do the sub-actions share a working directory or env vars? → Set on parent, children inherit.
+
+**"Rename a button" / "change the label"**
+
+→ Update the `label` field on the action or terminal. Read the existing config, find the entry, set or change `label`.
+
+**"Set up the same project for another directory"**
+
+→ Create a duplicate with `parent_name`. Only needs `name`, `root`, and `parent_name`.
+
+**"Add this action/terminal to all my projects"**
+
+→ Goes in the global config at `~/.lpm/global.yml`. It supports `actions` and `terminals` only (no `services`, `profiles`, `name`, or `root`), but both of those carry the full field set — `display`, `confirm`, `type` (including `type: background`), `reuse`, `inputs`, and nested `actions`. Project-level entries with the same key take precedence.
+
+**"Reorder the buttons" / "Put this one first"**
+
+→ Set `position:` (number). Lower renders first; entries without `position` fall back to alphabetical order. Use floats so you can insert between existing positions without renumbering (e.g. `1, 2, 2.5, 3`). Works on actions and terminals, project and global.
+
+**"Make sure port X is free before this runs"**
+
+→ Set `port:` on the action (or terminal). lpm probes each port before launching and handles busy ones per `portConflict`. Range 0–65535. Different from `services.<key>.port`, which announces what port the service listens on (and feeds the service-side dedup check).
+
+`port` accepts four shapes:
+
+```yaml
+actions:
+  dev:     { cmd: npm run dev,        port: 3000 }                       # single port
+  preview: { cmd: npm run preview,    port: [3000, 3001, 4000] }         # explicit list
+  cluster: { cmd: ./run-cluster.sh,   port: "5001-5020" }               # inclusive range (quote it!)
+  stack:   { cmd: docker compose up,  port: [3000, "3002-3010", 8080] } # mix of ports and ranges
+```
+
+- **Ranges** are written as a quoted string `"<lo>-<hi>"`, dash-separated and **inclusive** on both ends (`"3002-3010"` → 3002…3010). They **must be quoted** — unquoted `3002-3010` (or `[3000, 3002-3010]`) is parsed by YAML as a string element, not a number, and is invalid.
+- Lists may freely mix single ports and ranges. Reversed ranges are normalized; ends clamp to 1–65535; a single range is capped at 1024 ports; unparseable entries are dropped.
+
+**`portConflict`** decides what happens when any declared port is busy:
+
+- **`ask`** (default) — prompt before freeing it (the picker lets the user choose which to free).
+- **`free`** — kill the holder and run.
+- **`fail`** — refuse to run while the port is busy.
+
+> Service `port:` is single-int only — it's the listen port, not a free-before-run check, so it does not take lists or ranges.
+
+**"Share these actions/terminals with the team"**
+
+→ Write them to `<root>/.lpm.yml` instead of `~/.lpm/projects/<name>.yml`. The file is checked into the repo. Schema is a subset of project config: supports `services`, `actions`, `terminals`, `profiles`, `extends`. **No** identity fields (no `name`, `root`, `parent_name`, `ssh`) — those stay in each teammate's personal project file. Anyone who opens this project in lpm picks up these entries automatically.
+
+**"Make a reusable building block" / "I want to reuse this across projects"**
+
+→ Drop a YAML file under `~/.lpm/templates/<name>.yml`. Same shape as `.lpm.yml` (services/actions/terminals/profiles/extends, no identity). Then any config can pull it in via `extends:`:
+
+```yaml
+extends:
+  - common-actions          # → ~/.lpm/templates/common-actions.yml
+  - ./shared-deploy.yml     # relative to this file
+  - ~/.lpm/templates/team-tools.yml   # absolute / ~-prefixed
+```
+
+Bare names resolve from `~/.lpm/templates/`. Absolute and `~`-prefixed paths are used as-is. Relative paths resolve from the file containing the `extends`. Cycles are detected and rejected at load time.
+
+**"Tweak just one field of a global action" (sparse override)**
+
+→ The project file can hold a thin entry that overrides only the fields it sets:
+
+```yaml
+# ~/.lpm/global.yml
+actions:
+  deploy:
+    cmd: ./deploy.sh staging
+    cwd: ~/work/myapp
+    confirm: true
+```
+
+```yaml
+# ~/.lpm/projects/myapp.yml
+actions:
+  deploy:
+    position: 1    # only change ordering — cmd/cwd/confirm inherit from global
+```
+
+Caveat: bool fields (`confirm`, `reuse`) treat `false` as "inherit" — you cannot sparse-override a global's `true` to `false` from a project. Redefine the action fully in the project to do that. Same caveat applies between `.lpm.yml` and templates.
+
+### Output
+
+Config files are written to `~/.lpm/projects/<name>.yml`. Global config at `~/.lpm/global.yml` supports only `actions` and `terminals`. Project-level entries take precedence when names collide.
+
+**Config structure:**
+
+```yaml
+name: <string>           # optional — defaults to the config filename
+extends: [<ref>, ...]    # optional — templates / configs to layer underneath this one (see Config layering)
+root: <path>             # required for local projects (supports ~). Omit when ssh: is set.
+label: <string>          # optional — display name in UI
+parent_name: <string>    # optional — duplicate from parent project
+
+ssh:                     # optional — present means a remote/SSH project. Replaces root.
+  host: <string>         # required — remote hostname or IP
+  user: <string>         # required — login user
+  port: <int>            # optional (0-65535, defaults to 22)
+  key: <path>            # optional — path to identity file (~ supported)
+  dir: <path>            # optional — default remote working directory (absolute or ~)
+
+services:                # required — at least one (omitted when parent_name is set)
+  <key>: <cmd>           # shorthand
+  <key>:                 # full form
+    cmd: <string>        # required
+    cwd: <path>          # optional (remote path on SSH projects)
+    port: <int>          # optional (0-65535, unique)
+    env: {}              # optional
+    profiles: []         # optional
+
+actions:                 # optional — one-shot commands
+  <key>: <cmd>           # shorthand
+  <key>:                 # full form
+    cmd: <string>        # required (unless nested actions)
+    label: <string>      # optional — display name in UI
+    cwd: <path>          # optional (remote path on SSH projects)
+    port: <int|str|list> # optional — port(s) freed before run: 3000, [3000,3001], "3002-3010", or a mix
+    portConflict: <str>  # optional — ask (default) | free | fail
+    env: {}              # optional
+    confirm: <bool>      # optional (default: false)
+    display: <string>    # optional (header | footer, default: header). "menu" still accepted (legacy).
+    type: <string>       # optional — "terminal" (pane), "command" (send to focused terminal), or "background" (hidden + toast)
+    reuse: <bool>        # optional — reuse same terminal pane
+    mode: <string>       # optional, SSH projects only — "remote" (default) or "sync"
+    inputs: {}           # optional — user-prompted parameters
+    actions: {}          # optional — nested sub-actions (action group)
+    position: <number>   # optional — sort key (lower first; default alphabetical; floats OK)
+
+terminals:               # optional — interactive shells (sugar for actions with type: terminal)
+  <key>: <cmd>           # shorthand
+  <key>:                 # full form — supports the same fields as actions
+    cmd: <string>        # required (unless nested actions)
+    label: <string>      # optional
+    cwd: <path>          # optional (remote path on SSH projects)
+    port: <int|str|list> # optional — port(s) freed before launch: 3000, [3000,3001], "3002-3010", or a mix
+    portConflict: <str>  # optional — ask (default) | free | fail
+    env: {}              # optional
+    display: <string>    # optional (header | footer, default: header). "menu" still accepted (legacy).
+    confirm: <bool>      # optional
+    reuse: <bool>        # optional — reuse the existing pane on next launch
+    inputs: {}           # optional — prompted parameters
+    actions: {}          # optional — nested sub-actions (split-button or dropdown)
+    position: <number>   # optional — sort key (lower first; default alphabetical; floats OK)
+
+profiles:                # optional — named service subsets
+  <key>: [<service>, ...]
+
+# .lpm.yml (per-repo, checked into the repo root) — subset of project config
+extends: [<ref>, ...]   # optional
+services: {}            # optional
+actions: {}             # optional
+terminals: {}           # optional
+profiles: {}            # optional
+# NOTE: name, root, parent_name, ssh are NOT allowed here.
+
+# ~/.lpm/templates/<name>.yml — same shape as .lpm.yml.
+# Referenced from any layer via `extends:`.
+```
+
+**Key rules:**
+- Shorthand (`test: go test ./...`) when the command needs no options.
+- Full form when you need `cwd`, `env`, `confirm`, `display`, `type`, `reuse`, `mode`, `inputs`, or a `label`.
+- Set `confirm: true` on destructive actions (migrations, deploys, cleanup).
+- Omit `display` (or set `display: header`) for the main button row — that is the default. Use `display: footer` for compact controls in the terminal footer (next to the branch switcher). `display: menu` is legacy/no longer suggested.
+- Use `type: terminal` + `reuse: true` for commands that should stay in one persistent pane (log tailers, watchers).
+- Use `type: background` for slow commands you want to fire and forget — lpm shows a toast when they finish.
+- Action groups: parent `cmd` + nested `actions` renders as a split button; nested `actions` alone renders as a dropdown. **Nesting is recursive** — a child can itself have `actions`, to any depth, rendering as a **drill menu** (push/pop + breadcrumb, like the git Pull/Push/Fetch buttons). The default-on-the-button rule applies at every level: `cmd` + children → split (label runs, chevron drills in); children with no `cmd` → the row opens the submenu; `cmd` with no children → a leaf that runs. Children inherit `cwd`, `env`, and `mode`, chained down the full path.
+- A project is **either** local (set `root`) **or** remote (set `ssh:`, omit `root`) — never both.
+- On SSH projects, `mode: sync` makes an action run locally against an rsync mirror of `ssh.dir`; `mode: remote` (default) runs on the host. `mode: sync` is rejected on local projects.
+- Use `parent_name` to duplicate a project config for a different root directory.
+- Keys: short, lowercase, hyphen-separated (`db-migrate`, `run-tests`).
+- `~` expands to home. Relative `cwd` resolves from `root` (local projects) or from `ssh.dir` on the remote host (SSH projects). Local `cwd` paths must exist; remote `cwd` paths are not validated locally.
+- `position` is a float; lower renders first; default is alphabetical. Use floats so you can insert between existing entries (e.g. `1`, `2`, `2.5`, `3`) without renumbering.
+- `port` on an action/terminal triggers a pre-flight conflict probe handled per `portConflict` (`ask`/`free`/`fail`). It accepts a single int, a list, or an **inclusive range string** like `"3002-3010"` (dash-separated, **must be quoted**); lists may mix them: `port: [3000, "3002-3010", 8080]`. (Service `port` is single-int only.)
+- `extends: [a, b]` layers templates underneath the current file; `a` wins over `b`; current file wins over all.
+- Sparse override pattern: a project YAML can hold `myAction: {position: 3}` to override only that field; the rest inherits from global / `.lpm.yml` / templates. Bool fields (`confirm`, `reuse`) cannot sparse-override `true` → `false`.
+
+**Validation — verify before writing any config:**
+- Either `root` or `ssh:` is set (but not both); `name` is optional and defaults to the config filename.
+- When `ssh:` is set: `host` and `user` are non-empty; `port` is in 0–65535 (omitted means 22); `dir` is absolute or `~`-prefixed.
+- At least one service is defined (unless `parent_name` is set).
+- All `cmd` fields are non-empty strings (actions or terminals with nested `actions` may omit `cmd`).
+- All `cwd` paths on local projects point to existing directories. SSH projects skip local cwd checks.
+- All ports are in range 0–65535 with no duplicates across services.
+- `display` values are `header` (default) or `footer`. `menu` is still accepted as a legacy value but no longer suggested. `button` is a deprecated alias for `header`.
+- `type` values are only `terminal` or `background` (or omitted).
+- `mode` values are only `remote` or `sync` (or omitted); `sync` requires an SSH project.
+- Profile entries reference defined services.
+- Nested sub-actions are validated recursively.
+- `parent_name` references an existing project.
+- `extends` entries must resolve to readable YAML files. Cycles are rejected at load time.
+- `port` on actions/terminals is in range 0–65535 (or omitted). Range entries use the quoted `"lo-hi"` form (inclusive) — never an unquoted dash range; `port: 3002-3010` or `port: [3000, 3002-3010]` is invalid, quote it as `"3002-3010"`. `portConflict` is only `ask`, `free`, or `fail`.
+- `position` is a number (integer or float).
+- `.lpm.yml` and templates must not contain identity fields (`name`, `root`, `parent_name`, `ssh`). Identity stays in personal project files.
+
+## Examples
+
+**Example 1: Create a minimal config**
+```
+User: Set up lpm for this project
+Agent: No lpm project matches cwd ~/Projects/my-api. I can:
+       1. Create a new project for this directory (name: my-api)
+       2. Edit an existing project: myapp, storefront
+User: Create it
+Agent: [analyzes project, writes config]
+
+       Created ~/.lpm/projects/my-api.yml:
+       - 1 service: dev server
+       - 2 actions: test, lint
+       - 1 terminal: database console
+```
+
+Minimal output:
+```yaml
+name: my-api
+root: ~/Projects/my-api
+
+services:
+  server: npm run dev
+```
+
+**Example 2: Full config**
+```yaml
+name: myapp
+root: ~/Projects/myapp
+label: My Application
+
+services:
+  api:
+    cmd: go run ./cmd/server
+    cwd: ./backend
+    port: 8080
+  frontend:
+    cmd: npm run dev
+    cwd: ./frontend
+    port: 3000
+
+actions:
+  test:
+    cmd: go test ./...
+    cwd: ./backend
+    display: header
+
+  deploy:
+    cmd: ./scripts/deploy.sh --env {{env}}
+    label: Deploy
+    confirm: true
+    inputs:
+      env:
+        type: radio
+        label: Target Environment
+        required: true
+        default: staging
+        options:
+          - staging
+          - production
+
+  database:
+    label: Database
+    cwd: ./backend
+    actions:
+      migrate:
+        cmd: rails db:migrate
+        confirm: true
+      seed:
+        cmd: rails db:seed
+      reset:
+        cmd: rails db:reset
+        confirm: true
+
+  logs:
+    cmd: tail -f /var/log/myapp/app.log
+    type: terminal
+    reuse: true
+    label: Tail Logs
+    display: header
+
+  fetch-all:
+    cmd: git fetch --all --prune
+    label: Fetch All
+    type: background
+    display: header
+
+terminals:
+  psql:
+    cmd: psql myapp_dev
+    label: Database
+    display: header
+
+profiles:
+  frontend-only: [frontend]
+  full-stack:    [api, frontend]
+```
+
+**Example 3: Add a terminal action with reuse**
+```
+User: Add a button that shows logs and always uses the same terminal
+Agent: [reads config, adds action]
+
+       Added to ~/.lpm/projects/myapp.yml:
+       actions.logs:
+         cmd: tail -f /var/log/myapp/app.log
+         type: terminal
+         reuse: true
+         label: Tail Logs
+         display: header
+```
+
+**Example 4: Add an action group**
+```
+User: Group the database commands together
+Agent: [reads config, creates action group]
+
+       Grouped in ~/.lpm/projects/myapp.yml:
+       actions.database:
+         label: Database
+         cwd: ./backend
+         actions:
+           migrate, seed, reset
+```
+
+**Example 5: Create a duplicate project**
+```
+User: I have a second checkout of myapp at ~/Projects/myapp-v2, set it up in lpm
+Agent: I'll create a duplicate config pointing to the existing myapp config.
+
+       Created ~/.lpm/projects/myapp-v2.yml:
+         parent_name: myapp
+         root: ~/Projects/myapp-v2
+```
+
+Output:
+```yaml
+name: myapp-v2
+root: ~/Projects/myapp-v2
+parent_name: myapp
+```
+
+**Example 6: Add an action with user inputs**
+```
+User: Add a deploy action that asks which environment to deploy to
+Agent: [adds action with inputs]
+
+       Added to ~/.lpm/projects/myapp.yml:
+       actions.deploy:
+         cmd: ./scripts/deploy.sh --env {{env}}
+         confirm: true
+         inputs:
+           env (radio): staging, production
+```
+
+**Example 7: Delete a config**
+```
+User: Remove lpm config for myapp
+Agent: Delete ~/.lpm/projects/myapp.yml? This will remove the project from lpm.
+User: Yes
+Agent: Deleted ~/.lpm/projects/myapp.yml
+```
+
+**Example 8: Add a background action**
+```
+User: Add a button that resets the dev database in the background
+Agent: [reads config, adds action — silent cwd match on ~/.lpm/projects/myapp.yml]
+
+       Added to ~/.lpm/projects/myapp.yml:
+       actions.db-reset:
+         cmd: npm run db:reset && npm run db:seed
+         label: Reset DB
+         type: background
+         confirm: true
+         display: header
+```
+
+**Example 9: Pin an action to the terminal footer**
+```
+User: Add a quick "format" action right next to the branch switcher
+Agent: [adds action with display: footer]
+
+       Added to ~/.lpm/projects/myapp.yml:
+       actions.format:
+         cmd: npm run format
+         label: Format
+         display: footer
+```
+
+**Example 10: SSH project**
+```
+User: Set up lpm for our prod API box, deploy@api.example.com, code lives at ~/apps/api
+Agent: [creates SSH project — root omitted, ssh: block instead]
+
+       Created ~/.lpm/projects/prod-api.yml:
+         ssh: { host: api.example.com, user: deploy, dir: ~/apps/api }
+         services: { worker: bin/worker }
+```
+
+```yaml
+name: prod-api
+ssh:
+  host: api.example.com
+  user: deploy
+  port: 22
+  key: ~/.ssh/id_ed25519
+  dir: ~/apps/api
+
+services:
+  worker: bin/worker
+  api:
+    cmd: bin/server
+    port: 8080
+
+actions:
+  tail-logs:
+    cmd: tail -f log/production.log
+    type: terminal
+    reuse: true
+    display: footer
+
+terminals:
+  remote-shell:
+    cmd: bash -l
+    label: Shell
+    display: header
+```
+
+**Example 11: Sync-mode action on an SSH project**
+```
+User: I want to run Claude Code locally against the remote repo
+Agent: [adds sync-mode action — rsyncs ~/apps/api locally, runs the command, syncs changes back]
+
+       Added to ~/.lpm/projects/prod-api.yml:
+       actions.claude:
+         cmd: claude
+         label: Claude (local)
+         type: terminal
+         mode: sync
+         display: header
+```
+
+**Example 12: Split-button action group**
+```
+User: Make deploy a button that defaults to staging but lets me pick production or preview
+Agent: [adds split-button group]
+
+       Added to ~/.lpm/projects/myapp.yml:
+       actions.deploy:
+         cmd: ./deploy.sh staging
+         label: Deploy
+         display: header
+         confirm: true
+         actions:
+           production:
+             cmd: ./deploy.sh production
+             confirm: true
+           preview:
+             cmd: ./deploy.sh preview
+```
+
+**Example 13: Action with a port-conflict check**
+
+```yaml
+actions:
+  preview:
+    cmd: npm run preview -- --port 4173
+    label: Preview
+    port: 4173        # warn if 4173 is already taken before running
+    display: header
+
+  cluster:
+    cmd: ./run-cluster.sh
+    label: Cluster
+    port: [3000, "3002-3010", 8080]   # single ports + an inclusive range (quote ranges!)
+    portConflict: free                # auto-free any busy port instead of asking
+    display: header
+```
+
+**Example 14: Sort buttons with `position` (floats for easy insertion)**
+
+```yaml
+actions:
+  start:
+    cmd: npm run dev
+    position: 1
+  test:
+    cmd: npm test
+    position: 2
+  test-only:                  # inserted between test and lint without renumbering
+    cmd: npm test -- --only=critical
+    position: 2.5
+  lint:
+    cmd: npm run lint
+    position: 3
+```
+
+**Example 15: Shared `.lpm.yml` checked into the repo**
+
+`<root>/.lpm.yml`:
+
+```yaml
+services:
+  api:
+    cmd: go run ./cmd/server
+    port: 8080
+
+actions:
+  test: go test ./...
+  lint:
+    cmd: golangci-lint run ./...
+    position: 2
+
+profiles:
+  default: [api]
+```
+
+Each teammate still has their own personal project file pointing at the repo:
+
+```yaml
+# ~/.lpm/projects/myapp.yml
+name: myapp
+root: ~/work/myapp
+```
+
+The personal file can sparse-override anything from `.lpm.yml` (and from global, and from templates referenced via `extends`).
+
+**Example 16: Template + `extends` + sparse override**
+
+`~/.lpm/templates/web-stack.yml`:
+
+```yaml
+services:
+  redis: redis-server --port 6379
+
+actions:
+  logs:
+    cmd: tail -f log/development.log
+    type: terminal
+    reuse: true
+    label: Logs
+
+terminals:
+  rails: rails console
+```
+
+`~/.lpm/projects/myapp.yml`:
+
+```yaml
+name: myapp
+root: ~/work/myapp
+extends:
+  - web-stack          # bare name → ~/.lpm/templates/web-stack.yml
+
+actions:
+  logs:
+    position: 1        # sparse override — only change ordering, inherit cmd/type/reuse/label
+```
+
+**Example 17: Nested action tree (multi-level drill menu)**
+```
+User: Make a Build button with iOS / Android / Tools submenus, and put Clean and Release under iOS
+Agent: [adds a recursively nested action group]
+
+       Added to ~/.lpm/projects/myapp.yml:
+       actions.build (split) → ios (split) → clean, release; android (leaf); tools (menu) → doctor, cache
+```
+
+```yaml
+actions:
+  build:
+    cmd: yarn build            # split: click runs build, chevron opens the submenu
+    label: 🛠️ Build
+    type: terminal
+    reuse: true
+    actions:
+      ios:
+        cmd: yarn build:ios    # has its own children → split row that drills in
+        label: 📱 iOS
+        actions:
+          clean:   { cmd: yarn build:ios --clean,   label: 🧹 Clean }
+          release: { cmd: yarn build:ios --release, label: 🚀 Release }
+      android: { cmd: yarn build:android, label: 🤖 Android }   # leaf → runs on click
+      tools:                   # no cmd → the row opens its submenu directly
+        label: 🧰 Tools
+        actions:
+          doctor: { cmd: npx expo-doctor,  label: 🩺 Doctor }
+          cache:  { cmd: yarn cache clean, label: 🗑️ Cache }
+```
+
+## Limitations
+
+- Project names must be lowercase with no slashes; cannot be `.` or `..`
+- All `cwd` paths on local projects must point to existing directories — lpm validates on load
+- Ports must be in range 0–65535 and unique across services
+- Global config only supports `actions` and `terminals` — no services, profiles, name, or root
+- Duplicate projects (`parent_name`) inherit everything — you cannot override individual entries
+- A project cannot have both `root` and `ssh:` — pick one
+- `mode: sync` is only valid on SSH projects and requires `rsync` available locally and on the host
+- SSH projects share a ControlMaster connection per host (`/tmp/lpm-<uid>/cm-<hash>`) — disconnects affect all panes for that host

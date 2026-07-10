@@ -87,18 +87,14 @@ pub fn run(
     let warning = parsed.get("warning").and_then(Value::as_str);
 
     if as_json {
-        let out = json!({
+        crate::util::print_json(&json!({
             "ok": true,
             "project": file_name,
             "names": names,
             "group": group,
             "task": task_echo(run_action, run_command, prompt),
             "warning": warning,
-        });
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&out).unwrap_or_else(|_| "{}".into())
-        );
+        }));
     } else {
         println!(
             "duplicated {file_name} -> {}",

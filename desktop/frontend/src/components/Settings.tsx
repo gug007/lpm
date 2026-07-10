@@ -20,6 +20,7 @@ import { ProgressBar } from "./ui/ProgressBar";
 import { ShortcutRecorder } from "./ui/ShortcutRecorder";
 import { HOTKEYS, resolveHotkey, configuredHotkeyCombos } from "../hotkeys";
 import { BTN_SECONDARY } from "./ui/buttons";
+import { SkillInstallControl } from "./SkillInstallControl";
 import { BrowserOpenURL, EventsOn } from "../../bridge/runtime";
 import {
   GetVersion,
@@ -487,6 +488,9 @@ export function Settings({
                     {cliBusy ? <RefreshIcon spinning /> : cliStatus === "installed" ? "Reinstall" : "Install"}
                   </button>
                 )}
+              </SettingsRow>
+              <SettingsRow label="Agent skill" description="Teach your AI coding agent to author configs and drive the lpm CLI">
+                <SkillInstallControl />
               </SettingsRow>
               <SettingsRow label="Send feedback" description="Report a bug or share ideas">
                 <button onClick={() => setFeedbackOpen(true)} className={BTN_SECONDARY}>

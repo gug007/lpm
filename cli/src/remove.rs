@@ -30,11 +30,7 @@ duplicates' folders are deleted)"
     control::send_command(ctx, &format!("remove_project {}", quote_arg(&file_name)))?;
 
     if as_json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&json!({ "ok": true, "removed": file_name }))
-                .unwrap_or_else(|_| "{}".into())
-        );
+        crate::util::print_json(&json!({ "ok": true, "removed": file_name }));
     } else {
         println!("removed {file_name}");
     }
