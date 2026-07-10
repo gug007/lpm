@@ -280,6 +280,9 @@ export function LoadClaudeAccounts() {
 export function SaveClaudeAccounts(a) {
   return invoke("save_claude_accounts", { a });
 }
+export function RemoveClaudeAccount(id) {
+  return invoke("remove_claude_account", { id });
+}
 export function MessageHistoryQuery(input) {
   return invoke("message_history_query", { input });
 }

@@ -68,6 +68,9 @@ pub fn load_claude_accounts() -> Value { config::load_claude_accounts() }
 pub fn save_claude_accounts(a: Value) -> Result<(), String> { config::save_claude_accounts(&a) }
 
 #[tauri::command]
+pub fn remove_claude_account(id: String) -> Result<(), String> { config::remove_claude_account(&id) }
+
+#[tauri::command]
 pub fn save_generator_icon(src_path: String, id: String) -> Result<String, String> {
     config::save_generator_icon(&src_path, &id)
 }

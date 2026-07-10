@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { LoadClaudeAccounts, SaveClaudeAccounts } from "../../bridge/commands";
+import { LoadClaudeAccounts, RemoveClaudeAccount, SaveClaudeAccounts } from "../../bridge/commands";
 import type { ClaudeAccount } from "../types";
 
 function normalizeAccounts(raw: unknown): ClaudeAccount[] {
@@ -47,6 +47,16 @@ export const useAccountsStore = create<AccountsState>((set, get) => {
     rename: async (id, label) =>
       persist(get().accounts.map((a) => (a.id === id ? { ...a, label } : a))),
 
-    remove: async (id) => persist(get().accounts.filter((a) => a.id !== id)),
+    remove: async (id) => {
+      // The command deletes the account's isolated credential dir server-side,
+      // so it replaces the SaveClaudeAccounts write rather than layering on it.
+      set({ accounts: get().accounts.filter((a) => a.id !== id) });
+      try {
+        await RemoveClaudeAccount(id);
+      } catch (err) {
+        await get().hydrate();
+        throw err;
+      }
+    },
   };
 });

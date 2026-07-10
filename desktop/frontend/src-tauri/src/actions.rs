@@ -62,10 +62,10 @@ struct ActionPlan {
     /// Run the command through the user's interactive login shell (local actions),
     /// vs. plain `/bin/sh -c` (remote actions, where cmd_str is an ssh line).
     login_shell: bool,
-    /// Pinned account's CLAUDE_CONFIG_DIR for local actions (None for remote and
-    /// the default login). An explicit CLAUDE_CONFIG_DIR in the action's own env
-    /// is inlined into cmd_str and still wins over this process env.
-    claude_config_dir: Option<String>,
+    /// Claude account env decision for local actions (Inherit for remote). An
+    /// explicit CLAUDE_CONFIG_DIR in the action's own env is inlined into cmd_str
+    /// and still wins over this process env.
+    claude_env: config::ClaudeEnv,
     /// Ran after the action's process exits (e.g. push a sync-mode mirror).
     on_exit: Option<Box<dyn FnOnce() + Send>>,
 }
@@ -109,7 +109,7 @@ fn resolve_action_command(
                 cwd,
                 ports: a.ports,
                 login_shell: false,
-                claude_config_dir: None,
+                claude_env: config::ClaudeEnv::Inherit,
                 on_exit: Some(Box::new(move || crate::sshsync::push_after_action(&app2, &project2))),
             });
         }
@@ -118,7 +118,7 @@ fn resolve_action_command(
             cwd: info.root, // local cwd for the ssh client
             ports: a.ports,
             login_shell: false,
-            claude_config_dir: None,
+            claude_env: config::ClaudeEnv::Inherit,
             on_exit: None,
         })
     } else {
@@ -127,7 +127,7 @@ fn resolve_action_command(
             cwd: config::resolve_cwd(&info.root, &a.cwd),
             ports: a.ports,
             login_shell: true,
-            claude_config_dir: info.claude_config_dir,
+            claude_env: config::claude_env_for_account(info.claude_account.as_deref()),
             on_exit: None,
         })
     }
@@ -162,9 +162,7 @@ fn action_command(plan: &ActionPlan) -> Command {
         cmd.arg("-c").arg(&plan.cmd_str).current_dir(&plan.cwd);
         cmd
     };
-    if let Some(dir) = &plan.claude_config_dir {
-        cmd.env(config::CLAUDE_CONFIG_DIR_ENV, dir);
-    }
+    plan.claude_env.apply(&mut cmd);
     cmd
 }
 

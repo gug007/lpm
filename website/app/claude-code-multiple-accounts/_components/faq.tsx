@@ -35,7 +35,7 @@ const FAQS: QA[] = [
   {
     question: "Any limitations I should know about?",
     answer:
-      "Two. Account pinning applies to projects that run on your Mac — SSH projects use whatever Claude login exists on the remote host. And it relies on Claude Code's per-home credential isolation, which shipped in early 2026, so keep Claude Code reasonably up to date. Also worth knowing: terminals that are already open keep the account they launched with; a new pin applies to terminals you open afterwards.",
+      "Two. Account pinning applies to projects that run on your Mac — SSH projects use whatever Claude login exists on the remote host. And it relies on Claude Code's per-home credential isolation, which shipped in early 2026, so keep Claude Code reasonably up to date. Also worth knowing: terminals that are already open keep the account they launched with; a new pin applies to terminals you open afterwards. One gotcha — if you set CLAUDE_CONFIG_DIR by hand in your shell profile (~/.zprofile, ~/.zshrc), remove it: a login shell re-sources it and overrides the per-project account.",
   },
 ];
 

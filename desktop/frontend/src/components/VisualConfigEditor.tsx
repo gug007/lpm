@@ -345,7 +345,7 @@ export function VisualConfigEditor({ content, onChange, isRemote = false }: Visu
         <Field label="Root directory">
           <Input value={form.root} onChange={(v) => update({ root: v })} placeholder="~/Projects/my-app" mono />
         </Field>
-        {!isRemote && (accounts.length > 0 || form.claudeAccount) && (
+        {!isRemote && !form.hasSsh && (accounts.length > 0 || form.claudeAccount) && (
           <Field label="Claude account">
             <Select
               value={form.claudeAccount === null ? (form.parentName ? INHERIT_OPTION : "") : form.claudeAccount}

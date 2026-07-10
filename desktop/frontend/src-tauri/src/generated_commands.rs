@@ -160,6 +160,7 @@ macro_rules! all_command_handlers {
         remote_start_pairing,
         remote_take_run_actions,
         remote_state,
+        remove_claude_account,
         remove_port_forward,
         remove_project,
         remove_project_cascade,

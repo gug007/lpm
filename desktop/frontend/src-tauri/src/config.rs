@@ -313,30 +313,94 @@ pub fn claude_config_dir_for_account(id: &str) -> Option<String> {
     Some(claude_account_dir(id).to_string_lossy().into_owned())
 }
 
-/// The project's effective account id. An explicit `claudeAccount` (even empty,
-/// meaning "default login, don't inherit") wins; when the key is absent a
-/// duplicate (parent_name set) inherits its parent's, matching how
-/// services/profiles/actions layer, else the default login.
-fn claude_account_of(y: &ProjectYaml) -> String {
-    if let Some(v) = &y.claude_account {
-        return v.clone();
-    }
-    if y.parent_name.is_empty() {
-        return String::new();
-    }
-    parse_project_yaml(&y.parent_name)
-        .map(|p| p.claude_account.unwrap_or_default())
-        .unwrap_or_default()
+/// How a spawned child should treat `CLAUDE_CONFIG_DIR`. `Scrub` is distinct
+/// from `Inherit`: lpm itself may be launched with `CLAUDE_CONFIG_DIR` exported,
+/// so a project that explicitly wants the default login (or has a stale/invalid
+/// pin) must actively drop the inherited var rather than let it leak through.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ClaudeEnv {
+    Inherit,
+    Scrub,
+    Dir(String),
 }
 
-pub fn claude_config_dir_for_project(name: &str) -> Option<String> {
-    let y = parse_project_yaml(name).ok()?;
-    // The pin governs local terminals/actions/AI only; SSH projects run on the
-    // remote and never get a CLAUDE_CONFIG_DIR.
+impl ClaudeEnv {
+    pub fn apply(&self, cmd: &mut std::process::Command) {
+        match self {
+            ClaudeEnv::Dir(dir) => {
+                cmd.env(CLAUDE_CONFIG_DIR_ENV, dir);
+            }
+            ClaudeEnv::Scrub => {
+                cmd.env_remove(CLAUDE_CONFIG_DIR_ENV);
+            }
+            ClaudeEnv::Inherit => {}
+        }
+    }
+}
+
+/// Turn an effective account tri-state into an env decision. `None` (key absent
+/// everywhere) inherits the ambient env; `Some(id)` resolves to that account's
+/// config dir, or `Scrub` when the id is empty (explicit default login) or
+/// unknown (deleted/invalid pin) — an explicit choice never falls back to an
+/// ambient `CLAUDE_CONFIG_DIR`.
+pub fn claude_env_for_account(account: Option<&str>) -> ClaudeEnv {
+    match account {
+        None => ClaudeEnv::Inherit,
+        Some(id) => match claude_config_dir_for_account(id) {
+            Some(dir) => ClaudeEnv::Dir(dir),
+            None => ClaudeEnv::Scrub,
+        },
+    }
+}
+
+/// The project's effective account tri-state. `Some(v)` when `claudeAccount` is
+/// set anywhere in the inheritance chain (even empty, meaning "default login,
+/// don't inherit"); when the key is absent a duplicate (parent_name set)
+/// propagates its parent's value, matching how services/profiles/actions layer.
+/// `None` only when the key is absent on both the project and its parent.
+fn claude_account_of(y: &ProjectYaml) -> Option<String> {
+    if let Some(v) = &y.claude_account {
+        return Some(v.clone());
+    }
+    if y.parent_name.is_empty() {
+        return None;
+    }
+    parse_project_yaml(&y.parent_name).ok().and_then(|p| p.claude_account)
+}
+
+/// The effective account for spawning, `None` for remote projects (which run on
+/// the far side and never get a local `CLAUDE_CONFIG_DIR`). Shared by
+/// `spawn_info` and `claude_env_for_project` so both resolve identically.
+fn effective_claude_account(y: &ProjectYaml) -> Option<String> {
     if y.ssh.as_ref().map(|s| s.is_remote()).unwrap_or(false) {
         return None;
     }
-    claude_config_dir_for_account(&claude_account_of(&y))
+    claude_account_of(y)
+}
+
+pub fn claude_env_for_project(name: &str) -> ClaudeEnv {
+    let Ok(y) = parse_project_yaml(name) else {
+        return ClaudeEnv::Inherit;
+    };
+    claude_env_for_account(effective_claude_account(&y).as_deref())
+}
+
+/// Remove an account and its isolated Claude config dir. The id is validated
+/// first (it crosses the IPC boundary). The dir is deleted before the accounts
+/// list is rewritten: if the delete fails the account stays listed so the user
+/// can retry, whereas the reverse order would orphan live credentials with no
+/// UI path back to them. `remove_dir_all` unlinks the shared-asset symlinks
+/// without following them, so only the account's own logins are discarded.
+pub fn remove_claude_account(id: &str) -> Result<(), String> {
+    if !valid_claude_account_id(id) {
+        return Err(format!("invalid account id {id:?}"));
+    }
+    remove_dir_all_retry(&claude_account_dir(id))?;
+    let mut v = load_claude_accounts();
+    if let Some(list) = v.get_mut("accounts").and_then(Value::as_array_mut) {
+        list.retain(|a| a.get("id").and_then(Value::as_str) != Some(id));
+    }
+    save_claude_accounts(&v)
 }
 
 pub fn save_generator_icon(src_path: &str, id: &str) -> Result<String, String> {
@@ -1700,9 +1764,11 @@ pub struct SpawnInfo {
     pub ssh: SshSettings, // zero-valued when local
     pub services: BTreeMap<String, ServiceFull>,
     pub profiles: BTreeMap<String, Vec<String>>,
-    /// The pinned account's CLAUDE_CONFIG_DIR (None for remote/default login),
-    /// resolved from this same parse so terminal spawns don't re-read the YAML.
-    pub claude_config_dir: Option<String>,
+    /// The effective account tri-state (None=inherit, Some("")=explicit default,
+    /// Some(id)=pinned; always None for remote), decided from this same parse.
+    /// The expensive resolution to an env decision happens at spawn time via
+    /// `claude_env_for_account`, keeping read-only polling paths write-free.
+    pub claude_account: Option<String>,
 }
 
 pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
@@ -1715,7 +1781,7 @@ pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
             ssh: SshSettings::default(),
             services: BTreeMap::new(),
             profiles: BTreeMap::new(),
-            claude_config_dir: None,
+            claude_account: None,
         });
     }
     let y = parse_project_yaml(name)?;
@@ -1727,11 +1793,7 @@ pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
     let ssh = y.ssh.clone().unwrap_or_default();
     let is_remote = ssh.is_remote();
     let root = expand_home(&y.root);
-    let claude_config_dir = if is_remote {
-        None
-    } else {
-        claude_config_dir_for_account(&claude_account_of(&y))
-    };
+    let claude_account = effective_claude_account(&y);
     let mut services: BTreeMap<String, ServiceFull> =
         y.services.into_iter().map(|(n, d)| (n, d.into_full())).collect();
     let mut profiles = y.profiles;
@@ -1747,7 +1809,7 @@ pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
         ssh,
         services,
         profiles,
-        claude_config_dir,
+        claude_account,
     })
 }
 
@@ -1886,25 +1948,44 @@ mod repo_merge_tests {
 mod claude_account_tests {
     use super::*;
 
-    fn account_of(yaml: &str) -> String {
+    fn account_of(yaml: &str) -> Option<String> {
         claude_account_of(&serde_yaml::from_str::<ProjectYaml>(yaml).unwrap())
     }
 
     #[test]
     fn explicit_id_is_pinned() {
-        assert_eq!(account_of("claudeAccount: work\n"), "work");
+        assert_eq!(account_of("claudeAccount: work\n"), Some("work".to_string()));
     }
 
     #[test]
     fn explicit_empty_is_default_login_not_inherited() {
         // Some("") means "explicitly the default login"; must not fall through
         // to the parent even when parent_name is set.
-        assert_eq!(account_of("claudeAccount: ''\nparent_name: base\n"), "");
+        assert_eq!(account_of("claudeAccount: ''\nparent_name: base\n"), Some(String::new()));
     }
 
     #[test]
-    fn absent_without_parent_is_default_login() {
-        assert_eq!(account_of("name: solo\n"), "");
+    fn absent_without_parent_inherits() {
+        assert_eq!(account_of("name: solo\n"), None);
+    }
+
+    #[test]
+    fn absent_account_inherits_env() {
+        assert_eq!(claude_env_for_account(None), ClaudeEnv::Inherit);
+    }
+
+    #[test]
+    fn explicit_default_scrubs_env() {
+        // An explicit empty id is never a valid account, so it drops any ambient
+        // CLAUDE_CONFIG_DIR rather than resolving to a dir.
+        assert_eq!(claude_env_for_account(Some("")), ClaudeEnv::Scrub);
+    }
+
+    #[test]
+    fn invalid_pin_scrubs_env() {
+        // A filename-unsafe id fails validation before any accounts.json read, so
+        // this needs no filesystem scaffolding.
+        assert_eq!(claude_env_for_account(Some("../etc")), ClaudeEnv::Scrub);
     }
 }
 

@@ -42,7 +42,7 @@ import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Modal } from "./ui/Modal";
 import { TrafficLights } from "./ui/TrafficLights";
 import { MobileSettingsPane } from "./MobileSettingsPane";
-import { CheckIcon, PencilIcon, TrashIcon } from "./icons";
+import { PencilIcon, TrashIcon } from "./icons";
 import { useAppStore, type SettingsTab } from "../store/app";
 import { useAccountsStore } from "../store/accounts";
 import type { ClaudeAccount } from "../types";
@@ -631,7 +631,7 @@ export function Settings({
 
             <SettingsSection
               title="Claude Accounts"
-              description="Run different projects on different Claude accounts. Add an account here, then assign it in a project's config — that project's terminals will ask you to sign in the first time."
+              description="Run different projects on different Claude accounts. Add an account here, then assign it in a project's config. That project's terminals and its AI features (commit messages, PR titles, branch names, transforms) all run under the account, so sign in once from a project terminal the first time. If you set CLAUDE_CONFIG_DIR manually in your shell profile (~/.zprofile, ~/.zshrc), remove it — a login shell re-sources it and overrides per-project accounts."
             >
               {accounts.length === 0 && !addingAccount && (
                 <div className="px-4 py-3 text-[11px] text-[var(--text-muted)]">

@@ -332,7 +332,7 @@ struct RunOptions {
     effort: String,
     fast: bool,
     writes: bool,
-    claude_config_dir: Option<String>,
+    claude_env: config::ClaudeEnv,
 }
 
 fn build_args(cli: &str, prompt: &str, o: &RunOptions) -> Vec<String> {
@@ -419,9 +419,7 @@ fn run_ai(
         .current_dir(cwd)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    if let Some(dir) = &opts.claude_config_dir {
-        cmd.env(config::CLAUDE_CONFIG_DIR_ENV, dir);
-    }
+    opts.claude_env.apply(&mut cmd);
     let mut child = cmd.spawn().map_err(|e| format!("{cli}: start: {e}"))?;
 
     let stdout = child.stdout.take().ok_or("no stdout")?;
@@ -946,7 +944,9 @@ fn ropts(
         effort,
         fast,
         writes,
-        claude_config_dir: project_name.and_then(config::claude_config_dir_for_project),
+        claude_env: project_name
+            .map(config::claude_env_for_project)
+            .unwrap_or(config::ClaudeEnv::Inherit),
     }
 }
 

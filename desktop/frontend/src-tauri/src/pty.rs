@@ -212,12 +212,12 @@ fn event_safe(s: &str) -> String {
 }
 
 /// Project-level launch inputs resolved once per spawn: root dir, ssh (Some
-/// only when remote), and the pinned Claude account's config dir (applied to
-/// local terminals only — it is a local path).
+/// only when remote), and the Claude account env decision (applied to local
+/// terminals only — the pinned dir is a local path).
 struct SpawnTarget {
     root: String,
     ssh: Option<config::SshSettings>,
-    claude_config_dir: Option<String>,
+    claude_env: config::ClaudeEnv,
 }
 
 fn start_internal(
@@ -295,9 +295,17 @@ fn start_internal(
         builder.env("LPM_PROJECT_NAME", project_name);
         builder.env("LPM_PANE_ID", &id);
         // Pinned Claude account; an explicit CLAUDE_CONFIG_DIR in the action's
-        // env map wins because extra_env is applied after.
-        if let Some(dir) = &target.claude_config_dir {
-            builder.env(config::CLAUDE_CONFIG_DIR_ENV, dir);
+        // env map wins because extra_env is applied after. Scrub drops the var
+        // inherited from lpm's own env so an explicit default login can't run
+        // under an ambient CLAUDE_CONFIG_DIR.
+        match &target.claude_env {
+            config::ClaudeEnv::Dir(dir) => {
+                builder.env(config::CLAUDE_CONFIG_DIR_ENV, dir);
+            }
+            config::ClaudeEnv::Scrub => {
+                builder.env_remove(config::CLAUDE_CONFIG_DIR_ENV);
+            }
+            config::ClaudeEnv::Inherit => {}
         }
         for (k, v) in extra_env {
             builder.env(k, v);
@@ -382,12 +390,15 @@ fn resolve_restore_cmds(cmd: &str) -> (String, String) {
 
 fn resolve_spawn(project_name: &str) -> Result<SpawnTarget, String> {
     let info = config::spawn_info(project_name)?;
-    let claude_config_dir = info.claude_config_dir;
+    // Resolve the env decision here at spawn time — this is where the accounts
+    // validation + symlink ensure side-effects belong, not in the polling paths
+    // that also call spawn_info.
+    let claude_env = config::claude_env_for_account(info.claude_account.as_deref());
     let ssh = if info.is_remote { Some(info.ssh) } else { None };
     Ok(SpawnTarget {
         root: info.root,
         ssh,
-        claude_config_dir,
+        claude_env,
     })
 }
 
