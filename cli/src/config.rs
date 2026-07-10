@@ -398,6 +398,74 @@ pub fn resolve_project_name(ctx: &Ctx, query: &str) -> Result<String, ResolveErr
     }
 }
 
+// ---- current-project inference ----------------------------------------------
+
+/// Canonicalize a path, tolerating failure by returning it unchanged. macOS
+/// symlinks real temp dirs through `/private`, so a raw `/tmp/...` root won't
+/// string-match a canonicalized cwd without this.
+fn canonical(path: &Path) -> PathBuf {
+    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+/// Infer the current project's file-name stem from the environment.
+///
+/// 1. `LPM_PROJECT_NAME` (exported by the app into its terminals) wins when set,
+///    but must still name an existing project file — a stale value is an error.
+/// 2. Otherwise the cwd is matched against project roots; the deepest matching
+///    root wins so a duplicate rooted under its parent beats the parent.
+/// 3. Otherwise there is nothing to infer.
+pub fn infer_project_name(ctx: &Ctx) -> Result<String, String> {
+    if let Ok(name) = std::env::var("LPM_PROJECT_NAME") {
+        if !name.is_empty() {
+            if project_names(ctx).iter().any(|s| s == &name) {
+                return Ok(name);
+            }
+            return Err(format!(
+                "LPM_PROJECT_NAME is {name:?} but no such project exists in ~/.lpm/projects"
+            ));
+        }
+    }
+
+    let cwd = std::env::current_dir()
+        .map_err(|e| format!("cannot determine current directory: {e}"))?;
+    let cwd = canonical(&cwd);
+
+    // Every root that contains the cwd, tagged with its depth (component count)
+    // so the deepest wins and exact-depth ties can be reported.
+    let mut matches: Vec<(usize, String)> = Vec::new();
+    for name in project_names(ctx) {
+        let Ok(project) = resolve_project(ctx, &name) else {
+            continue;
+        };
+        if project.root.is_empty() {
+            continue;
+        }
+        let root = canonical(Path::new(&project.root));
+        if cwd.starts_with(&root) {
+            matches.push((root.components().count(), name));
+        }
+    }
+
+    let Some(deepest) = matches.iter().map(|(d, _)| *d).max() else {
+        return Err(
+            "no project given and none could be inferred from the current directory".to_string(),
+        );
+    };
+    let mut winners: Vec<String> = matches
+        .into_iter()
+        .filter(|(d, _)| *d == deepest)
+        .map(|(_, n)| n)
+        .collect();
+    winners.sort();
+    match winners.len() {
+        1 => Ok(winners.into_iter().next().unwrap()),
+        _ => Err(format!(
+            "current directory matches multiple projects: {}",
+            winners.join(", ")
+        )),
+    }
+}
+
 // ---- service merge ----------------------------------------------------------
 
 /// `config.mergeService`: `dst` (higher precedence) wins; empty fields fall back.
@@ -806,6 +874,98 @@ mod tests {
             std::fs::write(ctx.global_path(), g).unwrap();
         }
         (dir, ctx)
+    }
+
+    use std::sync::Mutex;
+
+    /// Serializes tests that mutate process-global cwd / `LPM_PROJECT_NAME`.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    /// A tempdir under `/tmp` (a symlink to `/private/tmp` on macOS), so
+    /// canonicalization is actually exercised by the cwd-match tests.
+    fn tmp_dir() -> tempfile::TempDir {
+        tempfile::Builder::new().tempdir_in("/tmp").unwrap()
+    }
+
+    #[test]
+    fn infer_prefers_env_when_valid() {
+        let _g = ENV_LOCK.lock().unwrap();
+        let (_d, ctx) = ctx_with(&[("web", "name: web\n")], None);
+        std::env::set_var("LPM_PROJECT_NAME", "web");
+        let got = infer_project_name(&ctx);
+        std::env::remove_var("LPM_PROJECT_NAME");
+        assert_eq!(got.unwrap(), "web");
+    }
+
+    #[test]
+    fn infer_stale_env_is_error() {
+        let _g = ENV_LOCK.lock().unwrap();
+        let (_d, ctx) = ctx_with(&[("web", "name: web\n")], None);
+        std::env::set_var("LPM_PROJECT_NAME", "ghost");
+        let got = infer_project_name(&ctx);
+        std::env::remove_var("LPM_PROJECT_NAME");
+        assert!(got.unwrap_err().contains("ghost"));
+    }
+
+    #[test]
+    fn infer_matches_deepest_root_via_canonicalized_cwd() {
+        let _g = ENV_LOCK.lock().unwrap();
+        std::env::remove_var("LPM_PROJECT_NAME");
+        let outer = tmp_dir();
+        let dup = outer.path().join("dup");
+        let sub = dup.join("src");
+        std::fs::create_dir_all(&sub).unwrap();
+        let (_d, ctx) = ctx_with(
+            &[
+                ("outer", &format!("name: outer\nroot: {}\n", outer.path().display())),
+                ("dup", &format!("name: dup\nroot: {}\n", dup.display())),
+            ],
+            None,
+        );
+        let prev = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&sub).unwrap();
+        let got = infer_project_name(&ctx);
+        std::env::set_current_dir(prev).unwrap();
+        assert_eq!(got.unwrap(), "dup");
+    }
+
+    #[test]
+    fn infer_ambiguous_when_roots_tie() {
+        let _g = ENV_LOCK.lock().unwrap();
+        std::env::remove_var("LPM_PROJECT_NAME");
+        let root = tmp_dir();
+        let sub = root.path().join("src");
+        std::fs::create_dir_all(&sub).unwrap();
+        let (_d, ctx) = ctx_with(
+            &[
+                ("a", &format!("name: a\nroot: {}\n", root.path().display())),
+                ("b", &format!("name: b\nroot: {}\n", root.path().display())),
+            ],
+            None,
+        );
+        let prev = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&sub).unwrap();
+        let got = infer_project_name(&ctx);
+        std::env::set_current_dir(prev).unwrap();
+        let err = got.unwrap_err();
+        assert!(err.contains("a") && err.contains("b"));
+    }
+
+    #[test]
+    fn infer_none_when_cwd_unrelated() {
+        let _g = ENV_LOCK.lock().unwrap();
+        std::env::remove_var("LPM_PROJECT_NAME");
+        let elsewhere = tmp_dir();
+        let here = tmp_dir();
+        let (_d, ctx) = ctx_with(
+            &[("a", &format!("name: a\nroot: {}\n", elsewhere.path().display()))],
+            None,
+        );
+        let prev = std::env::current_dir().unwrap();
+        std::env::set_current_dir(here.path()).unwrap();
+        let got = infer_project_name(&ctx);
+        std::env::set_current_dir(prev).unwrap();
+        assert!(got.is_err());
     }
 
     #[test]

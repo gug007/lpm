@@ -1,164 +1,22 @@
 //! `lpm project <name>` — gather and render everything about one project.
 
 use crate::config::{self, Ctx, ResolvedAction, ResolvedProject};
+use crate::error::{resolve_or_infer, RunError};
+use crate::service::service_status;
 use crate::statussock::{self, StatusEntry};
+use crate::style::Style;
 use crate::terminals::{self, HistoryEntry};
 use crate::tmux::{self, Pane};
+use crate::util::{now_millis, relative};
 use serde_json::{json, Value};
 use std::io::IsTerminal;
-use std::net::TcpListener;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 const HISTORY_LIMIT: usize = 10;
 
-/// Exit-coded error for the CLI. `NotFound`/usage -> 2, everything else -> 1.
-pub enum RunError {
-    NotFound(String),
-    Internal(String),
-}
-
-impl RunError {
-    pub fn code(&self) -> i32 {
-        match self {
-            RunError::NotFound(_) => 2,
-            RunError::Internal(_) => 1,
-        }
-    }
-    pub fn message(&self) -> &str {
-        match self {
-            RunError::NotFound(m) | RunError::Internal(m) => m,
-        }
-    }
-}
-
-/// Whether something is currently listening on a local TCP port. Mirrors the
-/// app's `ports::can_bind` probe: a failed bind means the port is taken.
-fn port_listening(port: i64) -> Option<bool> {
-    if port <= 0 || port > 65535 {
-        return None;
-    }
-    Some(TcpListener::bind(("127.0.0.1", port as u16)).is_err())
-}
-
-fn now_millis() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
-}
-
-/// Human relative time for a past unix-millis timestamp, e.g. "3m ago".
-fn relative(ts_ms: i64, now_ms: i64) -> String {
-    if ts_ms <= 0 {
-        return "unknown".into();
-    }
-    let secs = (now_ms - ts_ms) / 1000;
-    if secs < 0 {
-        return "in the future".into();
-    }
-    if secs < 10 {
-        return "just now".into();
-    }
-    let (n, unit) = if secs < 60 {
-        (secs, "s")
-    } else if secs < 3600 {
-        (secs / 60, "m")
-    } else if secs < 86_400 {
-        (secs / 3600, "h")
-    } else if secs < 2_592_000 {
-        (secs / 86_400, "d")
-    } else if secs < 31_536_000 {
-        (secs / 2_592_000, "mo")
-    } else {
-        (secs / 31_536_000, "y")
-    };
-    format!("{n}{unit} ago")
-}
-
-/// Running verdict for one service.
-struct ServiceStatus {
-    running: bool,
-    /// "port" (from a listen probe), "session" (portless, inferred from the
-    /// tmux session), or "stopped".
-    source: &'static str,
-    port_listening: Option<bool>,
-}
-
-fn service_status(port: i64, session_running: bool) -> ServiceStatus {
-    match port_listening(port) {
-        Some(listening) => ServiceStatus {
-            running: listening,
-            source: "port",
-            port_listening: Some(listening),
-        },
-        None => ServiceStatus {
-            running: session_running,
-            source: if session_running {
-                "session"
-            } else {
-                "stopped"
-            },
-            port_listening: None,
-        },
-    }
-}
-
-// ---- ANSI helpers -----------------------------------------------------------
-
-struct Style {
-    on: bool,
-}
-
-impl Style {
-    fn paint(&self, code: &str, s: &str) -> String {
-        if self.on {
-            format!("\x1b[{code}m{s}\x1b[0m")
-        } else {
-            s.to_string()
-        }
-    }
-    fn bold(&self, s: &str) -> String {
-        self.paint("1", s)
-    }
-    fn dim(&self, s: &str) -> String {
-        self.paint("2", s)
-    }
-    fn green(&self, s: &str) -> String {
-        self.paint("32", s)
-    }
-    fn red(&self, s: &str) -> String {
-        self.paint("31", s)
-    }
-    fn cyan(&self, s: &str) -> String {
-        self.paint("36", s)
-    }
-    fn yellow(&self, s: &str) -> String {
-        self.paint("33", s)
-    }
-}
-
 // ---- entrypoint -------------------------------------------------------------
 
-pub fn run(ctx: &Ctx, name: &str, as_json: bool) -> Result<(), RunError> {
-    let file_name = match config::resolve_project_name(ctx, name) {
-        Ok(f) => f,
-        Err(config::ResolveError::NotFound { query, available }) => {
-            let list = if available.is_empty() {
-                "no projects found in ~/.lpm/projects".to_string()
-            } else {
-                format!("available projects: {}", available.join(", "))
-            };
-            return Err(RunError::NotFound(format!(
-                "no project matches {query:?}\n{list}"
-            )));
-        }
-        Err(config::ResolveError::Ambiguous { query, candidates }) => {
-            return Err(RunError::NotFound(format!(
-                "{query:?} is ambiguous — matches: {}",
-                candidates.join(", ")
-            )));
-        }
-    };
+pub fn run(ctx: &Ctx, name: Option<&str>, as_json: bool) -> Result<(), RunError> {
+    let file_name = resolve_or_infer(ctx, name)?;
 
     let project = config::resolve_project(ctx, &file_name).map_err(RunError::Internal)?;
 
@@ -514,24 +372,6 @@ fn trim_float(f: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn relative_buckets() {
-        let now = 1_000_000_000;
-        assert_eq!(relative(now, now), "just now");
-        assert_eq!(relative(now - 30_000, now), "30s ago");
-        assert_eq!(relative(now - 5 * 60_000, now), "5m ago");
-        assert_eq!(relative(now - 3 * 3_600_000, now), "3h ago");
-        assert_eq!(relative(now - 2 * 86_400_000, now), "2d ago");
-        assert_eq!(relative(0, now), "unknown");
-    }
-
-    #[test]
-    fn portless_service_follows_session() {
-        assert!(service_status(0, true).running);
-        assert!(!service_status(0, false).running);
-        assert_eq!(service_status(0, true).source, "session");
-    }
 
     #[test]
     fn human_output_omits_recent_history() {

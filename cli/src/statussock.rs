@@ -29,6 +29,26 @@ pub struct StatusEntry {
     pub pane_id: String,
 }
 
+/// Whether the app's status server is reachable: send `ping`, expect a `PONG`
+/// line. Distinguishes "app not running" from "app running, no statuses" — a
+/// distinction `list_status`'s `None` cannot make on its own.
+pub fn ping(socket_path: &Path) -> bool {
+    let Ok(mut stream) = UnixStream::connect(socket_path) else {
+        return false;
+    };
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+    let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
+    if writeln!(stream, "ping").is_err() || stream.flush().is_err() {
+        return false;
+    }
+    let mut reader = BufReader::new(stream);
+    let mut line = String::new();
+    if reader.read_line(&mut line).is_err() {
+        return false;
+    }
+    line.trim() == "PONG"
+}
+
 /// Query `list_status <project>`. `Ok(None)` when the app isn't reachable (no
 /// live status), `Ok(Some(_))` on a parsed reply, `Err` only on a malformed but
 /// present reply (still non-fatal to callers, who may treat it as None).

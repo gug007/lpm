@@ -2,7 +2,42 @@
 //! `src-tauri/src/tmux.rs`: the session name equals the project session name,
 //! and panes are listed in creation order (pane N == service N).
 
+use std::collections::HashSet;
 use std::process::Command;
+
+/// Run tmux with args, returning trimmed stdout; errors carry stderr. Mirrors
+/// the app's `tmux::run`.
+fn run(args: &[&str]) -> Result<String, String> {
+    let out = Command::new("tmux")
+        .args(args)
+        .output()
+        .map_err(|e| format!("tmux: {e}"))?;
+    if !out.status.success() {
+        return Err(format!(
+            "tmux {}: {}",
+            args.first().copied().unwrap_or(""),
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+}
+
+/// Set of live tmux session names (`tmux list-sessions -F '#{session_name}'`).
+/// Empty when no server is running or tmux is absent — both are non-errors.
+/// Mirrors the app's `tmux::running_sessions`.
+pub fn running_sessions() -> HashSet<String> {
+    match Command::new("tmux")
+        .args(["list-sessions", "-F", "#{session_name}"])
+        .output()
+    {
+        Ok(out) if out.status.success() => String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect(),
+        _ => HashSet::new(),
+    }
+}
 
 pub fn session_exists(name: &str) -> bool {
     // `.output()` (not `.status()`) so tmux's "can't find session" note on a
@@ -49,4 +84,12 @@ pub fn list_panes(session: &str) -> Vec<Pane> {
             }
         })
         .collect()
+}
+
+/// Recent scrollback for a pane (`capture-pane -p -J -S -<lines>`), trailing
+/// newlines trimmed. Mirrors the app's `tmux::capture_pane`.
+pub fn capture_pane(pane_id: &str, lines: i64) -> Result<String, String> {
+    let from = format!("-{lines}");
+    let out = run(&["capture-pane", "-t", pane_id, "-p", "-J", "-S", &from])?;
+    Ok(out.trim_end_matches('\n').to_string())
 }
