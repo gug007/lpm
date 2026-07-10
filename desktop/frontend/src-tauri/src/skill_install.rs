@@ -1,7 +1,7 @@
 // One-click installer for the bundled lpm agent skills. Writes the skill files
-// into ~/.claude/skills/ so Claude Code can author lpm configs and drive the CLI.
-// The skill sources are embedded at build time so the packaged app is
-// self-contained.
+// into ~/.claude/skills (Claude Code) and ~/.agents/skills (the open-standard
+// dir read by Codex, Gemini CLI, and OpenCode). The skill sources are embedded
+// at build time so the packaged app is self-contained.
 use serde_json::{json, Value};
 use std::path::PathBuf;
 
@@ -22,8 +22,12 @@ const SKILL_FILES: &[SkillFile] = &[
 
 const ENTRY_SKILLS: &[&str] = &["lpm-config/SKILL.md", "lpm-cli/SKILL.md"];
 
-fn skills_dir() -> PathBuf {
-    dirs::home_dir().unwrap_or_default().join(".claude").join("skills")
+fn targets() -> [PathBuf; 2] {
+    let home = dirs::home_dir().unwrap_or_default();
+    [
+        home.join(".claude").join("skills"),
+        home.join(".agents").join("skills"),
+    ]
 }
 
 fn status_at(dir: &std::path::Path) -> &'static str {
@@ -56,35 +60,68 @@ fn install_at(dir: &std::path::Path) -> Result<(), String> {
     Ok(())
 }
 
-fn refresh_at(dir: &std::path::Path) {
-    if status_at(dir) != "outdated" {
+/// Opted in = any entry skill present in any target. A partial presence still
+/// counts so an install predating the second target dir upgrades gracefully:
+/// it reads as "outdated" and Update/refresh fills both dirs, instead of
+/// reading as never opted in.
+fn opted_in(dirs: &[PathBuf]) -> bool {
+    dirs.iter()
+        .any(|d| ENTRY_SKILLS.iter().any(|rel| d.join(rel).exists()))
+}
+
+fn overall_status(dirs: &[PathBuf]) -> &'static str {
+    if !opted_in(dirs) {
+        return "not-installed";
+    }
+    if dirs.iter().all(|d| status_at(d) == "installed") {
+        "installed"
+    } else {
+        "outdated"
+    }
+}
+
+fn refresh_all(dirs: &[PathBuf]) {
+    if overall_status(dirs) != "outdated" {
         return;
     }
-    if let Err(e) = install_at(dir) {
-        eprintln!("warning: agent skill refresh failed: {e}");
+    for d in dirs {
+        if let Err(e) = install_at(d) {
+            eprintln!("warning: agent skill refresh failed: {e}");
+        }
     }
 }
 
 /// Startup repair: silently re-write the skills only when a previous install
-/// exists but is stale. Never installs fresh — absence means the user never
-/// opted in (or removed them deliberately).
+/// exists but is stale or incomplete. Never installs fresh — absence means the
+/// user never opted in (or removed them deliberately).
 pub fn refresh_if_outdated() {
-    refresh_at(&skills_dir());
+    refresh_all(&targets());
 }
 
 #[tauri::command(async)]
 pub fn agent_skill_status() -> Result<Value, String> {
-    Ok(json!({ "status": status_at(&skills_dir()) }))
+    Ok(json!({ "status": overall_status(&targets()) }))
 }
 
 #[tauri::command(async)]
 pub fn install_agent_skill() -> Result<(), String> {
-    install_at(&skills_dir())
+    for d in targets() {
+        install_at(&d)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn pair(a: &tempfile::TempDir, b: &tempfile::TempDir) -> Vec<PathBuf> {
+        vec![a.path().to_path_buf(), b.path().to_path_buf()]
+    }
+
+    fn is_empty(dir: &std::path::Path) -> bool {
+        std::fs::read_dir(dir).unwrap().next().is_none()
+    }
 
     #[test]
     fn not_installed_when_entry_missing() {
@@ -120,26 +157,49 @@ mod tests {
     }
 
     #[test]
-    fn refresh_skips_not_installed() {
-        let dir = tempfile::tempdir().unwrap();
-        refresh_at(dir.path());
-        assert!(std::fs::read_dir(dir.path()).unwrap().next().is_none());
+    fn nothing_anywhere_is_not_installed_and_refresh_noop() {
+        let a = tempfile::tempdir().unwrap();
+        let b = tempfile::tempdir().unwrap();
+        let dirs = pair(&a, &b);
+        assert_eq!(overall_status(&dirs), "not-installed");
+        refresh_all(&dirs);
+        assert!(is_empty(a.path()) && is_empty(b.path()));
     }
 
     #[test]
-    fn refresh_rewrites_stale_files() {
-        let dir = tempfile::tempdir().unwrap();
-        install_at(dir.path()).unwrap();
-        std::fs::write(dir.path().join("lpm-cli/SKILL.md"), "stale").unwrap();
-        refresh_at(dir.path());
-        assert_eq!(status_at(dir.path()), "installed");
+    fn one_dir_installed_other_empty_is_outdated_and_refresh_fills() {
+        let a = tempfile::tempdir().unwrap();
+        let b = tempfile::tempdir().unwrap();
+        install_at(a.path()).unwrap();
+        let dirs = pair(&a, &b);
+        assert_eq!(overall_status(&dirs), "outdated");
+        refresh_all(&dirs);
+        assert_eq!(overall_status(&dirs), "installed");
+        assert_eq!(status_at(b.path()), "installed");
     }
 
     #[test]
-    fn refresh_noop_when_installed() {
-        let dir = tempfile::tempdir().unwrap();
-        install_at(dir.path()).unwrap();
-        refresh_at(dir.path());
-        assert_eq!(status_at(dir.path()), "installed");
+    fn one_stale_dir_is_outdated_and_refresh_fixes() {
+        let a = tempfile::tempdir().unwrap();
+        let b = tempfile::tempdir().unwrap();
+        install_at(a.path()).unwrap();
+        install_at(b.path()).unwrap();
+        std::fs::write(b.path().join("lpm-cli/SKILL.md"), "stale").unwrap();
+        let dirs = pair(&a, &b);
+        assert_eq!(overall_status(&dirs), "outdated");
+        refresh_all(&dirs);
+        assert_eq!(overall_status(&dirs), "installed");
+    }
+
+    #[test]
+    fn both_current_is_installed_and_refresh_noop() {
+        let a = tempfile::tempdir().unwrap();
+        let b = tempfile::tempdir().unwrap();
+        install_at(a.path()).unwrap();
+        install_at(b.path()).unwrap();
+        let dirs = pair(&a, &b);
+        assert_eq!(overall_status(&dirs), "installed");
+        refresh_all(&dirs);
+        assert_eq!(overall_status(&dirs), "installed");
     }
 }

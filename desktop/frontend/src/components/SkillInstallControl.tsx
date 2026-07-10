@@ -3,7 +3,8 @@ import { toast } from "sonner";
 import { AgentSkillStatus, CliInstallStatus, InstallAgentSkill, InstallCli } from "../../bridge/commands";
 import { BTN_SECONDARY } from "./ui/buttons";
 
-type SkillStatus = "loading" | "not-installed" | "outdated" | "installed" | "installing";
+type SkillStatus = "loading" | "not-installed" | "outdated" | "installed";
+type CliStatus = "loading" | "unavailable" | "not-installed" | "installed" | "points-elsewhere";
 
 const CTA_GREEN =
   "rounded-md bg-[var(--accent-green)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90";
@@ -25,6 +26,17 @@ function CheckIcon() {
   );
 }
 
+function fetchStatuses(): Promise<[SkillStatus, CliStatus]> {
+  return Promise.all([
+    AgentSkillStatus()
+      .then((r) => r.status as SkillStatus)
+      .catch((): SkillStatus => "not-installed"),
+    CliInstallStatus()
+      .then((r) => r.status as CliStatus)
+      .catch((): CliStatus => "unavailable"),
+  ]);
+}
+
 async function installCliIfNeeded() {
   try {
     const cli = await CliInstallStatus();
@@ -40,36 +52,35 @@ async function installCliIfNeeded() {
   }
 }
 
-export function SkillInstallControl({ onCliStatusMaybeChanged }: { onCliStatusMaybeChanged: () => void }) {
-  const [status, setStatus] = useState<SkillStatus>("loading");
+export function SkillInstallControl() {
+  const [skillStatus, setSkillStatus] = useState<SkillStatus>("loading");
+  const [cliStatus, setCliStatus] = useState<CliStatus>("loading");
+  const [installing, setInstalling] = useState(false);
+
+  const refresh = async () => {
+    const [skill, cli] = await fetchStatuses();
+    setSkillStatus(skill);
+    setCliStatus(cli);
+  };
 
   useEffect(() => {
-    AgentSkillStatus()
-      .then((r) => setStatus(r.status as SkillStatus))
-      .catch(() => setStatus("not-installed"));
+    refresh();
   }, []);
 
   const install = async () => {
-    const prev = status;
-    setStatus("installing");
+    setInstalling(true);
     try {
       await InstallAgentSkill();
       await installCliIfNeeded();
-      const r = await AgentSkillStatus();
-      setStatus(r.status as SkillStatus);
     } catch (err) {
       toast.error(String(err));
-      setStatus(prev);
     } finally {
-      onCliStatusMaybeChanged();
+      await refresh();
+      setInstalling(false);
     }
   };
 
-  if (status === "loading") {
-    return <Spinner />;
-  }
-
-  if (status === "installing") {
+  if (installing) {
     return (
       <button disabled className={BTN_SECONDARY}>
         <Spinner />
@@ -77,16 +88,20 @@ export function SkillInstallControl({ onCliStatusMaybeChanged }: { onCliStatusMa
     );
   }
 
-  if (status === "installed") {
+  if (skillStatus === "loading" || cliStatus === "loading") {
+    return <Spinner />;
+  }
+
+  if (skillStatus === "not-installed") {
     return (
-      <span className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
-        <CheckIcon />
-        Installed
-      </span>
+      <button onClick={install} className={BTN_SECONDARY}>
+        Install
+      </button>
     );
   }
 
-  if (status === "outdated") {
+  const cliNeedsInstall = cliStatus === "not-installed" || cliStatus === "points-elsewhere";
+  if (skillStatus === "outdated" || cliNeedsInstall) {
     return (
       <button onClick={install} className={CTA_GREEN}>
         Update
@@ -95,8 +110,9 @@ export function SkillInstallControl({ onCliStatusMaybeChanged }: { onCliStatusMa
   }
 
   return (
-    <button onClick={install} className={BTN_SECONDARY}>
-      Install
-    </button>
+    <span className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
+      <CheckIcon />
+      Installed
+    </span>
   );
 }
