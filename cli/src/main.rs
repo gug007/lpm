@@ -7,10 +7,13 @@
 
 mod config;
 mod control;
+mod duplicate;
 mod error;
 mod list;
 mod logs;
 mod project;
+mod remove;
+mod run;
 mod service;
 mod service_cmd;
 mod setstatus;
@@ -46,9 +49,9 @@ configuration from ~/.lpm and live state from tmux and the app's status socket, 
 control projects — start, stop, restart services, set agent status — by asking the running \
 app over that socket (so the app stays the single owner of run-state).\n\n\
 Read commands: `list`, `project`, `logs`, `status`. Control commands (need the app running): \
-`start`, `stop`, `service`, `set-status`, `clear-status`. `wait` polls client-side. \
-Inside an lpm terminal or a project directory the project name may be omitted — it is \
-inferred from LPM_PROJECT_NAME or the current directory.\n\n\
+`start`, `stop`, `service`, `set-status`, `clear-status`, `duplicate`, `remove`, `run`. \
+`wait` polls client-side. Inside an lpm terminal or a project directory the project name \
+may be omitted — it is inferred from LPM_PROJECT_NAME or the current directory.\n\n\
 Subcommands are agent-friendly: pass --json for stable machine-readable output. Errors go \
 to stderr; exit codes are 0 (ok), 2 (usage / not found / app not running), 1 (internal / \
 timeout / app-side failure)."
@@ -175,6 +178,66 @@ enum Commands {
         #[arg(long, short = 'p')]
         project: Option<String>,
     },
+    /// Duplicate a project into N throwaway copies (via the running app).
+    Duplicate {
+        /// Project stem, `name:` field, or unambiguous prefix. Omit to infer it.
+        name: Option<String>,
+        /// Number of copies to create (1..=50).
+        #[arg(long, short = 'n', default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..=50))]
+        count: u32,
+        /// Group the copies under this sidebar folder.
+        #[arg(long)]
+        group: Option<String>,
+        /// Action to queue on each copy (conflicts with --command).
+        #[arg(long = "run", conflicts_with = "command")]
+        run: Option<String>,
+        /// Command to queue on each copy (conflicts with --run).
+        #[arg(long)]
+        command: Option<String>,
+        /// Prompt to send to the queued action/command.
+        #[arg(long)]
+        prompt: Option<String>,
+        /// Exclude uncommitted changes from the clone.
+        #[arg(long)]
+        exclude_uncommitted: bool,
+        /// Reinstall dependencies in each copy.
+        #[arg(long)]
+        reinstall_deps: bool,
+        /// Do not git-pull latest in each copy (overrides the app default).
+        #[arg(long)]
+        no_pull: bool,
+        /// Emit a single machine-readable JSON object.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Remove a project (via the running app). Originals require --force.
+    Remove {
+        /// Project stem, `name:` field, or unambiguous prefix (required).
+        name: String,
+        /// Allow removing an original project (its source folder is kept).
+        #[arg(long)]
+        force: bool,
+        /// Emit a single machine-readable JSON object.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Queue an action/command in a new terminal in the app (fire-and-forget).
+    Run {
+        /// Action name (exact or unambiguous prefix). Omit when using --command.
+        action: Option<String>,
+        /// Shell command to run instead of a declared action.
+        #[arg(long, conflicts_with = "action")]
+        command: Option<String>,
+        /// Prompt to send to the action/command.
+        #[arg(long)]
+        prompt: Option<String>,
+        /// Project to run in; omit to infer from the environment / cwd.
+        #[arg(long, short = 'p')]
+        project: Option<String>,
+        /// Emit a single machine-readable JSON object.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn main() -> ExitCode {
@@ -246,6 +309,45 @@ fn main() -> ExitCode {
         Commands::ClearStatus { key, project } => {
             setstatus::run_clear(&ctx, &key, project.as_deref())
         }
+        Commands::Duplicate {
+            name,
+            count,
+            group,
+            run,
+            command,
+            prompt,
+            exclude_uncommitted,
+            reinstall_deps,
+            no_pull,
+            json,
+        } => duplicate::run(
+            &ctx,
+            name.as_deref(),
+            count,
+            group.as_deref(),
+            run.as_deref(),
+            command.as_deref(),
+            prompt.as_deref(),
+            exclude_uncommitted,
+            reinstall_deps,
+            no_pull,
+            json,
+        ),
+        Commands::Remove { name, force, json } => remove::run(&ctx, &name, force, json),
+        Commands::Run {
+            action,
+            command,
+            prompt,
+            project,
+            json,
+        } => run::run(
+            &ctx,
+            action.as_deref(),
+            command.as_deref(),
+            prompt.as_deref(),
+            project.as_deref(),
+            json,
+        ),
     };
 
     match result {

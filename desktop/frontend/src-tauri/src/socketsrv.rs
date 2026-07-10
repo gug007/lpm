@@ -11,12 +11,21 @@
 //   start_service <project> <service>
 //   stop_service <project> <service>
 //   restart_service <project> <service>
-// Each line gets a single-line reply. set_status/clear_status mutate the
-// StatusStore and emit "status-changed"; a Done/Waiting/Error transition also
-// plays the configured native notification sound (sound.rs). The start/stop/
-// service verbs delegate to `services::*` (the app stays the single owner of
-// run-state, port forwards, and UI events) and reply OK / ERROR: <msg>.
-// std::thread (no tokio), matching the pty/tmux house style.
+//   duplicate_project <project> [--count=N] [--group=NAME] [--exclude-uncommitted=BOOL]
+//                     [--reinstall-deps=BOOL] [--pull-latest=BOOL]
+//                     [--run-action=X | --run-command=X] [--prompt=TEXT]
+//   remove_project <project>
+//   run_task <project> [--action=X | --command=X] [--prompt=TEXT]
+// Each line gets a single-line reply, EXCEPT `duplicate_project`, which streams
+// zero or more `PROGRESS <done> <total> <copy-name>` lines and then a final JSON
+// line (`{"ok":true,"names":[...]}` / `{"ok":false,"error":...}`) — cloning N
+// copies can take minutes. set_status/clear_status mutate the StatusStore and
+// emit "status-changed"; a Done/Waiting/Error transition also plays the
+// configured native notification sound (sound.rs). The start/stop/service verbs
+// delegate to `services::*` and duplicate/remove/run to `projects_crud::*` +
+// `remote-run-task` (the app stays the single owner of run-state, port forwards,
+// and UI events) and reply OK / ERROR: <msg>. std::thread (no tokio), matching
+// the pty/tmux house style.
 use crate::status::{now_millis, StatusEntry, StatusStore};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
@@ -60,8 +69,15 @@ fn handle_client(stream: UnixStream, store: &StatusStore, app: &AppHandle) {
         if line.is_empty() {
             continue;
         }
-        let resp = process_command(&line, store, app);
-        if writeln!(writer, "{resp}").is_err() {
+        // `duplicate_project` streams its own PROGRESS lines + final JSON; every
+        // other verb maps one request line to exactly one reply line.
+        let first = shell_split(&line).into_iter().next().unwrap_or_default();
+        let write_result = if first.to_lowercase() == "duplicate_project" {
+            cmd_duplicate_project(&line, app, &mut writer)
+        } else {
+            writeln!(writer, "{}", process_command(&line, store, app))
+        };
+        if write_result.is_err() {
             break;
         }
     }
@@ -84,6 +100,8 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "start_service" => cmd_set_service(args, app, true),
         "stop_service" => cmd_set_service(args, app, false),
         "restart_service" => cmd_restart_service(args, app),
+        "remove_project" => cmd_remove_project(args, app),
+        "run_task" => cmd_run_task(args, app),
         _ => "ERROR: unknown command".into(),
     }
 }
@@ -156,6 +174,153 @@ fn cmd_restart_service(args: &[String], app: &AppHandle) -> String {
         &positional[0],
         &positional[1],
     ))
+}
+
+/// Resolve a boolean socket option: an explicit `true`/`false` wins, anything
+/// else (absent or unparseable) falls back to the persisted-settings default.
+fn bool_opt(options: &HashMap<String, String>, key: &str, default: bool) -> bool {
+    match options.get(key).map(String::as_str) {
+        Some("true") => true,
+        Some("false") => false,
+        _ => default,
+    }
+}
+
+/// Streaming duplicate: clone N copies one at a time (each a disk clone), write a
+/// `PROGRESS <done> <total> <name>` line per copy, then a final JSON line.
+/// Mirrors the `remote.rs` "duplicate" handler exactly (stop at first failure,
+/// keep copies made, optional group + run-task relay). Returns the last write's
+/// result so `handle_client` can drop a dead connection like the other verbs.
+fn cmd_duplicate_project(line: &str, app: &AppHandle, w: &mut impl Write) -> std::io::Result<()> {
+    let parts = shell_split(line);
+    let (positional, options) = parse_options(&parts[1..]);
+    let Some(name) = positional.first().cloned() else {
+        return writeln!(
+            w,
+            "{}",
+            serde_json::json!({ "ok": false, "error": "usage: duplicate_project <project> [--count=N] ..." })
+        );
+    };
+    let count = options
+        .get("count")
+        .and_then(|c| c.parse::<u64>().ok())
+        .unwrap_or(1)
+        .clamp(1, 50) as u32;
+
+    let settings = crate::config::load_settings();
+    let sb = |k: &str, d: bool| settings.get(k).and_then(serde_json::Value::as_bool).unwrap_or(d);
+    let exclude_uncommitted = bool_opt(
+        &options,
+        "exclude-uncommitted",
+        sb("duplicateExcludeUncommitted", false),
+    );
+    let reinstall_deps = bool_opt(&options, "reinstall-deps", sb("duplicateReinstallDeps", false));
+    let pull_latest = bool_opt(&options, "pull-latest", sb("duplicatePullLatest", true));
+
+    let group_name = options.get("group").cloned().unwrap_or_default();
+    let run_action = options.get("run-action").cloned().filter(|s| !s.is_empty());
+    let run_command = options.get("run-command").cloned().filter(|s| !s.is_empty());
+    let prompt = options.get("prompt").cloned().filter(|p| !p.trim().is_empty());
+
+    let mut created: Vec<String> = Vec::new();
+    let mut err: Option<String> = None;
+    for _ in 0..count {
+        match crate::projects_crud::duplicate_project(
+            app.clone(),
+            name.clone(),
+            None,
+            exclude_uncommitted,
+            reinstall_deps,
+            pull_latest,
+        ) {
+            Ok(n) => {
+                created.push(n.clone());
+                writeln!(w, "PROGRESS {} {} {}", created.len(), count, n)?;
+                w.flush()?;
+            }
+            Err(e) => {
+                err = Some(e);
+                break;
+            }
+        }
+    }
+
+    if created.is_empty() {
+        let msg = err.unwrap_or_else(|| "Couldn't duplicate the project.".into());
+        return writeln!(w, "{}", serde_json::json!({ "ok": false, "error": msg }));
+    }
+
+    if !group_name.trim().is_empty() {
+        let _ = crate::remote::group_copies_into_folder(&name, group_name.trim(), &created);
+        let _ = app.emit("projects-changed", ());
+    }
+
+    let mut warning: Option<String> = None;
+    let run_task = if run_action.is_some() {
+        Some(serde_json::json!({ "kind": "action", "actionName": run_action, "prompt": prompt }))
+    } else if run_command.is_some() {
+        Some(serde_json::json!({ "kind": "command", "command": run_command, "prompt": prompt }))
+    } else {
+        None
+    };
+    if let Some(task) = run_task {
+        if app.get_webview_window("main").is_some() {
+            for copy in &created {
+                let _ = app.emit("remote-run-task", serde_json::json!({ "project": copy, "task": task }));
+            }
+        } else {
+            warning = Some(
+                "Copies created, but open the lpm app on your Mac to run the task on them."
+                    .to_string(),
+            );
+        }
+    }
+    if let Some(e) = err {
+        warning = Some(format!("Stopped after {} — {}", created.len(), e));
+    }
+
+    let mut reply = serde_json::json!({ "ok": true, "names": created });
+    if let Some(wn) = warning {
+        reply["warning"] = serde_json::json!(wn);
+    }
+    writeln!(w, "{reply}")
+}
+
+fn cmd_remove_project(args: &[String], app: &AppHandle) -> String {
+    let (positional, _) = parse_options(args);
+    if positional.is_empty() {
+        return "ERROR: usage: remove_project <project>".into();
+    }
+    reply(crate::projects_crud::remove_project(
+        app.clone(),
+        positional[0].clone(),
+    ))
+}
+
+fn cmd_run_task(args: &[String], app: &AppHandle) -> String {
+    let (positional, options) = parse_options(args);
+    if positional.is_empty() {
+        return "ERROR: usage: run_task <project> [--action=X | --command=X] [--prompt=TEXT]".into();
+    }
+    let action = options.get("action").cloned().filter(|s| !s.is_empty());
+    let command = options.get("command").cloned().filter(|s| !s.is_empty());
+    let prompt = options.get("prompt").cloned().filter(|p| !p.trim().is_empty());
+    let task = match (action, command) {
+        (Some(_), Some(_)) => {
+            return "ERROR: run_task takes exactly one of --action / --command".into()
+        }
+        (None, None) => return "ERROR: run_task needs --action=X or --command=X".into(),
+        (Some(a), None) => serde_json::json!({ "kind": "action", "actionName": a, "prompt": prompt }),
+        (None, Some(c)) => serde_json::json!({ "kind": "command", "command": c, "prompt": prompt }),
+    };
+    if app.get_webview_window("main").is_none() {
+        return "ERROR: open the lpm app to run actions".into();
+    }
+    let _ = app.emit(
+        "remote-run-task",
+        serde_json::json!({ "project": positional[0], "task": task }),
+    );
+    "OK".into()
 }
 
 fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> String {
@@ -293,5 +458,18 @@ mod tests {
         let (pos, opts) = parse_options(&a);
         assert_eq!(pos, ["myproj"]);
         assert_eq!(opts.get("profile").unwrap(), "staging");
+    }
+
+    #[test]
+    fn bool_opt_prefers_explicit_then_default() {
+        let mut o: HashMap<String, String> = HashMap::new();
+        assert!(bool_opt(&o, "x", true)); // absent -> default true
+        assert!(!bool_opt(&o, "x", false)); // absent -> default false
+        o.insert("x".into(), "false".into());
+        assert!(!bool_opt(&o, "x", true)); // explicit false beats default true
+        o.insert("x".into(), "true".into());
+        assert!(bool_opt(&o, "x", false)); // explicit true beats default false
+        o.insert("x".into(), "garbage".into());
+        assert!(bool_opt(&o, "x", true)); // unparseable -> default
     }
 }

@@ -56,6 +56,36 @@ pub fn request(socket_path: &Path, line: &str) -> Result<String, String> {
     Ok(reply.trim_end().to_string())
 }
 
+/// Read timeout for a streaming request. Generous: a duplicate that reinstalls
+/// dependencies on each copy can run for minutes before the final line.
+const STREAM_TIMEOUT: Duration = Duration::from_secs(600);
+
+/// Like [`request`], but for the streaming `duplicate_project` verb: `on_line`
+/// is invoked with the payload of each `PROGRESS <done> <total> <name>` line
+/// (the text after `PROGRESS `), and the first non-PROGRESS line (the final
+/// JSON) is returned.
+pub fn request_lines(
+    socket_path: &Path,
+    line: &str,
+    mut on_line: impl FnMut(&str),
+) -> Result<String, String> {
+    let mut stream = UnixStream::connect(socket_path).map_err(|e| e.to_string())?;
+    let _ = stream.set_read_timeout(Some(STREAM_TIMEOUT));
+    let _ = stream.set_write_timeout(Some(STREAM_TIMEOUT));
+    writeln!(stream, "{line}").map_err(|e| e.to_string())?;
+    stream.flush().map_err(|e| e.to_string())?;
+    let reader = BufReader::new(stream);
+    for l in reader.lines() {
+        let l = l.map_err(|e| e.to_string())?;
+        if let Some(rest) = l.strip_prefix("PROGRESS ") {
+            on_line(rest);
+            continue;
+        }
+        return Ok(l);
+    }
+    Err("connection closed before a final reply".to_string())
+}
+
 /// Whether the app's status server is reachable: send `ping`, expect a `PONG`
 /// line. Distinguishes "app not running" from "app running, no statuses" — a
 /// distinction `list_status`'s `None` cannot make on its own.
@@ -126,5 +156,28 @@ mod tests {
         let reply = request(&path, "start_project 'x'").unwrap();
         assert_eq!(reply, "OK");
         assert_eq!(server.join().unwrap(), "start_project 'x'");
+    }
+
+    #[test]
+    fn request_lines_streams_progress_then_returns_final() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("t.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut got = String::new();
+            reader.read_line(&mut got).unwrap();
+            writeln!(stream, "PROGRESS 1 2 copyA").unwrap();
+            writeln!(stream, "PROGRESS 2 2 copyB").unwrap();
+            writeln!(stream, r#"{{"ok":true,"names":["copyA","copyB"]}}"#).unwrap();
+        });
+        let mut progress: Vec<String> = Vec::new();
+        let final_line =
+            request_lines(&path, "duplicate_project 'x' --count=2", |p| progress.push(p.to_string()))
+                .unwrap();
+        assert_eq!(progress, ["1 2 copyA", "2 2 copyB"]);
+        assert!(final_line.contains("\"ok\":true"));
+        server.join().unwrap();
     }
 }

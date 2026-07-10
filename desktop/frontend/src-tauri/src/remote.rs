@@ -2010,7 +2010,11 @@ fn sidebar_json() -> (Value, Value) {
 /// desktop's applySidebarLayout: match an existing folder by name (exact, then
 /// case-insensitive) or create one just below the parent, append the copies to its
 /// members, and persist groups.json + settings.json (sidebarOrder/projectOrder).
-fn group_copies_into_folder(parent: &str, group_name: &str, copies: &[String]) -> Result<(), String> {
+pub(crate) fn group_copies_into_folder(
+    parent: &str,
+    group_name: &str,
+    copies: &[String],
+) -> Result<(), String> {
     if group_name.is_empty() || copies.is_empty() {
         return Ok(());
     }
