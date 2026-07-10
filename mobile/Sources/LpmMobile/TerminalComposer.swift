@@ -385,7 +385,7 @@ struct TerminalComposer: View {
             Button { showHistory = true } label: { Label("History", systemImage: "clock.arrow.circlepath") }
         } label: {
             Image(systemName: "plus")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: 20, weight: .medium))
                 .foregroundStyle(.white)
                 .frame(width: 36, height: 36)
                 .contentShape(Rectangle())
@@ -439,10 +439,12 @@ struct TerminalComposer: View {
             } label: { Label("Run in duplicates", systemImage: "plus.square.on.square") }
                 .disabled(store.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         } label: {
-            Image(systemName: "arrow.up.circle.fill")
-                .font(.system(size: 32))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(canSend ? SwiftUI.Color.accentColor : SwiftUI.Color.secondary)
+            Image(systemName: "arrow.up")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(canSend ? SwiftUI.Color.black : SwiftUI.Color.white.opacity(0.35))
+                .frame(width: 32, height: 32)
+                .background(canSend ? SwiftUI.Color.white : SwiftUI.Color.white.opacity(0.12))
+                .clipShape(Circle())
                 .frame(width: 36, height: 36)
         } primaryAction: {
             send()
