@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { AgentSkillStatus, InstallAgentSkill } from "../../bridge/commands";
+import { AgentSkillStatus, CliInstallStatus, InstallAgentSkill, InstallCli } from "../../bridge/commands";
 import { BTN_SECONDARY } from "./ui/buttons";
 
 type SkillStatus = "loading" | "not-installed" | "outdated" | "installed" | "installing";
@@ -25,7 +25,22 @@ function CheckIcon() {
   );
 }
 
-export function SkillInstallControl() {
+async function installCliIfNeeded() {
+  try {
+    const cli = await CliInstallStatus();
+    if (cli.status === "installed" || cli.status === "unavailable") {
+      toast.success("Skill installed");
+      return;
+    }
+    await InstallCli();
+    toast.success("Skill and command line tool installed");
+  } catch (err) {
+    toast.success("Skill installed");
+    toast.error(String(err));
+  }
+}
+
+export function SkillInstallControl({ onCliStatusMaybeChanged }: { onCliStatusMaybeChanged: () => void }) {
   const [status, setStatus] = useState<SkillStatus>("loading");
 
   useEffect(() => {
@@ -39,12 +54,14 @@ export function SkillInstallControl() {
     setStatus("installing");
     try {
       await InstallAgentSkill();
-      toast.success("Skill installed");
+      await installCliIfNeeded();
       const r = await AgentSkillStatus();
       setStatus(r.status as SkillStatus);
     } catch (err) {
       toast.error(String(err));
       setStatus(prev);
+    } finally {
+      onCliStatusMaybeChanged();
     }
   };
 

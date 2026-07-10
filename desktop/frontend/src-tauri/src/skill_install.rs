@@ -56,6 +56,22 @@ fn install_at(dir: &std::path::Path) -> Result<(), String> {
     Ok(())
 }
 
+fn refresh_at(dir: &std::path::Path) {
+    if status_at(dir) != "outdated" {
+        return;
+    }
+    if let Err(e) = install_at(dir) {
+        eprintln!("warning: agent skill refresh failed: {e}");
+    }
+}
+
+/// Startup repair: silently re-write the skills only when a previous install
+/// exists but is stale. Never installs fresh — absence means the user never
+/// opted in (or removed them deliberately).
+pub fn refresh_if_outdated() {
+    refresh_at(&skills_dir());
+}
+
 #[tauri::command(async)]
 pub fn agent_skill_status() -> Result<Value, String> {
     Ok(json!({ "status": status_at(&skills_dir()) }))
@@ -100,6 +116,30 @@ mod tests {
         install_at(dir.path()).unwrap();
         std::fs::write(dir.path().join("lpm-cli/SKILL.md"), "stale").unwrap();
         install_at(dir.path()).unwrap();
+        assert_eq!(status_at(dir.path()), "installed");
+    }
+
+    #[test]
+    fn refresh_skips_not_installed() {
+        let dir = tempfile::tempdir().unwrap();
+        refresh_at(dir.path());
+        assert!(std::fs::read_dir(dir.path()).unwrap().next().is_none());
+    }
+
+    #[test]
+    fn refresh_rewrites_stale_files() {
+        let dir = tempfile::tempdir().unwrap();
+        install_at(dir.path()).unwrap();
+        std::fs::write(dir.path().join("lpm-cli/SKILL.md"), "stale").unwrap();
+        refresh_at(dir.path());
+        assert_eq!(status_at(dir.path()), "installed");
+    }
+
+    #[test]
+    fn refresh_noop_when_installed() {
+        let dir = tempfile::tempdir().unwrap();
+        install_at(dir.path()).unwrap();
+        refresh_at(dir.path());
         assert_eq!(status_at(dir.path()), "installed");
     }
 }

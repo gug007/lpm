@@ -155,6 +155,14 @@ pub fn run() {
             // the socket. Backgrounded — touches files, never blocks startup.
             std::thread::spawn(hooks::install_agent_hooks);
 
+            // Silently refresh what the user already opted into installing:
+            // stale agent skills get re-written, a stale CLI symlink gets
+            // repointed. Missing or foreign installs are left alone.
+            std::thread::spawn(|| {
+                skill_install::refresh_if_outdated();
+                cli_install::repair_symlink_quietly();
+            });
+
             // Check for updates on startup, then every 24h while the app runs
             // (the window may be hidden). The Sidebar also pulls on mount, so the
             // launch notification never depends on the startup emit's timing.

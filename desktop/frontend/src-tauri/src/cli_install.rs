@@ -208,6 +208,23 @@ fn status_value(state: &PathState, expected: &Path) -> Value {
     })
 }
 
+fn repair_at(expected: &Path, link: &Path) {
+    if let InstallPlan::ReplaceOurs = plan_install(&current_state(link), expected) {
+        let _ = symlink_direct(expected, link, true);
+    }
+}
+
+/// Startup repair: silently repoint our own stale symlink (app moved/renamed).
+/// Never creates a fresh link, never touches foreign occupants, and never
+/// escalates — an admin prompt must not appear spontaneously at launch. Failures
+/// are left for the Settings install button.
+pub fn repair_symlink_quietly() {
+    let Ok(expected) = bundled_cli_path() else {
+        return;
+    };
+    repair_at(&expected, &link_path());
+}
+
 // ---- commands ---------------------------------------------------------------
 
 /// Report whether the `lpm` CLI is on PATH: `installed`, `not-installed`, or
@@ -368,5 +385,42 @@ mod tests {
         std::fs::write(&target_b, b"b").unwrap();
         symlink_direct(&target_b, &link, true).unwrap();
         assert_eq!(std::fs::read_link(&link).unwrap(), target_b);
+    }
+
+    #[test]
+    fn repair_repoints_our_stale_symlink() {
+        let dir = tempfile::tempdir().unwrap();
+        let link = dir.path().join("lpm");
+        let stale = dir.path().join("old").join("lpm-cli");
+        std::fs::create_dir_all(stale.parent().unwrap()).unwrap();
+        std::fs::write(&stale, b"old").unwrap();
+        symlink_direct(&stale, &link, false).unwrap();
+
+        let expected = dir.path().join("new").join("lpm-cli");
+        std::fs::create_dir_all(expected.parent().unwrap()).unwrap();
+        std::fs::write(&expected, b"new").unwrap();
+        repair_at(&expected, &link);
+        assert_eq!(std::fs::read_link(&link).unwrap(), expected);
+    }
+
+    #[test]
+    fn repair_leaves_absent_path_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        let link = dir.path().join("lpm");
+        let expected = dir.path().join("lpm-cli");
+        std::fs::write(&expected, b"x").unwrap();
+        repair_at(&expected, &link);
+        assert!(std::fs::symlink_metadata(&link).is_err());
+    }
+
+    #[test]
+    fn repair_leaves_foreign_file_untouched() {
+        let dir = tempfile::tempdir().unwrap();
+        let link = dir.path().join("lpm");
+        std::fs::write(&link, b"foreign").unwrap();
+        let expected = dir.path().join("lpm-cli");
+        std::fs::write(&expected, b"x").unwrap();
+        repair_at(&expected, &link);
+        assert_eq!(std::fs::read(&link).unwrap(), b"foreign");
     }
 }

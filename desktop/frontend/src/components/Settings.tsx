@@ -224,11 +224,13 @@ export function Settings({
     GetVersion().then(setVersion);
   }, []);
 
-  useEffect(() => {
+  const refreshCliStatus = () => {
     CliInstallStatus()
       .then((r) => setCliStatus(r.status as CliStatus))
       .catch(() => setCliStatus("unavailable"));
-  }, []);
+  };
+
+  useEffect(refreshCliStatus, []);
 
   const handleInstallCli = async () => {
     setCliBusy(true);
@@ -489,8 +491,8 @@ export function Settings({
                   </button>
                 )}
               </SettingsRow>
-              <SettingsRow label="Agent skill" description="Teach Claude Code to author configs and drive the lpm CLI">
-                <SkillInstallControl />
+              <SettingsRow label="Agent skill" description="Teach Claude Code to author configs and drive the lpm CLI. Installs the command line tool if needed.">
+                <SkillInstallControl onCliStatusMaybeChanged={refreshCliStatus} />
               </SettingsRow>
               <SettingsRow label="Send feedback" description="Report a bug or share ideas">
                 <button onClick={() => setFeedbackOpen(true)} className={BTN_SECONDARY}>
