@@ -489,7 +489,7 @@ export function Settings({
                   </button>
                 )}
               </SettingsRow>
-              <SettingsRow label="Agent skill" description="Teach your AI coding agent to author configs and drive the lpm CLI">
+              <SettingsRow label="Agent skill" description="Teach Claude Code to author configs and drive the lpm CLI">
                 <SkillInstallControl />
               </SettingsRow>
               <SettingsRow label="Send feedback" description="Report a bug or share ideas">

@@ -1,31 +1,85 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { AgentSkillStatus, InstallAgentSkill } from "../../bridge/commands";
 import { BTN_SECONDARY } from "./ui/buttons";
 
-const INSTALL_CMD = "npx skills add gug007/lpm";
+type SkillStatus = "loading" | "not-installed" | "outdated" | "installed" | "installing";
 
-// Inline install command + copy button for the lpm agent skills. A button click
-// is a user gesture, so WKWebView allows the clipboard write.
+const CTA_GREEN =
+  "rounded-md bg-[var(--accent-green)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90";
+
+function Spinner() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="animate-spin text-current">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" strokeOpacity="0.25" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="text-[var(--accent-green)]">
+      <path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function SkillInstallControl() {
-  const [copied, setCopied] = useState(false);
+  const [status, setStatus] = useState<SkillStatus>("loading");
 
-  const copy = async () => {
+  useEffect(() => {
+    AgentSkillStatus()
+      .then((r) => setStatus(r.status as SkillStatus))
+      .catch(() => setStatus("not-installed"));
+  }, []);
+
+  const install = async () => {
+    const prev = status;
+    setStatus("installing");
     try {
-      await navigator.clipboard.writeText(INSTALL_CMD);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // Clipboard unavailable — leave the command visible to copy manually.
+      await InstallAgentSkill();
+      toast.success("Skill installed");
+      const r = await AgentSkillStatus();
+      setStatus(r.status as SkillStatus);
+    } catch (err) {
+      toast.error(String(err));
+      setStatus(prev);
     }
   };
 
-  return (
-    <div className="flex items-center gap-2">
-      <code className="rounded bg-[var(--bg-active)] px-2 py-1 text-[11px] text-[var(--text-secondary)]">
-        {INSTALL_CMD}
-      </code>
-      <button onClick={copy} className={BTN_SECONDARY}>
-        {copied ? "Copied" : "Copy"}
+  if (status === "loading") {
+    return <Spinner />;
+  }
+
+  if (status === "installing") {
+    return (
+      <button disabled className={BTN_SECONDARY}>
+        <Spinner />
       </button>
-    </div>
+    );
+  }
+
+  if (status === "installed") {
+    return (
+      <span className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
+        <CheckIcon />
+        Installed
+      </span>
+    );
+  }
+
+  if (status === "outdated") {
+    return (
+      <button onClick={install} className={CTA_GREEN}>
+        Update
+      </button>
+    );
+  }
+
+  return (
+    <button onClick={install} className={BTN_SECONDARY}>
+      Install
+    </button>
   );
 }

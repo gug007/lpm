@@ -229,6 +229,12 @@ export function InstallCli() {
 export function CliInstallStatus() {
   return invoke("cli_install_status");
 }
+export function AgentSkillStatus() {
+  return invoke("agent_skill_status");
+}
+export function InstallAgentSkill() {
+  return invoke("install_agent_skill");
+}
 export function InstallTmux() {
   return invoke("install_tmux");
 }

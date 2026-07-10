@@ -44,6 +44,8 @@ macro_rules! all_command_handlers {
         clear_pane_status,
         cli_install_status,
         install_cli,
+        agent_skill_status,
+        install_agent_skill,
         create_branch,
         create_project,
         create_project_from_clone,
