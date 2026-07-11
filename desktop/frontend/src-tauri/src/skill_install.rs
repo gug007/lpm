@@ -8,6 +8,7 @@ use std::path::PathBuf;
 const LPM_CONFIG_SKILL: &str = include_str!("../../../../lpm-config/SKILL.md");
 const LPM_CONFIG_YAML_SCHEMA: &str = include_str!("../../../../lpm-config/references/yaml-schema.md");
 const LPM_CLI_SKILL: &str = include_str!("../../../../lpm-cli/SKILL.md");
+const LPM_SHORTCUT_SKILL: &str = include_str!("../../../../lpm/SKILL.md");
 
 struct SkillFile {
     rel_path: &'static str,
@@ -18,6 +19,7 @@ const SKILL_FILES: &[SkillFile] = &[
     SkillFile { rel_path: "lpm-config/SKILL.md", content: LPM_CONFIG_SKILL },
     SkillFile { rel_path: "lpm-config/references/yaml-schema.md", content: LPM_CONFIG_YAML_SCHEMA },
     SkillFile { rel_path: "lpm-cli/SKILL.md", content: LPM_CLI_SKILL },
+    SkillFile { rel_path: "lpm/SKILL.md", content: LPM_SHORTCUT_SKILL },
 ];
 
 const ENTRY_SKILLS: &[&str] = &["lpm-config/SKILL.md", "lpm-cli/SKILL.md"];
