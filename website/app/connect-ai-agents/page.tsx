@@ -9,6 +9,7 @@ import {
 import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
 import Commands from "./_components/commands";
 import Cta from "./_components/cta";
+import Demos from "./_components/demos";
 import Faq from "./_components/faq";
 import Features from "./_components/features";
 import Hero from "./_components/hero";
@@ -84,6 +85,7 @@ export default function ConnectAiAgentsPage() {
       <Install />
       <Features />
       <Commands />
+      <Demos />
       <Workflows />
       <Parallel />
       <Faq />
