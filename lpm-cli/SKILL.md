@@ -21,7 +21,7 @@ description: "Control dev projects managed by the lpm app via the `lpm` command:
 - `lpm start [project] [--profile X]` / `lpm stop [project]` — start / stop a project's services.
 - `lpm service <name> start|stop|restart [-p proj]` — one service.
 - `lpm wait [project] [--service X | --port N | --agent] [--timeout 60]` — block until ready; `--agent` waits for the project's agents to settle.
-- `lpm duplicate [project] [-n N] [--group X] [--run ACTION | --command CMD] [--prompt TEXT]` — clone into parallel copies; output lists each copy's path.
+- `lpm duplicate [project] [-n N] [--group X] [--run ACTION | --command CMD] [--prompt TEXT] [--include-uncommitted | --exclude-uncommitted]` — clone into parallel copies; output lists each copy's path. By default the app's duplicate setting decides whether uncommitted changes are copied; the two flags override it for this run.
 - `lpm remove <copy-name>` — duplicates only; originals need `--force` (don't use `--force` unless the user explicitly asks).
 - `lpm run [action | --command CMD] [--prompt TEXT] [-p proj]` — queue in a new app terminal, fire-and-forget.
 - `lpm set-status <key> <value>` / `lpm clear-status <key>` — report status to the app UI.

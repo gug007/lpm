@@ -204,9 +204,12 @@ enum Commands {
         /// Prompt to send to the queued action/command.
         #[arg(long)]
         prompt: Option<String>,
-        /// Exclude uncommitted changes from the clone.
+        /// Strip uncommitted changes from each copy (overrides the app setting).
         #[arg(long)]
         exclude_uncommitted: bool,
+        /// Keep uncommitted changes in each copy (overrides the app setting).
+        #[arg(long, conflicts_with = "exclude_uncommitted")]
+        include_uncommitted: bool,
         /// Reinstall dependencies in each copy.
         #[arg(long)]
         reinstall_deps: bool,
@@ -245,6 +248,14 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+}
+
+fn exclude_uncommitted_override(exclude: bool, include: bool) -> Option<bool> {
+    match (exclude, include) {
+        (true, _) => Some(true),
+        (_, true) => Some(false),
+        _ => None,
+    }
 }
 
 fn main() -> ExitCode {
@@ -326,6 +337,7 @@ fn main() -> ExitCode {
             command,
             prompt,
             exclude_uncommitted,
+            include_uncommitted,
             reinstall_deps,
             no_pull,
             json,
@@ -337,7 +349,7 @@ fn main() -> ExitCode {
             run.as_deref(),
             command.as_deref(),
             prompt.as_deref(),
-            exclude_uncommitted,
+            exclude_uncommitted_override(exclude_uncommitted, include_uncommitted),
             reinstall_deps,
             no_pull,
             json,

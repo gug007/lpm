@@ -17,7 +17,7 @@ pub fn run(
     run_action: Option<&str>,
     run_command: Option<&str>,
     prompt: Option<&str>,
-    exclude_uncommitted: bool,
+    exclude_uncommitted: Option<bool>,
     reinstall_deps: bool,
     no_pull: bool,
     as_json: bool,
@@ -37,8 +37,8 @@ pub fn run(
     if let Some(g) = group.filter(|g| !g.is_empty()) {
         line.push_str(&format!(" --group={}", quote_arg(g)));
     }
-    if exclude_uncommitted {
-        line.push_str(" --exclude-uncommitted=true");
+    if let Some(flag) = exclude_uncommitted_flag(exclude_uncommitted) {
+        line.push_str(flag);
     }
     if reinstall_deps {
         line.push_str(" --reinstall-deps=true");
@@ -139,6 +139,14 @@ pub fn run(
     Ok(())
 }
 
+fn exclude_uncommitted_flag(exclude_uncommitted: Option<bool>) -> Option<&'static str> {
+    match exclude_uncommitted {
+        Some(true) => Some(" --exclude-uncommitted=true"),
+        Some(false) => Some(" --exclude-uncommitted=false"),
+        None => None,
+    }
+}
+
 fn task_echo(action: Option<&str>, command: Option<&str>, prompt: Option<&str>) -> Value {
     if let Some(a) = action {
         json!({ "kind": "action", "action": a, "prompt": prompt })
@@ -164,6 +172,19 @@ fn build_copies(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn exclude_uncommitted_flag_is_tri_state() {
+        assert_eq!(
+            exclude_uncommitted_flag(Some(true)),
+            Some(" --exclude-uncommitted=true")
+        );
+        assert_eq!(
+            exclude_uncommitted_flag(Some(false)),
+            Some(" --exclude-uncommitted=false")
+        );
+        assert_eq!(exclude_uncommitted_flag(None), None);
+    }
 
     #[test]
     fn build_copies_pairs_names_with_resolved_paths() {
