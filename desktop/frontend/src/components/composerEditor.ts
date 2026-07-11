@@ -776,19 +776,25 @@ function caretPrefixText(root: HTMLElement): string | null {
 // node), so the strip that clears residue leaves it intact.
 const LINE_CHIP_PLACEHOLDER = "￼";
 
-// The caret's line — from the last break up to a collapsed caret — which the
-// slash- and mention-triggers inspect. Null unless the selection is a collapsed
-// caret inside the field.
+// Walk the DOM in document order with serializeEditor's rules but stop at a
+// collapsed caret, returning the serialized prefix up to it — or null unless the
+// selection is a collapsed caret inside the field. `chipText` supplies each
+// chip's stand-in, the one axis on which callers differ: lineBeforeCaret wants a
+// single LINE_CHIP_PLACEHOLDER (so triggers see a boundary, not the "Image N"
+// label), while caretOffsetInSerialized wants the real "[Image #N]" token so the
+// offset matches serializeEditor's output. Text nodes contribute their value
+// minus stray residue, <br> and block wrappers become "\n", data-cmd spans are
+// descended inline.
 //
 // This can't lean on caretPrefixText's Range.toString(): that string (1) folds in
 // a chip's inner "Image N" label and the invisible ZWSP anchor parked after a
 // chip, and (2) emits no "\n" for a <br> or a block-wrapper boundary — so for
 // [chip]<br>"@" it collapses to the single line "Image 1​@", where neither the
-// mention nor the slash trigger fires. Instead we walk the DOM in document order
-// with serializeEditor's rules but stop at the caret: text nodes minus stray
-// residue, each chip as one LINE_CHIP_PLACEHOLDER, <br> and block wrappers as
-// "\n", data-cmd spans descended inline. The line is what follows the last "\n".
-export function lineBeforeCaret(root: HTMLElement): string | null {
+// mention nor the slash trigger fires.
+function serializedPrefixToCaret(
+  root: HTMLElement,
+  chipText: (n: string) => string,
+): string | null {
   const sel = window.getSelection();
   if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return null;
   const r = sel.getRangeAt(0);
@@ -821,7 +827,7 @@ export function lineBeforeCaret(root: HTMLElement): string | null {
       }
       if (!(node instanceof HTMLElement)) continue;
       if (node.dataset.img) {
-        out += LINE_CHIP_PLACEHOLDER;
+        out += chipText(node.dataset.img);
         continue;
       }
       if (node.tagName === "BR") {
@@ -845,7 +851,87 @@ export function lineBeforeCaret(root: HTMLElement): string | null {
   };
   visit(root);
 
-  return out.slice(out.lastIndexOf("\n") + 1);
+  return out;
+}
+
+// The caret's line — from the last break up to a collapsed caret — which the
+// slash- and mention-triggers inspect. Null unless the selection is a collapsed
+// caret inside the field. Each chip counts as one LINE_CHIP_PLACEHOLDER; the line
+// is what follows the last "\n".
+export function lineBeforeCaret(root: HTMLElement): string | null {
+  const out = serializedPrefixToCaret(root, () => LINE_CHIP_PLACEHOLDER);
+  return out === null ? null : out.slice(out.lastIndexOf("\n") + 1);
+}
+
+// The caret's position as an offset into the value serializeEditor would produce
+// — the offset space the composer's undo snapshots store. Unlike caretCharOffset
+// (raw Range.toString() length: chip labels + ZWSP anchors, no "\n"), each chip
+// counts as its full "[Image #N]" token and each break as one "\n", so the offset
+// pairs 1:1 with the serialized text and survives the rebuild that restores it.
+export function caretOffsetInSerialized(root: HTMLElement): number | null {
+  const out = serializedPrefixToCaret(root, (n) => `[Image #${n}]`);
+  return out === null ? null : out.length;
+}
+
+// Seat the caret at a serialized-text offset (caretOffsetInSerialized's inverse)
+// over a DOM rebuilt from that text — text nodes carrying literal "\n" runs and
+// atomic image chips, as applyHistoryEntry produces. An offset that lands inside a
+// chip's "[Image #N]" token seats the caret immediately after the chip (a
+// non-editable atom has no interior position). Falls back to the field end when
+// the offset runs past the content.
+export function placeCaretAtSerializedOffset(
+  root: HTMLElement,
+  offset: number,
+): void {
+  let acc = 0;
+  for (const node of Array.from(root.childNodes)) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const len = (node.nodeValue ?? "").length;
+      if (acc + len >= offset) {
+        const sel = window.getSelection();
+        if (!sel) return;
+        const range = document.createRange();
+        range.setStart(node, Math.max(0, Math.min(len, offset - acc)));
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return;
+      }
+      acc += len;
+      continue;
+    }
+    if (isChip(node)) {
+      const tokenLen = `[Image #${node.dataset.img}]`.length;
+      if (acc + tokenLen >= offset) {
+        const sel = window.getSelection();
+        if (!sel) return;
+        const range = document.createRange();
+        if (offset <= acc) range.setStartBefore(node);
+        else range.setStartAfter(node);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return;
+      }
+      acc += tokenLen;
+    }
+  }
+  placeCaretAtEnd(root);
+}
+
+// WebKit's Selection.modify("extend", "backward", "character") steps by grapheme
+// cluster, not UTF-16 code unit, so a fragment holding a surrogate-pair emoji or a
+// combining cluster (e.g. "@🎉x") must be measured in graphemes — a code-unit
+// count over-extends the selection one position past the trigger, and the
+// following execCommand("insertText") then overwrites the preceding character.
+const graphemeSegmenter =
+  typeof Intl !== "undefined" && "Segmenter" in Intl
+    ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
+    : null;
+
+export function graphemeCount(s: string): number {
+  if (!graphemeSegmenter) return s.length;
+  return Array.from(graphemeSegmenter.segment(s)).length;
 }
 
 // Replace the "/<frag>" preceding the caret on the current line with "/<name> ",
