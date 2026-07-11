@@ -38,10 +38,12 @@ export interface MentionItem {
 }
 
 // The active "@<frag>" query on the caret's line, or no match. The "@" may sit
-// mid-line but must follow whitespace (or the line start) so an address like
-// "me@host" or "pkg@1.2" never triggers it; the fragment runs to the caret and
-// holds no spaces (a space ends the mention) — but may hold "/" for paths.
-export const MENTION_TRIGGER = /(?:^|\s)@([^\s@]*)$/;
+// mid-line but must follow whitespace, the line start, or an image chip (the
+// object-replacement char lineBeforeCaret stands a chip in as) — so an address
+// like "me@host" or "pkg@1.2" never triggers it, while "@" typed right after a
+// chip does. The fragment runs to the caret and holds no spaces (a space ends the
+// mention) — but may hold "/" for paths.
+export const MENTION_TRIGGER = /(?:^|[\s￼])@([^\s@]*)$/;
 
 // Cap the rendered list; the menu is for picking, not browsing a whole tree.
 const LIMIT = 50;

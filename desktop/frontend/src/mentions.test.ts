@@ -22,6 +22,12 @@ describe("MENTION_TRIGGER", () => {
     expect(frag("pkg@1.2")).toBeNull();
   });
 
+  it("triggers on an @ right after an image chip (￼ boundary)", () => {
+    expect(frag("￼@")).toBe("");
+    expect(frag("￼@co")).toBe("co");
+    expect(frag("see ￼@foo")).toBe("foo");
+  });
+
   it("closes once the fragment ends in a space", () => {
     expect(frag("@a b")).toBeNull();
   });

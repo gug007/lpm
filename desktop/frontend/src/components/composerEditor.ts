@@ -752,14 +752,11 @@ export function normalizeComposer(root: HTMLElement): boolean {
   return normalized || reanchored;
 }
 
-// The text of the current line from its start up to a collapsed caret — what a
-// "/" slash-command trigger inspects. Returns null when the selection isn't a
-// collapsed caret inside the field. Chips on the line contribute their visible
-// label text, which is fine: the slash trigger only fires on a line that is
-// purely "/<frag>", so a chip's presence simply suppresses it.
-// Visible text from the field start to a collapsed caret, or null when the
-// selection isn't a collapsed caret inside the field. Shared by lineBeforeCaret
-// (slices the current line) and caretCharOffset (takes its length).
+// Raw text from the field start to a collapsed caret — chip labels and the ZWSP
+// caret anchors included — or null when the selection isn't a collapsed caret
+// inside the field. Backs caretCharOffset, whose length must pair 1:1 with the raw
+// DOM characters placeCaretAtCharOffset walks, so this deliberately keeps the
+// residue lineBeforeCaret strips.
 function caretPrefixText(root: HTMLElement): string | null {
   const sel = window.getSelection();
   if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return null;
@@ -771,9 +768,84 @@ function caretPrefixText(root: HTMLElement): string | null {
   return pre.toString();
 }
 
+// A chip's stand-in on a computed line: one object-replacement char — a non-space
+// boundary that lets an "@" typed right after a chip trigger the mention menu (see
+// MENTION_TRIGGER) yet still suppress the start-anchored slash menu, without
+// dragging in the chip's "Image N" label. It's in STRAY_CHARS_RE, so real typed
+// text can never contain one, and lineBeforeCaret adds it directly (not via a text
+// node), so the strip that clears residue leaves it intact.
+const LINE_CHIP_PLACEHOLDER = "￼";
+
+// The caret's line — from the last break up to a collapsed caret — which the
+// slash- and mention-triggers inspect. Null unless the selection is a collapsed
+// caret inside the field.
+//
+// This can't lean on caretPrefixText's Range.toString(): that string (1) folds in
+// a chip's inner "Image N" label and the invisible ZWSP anchor parked after a
+// chip, and (2) emits no "\n" for a <br> or a block-wrapper boundary — so for
+// [chip]<br>"@" it collapses to the single line "Image 1​@", where neither the
+// mention nor the slash trigger fires. Instead we walk the DOM in document order
+// with serializeEditor's rules but stop at the caret: text nodes minus stray
+// residue, each chip as one LINE_CHIP_PLACEHOLDER, <br> and block wrappers as
+// "\n", data-cmd spans descended inline. The line is what follows the last "\n".
 export function lineBeforeCaret(root: HTMLElement): string | null {
-  const text = caretPrefixText(root);
-  return text === null ? null : text.slice(text.lastIndexOf("\n") + 1);
+  const sel = window.getSelection();
+  if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return null;
+  const r = sel.getRangeAt(0);
+  const caretNode = r.endContainer;
+  const caretOffset = r.endOffset;
+  if (!root.contains(caretNode)) return null;
+
+  let out = "";
+  let done = false;
+  const visit = (parent: Node) => {
+    const children = Array.from(parent.childNodes);
+    for (let idx = 0; idx < children.length; idx++) {
+      // Caret in an element container sits before child `caretOffset`: emit the
+      // children ahead of it, then stop.
+      if (parent === caretNode && idx >= caretOffset) {
+        done = true;
+        return;
+      }
+      const node = children[idx];
+      if (node === caretNode && caretNode.nodeType === Node.TEXT_NODE) {
+        out += (caretNode.nodeValue ?? "")
+          .slice(0, caretOffset)
+          .replace(STRAY_CHARS_RE, "");
+        done = true;
+        return;
+      }
+      if (node.nodeType === Node.TEXT_NODE) {
+        out += (node.nodeValue ?? "").replace(STRAY_CHARS_RE, "");
+        continue;
+      }
+      if (!(node instanceof HTMLElement)) continue;
+      if (node.dataset.img) {
+        out += LINE_CHIP_PLACEHOLDER;
+        continue;
+      }
+      if (node.tagName === "BR") {
+        const isTrailingPad = parent === root && idx === children.length - 1;
+        if (!isTrailingPad) out += "\n";
+        continue;
+      }
+      if (node.dataset.cmd !== undefined) {
+        visit(node);
+        if (done) return;
+        continue;
+      }
+      if (out.length && !out.endsWith("\n")) out += "\n";
+      visit(node);
+      if (done) return;
+    }
+    // Caret at the very end of this element container (offset === child count):
+    // the loop exhausts without hitting the idx guard, but nothing after this
+    // parent precedes the caret either.
+    if (parent === caretNode) done = true;
+  };
+  visit(root);
+
+  return out.slice(out.lastIndexOf("\n") + 1);
 }
 
 // Replace the "/<frag>" preceding the caret on the current line with "/<name> ",
