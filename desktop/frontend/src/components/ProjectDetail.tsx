@@ -47,7 +47,7 @@ import {
 import { useAppStore } from "../store/app";
 import { loadLevelMap, levelOf as levelOfMap, type LevelMap } from "../actionLevels";
 import { type StructuralOp, structuralSubject } from "../actionsGesture";
-import { findActionByPath } from "../actionTree";
+import { findActionByPath, resolveRunnableAction } from "../actionTree";
 import { findParentProject, projectDisplayName } from "./ProjectNameDisplay";
 import {
   isFooterDisplay,
@@ -171,21 +171,24 @@ export function ProjectDetail({
     visible && !actionWizardOpen,
   );
 
-  // "Bulk Duplicate" queues tasks (actions or ad-hoc commands) to run on each
-  // fresh copy; this detail stays mounted (App keeps every visited project
-  // alive) even while hidden, so the tasks launch in the background. Fire once
-  // per mount.
+  // Queued tasks (actions or ad-hoc commands) to run in this project: "Bulk
+  // Duplicate" fans them across fresh copies, and the CLI / mobile `run` relay
+  // queues them into an already-open project. This detail stays mounted (App
+  // keeps every visited project alive) even while hidden, so tasks launch in the
+  // background. Run once per `nonce` (a fresh queue bumps it) with a ref latch so
+  // StrictMode's double-invoke doesn't spawn twice.
   const spawnTasks = useAppStore((s) => s.spawnTasks[project.name]);
   const consumeSpawnTasks = useAppStore((s) => s.consumeSpawnTasks);
-  const spawnConsumed = useRef(false);
+  const spawnConsumed = useRef(0);
   useEffect(() => {
-    if (spawnConsumed.current || !spawnTasks?.length) return;
+    if (!spawnTasks?.tasks.length || spawnConsumed.current === spawnTasks.nonce)
+      return;
     const actions = project.actions ?? [];
-    const needsActions = spawnTasks.some((t) => t.kind === "action");
+    const needsActions = spawnTasks.tasks.some((t) => t.kind === "action");
     if (needsActions && actions.length === 0) return;
-    spawnConsumed.current = true;
+    spawnConsumed.current = spawnTasks.nonce;
     consumeSpawnTasks(project.name);
-    for (const task of spawnTasks) {
+    for (const task of spawnTasks.tasks) {
       if (task.kind === "command") {
         switchDetailView("terminal");
         terminalRef.current?.createTerminalWithCmd(
@@ -194,8 +197,12 @@ export function ProjectDetail({
           { prompt: task.prompt },
         );
       } else {
-        const action = findActionByPath(actions, task.actionName);
+        const action = resolveRunnableAction(actions, task.actionName);
         if (action) handleRunAction(action, { prompt: task.prompt });
+        else
+          toast.error(
+            `Couldn't run "${task.actionName}" in ${project.name} — no matching action.`,
+          );
       }
     }
   }, [spawnTasks, project.actions, project.name, consumeSpawnTasks, handleRunAction, switchDetailView]);
@@ -221,8 +228,12 @@ export function ProjectDetail({
     clearPendingRemoteAction();
     switchDetailView("terminal");
     if (action) {
-      const found = findActionByPath(project.actions ?? [], action);
+      const found = resolveRunnableAction(project.actions ?? [], action);
       if (found) handleRunAction(found);
+      else
+        toast.error(
+          `Couldn't run "${action}" in ${project.name} — no matching action.`,
+        );
     } else {
       terminalRef.current?.createTerminal();
     }

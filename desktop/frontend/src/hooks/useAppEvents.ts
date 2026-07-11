@@ -59,9 +59,13 @@ export function useAppEvents(): void {
     // spawnTasks and mount the copy, exactly like bulkDuplicate does.
     const cancelRemoteRunTask = EventsOn(
       "remote-run-task",
-      (payload: { project: string; task?: SpawnTask | null }) => {
+      (payload: { project: string; task?: SpawnTask | null; select?: boolean }) => {
         if (payload?.project && payload?.task) {
-          useAppStore.getState().queueSpawnTask(payload.project, payload.task);
+          const store = useAppStore.getState();
+          // A freshly-duplicated copy is flagged for selection so its detail
+          // mounts and the queued task fires without a manual click.
+          if (payload.select) store.selectProject(payload.project);
+          store.queueSpawnTask(payload.project, payload.task);
         }
       },
     );

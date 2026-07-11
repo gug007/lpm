@@ -265,8 +265,14 @@ fn cmd_duplicate_project(line: &str, app: &AppHandle, w: &mut impl Write) -> std
     };
     if let Some(task) = run_task {
         if app.get_webview_window("main").is_some() {
-            for copy in &created {
-                let _ = app.emit("remote-run-task", serde_json::json!({ "project": copy, "task": task }));
+            // Select the first copy so its ProjectDetail mounts and the queued
+            // action actually fires — otherwise the task sits queued until the
+            // user clicks the copy (unlike the in-app duplicate, which selects).
+            for (i, copy) in created.iter().enumerate() {
+                let _ = app.emit(
+                    "remote-run-task",
+                    serde_json::json!({ "project": copy, "task": task, "select": i == 0 }),
+                );
             }
         } else {
             warning = Some(

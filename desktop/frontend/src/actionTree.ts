@@ -1,5 +1,5 @@
 import type { ActionInfo } from "./types";
-import { splitChild } from "./actionIds";
+import { splitChild, leafKey } from "./actionIds";
 
 // An action that can run unattended on a fresh copy: it has its own command and
 // never pauses for per-run input or a confirmation. Split-button parents qualify
@@ -57,6 +57,27 @@ export function findActionByPath(
     level = node.children ?? [];
   }
   return found;
+}
+
+// Resolve an action for a run request (spawn task / remote run). First tries the
+// exact composite id (`parent:child`). If that misses and the id carries no
+// separator, falls back to a unique leaf-key match anywhere in the tree — CLI
+// and remote callers routinely pass the bare leaf name (`--run claude`) for a
+// nested action whose real id is `claude-max:claude`, and we'd rather run it than
+// silently drop the task. Returns null when nothing matches, or when a bare name
+// is ambiguous across more than one leaf.
+export function resolveRunnableAction(
+  actions: ActionInfo[],
+  id: string,
+): ActionInfo | null {
+  const direct = findActionByPath(actions, id);
+  if (direct) return direct;
+  if (id.includes(":")) return null;
+  const matches: ActionInfo[] = [];
+  forEachAction(actions, (a) => {
+    if (leafKey(a.name) === id) matches.push(a);
+  });
+  return matches.length === 1 ? matches[0] : null;
 }
 
 export function menuChildOrderFor(

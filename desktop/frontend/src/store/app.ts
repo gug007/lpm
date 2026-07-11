@@ -127,9 +127,11 @@ interface AppState {
   duplicatingNames: string[];
   removingNames: Set<string>;
   // Per-project queue of tasks (actions or ad-hoc commands) to auto-run once
-  // the freshly created copy's detail mounts. Used by "Bulk Duplicate" to fan
-  // work across every new copy without the user opening each one.
-  spawnTasks: Record<string, SpawnTask[]>;
+  // the project's detail mounts. Seeded by "Bulk Duplicate" (fan work across
+  // every new copy) and by the CLI / mobile `run` relay. `nonce` is monotonic
+  // so an already-mounted detail re-fires on a fresh queue instead of latching
+  // once per mount.
+  spawnTasks: Record<string, { tasks: SpawnTask[]; nonce: number }>;
   addProjectPickerOpen: boolean;
   sshModalOpen: boolean;
   addingSSHProject: boolean;
@@ -515,6 +517,11 @@ async function runProjectRemoval(
 // derived nonce would restart at 1 and match the consumer's already-consumed
 // latch — silently dropping every request after the first.
 let remoteRequestNonce = 0;
+
+// Monotonic id for queued spawn tasks. Kept separate from the pending slot so a
+// consumed-then-recreated entry never restarts below the consumer's latch and
+// gets silently dropped — the same hazard `remoteRequestNonce` guards against.
+let spawnTaskNonce = 0;
 
 const projectsByName = (projects: ProjectInfo[]): Map<string, ProjectInfo> =>
   new Map(projects.map((p) => [p.name, p]));
@@ -959,7 +966,12 @@ export const useAppStore = create<AppState>((set, get) => ({
         created.push(copyName);
         const tasks = tasksPerCopy[i] ?? [];
         if (tasks.length > 0) {
-          set((s) => ({ spawnTasks: { ...s.spawnTasks, [copyName]: tasks } }));
+          set((s) => ({
+            spawnTasks: {
+              ...s.spawnTasks,
+              [copyName]: { tasks, nonce: ++spawnTaskNonce },
+            },
+          }));
         }
         await get().refreshProjects();
         get().markVisited(copyName);
@@ -1022,9 +1034,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     }),
 
   // Queue a task to run in a project and mount it so the auto-run effect fires —
-  // the seam the mobile app uses to run a task in a freshly-created duplicate.
+  // the seam the CLI and mobile app use to run a task in a project (fresh copy or
+  // already open). Appends when a prior queue hasn't been consumed yet so a
+  // second `run` before the effect drains isn't lost; consuming clears the entry.
   queueSpawnTask: (name, task) => {
-    set((s) => ({ spawnTasks: { ...s.spawnTasks, [name]: [task] } }));
+    set((s) => {
+      const existing = s.spawnTasks[name];
+      const tasks = existing ? [...existing.tasks, task] : [task];
+      return {
+        spawnTasks: { ...s.spawnTasks, [name]: { tasks, nonce: ++spawnTaskNonce } },
+      };
+    });
     get().markVisited(name);
   },
 
