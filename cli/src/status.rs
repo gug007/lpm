@@ -5,7 +5,7 @@
 use crate::config::{self, Ctx};
 use crate::error::{resolve_error, RunError};
 use crate::statussock::{self, StatusEntry};
-use crate::style::Style;
+use crate::style::{status_value, Style};
 use crate::util::{now_millis, print_json, relative};
 use serde_json::{json, Value};
 use std::io::IsTerminal;
@@ -77,16 +77,6 @@ fn render_json(groups: &[(String, Vec<StatusEntry>)]) -> Value {
         })
         .collect();
     json!({ "appReachable": true, "projects": projects })
-}
-
-fn status_value(s: &Style, value: &str) -> String {
-    match value {
-        "Running" => s.blue(value),
-        "Waiting" => s.yellow(value),
-        "Done" => s.green(value),
-        "Error" => s.red(value),
-        other => other.to_string(),
-    }
 }
 
 fn render_human(s: &Style, groups: &[(String, Vec<StatusEntry>)]) -> String {

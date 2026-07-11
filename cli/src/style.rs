@@ -37,3 +37,15 @@ impl Style {
         self.paint("34", s)
     }
 }
+
+/// Color an agent-status value with its canonical color; unknown values pass
+/// through unstyled.
+pub fn status_value(s: &Style, value: &str) -> String {
+    match value {
+        "Running" => s.blue(value),
+        "Waiting" => s.yellow(value),
+        "Done" => s.green(value),
+        "Error" => s.red(value),
+        other => other.to_string(),
+    }
+}

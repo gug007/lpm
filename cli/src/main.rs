@@ -50,7 +50,8 @@ control projects — start, stop, restart services, set agent status — by aski
 app over that socket (so the app stays the single owner of run-state).\n\n\
 Read commands: `list`, `project`, `logs`, `status`. Control commands (need the app running): \
 `start`, `stop`, `service`, `set-status`, `clear-status`, `duplicate`, `remove`, `run`. \
-`wait` polls client-side. Inside an lpm terminal or a project directory the project name \
+`wait` polls client-side, except its `--agent` mode which queries the app. Inside an lpm \
+terminal or a project directory the project name \
 may be omitted — it is inferred from LPM_PROJECT_NAME or the current directory.\n\n\
 Subcommands are agent-friendly: pass --json for stable machine-readable output. Errors go \
 to stderr; exit codes are 0 (ok), 2 (usage / not found / app not running), 1 (internal / \
@@ -138,7 +139,7 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Wait (client-side poll) until a project / service / port is ready.
+    /// Wait until a project / service / port is ready, or its agents settle.
     Wait {
         /// Project stem, `name:` field, or unambiguous prefix. Omit to infer it.
         name: Option<String>,
@@ -148,6 +149,9 @@ enum Commands {
         /// Wait for this TCP port to be listening (needs no project).
         #[arg(long, conflicts_with = "service")]
         port: Option<i64>,
+        /// Wait until the project's AI agents settle (needs the app running).
+        #[arg(long, conflicts_with_all = ["service", "port"])]
+        agent: bool,
         /// Give up after this many seconds (1..=3600).
         #[arg(long, default_value_t = 60)]
         timeout: i64,
@@ -281,6 +285,7 @@ fn main() -> ExitCode {
             name,
             service,
             port,
+            agent,
             timeout,
             json,
         } => wait::run(
@@ -288,6 +293,7 @@ fn main() -> ExitCode {
             name.as_deref(),
             service.as_deref(),
             port,
+            agent,
             timeout,
             json,
         ),

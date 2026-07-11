@@ -20,8 +20,8 @@ description: "Control dev projects managed by the lpm app via the `lpm` command:
 - `lpm status [project]` — live agent statuses (Running/Waiting/Done/Error).
 - `lpm start [project] [--profile X]` / `lpm stop [project]` — start / stop a project's services.
 - `lpm service <name> start|stop|restart [-p proj]` — one service.
-- `lpm wait [project] [--service X | --port N] [--timeout 60]` — block until ready.
-- `lpm duplicate [project] [-n N] [--group X] [--run ACTION | --command CMD] [--prompt TEXT]` — clone into parallel copies.
+- `lpm wait [project] [--service X | --port N | --agent] [--timeout 60]` — block until ready; `--agent` waits for the project's agents to settle.
+- `lpm duplicate [project] [-n N] [--group X] [--run ACTION | --command CMD] [--prompt TEXT]` — clone into parallel copies; output lists each copy's path.
 - `lpm remove <copy-name>` — duplicates only; originals need `--force` (don't use `--force` unless the user explicitly asks).
 - `lpm run [action | --command CMD] [--prompt TEXT] [-p proj]` — queue in a new app terminal, fire-and-forget.
 - `lpm set-status <key> <value>` / `lpm clear-status <key>` — report status to the app UI.
@@ -29,11 +29,12 @@ description: "Control dev projects managed by the lpm app via the `lpm` command:
 ### Token rules
 
 - After `lpm start`, use `lpm wait` — never a sleep or poll loop.
+- After queueing agent work, use `lpm wait --agent -p <copy> --timeout N` instead of polling `lpm status` in a loop.
 - Read logs with a small `-n` first (e.g. `-n 30`); increase only if needed.
 - Errors already name the fix — unknown project/service errors list the valid names. Read the error before retrying.
 
 ### Fan-out (parallel agents)
 
-`lpm duplicate -n 3 --run <action> --prompt "..."` clones the project into 3 auto-named copies and queues the task in each. Watch progress with `lpm status`, then clean up each copy with `lpm remove <copy>`.
+`lpm duplicate -n 3 --run <action> --prompt "..."` clones the project into 3 auto-named copies and queues the task in each. Then, per copy: `lpm wait --agent -p <copy>` until it settles, review its work at the printed path (e.g. `git diff` there), and `lpm remove <copy>`.
 
 To create or edit project configs (services/actions/YAML), use the `lpm-config` skill.

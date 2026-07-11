@@ -8,7 +8,13 @@ vi.mock("./terminal-utils", () => ({
   ansiColors: { brightBlue: "#5c9dff" },
 }));
 
-import { caretCharOffset, lineBeforeCaret } from "./composerEditor";
+import {
+  caretCharOffset,
+  caretOffsetInSerialized,
+  graphemeCount,
+  lineBeforeCaret,
+  placeCaretAtSerializedOffset,
+} from "./composerEditor";
 import { MENTION_TRIGGER } from "../mentions";
 
 const ZWSP = "​";
@@ -173,5 +179,94 @@ describe("caretCharOffset (unchanged raw-char pairing)", () => {
 
     // "Image 1" (7) + ZWSP (1) + "ab" (2) = 10 raw chars up to the caret.
     expect(caretCharOffset(root)).toBe("Image 1".length + 1 + 2);
+  });
+});
+
+describe("caretOffsetInSerialized", () => {
+  it("counts a <br> line break as one '\\n'", () => {
+    const root = editor();
+    const line2 = document.createTextNode("bar");
+    root.append(document.createTextNode("foo"), br(), line2);
+    caretAt(line2, 3);
+
+    // "foo" (3) + "\n" (1) + "bar" (3) = 7.
+    expect(caretOffsetInSerialized(root)).toBe(7);
+  });
+
+  it("counts each chip as its full '[Image #N]' token width", () => {
+    const root = editor();
+    const after = document.createTextNode("b");
+    root.append(document.createTextNode("a"), chip(1), after);
+    caretAt(after, 0);
+
+    // "a" (1) + "[Image #1]" (10) = 11.
+    expect(caretOffsetInSerialized(root)).toBe(1 + "[Image #1]".length);
+  });
+
+  it("returns null when the selection is not a collapsed caret in the field", () => {
+    const root = editor();
+    root.append(document.createTextNode("hi"));
+    window.getSelection()!.removeAllRanges();
+    expect(caretOffsetInSerialized(root)).toBeNull();
+  });
+});
+
+describe("placeCaretAtSerializedOffset", () => {
+  // The rebuilt DOM applyUndoSnapshot restores from: literal-"\n" text runs plus
+  // atomic chips. Round-trip an offset by seating the caret, then reading it back.
+  it("round-trips a multi-line offset (breaks counted)", () => {
+    const root = editor();
+    root.append(document.createTextNode("foo\nbar"));
+
+    placeCaretAtSerializedOffset(root, 5);
+    expect(caretOffsetInSerialized(root)).toBe(5);
+
+    placeCaretAtSerializedOffset(root, 7);
+    expect(caretOffsetInSerialized(root)).toBe(7);
+  });
+
+  it("round-trips an offset landing on a chip boundary", () => {
+    const root = editor();
+    root.append(document.createTextNode("a"), chip(1), document.createTextNode("b"));
+
+    // Right after the chip: "a" (1) + "[Image #1]" (10) = 11.
+    placeCaretAtSerializedOffset(root, 11);
+    expect(caretOffsetInSerialized(root)).toBe(11);
+  });
+
+  it("seats the caret after the chip when the offset falls inside its token", () => {
+    const root = editor();
+    root.append(document.createTextNode("a"), chip(1), document.createTextNode("b"));
+
+    // Offset 5 sits inside "[Image #1]" (serialized range 1..11); the caret can
+    // only go after the atomic chip, i.e. the token's end offset 11.
+    placeCaretAtSerializedOffset(root, 5);
+    expect(caretOffsetInSerialized(root)).toBe(11);
+  });
+
+  it("seats the caret before a leading chip at offset 0", () => {
+    const root = editor();
+    root.append(chip(1), document.createTextNode("x"));
+
+    placeCaretAtSerializedOffset(root, 0);
+    expect(caretOffsetInSerialized(root)).toBe(0);
+  });
+});
+
+describe("graphemeCount", () => {
+  it("counts plain ASCII as code units", () => {
+    expect(graphemeCount("abc")).toBe(3);
+    expect(graphemeCount("")).toBe(0);
+  });
+
+  it("counts a surrogate-pair emoji as one grapheme", () => {
+    // "@🎉x" is 4 UTF-16 code units but 3 graphemes.
+    expect("@🎉x".length).toBe(4);
+    expect(graphemeCount("@🎉x")).toBe(3);
+  });
+
+  it("counts a base + combining mark as one grapheme", () => {
+    // "e" + U+0301 combining acute accent.
+    expect(graphemeCount("é")).toBe(1);
   });
 });

@@ -23,12 +23,15 @@ interface BranchEntry {
 
 // Sources the "@" autocomplete: the live project list (projects + duplicates),
 // the target project's running services, and the composer's own terminal — all
-// read from in-memory state — a one-shot listing of the terminal's working dir,
-// and, when the cwd is a git repo, its working-tree changes and branches. Files
-// and branches are fetched once per cwd and cached for the hook's lifetime so
-// filtering as the user types never hits the backend; the changed-file set is
-// re-read whenever the field regains focus since it tracks the working tree. The
-// backend-backed sources are gated by `active` (the composer is focused), so a
+// read from in-memory state — a listing of the terminal's working dir, and, when
+// the cwd is a git repo, its working-tree changes and branches. The backend-backed
+// sources are re-read each time the editor regains focus (via the returned
+// `refresh`), so files, branches, and working-tree changes edited outside the app
+// surface without remounting the tab; files and branches keep their previous list
+// until the fresh one lands (no flicker to empty) while the changed-file set,
+// which tracks the working tree most closely, is always re-read. A per-cwd cache
+// seeds the initial list on activation so a first "@" never waits on the backend.
+// Every backend source is gated by `active` (the composer is focused), so a
 // background composer never pays for the walk or a git call.
 export function useMentions(
   cwd: string,
@@ -47,76 +50,114 @@ export function useMentions(
   const [branches, setBranches] = useState<MentionItem[]>([]);
   const fileCache = useRef(new Map<string, MentionItem[]>());
   const branchCache = useRef(new Map<string, MentionItem[]>());
+  // Bumped on every cwd/active change; a fetch tags itself with the value live
+  // when it started and drops its result once the stamp has moved on (the
+  // successor to the old `cancelled` cleanup flag, but one that also invalidates
+  // in-flight fetches across a `refresh`). A refresh reuses the current stamp, so
+  // a fetch already running for this cwd stays valid.
+  const generation = useRef(0);
+  // Per-source in-flight guard, holding the generation a fetch is running for (or
+  // null). A refresh coalesces against a fetch already running for the same
+  // generation; a fetch for a superseded generation is left to drop on its own.
+  const filesInFlight = useRef<number | null>(null);
+  const branchesInFlight = useRef<number | null>(null);
+  const changedInFlight = useRef<number | null>(null);
+
+  const loadFiles = useCallback((dir: string, gen: number) => {
+    if (filesInFlight.current === gen) return;
+    filesInFlight.current = gen;
+    void (async () => {
+      try {
+        const list = (await ListDirFiles(dir)) as DirFileEntry[];
+        if (generation.current !== gen) return;
+        const items: MentionItem[] = list.map((e) => ({
+          kind: e.isDir ? "dir" : "file",
+          label: e.path,
+          insert: e.path,
+        }));
+        fileCache.current.set(dir, items);
+        setFiles(items);
+      } catch {
+        // Keep the previous list rather than flickering the menu to empty.
+      } finally {
+        if (filesInFlight.current === gen) filesInFlight.current = null;
+      }
+    })();
+  }, []);
+
+  const loadBranches = useCallback((dir: string, gen: number) => {
+    if (branchesInFlight.current === gen) return;
+    branchesInFlight.current = gen;
+    void (async () => {
+      try {
+        const list = (await ListBranches(dir)) as BranchEntry[];
+        if (generation.current !== gen) return;
+        const seen = new Set<string>();
+        const items: MentionItem[] = [];
+        for (const b of list) {
+          if (seen.has(b.name)) continue;
+          seen.add(b.name);
+          items.push({ kind: "branch", label: b.name, insert: b.name });
+        }
+        branchCache.current.set(dir, items);
+        setBranches(items);
+      } catch {
+        // Keep the previous list rather than flickering the menu to empty.
+      } finally {
+        if (branchesInFlight.current === gen) branchesInFlight.current = null;
+      }
+    })();
+  }, []);
+
+  const loadChanged = useCallback((dir: string, gen: number) => {
+    if (changedInFlight.current === gen) return;
+    changedInFlight.current = gen;
+    void (async () => {
+      try {
+        const list = (await GitChangedFiles(dir)) as ChangedFileEntry[];
+        if (generation.current !== gen) return;
+        setChanged(list.map((e) => ({ kind: "changed", label: e.path, insert: e.path })));
+      } catch {
+        if (generation.current === gen) setChanged([]);
+      } finally {
+        if (changedInFlight.current === gen) changedInFlight.current = null;
+      }
+    })();
+  }, []);
 
   useEffect(() => {
+    generation.current += 1;
+    const gen = generation.current;
     if (!active || !cwd) {
       setFiles([]);
       setChanged([]);
       setBranches([]);
       return;
     }
-    // `cancelled` (flipped by the cleanup on any cwd/active change) guards a slow
-    // call resolving after it's stale.
-    let cancelled = false;
-
     const cachedFiles = fileCache.current.get(cwd);
-    if (cachedFiles) {
-      setFiles(cachedFiles);
-    } else {
-      void (async () => {
-        try {
-          const list = (await ListDirFiles(cwd)) as DirFileEntry[];
-          if (cancelled) return;
-          const items: MentionItem[] = list.map((e) => ({
-            kind: e.isDir ? "dir" : "file",
-            label: e.path,
-            insert: e.path,
-          }));
-          fileCache.current.set(cwd, items);
-          setFiles(items);
-        } catch {
-          if (!cancelled) setFiles([]);
-        }
-      })();
-    }
-
+    if (cachedFiles) setFiles(cachedFiles);
+    else loadFiles(cwd, gen);
     const cachedBranches = branchCache.current.get(cwd);
-    if (cachedBranches) {
-      setBranches(cachedBranches);
-    } else {
-      void (async () => {
-        try {
-          const list = (await ListBranches(cwd)) as BranchEntry[];
-          if (cancelled) return;
-          const seen = new Set<string>();
-          const items: MentionItem[] = [];
-          for (const b of list) {
-            if (seen.has(b.name)) continue;
-            seen.add(b.name);
-            items.push({ kind: "branch", label: b.name, insert: b.name });
-          }
-          branchCache.current.set(cwd, items);
-          setBranches(items);
-        } catch {
-          if (!cancelled) setBranches([]);
-        }
-      })();
-    }
-
-    void (async () => {
-      try {
-        const list = (await GitChangedFiles(cwd)) as ChangedFileEntry[];
-        if (cancelled) return;
-        setChanged(list.map((e) => ({ kind: "changed", label: e.path, insert: e.path })));
-      } catch {
-        if (!cancelled) setChanged([]);
-      }
-    })();
-
+    if (cachedBranches) setBranches(cachedBranches);
+    else loadBranches(cwd, gen);
+    loadChanged(cwd, gen);
+    // Bump the stamp on unmount too, so a fetch still in flight then drops its
+    // result instead of setting state on a gone component.
     return () => {
-      cancelled = true;
+      generation.current += 1;
     };
-  }, [cwd, active]);
+  }, [cwd, active, loadFiles, loadBranches, loadChanged]);
+
+  // Re-read the backend sources on demand (the editor regaining focus). Reuses
+  // the current generation so a fetch already running for this cwd is not
+  // duplicated, and keeps the shown lists in place until fresh data replaces them.
+  const refresh = useCallback(() => {
+    if (!active || !cwd) return;
+    const gen = generation.current;
+    loadChanged(cwd, gen);
+    loadFiles(cwd, gen);
+    loadBranches(cwd, gen);
+  }, [active, cwd, loadChanged, loadFiles, loadBranches]);
 
   const projectItems = useMemo<MentionItem[]>(() => {
     const present = new Set(projects.map((p) => p.name));
@@ -187,5 +228,5 @@ export function useMentions(
     [basePool, fullPool],
   );
 
-  return { filter };
+  return { filter, refresh };
 }

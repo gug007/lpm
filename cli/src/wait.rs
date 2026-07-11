@@ -1,15 +1,24 @@
-//! `lpm wait [project] [--service <name>] [--port <n>] [--timeout <secs>]` —
-//! block until a project / service / port is ready. Pure client-side polling
-//! (250ms), the one control verb that never involves the app.
+//! `lpm wait [project] [--service <name>] [--port <n>] [--agent] [--timeout <secs>]` —
+//! block until a project / service / port is ready, or (with `--agent`) until the
+//! project's AI agents settle. The port/service/ready modes poll client-side
+//! (250ms) and never touch the app; `--agent` instead polls the running app's
+//! status socket (1s), so it requires the app to be reachable.
 
 use crate::config::{self, Ctx};
+use crate::control;
 use crate::error::{resolve_or_infer, RunError};
 use crate::service::{port_listening, service_status};
+use crate::statussock::{self, StatusEntry};
+use crate::style::{status_value, Style};
 use crate::tmux;
-use serde_json::json;
+use serde_json::{json, Value};
+use std::io::IsTerminal;
 use std::time::{Duration, Instant};
 
 const POLL_INTERVAL: Duration = Duration::from_millis(250);
+/// Polling the app socket is more expensive than a local port check, so the
+/// agent mode uses a gentler cadence.
+const AGENT_POLL_INTERVAL: Duration = Duration::from_secs(1);
 const MAX_TIMEOUT: i64 = 3600;
 
 /// What the poll loop watches. Built once, then probed each tick.
@@ -90,14 +99,21 @@ fn select_target(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     ctx: &Ctx,
     project: Option<&str>,
     service: Option<&str>,
     port: Option<i64>,
+    agent: bool,
     timeout: i64,
     as_json: bool,
 ) -> Result<(), RunError> {
+    let timeout = timeout.clamp(1, MAX_TIMEOUT);
+    if agent {
+        return run_agent(ctx, project, timeout, as_json);
+    }
+
     // A bare `--port` wait needs no project; other modes resolve one.
     let (session, services): (String, Vec<(String, i64)>) = if port.is_some() {
         (String::new(), Vec::new())
@@ -110,7 +126,6 @@ pub fn run(
     };
 
     let target = select_target(port, service, &session, &services).map_err(RunError::NotFound)?;
-    let timeout = timeout.clamp(1, MAX_TIMEOUT);
     let deadline = Duration::from_secs(timeout as u64);
     let start = Instant::now();
 
@@ -138,9 +153,119 @@ pub fn run(
     }
 }
 
+/// Whether the project's agents have settled: at least one status has reported
+/// and none is still `Running`. An empty list means the queued agent hasn't
+/// started/reported yet, so it is not yet settled. Pure and unit-tested.
+fn agents_settled(entries: &[StatusEntry]) -> bool {
+    !entries.is_empty() && entries.iter().all(|e| e.value != "Running")
+}
+
+/// Compact per-entry JSON for the agent-mode success/timeout payloads.
+fn statuses_json(entries: &[StatusEntry]) -> Vec<Value> {
+    entries
+        .iter()
+        .map(|e| {
+            json!({
+                "key": e.key,
+                "value": e.value,
+                "paneID": e.pane_id,
+                "timestamp": e.timestamp,
+            })
+        })
+        .collect()
+}
+
+/// `--agent`: block until the project's AI agents settle. Unlike the other
+/// modes, agent statuses live only in the app, so this requires the app running
+/// and polls its status socket.
+fn run_agent(
+    ctx: &Ctx,
+    project: Option<&str>,
+    timeout: i64,
+    as_json: bool,
+) -> Result<(), RunError> {
+    control::require_app(ctx)?;
+    let file_name = resolve_or_infer(ctx, project)?;
+    let socket = ctx.socket_path();
+    let deadline = Duration::from_secs(timeout as u64);
+    let start = Instant::now();
+
+    loop {
+        // A transient socket failure (None) reads as "not settled yet" — keep
+        // polling rather than giving up early.
+        let entries = statussock::list_status(&socket, &file_name).unwrap_or_default();
+        if agents_settled(&entries) {
+            let ms = start.elapsed().as_millis() as u64;
+            if as_json {
+                crate::util::print_json(&json!({
+                    "ok": true,
+                    "elapsedMs": ms,
+                    "statuses": statuses_json(&entries),
+                }));
+            } else {
+                println!("agents settled after {:.1}s", start.elapsed().as_secs_f64());
+                let style = Style {
+                    on: std::io::stdout().is_terminal(),
+                };
+                for e in &entries {
+                    println!("  {}  {}", style.bold(&e.key), status_value(&style, &e.value));
+                }
+            }
+            return Ok(());
+        }
+        if start.elapsed() >= deadline {
+            let ms = start.elapsed().as_millis() as u64;
+            let waiting_for = format!("agents in {file_name:?} to settle");
+            if as_json {
+                crate::util::print_json(&json!({
+                    "ok": false,
+                    "elapsedMs": ms,
+                    "waitingFor": waiting_for,
+                    "statuses": statuses_json(&entries),
+                }));
+            }
+            return Err(RunError::Internal(format!(
+                "timed out after {timeout}s waiting for {waiting_for}"
+            )));
+        }
+        std::thread::sleep(AGENT_POLL_INTERVAL);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn entry(value: &str) -> StatusEntry {
+        StatusEntry {
+            key: "k".into(),
+            value: value.into(),
+            icon: String::new(),
+            color: String::new(),
+            priority: 0,
+            timestamp: 0,
+            agent_pid: 0,
+            pane_id: String::new(),
+        }
+    }
+
+    #[test]
+    fn agents_not_settled_when_empty() {
+        assert!(!agents_settled(&[]));
+    }
+
+    #[test]
+    fn agents_not_settled_while_any_running() {
+        let entries = [entry("Done"), entry("Running"), entry("Waiting")];
+        assert!(!agents_settled(&entries));
+    }
+
+    #[test]
+    fn agents_settled_when_all_terminal_or_waiting() {
+        assert!(agents_settled(&[entry("Done")]));
+        assert!(agents_settled(&[entry("Waiting"), entry("Error")]));
+        assert!(agents_settled(&[entry("Done"), entry("Done")]));
+    }
 
     fn svcs() -> Vec<(String, i64)> {
         vec![

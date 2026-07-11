@@ -50,8 +50,8 @@ import { Tooltip } from "./ui/Tooltip";
 import { basename } from "../path";
 import { composerPlaceholder, COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 import {
-  caretCharOffset,
   caretEdges,
+  caretOffsetInSerialized,
   chipAfterCaret,
   chipBeforeCaret,
   createImageChip,
@@ -62,8 +62,8 @@ import {
   lineBeforeCaret,
   normalizeComposer,
   payloadToItems,
-  placeCaretAtCharOffset,
   placeCaretAtEnd,
+  placeCaretAtSerializedOffset,
   placeCaretFromPoint,
   presentImageTokens,
   removeChip,
@@ -238,7 +238,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // "@" mentions work in every terminal composer, not just agent terminals — the
   // referenced text is useful to any CLI. They load only while the composer is
   // focused, so a background tab still pays nothing for the tree walk / git call.
-  const { filter: filterMentions } = useMentions(cwd, projectName, terminals, terminalId, focused);
+  const { filter: filterMentions, refresh: refreshMentions } = useMentions(cwd, projectName, terminals, terminalId, focused);
   const editorRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hoverChip = useRef<HTMLElement | null>(null);
@@ -917,7 +917,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     return {
       text: serializeEditor(editor),
       images: Object.fromEntries(imagePaths.current),
-      caret: caretCharOffset(editor),
+      caret: caretOffsetInSerialized(editor),
     };
   };
 
@@ -979,22 +979,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     const editor = editorRef.current;
     if (!editor) return;
     applyHistoryEntry(editor, { text: snap.text, images: snap.images });
-    if (snap.caret !== null) {
-      placeCaretAtCharOffset(editor, snap.caret);
-      // The offset counts a chip's label, so it can land the caret inside the
-      // non-editable chip; step it out to the chip's trailing edge.
-      const sel = window.getSelection();
-      const node = sel?.anchorNode ?? null;
-      const host = node?.nodeType === Node.TEXT_NODE ? node.parentElement : (node as Element | null);
-      const chip = host?.closest<HTMLElement>("[data-img]");
-      if (sel && chip) {
-        const range = document.createRange();
-        range.setStartAfter(chip);
-        range.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(range);
-      }
-    }
+    if (snap.caret !== null) placeCaretAtSerializedOffset(editor, snap.caret);
     highlightCommand(editor, isSlashCommand);
     setSlashOpen(false);
     setMentionOpen(false);
@@ -1426,7 +1411,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         setSlashIndex((i) => Math.max(0, i - 1));
         return;
       }
-      if (e.key === "Enter" || e.key === "Tab") {
+      // While an IME candidate is composing, Enter/Tab commits it — let the event
+      // fall through untouched (the send path gates itself the same way) instead
+      // of accepting a menu row and discarding the composition.
+      if ((e.key === "Enter" || e.key === "Tab") && !e.nativeEvent.isComposing) {
         e.preventDefault();
         e.stopPropagation();
         const cmd = slashItems[slashIndex];
@@ -1455,7 +1443,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         setMentionIndex((i) => Math.max(0, i - 1));
         return;
       }
-      if (e.key === "Enter" || e.key === "Tab") {
+      // See the slash menu above: don't hijack an IME-committing Enter/Tab.
+      if ((e.key === "Enter" || e.key === "Tab") && !e.nativeEvent.isComposing) {
         e.preventDefault();
         e.stopPropagation();
         const item = mentionItems[mentionIndex];
@@ -1715,6 +1704,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
             updateSlashMenu();
             updateMentionMenu();
             updateHint();
+          }}
+          onFocus={() => {
+            refreshMentions();
           }}
           onBlur={() => {
             setSlashOpen(false);

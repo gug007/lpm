@@ -947,7 +947,7 @@ export function replaceSlashFragment(root: HTMLElement, name: string): boolean {
   if (slash === -1) return false;
   const sel = window.getSelection();
   if (!sel || !sel.isCollapsed) return false;
-  const fragLen = line.length - slash; // "/" plus the typed fragment
+  const fragLen = graphemeCount(line.slice(slash)); // "/" plus the typed fragment
   for (let i = 0; i < fragLen; i++)
     sel.modify("extend", "backward", "character");
   document.execCommand("insertText", false, `/${name} `);
@@ -981,7 +981,7 @@ export function replaceMentionFragmentWith(
   if (at === -1) return false;
   const sel = window.getSelection();
   if (!sel || !sel.isCollapsed) return false;
-  const fragLen = line.length - at; // "@" plus the typed fragment
+  const fragLen = graphemeCount(line.slice(at)); // "@" plus the typed fragment
   for (let i = 0; i < fragLen; i++)
     sel.modify("extend", "backward", "character");
   document.execCommand("insertText", false, text);
