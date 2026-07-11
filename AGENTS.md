@@ -10,4 +10,5 @@ lpm starts, stops, duplicates, and switches between local dev projects, with a b
 - Do not add comments. Only comment when the purpose or reasoning is unclear from the code itself
 - macOS-only: don't add Windows/Linux code paths
 - For each react component use separate file
+- Bump `version` in `cli/Cargo.toml` whenever you change the CLI (`cli/`) — patch for fixes, minor for new commands/flags. It's the version `lpm --version` reports on local builds, so bumping it keeps a stale installed binary detectable
 - Never commit or push any changes
