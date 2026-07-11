@@ -29,6 +29,11 @@ const FAQS: QA[] = [
       "Every terminal inside lpm is tagged with the project it belongs to. The installed skill triggers whenever an agent sees it, so the agent automatically knows it can use the lpm CLI to drive that project — with no per-project setup.",
   },
   {
+    question: "Can I invoke the skill manually?",
+    answer:
+      "Yes. Type /lpm in Claude Code — or any agent that reads the skills directory — to load both lpm skills at once: project control and config editing. Useful in a terminal outside lpm, or whenever you want the skill in explicitly instead of waiting for the agent to pick it up.",
+  },
+  {
     question: "Can I run multiple AI agents in parallel on copies of a project?",
     answer:
       "Yes. lpm duplicate clones a project into real standalone copies (up to 50) and can queue the same agent and prompt in each. lpm wait --agent blocks on a copy until its agent finishes, and lpm remove cleans up the copies you do not keep.",
