@@ -59,25 +59,39 @@ export function findActionByPath(
   return found;
 }
 
-// Resolve an action for a run request (spawn task / remote run). First tries the
-// exact composite id (`parent:child`). If that misses and the id carries no
-// separator, falls back to a unique leaf-key match anywhere in the tree — CLI
-// and remote callers routinely pass the bare leaf name (`--run claude`) for a
-// nested action whose real id is `claude-max:claude`, and we'd rather run it than
-// silently drop the task. Returns null when nothing matches, or when a bare name
-// is ambiguous across more than one leaf.
+// Resolve an action for a run request (spawn task / remote run). Tries, in
+// order: the exact composite id (`parent:child`); a unique leaf-key match for a
+// bare name (CLI/remote callers pass `--run claude` for a nested action whose
+// real id is `claude-max:claude`); a unique case-insensitive match on the full
+// id or leaf key; and finally a unique case-insensitive match on the label (an
+// agent passing the display label "Claude" for id `claude-max:claude`). We'd
+// rather run it than silently drop the task. Returns null when nothing matches
+// or a fallback is ambiguous across more than one action.
 export function resolveRunnableAction(
   actions: ActionInfo[],
   id: string,
 ): ActionInfo | null {
   const direct = findActionByPath(actions, id);
   if (direct) return direct;
-  if (id.includes(":")) return null;
-  const matches: ActionInfo[] = [];
+  if (!id.includes(":")) {
+    const leafMatches: ActionInfo[] = [];
+    forEachAction(actions, (a) => {
+      if (leafKey(a.name) === id) leafMatches.push(a);
+    });
+    if (leafMatches.length === 1) return leafMatches[0];
+  }
+  const lower = id.toLowerCase();
+  const idMatches: ActionInfo[] = [];
   forEachAction(actions, (a) => {
-    if (leafKey(a.name) === id) matches.push(a);
+    if (a.name.toLowerCase() === lower || leafKey(a.name).toLowerCase() === lower)
+      idMatches.push(a);
   });
-  return matches.length === 1 ? matches[0] : null;
+  if (idMatches.length === 1) return idMatches[0];
+  const labelMatches: ActionInfo[] = [];
+  forEachAction(actions, (a) => {
+    if (a.label.toLowerCase() === lower) labelMatches.push(a);
+  });
+  return labelMatches.length === 1 ? labelMatches[0] : null;
 }
 
 export function menuChildOrderFor(

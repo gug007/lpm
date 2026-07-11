@@ -30,7 +30,7 @@ A project must have **either** `root` (local) **or** `ssh:` (remote), not both.
 | `label` | string | no | — | Display name shown in the UI (defaults to `name`). |
 | `parent_name` | string | no | — | Name of a parent project. Creates a **duplicate** that inherits all services, actions, terminals, and profiles from the parent. See [Duplicate Projects](#duplicate-projects). |
 | `ssh` | object | no | — | SSH connection settings — turns the project into a remote one. Services, actions, and terminals run on the host over a shared SSH ControlMaster connection. See [SSH Projects](#ssh-projects). |
-| `extends` | `[]string` | no | — | Templates / configs to layer underneath this project. Refs are bare names (resolved from `~/.lpm/templates/<name>.yml`), absolute paths, `~`-prefixed, or relative paths from this file. Earlier items in the list win on collision among the refs; this file overrides all of them. Cycles are rejected at load. See [Config Layering & Precedence](#config-layering--precedence). |
+| `extends` | `[]string` | no | — | Bare template names to layer underneath this project (resolved from `~/.lpm/templates/<name>.yml`). Contributes the templates' `actions`/`terminals` only. Earlier items in the list win on collision among the refs; this file overrides all of them. See [Templates](#templates-lpmtemplates) and [Config Layering & Precedence](#config-layering--precedence). |
 
 ---
 
@@ -53,27 +53,12 @@ services:
     cmd: go run .
     cwd: ./backend
     port: 8080
+    portConflict: ask
     env:
       DATABASE_URL: postgres://localhost/myapp
-    profiles:
-      - production
 ```
 
-### Sequence Form
-
-Services also accept a sequence (list) instead of a mapping. Each entry must include a `name` field. The map form is preferred; use the sequence form when ordering matters or when your YAML tooling prefers arrays.
-
-```yaml
-services:
-  - name: api
-    cmd: go run .
-    port: 8080
-  - name: frontend
-    cmd: npm run dev
-    port: 3000
-```
-
-Actions and terminals accept the same sequence form. See `decodeNamedMap` in `internal/config/config.go` for the exact loader behavior.
+`services`, `actions`, and `terminals` are all **maps** (keyed by name). There is no list/sequence form — a YAML sequence is not accepted.
 
 ### Fields
 
@@ -81,9 +66,11 @@ Actions and terminals accept the same sequence form. See `decodeNamedMap` in `in
 |-------|------|----------|---------|-------------|
 | `cmd` | string | yes | — | Shell command to run. Must be non-empty. |
 | `cwd` | string | no | `root` | Working directory. Relative paths resolve from `root`. Supports `~`. Must exist. |
-| `port` | int | no | — | Port the service listens on (0–65535). Must be unique across services. |
+| `port` | int | no | — | The **single** port the service listens on (0–65535). Must be unique across services. Feeds port forwarding, the service uniqueness check, and a start-time conflict probe. Unlike an action's `port`, it does not take a list or range. |
+| `portConflict` | string | no | `ask` | What to do when the service's `port` is busy at start: `ask` (prompt via the conflict picker), `free` (kill the holder), `fail` (refuse to start). |
 | `env` | map[string]string | no | — | Environment variables. |
-| `profiles` | []string | no | — | Profiles this service belongs to. |
+
+> To group services, use the project-level `profiles:` map (see [Profiles](#profiles)) — services do not carry a per-service `profiles` list.
 
 ---
 
@@ -287,6 +274,8 @@ Sub-actions inherit `cwd`, `env`, and `mode` from their parent, and inheritance 
 |-------|------|----------|---------|-------------|
 | `cmd` | string | yes* | — | Shell command to execute. Must be non-empty. *Not required if `actions` (sub-actions) is set. |
 | `label` | string | no | key name | Display name shown in the UI. |
+| `emoji` | string | no | — | Emoji icon shown on the button/tab, separate from `label`. |
+| `shortcut` | string | no | — | Global keyboard shortcut that triggers the action, e.g. `cmd+shift+b`. Must include `cmd` (or `ctrl`, treated as `cmd`) or `alt`/`opt` plus one key — plain keys are rejected so shortcuts never hijack typing. |
 | `cwd` | string | no | `root` | Working directory. Relative paths resolve from `root`. Supports `~`. Must exist. |
 | `env` | map[string]string | no | — | Environment variables injected into the command. |
 | `confirm` | bool | no | false | Prompt for confirmation before running. Use for destructive or irreversible commands. |
@@ -342,7 +331,7 @@ actions:
 - **`free`** — kill whatever holds the port and run.
 - **`fail`** — refuse to run while the port is busy.
 
-> Service `port:` is different — a service declares the **single** port it listens on (used for forwarding and uniqueness checks), so it takes one integer only, not lists or ranges.
+> Service `port:` is different — a service declares the **single** port it listens on (used for forwarding, uniqueness checks, and a start-time conflict probe), so it takes one integer only, not lists or ranges. A service also honors its own `portConflict` (`ask`/`free`/`fail`) for that probe.
 
 ### Input Fields
 
@@ -421,29 +410,7 @@ terminals:
 
 ### Fields
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `cmd` | string | yes | — | Shell command to launch. Must be non-empty. |
-| `label` | string | no | key name | Display name shown in the UI. |
-| `cwd` | string | no | `root` | Working directory. Relative paths resolve from `root`. Supports `~`. Must exist. |
-| `env` | map[string]string | no | — | Environment variables injected into the shell. |
-| `display` | string | no | `header` | UI placement: `header` (main button row, default) or `footer` (terminal footer strip). `menu` is still accepted (legacy) but no longer suggested. `button` is a deprecated alias for `header`. |
-| `confirm` | bool | no | false | Prompt before opening. |
-| `reuse` | bool | no | false | Reuse the existing pane on next launch. |
-| `port` | int \| string \| list | no | — | Port(s) that must be free before the terminal launches. Single port, inclusive range string (`"3002-3010"`), or a list mixing both. Busy ports are handled per `portConflict`. See [Ports & Conflicts](#ports--conflicts). |
-| `portConflict` | string | no | `ask` | What to do when a declared port is busy: `ask`, `free`, or `fail`. |
-| `position` | number | no | — | Sort key in the UI. Lower renders first. Floats allowed for easy insertion between existing entries. Default is alphabetical order. |
-| `inputs` | map[string]InputField | no | — | Named inputs prompted before opening. Values substitute `{{key}}` in `cmd`. |
-| `actions` | map[string]Action | no | — | Nested sub-actions. Makes this a split-button or dropdown — see Action Groups. |
-
-### Terminals are Actions under the hood
-
-The `terminals:` block is sugar for actions with `type: terminal` defaulted in. The Go loader (`internal/config/config.go` `TerminalMap`) decodes each entry as an `Action` and sets `type = "terminal"` when it is not set explicitly. That means terminals support the full action field set:
-
-- `confirm: true` — prompt before opening (e.g. for a REPL that touches production).
-- `reuse: true` — reuse the existing pane on next launch instead of opening a new one.
-- `inputs:` — prompt for values and substitute into `cmd` via `{{key}}`.
-- `actions:` — nested sub-actions (split-button or dropdown — see Action Groups below).
+The `terminals:` block is sugar for actions with `type: terminal` defaulted in — each entry is loaded as an action, and its `type` is set to `terminal` unless the entry sets `type` explicitly. Terminals therefore accept **the same fields as actions** (see the [Actions](#actions) field table), including `confirm` (prompt before opening), `reuse` (reuse the existing pane on next launch), `inputs`, nested `actions`, `port`/`portConflict`, `position`, `display`, `emoji`, and `shortcut`.
 
 Use `terminals:` when the intent is "persistent interactive shell". Drop a `type: terminal` entry into `actions:` when you want to mix one-shots and persistent shells together.
 
@@ -606,7 +573,7 @@ Location: `<project root>/.lpm.yml` — checked into the repo so teammates share
 
 **Does NOT support:** `name`, `root`, `parent_name`, `ssh` — identity stays in each teammate's personal project file at `~/.lpm/projects/<name>.yml`.
 
-Layered **under** personal project files and **over** `~/.lpm/global.yml`. See [Config Layering & Precedence](#config-layering--precedence).
+Layered **under** personal project files and **over** `~/.lpm/global.yml`. See [Config Layering & Precedence](#config-layering--precedence). Applies to **local projects only** — SSH projects have no local root, so no `.lpm.yml` is read for them.
 
 ### Example
 
@@ -654,35 +621,26 @@ actions:
 
 ## Templates (`~/.lpm/templates/`)
 
-Location: `~/.lpm/templates/<name>.yml` — reusable building blocks referenced by `extends:` from project, global, `.lpm.yml`, or other templates.
+Location: `~/.lpm/templates/<name>.yml` — reusable **action/terminal** building blocks, pulled in by `extends:`.
 
-**Schema:** identical to `.lpm.yml` — `extends`, `services`, `actions`, `terminals`, `profiles`. No identity fields.
+Reference a template by its **bare name** (no extension, no path): `extends: [web-stack]` resolves to `~/.lpm/templates/web-stack.yml` (or `.yaml`). The declaring layer wins over anything a template supplies.
 
-### Reference forms in `extends:`
-
-| Form | Example | Resolved as |
-|------|---------|-------------|
-| Bare name | `common-actions` | `~/.lpm/templates/common-actions.yml` |
-| Absolute path | `/etc/lpm/team.yml` | used as-is |
-| `~`-prefixed | `~/work/shared/lpm.yml` | `$HOME/work/shared/lpm.yml` |
-| Relative path | `./shared-deploy.yml` | resolved from the file containing the `extends` |
-
-Cycles are detected and rejected at load time. A missing template is a load-time error.
+**What `extends` currently merges:** only the template's `actions` and `terminals`. A template's `services` and `profiles` are **not** applied through `extends` — to share services with a team, put them directly in `<root>/.lpm.yml`, which is loaded as services (see [`.lpm.yml`](#lpmyml-repo-config)). Resolution is a single, non-recursive pass: `extends` works from a project, global, or `.lpm.yml` layer, but a template's own `extends` is not followed (no template-of-templates).
 
 ### Example
 
 `~/.lpm/templates/web-stack.yml`:
 
 ```yaml
-services:
-  redis: redis-server --port 6379
-
 actions:
   logs:
     cmd: tail -f log/development.log
     type: terminal
     reuse: true
     label: Logs
+
+terminals:
+  rails: rails console
 ```
 
 Referenced from a project:
@@ -692,7 +650,7 @@ Referenced from a project:
 name: myapp
 root: ~/work/myapp
 extends:
-  - web-stack
+  - web-stack        # bare name → ~/.lpm/templates/web-stack.yml
 ```
 
 ---
@@ -755,20 +713,11 @@ actions:
 - **Shorthand**: the command is self-explanatory, runs from root, needs no env vars or confirmation.
 - **Full form**: you need `cwd`, `env`, `confirm`, `display`, `type`, `reuse`, `mode`, `inputs`, or a human-friendly `label`.
 
-## Picking a `display` Value
-
-| Value | Where it shows | Use for |
-|-------|----------------|---------|
-| `header` (default) | Main button row in the project view | The default — anything you want one click away. Omit `display` to get this. |
-| `footer` | Strip at the bottom of the terminal pane, next to the branch switcher | Tight, always-one-click controls — quick-format, redeploy, run-tests. Footer entries render compact and accept split-buttons. |
-| `menu` *(legacy)* | Overflow `⋮` menu | Tucked away. Still accepted at runtime but no longer suggested by autocomplete; may be deprecated. |
-| `button` *(deprecated alias)* | — | Editor flags it as an error and asks you to switch to `header`. |
-
 ---
 
 ## Validation
 
-lpm validates config on load:
+Constraints a valid config must satisfy. lpm surfaces many of these as load-time errors; author to all of them regardless:
 
 1. The project has either `root` or `ssh:` (but not both). When `ssh:` is set, `host` and `user` are non-empty, `port` is in 0–65535, and `dir` is absolute or `~`-prefixed.
 2. At least one service is defined (unless it's a duplicate with `parent_name`).
@@ -780,7 +729,7 @@ lpm validates config on load:
 8. Profile entries reference defined services.
 9. Nested sub-actions are validated recursively (cmd required if no children, cwd must exist on local projects, mode validated the same way).
 10. `parent_name` must reference an existing, loadable project.
-11. `extends` entries must resolve to readable YAML files. Cycles are rejected at load time.
+11. `extends` entries are bare template names resolved from `~/.lpm/templates/`; a name that does not resolve is skipped. Only the templates' `actions`/`terminals` are merged (single, non-recursive pass).
 12. `port` on actions/terminals is in range 0–65535 (or omitted). Range entries use the quoted `"lo-hi"` form (inclusive) — never an unquoted dash range (`port: 3002-3010` / `[3000, 3002-3010]` is invalid; quote as `"3002-3010"`). `portConflict` is only `ask`, `free`, or `fail`.
 13. `position` is a number (integer or float).
 14. `.lpm.yml` and templates must NOT contain `name`, `root`, `parent_name`, or `ssh` — identity stays in personal project files.

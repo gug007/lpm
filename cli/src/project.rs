@@ -306,7 +306,7 @@ fn render_human(
         o.push_str(&format!("  {}\n", s.dim("(none configured)")));
     }
     for t in &p.terminals {
-        render_action_line(s, &mut o, t, 1);
+        render_action_line(s, &mut o, t, 1, "");
     }
 
     // ---- actions ----
@@ -315,7 +315,7 @@ fn render_human(
         o.push_str(&format!("  {}\n", s.dim("(none configured)")));
     }
     for a in &p.actions {
-        render_action_line(s, &mut o, a, 1);
+        render_action_line(s, &mut o, a, 1, "");
     }
 
     // ---- agent status ----
@@ -356,8 +356,13 @@ fn status_badge(s: &Style, value: &str) -> String {
     }
 }
 
-fn render_action_line(s: &Style, o: &mut String, a: &ResolvedAction, depth: usize) {
+fn render_action_line(s: &Style, o: &mut String, a: &ResolvedAction, depth: usize, prefix: &str) {
     let indent = "  ".repeat(depth);
+    let id = if prefix.is_empty() {
+        a.name.clone()
+    } else {
+        format!("{prefix}:{}", a.name)
+    };
     let mut meta: Vec<String> = Vec::new();
     if !a.kind.is_empty() {
         meta.push(a.kind.clone());
@@ -388,12 +393,18 @@ fn render_action_line(s: &Style, o: &mut String, a: &ResolvedAction, depth: usiz
     } else {
         format!("  {}", s.dim(&format!("({})", meta.join(", "))))
     };
-    o.push_str(&format!("{}{}{}\n", indent, s.bold(&head), meta_str));
+    o.push_str(&format!(
+        "{}{}{}  {}\n",
+        indent,
+        s.bold(&head),
+        meta_str,
+        s.dim(&format!("· run: {id}"))
+    ));
     if !a.cmd.is_empty() {
         o.push_str(&format!("{}  {} {}\n", indent, s.dim("cmd"), a.cmd));
     }
     for c in &a.children {
-        render_action_line(s, o, c, depth + 1);
+        render_action_line(s, o, c, depth + 1, &id);
     }
 }
 
@@ -487,6 +498,14 @@ mod tests {
             resume_cmd: String::new(),
             start_cmd: String::new(),
         }]
+    }
+
+    #[test]
+    fn human_output_prints_composite_run_ids() {
+        let p = project_with_content();
+        let output = render_human(&Style { on: false }, &p, false, &[], None);
+        assert!(output.contains("· run: deploy"));
+        assert!(output.contains("· run: deploy:child"));
     }
 
     #[test]

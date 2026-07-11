@@ -30,6 +30,18 @@ pub fn run(
     control::require_app(ctx)?;
     let file_name = resolve_or_infer(ctx, project)?;
 
+    // Resolve the action name against the project's runnable set BEFORE creating
+    // any copies, so a bad name fails fast (exit≠0, with the id list) instead of
+    // surfacing only as a per-copy desktop toast after the copies already exist.
+    let resolved_action = match run_action {
+        Some(a) => {
+            let p = config::resolve_project(ctx, &file_name).map_err(RunError::Internal)?;
+            let targets = crate::run::collect_run_targets(&p);
+            Some(crate::run::resolve_run_target(&targets, a).map_err(RunError::NotFound)?)
+        }
+        None => None,
+    };
+
     let mut line = format!(
         "duplicate_project {} --count={count}",
         quote_arg(&file_name)
@@ -46,7 +58,7 @@ pub fn run(
     if no_pull {
         line.push_str(" --pull-latest=false");
     }
-    if let Some(a) = run_action {
+    if let Some(a) = &resolved_action {
         line.push_str(&format!(" --run-action={}", quote_arg(a)));
     }
     if let Some(c) = run_command {
@@ -103,7 +115,7 @@ pub fn run(
                 .map(|(name, path)| json!({ "name": name, "path": path }))
                 .collect::<Vec<_>>(),
             "group": group,
-            "task": task_echo(run_action, run_command, prompt),
+            "task": task_echo(resolved_action.as_deref(), run_command, prompt),
             "warning": warning,
         }));
     } else {
@@ -124,7 +136,7 @@ pub fn run(
         if let Some(g) = group.filter(|g| !g.is_empty()) {
             println!("grouped under {g}");
         }
-        if let Some(a) = run_action {
+        if let Some(a) = &resolved_action {
             println!("queued action {a} on each copy");
         } else if let Some(c) = run_command {
             println!("queued command {c:?} on each copy");

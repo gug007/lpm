@@ -13,6 +13,14 @@ function node(name: string, children?: ActionInfo[]): ActionInfo {
   };
 }
 
+function labeled(
+  name: string,
+  label: string,
+  children?: ActionInfo[],
+): ActionInfo {
+  return { name, label, cmd: "", confirm: false, display: "header", children };
+}
+
 const tree: ActionInfo[] = [
   node("Build", [
     node("Build:iOS", [node("Build:iOS:Release"), node("Build:iOS:Debug")]),
@@ -71,5 +79,38 @@ describe("resolveRunnableAction", () => {
   });
   it("returns null for an unknown bare name", () => {
     expect(resolveRunnableAction(claudeTree, "ghost")).toBeNull();
+  });
+
+  // The reported bug: an agent runs `--run "Claude"`, the display *label* of the
+  // action whose id is `claude-max:claude`.
+  const labeledTree: ActionInfo[] = [
+    labeled("claude-max", "Claude Max", [
+      labeled("claude-max:claude", "Claude"),
+      labeled("claude-max:codex", "Codex"),
+    ]),
+    labeled("claude-ultracode", "Claude Ultracode"),
+  ];
+
+  it("resolves a label that matches no id", () => {
+    expect(resolveRunnableAction(labeledTree, "Claude")?.name).toBe(
+      "claude-max:claude",
+    );
+  });
+  it("resolves a case-insensitive full id", () => {
+    expect(resolveRunnableAction(labeledTree, "CLAUDE-MAX:CODEX")?.name).toBe(
+      "claude-max:codex",
+    );
+  });
+  it("resolves a case-insensitive leaf key", () => {
+    expect(resolveRunnableAction(labeledTree, "CODEX")?.name).toBe(
+      "claude-max:codex",
+    );
+  });
+  it("returns null when a label is ambiguous", () => {
+    const ambiguous: ActionInfo[] = [
+      labeled("a", "Claude"),
+      labeled("b", "Claude"),
+    ];
+    expect(resolveRunnableAction(ambiguous, "Claude")).toBeNull();
   });
 });
