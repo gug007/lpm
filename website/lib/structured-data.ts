@@ -26,6 +26,26 @@ export function webPageJsonLd({ title, description, path, about }: WebPageInput)
   };
 }
 
+type FaqItem = {
+  question: string;
+  answer: string;
+};
+
+export function faqJsonLd(items: FaqItem[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: items.map(({ question, answer }) => ({
+      "@type": "Question",
+      name: question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: answer,
+      },
+    })),
+  };
+}
+
 type BreadcrumbItem = {
   name: string;
   path: string;

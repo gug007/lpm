@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { DemoSection } from "@/components/home/demo";
 import { RelatedPages } from "@/components/related-pages";
-import { AI_AGENTS_PATH, CLAUDE_ACCOUNTS_PATH, CONFIG_PATH } from "@/lib/links";
+import {
+  AI_AGENTS_PATH,
+  CLAUDE_ACCOUNTS_PATH,
+  CONFIG_PATH,
+  CONNECT_AGENTS_PATH,
+} from "@/lib/links";
 import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
 import Cta from "./_components/cta";
 import Faq from "./_components/faq";
@@ -85,6 +90,12 @@ export default function ClaudeCodeMultipleAccountsPage() {
             title: "Best terminal for Claude Code & Codex",
             description:
               "Run Claude Code and Codex in parallel on the same codebase, with your dev stack alongside.",
+          },
+          {
+            href: CONNECT_AGENTS_PATH,
+            title: "Connect AI agents to your projects",
+            description:
+              "Let agents start, stop, and restart services, read dev-server logs, and fan out into parallel copies.",
           },
           {
             href: CONFIG_PATH,

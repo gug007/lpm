@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { DemoSection } from "@/components/home/demo";
 import { RelatedPages } from "@/components/related-pages";
-import { AI_AGENTS_PATH, CLAUDE_ACCOUNTS_PATH, vsPath } from "@/lib/links";
+import {
+  AI_AGENTS_PATH,
+  CLAUDE_ACCOUNTS_PATH,
+  CONNECT_AGENTS_PATH,
+  vsPath,
+} from "@/lib/links";
 import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
 import Benefits from "./_components/benefits";
 import Comparison from "./_components/comparison";
@@ -76,6 +81,12 @@ export default function BestTerminalForClaudeCodeAndCodexPage() {
       <Faq />
       <RelatedPages
         links={[
+          {
+            href: CONNECT_AGENTS_PATH,
+            title: "Connect AI agents to your projects",
+            description:
+              "Give Claude Code and Codex a CLI to start, stop, and restart services, read logs, and fan out into parallel copies.",
+          },
           {
             href: CLAUDE_ACCOUNTS_PATH,
             title: "Multiple Claude Code accounts",

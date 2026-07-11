@@ -3,6 +3,7 @@ import {
   AI_AGENTS_PATH,
   BEST_TERMINAL_MAC_PATH,
   CLAUDE_ACCOUNTS_PATH,
+  CONNECT_AGENTS_PATH,
   GIT_TERMINAL_MAC_PATH,
   MAC_TERMINAL_DEVELOPERS_PATH,
   MOBILE_PATH,
@@ -102,6 +103,15 @@ export function Footer() {
             className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
           >
             Multiple Claude Code accounts
+          </Link>
+          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
+            ·
+          </span>
+          <Link
+            href={CONNECT_AGENTS_PATH}
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            Connect AI agents
           </Link>
           <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
             ·
