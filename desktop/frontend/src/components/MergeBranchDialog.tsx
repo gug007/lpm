@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { Modal } from "./ui/Modal";
 import {
   GitAbortMerge,

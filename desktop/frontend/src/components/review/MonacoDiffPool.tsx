@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import type * as monacoNs from "monaco-editor";
-import { toast } from "sonner";
+import { toast } from "../../toast";
 import { WriteFileIfUnchanged } from "../../../bridge/commands";
 import { main } from "../../../bridge/models";
 import { joinAbs } from "../../path";

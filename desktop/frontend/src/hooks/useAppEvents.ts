@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { EventsOn } from "../../bridge/runtime";
 import { RemoteTakeRunActions } from "../../bridge/commands";
 import { useAppStore } from "../store/app";

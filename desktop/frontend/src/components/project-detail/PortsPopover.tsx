@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../../toast";
 import { BrowserOpenURL } from "../../../bridge/runtime";
 import {
   AddPortForward,

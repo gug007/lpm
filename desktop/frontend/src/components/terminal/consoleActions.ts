@@ -1,5 +1,5 @@
 import type { Terminal } from "@xterm/xterm";
-import { toast } from "sonner";
+import { toast } from "../../toast";
 import { SaveTextFile } from "../../../bridge/commands";
 
 export function bufferToPlainText(term: Terminal): string {

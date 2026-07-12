@@ -576,8 +576,10 @@ fn authenticate(ws: &mut WebSocket<TcpStream>, hub: &RemoteHub) -> Option<AuthOu
             let name = v.get("name").and_then(Value::as_str).unwrap_or("device");
             match pair_device(hub, code, name) {
                 Some((id, token)) => {
+                    // `name` (this Mac's ComputerName) lets a pairing peer Mac label
+                    // the connection; older clients (the phone) ignore unknown fields.
                     let _ = ws.send(Message::text(
-                        json!({ "t": "paired", "deviceId": id, "token": token }).to_string(),
+                        json!({ "t": "paired", "deviceId": id, "token": token, "name": crate::sys::computer_name() }).to_string(),
                     ));
                     Some(AuthOutcome::Paired(id))
                 }
@@ -1111,21 +1113,26 @@ fn handle_msg(
         "sub" => {
             if let Some(id) = str_field("id") {
                 subs.lock().unwrap().insert(id.clone());
-                // Opening a terminal screen on the phone takes control of it (the
-                // surface the user just opened should be where it's live). The
-                // previous owner is pushed a `control` frame and flips to its
-                // placeholder. `owner` in the seed confirms this phone owns it.
-                let (owner, changed) = app
-                    .state::<crate::control::ControlState>()
-                    .claim(&id, mobile_owner(hub, device_id));
-                if changed {
-                    crate::control::broadcast(app, &id, &Some(owner.clone()));
-                }
+                let ctrl = app.state::<crate::control::ControlState>();
+                // A desktop peer viewing read-only sends `view:true`: subscribe to
+                // output without taking control, so the controlled Mac keeps
+                // ownership and the peer's mirror stays view-only until it claims.
+                // A phone (no flag) claims as before — opening its terminal screen
+                // takes control, flipping the previous owner to its placeholder.
+                let owner = if v.get("view").and_then(Value::as_bool).unwrap_or(false) {
+                    ctrl.owner_of(&id)
+                } else {
+                    let (owner, changed) = ctrl.claim(&id, mobile_owner(hub, device_id));
+                    if changed {
+                        crate::control::broadcast(app, &id, &Some(owner.clone()));
+                    }
+                    Some(owner)
+                };
                 let (cols, rows) =
                     pty::remote_dims(&app.state::<pty::PtyState>(), &id).unwrap_or((80, 24));
                 send(
                     ws,
-                    json!({ "t": "seed", "id": id, "cols": cols, "rows": rows, "data": hub.ring_text(&id), "owner": crate::control::owner_json(&Some(owner)) }),
+                    json!({ "t": "seed", "id": id, "cols": cols, "rows": rows, "data": hub.ring_text(&id), "owner": crate::control::owner_json(&owner) }),
                 )?;
             }
         }
@@ -2785,6 +2792,123 @@ pub fn remote_revoke_device(hub: State<'_, RemoteHub>, id: String) -> Result<Val
     // exits on its next tick via device_exists).
     hub.inner.clients.lock().unwrap().retain(|_, c| c.device_id != id);
     Ok(state_value(&hub))
+}
+
+// Test-only surface used by peer.rs's integration test to drive the *real*
+// server code (handshake + pairing + device store) without a full Tauri app.
+#[cfg(test)]
+pub(crate) mod test_support {
+    use super::*;
+
+    pub fn set_config_path(p: std::path::PathBuf) {
+        *TEST_CONFIG_PATH.lock().unwrap() = Some(p);
+    }
+
+    pub fn clear_config_path() {
+        *TEST_CONFIG_PATH.lock().unwrap() = None;
+    }
+
+    pub fn new_hub_with_code(code: &str) -> RemoteHub {
+        let hub = RemoteHub::default();
+        hub.inner.config.lock().unwrap().pairing_code = code.to_string();
+        hub
+    }
+
+    pub fn device_count(hub: &RemoteHub) -> usize {
+        hub.inner.config.lock().unwrap().devices.len()
+    }
+
+    /// A minimal accept loop that runs the genuine `authenticate` handshake per
+    /// connection, then holds the socket answering `ping` with `pong` — enough to
+    /// exercise pair, auth, and the supervisor's keepalive without pulling in the
+    /// full app-stateful `handle_conn`.
+    pub fn serve(listener: TcpListener, hub: RemoteHub, stop: Arc<AtomicBool>) {
+        let _ = listener.set_nonblocking(true);
+        while !stop.load(Ordering::SeqCst) {
+            match listener.accept() {
+                Ok((stream, _)) => {
+                    let _ = stream.set_nonblocking(false);
+                    let hub = hub.clone();
+                    std::thread::spawn(move || serve_conn(stream, hub));
+                }
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+                Err(_) => break,
+            }
+        }
+    }
+
+    fn serve_conn(stream: TcpStream, hub: RemoteHub) {
+        let Some(mut ws) = accept_ws(stream) else {
+            return;
+        };
+        if authenticate(&mut ws, &hub).is_none() {
+            let _ = ws.close(None);
+            return;
+        }
+        let _ = ws.get_ref().set_read_timeout(Some(POLL));
+        loop {
+            match ws.read() {
+                Ok(m) if m.is_close() => break,
+                Ok(m) if m.is_text() => {
+                    if let Ok(v) = serde_json::from_str::<Value>(m.to_text().unwrap_or_default()) {
+                        for reply in canned_replies(&v) {
+                            let _ = ws.send(Message::text(reply.to_string()));
+                        }
+                    }
+                }
+                Ok(_) => {}
+                Err(WsError::Io(ref e))
+                    if e.kind() == std::io::ErrorKind::WouldBlock
+                        || e.kind() == std::io::ErrorKind::TimedOut => {}
+                Err(_) => break,
+            }
+        }
+    }
+
+    /// Canned responses for the requests peer.rs exercises, so the integration
+    /// test drives a realistic request→push round-trip.
+    fn canned_replies(v: &Value) -> Vec<Value> {
+        match v.get("t").and_then(Value::as_str) {
+            Some("ping") => vec![json!({ "t": "pong" })],
+            Some("projects") => vec![json!({ "t": "projects", "projects": [
+                { "name": "web-app", "label": "web-app", "running": true }
+            ] })],
+            Some("terminals") => {
+                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
+                vec![json!({ "t": "terminals", "project": project, "terminals": [
+                    { "id": "web-app-1", "label": "Claude", "project": project, "cols": 80, "rows": 24 }
+                ] })]
+            }
+            Some("sub") => {
+                let id = v.get("id").and_then(Value::as_str).unwrap_or_default();
+                vec![
+                    json!({ "t": "seed", "id": id, "cols": 80, "rows": 24, "data": "hello", "owner": null }),
+                    json!({ "t": "o", "id": id, "d": "world" }),
+                ]
+            }
+            // "Take control": grant a control frame owned by this (mobile-kind) device.
+            Some("claim") => {
+                let id = v.get("id").and_then(Value::as_str).unwrap_or_default();
+                vec![json!({ "t": "control", "id": id, "owner": { "kind": "mobile", "id": "self", "label": "peer" } })]
+            }
+            // Echo input/resize so the test can verify the frame transited verbatim
+            // (the real server has no reply for these).
+            Some("in") => {
+                let id = v.get("id").and_then(Value::as_str).unwrap_or_default();
+                let d = v.get("d").and_then(Value::as_str).unwrap_or_default();
+                vec![json!({ "t": "in-echo", "id": id, "d": d })]
+            }
+            Some("resize") => {
+                let id = v.get("id").and_then(Value::as_str).unwrap_or_default();
+                vec![json!({ "t": "resize-echo", "id": id,
+                    "cols": v.get("cols").cloned().unwrap_or(Value::Null),
+                    "rows": v.get("rows").cloned().unwrap_or(Value::Null) })]
+            }
+            _ => Vec::new(),
+        }
+    }
 }
 
 #[cfg(test)]

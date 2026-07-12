@@ -10,7 +10,7 @@ import {
   type MouseEvent,
 } from "react";
 import { ImagePlus } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import {
   ReadClipboardFiles,
   SaveClipboardImage,

@@ -9,7 +9,7 @@ import {
   type KeyboardEvent,
   type MouseEvent,
 } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import {
   GetServiceLogs,
   ReadClipboardFiles,

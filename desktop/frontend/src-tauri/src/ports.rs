@@ -23,7 +23,7 @@ pub struct PortConflictInfo {
     pub description: String,
     /// The owning entry's portConflict policy ("" | "ask" | "free" | "fail"),
     /// so the frontend can resolve each conflict per its own policy.
-    #[serde(rename = "portConflict", skip_serializing_if = "String::is_empty")]
+    #[serde(rename = "portConflict", default, skip_serializing_if = "String::is_empty")]
     pub port_conflict: String,
 }
 

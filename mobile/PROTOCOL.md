@@ -25,9 +25,11 @@ The phone sends exactly one of:
 ```
 → on success the server replies and the code is consumed (single use):
 ```json
-{ "t": "paired", "deviceId": "<uuid>", "token": "<base64 bearer token>" }
+{ "t": "paired", "deviceId": "<uuid>", "token": "<base64 bearer token>", "name": "<the Mac's computer name>" }
 ```
-The phone stores `deviceId` + `token` in the Keychain. On rejection:
+`name` is optional and identifies the Mac that issued the token, so a pairing
+peer (another Mac) can label the connection; clients that don't need it ignore
+it. The phone stores `deviceId` + `token` in the Keychain. On rejection:
 ```json
 { "t": "error", "error": "pairing rejected" }
 ```
@@ -54,7 +56,7 @@ any live connection.
 | `{ "t": "history", "project": "<name>", "q": "<search>" }` | `{ "t": "history", "project": "<name>", "rows": [HistoryRow…] }` — recent sent prompts for the project (newest first), for recall |
 | `{ "t": "historyAdd", "project": "<name>", "id": "<termId>", "label": "<tab>", "text": "…" }` | — records a prompt the phone sent into the shared message history |
 | `{ "t": "status", "project": "<name>" }` | `{ "t": "status", "project": "<name>", "status": [StatusEntry…] }` |
-| `{ "t": "sub", "id": "<termId>" }` | `{ "t": "seed", "id": "<termId>", "cols": N, "rows": N, "data": "<recent scrollback>", "owner": ControlOwner\|null }`, then a live stream of `o` frames. Subscribing also *presents* the terminal (see control ownership below); `owner` tells the phone whether it may render live or must show a "take control" placeholder |
+| `{ "t": "sub", "id": "<termId>", "view": bool? }` | `{ "t": "seed", "id": "<termId>", "cols": N, "rows": N, "data": "<recent scrollback>", "owner": ControlOwner\|null }`, then a live stream of `o` frames. By default subscribing also *claims* the terminal (see control ownership below) — the surface that just opened it goes live. Pass `view: true` to subscribe **read-only**: you receive the seed + `o` stream but do **not** take control, so the current owner keeps it; the desktop peer client uses this so viewing a terminal never steals control, then sends `claim` for "Take control". Omitted/`false` (the phone) claims, unchanged. `owner` tells you whether you may render live/typeable or must show a "take control" affordance |
 | `{ "t": "unsub", "id": "<termId>" }` | — (also stops presenting the terminal) |
 | `{ "t": "claim", "id": "<termId>" }` | — (the "Take control" action) takes ownership of the terminal; the previous owner is pushed a `control` frame and flips to its own placeholder |
 | `{ "t": "in", "id": "<termId>", "d": "ls\r" }` | — (keystrokes; see hex framing) |

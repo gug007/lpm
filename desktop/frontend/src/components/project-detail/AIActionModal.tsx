@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../../toast";
 import { Modal } from "../ui/Modal";
 import { AIPickerButton } from "../ui/AIPickerButton";
 import { XIcon, SparkleIcon } from "../icons";

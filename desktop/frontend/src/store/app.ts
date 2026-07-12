@@ -1,5 +1,5 @@
 import { create, type StoreApi } from "zustand";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import YAML from "yaml";
 import {
   isDuplicate,

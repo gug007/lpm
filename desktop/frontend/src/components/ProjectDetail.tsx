@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { ActionsDnd } from "./ActionsDnd";
 import { type ActionGroup, applyMove, groupOf } from "./actionsDndLayout";
 import { ActionView } from "./ActionView";
