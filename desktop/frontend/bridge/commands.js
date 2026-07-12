@@ -5,7 +5,13 @@
 // Maintained BY HAND. To add a command: add the #[tauri::command] fn in
 // src-tauri/, list it in all_command_handlers! (generated_commands.rs), and add
 // an `export function Name(...) { invoke(...) }` here with camelCase arg keys.
-import { invoke } from "@tauri-apps/api/core";
+import { routedInvoke } from "../src/peer/route";
+
+// Every command flows through the peer router: a call whose arguments carry a
+// peer marker is forwarded to that Mac; everything else runs locally unchanged.
+function invoke(cmd, args) {
+  return routedInvoke(cmd, args);
+}
 
 export function AckTerminalData(id, charCount) {
   return invoke("ack_terminal_data", { id, charCount });
@@ -687,4 +693,43 @@ export function VoiceToTextAvailable() {
 }
 export function VoiceToTextToggle() {
   return invoke("voice_to_text_toggle");
+}
+
+// Connect Macs — peer control. Host role manages who may drive this Mac; client
+// role manages the Macs this one drives. See src/peer/route.ts for routing.
+export function PeerState() {
+  return invoke("peer_state");
+}
+export function PeerHostSetConfig(enabled, port, lan) {
+  return invoke("peer_host_set_config", { enabled, port, lan });
+}
+export function PeerHostStartPairing() {
+  return invoke("peer_host_start_pairing");
+}
+export function PeerHostCancelPairing() {
+  return invoke("peer_host_cancel_pairing");
+}
+export function PeerHostRevokeDevice(id) {
+  return invoke("peer_host_revoke_device", { id });
+}
+export function PeerDispatchReply(reqId, ok, value) {
+  return invoke("peer_dispatch_reply", { reqId, ok, value });
+}
+export function PeerAdd(hosts, port, code, alias) {
+  return invoke("peer_add", { hosts, port, code, alias });
+}
+export function PeerRemove(slug) {
+  return invoke("peer_remove", { slug });
+}
+export function PeerSetEnabled(slug, enabled) {
+  return invoke("peer_set_enabled", { slug, enabled });
+}
+export function PeerInvoke(slug, cmd, args) {
+  return invoke("peer_invoke", { slug, cmd, args });
+}
+export function PeerTermAttach(prefixedId) {
+  return invoke("peer_term_attach", { id: prefixedId });
+}
+export function PeerTermDetach(prefixedId) {
+  return invoke("peer_term_detach", { id: prefixedId });
 }

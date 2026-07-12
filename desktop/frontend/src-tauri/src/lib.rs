@@ -23,6 +23,8 @@ mod notes_cmds;
 mod notes_store;
 mod openin;
 mod portforward;
+mod peer;
+mod peerclient;
 mod ports;
 mod proctree;
 mod projects_crud;
@@ -65,6 +67,13 @@ use log_streaming::*;
 use message_history::*;
 use notes_cmds::*;
 use openin::*;
+use peer::{
+    peer_dispatch_reply, peer_host_cancel_pairing, peer_host_revoke_device, peer_host_set_config,
+    peer_host_start_pairing, peer_state,
+};
+use peerclient::{
+    peer_add, peer_invoke, peer_remove, peer_set_enabled, peer_term_attach, peer_term_detach,
+};
 use portforward::*;
 use ports::*;
 use projects_crud::*;
@@ -95,6 +104,11 @@ pub fn run() {
     // composer never rewrites typed text (e.g. double space -> ". ").
     textinput::disable_smart_substitutions();
 
+    // Both peer roles share one ~/.lpm/peer.json behind a single in-memory lock:
+    // the host device list (peer.rs) and the client peer list (peerclient.rs).
+    let peer_hub = peer::PeerHub::default();
+    let peer_client_hub = peerclient::PeerClientHub::new(peer_hub.config_arc());
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -113,6 +127,8 @@ pub fn run() {
         .manage(sshsync::SyncState::default())
         .manage(browser::BrowserState::default())
         .manage(remote::RemoteHub::default())
+        .manage(peer_hub.clone())
+        .manage(peer_client_hub)
         .on_menu_event(menu::handle_event)
         .on_window_event(|window, event| {
             // Closing the main window hides it instead of quitting, so terminals,
@@ -150,6 +166,15 @@ pub fn run() {
             // its own ~/.lpm/remote.json; a no-op until enabled + paired.
             let hub = app.state::<remote::RemoteHub>().inner().clone();
             remote::start(hub, handle.clone());
+
+            // Peer host + client servers (Mac-to-Mac control). Load the shared
+            // ~/.lpm/peer.json once into the lock both roles hold, then start the
+            // host listener and open a connection for every enabled peer.
+            let peer_hub = app.state::<peer::PeerHub>().inner().clone();
+            *peer_hub.config_arc().lock().unwrap() = peer::load_config();
+            peer::start(peer_hub, handle.clone());
+            let peer_client_hub = app.state::<peerclient::PeerClientHub>().inner().clone();
+            peerclient::start(peer_client_hub, handle.clone());
 
             // Install agent status hooks (Claude Code / Codex) so they report to
             // the socket. Backgrounded — touches files, never blocks startup.
@@ -189,6 +214,8 @@ pub fn run() {
                 portforward::stop_all_forwards(app); // kill ssh -L tunnels + pollers
                 sshsync::stop_all_sync_watchers(app); // drop rsync mirror watchers
                 remote::stop(&app.state::<remote::RemoteHub>()); // retire the mobile server threads
+                peer::stop(&app.state::<peer::PeerHub>()); // retire the peer host threads
+                peerclient::stop(&app.state::<peerclient::PeerClientHub>()); // drop peer client conns
                 let _ = std::fs::remove_file(config::socket_path());
             }
             // Dock-icon click with no visible window restores the hidden main

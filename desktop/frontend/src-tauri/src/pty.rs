@@ -126,6 +126,9 @@ fn flush(pending: &mut Vec<u8>, app: &AppHandle, sess: &Arc<PtySession>) {
     // remote server is off). Kept off the emit/ack path so it can never stall
     // the reader — it only appends to a bounded ring + non-blocking client queues.
     crate::remote::tee_output(app, &sess.id, &sess.project_name, &text);
+    // Same chunk to any connected peer Mac (separate hub + ring; no-op when the
+    // peer host server is off). Mobile behavior above is untouched.
+    crate::peer::tee_output(app, &sess.id, &sess.project_name, &text);
     // Remote panes: sniff localhost URLs in output to auto-forward declared
     // ports / surface undeclared ones (port poller's no-poll-needed path).
     if sess.remote {
@@ -198,6 +201,7 @@ fn spawn_io_threads(
             .unwrap_or(0);
         let _ = app.emit(&format!("pty-exit-{}", sess.id), code);
         crate::remote::tee_exit(&app, &sess.id, code);
+        crate::peer::tee_exit(&app, &sess.id, code);
         sessions.lock().unwrap().remove(&sess.id);
     });
 }

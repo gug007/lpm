@@ -37,6 +37,7 @@ import {
 import { stripAnsi } from "./terminal/filterLines";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { registerFileDropHandler } from "../fileDrop";
+import { isPeerName } from "../peer/markers";
 import {
   IS_MIRROR_WINDOW,
   REALM,
@@ -171,6 +172,9 @@ function initFileDrop() {
   registerFileDropHandler("terminals", (x, y, paths) => {
     const id = terminalIdAtPoint(x, y);
     if (!id) return false;
+    // Remote (peer) terminals live on another Mac; local file paths can't be
+    // uploaded there in v1. Consume the drop without acting.
+    if (isPeerName(id)) return true;
     getTerminalRemote(id).then((remote) => {
       if (remote) {
         UploadAndQuoteForTerminal(id, paths)
@@ -342,6 +346,9 @@ function extractImageBlob(
 }
 
 function saveImageBlob(terminalId: string, blob: File, mimeType: string) {
+  // Image attachments target a local path the host can't see — unsupported for
+  // remote (peer) terminals in v1.
+  if (isPeerName(terminalId)) return;
   const reader = new FileReader();
   reader.onload = () => {
     const dataUrl = reader.result as string;
@@ -800,6 +807,12 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
       };
       ReadClipboardFiles()
         .then((paths) => {
+          // Peer terminals can't receive local file paths; fall back to any
+          // plain-text/image handling the local branch would do.
+          if (isPeerName(terminalId)) {
+            fallback();
+            return;
+          }
           if (paths && paths.length > 0) {
             return getTerminalRemote(terminalId).then((remote) => {
               if (remote) {

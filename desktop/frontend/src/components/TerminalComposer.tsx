@@ -18,6 +18,7 @@ import {
   UploadAndQuoteForTerminal,
 } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
+import { isPeerName } from "../peer/markers";
 import { useAIPicker } from "../hooks/useAIPicker";
 import { getSettings } from "../store/settings";
 import {
@@ -189,6 +190,9 @@ function sameTabView(a: ComposerTabView[], b: ComposerTabView[]): boolean {
 }
 
 export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, actionName, fontSize, onSubmit, onFocusTerminal, onRunInDuplicates }: TerminalComposerProps) {
+  // Image/file attachments resolve against a local path the host can't read, so
+  // they're unsupported for a remote (peer) terminal in v1.
+  const isRemotePeer = isPeerName(terminalId);
   // `blank` drives the placeholder (no content at all); `disabled` drives the
   // send button (nothing but whitespace).
   const [blank, setBlank] = useState(true);
@@ -530,6 +534,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
 
   const addImageBlob = useCallback(
     async (blob: Blob): Promise<HTMLSpanElement | null> => {
+      if (isRemotePeer) return null;
       const b64 = await blobToBase64(blob);
       if (!b64) return null;
       try {
@@ -592,7 +597,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // OS file drops (from Finder) arrive as paths via the shared drop bridge.
   useEffect(() => {
     return registerFileDropHandler("terminal-composer", (x, y, paths) => {
-      if (paths.length === 0 || !pointInComposer(x, y)) return false;
+      if (isRemotePeer || paths.length === 0 || !pointInComposer(x, y)) return false;
       focusAtPoint(x, y);
       insertFilePaths(paths);
       setDragOver(false);
@@ -700,6 +705,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const handleDrop = useCallback(
     (e: DragEvent<HTMLDivElement>) => {
       setDragOver(false);
+      if (isRemotePeer) return;
       const files = Array.from(e.dataTransfer?.files ?? []).filter((f) => f.type.startsWith("image/"));
       if (files.length === 0) return;
       e.preventDefault();
@@ -765,6 +771,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       segments.map(async (s) => {
         const path = s.image === null ? undefined : images[s.image];
         if (path === undefined) return s.text;
+        // A peer terminal has no host-side upload; pass the token text through.
+        if (isRemotePeer) return ` ${path} `;
         const uploaded = await UploadAndQuoteForTerminal(terminalId, [path]).catch(() => "");
         return ` ${uploaded || path} `;
       }),

@@ -62,6 +62,7 @@ import {
   layoutsEqual,
 } from "../components/sidebarLayout";
 import { forgetProjectTerminals } from "../terminals";
+import { isPeerName } from "../peer/markers";
 import { activeChatStorageKey } from "../components/NotesView";
 import { ACTION_SECTIONS, type ActionSection } from "../actionConfig";
 import { editGlobalDoc, editProjectDoc, editRepoDoc } from "../yamlQueue";
@@ -81,7 +82,7 @@ export type View =
   | "branch-instructions"
   | "template";
 
-export type SettingsTab = "general" | "notifications" | "terminal" | "shortcuts" | "tts" | "ai" | "global-config" | "templates" | "backup" | "mobile";
+export type SettingsTab = "general" | "notifications" | "terminal" | "shortcuts" | "tts" | "ai" | "global-config" | "templates" | "backup" | "mobile" | "connect-macs";
 
 export interface SSHProjectParams {
   name: string;
@@ -626,11 +627,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   reconcileSidebarLayout: (projects) => {
+    // Remote (peer) projects render in their own non-reorderable sections and
+    // never belong to sidebarOrder or folders — keep them out of the layout.
+    const local = projects.filter((p) => !isPeerName(p.name));
     const before: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
     const after = reconcile(
       before,
-      topLevelProjectNames(projects),
-      projects.map((p) => p.name),
+      topLevelProjectNames(local),
+      local.map((p) => p.name),
     );
     if (layoutsEqual(before, after)) return;
     set({ sidebarOrder: after.order, groups: after.groups });

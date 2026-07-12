@@ -5,11 +5,12 @@ import { listen, emit } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { subscribePeerGlobalEvent, GLOBAL_PEER_EVENTS } from "../src/peer/route";
 
 // Tauri's listen() is async (returns Promise<UnlistenFn>) but callers expect a
 // synchronous unsubscribe, so bridge the race: if unsubscribed before the
 // listener attaches, tear it down as soon as it does.
-export function EventsOn(eventName, callback) {
+function listenLocal(eventName, callback) {
   let unlisten = null;
   let cancelled = false;
   listen(eventName, (event) => callback(event.payload)).then((fn) => {
@@ -19,6 +20,20 @@ export function EventsOn(eventName, callback) {
   return () => {
     cancelled = true;
     if (unlisten) unlisten();
+  };
+}
+
+// A subscription to a forwarded global event also taps every connected peer's
+// wrapper stream so a remote project reacts exactly like a local one; other
+// events (including the prefixed pty-output-*/pty-exit-* streams the client
+// re-emits directly) need no peer handling.
+export function EventsOn(eventName, callback) {
+  const off = listenLocal(eventName, callback);
+  if (!GLOBAL_PEER_EVENTS.has(eventName)) return off;
+  const offPeer = subscribePeerGlobalEvent(eventName, callback);
+  return () => {
+    off();
+    offPeer();
   };
 }
 
