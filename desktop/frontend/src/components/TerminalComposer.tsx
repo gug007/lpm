@@ -137,6 +137,13 @@ interface TerminalComposerProps {
   // `runHere` to run the same prompt in this terminal as copy #1 — so the
   // current project and every copy run it in parallel.
   onRunInDuplicates: (seed: DuplicatePromptSeed, runHere: () => Promise<void>) => void;
+  // Remote mode (the peer/remote project view): the composer targets another
+  // Mac's terminal via `onSubmit`, so the local-only affordances — voice, AI
+  // transform, the local message-history popover + recording, and the
+  // draft/duplicates send menu — are hidden/skipped. Defaults false, so the local
+  // composer is entirely unchanged. Slash/mention menus are turned off by the
+  // host passing empty `terminals`/`cwd` and no `launchCmd`.
+  remote?: boolean;
 }
 
 // How many trailing lines of a service's pane to pull into the draft when its
@@ -188,7 +195,7 @@ function sameTabView(a: ComposerTabView[], b: ComposerTabView[]): boolean {
   return a.every((t, i) => t.id === b[i].id && t.label === b[i].label);
 }
 
-export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, actionName, fontSize, onSubmit, onFocusTerminal, onRunInDuplicates }: TerminalComposerProps) {
+export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, actionName, fontSize, onSubmit, onFocusTerminal, onRunInDuplicates, remote = false }: TerminalComposerProps) {
   // `blank` drives the placeholder (no content at all); `disabled` drives the
   // send button (nothing but whitespace).
   const [blank, setBlank] = useState(true);
@@ -795,13 +802,17 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       // cursor (per-tab and the live one) so it stays anchored to its message.
       for (const t of tabs.current) if (t.histIdx >= 0) t.histIdx += 1;
       if (histIdx.current >= 0) histIdx.current += 1;
-      recordMessage({
-        text,
-        projectName,
-        terminalId: historyKey,
-        terminalLabel: targetLabel,
-        images,
-      });
+      // Remote sends are recorded on the other Mac (the host's onSubmit issues a
+      // historyAdd), so skip the local message-history write here.
+      if (!remote) {
+        recordMessage({
+          text,
+          projectName,
+          terminalId: historyKey,
+          terminalLabel: targetLabel,
+          images,
+        });
+      }
       finishSend(sentId, editor);
     } finally {
       sending.current.delete(sentId);
@@ -1743,8 +1754,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         )}
         <div className="flex items-center justify-between px-2 pb-1">
           <div className="flex items-center gap-1">
-            <ComposerMicButton />
-            {showActions && (
+            {!remote && <ComposerMicButton />}
+            {showActions && !remote && (
               <ComposerActionsButton
                 align="left"
                 enabledActions={enabledActions}
@@ -1765,17 +1776,20 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
                 <PlusIcon />
               </button>
             </Tooltip>
-            <TerminalHistoryButton
-              terminalId={historyKey}
-              projectName={projectName}
-              terminalLabel={targetLabel}
-              onPick={loadFromHistory}
-              onSend={sendFromHistory}
-            />
+            {!remote && (
+              <TerminalHistoryButton
+                terminalId={historyKey}
+                projectName={projectName}
+                terminalLabel={targetLabel}
+                onPick={loadFromHistory}
+                onSend={sendFromHistory}
+              />
+            )}
           </div>
           <SendSplitButton
             disabled={disabled}
             busy={busy}
+            showMenu={!remote}
             onSend={() => void send()}
             onSaveDraft={() => void saveCurrentDraft()}
             onRunInDuplicates={runInDuplicates}

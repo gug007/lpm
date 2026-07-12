@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import { Terminal } from "@xterm/xterm";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Terminal, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
-import { getTerminalTheme, openTerminalLink, TERMINAL_FONT_FAMILY } from "./terminal-utils";
+import { getTerminalTheme, openTerminalLink, TERMINAL_FONT_FAMILY, ansiColors } from "./terminal-utils";
+import { getTerminalThemeColors } from "../terminal-themes";
+import { useTerminalTheme } from "../hooks/useTerminalTheme";
+import { useTerminalFontSize } from "../hooks/useTerminalFontSize";
 import { PeerSend } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 import { usePeersStore, isSelfOwner, type RemoteTerminal } from "../store/peers";
@@ -17,11 +20,12 @@ interface PeerFrameEvent {
 
 const encoder = new TextEncoder();
 
-// A view of one remote terminal. It always renders the live stream (read-only by
-// default); "Take control" claims ownership, which enables input and makes this
-// pane the size authority. Ownership state comes from the peers store (control /
-// seed frames); the terminal instance is never recreated on an ownership change,
-// so scrollback survives handing control back and forth.
+// A view of one remote terminal, rendered on a surface identical to the local
+// terminal (same fontFamily/theme/scrollback, settings-driven font size, no
+// padding, edge-to-edge background). Read-only by default; "Take control" claims
+// ownership, enabling input and making this pane the size authority. The terminal
+// instance is never recreated on an ownership/font/theme change, so scrollback
+// survives handing control back and forth.
 export function RemoteTerminalMirror({ peerId, terminal }: { peerId: string; terminal: RemoteTerminal }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -32,6 +36,23 @@ export function RemoteTerminalMirror({ peerId, terminal }: { peerId: string; ter
   );
   const [exited, setExited] = useState(false);
 
+  const { theme: themeName, themeStyle } = useTerminalTheme();
+  const { fontSize } = useTerminalFontSize();
+  const xtermTheme = useMemo<ITheme | null>(() => {
+    const colors = getTerminalThemeColors(themeName);
+    if (!colors) return null;
+    return {
+      background: colors.bg,
+      foreground: colors.fg,
+      selectionBackground: colors.selection,
+      cursor: colors.cursor,
+      ...ansiColors,
+    };
+  }, [themeName]);
+
+  const xtermThemeRef = useRef(xtermTheme);
+  xtermThemeRef.current = xtermTheme;
+
   const owner = usePeersStore((s) => s.controlByPeer[peerId]?.[terminal.id] ?? null);
   const isOwner = isSelfOwner(owner, peerId);
 
@@ -41,12 +62,13 @@ export function RemoteTerminalMirror({ peerId, terminal }: { peerId: string; ter
     setExited(false);
 
     const term = new Terminal({
-      fontSize: 12,
+      fontSize,
       fontFamily: TERMINAL_FONT_FAMILY,
       cursorBlink: false,
       disableStdin: true,
       scrollback: 10000,
-      theme: getTerminalTheme(el),
+      allowProposedApi: true,
+      theme: xtermTheme ?? getTerminalTheme(el),
       linkHandler: { activate: openTerminalLink },
     });
     const fit = new FitAddon();
@@ -74,8 +96,6 @@ export function RemoteTerminalMirror({ peerId, terminal }: { peerId: string; ter
       }
     }
 
-    // Input flows only while we own the terminal. onData carries UTF-8 text
-    // (verbatim); onBinary carries raw bytes, HEX-framed for the desktop.
     const onData = term.onData((d) => {
       if (ownerRef.current) void PeerSend(peerId, { t: "in", id: terminal.id, d: encodeTerminalInput(d) });
     });
@@ -87,7 +107,6 @@ export function RemoteTerminalMirror({ peerId, terminal }: { peerId: string; ter
     // split across chunks into U+FFFD (the mobile-client lesson).
     const write = (s: string) => term.write(encoder.encode(s));
 
-    // Attach before subscribing so the seed frame is never missed.
     const off = EventsOn("peer-frame", (m: PeerFrameEvent) => {
       if (!m || m.peerId !== peerId || m.frame?.id !== terminal.id) return;
       const f = m.frame;
@@ -95,8 +114,6 @@ export function RemoteTerminalMirror({ peerId, terminal }: { peerId: string; ter
         term.reset();
         if (f.cols && f.rows) {
           remoteSizeRef.current = { cols: f.cols, rows: f.rows };
-          // While we own the terminal we are the size authority — ignore the
-          // remote geometry to avoid a resize feedback loop.
           if (!ownerRef.current) {
             try {
               term.resize(f.cols, f.rows);
@@ -113,12 +130,10 @@ export function RemoteTerminalMirror({ peerId, terminal }: { peerId: string; ter
       }
     });
 
-    // Subscribe read-only (view:true): watch output without taking control, so
-    // the controlled Mac keeps ownership until the user clicks Take control.
     void PeerSend(peerId, { t: "sub", id: terminal.id, view: true });
 
     const themeObserver = new MutationObserver(() => {
-      term.options.theme = getTerminalTheme(el);
+      term.options.theme = xtermThemeRef.current ?? getTerminalTheme(el);
     });
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
@@ -134,8 +149,26 @@ export function RemoteTerminalMirror({ peerId, terminal }: { peerId: string; ter
     };
   }, [peerId, terminal.id]);
 
-  // React to ownership: gate stdin, and switch the size authority. As owner we
-  // fit the pane and push resizes; otherwise we follow the remote geometry.
+  // Push live font-size / theme changes onto the existing terminal without
+  // recreating it (mirrors the local pane's option updates).
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term) return;
+    term.options.fontSize = fontSize;
+    if (ownerRef.current) {
+      try {
+        fitRef.current?.fit();
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [fontSize]);
+  useEffect(() => {
+    const term = termRef.current;
+    const el = containerRef.current;
+    if (term) term.options.theme = xtermTheme ?? getTerminalTheme(el);
+  }, [xtermTheme]);
+
   useEffect(() => {
     ownerRef.current = isOwner;
     const term = termRef.current;
@@ -180,28 +213,32 @@ export function RemoteTerminalMirror({ peerId, terminal }: { peerId: string; ter
   }, [isOwner, peerId, terminal.id]);
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex items-center gap-1.5 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-1 text-[11px] text-[var(--text-muted)]">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[var(--terminal-bg)]" style={themeStyle}>
+      <div className="pointer-events-none absolute right-2 top-1.5 z-10 flex items-center gap-1.5">
         {isOwner ? (
-          <>
+          <span className="pointer-events-auto flex items-center gap-1 rounded-full bg-[var(--bg-secondary)]/85 px-2 py-0.5 text-[10px] text-[var(--text-muted)] backdrop-blur-sm">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-green)]" />
-            <span className="text-[var(--text-secondary)]">You're in control</span>
-          </>
+            In control
+          </span>
         ) : (
-          <>
+          <span className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-[var(--bg-secondary)]/85 px-2 py-0.5 text-[10px] text-[var(--text-muted)] backdrop-blur-sm">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-amber)]" />
-            <span>Viewing — read-only</span>
+            Viewing
             <button
               onClick={() => void PeerSend(peerId, { t: "claim", id: terminal.id })}
-              className="ml-2 rounded px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              className="text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
             >
               Take control
             </button>
-          </>
+          </span>
         )}
-        {exited && <span className="ml-2 text-[var(--text-muted)]">· session ended</span>}
+        {exited && (
+          <span className="pointer-events-none rounded-full bg-[var(--bg-secondary)]/85 px-2 py-0.5 text-[10px] text-[var(--text-muted)]">
+            ended
+          </span>
+        )}
       </div>
-      <div ref={containerRef} className="min-h-0 min-w-0 flex-1 overflow-auto bg-[var(--terminal-bg)] p-1" />
+      <div ref={containerRef} className="relative min-h-0 min-w-0 flex-1 overflow-hidden" />
     </div>
   );
 }

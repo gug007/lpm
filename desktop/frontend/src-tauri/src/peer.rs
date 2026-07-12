@@ -891,11 +891,18 @@ mod tests {
             "files": [{ "path": "a.txt" }] }).to_string()).unwrap();
         tx.send(json!({ "t": "gitCommit", "project": "web-app", "message": "ok", "files": ["a.txt"] }).to_string()).unwrap();
         tx.send(json!({ "t": "gitCommit", "project": "web-app", "message": "fail", "files": [] }).to_string()).unwrap();
+        tx.send(json!({ "t": "gitBranches", "project": "web-app" }).to_string()).unwrap();
+        tx.send(json!({ "t": "gitCheckout", "project": "web-app", "branch": "dev", "remote": "" }).to_string()).unwrap();
+        tx.send(json!({ "t": "services", "project": "web-app" }).to_string()).unwrap();
+        tx.send(json!({ "t": "serviceLogs", "project": "web-app", "paneIndex": 0, "lines": 200 }).to_string()).unwrap();
 
         let count = |t: &str| collected.lock().unwrap().iter().filter(|f| f["t"] == t).count();
         let deadline = Instant::now() + Duration::from_secs(5);
         while Instant::now() < deadline {
-            if count("git") >= 1 && count("gitDiffs") >= 1 && count("gitCommit") >= 2 && count("git-changed") >= 1 {
+            if count("git") >= 1 && count("gitDiffs") >= 1 && count("gitCommit") >= 2 && count("git-changed") >= 1
+                && count("gitBranches") >= 1 && count("gitCheckout") >= 1
+                && count("services") >= 1 && count("serviceLogs") >= 1
+            {
                 break;
             }
             std::thread::sleep(Duration::from_millis(20));
@@ -921,5 +928,15 @@ mod tests {
             frames.iter().any(|f| f["t"] == "git-changed" && f["project"] == "web-app"),
             "commit pushed git-changed"
         );
+        let branches = frames.iter().find(|f| f["t"] == "gitBranches").expect("gitBranches reply");
+        assert_eq!(branches["current"], "main");
+        assert!(branches["branches"].as_array().is_some_and(|a| a.len() == 2), "branch list");
+        let checkout = frames.iter().find(|f| f["t"] == "gitCheckout").expect("gitCheckout reply");
+        assert_eq!(checkout["ok"], true);
+        let services = frames.iter().find(|f| f["t"] == "services").expect("services reply");
+        assert_eq!(services["services"][0]["name"], "dev");
+        assert_eq!(services["services"][0]["paneIndex"], 0);
+        let logs = frames.iter().find(|f| f["t"] == "serviceLogs").expect("serviceLogs reply");
+        assert!(logs["text"].as_str().is_some_and(|s| s.contains("9245")), "service log text");
     }
 }

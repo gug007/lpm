@@ -108,6 +108,38 @@ export async function remoteGitGenMessage(peerId: string, project: string, files
   return (r.message as string) ?? "";
 }
 
+export interface RemoteBranch {
+  name: string;
+  committerDate?: number;
+  remote?: string;
+}
+
+export async function remoteGitBranches(
+  peerId: string,
+  project: string,
+): Promise<{ current: string; branches: RemoteBranch[] }> {
+  const r = ensureOk(
+    await peerRequest(peerId, { t: "gitBranches", project }, match("gitBranches", project), SUMMARY_TIMEOUT),
+  );
+  return { current: (r.current as string) ?? "", branches: (r.branches as RemoteBranch[]) ?? [] };
+}
+
+export async function remoteGitCheckout(
+  peerId: string,
+  project: string,
+  branch: string,
+  remote?: string,
+): Promise<void> {
+  ensureOk(
+    await peerRequest(
+      peerId,
+      { t: "gitCheckout", project, branch, remote: remote ?? "" },
+      match("gitCheckout", project),
+      SHIP_TIMEOUT,
+    ),
+  );
+}
+
 export function remoteGitWatch(peerId: string, project: string): void {
   void PeerSend(peerId, { t: "gitWatch", project });
 }

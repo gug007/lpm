@@ -2962,6 +2962,25 @@ pub(crate) mod test_support {
                 let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
                 vec![json!({ "t": "history", "project": project, "rows": [{ "text": "npm test" }] })]
             }
+            Some("gitBranches") => {
+                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
+                vec![json!({ "t": "gitBranches", "project": project, "ok": true, "current": "main",
+                    "branches": [{ "name": "main" }, { "name": "dev", "committerDate": 1 }] })]
+            }
+            Some("gitCheckout") => {
+                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
+                vec![json!({ "t": "gitCheckout", "project": project, "ok": true })]
+            }
+            Some("services") => {
+                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
+                vec![json!({ "t": "services", "project": project, "ok": true, "running": true,
+                    "services": [{ "name": "dev", "paneIndex": 0, "running": true, "cmd": "npm run dev", "port": 9245 }] })]
+            }
+            Some("serviceLogs") => {
+                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
+                let pane = v.get("paneIndex").cloned().unwrap_or(Value::Null);
+                vec![json!({ "t": "serviceLogs", "project": project, "paneIndex": pane, "ok": true, "text": "listening on :9245\n" })]
+            }
             // Git review + ship.
             Some("git") => {
                 let project = v.get("project").and_then(Value::as_str).unwrap_or_default();

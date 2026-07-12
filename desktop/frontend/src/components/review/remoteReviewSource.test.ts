@@ -8,6 +8,7 @@ import {
   makeRemoteReviewSource,
   remoteGitSummary,
   remoteGitCommit,
+  remoteGitBranches,
 } from "./remoteReviewSource";
 
 const mockedSend = vi.mocked(PeerSend);
@@ -71,6 +72,23 @@ describe("remoteGitSummary", () => {
     expect(s.branch).toBe("main");
     expect(s.ahead).toBe(2);
     expect(s.behind).toBe(1);
+  });
+});
+
+describe("remoteGitBranches", () => {
+  it("returns the current branch and list", async () => {
+    const p = remoteGitBranches("peer-1", "web");
+    resolvePeerFrame("peer-1", {
+      t: "gitBranches",
+      project: "web",
+      ok: true,
+      current: "main",
+      branches: [{ name: "main" }, { name: "dev", remote: "origin" }],
+    });
+    const r = await p;
+    expect(r.current).toBe("main");
+    expect(r.branches.map((b) => b.name)).toEqual(["main", "dev"]);
+    expect(r.branches[1].remote).toBe("origin");
   });
 });
 
