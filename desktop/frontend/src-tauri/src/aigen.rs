@@ -417,6 +417,7 @@ fn run_ai(
     let mut cmd = Command::new(cli);
     cmd.args(&args)
         .current_dir(cwd)
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     opts.claude_env.apply(&mut cmd);
@@ -473,11 +474,20 @@ fn run_ai(
     let status = child.wait().map_err(|e| e.to_string())?;
     let stderr_text = stderr_handle.and_then(|h| h.join().ok()).unwrap_or_default();
     if !status.success() {
-        let se = stderr_text.trim();
+        let filtered = if is_codex {
+            stderr_text
+                .lines()
+                .filter(|l| !is_codex_noise(l))
+                .collect::<Vec<_>>()
+                .join("\n")
+        } else {
+            stderr_text.clone()
+        };
+        let se = filtered.trim();
         if se.is_empty() {
             return Err(format!("{cli} failed"));
         }
-        let capped = &se[..se.len().min(1024)];
+        let capped = tail_cap(se, 1024);
         return Err(format!("{cli} failed:\n{capped}"));
     }
     if !is_claude {
@@ -544,17 +554,22 @@ fn format_tool_use(cm: &serde_json::Value) -> String {
     }
 }
 
-fn codex_progress_line(line: &str) -> String {
-    let t = line.trim();
-    if t.is_empty() {
-        return String::new();
-    }
+fn is_codex_noise(line: &str) -> bool {
     const DROP_PREFIX: &[&str] = &[
         "model:", "sandbox:", "session id:", "workdir:", "approval:", "provider:", "reasoning",
         "OpenAI Codex", "Reading additional input", "Shell cwd was reset",
     ];
     const DROP_EXACT: &[&str] = &["--------", "user", "codex", "tokens used"];
-    if DROP_EXACT.contains(&t) || DROP_PREFIX.iter().any(|p| t.starts_with(p)) {
+    let t = line.trim();
+    DROP_EXACT.contains(&t) || DROP_PREFIX.iter().any(|p| t.starts_with(p))
+}
+
+fn codex_progress_line(line: &str) -> String {
+    let t = line.trim();
+    if t.is_empty() {
+        return String::new();
+    }
+    if is_codex_noise(t) {
         return String::new();
     }
     truncate(t, 100)
@@ -570,6 +585,17 @@ fn truncate(s: &str, n: usize) -> String {
         end -= 1;
     }
     format!("{}…", &s[..end])
+}
+
+fn tail_cap(s: &str, n: usize) -> &str {
+    if s.len() <= n {
+        return s;
+    }
+    let mut start = s.len() - n;
+    while start < s.len() && !s.is_char_boundary(start) {
+        start += 1;
+    }
+    &s[start..]
 }
 
 fn truncate_diff(s: &str, max: usize) -> String {

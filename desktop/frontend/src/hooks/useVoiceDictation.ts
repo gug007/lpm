@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { VoiceToTextAvailable, VoiceToTextToggle } from "../../bridge/commands";
 
 // Shared dictation control: toggles VoiceToText, or surfaces the install prompt

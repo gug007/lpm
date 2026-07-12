@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { TransformText } from "../../bridge/commands";
 import { useAIPicker } from "../hooks/useAIPicker";
 import { type ComposerAction } from "../store/composerActions";

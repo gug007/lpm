@@ -40,6 +40,7 @@ import { FolderDropZone } from "./FolderDropZone";
 import { useSidebarResize } from "../hooks/useSidebarResize";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { ProjectContextMenu } from "./ProjectContextMenu";
+import { RemoteSidebarSection } from "./RemoteSidebarSection";
 import { ProjectGitModals, type GitModalTarget } from "./ProjectGitModals";
 import { BulkDuplicateDialog, type BulkDuplicateOptions } from "./BulkDuplicateDialog";
 import { ProjectNameDisplay, projectDisplayName } from "./ProjectNameDisplay";
@@ -839,6 +840,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             </DragOverlay>
           </DndContext>
         )}
+        {!selectMode && <RemoteSidebarSection />}
       </nav>
       {contextMenu &&
         (selectMode ? (

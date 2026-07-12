@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("../../toast", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const saveTextFile = vi.fn(
   (_name: string, _text: string): Promise<boolean> => Promise.resolve(true),

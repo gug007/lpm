@@ -1,5 +1,5 @@
 import { create, type StoreApi } from "zustand";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import YAML from "yaml";
 import {
   isDuplicate,
@@ -189,8 +189,20 @@ interface AppState {
   // A run-action / new-terminal request relayed from the mobile app. `action` is
   // the action's (possibly composite) name, or null for a plain new terminal.
   // `nonce` lets an already-mounted ProjectDetail re-fire on repeat requests.
-  pendingRemoteAction: { projectName: string; action: string | null; nonce: number } | null;
-  triggerRemoteAction: (projectName: string, action: string | null) => void;
+  pendingRemoteAction: {
+    projectName: string;
+    action: string | null;
+    // Resolved input values from a controlling peer's ActionInputsModal. When
+    // present the action runs directly (no local modal/confirm); undefined keeps
+    // the legacy behavior of popping the input/confirm modal on this Mac.
+    inputs?: Record<string, string>;
+    nonce: number;
+  } | null;
+  triggerRemoteAction: (
+    projectName: string,
+    action: string | null,
+    inputs?: Record<string, string>,
+  ) => void;
   clearPendingRemoteAction: () => void;
   // A terminal-tab op (close / rename / pin / reorder) relayed from the mobile
   // app. Addressed by terminal id, except reorder which carries the full new id
@@ -831,7 +843,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // Mount/activate the target project (only a mounted ProjectDetail has a live
   // TerminalView to run in), then park the request for its consumer effect.
-  triggerRemoteAction: (projectName, action) =>
+  triggerRemoteAction: (projectName, action, inputs) =>
     set((s) => ({
       selected: projectName,
       view: "projects",
@@ -839,6 +851,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       pendingRemoteAction: {
         projectName,
         action,
+        inputs,
         nonce: ++remoteRequestNonce,
       },
     })),

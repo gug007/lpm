@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import {
   useInfiniteQuery,
   useMutation,
@@ -7,22 +7,9 @@ import {
   useQueryClient,
   type InfiniteData,
 } from "@tanstack/react-query";
-import {
-  NotesAddMessage,
-  NotesCreateChat,
-  NotesDeleteChat,
-  NotesDeleteMessage,
-  NotesEditMessage,
-  NotesListChats,
-  NotesListMessages,
-  NotesReadAttachment,
-  NotesReadFileAsInput,
-  NotesRenameChat,
-  NotesSaveAttachment,
-  NotesSearch,
-} from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
-import { main, notes } from "../../bridge/models";
+import { notes } from "../../bridge/models";
+import { bridgeNotesCommands, type NotesCommands } from "../notesCommands";
 import {
   PaperclipIcon,
   SendIcon,
@@ -52,6 +39,9 @@ type NotesPages = InfiniteData<notes.Message[], string>;
 interface NotesViewProps {
   projectName: string;
   visible: boolean;
+  // The notes data layer. Defaults to the local bridge; the remote view injects
+  // a peer-backed source so the same UI edits the other Mac's notes.
+  commands?: NotesCommands;
 }
 
 interface PendingAttachment {
@@ -82,7 +72,8 @@ export function activeChatStorageKey(projectName: string) {
 // personal layout choice, not a workspace attribute.
 const SIDEBAR_COLLAPSED_KEY = "notes:sidebarCollapsed";
 
-export function NotesView({ projectName, visible }: NotesViewProps) {
+export function NotesView({ projectName, visible, commands }: NotesViewProps) {
+  const cmds = commands ?? bridgeNotesCommands;
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const [pending, setPending] = useState<PendingAttachment[]>([]);
@@ -141,7 +132,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
 
   const chatsQuery = useQuery({
     queryKey: chatsKey(projectName),
-    queryFn: async () => (await NotesListChats(projectName)) ?? [],
+    queryFn: async () => (await cmds.listChats(projectName)) ?? [],
     enabled: visible,
     staleTime: 60_000,
   });
@@ -182,12 +173,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     queryFn: async ({ pageParam }) => {
       if (!activeChatID) return [];
       return (
-        (await NotesListMessages(
-          projectName,
-          activeChatID,
-          PAGE_SIZE,
-          pageParam,
-        )) ?? []
+        (await cmds.listMessages(projectName, activeChatID, PAGE_SIZE, pageParam)) ?? []
       );
     },
     initialPageParam: "",
@@ -206,7 +192,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
 
   const searchQuery = useQuery({
     queryKey: searchKey(projectName, trimmedSearch),
-    queryFn: async () => (await NotesSearch(projectName, trimmedSearch, 50)) ?? [],
+    queryFn: async () => (await cmds.search(projectName, trimmedSearch, 50)) ?? [],
     // Gate on the debounced value so a mid-typing render doesn't fire an
     // empty-query request before the user has settled.
     enabled: visible && trimmedSearch.length > 0,
@@ -320,7 +306,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     path: string,
   ): Promise<PendingAttachment | null> => {
     try {
-      const input = await NotesReadFileAsInput(path);
+      const input = await cmds.readFileAsInput(path);
       const data = base64ToBytes(input.data);
       return {
         id: crypto.randomUUID(),
@@ -390,19 +376,12 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
       text: string;
       pending: PendingAttachment[];
     }) => {
-      const attachments = input.pending.map<main.NotesAttachmentInput>((p) =>
-        main.NotesAttachmentInput.createFrom({
-          name: p.name,
-          mimeType: p.mimeType,
-          data: bytesToBase64(p.data),
-        }),
-      );
-      return NotesAddMessage(
-        projectName,
-        input.chatID,
-        input.text,
-        attachments,
-      );
+      const attachments = input.pending.map((p) => ({
+        name: p.name,
+        mimeType: p.mimeType,
+        data: bytesToBase64(p.data),
+      }));
+      return cmds.addMessage(projectName, input.chatID, input.text, attachments);
     },
     onSuccess: (msg) => {
       qc.setQueryData<NotesPages>(
@@ -432,7 +411,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
     // chatID rides the input so onSuccess doesn't depend on a closure that
     // may have rotated (user switched chats before the response landed).
     mutationFn: async (input: { id: string; chatID: string; text: string }) => {
-      await NotesEditMessage(projectName, input.id, input.text);
+      await cmds.editMessage(projectName, input.id, input.text);
       return input;
     },
     onSuccess: ({ id, chatID, text }) => {
@@ -464,7 +443,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
 
   const deleteMutation = useMutation({
     mutationFn: async (input: { id: string; chatID: string }) => {
-      await NotesDeleteMessage(projectName, input.id);
+      await cmds.deleteMessage(projectName, input.id);
       return input;
     },
     onSuccess: ({ id, chatID }) => {
@@ -480,7 +459,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
   });
 
   const createChatMutation = useMutation({
-    mutationFn: async (title: string) => NotesCreateChat(projectName, title),
+    mutationFn: async (title: string) => cmds.createChat(projectName, title),
     onSuccess: (chat) => {
       qc.setQueryData<notes.Chat[]>(chatsKey(projectName), (prev) => [
         chat,
@@ -503,7 +482,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
 
   const renameChatMutation = useMutation({
     mutationFn: async (input: { id: string; title: string }) => {
-      await NotesRenameChat(projectName, input.id, input.title);
+      await cmds.renameChat(projectName, input.id, input.title);
       return input;
     },
     onSuccess: ({ id, title }) => {
@@ -518,7 +497,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
 
   const deleteChatMutation = useMutation({
     mutationFn: async (id: string) => {
-      await NotesDeleteChat(projectName, id);
+      await cmds.deleteChat(projectName, id);
       return id;
     },
     onSuccess: (id) => {
@@ -762,6 +741,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
                     key={m.id}
                     message={m}
                     projectName={projectName}
+                    commands={cmds}
                     highlight={m.id === highlightID}
                     onSave={handleSaveMessage}
                     onDelete={handleDeleteMessage}
@@ -894,6 +874,7 @@ function buildDayGroups(newestFirst: notes.Message[]): DayGroup[] {
 interface MessageRowProps {
   message: notes.Message;
   projectName: string;
+  commands: NotesCommands;
   highlight: boolean;
   onSave: (id: string, chatID: string, text: string) => void;
   onDelete: (id: string, chatID: string) => void;
@@ -902,6 +883,7 @@ interface MessageRowProps {
 const MessageRow = memo(function MessageRow({
   message,
   projectName,
+  commands,
   highlight,
   onSave,
   onDelete,
@@ -996,6 +978,7 @@ const MessageRow = memo(function MessageRow({
             <AttachmentChip
               key={att.hash}
               projectName={projectName}
+              commands={commands}
               attachment={att}
             />
           ))}
@@ -1010,10 +993,11 @@ const LIGHTBOX_BTN =
 
 interface AttachmentChipProps {
   projectName: string;
+  commands: NotesCommands;
   attachment: notes.Attachment;
 }
 
-function AttachmentChip({ projectName, attachment }: AttachmentChipProps) {
+function AttachmentChip({ projectName, commands, attachment }: AttachmentChipProps) {
   const [url, setUrl] = useState<string | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const isImage = attachment.mimeType?.startsWith("image/");
@@ -1027,7 +1011,7 @@ function AttachmentChip({ projectName, attachment }: AttachmentChipProps) {
     let cancelled = false;
     (async () => {
       try {
-        const b64 = await NotesReadAttachment(projectName, attachment.hash);
+        const b64 = await commands.readAttachment(projectName, attachment.hash);
         if (cancelled) return;
         const u = bytesToBlobUrl(
           base64ToBytes(b64),
@@ -1043,7 +1027,7 @@ function AttachmentChip({ projectName, attachment }: AttachmentChipProps) {
     return () => {
       cancelled = true;
     };
-  }, [projectName, attachment.hash, attachment.mimeType, isImage]);
+  }, [projectName, attachment.hash, attachment.mimeType, isImage, commands]);
 
   useEffect(
     () => () => {
@@ -1054,7 +1038,7 @@ function AttachmentChip({ projectName, attachment }: AttachmentChipProps) {
 
   const download = async () => {
     try {
-      const path = await NotesSaveAttachment(
+      const path = await commands.saveAttachment(
         projectName,
         attachment.hash,
         attachment.name,

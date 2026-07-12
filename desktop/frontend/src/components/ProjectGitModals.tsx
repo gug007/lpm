@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { GitDiscardAll } from "../../bridge/commands";
 import { useGitStatus } from "../hooks/useGitStatus";
 import { CommitModal } from "./CommitModal";

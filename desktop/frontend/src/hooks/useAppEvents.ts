@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { EventsOn } from "../../bridge/runtime";
 import { RemoteTakeRunActions } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
@@ -43,10 +43,13 @@ export function useAppEvents(): void {
     // Each request activates the target project and parks for its ProjectDetail
     // to execute (only the mounted view owns the terminal tree).
     const drainRemoteActions = async () => {
-      const pending: Array<{ project?: string; action?: string | null }> =
-        (await RemoteTakeRunActions().catch(() => [])) ?? [];
+      const pending: Array<{
+        project?: string;
+        action?: string | null;
+        inputs?: Record<string, string>;
+      }> = (await RemoteTakeRunActions().catch(() => [])) ?? [];
       for (const req of pending) {
-        if (req?.project) triggerRemoteAction(req.project, req.action ?? null);
+        if (req?.project) triggerRemoteAction(req.project, req.action ?? null, req.inputs);
       }
     };
     const cancelRemoteAction = EventsOn("remote-run-action", () => {

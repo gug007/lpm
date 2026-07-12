@@ -355,6 +355,18 @@ export function RemoteSetTerminalLabels(project, labels) {
 export function RemoteTakeRunActions() {
   return invoke("remote_take_run_actions");
 }
+export function PeerPair(link) {
+  return invoke("peer_pair", { link });
+}
+export function PeerList() {
+  return invoke("peer_list");
+}
+export function PeerRemove(id) {
+  return invoke("peer_remove", { id });
+}
+export function PeerSend(id, frame) {
+  return invoke("peer_send", { id, frame });
+}
 export function TerminalPresentControl(id, realmKind, realmId, label) {
   return invoke("terminal_present_control", { id, realmKind, realmId, label });
 }

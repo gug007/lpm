@@ -26,6 +26,8 @@ import { useAppEvents } from "./hooks/useAppEvents";
 import { useProjectWatcher } from "./hooks/useProjectWatcher";
 import { getSettings, saveSettings } from "./store/settings";
 import { useAppStore } from "./store/app";
+import { usePeersStore } from "./store/peers";
+import { RemoteProjectView } from "./components/RemoteProjectView";
 import { onRunInDuplicates } from "./mirror";
 
 import { InstallTmux, TmuxInstalled } from "../bridge/commands";
@@ -75,10 +77,25 @@ export default function App() {
   const attachProject = useAppStore((s) => s.attachProject);
   const refreshAfterRename = useAppStore((s) => s.refreshAfterRename);
 
+  const remoteSelection = usePeersStore((s) => s.selection);
+  const initPeers = usePeersStore((s) => s.init);
+  const clearRemoteSelection = usePeersStore((s) => s.clearSelection);
+
+  useEffect(() => {
+    initPeers();
+  }, [initPeers]);
+
+  // Selecting any local project (sidebar, ⌘-number, auto-select) supersedes a
+  // remote view, so the two selections never both render.
+  useEffect(() => {
+    if (selected) clearRemoteSelection();
+  }, [selected, clearRemoteSelection]);
+
   const handleSelect = (name: string) => {
     // The main window owns every project's terminals, including detached ones
     // (mirrored into their own window). Clicking a detached project shows it
     // inline here rather than redirecting to its window — it's live in both.
+    clearRemoteSelection();
     selectProject(name);
   };
 
@@ -286,10 +303,19 @@ export default function App() {
               </div>
             );
           })}
-          {view === "projects" && !selectedProject && projects.length === 0 && (
+          {view === "projects" && remoteSelection && (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <RemoteProjectView
+                key={`${remoteSelection.peerId}:${remoteSelection.project}`}
+                peerId={remoteSelection.peerId}
+                project={remoteSelection.project}
+              />
+            </div>
+          )}
+          {view === "projects" && !selectedProject && !remoteSelection && projects.length === 0 && (
             <EmptyStateNoProjects onAdd={addProject} />
           )}
-          {view === "projects" && !selectedProject && projects.length > 0 && (
+          {view === "projects" && !selectedProject && !remoteSelection && projects.length > 0 && (
             <EmptyState />
           )}
         </main>

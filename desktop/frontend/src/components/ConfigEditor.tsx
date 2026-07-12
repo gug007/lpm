@@ -32,6 +32,11 @@ interface ConfigEditorProps {
   onBack?: () => void;
   onToggleView?: () => void;
   isRemote?: boolean;
+  // When set, the user config is read/saved through this source (a peer over the
+  // wire) instead of the local bridge. Only the user target is offered — repo,
+  // global, form view, and AI generate all bind to local state — so the editor
+  // collapses to a plain YAML view of the peer project's config.
+  remoteSource?: { load: () => Promise<string>; save: (content: string) => Promise<void> };
 }
 
 export function ConfigEditor({
@@ -40,9 +45,12 @@ export function ConfigEditor({
   onBack,
   onToggleView,
   isRemote = false,
+  remoteSource,
 }: ConfigEditorProps) {
   const onSavedRef = useRef(onSaved);
   onSavedRef.current = onSaved;
+  const remoteSourceRef = useRef(remoteSource);
+  remoteSourceRef.current = remoteSource;
 
   const [target, setTarget] = useState<ConfigTarget>("user");
   const [mode, setMode] = useState<"form" | "yaml">(() => getSettings().configEditorMode ?? "form");
@@ -53,9 +61,17 @@ export function ConfigEditor({
     saveSettings({ configEditorMode: next });
   };
 
-  const userLoad = useCallback(() => ReadConfig(projectName), [projectName]);
+  const userLoad = useCallback(
+    () => (remoteSourceRef.current ? remoteSourceRef.current.load() : ReadConfig(projectName)),
+    [projectName],
+  );
   const userSave = useCallback(
     async (content: string) => {
+      if (remoteSourceRef.current) {
+        await remoteSourceRef.current.save(content);
+        onSavedRef.current(projectName);
+        return;
+      }
       const newName = await SaveConfig(projectName, content);
       onSavedRef.current(newName);
     },
@@ -85,8 +101,9 @@ export function ConfigEditor({
         : GLOBAL_MODEL_URI;
 
   // Form view binds to project identity, which only exists in user config \u2014
-  // force YAML for repo and global targets.
-  const effectiveMode = target === "user" ? mode : "yaml";
+  // force YAML for repo and global targets, and always for a remote peer (form
+  // view + repo/global targets bind to local state that isn't wired over the wire).
+  const effectiveMode = remoteSource ? "yaml" : target === "user" ? mode : "yaml";
 
   const [aiOpen, setAiOpen] = useState(false);
 
@@ -119,6 +136,7 @@ export function ConfigEditor({
               <HelpCircleIcon />
             </button>
           </div>
+          {!remoteSource && (
           <div className="flex items-center gap-2">
             <SegmentedControl
               value={target}
@@ -182,6 +200,7 @@ export function ConfigEditor({
               </AIButton>
             </div>
           </div>
+          )}
         </div>
       )}
 

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useOpenInTargets, type OpenInTarget } from "../hooks/useOpenInTargets";
 import { OpenFileInEditor, OpenPathInDefaultApp } from "../../bridge/commands";

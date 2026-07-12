@@ -24,7 +24,9 @@ interface ComposerActionsButtonProps {
   // Runs the action, asking for `count` rewrites: 1 applies straight to the
   // composer, more than one opens the variant picker.
   onRun: (action: ComposerAction, count: number) => void;
-  onManage: () => void;
+  // Opens the local action-management modal. Omitted in remote mode, where the
+  // actions belong to the peer Mac and aren't editable from here.
+  onManage?: () => void;
   // Which edge the popover aligns to. Defaults to "right" (the button sits on the
   // right of its footer); "left" is used when the button is on the left so the
   // menu opens inward instead of off the left edge.
@@ -111,7 +113,7 @@ export function ComposerActionsButton({
 
   const manage = () => {
     setOpen(false);
-    onManage();
+    onManage?.();
   };
 
   // Keep clicks from pulling focus off the composer editor; the caret stays put.
@@ -247,15 +249,17 @@ export function ComposerActionsButton({
             </div>
           </div>
 
-          <button
-            type="button"
-            onMouseDown={keepEditorFocus}
-            onClick={manage}
-            className="flex w-full items-center gap-2.5 border-t border-[var(--border)] px-3.5 py-2.5 text-left text-[12px] font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          >
-            <Settings2 size={14} strokeWidth={1.75} />
-            Manage actions
-          </button>
+          {onManage && (
+            <button
+              type="button"
+              onMouseDown={keepEditorFocus}
+              onClick={manage}
+              className="flex w-full items-center gap-2.5 border-t border-[var(--border)] px-3.5 py-2.5 text-left text-[12px] font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              <Settings2 size={14} strokeWidth={1.75} />
+              Manage actions
+            </button>
+          )}
         </div>
       )}
 

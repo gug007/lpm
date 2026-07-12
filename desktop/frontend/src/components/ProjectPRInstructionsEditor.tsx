@@ -5,30 +5,32 @@ import {
 } from "../../bridge/commands";
 import { PRInstructionsForm } from "./PRInstructionsForm";
 import { ChevronLeftIcon } from "./icons";
+import type { InstructionsEditorIO } from "./ProjectAIInstructions";
 
 export function ProjectPRInstructionsEditor({
   projectName,
   onBack,
+  read = ReadProjectInstructions,
+  write = SaveProjectInstructions,
 }: {
   projectName: string;
   onBack: () => void;
-}) {
+} & InstructionsEditorIO) {
   const titleLoad = useCallback(
-    () => ReadProjectInstructions(projectName, "pr-title"),
-    [projectName],
+    () => read(projectName, "pr-title"),
+    [projectName, read],
   );
   const titleSave = useCallback(
-    (content: string) => SaveProjectInstructions(projectName, "pr-title", content),
-    [projectName],
+    (content: string) => write(projectName, "pr-title", content),
+    [projectName, write],
   );
   const descLoad = useCallback(
-    () => ReadProjectInstructions(projectName, "pr-description"),
-    [projectName],
+    () => read(projectName, "pr-description"),
+    [projectName, read],
   );
   const descSave = useCallback(
-    (content: string) =>
-      SaveProjectInstructions(projectName, "pr-description", content),
-    [projectName],
+    (content: string) => write(projectName, "pr-description", content),
+    [projectName, write],
   );
 
   return (
