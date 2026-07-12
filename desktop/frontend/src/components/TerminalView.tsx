@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback, useImperativeHandle } from "react";
-import { toast } from "../toast";
+import { toast } from "sonner";
 import { EventsOn } from "../../bridge/runtime";
 import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus, FocusMainWindow, RemoteSetTerminalLabels } from "../../bridge/commands";
 import { IS_MIRROR_WINDOW, requestRunInDuplicates } from "../mirror";

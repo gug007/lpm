@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { toast } from "../toast";
+import { toast } from "sonner";
 import { GitBranch } from "lucide-react";
 import { Modal } from "./ui/Modal";
 import { XIcon } from "./icons";

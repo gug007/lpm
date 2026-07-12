@@ -12,6 +12,12 @@ import {
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
+  clearHistory,
+  deleteFolder,
+  deleteMessage,
+  listFolders,
+  queryHistory,
+  toggleFavorite,
   COLLECTION_ALL,
   COLLECTION_DRAFTS,
   COLLECTION_FAVORITES,
@@ -24,7 +30,6 @@ import {
   type HistoryMessage,
   type HistoryScope,
 } from "../store/messageHistory";
-import { useHistorySource, type HistorySource } from "../store/historySource";
 import { relativeTime } from "../relativeTime";
 import { isImagePath, splitByImageTokens } from "./composerEditor";
 import { FolderIcon, HistoryIcon, PencilIcon, PlusIcon, SearchIcon, SendIcon, StarIcon, TrashIcon, XIcon } from "./icons";
@@ -61,9 +66,8 @@ export function TerminalHistoryPopover({
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [folderMenu, setFolderMenu] = useState<{ message: HistoryMessage; anchor: DOMRect } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const source = useHistorySource();
 
-  const folders = useQuery({ queryKey: [FOLDERS_KEY, source.key], queryFn: source.listFolders }).data ?? [];
+  const folders = useQuery({ queryKey: [FOLDERS_KEY], queryFn: listFolders }).data ?? [];
 
   // Debounce typing so we don't fire a query (and re-key the cache) per keystroke.
   useEffect(() => {
@@ -81,8 +85,8 @@ export function TerminalHistoryPopover({
   );
 
   const query = useInfiniteQuery({
-    queryKey: [MESSAGE_HISTORY_KEY, source.key, filter],
-    queryFn: ({ pageParam }) => source.queryHistory(filter, pageParam),
+    queryKey: [MESSAGE_HISTORY_KEY, filter],
+    queryFn: ({ pageParam }) => queryHistory(filter, pageParam),
     initialPageParam: null as HistoryCursor | null,
     getNextPageParam: (last) =>
       last.length === HISTORY_PAGE_SIZE
@@ -127,12 +131,11 @@ export function TerminalHistoryPopover({
   // Clear only removes transient history — favorited and foldered messages are
   // kept — so it's offered solely on the unfiltered "All" view.
   const canClear =
-    source.supportsClear &&
     !search.trim() &&
     collection === COLLECTION_ALL &&
     items.some((m) => !m.favorite && !m.folderId && !m.isDraft);
   const clear = () => {
-    source.clearHistory(filter);
+    clearHistory(filter);
     setConfirmingClear(false);
   };
 
@@ -185,7 +188,7 @@ export function TerminalHistoryPopover({
           folders={folders}
           onSelect={selectCollection}
           onDeleteFolder={(id) => {
-            source.deleteFolder(id);
+            deleteFolder(id);
             if (collection === id) selectCollection(COLLECTION_ALL);
           }}
         />
@@ -231,8 +234,7 @@ export function TerminalHistoryPopover({
                 >
                   <HistoryRow
                     message={message}
-                    caption={scope === "all" ? "full" : "terminal"}
-                    data={source}
+                    source={scope === "all" ? "full" : "terminal"}
                     onPick={onPick}
                     onSend={onSend}
                     onOpenFolderMenu={openFolderMenu}
@@ -457,15 +459,13 @@ function MessageText({ text, images }: { text: string; images: Record<string, st
 // doesn't re-render every visible row; props are stable per message.
 const HistoryRow = memo(function HistoryRow({
   message,
-  caption,
-  data,
+  source,
   onPick,
   onSend,
   onOpenFolderMenu,
 }: {
   message: HistoryMessage;
-  caption: "terminal" | "full";
-  data: HistorySource;
+  source: "terminal" | "full";
   onPick: (text: string, images: Record<string, string>) => void;
   onSend?: (text: string, images: Record<string, string>) => void;
   onOpenFolderMenu: (message: HistoryMessage, anchor: DOMRect) => void;
@@ -486,7 +486,7 @@ const HistoryRow = memo(function HistoryRow({
           <MessageText text={message.text} images={message.images} />
         </span>
         <span className="truncate text-[10px] text-[var(--text-muted)]">
-          {caption === "full" ? `${message.projectName} · ${message.terminalLabel}` : message.terminalLabel}
+          {source === "full" ? `${message.projectName} · ${message.terminalLabel}` : message.terminalLabel}
         </span>
       </button>
 
@@ -551,7 +551,7 @@ const HistoryRow = memo(function HistoryRow({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              data.toggleFavorite(message.id);
+              toggleFavorite(message.id);
             }}
             aria-pressed={message.favorite}
             title={message.favorite ? "Remove favorite" : "Mark as favorite"}
@@ -567,7 +567,7 @@ const HistoryRow = memo(function HistoryRow({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              data.deleteMessage(message.id);
+              deleteMessage(message.id);
             }}
             title="Delete message"
             className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--accent-red)]/10 hover:text-[var(--accent-red)] group-hover:pointer-events-auto"

@@ -4,13 +4,9 @@ interface EmptyTerminalStateProps {
   projectName: string;
   onNewTerminal: () => void;
   onEditConfig: () => void;
-  // Hide the "Edit Config" button on surfaces that can't edit the config (the
-  // remote view — the config lives on the other Mac). Default shows it, so the
-  // local empty state is unchanged.
-  hideEditConfig?: boolean;
 }
 
-export function EmptyTerminalState({ projectName, onNewTerminal, onEditConfig, hideEditConfig = false }: EmptyTerminalStateProps) {
+export function EmptyTerminalState({ projectName, onNewTerminal, onEditConfig }: EmptyTerminalStateProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden">
       <div className="flex max-w-sm flex-col items-center gap-5 text-center">
@@ -35,16 +31,14 @@ export function EmptyTerminalState({ projectName, onNewTerminal, onEditConfig, h
             New Terminal
             <kbd className="ml-1 text-[10px] opacity-70">⌘T</kbd>
           </button>
-          {!hideEditConfig && (
-            <button
-              onClick={onEditConfig}
-              className="flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              <PencilIcon />
-              Edit Config
-              <kbd className="ml-1 text-[10px] opacity-70">⌘E</kbd>
-            </button>
-          )}
+          <button
+            onClick={onEditConfig}
+            className="flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            <PencilIcon />
+            Edit Config
+            <kbd className="ml-1 text-[10px] opacity-70">⌘E</kbd>
+          </button>
         </div>
       </div>
     </div>

@@ -89,14 +89,6 @@ interface BulkDuplicateDialogProps {
   // When set, the run section stays collapsed and these one-off choices are NOT
   // persisted as the user's duplicate defaults.
   seed?: DuplicatePromptSeed;
-  // Seeds the three option toggles from an external source instead of the local
-  // persisted settings — the remote duplicate flow passes the peer Mac's defaults
-  // so the dialog opens matching that machine. Local usage omits it.
-  defaultsOverride?: {
-    excludeUncommitted: boolean;
-    reinstallDeps: boolean;
-    pullLatest: boolean;
-  };
   onCancel: () => void;
   onConfirm: (count: number, opts: BulkDuplicateOptions) => void;
 }
@@ -106,7 +98,6 @@ export function BulkDuplicateDialog({
   project,
   folderNames,
   seed,
-  defaultsOverride,
   onCancel,
   onConfirm,
 }: BulkDuplicateDialogProps) {
@@ -189,9 +180,9 @@ export function BulkDuplicateDialog({
     setCommand(seed?.command ?? s.duplicateCommand ?? "");
     setComposer(seed?.prompt ?? EMPTY_COMPOSER);
     setEditing(null);
-    setExcludeUncommitted(defaultsOverride?.excludeUncommitted ?? s.duplicateExcludeUncommitted ?? false);
-    setReinstallDeps(defaultsOverride?.reinstallDeps ?? s.duplicateReinstallDeps ?? false);
-    setPullLatest(defaultsOverride?.pullLatest ?? s.duplicatePullLatest ?? true);
+    setExcludeUncommitted(s.duplicateExcludeUncommitted ?? false);
+    setReinstallDeps(s.duplicateReinstallDeps ?? false);
+    setPullLatest(s.duplicatePullLatest ?? true);
     setGroupName("");
     setFolderOpen(false);
     // A composer-seeded run stays collapsed — its target/prompt are already set

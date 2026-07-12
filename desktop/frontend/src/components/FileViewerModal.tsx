@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { toast } from "../toast";
+import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
 import { XIcon } from "./icons";
 import { GitDiff, ReadFile, WriteFile } from "../../bridge/commands";

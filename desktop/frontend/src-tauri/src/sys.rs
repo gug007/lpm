@@ -138,27 +138,6 @@ fn nvm_node_bins(home: &Path) -> Vec<String> {
         .collect()
 }
 
-/// This Mac's user-facing name — `scutil --get ComputerName`, falling back to the
-/// hostname, then a generic label. Shared by the remote server (labels a pairing
-/// device) and the peer client (names the Mac it pairs with).
-pub fn computer_name() -> String {
-    if let Ok(out) = Command::new("scutil").args(["--get", "ComputerName"]).output() {
-        if out.status.success() {
-            let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            if !name.is_empty() {
-                return name;
-            }
-        }
-    }
-    if let Ok(out) = Command::new("hostname").output() {
-        let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
-        if !name.is_empty() {
-            return name;
-        }
-    }
-    "Mac".to_string()
-}
-
 /// True if `bin` resolves to a file on PATH (LookPath-style presence check).
 pub fn which(bin: &str) -> bool {
     let Ok(path) = std::env::var("PATH") else {

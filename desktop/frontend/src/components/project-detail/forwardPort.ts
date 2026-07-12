@@ -1,4 +1,4 @@
-import { toast } from "../../toast";
+import { toast } from "sonner";
 import { AddPortForward } from "../../../bridge/commands";
 import { BrowserOpenURL } from "../../../bridge/runtime";
 

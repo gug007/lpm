@@ -5,7 +5,7 @@ import type {
   ILinkProvider,
   Terminal,
 } from "@xterm/xterm";
-import { toast } from "../../toast";
+import { toast } from "sonner";
 import { joinAbs } from "../../path";
 import { getSettings } from "../../store/settings";
 import { openFileViewer } from "../../store/fileViewer";

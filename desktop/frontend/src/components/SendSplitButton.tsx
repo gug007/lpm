@@ -17,10 +17,6 @@ interface SendSplitButtonProps {
   onSaveDraft: () => void;
   // Spin up `count` project duplicates that each run this prompt in parallel.
   onRunInDuplicates: (count: number) => void;
-  // Show the caret half + draft/duplicates menu. Off (send-only) for surfaces
-  // where drafts/duplicates aren't wired (the remote composer); default on keeps
-  // the local composer unchanged.
-  showMenu?: boolean;
 }
 
 const MENU_WIDTH = 300;
@@ -35,7 +31,7 @@ const MAX_DUPES = 10;
 // prompt as a draft or run it across several parallel duplicates instead. The
 // menu is anchored above the button (the composer sits at the bottom of the
 // pane) and portaled so the composer's rounded, clipping ancestors can't cut it off.
-export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onRunInDuplicates, showMenu = true }: SendSplitButtonProps) {
+export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onRunInDuplicates }: SendSplitButtonProps) {
   const [open, setOpen] = useState(false);
   // How many copies "Run in duplicates" spins up; adjusted inline in the menu
   // and carried over as the seeded Copies count when the dialog opens.
@@ -95,9 +91,7 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onRunInDu
           }}
           disabled={inert}
           aria-label="Send"
-          className={`flex h-7 items-center justify-center pl-2.5 pr-2 transition-colors [&>svg]:rotate-45 ${
-            showMenu ? "rounded-l-lg" : "rounded-lg"
-          } ${
+          className={`flex h-7 items-center justify-center rounded-l-lg pl-2.5 pr-2 transition-colors [&>svg]:rotate-45 ${
             inert
               ? "text-[var(--text-muted)]"
               : "text-[var(--bg-primary)] hover:bg-black/10 active:bg-black/20"
@@ -106,29 +100,26 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onRunInDu
           <SendIcon />
         </button>
       </Tooltip>
-      {showMenu && <span className={`h-3.5 w-px ${divider}`} />}
-      {showMenu && (
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          disabled={inert}
-          aria-label="More send options"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          className={`flex h-7 items-center justify-center rounded-r-lg pl-1.5 pr-2 transition-colors [&>svg]:h-3 [&>svg]:w-3 ${
-            inert
-              ? "text-[var(--text-muted)]"
-              : `text-[var(--bg-primary)]/70 hover:bg-black/10 hover:text-[var(--bg-primary)] ${
-                  open ? "bg-black/10 text-[var(--bg-primary)]" : ""
-                }`
-          }`}
-        >
-          <ChevronUpIcon />
-        </button>
-      )}
+      <span className={`h-3.5 w-px ${divider}`} />
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        disabled={inert}
+        aria-label="More send options"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={`flex h-7 items-center justify-center rounded-r-lg pl-1.5 pr-2 transition-colors [&>svg]:h-3 [&>svg]:w-3 ${
+          inert
+            ? "text-[var(--text-muted)]"
+            : `text-[var(--bg-primary)]/70 hover:bg-black/10 hover:text-[var(--bg-primary)] ${
+                open ? "bg-black/10 text-[var(--bg-primary)]" : ""
+              }`
+        }`}
+      >
+        <ChevronUpIcon />
+      </button>
 
-      {showMenu &&
-        open &&
+      {open &&
         style &&
         createPortal(
           <div ref={panelRef} role="menu" style={style} className={`z-[80] ${MENU_PANEL_CLASS}`}>

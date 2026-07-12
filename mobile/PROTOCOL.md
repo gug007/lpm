@@ -25,11 +25,9 @@ The phone sends exactly one of:
 ```
 → on success the server replies and the code is consumed (single use):
 ```json
-{ "t": "paired", "deviceId": "<uuid>", "token": "<base64 bearer token>", "name": "<the Mac's computer name>" }
+{ "t": "paired", "deviceId": "<uuid>", "token": "<base64 bearer token>" }
 ```
-`name` is optional and identifies the Mac that issued the token, so a pairing
-peer (another Mac) can label the connection; clients that don't need it ignore
-it. The phone stores `deviceId` + `token` in the Keychain. On rejection:
+The phone stores `deviceId` + `token` in the Keychain. On rejection:
 ```json
 { "t": "error", "error": "pairing rejected" }
 ```
@@ -56,12 +54,12 @@ any live connection.
 | `{ "t": "history", "project": "<name>", "q": "<search>" }` | `{ "t": "history", "project": "<name>", "rows": [HistoryRow…] }` — recent sent prompts for the project (newest first), for recall |
 | `{ "t": "historyAdd", "project": "<name>", "id": "<termId>", "label": "<tab>", "text": "…" }` | — records a prompt the phone sent into the shared message history |
 | `{ "t": "status", "project": "<name>" }` | `{ "t": "status", "project": "<name>", "status": [StatusEntry…] }` |
-| `{ "t": "sub", "id": "<termId>", "view": bool? }` | `{ "t": "seed", "id": "<termId>", "cols": N, "rows": N, "data": "<recent scrollback>", "owner": ControlOwner\|null }`, then a live stream of `o` frames. By default subscribing also *claims* the terminal (see control ownership below) — the surface that just opened it goes live. Pass `view: true` to subscribe **read-only**: you receive the seed + `o` stream but do **not** take control, so the current owner keeps it; the desktop peer client uses this so viewing a terminal never steals control, then sends `claim` for "Take control". Omitted/`false` (the phone) claims, unchanged. `owner` tells you whether you may render live/typeable or must show a "take control" affordance |
+| `{ "t": "sub", "id": "<termId>" }` | `{ "t": "seed", "id": "<termId>", "cols": N, "rows": N, "data": "<recent scrollback>", "owner": ControlOwner\|null }`, then a live stream of `o` frames. Subscribing also *presents* the terminal (see control ownership below); `owner` tells the phone whether it may render live or must show a "take control" placeholder |
 | `{ "t": "unsub", "id": "<termId>" }` | — (also stops presenting the terminal) |
 | `{ "t": "claim", "id": "<termId>" }` | — (the "Take control" action) takes ownership of the terminal; the previous owner is pushed a `control` frame and flips to its own placeholder |
 | `{ "t": "in", "id": "<termId>", "d": "ls\r" }` | — (keystrokes; see hex framing) |
 | `{ "t": "resize", "id": "<termId>", "cols": N, "rows": N }` | — (see note) |
-| `{ "t": "runAction", "project": "<name>", "action": "<actionName>", "inputs": { "<key>": "<value>" }? }` | `{ "t": "runAction", "ok": true }` — relayed to the desktop's owner window, which runs the action in its normal terminal flow (needs the main window open). The new terminal appears on a subsequent `terminals` re-request. **`inputs`** is optional and additive: when the action declares inputs (or a confirm), a controlling **peer** collects them in its own ActionInputsModal/ConfirmDialog and sends the resolved `{key: value}` map here, so the desktop substitutes `{{key}}` and runs **directly** instead of popping a second modal on that Mac. When `inputs` is absent (older phone, name-only), the desktop keeps its legacy behavior and pops the input/confirm modal itself. An empty `inputs: {}` still means "already resolved, run directly" (used for a confirm-only action) |
+| `{ "t": "runAction", "project": "<name>", "action": "<actionName>" }` | `{ "t": "runAction", "ok": true }` — relayed to the desktop's owner window, which runs the action in its normal terminal flow (needs the main window open). The new terminal appears on a subsequent `terminals` re-request |
 | `{ "t": "newTerminal", "project": "<name>" }` | `{ "t": "newTerminal", "ok": true }` — same relay; opens a plain terminal in the project |
 | `{ "t": "closeTerminal", "project": "<name>", "id": "<termId>" }` | `{ "t": "closeTerminal", "ok": true }` — owner-window relay; kills the terminal and removes its tab. Re-request `terminals` to refresh |
 | `{ "t": "renameTerminal", "project": "<name>", "id": "<termId>", "label": "<new>" }` | `{ "t": "renameTerminal", "ok": true }` — relay; renames the desktop tab (a `terminals.json` write, no PTY op) |
@@ -72,7 +70,6 @@ any live connection.
 | `{ "t": "start", "name": "<name>", "profile": "" }` | `{ "t": "start", "ok": true }` / `{ "ok": false, "error": "…" }` |
 | `{ "t": "stop", "name": "<name>" }` | `{ "t": "stop", "ok": … }` |
 | `{ "t": "toggleService", "name": "<name>", "service": "<svc>" }` | `{ "t": "toggleService", "ok": … }` |
-| `{ "t": "restartService", "name": "<name>", "service": "<svc>" }` | `{ "t": "restartService", "ok": true, "name": "<name>", "service": "<svc>" }` / `{ "ok": false, "error": "…", "name", "service" }` — restarts one running service through the same path the local Controls restart uses (re-runs the service's pane). Inline (a quick tmux op). Errors when the service is unknown or not currently running. `name`+`service` are echoed so overlapping restarts correlate their replies |
 | `{ "t": "ping" }` | `{ "t": "pong" }` |
 
 ### Git review & ship
@@ -96,7 +93,6 @@ identical to the desktop submenu, so behavior stays consistent across surfaces.
 |---|---|
 | `{ "t": "git", "project": "<name>" }` | `{ "t": "git", "project": "<name>", "ok": true, "isRepo": bool, "branch": "…", "detached": bool, "hasUpstream": bool, "ahead": N, "behind": N, "defaultBranch": "…", "ghCli": bool, "files": [{ path, status, staged, stamp }…] }` — the project's git status + changed files in one shot. `status` ∈ `added`\|`deleted`\|`renamed`\|`modified`\|`untracked`. `stamp` is an **opaque change token** for the file's working-tree content: if a file's `stamp` is unchanged between two snapshots, its diff is unchanged and needn't be refetched (skip the `gitDiff` round-trip); treat an unknown or absent `stamp` as changed (older servers omit it, so always refetch then). `ghCli` reports whether the `gh` CLI is available (gates the "Open PR" affordance). When the project isn't a git repo: `ok:true, isRepo:false` with empty/zero fields. On a bad project: `{ "ok": false, "error": "…" }` |
 | `{ "t": "gitDiff", "project": "<name>", "path": "<file>" }` | `{ "t": "gitDiff", "project": "<name>", "path": "<file>", "ok": true, "diff": "<unified diff>", "binary": bool, "truncated": bool }` — the unified diff (HEAD vs working tree) for one file, including untracked files. A binary file returns `binary:true, diff:""`. The diff is capped at ~400 KB, truncated at a line boundary with `truncated:true` when it exceeds that. Errors → `{ "ok": false, "error": "…" }` |
-| `{ "t": "gitDiffs", "project": "<name>", "files": [{ "path": "<file>", "status": "<status>"? }…], "reqId": <any>? }` | `{ "t": "gitDiffs", "project": "<name>", "ok": true, "diffs": { "<path>": { "original": "…", "modified": "…", "binary": bool, "tooLarge": bool }… }, "reqId": <any>? }` / `{ "ok": false, "error": "…" }` — batched **full original/modified contents** (HEAD vs working tree) for several files at once, for a client that renders the diff from two full buffers (the desktop peer's Monaco review pane) rather than a unified string. Each side beyond ~4 MB returns `tooLarge:true` with empty content (like `binary`). Pass `reqId` (string/number) and it is echoed verbatim so concurrent requests correlate by id. This is the counterpart to `gitDiff` (unified string, for the phone); both read the same working-tree state |
 | `{ "t": "gitCommit", "project": "<name>", "message": "…", "files": ["<path>"…] }` | `{ "t": "gitCommit", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — stages exactly the given files (resetting the index first) and commits them with `message` |
 | `{ "t": "gitPush", "project": "<name>" }` | `{ "t": "gitPush", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — `git push -u origin HEAD`, applying the persisted `gitPush` flags (`--force-with-lease` when `mode=="force-with-lease"`, `--no-verify`, `--tags`). Async (network) |
 | `{ "t": "gitPull", "project": "<name>" }` | `{ "t": "gitPull", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — pulls with the persisted `gitPull` strategy (`ff` default \| `ff-only` \| `rebase`) and flags (`--autostash`, `--no-verify`). Async (network) |
@@ -104,9 +100,6 @@ identical to the desktop submenu, so behavior stays consistent across surfaces.
 | `{ "t": "gitBranches", "project": "<name>" }` | `{ "t": "gitBranches", "project": "<name>", "ok": true, "current": "<branch>", "branches": [{ name, committerDate, remote? }…] }` / `{ "ok": false, "error": "…" }` — the branch list for the "Switch branch" picker (local + remote, newest first). `remote` is **omitted** for a local branch (present only for a remote-tracking one). `current` is the checked-out branch. Inline |
 | `{ "t": "gitCheckout", "project": "<name>", "branch": "<name>", "remote": "<remote>" }` | `{ "t": "gitCheckout", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — checks out `branch`; pass the `remote` from a `gitBranches` entry to create a local tracking branch (empty `remote` for a plain local checkout). Inline |
 | `{ "t": "gitDiscardAll", "project": "<name>" }` | `{ "t": "gitDiscardAll", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — discards all working-tree changes (reset + clean). Inline |
-| `{ "t": "gitCreateBranch", "project": "<name>", "name": "<branch>" }` | `{ "t": "gitCreateBranch", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — creates the branch **and checks it out** (`create_branch`), matching the local branch menu. Inline (local git). Errors on an empty or already-existing name. After success re-request `git` + `gitBranches` |
-| `{ "t": "gitDeleteBranch", "project": "<name>", "name": "<branch>", "remote": "<remote>"? }` | `{ "t": "gitDeleteBranch", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — with no/empty `remote`, force-deletes the local branch (`git branch -D`, same as the local menu — removes it even with unmerged commits, so the caller confirms first). With a `remote`, drops the stale remote-tracking ref (`git branch -dr <remote>/<branch>`) without touching the remote. Inline |
-| `{ "t": "gitMerge", "project": "<name>", "branch": "<branch>" }` | `{ "t": "gitMerge", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — merges `branch` into the current branch (`git merge --no-edit`). Inline (local git). **On conflict the merge is aborted** (`git merge --abort`) so the peer repo is left clean rather than mid-merge, and the reply is `ok:false` with a message saying the merge was aborted due to conflicts and should be resolved on that Mac directly (there is no remote conflict-resolution surface). After success re-request `git` + `gitBranches` |
 | `{ "t": "gitWatch", "project": "<name>" }` | `{ "t": "gitWatch", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — starts watching the project's working tree **for this connection**; while watched, the desktop sends a debounced `git-changed` push (below) on each burst of file changes so the review screen self-refreshes. Watching an already-watched project is a no-op (still `ok:true`). The watch is scoped to the connection and is dropped on `gitUnwatch`, disconnect, and device revocation. Inline |
 | `{ "t": "gitUnwatch", "project": "<name>" }` | `{ "t": "gitUnwatch", "project": "<name>", "ok": true }` — stops watching the project for this connection (no-op if it wasn't watched). Inline |
 | `{ "t": "gitGenMessage", "project": "<name>", "files": ["<path>"…] }` | `{ "t": "gitGenMessage", "project": "<name>", "ok": true, "message": "…" }` / `{ "ok": false, "error": "…" }` — AI-drafts a commit message from the diff of the given files. Async (AI). Uses the desktop's persisted AI settings (`aiCli` default `claude`, `aiModel`, `aiEffort`, `aiFast`) |
@@ -140,49 +133,6 @@ AI generators; the history ops are local SQLite and reply inline.
 The pre-existing `{ "t": "history", "project", "q" }` / `{ "t": "historyAdd", … }`
 messages are unchanged — `historyQuery` is the richer superset for the paged
 history screen, while `history` remains the simple project-scoped recall list.
-
-### Project config & AI instructions (peer parity)
-
-Edit a project's settings from a controlling peer: its config YAML (the remote
-⌘E editor) and its per-project AI-instruction overrides. All read/save through the
-**same command paths the local editors use**, so validation/normalization is
-identical — no raw file writes. All inline (a file read, or a validated write).
-Every reply echoes the `project` (and `key`, for instructions) it was addressed to.
-
-| Request | Reply |
-|---|---|
-| `{ "t": "configRead", "project": "<name>" }` | `{ "t": "configRead", "project": "<name>", "ok": true, "text": "<yaml>" }` / `{ "ok": false, "error": "…" }` — the project's **user** config YAML (`config_cmds::read_config`). The remote editor offers only the user target; repo/global/form-view/AI-generate bind to local state and aren't wired over the wire |
-| `{ "t": "configWrite", "project": "<name>", "text": "<yaml>" }` | `{ "t": "configWrite", "project": "<name>", "ok": true, "name": "<possibly-renamed>" }` / `{ "ok": false, "error": "…" }` — saves through `config_cmds::save_config`, so the same YAML-syntax validation + rename/parent routing runs; an invalid document replies `ok:false` with the validator's message, which the editor surfaces like a local save. `name` is the project's (possibly renamed) file name |
-| `{ "t": "aiInstructionsRead", "project": "<name>", "key": "<key>" }` | `{ "t": "aiInstructionsRead", "project": "<name>", "key": "<key>", "ok": true, "text": "…" }` / `{ "ok": false, "error": "…" }` — a per-project AI-instruction override. `key` ∈ `commit` \| `pr-title` \| `pr-description` \| `branch-name`; an unknown key errors from the same validator the local command uses. These live in their own `.txt` files (`templates.rs`), **not** the config YAML, so they get their own messages. Missing file → `text: ""` |
-| `{ "t": "aiInstructionsWrite", "project": "<name>", "key": "<key>", "text": "…" }` | `{ "t": "aiInstructionsWrite", "project": "<name>", "key": "<key>", "ok": true }` / `{ "ok": false, "error": "…" }` — saves the override file (`templates::save_project_instructions`) |
-
-### Notes (peer parity)
-
-Mirror a project's per-project notes (a chat/message store, encrypted on the owning
-Mac) so a controlling peer edits them with the same NotesView. Each op proxies to
-the desktop's `notes_cmds`; the fast SQLite ops reply inline, while the attachment
-blob ops (`notesReadAttachment`, `notesSaveAttachment`) and `notesAddMessage` (its
-attachments can be large) run on a worker thread and reply through the out-queue.
-**Every request carries a `reqId`** (string/number) echoed verbatim, so concurrent
-same-`t` requests (several attachment previews, paged message loads) correlate by
-id rather than FIFO. `readFileAsInput` has **no** message: the file being attached
-lives on the controller's disk, so it is read locally and its bytes ride the
-`notesAddMessage` frame. Model shapes (chat/message/hit/attachment) are the same
-JSON the local bridge returns (camelCase).
-
-| Request | Reply |
-|---|---|
-| `{ "t": "notesChats", "project": "<name>", "reqId": <any> }` | `{ "t": "notesChats", "ok": true, "chats": [Chat…], "reqId": <any> }` / `{ "ok": false, "error": "…" }` — the project's chats (newest-activity first) |
-| `{ "t": "notesCreateChat", "project": "<name>", "title": "…", "reqId": <any> }` | `{ "t": "notesCreateChat", "ok": true, "chat": Chat, "reqId": <any> }` / `{ "ok": false, "error": "…" }` |
-| `{ "t": "notesRenameChat", "project": "<name>", "id": "<chatId>", "title": "…", "reqId": <any> }` | `{ "t": "notesRenameChat", "ok": true, "reqId": <any> }` / `{ "ok": false, "error": "…" }` |
-| `{ "t": "notesDeleteChat", "project": "<name>", "id": "<chatId>", "reqId": <any> }` | `{ "t": "notesDeleteChat", "ok": true, "reqId": <any> }` / `{ "ok": false, "error": "…" }` — deletes the chat and GCs its orphaned attachment blobs |
-| `{ "t": "notesMessages", "project": "<name>", "chatId": "<chatId>", "limit": N, "beforeId": "<id>", "reqId": <any> }` | `{ "t": "notesMessages", "ok": true, "messages": [Message…], "reqId": <any> }` / `{ "ok": false, "error": "…" }` — one page (newest-first); pass the last message's `id` as `beforeId` to page older (empty for the first page) |
-| `{ "t": "notesAddMessage", "project": "<name>", "chatId": "<chatId>", "text": "…", "attachments": [{ "name", "mimeType", "data" }…], "reqId": <any> }` | `{ "t": "notesAddMessage", "ok": true, "message": Message, "reqId": <any> }` / `{ "ok": false, "error": "…" }` — `attachments[].data` is base64; the bytes are decrypted-at-rest on the owning Mac. Worker thread (out-queue) since attachments can be large |
-| `{ "t": "notesEditMessage", "project": "<name>", "id": "<msgId>", "text": "…", "reqId": <any> }` | `{ "t": "notesEditMessage", "ok": true, "reqId": <any> }` / `{ "ok": false, "error": "…" }` |
-| `{ "t": "notesDeleteMessage", "project": "<name>", "id": "<msgId>", "reqId": <any> }` | `{ "t": "notesDeleteMessage", "ok": true, "reqId": <any> }` / `{ "ok": false, "error": "…" }` |
-| `{ "t": "notesSearch", "project": "<name>", "query": "…", "limit": N, "reqId": <any> }` | `{ "t": "notesSearch", "ok": true, "hits": [SearchHit…], "reqId": <any> }` / `{ "ok": false, "error": "…" }` |
-| `{ "t": "notesReadAttachment", "project": "<name>", "hash": "<hash>", "reqId": <any> }` | `{ "t": "notesReadAttachment", "ok": true, "data": "<base64>", "reqId": <any> }` / `{ "ok": false, "error": "…" }` — an attachment's bytes for an image preview. Worker thread (out-queue) — blobs are up to ~100MB |
-| `{ "t": "notesSaveAttachment", "project": "<name>", "hash": "<hash>", "name": "<filename>", "reqId": <any> }` | `{ "t": "notesSaveAttachment", "ok": true, "path": "<saved path>", "reqId": <any> }` / `{ "ok": false, "error": "…" }` — saves the attachment to disk **on the owning Mac** (its notes_save_attachment pops a folder picker there); `path: ""` means the picker was cancelled. Worker thread (out-queue) |
 
 ### Push notifications (APNs)
 
