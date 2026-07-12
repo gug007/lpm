@@ -28,8 +28,8 @@ export function InviteChip({ invite }: { invite: string }) {
         onClick={copy}
         className={`shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium transition-colors ${
           copied
-            ? "bg-[color-mix(in_srgb,var(--accent-green)_16%,transparent)] text-[var(--accent-green-text)]"
-            : "bg-[var(--accent-green)] text-white hover:opacity-90"
+            ? "bg-[color-mix(in_srgb,var(--accent-cyan)_16%,transparent)] text-[var(--accent-cyan)]"
+            : "bg-[var(--accent-cyan)] text-white hover:opacity-90"
         }`}
       >
         {copied ? "Copied" : "Copy invite"}

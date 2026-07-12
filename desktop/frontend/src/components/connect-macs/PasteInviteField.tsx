@@ -2,8 +2,9 @@ import { useState } from "react";
 import { decodeInvite } from "../../peer/invite";
 
 // The primary way to connect: paste one invite string. The field recognizes a
-// valid invite as you paste — a quiet green edge + a ready line — and Enter (or
-// Connect) submits. Invalid text gets a plain-language nudge, never jargon.
+// valid invite as you paste — a quiet accent edge + inline check + accent-filled
+// Connect — and Enter (or Connect) submits. Invalid text gets a plain-language
+// nudge, never jargon. Sits inside a grouped-list row.
 export function PasteInviteField({
   busy,
   onConnect,
@@ -25,7 +26,7 @@ export function PasteInviteField({
 
   return (
     <div>
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         <div className="relative min-w-0 flex-1">
           <input
             value={value}
@@ -40,19 +41,19 @@ export function PasteInviteField({
             spellCheck={false}
             autoCapitalize="off"
             autoCorrect="off"
-            className={`w-full rounded-lg border bg-[var(--bg-primary)] px-3 py-2 pr-8 text-sm text-[var(--text-primary)] outline-none transition-colors ${
+            className={`w-full rounded-lg border bg-[var(--bg-primary)] px-3 py-1.5 pr-8 text-[13px] text-[var(--text-primary)] outline-none transition-colors ${
               decoded
-                ? "border-[var(--accent-green)]"
+                ? "border-[var(--accent-cyan)]"
                 : invalid
-                  ? "border-[color-mix(in_srgb,var(--accent-red)_55%,var(--border))]"
+                  ? "border-[color-mix(in_srgb,var(--accent-red)_45%,var(--border))]"
                   : "border-[var(--border)] focus:border-[var(--accent-cyan)]"
             }`}
           />
           {decoded && (
             <svg
-              className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--accent-green)]"
-              width="14"
-              height="14"
+              className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--accent-cyan)]"
+              width="13"
+              height="13"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -67,18 +68,22 @@ export function PasteInviteField({
         <button
           onClick={submit}
           disabled={!canConnect}
-          className="shrink-0 rounded-lg bg-[var(--text-primary)] px-3.5 py-2 text-sm font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-85 disabled:opacity-40"
+          className={`shrink-0 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors ${
+            canConnect
+              ? "bg-[var(--accent-cyan)] text-white hover:opacity-90"
+              : "bg-[var(--bg-active)] text-[var(--text-muted)]"
+          }`}
         >
           {busy ? "Connecting…" : "Connect"}
         </button>
       </div>
-      <p className="mt-1.5 h-4 text-[11px] text-[var(--text-muted)]">
-        {decoded
-          ? `Ready to connect to ${decoded.hosts[0]}.`
-          : invalid
-            ? "That isn't a complete invite — paste the whole thing, or enter details manually."
-            : ""}
-      </p>
+      {(decoded || invalid) && (
+        <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+          {decoded
+            ? `Ready to connect to ${decoded.hosts[0]}.`
+            : "That isn't a complete invite — paste the whole thing, or enter details manually."}
+        </p>
+      )}
     </div>
   );
 }
