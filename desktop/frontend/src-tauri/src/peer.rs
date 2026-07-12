@@ -782,4 +782,144 @@ mod tests {
         assert_eq!(resize["cols"], 120);
         assert_eq!(resize["rows"], 40);
     }
+
+    // Project-control relays: start yields ok + a status-changed push; runAction
+    // succeeds or fails, and the failure carries a user-facing error.
+    #[test]
+    fn project_control_relays_round_trip() {
+        use std::time::Instant;
+
+        let cfg_tmp =
+            std::env::temp_dir().join(format!("lpm-peer-proj-{}.json", std::process::id()));
+        crate::remote::test_support::set_config_path(cfg_tmp.clone());
+        let hub = crate::remote::test_support::new_hub_with_code("GGGG-HHHH");
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let srv_stop = Arc::new(AtomicBool::new(false));
+        let server = {
+            let (hub, stop) = (hub.clone(), srv_stop.clone());
+            std::thread::spawn(move || crate::remote::test_support::serve(listener, hub, stop))
+        };
+
+        let link = format!("lpm://pair?p={port}&c=GGGG-HHHH&h=127.0.0.1");
+        let peer = pair_and_verify(&link, "Mac A").expect("pair");
+
+        let collected = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let sess_stop = Arc::new(AtomicBool::new(false));
+        let (tx, rx) = sync_channel::<String>(OUT_QUEUE);
+        let session = {
+            let (peer, collected, sess_stop) = (peer.clone(), collected.clone(), sess_stop.clone());
+            std::thread::spawn(move || {
+                let mut ws = connect_and_auth(&peer, CONNECT_TIMEOUT).expect("session auth");
+                run_session(&mut ws, &rx, &sess_stop, || true, |frame| {
+                    collected.lock().unwrap().push(frame.clone());
+                });
+            })
+        };
+
+        tx.send(json!({ "t": "start", "name": "web-app" }).to_string()).unwrap();
+        tx.send(json!({ "t": "runAction", "project": "web-app", "action": "go" }).to_string()).unwrap();
+        tx.send(json!({ "t": "runAction", "project": "web-app", "action": "fail" }).to_string()).unwrap();
+
+        let count = |t: &str| collected.lock().unwrap().iter().filter(|f| f["t"] == t).count();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < deadline {
+            if count("start") >= 1 && count("status-changed") >= 1 && count("runAction") >= 2 {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        sess_stop.store(true, Ordering::SeqCst);
+        let _ = session.join();
+        srv_stop.store(true, Ordering::SeqCst);
+        let _ = server.join();
+        crate::remote::test_support::clear_config_path();
+        let _ = std::fs::remove_file(&cfg_tmp);
+
+        let frames = collected.lock().unwrap();
+        let start = frames.iter().find(|f| f["t"] == "start").expect("start reply");
+        assert_eq!(start["ok"], true);
+        assert!(
+            frames.iter().any(|f| f["t"] == "status-changed" && f["project"] == "web-app"),
+            "start pushed a status-changed"
+        );
+        let run: Vec<&Value> = frames.iter().filter(|f| f["t"] == "runAction").collect();
+        assert!(run.iter().any(|f| f["ok"] == true), "an action succeeded");
+        let failed = run.iter().find(|f| f["ok"] == false).expect("an action failed");
+        assert!(failed["error"].as_str().is_some_and(|e| !e.is_empty()), "failure carries an error");
+    }
+
+    // Git review + ship: git summary + reqId-correlated gitDiffs (models), and a
+    // gitCommit whose success pushes a git-changed and whose failure carries an
+    // error — the async ship path the correlation helper drives.
+    #[test]
+    fn git_review_round_trip() {
+        use std::time::Instant;
+
+        let cfg_tmp =
+            std::env::temp_dir().join(format!("lpm-peer-git-{}.json", std::process::id()));
+        crate::remote::test_support::set_config_path(cfg_tmp.clone());
+        let hub = crate::remote::test_support::new_hub_with_code("IIII-JJJJ");
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let srv_stop = Arc::new(AtomicBool::new(false));
+        let server = {
+            let (hub, stop) = (hub.clone(), srv_stop.clone());
+            std::thread::spawn(move || crate::remote::test_support::serve(listener, hub, stop))
+        };
+
+        let link = format!("lpm://pair?p={port}&c=IIII-JJJJ&h=127.0.0.1");
+        let peer = pair_and_verify(&link, "Mac A").expect("pair");
+
+        let collected = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let sess_stop = Arc::new(AtomicBool::new(false));
+        let (tx, rx) = sync_channel::<String>(OUT_QUEUE);
+        let session = {
+            let (peer, collected, sess_stop) = (peer.clone(), collected.clone(), sess_stop.clone());
+            std::thread::spawn(move || {
+                let mut ws = connect_and_auth(&peer, CONNECT_TIMEOUT).expect("session auth");
+                run_session(&mut ws, &rx, &sess_stop, || true, |frame| {
+                    collected.lock().unwrap().push(frame.clone());
+                });
+            })
+        };
+
+        tx.send(json!({ "t": "git", "project": "web-app" }).to_string()).unwrap();
+        tx.send(json!({ "t": "gitDiffs", "project": "web-app", "reqId": "r1",
+            "files": [{ "path": "a.txt" }] }).to_string()).unwrap();
+        tx.send(json!({ "t": "gitCommit", "project": "web-app", "message": "ok", "files": ["a.txt"] }).to_string()).unwrap();
+        tx.send(json!({ "t": "gitCommit", "project": "web-app", "message": "fail", "files": [] }).to_string()).unwrap();
+
+        let count = |t: &str| collected.lock().unwrap().iter().filter(|f| f["t"] == t).count();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < deadline {
+            if count("git") >= 1 && count("gitDiffs") >= 1 && count("gitCommit") >= 2 && count("git-changed") >= 1 {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        sess_stop.store(true, Ordering::SeqCst);
+        let _ = session.join();
+        srv_stop.store(true, Ordering::SeqCst);
+        let _ = server.join();
+        crate::remote::test_support::clear_config_path();
+        let _ = std::fs::remove_file(&cfg_tmp);
+
+        let frames = collected.lock().unwrap();
+        let summary = frames.iter().find(|f| f["t"] == "git").expect("git summary");
+        assert_eq!(summary["branch"], "main");
+        assert_eq!(summary["ahead"], 1);
+        let diffs = frames.iter().find(|f| f["t"] == "gitDiffs").expect("gitDiffs reply");
+        assert_eq!(diffs["reqId"], "r1", "reqId echoed for correlation");
+        assert_eq!(diffs["diffs"]["a.txt"]["modified"], "new\n");
+        let commits: Vec<&Value> = frames.iter().filter(|f| f["t"] == "gitCommit").collect();
+        assert!(commits.iter().any(|f| f["ok"] == true), "a commit succeeded");
+        assert!(commits.iter().any(|f| f["ok"] == false), "a commit failed");
+        assert!(
+            frames.iter().any(|f| f["t"] == "git-changed" && f["project"] == "web-app"),
+            "commit pushed git-changed"
+        );
+    }
 }

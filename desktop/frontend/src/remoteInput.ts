@@ -13,3 +13,11 @@ export function encodeTerminalInput(data: string, binary = false): string {
   }
   return HEX_MARKER + hex;
 }
+
+// Wrap composer text in xterm bracketed-paste markers so an agent CLI treats it
+// as pasted input, not typed keystrokes. The submit path sends this, then a
+// separate carriage return (the CR must not be glued into the paste — the agent
+// eats a glued CR; see the composer CR-gate lesson).
+export function bracketedPaste(text: string): string {
+  return `\x1b[200~${text}\x1b[201~`;
+}

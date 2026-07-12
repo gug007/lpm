@@ -29,6 +29,7 @@ import {
   type DiffModels,
   type FileDiffResult,
   type ReviewMode,
+  type ReviewSource,
 } from "./reviewSource";
 import { DiffPoolRow, type ConflictResolution } from "./DiffPoolRow";
 
@@ -108,6 +109,11 @@ interface MonacoDiffPoolProps {
   // Reports how many files have unsaved edits, so a host can warn before
   // discarding them (e.g. the commit modal on close).
   onDirtyCountChange?: (count: number) => void;
+  // Override the diff data sources (defaults to the local git-backed
+  // REVIEW_SOURCES). The remote review view injects a peer-backed set so the same
+  // pool renders another Mac's diffs; a read-only (editable:false) source keeps
+  // the local save path dormant.
+  sources?: Record<ReviewMode, ReviewSource>;
 }
 
 export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolProps>(
@@ -124,9 +130,15 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       selected,
       authority = "pool",
       onDirtyCountChange,
+      sources,
     },
     ref,
   ) {
+    const resolvedSources = sources ?? REVIEW_SOURCES;
+    // Held in a ref so the fetch closures below read the current source set
+    // without threading it through every useCallback dependency list.
+    const sourcesRef = useRef(resolvedSources);
+    sourcesRef.current = resolvedSources;
     const scrollRef = useRef<HTMLDivElement>(null);
     const holdingRef = useRef<HTMLDivElement>(null);
     const frameBodyRef = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -257,7 +269,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
           (p) => !entriesRef.current.get(p)?.fetched && !inflightRef.current.has(p),
         );
         if (missing.length === 0) return;
-        const batch = REVIEW_SOURCES[mode]
+        const batch = sourcesRef.current[mode]
           .fetchDiffs(
             projectRoot,
             missing.map((p) => ({ path: p, status: statusRef.current.get(p) })),
@@ -290,7 +302,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         const p = (async (): Promise<Entry | null> => {
           let diff: FileDiffResult;
           try {
-            diff = await REVIEW_SOURCES[mode].fetchDiff(
+            diff = await sourcesRef.current[mode].fetchDiff(
               projectRoot,
               path,
               baseBranch,
@@ -803,7 +815,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       if (paths.length === 0) return;
       let map: Record<string, FileDiffResult>;
       try {
-        map = await REVIEW_SOURCES[mode].fetchDiffs(
+        map = await sourcesRef.current[mode].fetchDiffs(
           projectRoot,
           paths.map((path) => ({ path, status: statusRef.current.get(path) })),
           baseBranch,

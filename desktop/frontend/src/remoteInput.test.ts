@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { encodeTerminalInput } from "./remoteInput";
+import { encodeTerminalInput, bracketedPaste } from "./remoteInput";
 
 const NUL = String.fromCharCode(0);
 
@@ -21,5 +21,12 @@ describe("encodeTerminalInput", () => {
 
   it("frames empty binary input to just the marker", () => {
     expect(encodeTerminalInput("", true)).toBe(`${NUL}HEX:`);
+  });
+});
+
+describe("bracketedPaste", () => {
+  it("wraps text in xterm bracketed-paste markers (CR sent separately)", () => {
+    expect(bracketedPaste("run tests")).toBe("\x1b[200~run tests\x1b[201~");
+    expect(bracketedPaste("").endsWith("\x1b[201~")).toBe(true);
   });
 });

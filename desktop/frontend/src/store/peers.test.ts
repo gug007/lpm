@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { reducePeerFrame, isSelfOwner, type FrameMaps } from "./peers";
 
-const empty: FrameMaps = { projectsByPeer: {}, terminalsByPeer: {}, controlByPeer: {} };
+const empty: FrameMaps = {
+  projectsByPeer: {},
+  terminalsByPeer: {},
+  controlByPeer: {},
+  statusByPeer: {},
+};
 
 describe("reducePeerFrame", () => {
   it("stores a projects frame under its peer", () => {
@@ -59,6 +64,16 @@ describe("reducePeerFrame", () => {
   it("treats a null-owner seed as unowned", () => {
     const next = reducePeerFrame(empty, "peer-1", { t: "seed", id: "web-1", owner: null });
     expect(next.controlByPeer["peer-1"]["web-1"]).toBeNull();
+  });
+
+  it("stores status entries keyed by peer and project", () => {
+    const next = reducePeerFrame(empty, "peer-1", {
+      t: "status",
+      project: "web",
+      status: [{ key: "k", value: "Waiting", paneID: "web-1" }],
+    });
+    expect(next.statusByPeer["peer-1"]["web"][0].value).toBe("Waiting");
+    expect(next.statusByPeer["peer-1"]["web"][0].paneID).toBe("web-1");
   });
 
   it("defaults missing arrays to empty", () => {

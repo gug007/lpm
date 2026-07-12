@@ -1455,6 +1455,30 @@ fn handle_msg(
                 Err(e) => send(ws, json!({ "t": "gitDiff", "project": project, "path": path, "ok": false, "error": e }))?,
             }
         }
+        // Batched full original/modified contents for a set of files, so a desktop
+        // peer can render the diff in its local Monaco review pane (which diffs two
+        // full buffers) — unlike `gitDiff`, which returns a unified string for the
+        // phone. Reuses the same cat-file batch the local review command uses.
+        // `reqId` is echoed so the client can correlate concurrent requests.
+        "gitDiffs" => {
+            let project = str_field("project").unwrap_or_default();
+            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
+            let files: Vec<crate::git::FileDiffRequest> = v
+                .get("files")
+                .and_then(|f| serde_json::from_value(f.clone()).ok())
+                .unwrap_or_default();
+            let mut reply = match config::project_root(&project) {
+                Ok((cwd, _)) => match crate::git::git_file_diffs(cwd, files, "working".to_string(), String::new()) {
+                    Ok(map) => json!({ "t": "gitDiffs", "project": project, "ok": true, "diffs": map }),
+                    Err(e) => json!({ "t": "gitDiffs", "project": project, "ok": false, "error": e }),
+                },
+                Err(e) => json!({ "t": "gitDiffs", "project": project, "ok": false, "error": e }),
+            };
+            if !req_id.is_null() {
+                reply["reqId"] = req_id;
+            }
+            send(ws, reply)?;
+        }
         "gitCommit" => {
             let project = str_field("project").unwrap_or_default();
             let message = str_field("message").unwrap_or_default();
@@ -2905,6 +2929,82 @@ pub(crate) mod test_support {
                 vec![json!({ "t": "resize-echo", "id": id,
                     "cols": v.get("cols").cloned().unwrap_or(Value::Null),
                     "rows": v.get("rows").cloned().unwrap_or(Value::Null) })]
+            }
+            // Project control: start also pushes a status-changed (as the real
+            // server does), so the client's status refetch path is exercised.
+            Some("start") => {
+                let name = v.get("name").and_then(Value::as_str).unwrap_or_default();
+                vec![
+                    json!({ "t": "start", "ok": true }),
+                    json!({ "t": "status-changed", "project": name }),
+                ]
+            }
+            Some("stop") => vec![json!({ "t": "stop", "ok": true })],
+            Some("toggleService") => vec![json!({ "t": "toggleService", "ok": true })],
+            // action "fail" exercises the relay error path (main window closed);
+            // anything else succeeds.
+            Some("runAction") => {
+                if v.get("action").and_then(Value::as_str) == Some("fail") {
+                    vec![json!({ "t": "runAction", "ok": false, "error": "Open the lpm app on your Mac to run actions." })]
+                } else {
+                    vec![json!({ "t": "runAction", "ok": true })]
+                }
+            }
+            Some("newTerminal") => vec![json!({ "t": "newTerminal", "ok": true })],
+            Some("status") => {
+                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
+                vec![json!({ "t": "status", "project": project, "status": [
+                    { "key": "k", "value": "Waiting", "paneID": "web-app-1", "priority": 1 }
+                ] })]
+            }
+            // Recent prompts for the remote composer's up-arrow recall.
+            Some("history") => {
+                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
+                vec![json!({ "t": "history", "project": project, "rows": [{ "text": "npm test" }] })]
+            }
+            // Git review + ship.
+            Some("git") => {
+                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
+                vec![json!({ "t": "git", "project": project, "ok": true, "isRepo": true,
+                    "branch": "main", "detached": false, "hasUpstream": true, "ahead": 1, "behind": 0,
+                    "defaultBranch": "main", "ghCli": true,
+                    "files": [{ "path": "a.txt", "status": "modified", "staged": false, "stamp": "1" }] })]
+            }
+            Some("gitDiffs") => {
+                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
+                let diffs: serde_json::Map<String, Value> = v
+                    .get("files")
+                    .and_then(Value::as_array)
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|f| f.get("path").and_then(Value::as_str))
+                            .map(|p| (p.to_string(), json!({ "original": "old\n", "modified": "new\n", "binary": false, "tooLarge": false })))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let mut reply = json!({ "t": "gitDiffs", "project": project, "ok": true, "diffs": diffs });
+                if let Some(rid) = v.get("reqId") {
+                    reply["reqId"] = rid.clone();
+                }
+                vec![reply]
+            }
+            Some("gitWatch") | Some("gitUnwatch") => {
+                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
+                let t = v.get("t").and_then(Value::as_str).unwrap_or_default();
+                vec![json!({ "t": t, "project": project, "ok": true })]
+            }
+            // message "fail" exercises the error path; success also pushes a
+            // git-changed (as a live watch would after a commit).
+            Some("gitCommit") => {
+                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
+                if v.get("message").and_then(Value::as_str) == Some("fail") {
+                    vec![json!({ "t": "gitCommit", "project": project, "ok": false, "error": "Nothing to commit." })]
+                } else {
+                    vec![
+                        json!({ "t": "gitCommit", "project": project, "ok": true }),
+                        json!({ "t": "git-changed", "project": project }),
+                    ]
+                }
             }
             _ => Vec::new(),
         }
