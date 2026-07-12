@@ -5,11 +5,15 @@ vi.mock("../../bridge/commands", () =>
 vi.mock("../../bridge/runtime", () =>
   new Proxy({}, { has: () => true, get: (_t, prop) => (prop === "then" ? undefined : vi.fn()) }));
 
-// Spy on the persisted-cache write without touching the real terminals binding.
-const h = vi.hoisted(() => ({ appendPersistedTab: vi.fn() }));
+// Spy on the persisted-cache access without touching the real terminals binding.
+const h = vi.hoisted(() => ({
+  appendPersistedTab: vi.fn(),
+  removePersistedTabById: vi.fn(() => false),
+}));
 vi.mock("../terminals", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../terminals")>()),
   appendPersistedTab: h.appendPersistedTab,
+  removePersistedTabById: h.removePersistedTabById,
 }));
 
 import { useAppStore } from "./app";
@@ -71,5 +75,41 @@ describe("adoptRemoteTerminal", () => {
       "other",
       expect.objectContaining({ label: "web", resumeCmd: "npm start", actionName: "web" }),
     );
+  });
+});
+
+describe("removeRemoteTerminal", () => {
+  beforeEach(() => {
+    useAppStore.setState({ pendingRemoveTerminal: null });
+    h.removePersistedTabById.mockClear();
+    h.removePersistedTabById.mockReturnValue(false);
+  });
+
+  it("drops a parked tab from the persisted cache without broadcasting an op", () => {
+    h.removePersistedTabById.mockReturnValue(true);
+
+    useAppStore.getState().removeRemoteTerminal("proj-3");
+
+    expect(h.removePersistedTabById).toHaveBeenCalledWith("proj-3");
+    expect(useAppStore.getState().pendingRemoveTerminal).toBeNull();
+  });
+
+  it("broadcasts a remove op for mounted trees when nothing was persisted", () => {
+    useAppStore.getState().removeRemoteTerminal("proj-3");
+
+    const op = useAppStore.getState().pendingRemoveTerminal!;
+    expect(op.id).toBe("proj-3");
+
+    // A repeat remove re-fires with a higher nonce so the consumer isn't latched.
+    const firstNonce = op.nonce;
+    useAppStore.getState().clearPendingRemoveTerminal();
+    useAppStore.getState().removeRemoteTerminal("proj-4");
+    expect(useAppStore.getState().pendingRemoveTerminal!.nonce).toBeGreaterThan(firstNonce);
+  });
+
+  it("an unknown id still resolves silently through the op path", () => {
+    useAppStore.getState().removeRemoteTerminal("nope-1");
+    expect(useAppStore.getState().pendingRemoveTerminal?.id).toBe("nope-1");
+    // Mounted ProjectDetails ignore ids their tree doesn't hold; nothing throws.
   });
 });

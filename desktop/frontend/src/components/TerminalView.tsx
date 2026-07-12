@@ -63,6 +63,8 @@ export interface TerminalViewHandle {
   sendCommandToActive(cmd: string): boolean;
   // Terminal-tab ops relayed from the mobile app, addressed by terminal id.
   remoteCloseTerminal(id: string): void;
+  // A peer Mac closed this terminal — drop its tab (no second stop_terminal).
+  removeAdoptedTerminal(id: string): void;
   remoteRenameTerminal(id: string, label: string): void;
   remoteTogglePin(id: string): void;
   remoteReorderTerminals(order: string[]): void;
@@ -112,6 +114,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     toggleTabPinned,
     reorderTerminals,
     remoteCloseTerminal,
+    removeAdoptedTerminal,
     remoteRenameTerminal,
     remoteTogglePin,
     remoteReorderTerminals,
@@ -707,6 +710,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       resumeFromHistory,
       sendCommandToActive,
       remoteCloseTerminal,
+      removeAdoptedTerminal,
       remoteRenameTerminal,
       remoteTogglePin,
       remoteReorderTerminals,
@@ -718,6 +722,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       resumeFromHistory,
       sendCommandToActive,
       remoteCloseTerminal,
+      removeAdoptedTerminal,
       remoteRenameTerminal,
       remoteTogglePin,
       remoteReorderTerminals,

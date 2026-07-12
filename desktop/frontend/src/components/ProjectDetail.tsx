@@ -295,6 +295,24 @@ export function ProjectDetail({
     terminalRef.current?.adoptTerminal(id, label, { startCmd, resumeCmd, actionName });
   }, [pendingAdoptTerminal, project.name, clearPendingAdoptTerminal]);
 
+  // Mirror: a peer closed a terminal it spawned here. Keyed by pty id, not
+  // project — every mounted detail attempts the removal; only the one whose live
+  // tree holds that id drops the tab (others no-op). Not project-guarded.
+  const pendingRemoveTerminal = useAppStore((s) => s.pendingRemoveTerminal);
+  const clearPendingRemoveTerminal = useAppStore((s) => s.clearPendingRemoveTerminal);
+  const removeTerminalConsumed = useRef(0);
+  useEffect(() => {
+    if (
+      !pendingRemoveTerminal ||
+      removeTerminalConsumed.current === pendingRemoveTerminal.nonce
+    ) {
+      return;
+    }
+    removeTerminalConsumed.current = pendingRemoveTerminal.nonce;
+    terminalRef.current?.removeAdoptedTerminal(pendingRemoveTerminal.id);
+    clearPendingRemoveTerminal();
+  }, [pendingRemoveTerminal, clearPendingRemoveTerminal]);
+
   const parentProject = useAppStore((s) => findParentProject(project, s.projects));
   const displayName = projectDisplayName(project, parentProject);
 

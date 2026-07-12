@@ -745,7 +745,16 @@ fn fast_path(app: &AppHandle, cmd: &str, args: &Value) -> Option<Result<Value, S
             let char_count = args.get("charCount").and_then(Value::as_i64).unwrap_or(0);
             Some(pty::ack_terminal_data(state, s("id"), char_count).map(|_| Value::Null))
         }
-        "stop_terminal" => Some(pty::stop_terminal(state, s("id")).map(|_| Value::Null)),
+        "stop_terminal" => {
+            let id = s("id");
+            Some(pty::stop_terminal(state, id.clone()).map(|_| {
+                // Only wire calls reach this path, so the event means "the peer
+                // closed this terminal" — the host UI removes its adopted tab
+                // instead of leaving a dead one. Host-local closes never emit it.
+                let _ = app.emit("peer-terminal-closed", id);
+                Value::Null
+            }))
+        }
         _ => None,
     }
 }

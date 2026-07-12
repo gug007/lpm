@@ -61,7 +61,7 @@ import {
   reconcile,
   layoutsEqual,
 } from "../components/sidebarLayout";
-import { forgetProjectTerminals, appendPersistedTab } from "../terminals";
+import { forgetProjectTerminals, appendPersistedTab, removePersistedTabById } from "../terminals";
 import { isPeerName } from "../peer/markers";
 import { activeChatStorageKey } from "../components/NotesView";
 import { ACTION_SECTIONS, type ActionSection } from "../actionConfig";
@@ -231,6 +231,12 @@ interface AppState {
     opts?: { startCmd?: string; resumeCmd?: string; actionName?: string },
   ) => void;
   clearPendingAdoptTerminal: () => void;
+  // A peer Mac closed a terminal it had spawned here; drop the host tab holding
+  // that pty id. Mounted projects remove it from the live tree via this op; a
+  // parked (unmounted) tab is dropped from the persisted cache directly.
+  pendingRemoveTerminal: { id: string; nonce: number } | null;
+  removeRemoteTerminal: (id: string) => void;
+  clearPendingRemoveTerminal: () => void;
   bulkDuplicate: (
     name: string,
     count: number,
@@ -910,6 +916,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
     void appendPersistedTab(projectName, {
+      id,
       label,
       ...(opts?.startCmd ? { startCmd: opts.startCmd } : {}),
       ...(opts?.resumeCmd ? { resumeCmd: opts.resumeCmd } : {}),
@@ -918,6 +925,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   clearPendingAdoptTerminal: () => set({ pendingAdoptTerminal: null }),
+
+  pendingRemoveTerminal: null,
+
+  removeRemoteTerminal: (id) => {
+    // A parked (unmounted) tab lives in the persisted cache tagged with its pty
+    // id — drop it there. If nothing matched, a mounted project may hold it live,
+    // so broadcast a remove op the mounted ProjectDetail(s) resolve against their
+    // tree (unknown ids no-op there).
+    if (removePersistedTabById(id)) return;
+    set({ pendingRemoveTerminal: { id, nonce: ++remoteRequestNonce } });
+  },
+
+  clearPendingRemoveTerminal: () => set({ pendingRemoveTerminal: null }),
 
   runGenerator: async ({ folder, name, spec }) => {
     try {

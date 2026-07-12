@@ -106,6 +106,7 @@ export interface UseTerminalsResult {
   toggleTabPinned: (paneId: string, tabIdx: number) => void;
   reorderTerminals: (paneId: string, order: string[]) => void;
   remoteCloseTerminal: (termId: string) => void;
+  removeAdoptedTerminal: (termId: string) => void;
   remoteRenameTerminal: (termId: string, label: string) => void;
   remoteTogglePin: (termId: string) => void;
   remoteReorderTerminals: (order: string[]) => void;
@@ -680,9 +681,11 @@ export function useTerminals(
   // clear any pane status) and records them in history. Both close paths — one
   // tab, or all-but-one — funnel through here so teardown lives in one place.
   const disposeTabs = useCallback(
-    (tabs: TerminalInstance[]) => {
+    (tabs: TerminalInstance[], stop = true) => {
       for (const t of tabs) {
-        StopTerminal(t.id).catch(() => {});
+        // A peer-closed terminal is already dead on the backend; skip the stop
+        // so no redundant stop_terminal is issued.
+        if (stop) StopTerminal(t.id).catch(() => {});
         if (isTerminalTab(t)) {
           ClearPaneStatus(projectName, t.id).catch(() => {});
         }
@@ -693,7 +696,7 @@ export function useTerminals(
   );
 
   const closeTerminal = useCallback(
-    (paneId: string, tabIdx: number) => {
+    (paneId: string, tabIdx: number, opts?: { stop?: boolean; force?: boolean }) => {
       // Forward by tab id, not index: the mirror's local tree lags the owner's
       // echoed broadcast, so a second close click within that window would carry
       // a stale index and the owner would close whatever tab now sits there —
@@ -708,8 +711,9 @@ export function useTerminals(
       }
       const pane = findPane(current, paneId);
       if (!pane || !pane.tabs[tabIdx]) return;
-      if (isTabPinned(pane, tabIdx)) return;
-      disposeTabs([pane.tabs[tabIdx]]);
+      // `force` (a peer-close removing a dead tab) bypasses the pin guard.
+      if (!opts?.force && isTabPinned(pane, tabIdx)) return;
+      disposeTabs([pane.tabs[tabIdx]], opts?.stop ?? true);
 
       // Collapse the pane only when it would otherwise be empty — panes
       // that hold a persistent service tab stay alive even with no
@@ -1067,6 +1071,18 @@ export function useTerminals(
     },
     [locateTerminal, closeTerminal],
   );
+  // Mirror of adoptTerminal: a peer Mac closed this terminal, so drop its tab
+  // from the live tree. The backend pty is already gone — remove without a
+  // second stop_terminal, disposing the xterm session via the same close path
+  // (unmount) a normal close uses. Unknown id is a safe no-op.
+  const removeAdoptedTerminal = useCallback(
+    (termId: string) => {
+      if (IS_MIRROR_WINDOW) return;
+      const hit = locateTerminal(termId);
+      if (hit) closeTerminal(hit.paneId, hit.idx, { stop: false, force: true });
+    },
+    [locateTerminal, closeTerminal],
+  );
   const remoteRenameTerminal = useCallback(
     (termId: string, label: string) => {
       const hit = locateTerminal(termId);
@@ -1192,6 +1208,7 @@ export function useTerminals(
     toggleTabPinned,
     reorderTerminals,
     remoteCloseTerminal,
+    removeAdoptedTerminal,
     remoteRenameTerminal,
     remoteTogglePin,
     remoteReorderTerminals,

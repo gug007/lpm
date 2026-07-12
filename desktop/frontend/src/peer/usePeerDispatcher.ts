@@ -41,8 +41,22 @@ function adoptPeerTerminal(cmd: string, args: unknown, value: unknown): void {
 export function usePeerDispatcher(): void {
   useEffect(() => {
     if (IS_MIRROR_WINDOW) return;
-    let unlisten: (() => void) | null = null;
+    let unlistenClosed: (() => void) | null = null;
     let disposed = false;
+    // The peer closed one of its terminals on this host (Rust fast path emits
+    // only for wire-initiated stops) — drop the adopted tab instead of leaving
+    // a dead one.
+    listen("peer-terminal-closed", (event) => {
+      if (typeof event.payload === "string" && event.payload) {
+        useAppStore.getState().removeRemoteTerminal(event.payload);
+      }
+    })
+      .then((un) => {
+        if (disposed) un();
+        else unlistenClosed = un;
+      })
+      .catch(() => {});
+    let unlisten: (() => void) | null = null;
     listen("peer-invoke", (event) => {
       const req = event.payload as { reqId?: unknown; cmd?: unknown; args?: unknown } | null;
       if (!req || req.reqId == null || typeof req.cmd !== "string") return;
@@ -68,6 +82,7 @@ export function usePeerDispatcher(): void {
     return () => {
       disposed = true;
       unlisten?.();
+      unlistenClosed?.();
     };
   }, []);
 }
