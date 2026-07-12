@@ -1,4 +1,5 @@
 import { peerRequest } from "./store/peerRequest";
+import type { PeerFrame } from "./store/peers";
 
 export interface RemoteServiceInfo {
   name: string;
@@ -36,4 +37,21 @@ export async function remoteServiceLogs(
     10000,
   );
   return r.ok === false ? "" : ((r.text as string) ?? "");
+}
+
+// Restart a single running service on the peer, through the same
+// restart_service_by_name path the local Controls restart uses. Throws on error
+// so the caller toasts in product terms.
+export async function remoteRestartService(
+  peerId: string,
+  project: string,
+  service: string,
+): Promise<void> {
+  const r = (await peerRequest(
+    peerId,
+    { t: "restartService", name: project, service },
+    (f) => f.t === "restartService" && f.name === project && f.service === service,
+    15000,
+  )) as PeerFrame;
+  if (r.ok === false) throw new Error((r.error as string) || "Couldn't restart the service on the other Mac.");
 }

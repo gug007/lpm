@@ -1,26 +1,42 @@
 import { useState } from "react";
 import { useOutsideClick } from "../hooks/useOutsideClick";
-import { remoteGitPush, remoteGitPull } from "./review/remoteReviewSource";
-import { GitCommitIcon, ChevronDownIcon } from "./icons";
+import {
+  remoteGitPush,
+  remoteGitPull,
+  remoteGitFetch,
+} from "./review/remoteReviewSource";
+import {
+  GitCommitIcon,
+  ChevronDownIcon,
+  DownloadIcon,
+  UploadIcon,
+  RefreshIcon,
+  PRIcon,
+  UndoIcon,
+} from "./icons";
 import { toast } from "../toast";
 
-// The footer Commit control — byte-identical to the local commit split-button
-// (BranchSwitcher's), with remote-wired actions: the primary half opens the
-// remote review/commit pane; the caret menu offers Pull/Push (the local menu's
-// items that have wired remote twins — create-PR/CommitModal-only flows omitted,
-// no dead entries).
+// The footer Commit control — the primary half opens the remote review/commit
+// pane; the caret menu mirrors the local git submenu (Pull / Push / Fetch, then
+// Create PR, then Discard all). Pull/Push/Fetch run inline (async peer replies);
+// Create PR and Discard all defer to the parent, which hosts the PR modal and
+// the discard confirm (WKWebView has no native confirm).
 export function RemoteCommitButton({
   peerId,
   project,
   changed,
   onOpen,
   onDone,
+  onCreatePr,
+  onDiscardAll,
 }: {
   peerId: string;
   project: string;
   changed: number;
   onOpen: () => void;
   onDone: () => void;
+  onCreatePr: () => void;
+  onDiscardAll: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -39,6 +55,14 @@ export function RemoteCommitButton({
       setOpen(false);
     }
   };
+
+  const defer = (fn: () => void) => () => {
+    setOpen(false);
+    fn();
+  };
+
+  const itemClass =
+    "flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40";
 
   return (
     <div
@@ -70,24 +94,51 @@ export function RemoteCommitButton({
         <ChevronDownIcon />
       </button>
       {open && (
-        <div className="absolute bottom-full right-0 z-10 mb-2 w-44 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-xl">
+        <div className="absolute bottom-full right-0 z-10 mb-2 w-52 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-xl">
           <button
-            onClick={() =>
-              void run("Pull", () => remoteGitPull(peerId, project))
-            }
+            onClick={() => void run("Pull", () => remoteGitPull(peerId, project))}
             disabled={busy}
-            className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+            className={itemClass}
           >
+            <DownloadIcon />
             Pull
           </button>
           <button
+            onClick={() => void run("Push", () => remoteGitPush(peerId, project))}
+            disabled={busy}
+            className={itemClass}
+          >
+            <UploadIcon />
+            Push
+          </button>
+          <button
             onClick={() =>
-              void run("Push", () => remoteGitPush(peerId, project))
+              void run("Fetch", () => remoteGitFetch(peerId, project))
             }
             disabled={busy}
-            className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+            className={itemClass}
           >
-            Push
+            <RefreshIcon />
+            Fetch
+          </button>
+          <div className="my-1 border-t border-[var(--border)]" />
+          <button
+            onClick={defer(onCreatePr)}
+            disabled={busy}
+            className={itemClass}
+          >
+            <PRIcon />
+            Create PR…
+          </button>
+          <div className="my-1 border-t border-[var(--border)]" />
+          <button
+            onClick={defer(onDiscardAll)}
+            disabled={busy || changed === 0}
+            title={changed === 0 ? "No changes to discard" : undefined}
+            className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--accent-red)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
+          >
+            <UndoIcon />
+            Discard all changes…
           </button>
         </div>
       )}

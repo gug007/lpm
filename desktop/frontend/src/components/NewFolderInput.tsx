@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { createFolder, type Folder } from "../store/messageHistory";
+import { type Folder } from "../store/messageHistory";
+import { useHistorySource } from "../store/historySource";
 
 interface NewFolderInputProps {
   className: string;
@@ -12,8 +13,9 @@ interface NewFolderInputProps {
 // Escape guard cancel just this input instead of closing the whole popover.
 export function NewFolderInput({ className, onCreated, onCancel }: NewFolderInputProps) {
   const [name, setName] = useState("");
+  const source = useHistorySource();
   const submit = async () => {
-    const folder = await createFolder(name);
+    const folder = await source.createFolder(name);
     if (folder) onCreated(folder);
     else onCancel();
   };

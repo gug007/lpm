@@ -40,7 +40,7 @@ use std::sync::mpsc::{self, SyncSender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Listener, Manager, State};
-use tungstenite::{accept, Error as WsError, Message, WebSocket};
+use tungstenite::{accept_with_config, Error as WsError, Message, WebSocket};
 
 const DEFAULT_PORT: u16 = 8765;
 const RING_CAP: usize = 96 * 1024; // recent scrollback seeded to a joining phone
@@ -436,10 +436,26 @@ fn accept_loop(listener: TcpListener, hub: RemoteHub, app: AppHandle, generation
     }
 }
 
+/// Shared WebSocket limits for both ends of the peer link. tungstenite 0.24
+/// defaults to a 16 MiB max frame / 64 MiB max message and does NOT fragment
+/// outbound writes, so a single legal payload over 16 MiB (a base64 notes
+/// attachment — up to ~133 MB given the 100 MB product cap — or a large composer
+/// upload) would trip `Error::Capacity` and drop the connection. Raise both to
+/// 256 MiB, comfortably above the largest legal payload; the 100 MB product cap
+/// stays the user-facing limit.
+pub(crate) fn ws_config() -> tungstenite::protocol::WebSocketConfig {
+    const CAP: usize = 256 * 1024 * 1024;
+    tungstenite::protocol::WebSocketConfig {
+        max_message_size: Some(CAP),
+        max_frame_size: Some(CAP),
+        ..Default::default()
+    }
+}
+
 fn accept_ws(stream: TcpStream) -> Option<WebSocket<TcpStream>> {
     let _ = stream.set_nodelay(true);
     let _ = stream.set_read_timeout(Some(AUTH_TIMEOUT));
-    accept(stream).ok()
+    accept_with_config(stream, Some(ws_config())).ok()
 }
 
 fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u64) {
@@ -1205,6 +1221,21 @@ fn handle_msg(
             );
             send(ws, result_reply("toggleService", r))?;
         }
+        // Restart a single running service, through the same code path the local
+        // Controls restart uses (services::restart_service_by_name -> tmux pane
+        // re-run). Inline: it's a quick tmux op, no network. Errors when the
+        // service is unknown or not currently running.
+        "restartService" => {
+            let name = str_field("name").unwrap_or_default();
+            let service = str_field("service").unwrap_or_default();
+            let state = app.state::<services::ServiceState>();
+            let r = services::restart_service_by_name(&state, &name, &service);
+            // Echo name+service so overlapping restarts correlate their replies.
+            let mut reply = result_reply("restartService", r);
+            reply["name"] = json!(name);
+            reply["service"] = json!(service);
+            send(ws, reply)?;
+        }
         // Duplicate a project, mirroring the desktop modal. Rust creates the copies
         // one at a time (a pure config + disk clone, like start/stop — works with no
         // main window open), streaming a `duplicateProgress` frame per copy so the
@@ -1328,7 +1359,16 @@ fn handle_msg(
                     "error": "Open the lpm app on your Mac to run actions." }))?;
             } else {
                 if !project.is_empty() && !action.is_empty() {
-                    queue_run_action(hub, app, json!({ "project": project, "action": action }));
+                    let mut req = json!({ "project": project, "action": action });
+                    // A controlling peer collects the action's inputs (and resolves
+                    // any confirm) in its own UI, then passes the values map here so
+                    // this Mac runs the action directly instead of popping a second
+                    // modal. Absent (older phone) => legacy name-only run, which pops
+                    // the input/confirm modal on this Mac like before.
+                    if let Some(inputs) = v.get("inputs") {
+                        req["inputs"] = inputs.clone();
+                    }
+                    queue_run_action(hub, app, req);
                 }
                 send(ws, json!({ "t": "runAction", "ok": true }))?;
             }
@@ -1385,6 +1425,204 @@ fn handle_msg(
                 );
             }
             send(ws, json!({ "t": t, "ok": true }))?;
+        }
+        // Project config editor (remote ⌘E). Read/save the project's user YAML
+        // through the SAME command path the local editor uses (config_cmds), so
+        // syntax validation + rename/parent routing stay identical — no raw file
+        // write. Both inline (a file read, and a syntax-validated write). configWrite
+        // echoes the possibly-renamed project `name` from save_config.
+        "configRead" => {
+            let project = str_field("project").unwrap_or_default();
+            match crate::config_cmds::read_config(project.clone()) {
+                Ok(text) => send(ws, json!({ "t": "configRead", "project": project, "ok": true, "text": text }))?,
+                Err(e) => send(ws, json!({ "t": "configRead", "project": project, "ok": false, "error": e }))?,
+            }
+        }
+        "configWrite" => {
+            let project = str_field("project").unwrap_or_default();
+            let text = str_field("text").unwrap_or_default();
+            match crate::config_cmds::save_config(app.clone(), project.clone(), text) {
+                Ok(new_name) => send(ws, json!({ "t": "configWrite", "project": project, "ok": true, "name": new_name }))?,
+                Err(e) => send(ws, json!({ "t": "configWrite", "project": project, "ok": false, "error": e }))?,
+            }
+        }
+        // AI-instructions tab. Per-project instruction overrides live in their own
+        // .txt files (templates.rs), NOT the config YAML, so they get their own
+        // read/write keyed by the instruction `key` (commit | pr-title |
+        // pr-description | branch-name). Both inline; an unknown key errors from the
+        // same validator the local command uses.
+        "aiInstructionsRead" => {
+            let project = str_field("project").unwrap_or_default();
+            let key = str_field("key").unwrap_or_default();
+            match crate::templates::read_project_instructions(project.clone(), key.clone()) {
+                Ok(text) => send(ws, json!({ "t": "aiInstructionsRead", "project": project, "key": key, "ok": true, "text": text }))?,
+                Err(e) => send(ws, json!({ "t": "aiInstructionsRead", "project": project, "key": key, "ok": false, "error": e }))?,
+            }
+        }
+        "aiInstructionsWrite" => {
+            let project = str_field("project").unwrap_or_default();
+            let key = str_field("key").unwrap_or_default();
+            let text = str_field("text").unwrap_or_default();
+            match crate::templates::save_project_instructions(project.clone(), key.clone(), text) {
+                Ok(()) => send(ws, json!({ "t": "aiInstructionsWrite", "project": project, "key": key, "ok": true }))?,
+                Err(e) => send(ws, json!({ "t": "aiInstructionsWrite", "project": project, "key": key, "ok": false, "error": e }))?,
+            }
+        }
+        // Notes tab. Proxy the per-project encrypted notes store (notes_cmds) so a
+        // controlling peer edits the other Mac's notes with the same NotesView. The
+        // fast SQLite ops reply inline; the attachment blob ops (read/save — up to
+        // ~100MB, and save pops a folder picker on this Mac) run on a worker thread
+        // and reply via the out-queue so they never stall this connection's live
+        // terminal stream. Every reply echoes `reqId` so concurrent same-`t`
+        // requests (several attachment previews, paged loads) correlate by id.
+        "notesChats" => {
+            let project = str_field("project").unwrap_or_default();
+            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
+            let state = app.state::<crate::notes_cmds::NotesState>();
+            let mut reply = match crate::notes_cmds::notes_list_chats(state, project) {
+                Ok(chats) => json!({ "t": "notesChats", "ok": true, "chats": chats }),
+                Err(e) => json!({ "t": "notesChats", "ok": false, "error": e }),
+            };
+            if !req_id.is_null() { reply["reqId"] = req_id; }
+            send(ws, reply)?;
+        }
+        "notesCreateChat" => {
+            let project = str_field("project").unwrap_or_default();
+            let title = str_field("title").unwrap_or_default();
+            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
+            let state = app.state::<crate::notes_cmds::NotesState>();
+            let mut reply = match crate::notes_cmds::notes_create_chat(state, project, title) {
+                Ok(chat) => json!({ "t": "notesCreateChat", "ok": true, "chat": chat }),
+                Err(e) => json!({ "t": "notesCreateChat", "ok": false, "error": e }),
+            };
+            if !req_id.is_null() { reply["reqId"] = req_id; }
+            send(ws, reply)?;
+        }
+        "notesRenameChat" => {
+            let project = str_field("project").unwrap_or_default();
+            let id = str_field("id").unwrap_or_default();
+            let title = str_field("title").unwrap_or_default();
+            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
+            let state = app.state::<crate::notes_cmds::NotesState>();
+            let mut reply = result_reply("notesRenameChat", crate::notes_cmds::notes_rename_chat(state, project, id, title));
+            if !req_id.is_null() { reply["reqId"] = req_id; }
+            send(ws, reply)?;
+        }
+        "notesDeleteChat" => {
+            let project = str_field("project").unwrap_or_default();
+            let id = str_field("id").unwrap_or_default();
+            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
+            let state = app.state::<crate::notes_cmds::NotesState>();
+            let mut reply = result_reply("notesDeleteChat", crate::notes_cmds::notes_delete_chat(state, project, id));
+            if !req_id.is_null() { reply["reqId"] = req_id; }
+            send(ws, reply)?;
+        }
+        "notesMessages" => {
+            let project = str_field("project").unwrap_or_default();
+            let chat_id = str_field("chatId").unwrap_or_default();
+            let limit = v.get("limit").and_then(Value::as_i64).unwrap_or(50);
+            let before_id = str_field("beforeId").unwrap_or_default();
+            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
+            let state = app.state::<crate::notes_cmds::NotesState>();
+            let mut reply = match crate::notes_cmds::notes_list_messages(state, project, chat_id, limit, before_id) {
+                Ok(messages) => json!({ "t": "notesMessages", "ok": true, "messages": messages }),
+                Err(e) => json!({ "t": "notesMessages", "ok": false, "error": e }),
+            };
+            if !req_id.is_null() { reply["reqId"] = req_id; }
+            send(ws, reply)?;
+        }
+        // Send a message (with any base64 attachments). Runs on a worker thread —
+        // decoding + encrypting large attachment blobs can take a moment — and
+        // replies via the out-queue.
+        "notesAddMessage" => {
+            let project = str_field("project").unwrap_or_default();
+            let chat_id = str_field("chatId").unwrap_or_default();
+            let text = str_field("text").unwrap_or_default();
+            let attachments: Vec<crate::notes_cmds::NotesAttachmentInput> = v
+                .get("attachments")
+                .and_then(|a| serde_json::from_value(a.clone()).ok())
+                .unwrap_or_default();
+            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
+            let (app, out) = (app.clone(), out.clone());
+            std::thread::spawn(move || {
+                let state = app.state::<crate::notes_cmds::NotesState>();
+                let mut reply = match crate::notes_cmds::notes_add_message(state, project, chat_id, text, attachments) {
+                    Ok(message) => json!({ "t": "notesAddMessage", "ok": true, "message": message }),
+                    Err(e) => json!({ "t": "notesAddMessage", "ok": false, "error": e }),
+                };
+                if !req_id.is_null() { reply["reqId"] = req_id; }
+                let _ = out.try_send(reply.to_string());
+            });
+        }
+        "notesEditMessage" => {
+            let project = str_field("project").unwrap_or_default();
+            let id = str_field("id").unwrap_or_default();
+            let text = str_field("text").unwrap_or_default();
+            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
+            let state = app.state::<crate::notes_cmds::NotesState>();
+            let mut reply = result_reply("notesEditMessage", crate::notes_cmds::notes_edit_message(state, project, id, text));
+            if !req_id.is_null() { reply["reqId"] = req_id; }
+            send(ws, reply)?;
+        }
+        "notesDeleteMessage" => {
+            let project = str_field("project").unwrap_or_default();
+            let id = str_field("id").unwrap_or_default();
+            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
+            let state = app.state::<crate::notes_cmds::NotesState>();
+            let mut reply = result_reply("notesDeleteMessage", crate::notes_cmds::notes_delete_message(state, project, id));
+            if !req_id.is_null() { reply["reqId"] = req_id; }
+            send(ws, reply)?;
+        }
+        "notesSearch" => {
+            let project = str_field("project").unwrap_or_default();
+            let query = str_field("query").unwrap_or_default();
+            let limit = v.get("limit").and_then(Value::as_i64).unwrap_or(50);
+            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
+            let state = app.state::<crate::notes_cmds::NotesState>();
+            let mut reply = match crate::notes_cmds::notes_search(state, project, query, limit) {
+                Ok(hits) => json!({ "t": "notesSearch", "ok": true, "hits": hits }),
+                Err(e) => json!({ "t": "notesSearch", "ok": false, "error": e }),
+            };
+            if !req_id.is_null() { reply["reqId"] = req_id; }
+            send(ws, reply)?;
+        }
+        // Attachment blob read — worker thread + out-queue (bytes up to ~100MB).
+        "notesReadAttachment" => {
+            let project = str_field("project").unwrap_or_default();
+            let hash = str_field("hash").unwrap_or_default();
+            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
+            let (app, out) = (app.clone(), out.clone());
+            std::thread::spawn(move || {
+                let state = app.state::<crate::notes_cmds::NotesState>();
+                let mut reply = match crate::notes_cmds::notes_read_attachment(state, project, hash) {
+                    Ok(data) => json!({ "t": "notesReadAttachment", "ok": true, "data": data }),
+                    Err(e) => json!({ "t": "notesReadAttachment", "ok": false, "error": e }),
+                };
+                if !req_id.is_null() { reply["reqId"] = req_id; }
+                let _ = out.try_send(reply.to_string());
+            });
+        }
+        // Save an attachment to disk — worker thread + out-queue. notes_save_attachment
+        // is async (it pops a folder picker on this Mac and writes there), so drive it
+        // to completion with block_on. An empty path means the user cancelled.
+        "notesSaveAttachment" => {
+            let project = str_field("project").unwrap_or_default();
+            let hash = str_field("hash").unwrap_or_default();
+            let name = str_field("name").unwrap_or_default();
+            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
+            let (app, out) = (app.clone(), out.clone());
+            std::thread::spawn(move || {
+                let state = app.state::<crate::notes_cmds::NotesState>();
+                let result = tauri::async_runtime::block_on(
+                    crate::notes_cmds::notes_save_attachment(app.clone(), state, project, hash, name),
+                );
+                let mut reply = match result {
+                    Ok(path) => json!({ "t": "notesSaveAttachment", "ok": true, "path": path }),
+                    Err(e) => json!({ "t": "notesSaveAttachment", "ok": false, "error": e }),
+                };
+                if !req_id.is_null() { reply["reqId"] = req_id; }
+                let _ = out.try_send(reply.to_string());
+            });
         }
         // Git review & ship. Fast, local ops (status, per-file diff, commit, branch
         // list, checkout, discard-all) reply inline like the handlers above. The
@@ -1565,6 +1803,67 @@ fn handle_msg(
                     send(ws, git_result_reply("gitCheckout", &project, r))?;
                 }
                 Err(e) => send(ws, json!({ "t": "gitCheckout", "project": project, "ok": false, "error": e }))?,
+            }
+        }
+        // Branch create / delete / merge — local git ops, so inline like
+        // gitCheckout/gitCommit above (only network/AI ops go async). create checks
+        // out the new branch (create_branch); delete force-removes a local branch
+        // (`git branch -D`) or, with a `remote`, drops a stale remote-tracking ref —
+        // matching the local branch menu's two delete affordances; merge is
+        // `git merge --no-edit` (a conflict surfaces as this reply's error, which the
+        // controller shows). After any success the controller re-requests git +
+        // branches, like checkout does.
+        "gitCreateBranch" => {
+            let project = str_field("project").unwrap_or_default();
+            let name = str_field("name").unwrap_or_default();
+            match config::project_root(&project) {
+                Ok((cwd, _)) => {
+                    let r = crate::git::create_branch(cwd, name);
+                    send(ws, git_result_reply("gitCreateBranch", &project, r))?;
+                }
+                Err(e) => send(ws, json!({ "t": "gitCreateBranch", "project": project, "ok": false, "error": e }))?,
+            }
+        }
+        "gitDeleteBranch" => {
+            let project = str_field("project").unwrap_or_default();
+            let name = str_field("name").unwrap_or_default();
+            let remote = str_field("remote").unwrap_or_default();
+            match config::project_root(&project) {
+                Ok((cwd, _)) => {
+                    let r = if remote.is_empty() {
+                        crate::git::delete_branch(cwd, name)
+                    } else {
+                        crate::git::delete_remote_tracking_ref(cwd, remote, name)
+                    };
+                    send(ws, git_result_reply("gitDeleteBranch", &project, r))?;
+                }
+                Err(e) => send(ws, json!({ "t": "gitDeleteBranch", "project": project, "ok": false, "error": e }))?,
+            }
+        }
+        "gitMerge" => {
+            let project = str_field("project").unwrap_or_default();
+            let branch = str_field("branch").unwrap_or_default();
+            match config::project_root(&project) {
+                Ok((cwd, _)) => {
+                    let r = match crate::git::git_merge(cwd.clone(), branch) {
+                        Ok(()) => Ok(()),
+                        // A conflicted merge leaves the peer repo mid-merge, which
+                        // then breaks later remote commit/checkout confusingly, and
+                        // there's no remote conflict-resolution surface. Abort to
+                        // restore a clean state and tell the user to resolve on that
+                        // Mac directly.
+                        Err(e) => {
+                            if !crate::git::git_merge_conflicts(cwd.clone()).is_empty() {
+                                let _ = crate::git::git_abort_merge(cwd);
+                                Err("Merge aborted because the branches have conflicts. Resolve them on that Mac directly.".to_string())
+                            } else {
+                                Err(e)
+                            }
+                        }
+                    };
+                    send(ws, git_result_reply("gitMerge", &project, r))?;
+                }
+                Err(e) => send(ws, json!({ "t": "gitMerge", "project": project, "ok": false, "error": e }))?,
             }
         }
         "gitDiscardAll" => {

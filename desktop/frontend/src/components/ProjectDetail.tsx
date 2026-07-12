@@ -162,7 +162,7 @@ export function ProjectDetail({
     onSwitchToTerminal: () => switchDetailView("terminal"),
     onCloseRunning: () => setShowQuickMenu(false),
   });
-  const { runningAction, handleRunAction, modals: actionModals } = projectActions;
+  const { runningAction, handleRunAction, runActionWithInputs, modals: actionModals } = projectActions;
 
   const actionWizardOpen = showCreateAction || editingAction !== null;
   useActionShortcuts(
@@ -224,16 +224,22 @@ export function ProjectDetail({
       return;
     }
     remoteActionConsumed.current = pendingRemoteAction.nonce;
-    const { action } = pendingRemoteAction;
+    const { action, inputs } = pendingRemoteAction;
     clearPendingRemoteAction();
     switchDetailView("terminal");
     if (action) {
       const found = resolveRunnableAction(project.actions ?? [], action);
-      if (found) handleRunAction(found);
-      else
+      if (!found) {
         toast.error(
           `Couldn't run "${action}" in ${project.name} — no matching action.`,
         );
+      } else if (inputs !== undefined) {
+        // A controlling peer already collected inputs (and any confirm) in its
+        // own UI, so run directly rather than re-prompting on this Mac.
+        runActionWithInputs(found, inputs);
+      } else {
+        handleRunAction(found);
+      }
     } else {
       terminalRef.current?.createTerminal();
     }
@@ -243,6 +249,7 @@ export function ProjectDetail({
     project.name,
     project.actions,
     handleRunAction,
+    runActionWithInputs,
     switchDetailView,
     clearPendingRemoteAction,
   ]);

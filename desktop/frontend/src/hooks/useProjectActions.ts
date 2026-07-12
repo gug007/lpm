@@ -44,6 +44,9 @@ export interface RunActionOpts {
 export interface UseProjectActionsResult {
   runningAction: ActionInfo | null;
   handleRunAction: (action: ActionInfo, opts?: RunActionOpts) => void;
+  // Run an action with inputs already resolved elsewhere (a controlling peer's
+  // ActionInputsModal), bypassing the local input/confirm modals.
+  runActionWithInputs: (action: ActionInfo, inputs: Record<string, string>, opts?: RunActionOpts) => void;
   modals: ProjectActionsModals;
 }
 
@@ -180,6 +183,7 @@ export function useProjectActions({
   return {
     runningAction,
     handleRunAction,
+    runActionWithInputs: (action, inputs, opts) => void executeAction(action, inputs, opts),
     modals: {
       confirm: {
         action: confirmAction,

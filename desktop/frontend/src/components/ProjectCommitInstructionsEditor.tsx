@@ -5,21 +5,24 @@ import {
 } from "../../bridge/commands";
 import { InstructionsEditor } from "./InstructionsEditor";
 import { DEFAULT_COMMIT_INSTRUCTIONS } from "../aiInstructions";
+import type { InstructionsEditorIO } from "./ProjectAIInstructions";
 
 export function ProjectCommitInstructionsEditor({
   projectName,
   onBack,
+  read = ReadProjectInstructions,
+  write = SaveProjectInstructions,
 }: {
   projectName: string;
   onBack: () => void;
-}) {
+} & InstructionsEditorIO) {
   const load = useCallback(
-    () => ReadProjectInstructions(projectName, "commit"),
-    [projectName],
+    () => read(projectName, "commit"),
+    [projectName, read],
   );
   const save = useCallback(
-    (content: string) => SaveProjectInstructions(projectName, "commit", content),
-    [projectName],
+    (content: string) => write(projectName, "commit", content),
+    [projectName, write],
   );
 
   return (

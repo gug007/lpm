@@ -101,6 +101,48 @@ export async function remoteGitPull(peerId: string, project: string): Promise<vo
   ensureOk(await peerRequest(peerId, { t: "gitPull", project }, match("gitPull", project), SHIP_TIMEOUT));
 }
 
+export async function remoteGitFetch(peerId: string, project: string): Promise<void> {
+  ensureOk(await peerRequest(peerId, { t: "gitFetch", project }, match("gitFetch", project), SHIP_TIMEOUT));
+}
+
+// Discard every uncommitted change. Fast/inline on the peer, so it uses the
+// shorter summary timeout; a `git-changed` push (or manual refresh) re-lists.
+export async function remoteGitDiscardAll(peerId: string, project: string): Promise<void> {
+  ensureOk(
+    await peerRequest(peerId, { t: "gitDiscardAll", project }, match("gitDiscardAll", project), SUMMARY_TIMEOUT),
+  );
+}
+
+// AI-draft a PR title + body against the peer's default branch. Slow (AI-bound),
+// so it replies via the peer's out-queue like the other AI generators.
+export async function remoteGitGenPr(
+  peerId: string,
+  project: string,
+): Promise<{ title: string; body: string }> {
+  const r = ensureOk(
+    await peerRequest(peerId, { t: "gitGenPr", project }, match("gitGenPr", project), SHIP_TIMEOUT),
+  );
+  return { title: (r.title as string) ?? "", body: (r.body as string) ?? "" };
+}
+
+// Open a PR on the peer (base = its default branch), returning the created URL.
+export async function remoteGitCreatePr(
+  peerId: string,
+  project: string,
+  title: string,
+  body: string,
+): Promise<string> {
+  const r = ensureOk(
+    await peerRequest(
+      peerId,
+      { t: "gitCreatePr", project, title, body },
+      match("gitCreatePr", project),
+      SHIP_TIMEOUT,
+    ),
+  );
+  return (r.url as string) ?? "";
+}
+
 export async function remoteGitGenMessage(peerId: string, project: string, files: string[]): Promise<string> {
   const r = ensureOk(
     await peerRequest(peerId, { t: "gitGenMessage", project, files }, match("gitGenMessage", project), SHIP_TIMEOUT),
@@ -137,6 +179,39 @@ export async function remoteGitCheckout(
       match("gitCheckout", project),
       SHIP_TIMEOUT,
     ),
+  );
+}
+
+// Branch create / delete / merge — local git on the peer, so they use the shorter
+// summary timeout (no network). create checks out the new branch; delete drops a
+// local branch (or a remote-tracking ref when `remote` is set); merge runs
+// `git merge --no-edit` — a conflict comes back as a rejected reply the caller
+// toasts. Each throws on error so the caller can toast in product terms.
+export async function remoteGitCreateBranch(peerId: string, project: string, name: string): Promise<void> {
+  ensureOk(
+    await peerRequest(peerId, { t: "gitCreateBranch", project, name }, match("gitCreateBranch", project), SUMMARY_TIMEOUT),
+  );
+}
+
+export async function remoteGitDeleteBranch(
+  peerId: string,
+  project: string,
+  name: string,
+  remote?: string,
+): Promise<void> {
+  ensureOk(
+    await peerRequest(
+      peerId,
+      { t: "gitDeleteBranch", project, name, remote: remote ?? "" },
+      match("gitDeleteBranch", project),
+      SUMMARY_TIMEOUT,
+    ),
+  );
+}
+
+export async function remoteGitMerge(peerId: string, project: string, branch: string): Promise<void> {
+  ensureOk(
+    await peerRequest(peerId, { t: "gitMerge", project, branch }, match("gitMerge", project), SHIP_TIMEOUT),
   );
 }
 

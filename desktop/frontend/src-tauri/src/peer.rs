@@ -362,7 +362,14 @@ fn open_ws(host: &str, port: u16, timeout: Duration) -> Option<WebSocket<TcpStre
     let _ = stream.set_nodelay(true);
     let _ = stream.set_read_timeout(Some(timeout));
     let _ = stream.set_write_timeout(Some(timeout));
-    let (ws, _resp) = tungstenite::client(format!("ws://{host}:{port}/"), stream).ok()?;
+    // Match the server's raised frame/message caps (crate::remote::ws_config), so
+    // a large notes attachment / composer upload doesn't trip Error::Capacity.
+    let (ws, _resp) = tungstenite::client::client_with_config(
+        format!("ws://{host}:{port}/"),
+        stream,
+        Some(crate::remote::ws_config()),
+    )
+    .ok()?;
     Some(ws)
 }
 

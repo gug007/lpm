@@ -9,6 +9,10 @@ import {
   remoteGitSummary,
   remoteGitCommit,
   remoteGitBranches,
+  remoteGitFetch,
+  remoteGitDiscardAll,
+  remoteGitGenPr,
+  remoteGitCreatePr,
 } from "./remoteReviewSource";
 
 const mockedSend = vi.mocked(PeerSend);
@@ -98,5 +102,51 @@ describe("remoteGitCommit", () => {
     const assertion = expect(p).rejects.toThrow(/Nothing to commit/);
     resolvePeerFrame("peer-1", { t: "gitCommit", project: "web", ok: false, error: "Nothing to commit." });
     await assertion;
+  });
+});
+
+describe("remoteGitFetch", () => {
+  it("sends a gitFetch frame and resolves on ok", async () => {
+    const p = remoteGitFetch("peer-1", "web");
+    expect(lastFrame()).toMatchObject({ t: "gitFetch", project: "web" });
+    resolvePeerFrame("peer-1", { t: "gitFetch", project: "web", ok: true });
+    await expect(p).resolves.toBeUndefined();
+  });
+});
+
+describe("remoteGitDiscardAll", () => {
+  it("rejects with the server error on failure", async () => {
+    const p = remoteGitDiscardAll("peer-1", "web");
+    const assertion = expect(p).rejects.toThrow(/Not a repo/);
+    resolvePeerFrame("peer-1", { t: "gitDiscardAll", project: "web", ok: false, error: "Not a repo." });
+    await assertion;
+  });
+});
+
+describe("remoteGitGenPr", () => {
+  it("returns the drafted title and body", async () => {
+    const p = remoteGitGenPr("peer-1", "web");
+    resolvePeerFrame("peer-1", {
+      t: "gitGenPr",
+      project: "web",
+      ok: true,
+      title: "Add feature",
+      body: "Details here",
+    });
+    await expect(p).resolves.toEqual({ title: "Add feature", body: "Details here" });
+  });
+});
+
+describe("remoteGitCreatePr", () => {
+  it("sends title/body and returns the created URL", async () => {
+    const p = remoteGitCreatePr("peer-1", "web", "T", "B");
+    expect(lastFrame()).toMatchObject({ t: "gitCreatePr", project: "web", title: "T", body: "B" });
+    resolvePeerFrame("peer-1", {
+      t: "gitCreatePr",
+      project: "web",
+      ok: true,
+      url: "https://github.com/x/y/pull/1",
+    });
+    await expect(p).resolves.toBe("https://github.com/x/y/pull/1");
   });
 });
