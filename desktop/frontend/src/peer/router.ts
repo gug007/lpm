@@ -104,6 +104,9 @@ function translateProject(slug: string, p: ProjectInfo): ProjectInfo {
   return {
     ...p,
     name: prefixName(slug, p.name),
+    // The prefixed name is a routing key, not something to read — keep the
+    // human name in the label so headers and the sidebar stay clean.
+    label: p.label || p.name,
     parentName: p.parentName ? prefixName(slug, p.parentName) : p.parentName,
     root: prefixRoot(slug, p.root),
   };

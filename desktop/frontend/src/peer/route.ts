@@ -108,10 +108,15 @@ async function dispatchToPeer(
 ): Promise<unknown> {
   const value = await invoke("peer_invoke", { slug, cmd, args: strippedArgs });
   if (START_TERMINAL_CMDS.has(cmd)) {
-    const prefixedId = prefixName(slug, String(value));
+    // start_terminal_for_config returns a TerminalLaunch object; the other
+    // start commands return the bare id. Prefix the id either way and keep
+    // the surrounding shape intact.
+    const launch =
+      value !== null && typeof value === "object" ? (value as { id?: unknown }) : null;
+    const prefixedId = prefixName(slug, String(launch ? (launch.id ?? "") : value));
     // Subscribe so the seed + live output stream back before the pane mounts.
     invoke("peer_term_attach", { id: prefixedId }).catch(() => {});
-    return prefixedId;
+    return launch ? { ...launch, id: prefixedId } : prefixedId;
   }
   if (cmd === "stop_terminal") {
     const id = (originalArgs as { id?: unknown } | null)?.id;
