@@ -27,6 +27,10 @@ import { useProjectWatcher } from "./hooks/useProjectWatcher";
 import { getSettings, saveSettings } from "./store/settings";
 import { useAppStore } from "./store/app";
 import { onRunInDuplicates } from "./mirror";
+import { usePeerDispatcher } from "./peer/usePeerDispatcher";
+import { usePeerState } from "./peer/usePeerState";
+import { isPeerName, peerSlugOf } from "./peer/markers";
+import { PeerDisconnectedBanner } from "./components/PeerDisconnectedBanner";
 
 import { InstallTmux, TmuxInstalled } from "../bridge/commands";
 
@@ -93,7 +97,20 @@ export default function App() {
 
   useProjectsSync();
   useAppEvents();
+  usePeerDispatcher();
+  const { state: peerState } = usePeerState();
   const isFullscreen = useIsFullscreen();
+
+  // A selected remote project whose peer dropped: keep the selection and show a
+  // banner in its place; both the row and detail return on reconnect.
+  const selectedPeerGone =
+    selected != null && isPeerName(selected) && !selectedProject;
+  const selectedPeerAlias = (() => {
+    if (!selectedPeerGone) return "";
+    const slug = peerSlugOf(selected!);
+    const peer = peerState.peers.find((p) => p.slug === slug);
+    return peer?.alias || peer?.host || "Mac";
+  })();
 
   // A mirror (detached) window can trigger run-in-duplicates but can't create
   // the copies itself — they mount and auto-run in this main window's store.
@@ -129,7 +146,14 @@ export default function App() {
   // closed, but only once projects has actually loaded — otherwise the
   // empty initial array would clear a valid selection on every boot.
   useEffect(() => {
-    if (selected && projects.length > 0 && !projects.some((p) => p.name === selected)) {
+    // A peer project that vanished on disconnect keeps its selection (a banner
+    // stands in until reconnect); only clear a genuinely removed local project.
+    if (
+      selected &&
+      !isPeerName(selected) &&
+      projects.length > 0 &&
+      !projects.some((p) => p.name === selected)
+    ) {
       clearSelection();
     }
   }, [projects, selected, clearSelection]);
@@ -286,10 +310,13 @@ export default function App() {
               </div>
             );
           })}
-          {view === "projects" && !selectedProject && projects.length === 0 && (
+          {view === "projects" && selectedPeerGone && (
+            <PeerDisconnectedBanner alias={selectedPeerAlias} />
+          )}
+          {view === "projects" && !selectedProject && !selectedPeerGone && projects.length === 0 && (
             <EmptyStateNoProjects onAdd={addProject} />
           )}
-          {view === "projects" && !selectedProject && projects.length > 0 && (
+          {view === "projects" && !selectedProject && !selectedPeerGone && projects.length > 0 && (
             <EmptyState />
           )}
         </main>

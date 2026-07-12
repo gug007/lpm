@@ -61,7 +61,8 @@ import {
   reconcile,
   layoutsEqual,
 } from "../components/sidebarLayout";
-import { forgetProjectTerminals } from "../terminals";
+import { forgetProjectTerminals, appendPersistedTab, removePersistedTabById } from "../terminals";
+import { isPeerName } from "../peer/markers";
 import { activeChatStorageKey } from "../components/NotesView";
 import { ACTION_SECTIONS, type ActionSection } from "../actionConfig";
 import { editGlobalDoc, editProjectDoc, editRepoDoc } from "../yamlQueue";
@@ -81,7 +82,7 @@ export type View =
   | "branch-instructions"
   | "template";
 
-export type SettingsTab = "general" | "notifications" | "terminal" | "shortcuts" | "tts" | "ai" | "global-config" | "templates" | "backup" | "mobile";
+export type SettingsTab = "general" | "notifications" | "terminal" | "shortcuts" | "tts" | "ai" | "global-config" | "templates" | "backup" | "mobile" | "connect-macs";
 
 export interface SSHProjectParams {
   name: string;
@@ -211,6 +212,31 @@ interface AppState {
     order: string[],
   ) => void;
   clearPendingRemoteTerminalOp: () => void;
+  // A peer Mac spawned a terminal on this host; surface it as a tab. When the
+  // project is mounted the live tree adopts it via this op; when it isn't, the
+  // tab is parked in the persisted tree cache for the next open.
+  pendingAdoptTerminal: {
+    projectName: string;
+    id: string;
+    label: string;
+    startCmd?: string;
+    resumeCmd?: string;
+    actionName?: string;
+    nonce: number;
+  } | null;
+  adoptRemoteTerminal: (
+    projectName: string,
+    id: string,
+    label: string,
+    opts?: { startCmd?: string; resumeCmd?: string; actionName?: string },
+  ) => void;
+  clearPendingAdoptTerminal: () => void;
+  // A peer Mac closed a terminal it had spawned here; drop the host tab holding
+  // that pty id. Mounted projects remove it from the live tree via this op; a
+  // parked (unmounted) tab is dropped from the persisted cache directly.
+  pendingRemoveTerminal: { id: string; nonce: number } | null;
+  removeRemoteTerminal: (id: string) => void;
+  clearPendingRemoveTerminal: () => void;
   bulkDuplicate: (
     name: string,
     count: number,
@@ -626,11 +652,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   reconcileSidebarLayout: (projects) => {
+    // Remote (peer) projects render in their own non-reorderable sections and
+    // never belong to sidebarOrder or folders — keep them out of the layout.
+    const local = projects.filter((p) => !isPeerName(p.name));
     const before: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
     const after = reconcile(
       before,
-      topLevelProjectNames(projects),
-      projects.map((p) => p.name),
+      topLevelProjectNames(local),
+      local.map((p) => p.name),
     );
     if (layoutsEqual(before, after)) return;
     set({ sidebarOrder: after.order, groups: after.groups });
@@ -863,6 +892,52 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
 
   clearPendingRemoteTerminalOp: () => set({ pendingRemoteTerminalOp: null }),
+
+  pendingAdoptTerminal: null,
+
+  adoptRemoteTerminal: (projectName, id, label, opts) => {
+    const s = get();
+    const mounted =
+      s.visited.has(projectName) ||
+      s.selected === projectName ||
+      s.detached.has(projectName);
+    if (mounted) {
+      set({
+        pendingAdoptTerminal: {
+          projectName,
+          id,
+          label,
+          startCmd: opts?.startCmd,
+          resumeCmd: opts?.resumeCmd,
+          actionName: opts?.actionName,
+          nonce: ++remoteRequestNonce,
+        },
+      });
+      return;
+    }
+    void appendPersistedTab(projectName, {
+      id,
+      label,
+      ...(opts?.startCmd ? { startCmd: opts.startCmd } : {}),
+      ...(opts?.resumeCmd ? { resumeCmd: opts.resumeCmd } : {}),
+      ...(opts?.actionName ? { actionName: opts.actionName } : {}),
+    });
+  },
+
+  clearPendingAdoptTerminal: () => set({ pendingAdoptTerminal: null }),
+
+  pendingRemoveTerminal: null,
+
+  removeRemoteTerminal: (id) => {
+    // A parked (unmounted) tab lives in the persisted cache tagged with its pty
+    // id — drop it there. If nothing matched, a mounted project may hold it live,
+    // so broadcast a remove op the mounted ProjectDetail(s) resolve against their
+    // tree (unknown ids no-op there).
+    if (removePersistedTabById(id)) return;
+    set({ pendingRemoveTerminal: { id, nonce: ++remoteRequestNonce } });
+  },
+
+  clearPendingRemoveTerminal: () => set({ pendingRemoveTerminal: null }),
 
   runGenerator: async ({ folder, name, spec }) => {
     try {

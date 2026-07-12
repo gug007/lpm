@@ -55,12 +55,16 @@ interface TerminalViewProps {
 export interface TerminalViewHandle {
   createTerminal(): void;
   createTerminalWithCmd(label: string, cmd: string, opts?: TerminalStartOpts): void;
+  // Adopt a peer-spawned pty as a tab (no new pty, no command injection).
+  adoptTerminal(id: string, label?: string, opts?: { startCmd?: string; resumeCmd?: string; actionName?: string }): void;
   resumeFromHistory(entry: PersistedHistoryEntry): void;
   // Submit a command into the focused pane's active terminal. Returns false
   // (with a toast) when no live terminal is focused.
   sendCommandToActive(cmd: string): boolean;
   // Terminal-tab ops relayed from the mobile app, addressed by terminal id.
   remoteCloseTerminal(id: string): void;
+  // A peer Mac closed this terminal — drop its tab (no second stop_terminal).
+  removeAdoptedTerminal(id: string): void;
   remoteRenameTerminal(id: string, label: string): void;
   remoteTogglePin(id: string): void;
   remoteReorderTerminals(order: string[]): void;
@@ -96,6 +100,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     focusedPaneId,
     createTerminal,
     createTerminalWithCmd,
+    adoptTerminal,
     resumeFromHistory,
     addTerminalToPane,
     addBrowserToPane,
@@ -109,6 +114,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     toggleTabPinned,
     reorderTerminals,
     remoteCloseTerminal,
+    removeAdoptedTerminal,
     remoteRenameTerminal,
     remoteTogglePin,
     remoteReorderTerminals,
@@ -700,9 +706,11 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     () => ({
       createTerminal,
       createTerminalWithCmd,
+      adoptTerminal,
       resumeFromHistory,
       sendCommandToActive,
       remoteCloseTerminal,
+      removeAdoptedTerminal,
       remoteRenameTerminal,
       remoteTogglePin,
       remoteReorderTerminals,
@@ -710,9 +718,11 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     [
       createTerminal,
       createTerminalWithCmd,
+      adoptTerminal,
       resumeFromHistory,
       sendCommandToActive,
       remoteCloseTerminal,
+      removeAdoptedTerminal,
       remoteRenameTerminal,
       remoteTogglePin,
       remoteReorderTerminals,

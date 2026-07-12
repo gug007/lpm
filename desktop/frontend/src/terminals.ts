@@ -10,6 +10,10 @@ export interface PersistedTab {
   actionName?: string;
   pinned?: boolean;
   emoji?: string;
+  // Live pty id, stored ONLY for a peer-adopted tab parked while its project is
+  // unmounted, so a later peer-close can find and drop it. Ignored on restore
+  // (the tab relaunches with a fresh pty); normal persistence never sets it.
+  id?: string;
 }
 
 // Mirrors the Go binding (main.PaneNode) so it round-trips through the
@@ -118,6 +122,70 @@ export function forgetProjectTerminals(projectName: string): void {
   if (!(projectName in cached.projects)) return;
   const { [projectName]: _removed, ...rest } = cached.projects;
   cached = { ...cached, projects: rest };
+}
+
+function appendTabToPersistedTree(
+  node: PersistedPaneNode | undefined,
+  tab: PersistedTab,
+): PersistedPaneNode {
+  if (!node) return { kind: "leaf", tabs: [tab], activeTabIdx: 0 };
+  if (node.kind === "leaf") return { ...node, tabs: [...(node.tabs ?? []), tab] };
+  return { ...node, a: appendTabToPersistedTree(node.a, tab) };
+}
+
+// Park a tab in a project's persisted tree while it isn't mounted, so it shows
+// up when the host opens the project. A generic label is filled in from the tab
+// count when none is given. The tab keeps its pty `id` so a peer-close can find
+// it (opening the project relaunches with a fresh pty either way).
+export async function appendPersistedTab(
+  projectName: string,
+  tab: PersistedTab,
+): Promise<void> {
+  const state = getProjectTerminals(projectName);
+  const label = tab.label || `Terminal ${countPersistedTabs(state.panes) + 1}`;
+  const panes = appendTabToPersistedTree(state.panes, { ...tab, label });
+  await saveProjectTerminals(projectName, { ...state, panes, terminals: undefined });
+}
+
+function removeTabByIdFromTree(
+  node: PersistedPaneNode,
+  id: string,
+): { node: PersistedPaneNode | undefined; removed: boolean } {
+  if (node.kind === "leaf") {
+    const tabs = node.tabs ?? [];
+    const idx = tabs.findIndex((t) => t.id === id);
+    if (idx === -1) return { node, removed: false };
+    const nextTabs = tabs.filter((_, i) => i !== idx);
+    if (nextTabs.length === 0 && !node.activeServiceName) return { node: undefined, removed: true };
+    const activeTabIdx = Math.max(0, Math.min(node.activeTabIdx ?? 0, nextTabs.length - 1));
+    return { node: { ...node, tabs: nextTabs, activeTabIdx }, removed: true };
+  }
+  const a = node.a ? removeTabByIdFromTree(node.a, id) : { node: undefined, removed: false };
+  if (a.removed) return { node: a.node ? { ...node, a: a.node } : node.b, removed: true };
+  const b = node.b ? removeTabByIdFromTree(node.b, id) : { node: undefined, removed: false };
+  if (b.removed) return { node: b.node ? { ...node, b: b.node } : node.a, removed: true };
+  return { node, removed: false };
+}
+
+// Inverse of appendPersistedTab: drop the parked tab carrying `id` from whichever
+// project's persisted tree holds it (collapsing an emptied split). Returns
+// whether a tab was removed — false means no parked tab matched (it may be live
+// in a mounted project, or unknown). Only peer-parked tabs carry an id, so at
+// most one match exists.
+export function removePersistedTabById(id: string): boolean {
+  for (const [projectName, state] of Object.entries(cached.projects)) {
+    if (!state.panes) continue;
+    const result = removeTabByIdFromTree(state.panes, id);
+    if (result.removed) {
+      void saveProjectTerminals(projectName, {
+        ...state,
+        panes: result.node,
+        terminals: undefined,
+      });
+      return true;
+    }
+  }
+  return false;
 }
 
 export function appendHistoryEntry(

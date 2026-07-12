@@ -51,6 +51,9 @@ import { CheckboxBox } from "./ChangedFilesTree";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Tooltip } from "./ui/Tooltip";
 import { SpinnerIcon } from "./project-detail/icons";
+import { SidebarPeerSection } from "./SidebarPeerSection";
+import { isPeerName, peerSlugOf } from "../peer/markers";
+import { usePeerState } from "../peer/usePeerState";
 
 const ROW_BASE_CLASS =
   "flex w-full select-none items-center gap-3 rounded-md px-3 py-2 text-left text-sm outline-none transition-colors";
@@ -155,6 +158,28 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const layoutRef = useRef<SidebarLayout>({ order: sidebarOrder, groups });
   layoutRef.current = { order: sidebarOrder, groups };
 
+  // Remote (peer) projects render in their own sections below the local ones;
+  // they never take part in folders, drag-reorder, or select-mode.
+  const { state: peerState } = usePeerState();
+  const localProjects = useMemo(() => projects.filter((p) => !isPeerName(p.name)), [projects]);
+  const peerSections = useMemo(() => {
+    const bySlug = new Map<string, ProjectInfo[]>();
+    for (const p of projects) {
+      const slug = peerSlugOf(p.name);
+      if (!slug) continue;
+      const arr = bySlug.get(slug);
+      if (arr) arr.push(p);
+      else bySlug.set(slug, [p]);
+    }
+    return peerState.peers
+      .filter((peer) => peer.connected && bySlug.has(peer.slug))
+      .map((peer) => ({
+        slug: peer.slug,
+        alias: peer.alias || peer.host,
+        projects: bySlug.get(peer.slug) ?? [],
+      }));
+  }, [projects, peerState.peers]);
+
   const contextProject = contextMenu
     ? projects.find((p) => p.name === contextMenu.name)
     : null;
@@ -170,12 +195,12 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // in the persisted order are appended loose so they never vanish.
   const { items, sortableIds, projectByName, memberOf } = useMemo(() => {
     const byName = new Map<string, ProjectInfo>();
-    for (const p of projects) byName.set(p.name, p);
+    for (const p of localProjects) byName.set(p.name, p);
     const membership = membershipMap(groups);
     // Duplicates nest under their parent — unless one was explicitly placed in a
     // folder, in which case it renders there as a standalone member instead.
     const childrenByParent = new Map<string, ProjectInfo[]>();
-    for (const p of projects) {
+    for (const p of localProjects) {
       if (isDuplicate(p, byName) && !membership.has(p.name)) {
         const arr = childrenByParent.get(p.parentName!);
         if (arr) arr.push(p);
@@ -230,14 +255,14 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       if (!seenGroups.has(g.id)) emitGroup(g);
     }
     // Brand-new loose projects not yet persisted into the order.
-    for (const p of projects) {
+    for (const p of localProjects) {
       if (rendered.has(p.name)) continue;
       if (isDuplicate(p, byName)) continue;
       if (membership.has(p.name)) continue;
       pushProject(p);
     }
     return { items: out, sortableIds: ids, projectByName: byName, memberOf: membership };
-  }, [projects, groups, sidebarOrder]);
+  }, [localProjects, groups, sidebarOrder]);
 
   // Project names in rendered top-to-bottom order — the axis a shift-click
   // range is measured along. Collapsed-folder members aren't rendered, so they
@@ -839,6 +864,15 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             </DragOverlay>
           </DndContext>
         )}
+        {peerSections.map((section) => (
+          <SidebarPeerSection
+            key={section.slug}
+            alias={section.alias}
+            projects={section.projects}
+            selected={selected}
+            onSelect={onSelect}
+          />
+        ))}
       </nav>
       {contextMenu &&
         (selectMode ? (

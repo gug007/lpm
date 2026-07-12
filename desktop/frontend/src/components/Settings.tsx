@@ -45,6 +45,7 @@ import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Modal } from "./ui/Modal";
 import { TrafficLights } from "./ui/TrafficLights";
 import { MobileSettingsPane } from "./MobileSettingsPane";
+import { ConnectMacsPane } from "./ConnectMacsPane";
 import { PencilIcon, PlusIcon, TrashIcon } from "./icons";
 import { useAppStore, type SettingsTab } from "../store/app";
 import { useAccountsStore } from "../store/accounts";
@@ -355,6 +356,7 @@ export function Settings({
     ["templates", "Templates"],
     ["backup", "Backup & Transfer"],
     ["mobile", "Mobile devices"],
+    ["connect-macs", "Connect Macs"],
   ];
 
   const soundRows: {
@@ -822,6 +824,8 @@ export function Settings({
           )}
 
           {activeTab === "mobile" && <MobileSettingsPane />}
+
+          {activeTab === "connect-macs" && <ConnectMacsPane />}
 
           <ConfirmDialog
             open={showResetDialog}
