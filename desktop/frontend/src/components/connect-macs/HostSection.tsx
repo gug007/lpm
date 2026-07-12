@@ -220,12 +220,21 @@ export function HostSection({
             <button
               onClick={startPairing}
               disabled={pairingBusy}
-              className="mt-1 flex items-center gap-2 self-start rounded-lg px-1 py-2 text-sm font-medium text-[var(--accent-cyan)] transition-opacity hover:opacity-80 disabled:opacity-50"
+              className="mt-2 flex items-center gap-1.5 self-start rounded-full px-4 py-1.5 text-[13px] font-semibold text-[var(--accent-cyan)] transition-[background-color,transform] duration-150 active:scale-[0.97] disabled:opacity-50"
+              style={{
+                backgroundColor: "color-mix(in srgb, var(--accent-cyan) 12%, transparent)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor =
+                  "color-mix(in srgb, var(--accent-cyan) 18%, transparent)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor =
+                  "color-mix(in srgb, var(--accent-cyan) 12%, transparent)";
+              }}
             >
-              <span className="flex h-5 w-5 items-center justify-center rounded-md border border-dashed border-current">
-                <PlusIcon />
-              </span>
-              {pairingBusy ? "Preparing…" : "Pair another Mac"}
+              <PlusIcon />
+              {pairingBusy ? "Preparing…" : "Pair Another Mac"}
             </button>
           )}
         </div>
