@@ -252,8 +252,9 @@ fn cp_c_r(from: &Path, to: &Path) -> Result<(), String> {
 
 /// macOS APFS copy-on-write clone (kernel falls back to a full copy off-APFS).
 /// Recurses only into dirs holding something prunable, so the rest is cloned whole
-/// in one `cp -c -R` and keeps COW. The reinstall variant prunes node_modules and
-/// caches at every depth; the default keeps deps and only skips top-level caches.
+/// in one `cp -c -R` and keeps COW. Caches are pruned at every depth in both modes;
+/// the reinstall variant additionally prunes node_modules, while a kept node_modules
+/// is cloned whole/opaque (its packages ship dist/build/out we must not strip).
 fn cp_clone(src: &Path, dst: &Path, skip_node_modules: bool) -> Result<(), String> {
     std::fs::create_dir(dst).map_err(|e| format!("create duplicate dir failed: {e}"))?;
     for entry in std::fs::read_dir(src).map_err(|e| format!("read source failed: {e}"))? {
@@ -265,7 +266,7 @@ fn cp_clone(src: &Path, dst: &Path, skip_node_modules: bool) -> Result<(), Strin
         let from = entry.path();
         let to = dst.join(&name);
         let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
-        if skip_node_modules && is_dir && subtree_has_prunable(&from, skip_node_modules) {
+        if is_dir && name.to_str() != Some("node_modules") && subtree_has_prunable(&from, skip_node_modules) {
             cp_clone(&from, &to, skip_node_modules)?;
         } else {
             cp_c_r(&from, &to)?;
@@ -956,4 +957,68 @@ fn map_clone_error(msg: &str) -> String {
         return format!("clone failed: {msg}");
     };
     friendly.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn write_file(path: &Path, contents: &str) {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, contents).unwrap();
+    }
+
+    fn make_src(root: &Path) {
+        write_file(&root.join("package.json"), "{}");
+        write_file(&root.join(".next/cache.txt"), "cache");
+        write_file(&root.join("website/app/page.tsx"), "export default null");
+        write_file(&root.join("website/.next/foo.txt"), "stale");
+        write_file(&root.join("website/node_modules/somepkg/dist/x.js"), "bundled");
+    }
+
+    fn run_clone(skip_node_modules: bool) -> tempfile::TempDir {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("src");
+        make_src(&src);
+        cp_clone(&src, &tmp.path().join("dst"), skip_node_modules).unwrap();
+        tmp
+    }
+
+    fn dst(out: &tempfile::TempDir) -> PathBuf {
+        out.path().join("dst")
+    }
+
+    #[test]
+    fn cp_clone_default_prunes_nested_cache_keeps_sources() {
+        let out = run_clone(false);
+        let d = dst(&out);
+        assert!(d.join("package.json").exists());
+        assert!(d.join("website/app/page.tsx").exists());
+        assert!(!d.join("website/.next").exists());
+        assert!(!d.join("website/.next/foo.txt").exists());
+    }
+
+    #[test]
+    fn cp_clone_default_keeps_node_modules_opaque() {
+        let out = run_clone(false);
+        let d = dst(&out);
+        assert!(d.join("website/node_modules/somepkg/dist/x.js").exists());
+    }
+
+    #[test]
+    fn cp_clone_default_prunes_top_level_cache() {
+        let out = run_clone(false);
+        let d = dst(&out);
+        assert!(!d.join(".next").exists());
+    }
+
+    #[test]
+    fn cp_clone_reinstall_prunes_node_modules_and_nested_cache() {
+        let out = run_clone(true);
+        let d = dst(&out);
+        assert!(d.join("website/app/page.tsx").exists());
+        assert!(!d.join("website/node_modules").exists());
+        assert!(!d.join("website/.next").exists());
+        assert!(!d.join(".next").exists());
+    }
 }
