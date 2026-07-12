@@ -38,11 +38,16 @@ export function RemoteReviewPane({
   const [sideBySide, setSideBySide] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState<null | "commit" | "push" | "pull" | "generate">(null);
+  const [busy, setBusy] = useState<
+    null | "commit" | "push" | "pull" | "generate"
+  >(null);
   const onSummaryRef = useRef(onSummary);
   onSummaryRef.current = onSummary;
 
-  const sources = useMemo(() => makeRemoteReviewSource(peerId, project), [peerId, project]);
+  const sources = useMemo(
+    () => makeRemoteReviewSource(peerId, project),
+    [peerId, project],
+  );
 
   const refresh = useCallback(async () => {
     try {
@@ -65,7 +70,11 @@ export function RemoteReviewPane({
   useEffect(
     () =>
       EventsOn("peer-frame", (m: PeerFrameEvent) => {
-        if (m?.peerId === peerId && m.frame?.t === "git-changed" && m.frame.project === project) {
+        if (
+          m?.peerId === peerId &&
+          m.frame?.t === "git-changed" &&
+          m.frame.project === project
+        ) {
           void refresh();
           setReloadKey((k) => k + 1);
         }
@@ -76,12 +85,17 @@ export function RemoteReviewPane({
   const files = summary?.files ?? [];
   const changedPaths = useMemo(() => files.map((f) => f.path), [files]);
 
-  const run = async (kind: "commit" | "push" | "pull" | "generate", op: () => Promise<void>) => {
+  const run = async (
+    kind: "commit" | "push" | "pull" | "generate",
+    op: () => Promise<void>,
+  ) => {
     setBusy(kind);
     try {
       await op();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "That didn't work on the other Mac.");
+      toast.error(
+        e instanceof Error ? e.message : "That didn't work on the other Mac.",
+      );
     } finally {
       setBusy(null);
     }
@@ -93,8 +107,10 @@ export function RemoteReviewPane({
       setMessage("");
       await refresh();
     });
-  const push = () => run("push", () => remoteGitPush(peerId, project).then(refresh));
-  const pull = () => run("pull", () => remoteGitPull(peerId, project).then(refresh));
+  const push = () =>
+    run("push", () => remoteGitPush(peerId, project).then(refresh));
+  const pull = () =>
+    run("pull", () => remoteGitPull(peerId, project).then(refresh));
   const generate = () =>
     run("generate", async () => {
       const m = await remoteGitGenMessage(peerId, project, changedPaths);
@@ -105,9 +121,11 @@ export function RemoteReviewPane({
   const behind = summary?.behind ?? 0;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-lg border-t border-x border-[var(--border)]">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-lg border-t border-x border-[var(--border)] bg-[var(--terminal-bg)]">
       <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-1.5 text-[12px]">
-        <span className="font-medium text-[var(--text-primary)]">{summary?.branch || "—"}</span>
+        <span className="font-medium text-[var(--text-primary)]">
+          {summary?.branch || "—"}
+        </span>
         {(ahead > 0 || behind > 0) && (
           <span className="text-[var(--text-muted)]">
             {ahead > 0 && `↑${ahead}`} {behind > 0 && `↓${behind}`}
@@ -173,7 +191,9 @@ export function RemoteReviewPane({
         </button>
         <button
           onClick={commit}
-          disabled={busy !== null || files.length === 0 || message.trim() === ""}
+          disabled={
+            busy !== null || files.length === 0 || message.trim() === ""
+          }
           className="shrink-0 rounded-lg bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-85 disabled:opacity-50"
         >
           {busy === "commit" ? "Committing…" : "Commit"}

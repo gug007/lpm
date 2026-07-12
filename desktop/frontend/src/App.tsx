@@ -304,11 +304,13 @@ export default function App() {
             );
           })}
           {view === "projects" && remoteSelection && (
-            <RemoteProjectView
-              key={`${remoteSelection.peerId}:${remoteSelection.project}`}
-              peerId={remoteSelection.peerId}
-              project={remoteSelection.project}
-            />
+            <div className="flex min-h-0 flex-1 flex-col">
+              <RemoteProjectView
+                key={`${remoteSelection.peerId}:${remoteSelection.project}`}
+                peerId={remoteSelection.peerId}
+                project={remoteSelection.project}
+              />
+            </div>
           )}
           {view === "projects" && !selectedProject && !remoteSelection && projects.length === 0 && (
             <EmptyStateNoProjects onAdd={addProject} />
