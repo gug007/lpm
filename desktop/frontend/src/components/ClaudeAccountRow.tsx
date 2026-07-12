@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { toast } from "../toast";
+import { toast } from "sonner";
 import { CopyIcon, TrashIcon } from "./icons";
 import { InlineNameEditor } from "./InlineNameEditor";
 import type { ClaudeAccountStatus } from "../store/accounts";

@@ -8,7 +8,7 @@ import {
   type Ref,
 } from "react";
 import YAML from "yaml";
-import { toast } from "../../toast";
+import { toast } from "sonner";
 import {
   appendActionToLayer,
   findActionSource,

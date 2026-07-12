@@ -5,24 +5,22 @@ import {
 } from "../../bridge/commands";
 import { InstructionsEditor } from "./InstructionsEditor";
 import { DEFAULT_BRANCH_NAME_INSTRUCTIONS } from "../aiInstructions";
-import type { InstructionsEditorIO } from "./ProjectAIInstructions";
 
 export function ProjectBranchNameInstructionsEditor({
   projectName,
   onBack,
-  read = ReadProjectInstructions,
-  write = SaveProjectInstructions,
 }: {
   projectName: string;
   onBack: () => void;
-} & InstructionsEditorIO) {
+}) {
   const load = useCallback(
-    () => read(projectName, "branch-name"),
-    [projectName, read],
+    () => ReadProjectInstructions(projectName, "branch-name"),
+    [projectName],
   );
   const save = useCallback(
-    (content: string) => write(projectName, "branch-name", content),
-    [projectName, write],
+    (content: string) =>
+      SaveProjectInstructions(projectName, "branch-name", content),
+    [projectName],
   );
 
   return (

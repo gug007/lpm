@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Modal } from "./ui/Modal";
-import { CheckIcon, CopyIcon, PlusIcon } from "./icons";
+import { PlusIcon } from "./icons";
 import {
   RemoteState,
   RemoteSetConfig,
@@ -8,7 +8,6 @@ import {
   RemoteRevokeDevice,
 } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
-import { ConnectedMacsSection } from "./ConnectedMacsSection";
 
 interface Device {
   id: string;
@@ -314,8 +313,6 @@ export function MobileSettingsPane() {
         </div>
       </div>
 
-      <ConnectedMacsSection />
-
       <div className="mt-8">
         <SectionLabel>Using lpm away from home</SectionLabel>
         <div className="overflow-hidden rounded-xl border border-[var(--border)]">
@@ -353,25 +350,6 @@ export function MobileSettingsPane() {
   );
 }
 
-function CopyLinkButton({ url }: { url: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => {
-    void navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-  return (
-    <button
-      type="button"
-      onClick={copy}
-      className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-hover)] px-2.5 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--text-muted)] hover:text-[var(--text-primary)]"
-    >
-      {copied ? <CheckIcon /> : <CopyIcon size={12} />}
-      {copied ? "Copied" : "Copy pairing link"}
-    </button>
-  );
-}
-
 function PairingModal({ pairing, onClose }: { pairing: Pairing | null; onClose: () => void }) {
   return (
     <Modal
@@ -384,9 +362,8 @@ function PairingModal({ pairing, onClose }: { pairing: Pairing | null; onClose: 
         <>
           <h3 className="text-base font-semibold text-[var(--text-primary)]">Pair a device</h3>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            In the lpm mobile app, tap Add device and scan this code. To connect another Mac, copy
-            the pairing link below and paste it there. It works once and expires after a device
-            pairs.
+            In the lpm mobile app, tap Add device and scan this code. It works once and expires
+            after a device pairs.
           </p>
           <div className="mt-4 flex flex-col items-center gap-3">
             {pairing.svg ? (
@@ -409,8 +386,7 @@ function PairingModal({ pairing, onClose }: { pairing: Pairing | null; onClose: 
               </div>
             </div>
           </div>
-          <div className="mt-5 flex items-center justify-between gap-2">
-            {pairing.url ? <CopyLinkButton url={pairing.url} /> : <span />}
+          <div className="mt-5 flex justify-end gap-2">
             <button
               onClick={onClose}
               className="rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-85"

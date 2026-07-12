@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { toast } from "../toast";
+import { toast } from "sonner";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuSubmenu } from "./ui/ContextMenuSubmenu";

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { ChevronRight } from "lucide-react";
-import { toast } from "../toast";
+import { toast } from "sonner";
 import { useSettingsStore } from "../store/settings";
 import { useComposerStore } from "../store/composer";
 import { applyTheme, type Theme } from "../theme";

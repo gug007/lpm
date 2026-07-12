@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { toast } from "../../toast";
+import { toast } from "sonner";
 import { appendProfile, renameProfile, replaceProfile } from "../../profileConfig";
 import { computeDesiredKey } from "../../forms/keys";
 import { slugifiedNameSchema } from "../../forms/schemas";

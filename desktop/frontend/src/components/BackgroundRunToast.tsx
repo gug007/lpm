@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Ban, Check, ChevronDown, CircleAlert, Loader2, X } from "lucide-react";
-import { toast } from "../toast";
+import { toast } from "sonner";
 import {
   clearBackgroundRun,
   getBackgroundRunLines,

@@ -9,7 +9,7 @@ import {
   type KeyboardEvent,
   type MouseEvent,
 } from "react";
-import { toast } from "../toast";
+import { toast } from "sonner";
 import {
   GetServiceLogs,
   ReadClipboardFiles,
@@ -92,10 +92,6 @@ import { MentionMenu } from "./MentionMenu";
 import { captureInteractivePaneLog } from "./InteractivePane";
 import { useMentions } from "../hooks/useMentions";
 import { MENTION_TRIGGER, type MentionItem } from "../mentions";
-import { useRemoteSlashCommands } from "../hooks/useRemoteSlashCommands";
-import { useRemoteMentions } from "../hooks/useRemoteMentions";
-import { HistorySourceContext, localHistorySource, type HistorySource } from "../store/historySource";
-import type { RemoteComposerSource } from "../remoteComposerSource";
 
 interface TerminalComposerProps {
   // Terminal whose draft this composer owns; its draft is persisted per id.
@@ -141,20 +137,6 @@ interface TerminalComposerProps {
   // `runHere` to run the same prompt in this terminal as copy #1 — so the
   // current project and every copy run it in parallel.
   onRunInDuplicates: (seed: DuplicatePromptSeed, runHere: () => Promise<void>) => void;
-  // Remote mode (the peer/remote project view): the composer targets another
-  // Mac's terminal via `onSubmit`, so the local-only affordances — voice, AI
-  // transform, the local message-history popover + recording, and the
-  // draft/duplicates send menu — are hidden/skipped. Defaults false, so the local
-  // composer is entirely unchanged. Slash/mention menus are turned off by the
-  // host passing empty `terminals`/`cwd` and no `launchCmd`.
-  remote?: boolean;
-  // In remote mode, the data layer for the peer Mac: slash commands, @-mentions,
-  // AI rewrite actions + transform, attachment upload, and draft-save all resolve
-  // against the peer instead of the local bridge. Present only when `remote`.
-  remoteSource?: RemoteComposerSource;
-  // In remote mode, the peer-backed message-history source the recall popover +
-  // its save-draft path read/write through (via HistorySourceContext).
-  remoteHistorySource?: HistorySource;
 }
 
 // How many trailing lines of a service's pane to pull into the draft when its
@@ -206,7 +188,7 @@ function sameTabView(a: ComposerTabView[], b: ComposerTabView[]): boolean {
   return a.every((t, i) => t.id === b[i].id && t.label === b[i].label);
 }
 
-export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, actionName, fontSize, onSubmit, onFocusTerminal, onRunInDuplicates, remote = false, remoteSource, remoteHistorySource }: TerminalComposerProps) {
+export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, actionName, fontSize, onSubmit, onFocusTerminal, onRunInDuplicates }: TerminalComposerProps) {
   // `blank` drives the placeholder (no content at all); `disabled` drives the
   // send button (nothing but whitespace).
   const [blank, setBlank] = useState(true);
@@ -247,45 +229,16 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // for the transformingId state to settle.
   const transforming = useRef(false);
   const ai = useAIPicker(shown);
-  const localEnabledActions = useEnabledComposerActions();
+  const enabledActions = useEnabledComposerActions();
   // The CLI running in the target terminal, derived from its launch command. The
   // slash menu only appears when this resolves (a terminal actually running an
   // agent); plain shells get no menu. Commands load lazily on focus.
   const slashCli = detectAICLI(launchCmd);
-  const localSlash = useSlashCommands(slashCli, cwd, focused);
+  const { filter: filterSlash, isCommand: isSlashCommand, argumentHintFor } = useSlashCommands(slashCli, cwd, focused);
   // "@" mentions work in every terminal composer, not just agent terminals — the
   // referenced text is useful to any CLI. They load only while the composer is
   // focused, so a background tab still pays nothing for the tree walk / git call.
-  const localMentions = useMentions(cwd, projectName, terminals, terminalId, focused);
-  // Remote counterparts: the peer computes slash commands / mentions against its
-  // own project + cwd (the local bridge would answer for the wrong machine). Both
-  // hooks are inert without a remoteSource, so the local composer pays nothing.
-  const remoteSlash = useRemoteSlashCommands(remoteSource ?? null, focused);
-  const remoteMentions = useRemoteMentions(remoteSource ?? null, focused);
-  // Remote AI rewrite actions come from the peer (its enabled composer actions);
-  // the local composer reads them from the store.
-  const [remoteActions, setRemoteActions] = useState<ComposerAction[]>([]);
-  useEffect(() => {
-    if (!remoteSource) return;
-    let cancelled = false;
-    void remoteSource
-      .listActions()
-      .then((a) => {
-        if (!cancelled) setRemoteActions(a);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [remoteSource]);
-  const enabledActions = remoteSource ? remoteActions : localEnabledActions;
-  const { filter: filterSlash, isCommand: isSlashCommand, argumentHintFor } = remoteSource
-    ? remoteSlash
-    : localSlash;
-  const { filter: filterMentions, refresh: refreshMentions } = remoteSource ? remoteMentions : localMentions;
-  // Whether the slash menu is available at all: locally when the terminal runs a
-  // known CLI; remotely once the peer has returned any commands for it.
-  const slashActive = remoteSource ? remoteSlash.enabled : !!slashCli;
+  const { filter: filterMentions, refresh: refreshMentions } = useMentions(cwd, projectName, terminals, terminalId, focused);
   const editorRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hoverChip = useRef<HTMLElement | null>(null);
@@ -812,16 +765,6 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       segments.map(async (s) => {
         const path = s.image === null ? undefined : images[s.image];
         if (path === undefined) return s.text;
-        // A local path is meaningless on the peer, so a remote send transfers the
-        // file's bytes to the peer and pastes the on-peer path it returns; a local
-        // send shell-quotes (and scp's for a remote pane) the path in place. A
-        // remote upload failure is NOT swallowed — falling back to the local path
-        // would send the peer a reference to a nonexistent file — so it throws and
-        // the caller aborts the send (keeping the draft). Local keeps its fallback.
-        if (remoteSource) {
-          const uploaded = await remoteSource.uploadLocalPath(path);
-          return ` ${uploaded} `;
-        }
         const uploaded = await UploadAndQuoteForTerminal(terminalId, [path]).catch(() => "");
         return ` ${uploaded || path} `;
       }),
@@ -845,32 +788,20 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     if (sending.current.has(sentId)) return;
     sending.current.add(sentId);
     try {
-      let payload: string | string[];
-      try {
-        payload = await buildTerminalPayload(text, images);
-      } catch (err) {
-        // A remote attachment upload failed — abort before onSubmit so the draft
-        // (and its attachments) is preserved rather than cleared by finishSend.
-        toast.error(err instanceof Error ? err.message : "Couldn't attach the file on the other Mac.");
-        return;
-      }
+      const payload = await buildTerminalPayload(text, images);
       if (!onSubmit(payload)) return;
       history.current.unshift({ text, images });
       // The prepend shifts every existing entry up by one; nudge each recall
       // cursor (per-tab and the live one) so it stays anchored to its message.
       for (const t of tabs.current) if (t.histIdx >= 0) t.histIdx += 1;
       if (histIdx.current >= 0) histIdx.current += 1;
-      // Remote sends are recorded on the other Mac (the host's onSubmit issues a
-      // historyAdd), so skip the local message-history write here.
-      if (!remote) {
-        recordMessage({
-          text,
-          projectName,
-          terminalId: historyKey,
-          terminalLabel: targetLabel,
-          images,
-        });
-      }
+      recordMessage({
+        text,
+        projectName,
+        terminalId: historyKey,
+        terminalLabel: targetLabel,
+        images,
+      });
       finishSend(sentId, editor);
     } finally {
       sending.current.delete(sentId);
@@ -893,19 +824,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // then focus moves to the terminal to watch the result.
   const sendFromHistory = async (text: string, images: Record<string, string>) => {
     if (!text.trim()) return;
-    let payload: string | string[];
-    try {
-      payload = await buildTerminalPayload(text, images);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't attach the file on the other Mac.");
-      return;
-    }
+    const payload = await buildTerminalPayload(text, images);
     if (!onSubmit(payload)) return;
-    // Remote sends are recorded on the peer (the host's onSubmit issues a
-    // historyAdd), so skip the local write.
-    if (!remote) {
-      recordMessage({ text, projectName, terminalId: historyKey, terminalLabel: targetLabel, images });
-    }
+    recordMessage({ text, projectName, terminalId: historyKey, terminalLabel: targetLabel, images });
     onFocusTerminal();
   };
 
@@ -926,13 +847,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     sending.current.add(draftId);
     try {
       // Store the draft first; only clear the field once it's safely persisted so
-      // a failed write never discards the prompt. Remote drafts are filed in the
-      // peer's shared history (the local DB has no matching terminal).
-      if (remoteSource) {
-        await remoteSource.saveDraft(value, images);
-      } else {
-        await saveDraft({ text: value, projectName, terminalId: historyKey, terminalLabel: targetLabel, images });
-      }
+      // a failed write never discards the prompt.
+      await saveDraft({ text: value, projectName, terminalId: historyKey, terminalLabel: targetLabel, images });
       finishSend(draftId, editor);
       toast.success("Saved as draft");
     } catch {
@@ -1166,7 +1082,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // spaces yet), so typing args or any other text closes it.
   const updateSlashMenu = () => {
     const editor = editorRef.current;
-    if (!editor || transforming.current || !slashActive) {
+    if (!editor || transforming.current || !slashCli) {
       setSlashOpen(false);
       return;
     }
@@ -1234,7 +1150,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const updateHint = () => {
     const editor = editorRef.current;
     const box = containerRef.current;
-    if (!editor || !box || !slashActive) {
+    if (!editor || !box || !slashCli) {
       setHint(null);
       return;
     }
@@ -1373,54 +1289,36 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     // finally must not release it — chooseVariant/closeVariants do.
     let openedPicker = false;
     try {
-      if (remoteSource) {
-        // The peer runs the rewrite(s) with its own AI settings and streams the
-        // results back; a single result applies straight in, several open the
-        // picker — same as local.
-        const list = await remoteSource.transform(action.instruction, value, count);
+      // Read the live AI selection at run time — the picker in the manage modal
+      // (or any other AI flow) may have changed it since this composer mounted.
+      const params = resolveTransformParams(ai);
+      if (count <= 1) {
+        const out = await TransformText(
+          projectName,
+          cwd,
+          params.cli,
+          params.model,
+          params.effort,
+          params.fast,
+          action.instruction,
+          value,
+        );
+        const text = typeof out === "string" ? out.trim() : "";
+        if (!text) {
+          toast.error("AI returned an empty response");
+          return;
+        }
+        if (activeId.current !== startedId) return;
+        applyRewrite(editor, text, images);
+      } else {
+        const list = await generateVariants(projectName, cwd, params, action.instruction, value, count);
         if (list.length === 0) {
           toast.error("AI returned an empty response");
           return;
         }
         if (activeId.current !== startedId) return;
-        if (count <= 1) {
-          applyRewrite(editor, list[0], images);
-        } else {
-          openedPicker = true;
-          setVariants({ label: action.label, list, images, startedId });
-        }
-      } else {
-        // Read the live AI selection at run time — the picker in the manage modal
-        // (or any other AI flow) may have changed it since this composer mounted.
-        const params = resolveTransformParams(ai);
-        if (count <= 1) {
-          const out = await TransformText(
-            projectName,
-            cwd,
-            params.cli,
-            params.model,
-            params.effort,
-            params.fast,
-            action.instruction,
-            value,
-          );
-          const text = typeof out === "string" ? out.trim() : "";
-          if (!text) {
-            toast.error("AI returned an empty response");
-            return;
-          }
-          if (activeId.current !== startedId) return;
-          applyRewrite(editor, text, images);
-        } else {
-          const list = await generateVariants(projectName, cwd, params, action.instruction, value, count);
-          if (list.length === 0) {
-            toast.error("AI returned an empty response");
-            return;
-          }
-          if (activeId.current !== startedId) return;
-          openedPicker = true;
-          setVariants({ label: action.label, list, images, startedId });
-        }
+        openedPicker = true;
+        setVariants({ label: action.label, list, images, startedId });
       }
     } catch (err) {
       toast.error(`Action failed: ${err}`);
@@ -1743,11 +1641,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const textStyle = { fontSize, lineHeight: 1.5 };
 
   const busy = transformingId !== null;
-  // Locally, actions show when an AI CLI is available here; remotely, when the
-  // peer returned any enabled actions (its AI, not ours). The manage/dictate
-  // affordances are local-only, so they're dropped from the remote popover.
-  const showActions = remote ? enabledActions.length > 0 : ai.anyAvailable;
-  const actionsCliLabel = remote ? "the other Mac" : ai.cliLabel;
+  const showActions = ai.anyAvailable;
 
   return (
     <div className="border-t border-[var(--border)] bg-[var(--terminal-bg)] px-3 pb-1 pt-2">
@@ -1849,16 +1743,16 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         )}
         <div className="flex items-center justify-between px-2 pb-1">
           <div className="flex items-center gap-1">
-            {!remote && <ComposerMicButton />}
+            <ComposerMicButton />
             {showActions && (
               <ComposerActionsButton
                 align="left"
                 enabledActions={enabledActions}
                 busy={busy}
                 canRun={!disabled}
-                cliLabel={actionsCliLabel}
+                cliLabel={ai.cliLabel}
                 onRun={runAction}
-                onManage={remote ? undefined : () => setActionsModalOpen(true)}
+                onManage={() => setActionsModalOpen(true)}
               />
             )}
             <Tooltip content="New prompt  ·  ⌘⇧T" delay={COMPOSER_TOOLTIP_DELAY_MS}>
@@ -1871,22 +1765,17 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
                 <PlusIcon />
               </button>
             </Tooltip>
-            {(!remote || remoteHistorySource) && (
-              <HistorySourceContext.Provider value={remoteHistorySource ?? localHistorySource}>
-                <TerminalHistoryButton
-                  terminalId={historyKey}
-                  projectName={projectName}
-                  terminalLabel={targetLabel}
-                  onPick={loadFromHistory}
-                  onSend={sendFromHistory}
-                />
-              </HistorySourceContext.Provider>
-            )}
+            <TerminalHistoryButton
+              terminalId={historyKey}
+              projectName={projectName}
+              terminalLabel={targetLabel}
+              onPick={loadFromHistory}
+              onSend={sendFromHistory}
+            />
           </div>
           <SendSplitButton
             disabled={disabled}
             busy={busy}
-            showMenu={!remote || !!remoteSource}
             onSend={() => void send()}
             onSaveDraft={() => void saveCurrentDraft()}
             onRunInDuplicates={runInDuplicates}

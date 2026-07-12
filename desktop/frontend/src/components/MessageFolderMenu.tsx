@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { type Folder, type HistoryMessage } from "../store/messageHistory";
-import { useHistorySource } from "../store/historySource";
+import { setMessageFolder, type Folder, type HistoryMessage } from "../store/messageHistory";
 import { useOverlay } from "../store/overlay";
 import { CheckIcon, FolderIcon, PlusIcon } from "./icons";
 import { NewFolderInput } from "./NewFolderInput";
@@ -21,7 +20,6 @@ export function MessageFolderMenu({ anchor, message, folders, onClose }: Message
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const [creating, setCreating] = useState(false);
-  const source = useHistorySource();
 
   useOverlay(true);
 
@@ -55,7 +53,7 @@ export function MessageFolderMenu({ anchor, message, folders, onClose }: Message
   }, [onClose]);
 
   const moveTo = (folderId: string | null) => {
-    source.setMessageFolder(message.id, folderId);
+    setMessageFolder(message.id, folderId);
     onClose();
   };
 

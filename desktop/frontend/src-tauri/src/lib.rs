@@ -22,7 +22,6 @@ mod notes_blobs;
 mod notes_cmds;
 mod notes_store;
 mod openin;
-mod peer;
 mod portforward;
 mod ports;
 mod proctree;
@@ -66,7 +65,6 @@ use log_streaming::*;
 use message_history::*;
 use notes_cmds::*;
 use openin::*;
-use peer::*;
 use portforward::*;
 use ports::*;
 use projects_crud::*;
@@ -115,7 +113,6 @@ pub fn run() {
         .manage(sshsync::SyncState::default())
         .manage(browser::BrowserState::default())
         .manage(remote::RemoteHub::default())
-        .manage(peer::PeerHub::default())
         .on_menu_event(menu::handle_event)
         .on_window_event(|window, event| {
             // Closing the main window hides it instead of quitting, so terminals,
@@ -153,11 +150,6 @@ pub fn run() {
             // its own ~/.lpm/remote.json; a no-op until enabled + paired.
             let hub = app.state::<remote::RemoteHub>().inner().clone();
             remote::start(hub, handle.clone());
-
-            // Desktop-to-desktop peer connections (this Mac controlling others).
-            // Reads ~/.lpm/peers.json and holds a supervised connection per peer.
-            let peer_hub = app.state::<peer::PeerHub>().inner().clone();
-            peer::start(peer_hub, handle.clone());
 
             // Install agent status hooks (Claude Code / Codex) so they report to
             // the socket. Backgrounded — touches files, never blocks startup.
@@ -197,7 +189,6 @@ pub fn run() {
                 portforward::stop_all_forwards(app); // kill ssh -L tunnels + pollers
                 sshsync::stop_all_sync_watchers(app); // drop rsync mirror watchers
                 remote::stop(&app.state::<remote::RemoteHub>()); // retire the mobile server threads
-                peer::stop(&app.state::<peer::PeerHub>()); // stop peer connection supervisors
                 let _ = std::fs::remove_file(config::socket_path());
             }
             // Dock-icon click with no visible window restores the hidden main

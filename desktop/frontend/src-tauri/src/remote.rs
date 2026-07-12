@@ -40,7 +40,7 @@ use std::sync::mpsc::{self, SyncSender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Listener, Manager, State};
-use tungstenite::{accept_with_config, Error as WsError, Message, WebSocket};
+use tungstenite::{accept, Error as WsError, Message, WebSocket};
 
 const DEFAULT_PORT: u16 = 8765;
 const RING_CAP: usize = 96 * 1024; // recent scrollback seeded to a joining phone
@@ -436,26 +436,10 @@ fn accept_loop(listener: TcpListener, hub: RemoteHub, app: AppHandle, generation
     }
 }
 
-/// Shared WebSocket limits for both ends of the peer link. tungstenite 0.24
-/// defaults to a 16 MiB max frame / 64 MiB max message and does NOT fragment
-/// outbound writes, so a single legal payload over 16 MiB (a base64 notes
-/// attachment — up to ~133 MB given the 100 MB product cap — or a large composer
-/// upload) would trip `Error::Capacity` and drop the connection. Raise both to
-/// 256 MiB, comfortably above the largest legal payload; the 100 MB product cap
-/// stays the user-facing limit.
-pub(crate) fn ws_config() -> tungstenite::protocol::WebSocketConfig {
-    const CAP: usize = 256 * 1024 * 1024;
-    tungstenite::protocol::WebSocketConfig {
-        max_message_size: Some(CAP),
-        max_frame_size: Some(CAP),
-        ..Default::default()
-    }
-}
-
 fn accept_ws(stream: TcpStream) -> Option<WebSocket<TcpStream>> {
     let _ = stream.set_nodelay(true);
     let _ = stream.set_read_timeout(Some(AUTH_TIMEOUT));
-    accept_with_config(stream, Some(ws_config())).ok()
+    accept(stream).ok()
 }
 
 fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u64) {
@@ -592,10 +576,8 @@ fn authenticate(ws: &mut WebSocket<TcpStream>, hub: &RemoteHub) -> Option<AuthOu
             let name = v.get("name").and_then(Value::as_str).unwrap_or("device");
             match pair_device(hub, code, name) {
                 Some((id, token)) => {
-                    // `name` (this Mac's ComputerName) lets a pairing peer Mac label
-                    // the connection; older clients (the phone) ignore unknown fields.
                     let _ = ws.send(Message::text(
-                        json!({ "t": "paired", "deviceId": id, "token": token, "name": crate::sys::computer_name() }).to_string(),
+                        json!({ "t": "paired", "deviceId": id, "token": token }).to_string(),
                     ));
                     Some(AuthOutcome::Paired(id))
                 }
@@ -1129,26 +1111,21 @@ fn handle_msg(
         "sub" => {
             if let Some(id) = str_field("id") {
                 subs.lock().unwrap().insert(id.clone());
-                let ctrl = app.state::<crate::control::ControlState>();
-                // A desktop peer viewing read-only sends `view:true`: subscribe to
-                // output without taking control, so the controlled Mac keeps
-                // ownership and the peer's mirror stays view-only until it claims.
-                // A phone (no flag) claims as before — opening its terminal screen
-                // takes control, flipping the previous owner to its placeholder.
-                let owner = if v.get("view").and_then(Value::as_bool).unwrap_or(false) {
-                    ctrl.owner_of(&id)
-                } else {
-                    let (owner, changed) = ctrl.claim(&id, mobile_owner(hub, device_id));
-                    if changed {
-                        crate::control::broadcast(app, &id, &Some(owner.clone()));
-                    }
-                    Some(owner)
-                };
+                // Opening a terminal screen on the phone takes control of it (the
+                // surface the user just opened should be where it's live). The
+                // previous owner is pushed a `control` frame and flips to its
+                // placeholder. `owner` in the seed confirms this phone owns it.
+                let (owner, changed) = app
+                    .state::<crate::control::ControlState>()
+                    .claim(&id, mobile_owner(hub, device_id));
+                if changed {
+                    crate::control::broadcast(app, &id, &Some(owner.clone()));
+                }
                 let (cols, rows) =
                     pty::remote_dims(&app.state::<pty::PtyState>(), &id).unwrap_or((80, 24));
                 send(
                     ws,
-                    json!({ "t": "seed", "id": id, "cols": cols, "rows": rows, "data": hub.ring_text(&id), "owner": crate::control::owner_json(&owner) }),
+                    json!({ "t": "seed", "id": id, "cols": cols, "rows": rows, "data": hub.ring_text(&id), "owner": crate::control::owner_json(&Some(owner)) }),
                 )?;
             }
         }
@@ -1220,21 +1197,6 @@ fn handle_msg(
                 service,
             );
             send(ws, result_reply("toggleService", r))?;
-        }
-        // Restart a single running service, through the same code path the local
-        // Controls restart uses (services::restart_service_by_name -> tmux pane
-        // re-run). Inline: it's a quick tmux op, no network. Errors when the
-        // service is unknown or not currently running.
-        "restartService" => {
-            let name = str_field("name").unwrap_or_default();
-            let service = str_field("service").unwrap_or_default();
-            let state = app.state::<services::ServiceState>();
-            let r = services::restart_service_by_name(&state, &name, &service);
-            // Echo name+service so overlapping restarts correlate their replies.
-            let mut reply = result_reply("restartService", r);
-            reply["name"] = json!(name);
-            reply["service"] = json!(service);
-            send(ws, reply)?;
         }
         // Duplicate a project, mirroring the desktop modal. Rust creates the copies
         // one at a time (a pure config + disk clone, like start/stop — works with no
@@ -1359,16 +1321,7 @@ fn handle_msg(
                     "error": "Open the lpm app on your Mac to run actions." }))?;
             } else {
                 if !project.is_empty() && !action.is_empty() {
-                    let mut req = json!({ "project": project, "action": action });
-                    // A controlling peer collects the action's inputs (and resolves
-                    // any confirm) in its own UI, then passes the values map here so
-                    // this Mac runs the action directly instead of popping a second
-                    // modal. Absent (older phone) => legacy name-only run, which pops
-                    // the input/confirm modal on this Mac like before.
-                    if let Some(inputs) = v.get("inputs") {
-                        req["inputs"] = inputs.clone();
-                    }
-                    queue_run_action(hub, app, req);
+                    queue_run_action(hub, app, json!({ "project": project, "action": action }));
                 }
                 send(ws, json!({ "t": "runAction", "ok": true }))?;
             }
@@ -1425,204 +1378,6 @@ fn handle_msg(
                 );
             }
             send(ws, json!({ "t": t, "ok": true }))?;
-        }
-        // Project config editor (remote ⌘E). Read/save the project's user YAML
-        // through the SAME command path the local editor uses (config_cmds), so
-        // syntax validation + rename/parent routing stay identical — no raw file
-        // write. Both inline (a file read, and a syntax-validated write). configWrite
-        // echoes the possibly-renamed project `name` from save_config.
-        "configRead" => {
-            let project = str_field("project").unwrap_or_default();
-            match crate::config_cmds::read_config(project.clone()) {
-                Ok(text) => send(ws, json!({ "t": "configRead", "project": project, "ok": true, "text": text }))?,
-                Err(e) => send(ws, json!({ "t": "configRead", "project": project, "ok": false, "error": e }))?,
-            }
-        }
-        "configWrite" => {
-            let project = str_field("project").unwrap_or_default();
-            let text = str_field("text").unwrap_or_default();
-            match crate::config_cmds::save_config(app.clone(), project.clone(), text) {
-                Ok(new_name) => send(ws, json!({ "t": "configWrite", "project": project, "ok": true, "name": new_name }))?,
-                Err(e) => send(ws, json!({ "t": "configWrite", "project": project, "ok": false, "error": e }))?,
-            }
-        }
-        // AI-instructions tab. Per-project instruction overrides live in their own
-        // .txt files (templates.rs), NOT the config YAML, so they get their own
-        // read/write keyed by the instruction `key` (commit | pr-title |
-        // pr-description | branch-name). Both inline; an unknown key errors from the
-        // same validator the local command uses.
-        "aiInstructionsRead" => {
-            let project = str_field("project").unwrap_or_default();
-            let key = str_field("key").unwrap_or_default();
-            match crate::templates::read_project_instructions(project.clone(), key.clone()) {
-                Ok(text) => send(ws, json!({ "t": "aiInstructionsRead", "project": project, "key": key, "ok": true, "text": text }))?,
-                Err(e) => send(ws, json!({ "t": "aiInstructionsRead", "project": project, "key": key, "ok": false, "error": e }))?,
-            }
-        }
-        "aiInstructionsWrite" => {
-            let project = str_field("project").unwrap_or_default();
-            let key = str_field("key").unwrap_or_default();
-            let text = str_field("text").unwrap_or_default();
-            match crate::templates::save_project_instructions(project.clone(), key.clone(), text) {
-                Ok(()) => send(ws, json!({ "t": "aiInstructionsWrite", "project": project, "key": key, "ok": true }))?,
-                Err(e) => send(ws, json!({ "t": "aiInstructionsWrite", "project": project, "key": key, "ok": false, "error": e }))?,
-            }
-        }
-        // Notes tab. Proxy the per-project encrypted notes store (notes_cmds) so a
-        // controlling peer edits the other Mac's notes with the same NotesView. The
-        // fast SQLite ops reply inline; the attachment blob ops (read/save — up to
-        // ~100MB, and save pops a folder picker on this Mac) run on a worker thread
-        // and reply via the out-queue so they never stall this connection's live
-        // terminal stream. Every reply echoes `reqId` so concurrent same-`t`
-        // requests (several attachment previews, paged loads) correlate by id.
-        "notesChats" => {
-            let project = str_field("project").unwrap_or_default();
-            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
-            let state = app.state::<crate::notes_cmds::NotesState>();
-            let mut reply = match crate::notes_cmds::notes_list_chats(state, project) {
-                Ok(chats) => json!({ "t": "notesChats", "ok": true, "chats": chats }),
-                Err(e) => json!({ "t": "notesChats", "ok": false, "error": e }),
-            };
-            if !req_id.is_null() { reply["reqId"] = req_id; }
-            send(ws, reply)?;
-        }
-        "notesCreateChat" => {
-            let project = str_field("project").unwrap_or_default();
-            let title = str_field("title").unwrap_or_default();
-            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
-            let state = app.state::<crate::notes_cmds::NotesState>();
-            let mut reply = match crate::notes_cmds::notes_create_chat(state, project, title) {
-                Ok(chat) => json!({ "t": "notesCreateChat", "ok": true, "chat": chat }),
-                Err(e) => json!({ "t": "notesCreateChat", "ok": false, "error": e }),
-            };
-            if !req_id.is_null() { reply["reqId"] = req_id; }
-            send(ws, reply)?;
-        }
-        "notesRenameChat" => {
-            let project = str_field("project").unwrap_or_default();
-            let id = str_field("id").unwrap_or_default();
-            let title = str_field("title").unwrap_or_default();
-            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
-            let state = app.state::<crate::notes_cmds::NotesState>();
-            let mut reply = result_reply("notesRenameChat", crate::notes_cmds::notes_rename_chat(state, project, id, title));
-            if !req_id.is_null() { reply["reqId"] = req_id; }
-            send(ws, reply)?;
-        }
-        "notesDeleteChat" => {
-            let project = str_field("project").unwrap_or_default();
-            let id = str_field("id").unwrap_or_default();
-            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
-            let state = app.state::<crate::notes_cmds::NotesState>();
-            let mut reply = result_reply("notesDeleteChat", crate::notes_cmds::notes_delete_chat(state, project, id));
-            if !req_id.is_null() { reply["reqId"] = req_id; }
-            send(ws, reply)?;
-        }
-        "notesMessages" => {
-            let project = str_field("project").unwrap_or_default();
-            let chat_id = str_field("chatId").unwrap_or_default();
-            let limit = v.get("limit").and_then(Value::as_i64).unwrap_or(50);
-            let before_id = str_field("beforeId").unwrap_or_default();
-            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
-            let state = app.state::<crate::notes_cmds::NotesState>();
-            let mut reply = match crate::notes_cmds::notes_list_messages(state, project, chat_id, limit, before_id) {
-                Ok(messages) => json!({ "t": "notesMessages", "ok": true, "messages": messages }),
-                Err(e) => json!({ "t": "notesMessages", "ok": false, "error": e }),
-            };
-            if !req_id.is_null() { reply["reqId"] = req_id; }
-            send(ws, reply)?;
-        }
-        // Send a message (with any base64 attachments). Runs on a worker thread —
-        // decoding + encrypting large attachment blobs can take a moment — and
-        // replies via the out-queue.
-        "notesAddMessage" => {
-            let project = str_field("project").unwrap_or_default();
-            let chat_id = str_field("chatId").unwrap_or_default();
-            let text = str_field("text").unwrap_or_default();
-            let attachments: Vec<crate::notes_cmds::NotesAttachmentInput> = v
-                .get("attachments")
-                .and_then(|a| serde_json::from_value(a.clone()).ok())
-                .unwrap_or_default();
-            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
-            let (app, out) = (app.clone(), out.clone());
-            std::thread::spawn(move || {
-                let state = app.state::<crate::notes_cmds::NotesState>();
-                let mut reply = match crate::notes_cmds::notes_add_message(state, project, chat_id, text, attachments) {
-                    Ok(message) => json!({ "t": "notesAddMessage", "ok": true, "message": message }),
-                    Err(e) => json!({ "t": "notesAddMessage", "ok": false, "error": e }),
-                };
-                if !req_id.is_null() { reply["reqId"] = req_id; }
-                let _ = out.try_send(reply.to_string());
-            });
-        }
-        "notesEditMessage" => {
-            let project = str_field("project").unwrap_or_default();
-            let id = str_field("id").unwrap_or_default();
-            let text = str_field("text").unwrap_or_default();
-            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
-            let state = app.state::<crate::notes_cmds::NotesState>();
-            let mut reply = result_reply("notesEditMessage", crate::notes_cmds::notes_edit_message(state, project, id, text));
-            if !req_id.is_null() { reply["reqId"] = req_id; }
-            send(ws, reply)?;
-        }
-        "notesDeleteMessage" => {
-            let project = str_field("project").unwrap_or_default();
-            let id = str_field("id").unwrap_or_default();
-            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
-            let state = app.state::<crate::notes_cmds::NotesState>();
-            let mut reply = result_reply("notesDeleteMessage", crate::notes_cmds::notes_delete_message(state, project, id));
-            if !req_id.is_null() { reply["reqId"] = req_id; }
-            send(ws, reply)?;
-        }
-        "notesSearch" => {
-            let project = str_field("project").unwrap_or_default();
-            let query = str_field("query").unwrap_or_default();
-            let limit = v.get("limit").and_then(Value::as_i64).unwrap_or(50);
-            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
-            let state = app.state::<crate::notes_cmds::NotesState>();
-            let mut reply = match crate::notes_cmds::notes_search(state, project, query, limit) {
-                Ok(hits) => json!({ "t": "notesSearch", "ok": true, "hits": hits }),
-                Err(e) => json!({ "t": "notesSearch", "ok": false, "error": e }),
-            };
-            if !req_id.is_null() { reply["reqId"] = req_id; }
-            send(ws, reply)?;
-        }
-        // Attachment blob read — worker thread + out-queue (bytes up to ~100MB).
-        "notesReadAttachment" => {
-            let project = str_field("project").unwrap_or_default();
-            let hash = str_field("hash").unwrap_or_default();
-            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
-            let (app, out) = (app.clone(), out.clone());
-            std::thread::spawn(move || {
-                let state = app.state::<crate::notes_cmds::NotesState>();
-                let mut reply = match crate::notes_cmds::notes_read_attachment(state, project, hash) {
-                    Ok(data) => json!({ "t": "notesReadAttachment", "ok": true, "data": data }),
-                    Err(e) => json!({ "t": "notesReadAttachment", "ok": false, "error": e }),
-                };
-                if !req_id.is_null() { reply["reqId"] = req_id; }
-                let _ = out.try_send(reply.to_string());
-            });
-        }
-        // Save an attachment to disk — worker thread + out-queue. notes_save_attachment
-        // is async (it pops a folder picker on this Mac and writes there), so drive it
-        // to completion with block_on. An empty path means the user cancelled.
-        "notesSaveAttachment" => {
-            let project = str_field("project").unwrap_or_default();
-            let hash = str_field("hash").unwrap_or_default();
-            let name = str_field("name").unwrap_or_default();
-            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
-            let (app, out) = (app.clone(), out.clone());
-            std::thread::spawn(move || {
-                let state = app.state::<crate::notes_cmds::NotesState>();
-                let result = tauri::async_runtime::block_on(
-                    crate::notes_cmds::notes_save_attachment(app.clone(), state, project, hash, name),
-                );
-                let mut reply = match result {
-                    Ok(path) => json!({ "t": "notesSaveAttachment", "ok": true, "path": path }),
-                    Err(e) => json!({ "t": "notesSaveAttachment", "ok": false, "error": e }),
-                };
-                if !req_id.is_null() { reply["reqId"] = req_id; }
-                let _ = out.try_send(reply.to_string());
-            });
         }
         // Git review & ship. Fast, local ops (status, per-file diff, commit, branch
         // list, checkout, discard-all) reply inline like the handlers above. The
@@ -1692,30 +1447,6 @@ fn handle_msg(
                 },
                 Err(e) => send(ws, json!({ "t": "gitDiff", "project": project, "path": path, "ok": false, "error": e }))?,
             }
-        }
-        // Batched full original/modified contents for a set of files, so a desktop
-        // peer can render the diff in its local Monaco review pane (which diffs two
-        // full buffers) — unlike `gitDiff`, which returns a unified string for the
-        // phone. Reuses the same cat-file batch the local review command uses.
-        // `reqId` is echoed so the client can correlate concurrent requests.
-        "gitDiffs" => {
-            let project = str_field("project").unwrap_or_default();
-            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
-            let files: Vec<crate::git::FileDiffRequest> = v
-                .get("files")
-                .and_then(|f| serde_json::from_value(f.clone()).ok())
-                .unwrap_or_default();
-            let mut reply = match config::project_root(&project) {
-                Ok((cwd, _)) => match crate::git::git_file_diffs(cwd, files, "working".to_string(), String::new()) {
-                    Ok(map) => json!({ "t": "gitDiffs", "project": project, "ok": true, "diffs": map }),
-                    Err(e) => json!({ "t": "gitDiffs", "project": project, "ok": false, "error": e }),
-                },
-                Err(e) => json!({ "t": "gitDiffs", "project": project, "ok": false, "error": e }),
-            };
-            if !req_id.is_null() {
-                reply["reqId"] = req_id;
-            }
-            send(ws, reply)?;
         }
         "gitCommit" => {
             let project = str_field("project").unwrap_or_default();
@@ -1803,67 +1534,6 @@ fn handle_msg(
                     send(ws, git_result_reply("gitCheckout", &project, r))?;
                 }
                 Err(e) => send(ws, json!({ "t": "gitCheckout", "project": project, "ok": false, "error": e }))?,
-            }
-        }
-        // Branch create / delete / merge — local git ops, so inline like
-        // gitCheckout/gitCommit above (only network/AI ops go async). create checks
-        // out the new branch (create_branch); delete force-removes a local branch
-        // (`git branch -D`) or, with a `remote`, drops a stale remote-tracking ref —
-        // matching the local branch menu's two delete affordances; merge is
-        // `git merge --no-edit` (a conflict surfaces as this reply's error, which the
-        // controller shows). After any success the controller re-requests git +
-        // branches, like checkout does.
-        "gitCreateBranch" => {
-            let project = str_field("project").unwrap_or_default();
-            let name = str_field("name").unwrap_or_default();
-            match config::project_root(&project) {
-                Ok((cwd, _)) => {
-                    let r = crate::git::create_branch(cwd, name);
-                    send(ws, git_result_reply("gitCreateBranch", &project, r))?;
-                }
-                Err(e) => send(ws, json!({ "t": "gitCreateBranch", "project": project, "ok": false, "error": e }))?,
-            }
-        }
-        "gitDeleteBranch" => {
-            let project = str_field("project").unwrap_or_default();
-            let name = str_field("name").unwrap_or_default();
-            let remote = str_field("remote").unwrap_or_default();
-            match config::project_root(&project) {
-                Ok((cwd, _)) => {
-                    let r = if remote.is_empty() {
-                        crate::git::delete_branch(cwd, name)
-                    } else {
-                        crate::git::delete_remote_tracking_ref(cwd, remote, name)
-                    };
-                    send(ws, git_result_reply("gitDeleteBranch", &project, r))?;
-                }
-                Err(e) => send(ws, json!({ "t": "gitDeleteBranch", "project": project, "ok": false, "error": e }))?,
-            }
-        }
-        "gitMerge" => {
-            let project = str_field("project").unwrap_or_default();
-            let branch = str_field("branch").unwrap_or_default();
-            match config::project_root(&project) {
-                Ok((cwd, _)) => {
-                    let r = match crate::git::git_merge(cwd.clone(), branch) {
-                        Ok(()) => Ok(()),
-                        // A conflicted merge leaves the peer repo mid-merge, which
-                        // then breaks later remote commit/checkout confusingly, and
-                        // there's no remote conflict-resolution surface. Abort to
-                        // restore a clean state and tell the user to resolve on that
-                        // Mac directly.
-                        Err(e) => {
-                            if !crate::git::git_merge_conflicts(cwd.clone()).is_empty() {
-                                let _ = crate::git::git_abort_merge(cwd);
-                                Err("Merge aborted because the branches have conflicts. Resolve them on that Mac directly.".to_string())
-                            } else {
-                                Err(e)
-                            }
-                        }
-                    };
-                    send(ws, git_result_reply("gitMerge", &project, r))?;
-                }
-                Err(e) => send(ws, json!({ "t": "gitMerge", "project": project, "ok": false, "error": e }))?,
             }
         }
         "gitDiscardAll" => {
@@ -3115,218 +2785,6 @@ pub fn remote_revoke_device(hub: State<'_, RemoteHub>, id: String) -> Result<Val
     // exits on its next tick via device_exists).
     hub.inner.clients.lock().unwrap().retain(|_, c| c.device_id != id);
     Ok(state_value(&hub))
-}
-
-// Test-only surface used by peer.rs's integration test to drive the *real*
-// server code (handshake + pairing + device store) without a full Tauri app.
-#[cfg(test)]
-pub(crate) mod test_support {
-    use super::*;
-
-    pub fn set_config_path(p: std::path::PathBuf) {
-        *TEST_CONFIG_PATH.lock().unwrap() = Some(p);
-    }
-
-    pub fn clear_config_path() {
-        *TEST_CONFIG_PATH.lock().unwrap() = None;
-    }
-
-    pub fn new_hub_with_code(code: &str) -> RemoteHub {
-        let hub = RemoteHub::default();
-        hub.inner.config.lock().unwrap().pairing_code = code.to_string();
-        hub
-    }
-
-    pub fn device_count(hub: &RemoteHub) -> usize {
-        hub.inner.config.lock().unwrap().devices.len()
-    }
-
-    /// A minimal accept loop that runs the genuine `authenticate` handshake per
-    /// connection, then holds the socket answering `ping` with `pong` — enough to
-    /// exercise pair, auth, and the supervisor's keepalive without pulling in the
-    /// full app-stateful `handle_conn`.
-    pub fn serve(listener: TcpListener, hub: RemoteHub, stop: Arc<AtomicBool>) {
-        let _ = listener.set_nonblocking(true);
-        while !stop.load(Ordering::SeqCst) {
-            match listener.accept() {
-                Ok((stream, _)) => {
-                    let _ = stream.set_nonblocking(false);
-                    let hub = hub.clone();
-                    std::thread::spawn(move || serve_conn(stream, hub));
-                }
-                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                    std::thread::sleep(Duration::from_millis(20));
-                }
-                Err(_) => break,
-            }
-        }
-    }
-
-    fn serve_conn(stream: TcpStream, hub: RemoteHub) {
-        let Some(mut ws) = accept_ws(stream) else {
-            return;
-        };
-        if authenticate(&mut ws, &hub).is_none() {
-            let _ = ws.close(None);
-            return;
-        }
-        let _ = ws.get_ref().set_read_timeout(Some(POLL));
-        loop {
-            match ws.read() {
-                Ok(m) if m.is_close() => break,
-                Ok(m) if m.is_text() => {
-                    if let Ok(v) = serde_json::from_str::<Value>(m.to_text().unwrap_or_default()) {
-                        for reply in canned_replies(&v) {
-                            let _ = ws.send(Message::text(reply.to_string()));
-                        }
-                    }
-                }
-                Ok(_) => {}
-                Err(WsError::Io(ref e))
-                    if e.kind() == std::io::ErrorKind::WouldBlock
-                        || e.kind() == std::io::ErrorKind::TimedOut => {}
-                Err(_) => break,
-            }
-        }
-    }
-
-    /// Canned responses for the requests peer.rs exercises, so the integration
-    /// test drives a realistic request→push round-trip.
-    fn canned_replies(v: &Value) -> Vec<Value> {
-        match v.get("t").and_then(Value::as_str) {
-            Some("ping") => vec![json!({ "t": "pong" })],
-            Some("projects") => vec![json!({ "t": "projects", "projects": [
-                { "name": "web-app", "label": "web-app", "running": true }
-            ] })],
-            Some("terminals") => {
-                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
-                vec![json!({ "t": "terminals", "project": project, "terminals": [
-                    { "id": "web-app-1", "label": "Claude", "project": project, "cols": 80, "rows": 24 }
-                ] })]
-            }
-            Some("sub") => {
-                let id = v.get("id").and_then(Value::as_str).unwrap_or_default();
-                vec![
-                    json!({ "t": "seed", "id": id, "cols": 80, "rows": 24, "data": "hello", "owner": null }),
-                    json!({ "t": "o", "id": id, "d": "world" }),
-                ]
-            }
-            // "Take control": grant a control frame owned by this (mobile-kind) device.
-            Some("claim") => {
-                let id = v.get("id").and_then(Value::as_str).unwrap_or_default();
-                vec![json!({ "t": "control", "id": id, "owner": { "kind": "mobile", "id": "self", "label": "peer" } })]
-            }
-            // Echo input/resize so the test can verify the frame transited verbatim
-            // (the real server has no reply for these).
-            Some("in") => {
-                let id = v.get("id").and_then(Value::as_str).unwrap_or_default();
-                let d = v.get("d").and_then(Value::as_str).unwrap_or_default();
-                vec![json!({ "t": "in-echo", "id": id, "d": d })]
-            }
-            Some("resize") => {
-                let id = v.get("id").and_then(Value::as_str).unwrap_or_default();
-                vec![json!({ "t": "resize-echo", "id": id,
-                    "cols": v.get("cols").cloned().unwrap_or(Value::Null),
-                    "rows": v.get("rows").cloned().unwrap_or(Value::Null) })]
-            }
-            // Project control: start also pushes a status-changed (as the real
-            // server does), so the client's status refetch path is exercised.
-            Some("start") => {
-                let name = v.get("name").and_then(Value::as_str).unwrap_or_default();
-                vec![
-                    json!({ "t": "start", "ok": true }),
-                    json!({ "t": "status-changed", "project": name }),
-                ]
-            }
-            Some("stop") => vec![json!({ "t": "stop", "ok": true })],
-            Some("toggleService") => vec![json!({ "t": "toggleService", "ok": true })],
-            // action "fail" exercises the relay error path (main window closed);
-            // anything else succeeds.
-            Some("runAction") => {
-                if v.get("action").and_then(Value::as_str) == Some("fail") {
-                    vec![json!({ "t": "runAction", "ok": false, "error": "Open the lpm app on your Mac to run actions." })]
-                } else {
-                    vec![json!({ "t": "runAction", "ok": true })]
-                }
-            }
-            Some("newTerminal") => vec![json!({ "t": "newTerminal", "ok": true })],
-            Some("status") => {
-                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
-                vec![json!({ "t": "status", "project": project, "status": [
-                    { "key": "k", "value": "Waiting", "paneID": "web-app-1", "priority": 1 }
-                ] })]
-            }
-            // Recent prompts for the remote composer's up-arrow recall.
-            Some("history") => {
-                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
-                vec![json!({ "t": "history", "project": project, "rows": [{ "text": "npm test" }] })]
-            }
-            Some("gitBranches") => {
-                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
-                vec![json!({ "t": "gitBranches", "project": project, "ok": true, "current": "main",
-                    "branches": [{ "name": "main" }, { "name": "dev", "committerDate": 1 }] })]
-            }
-            Some("gitCheckout") => {
-                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
-                vec![json!({ "t": "gitCheckout", "project": project, "ok": true })]
-            }
-            Some("services") => {
-                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
-                vec![json!({ "t": "services", "project": project, "ok": true, "running": true,
-                    "services": [{ "name": "dev", "paneIndex": 0, "running": true, "cmd": "npm run dev", "port": 9245 }] })]
-            }
-            Some("serviceLogs") => {
-                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
-                let pane = v.get("paneIndex").cloned().unwrap_or(Value::Null);
-                vec![json!({ "t": "serviceLogs", "project": project, "paneIndex": pane, "ok": true, "text": "listening on :9245\n" })]
-            }
-            // Git review + ship.
-            Some("git") => {
-                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
-                vec![json!({ "t": "git", "project": project, "ok": true, "isRepo": true,
-                    "branch": "main", "detached": false, "hasUpstream": true, "ahead": 1, "behind": 0,
-                    "defaultBranch": "main", "ghCli": true,
-                    "files": [{ "path": "a.txt", "status": "modified", "staged": false, "stamp": "1" }] })]
-            }
-            Some("gitDiffs") => {
-                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
-                let diffs: serde_json::Map<String, Value> = v
-                    .get("files")
-                    .and_then(Value::as_array)
-                    .map(|a| {
-                        a.iter()
-                            .filter_map(|f| f.get("path").and_then(Value::as_str))
-                            .map(|p| (p.to_string(), json!({ "original": "old\n", "modified": "new\n", "binary": false, "tooLarge": false })))
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                let mut reply = json!({ "t": "gitDiffs", "project": project, "ok": true, "diffs": diffs });
-                if let Some(rid) = v.get("reqId") {
-                    reply["reqId"] = rid.clone();
-                }
-                vec![reply]
-            }
-            Some("gitWatch") | Some("gitUnwatch") => {
-                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
-                let t = v.get("t").and_then(Value::as_str).unwrap_or_default();
-                vec![json!({ "t": t, "project": project, "ok": true })]
-            }
-            // message "fail" exercises the error path; success also pushes a
-            // git-changed (as a live watch would after a commit).
-            Some("gitCommit") => {
-                let project = v.get("project").and_then(Value::as_str).unwrap_or_default();
-                if v.get("message").and_then(Value::as_str) == Some("fail") {
-                    vec![json!({ "t": "gitCommit", "project": project, "ok": false, "error": "Nothing to commit." })]
-                } else {
-                    vec![
-                        json!({ "t": "gitCommit", "project": project, "ok": true }),
-                        json!({ "t": "git-changed", "project": project }),
-                    ]
-                }
-            }
-            _ => Vec::new(),
-        }
-    }
 }
 
 #[cfg(test)]

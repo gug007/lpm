@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { toast } from "../toast";
+import { toast } from "sonner";
 import {
   CheckoutBranch,
   CreateBranch,

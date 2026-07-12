@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type * as monacoNs from "monaco-editor";
-import { toast } from "../../toast";
+import { toast } from "sonner";
 import { GitDefaultBranch, WriteFileIfUnchanged } from "../../../bridge/commands";
 import { main } from "../../../bridge/models";
 import { joinAbs } from "../../path";

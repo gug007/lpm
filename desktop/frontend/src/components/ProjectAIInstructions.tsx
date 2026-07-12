@@ -5,19 +5,11 @@ import { ProjectPRInstructionsEditor } from "./ProjectPRInstructionsEditor";
 import { ProjectBranchNameInstructionsEditor } from "./ProjectBranchNameInstructionsEditor";
 import { BTN_SECONDARY } from "./ui/buttons";
 
-// Optional read/write overrides for the per-key instruction files. Defaults to
-// the local ReadProjectInstructions/SaveProjectInstructions bridge commands; the
-// remote view injects a peer-backed pair so the same editors edit the other Mac.
-export interface InstructionsEditorIO {
-  read?: (project: string, key: string) => Promise<string>;
-  write?: (project: string, key: string, content: string) => Promise<void>;
-}
-
 interface Section {
   id: string;
   label: string;
   description: string;
-  Editor: ComponentType<{ projectName: string; onBack: () => void } & InstructionsEditorIO>;
+  Editor: ComponentType<{ projectName: string; onBack: () => void }>;
 }
 
 const SECTIONS: Section[] = [
@@ -44,12 +36,10 @@ const SECTIONS: Section[] = [
 export function ProjectAIInstructions({
   projectName,
   onBack,
-  read,
-  write,
 }: {
   projectName: string;
   onBack: () => void;
-} & InstructionsEditorIO) {
+}) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const active = SECTIONS.find((s) => s.id === activeId);
 
@@ -57,12 +47,7 @@ export function ProjectAIInstructions({
     const { Editor } = active;
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-6">
-        <Editor
-          projectName={projectName}
-          onBack={() => setActiveId(null)}
-          read={read}
-          write={write}
-        />
+        <Editor projectName={projectName} onBack={() => setActiveId(null)} />
       </div>
     );
   }
