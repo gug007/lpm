@@ -61,7 +61,7 @@ import {
   reconcile,
   layoutsEqual,
 } from "../components/sidebarLayout";
-import { forgetProjectTerminals } from "../terminals";
+import { forgetProjectTerminals, appendPersistedTab } from "../terminals";
 import { isPeerName } from "../peer/markers";
 import { activeChatStorageKey } from "../components/NotesView";
 import { ACTION_SECTIONS, type ActionSection } from "../actionConfig";
@@ -212,6 +212,25 @@ interface AppState {
     order: string[],
   ) => void;
   clearPendingRemoteTerminalOp: () => void;
+  // A peer Mac spawned a terminal on this host; surface it as a tab. When the
+  // project is mounted the live tree adopts it via this op; when it isn't, the
+  // tab is parked in the persisted tree cache for the next open.
+  pendingAdoptTerminal: {
+    projectName: string;
+    id: string;
+    label: string;
+    startCmd?: string;
+    resumeCmd?: string;
+    actionName?: string;
+    nonce: number;
+  } | null;
+  adoptRemoteTerminal: (
+    projectName: string,
+    id: string,
+    label: string,
+    opts?: { startCmd?: string; resumeCmd?: string; actionName?: string },
+  ) => void;
+  clearPendingAdoptTerminal: () => void;
   bulkDuplicate: (
     name: string,
     count: number,
@@ -867,6 +886,38 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
 
   clearPendingRemoteTerminalOp: () => set({ pendingRemoteTerminalOp: null }),
+
+  pendingAdoptTerminal: null,
+
+  adoptRemoteTerminal: (projectName, id, label, opts) => {
+    const s = get();
+    const mounted =
+      s.visited.has(projectName) ||
+      s.selected === projectName ||
+      s.detached.has(projectName);
+    if (mounted) {
+      set({
+        pendingAdoptTerminal: {
+          projectName,
+          id,
+          label,
+          startCmd: opts?.startCmd,
+          resumeCmd: opts?.resumeCmd,
+          actionName: opts?.actionName,
+          nonce: ++remoteRequestNonce,
+        },
+      });
+      return;
+    }
+    void appendPersistedTab(projectName, {
+      label,
+      ...(opts?.startCmd ? { startCmd: opts.startCmd } : {}),
+      ...(opts?.resumeCmd ? { resumeCmd: opts.resumeCmd } : {}),
+      ...(opts?.actionName ? { actionName: opts.actionName } : {}),
+    });
+  },
+
+  clearPendingAdoptTerminal: () => set({ pendingAdoptTerminal: null }),
 
   runGenerator: async ({ folder, name, spec }) => {
     try {

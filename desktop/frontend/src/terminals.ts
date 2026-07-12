@@ -120,6 +120,29 @@ export function forgetProjectTerminals(projectName: string): void {
   cached = { ...cached, projects: rest };
 }
 
+function appendTabToPersistedTree(
+  node: PersistedPaneNode | undefined,
+  tab: PersistedTab,
+): PersistedPaneNode {
+  if (!node) return { kind: "leaf", tabs: [tab], activeTabIdx: 0 };
+  if (node.kind === "leaf") return { ...node, tabs: [...(node.tabs ?? []), tab] };
+  return { ...node, a: appendTabToPersistedTree(node.a, tab) };
+}
+
+// Park a tab in a project's persisted tree while it isn't mounted, so it shows
+// up when the host opens the project. A generic label is filled in from the tab
+// count when none is given. (Persisted tabs carry no live pty id, so opening the
+// project relaunches the tab rather than adopting the original session.)
+export async function appendPersistedTab(
+  projectName: string,
+  tab: PersistedTab,
+): Promise<void> {
+  const state = getProjectTerminals(projectName);
+  const label = tab.label || `Terminal ${countPersistedTabs(state.panes) + 1}`;
+  const panes = appendTabToPersistedTree(state.panes, { ...tab, label });
+  await saveProjectTerminals(projectName, { ...state, panes, terminals: undefined });
+}
+
 export function appendHistoryEntry(
   state: ProjectTerminalState,
   entry: PersistedHistoryEntry,

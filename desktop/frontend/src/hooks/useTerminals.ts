@@ -83,6 +83,11 @@ export interface UseTerminalsResult {
   focusedPaneId: string | null;
   createTerminal: () => Promise<void>;
   createTerminalWithCmd: (label: string, cmd: string, opts?: TerminalStartOpts) => Promise<void>;
+  adoptTerminal: (
+    id: string,
+    label?: string,
+    opts?: { startCmd?: string; resumeCmd?: string; actionName?: string },
+  ) => Promise<void>;
   resumeFromHistory: (entry: PersistedHistoryEntry) => Promise<void>;
   addTerminalToPane: (paneId: string) => Promise<void>;
   addBrowserToPane: (paneId?: string) => void;
@@ -486,6 +491,27 @@ export function useTerminals(
       addTerminal(makeTerminal(id, pickTerminalLabel(treeRef.current)));
     } catch {}
   }, [projectName, addTerminal, forward]);
+
+  // Adopt an already-spawned pty as a tab WITHOUT starting a new one or
+  // injecting any command — used when a peer Mac spawned the terminal on this
+  // host via the generic dispatcher (the peer injects its own startCmd). The
+  // tab attaches to the existing pty-output-{id} stream; control ownership shows
+  // the "Take control" placeholder while the peer drives it.
+  const adoptTerminal = useCallback(
+    async (
+      id: string,
+      label?: string,
+      opts?: { startCmd?: string; resumeCmd?: string; actionName?: string },
+    ) => {
+      if (IS_MIRROR_WINDOW) return;
+      await restoreSettled.current;
+      const current = treeRef.current;
+      // Idempotent: a re-fired op must not add a second tab for the same pty.
+      if (current && collectTerminals(current).some((t) => t.id === id)) return;
+      addTerminal(makeTerminal(id, label || pickTerminalLabel(current), opts));
+    },
+    [addTerminal],
+  );
 
   const createTerminalWithCmd = useCallback(
     async (label: string, cmd: string, opts?: TerminalStartOpts) => {
@@ -1152,6 +1178,7 @@ export function useTerminals(
     focusedPaneId,
     createTerminal,
     createTerminalWithCmd,
+    adoptTerminal,
     resumeFromHistory,
     addTerminalToPane,
     addBrowserToPane,

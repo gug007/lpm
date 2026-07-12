@@ -275,6 +275,26 @@ export function ProjectDetail({
     clearPendingRemoteTerminalOp,
   ]);
 
+  // A peer Mac spawned a terminal on this host; adopt its pty as a tab. No
+  // `selected` guard — the project is kept mounted (visited) so a hidden detail
+  // still surfaces the tab in its live tree.
+  const pendingAdoptTerminal = useAppStore((s) => s.pendingAdoptTerminal);
+  const clearPendingAdoptTerminal = useAppStore((s) => s.clearPendingAdoptTerminal);
+  const adoptTerminalConsumed = useRef(0);
+  useEffect(() => {
+    if (
+      !pendingAdoptTerminal ||
+      pendingAdoptTerminal.projectName !== project.name ||
+      adoptTerminalConsumed.current === pendingAdoptTerminal.nonce
+    ) {
+      return;
+    }
+    adoptTerminalConsumed.current = pendingAdoptTerminal.nonce;
+    const { id, label, startCmd, resumeCmd, actionName } = pendingAdoptTerminal;
+    clearPendingAdoptTerminal();
+    terminalRef.current?.adoptTerminal(id, label, { startCmd, resumeCmd, actionName });
+  }, [pendingAdoptTerminal, project.name, clearPendingAdoptTerminal]);
+
   const parentProject = useAppStore((s) => findParentProject(project, s.projects));
   const displayName = projectDisplayName(project, parentProject);
 
