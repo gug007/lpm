@@ -233,6 +233,15 @@ export const usePeersStore = create<PeersState>((set, get) => ({
         const keep = s.selection && list.some((p) => p.id === s.selection!.peerId);
         return { peers: list, selection: keep ? s.selection : null };
       });
+      // A peer that connected before this store subscribed never fires a
+      // "connected" transition, and the reply to Rust's ready-time projects
+      // request was emitted before any listener existed — request here so an
+      // already-connected peer still gets its project list.
+      for (const p of list) {
+        if (p.status === "connected" && !get().projectsByPeer[p.id]) {
+          void PeerSend(p.id, { t: "projects" });
+        }
+      }
     } catch {
       /* hub may still be starting */
     }
