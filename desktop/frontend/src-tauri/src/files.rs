@@ -204,6 +204,9 @@ pub fn list_dir_files(root: String) -> Result<Vec<DirFileEntry>, String> {
     if root.is_empty() {
         return Ok(Vec::new());
     }
+    if let Some(ssh) = crate::sshexec::remote_project_for_path(&root) {
+        return Ok(remote_dir_files(&ssh, &root));
+    }
     let base = expand_home(&root);
     let base_path = std::path::Path::new(&base);
     if !base_path.is_dir() {
@@ -242,6 +245,56 @@ pub fn list_dir_files(root: String) -> Result<Vec<DirFileEntry>, String> {
     }
     out.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(out)
+}
+
+/// Remote mirror of `list_dir_files`: one `find` over SSH per entry kind (dirs,
+/// then non-dirs) reproduces the local walk — same skip dirs (pruned as whole
+/// subtrees), same relative paths, same cap. Symlinks report `is_dir: false`,
+/// matching the local read_dir file_type. Any failure degrades to an empty list
+/// so the mention picker never errors out.
+fn remote_dir_files(ssh: &crate::config::SshSettings, dir: &str) -> Vec<DirFileEntry> {
+    let mut prune: Vec<String> = vec![".".into(), "-mindepth".into(), "1".into(), "(".into(), "-type".into(), "d".into(), "(".into()];
+    for (i, name) in MENTION_SKIP_DIRS.iter().enumerate() {
+        if i > 0 {
+            prune.push("-o".into());
+        }
+        prune.push("-name".into());
+        prune.push((*name).into());
+    }
+    prune.push(")".into());
+    prune.push(")".into());
+    prune.push("-prune".into());
+    prune.push("-o".into());
+
+    let mut out: Vec<DirFileEntry> = Vec::new();
+    for p in remote_find(ssh, dir, &prune, &["-type", "d", "-print0"]) {
+        out.push(DirFileEntry { path: p, is_dir: true });
+    }
+    for p in remote_find(ssh, dir, &prune, &["!", "-type", "d", "-print0"]) {
+        out.push(DirFileEntry { path: p, is_dir: false });
+    }
+    out.sort_by(|a, b| a.path.cmp(&b.path));
+    out.truncate(MENTION_FILE_CAP);
+    out
+}
+
+fn remote_find(ssh: &crate::config::SshSettings, dir: &str, prune: &[String], tail: &[&str]) -> Vec<String> {
+    let mut args: Vec<&str> = prune.iter().map(String::as_str).collect();
+    args.extend_from_slice(tail);
+    let Some(out) = crate::sshexec::remote_command(ssh, dir, "find", &args, &[])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+    else {
+        return Vec::new();
+    };
+    String::from_utf8_lossy(&out.stdout)
+        .split('\0')
+        .filter_map(|p| {
+            let p = p.strip_prefix("./").unwrap_or(p);
+            (!p.is_empty()).then(|| p.to_string())
+        })
+        .collect()
 }
 
 #[tauri::command(async)]

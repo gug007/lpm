@@ -812,6 +812,32 @@ pub fn ssh_args(ssh: &SshSettings) -> Vec<String> {
     args
 }
 
+/// ssh connection args for a NON-interactive exec (git/file subprocesses). Same
+/// ControlMaster socket reuse as `ssh_args`, but WITHOUT `-t`: a pty would
+/// translate LF to CRLF and corrupt binary blobs and porcelain `-z` output, so
+/// these paths must stay tty-less.
+pub fn ssh_exec_args(ssh: &SshSettings) -> Vec<String> {
+    let mut args = vec![
+        "-o".into(),
+        "ControlMaster=auto".into(),
+        "-o".into(),
+        format!("ControlPath={}", ssh_control_path()),
+        "-o".into(),
+        "ControlPersist=10m".into(),
+    ];
+    if ssh.port > 0 && ssh.port != 22 {
+        args.push("-p".into());
+        args.push(ssh.port.to_string());
+    }
+    let key = ssh.key.trim();
+    if !key.is_empty() {
+        args.push("-i".into());
+        args.push(expand_home(key));
+    }
+    args.push(format!("{}@{}", ssh.user, ssh.host));
+    args
+}
+
 /// scp options that piggyback on the same ControlMaster socket ssh_args uses,
 /// so an scp call from a long-lived terminal session reuses the auth. Note `-P`
 /// (capital) for the port, unlike ssh's `-p`; no `-t`.
@@ -892,7 +918,7 @@ pub fn project_cmd_strings(file_name: &str) -> Vec<String> {
 }
 
 /// Tilde paths emit a "$HOME" segment the REMOTE shell expands; else literal.
-fn quote_remote_path(p: &str) -> String {
+pub(crate) fn quote_remote_path(p: &str) -> String {
     if p.is_empty() {
         return String::new();
     }
@@ -1572,12 +1598,12 @@ fn to_project_info(file_name: &str, mut yaml: ProjectYaml, running: bool, state:
     } else {
         yaml.name.clone()
     };
-    let root = expand_home(&yaml.root);
-    let is_remote = yaml
-        .ssh
-        .as_ref()
-        .map(|s| !s.host.is_empty() && !s.user.is_empty())
-        .unwrap_or(false);
+    let ssh = yaml.ssh.clone().unwrap_or_default();
+    let is_remote = ssh.is_remote();
+    // Remote projects expose their SSH-host directory as `root`; the frontend
+    // echoes it back as the `cwd` for git/file commands, where the sshexec
+    // resolver (via this same helper) recognizes it and routes over SSH.
+    let root = frontend_root(&yaml.root, &ssh);
 
     // Normalize services into a name->full map (BTreeMap keys are sorted).
     let mut services: BTreeMap<String, ServiceFull> = yaml
@@ -1700,6 +1726,58 @@ pub(crate) fn project_names() -> Vec<String> {
     };
     names.sort();
     names
+}
+
+/// The working-directory string the frontend sees as a project's `root` and
+/// echoes back as the `cwd` argument to git/file commands. Local projects expose
+/// their home-expanded local root; a remote project exposes its remote dir
+/// verbatim — a path on the SSH host, so home-expanding it against the local
+/// $HOME would be wrong. Empty when a remote project declares no dir.
+pub fn frontend_root(root: &str, ssh: &SshSettings) -> String {
+    if ssh.is_remote() {
+        ssh.dir.trim().to_string()
+    } else {
+        expand_home(root)
+    }
+}
+
+fn scan_remote_project_roots() -> Vec<(String, SshSettings)> {
+    let mut out = Vec::new();
+    for name in project_names() {
+        let Ok(y) = parse_project_yaml(&name) else { continue };
+        let ssh = y.ssh.clone().unwrap_or_default();
+        if !ssh.is_remote() {
+            continue;
+        }
+        let root = frontend_root(&y.root, &ssh);
+        if !root.is_empty() {
+            out.push((root, ssh));
+        }
+    }
+    out
+}
+
+/// (frontend-visible root, ssh settings) for every remote project, so a git/file
+/// command's `cwd` can be routed back to its SSH host. Scans the same on-disk
+/// configs the sidebar listing uses. Briefly cached: the resolver runs on every
+/// git subprocess (status polling, per-file diffs), and re-parsing every project
+/// YAML each call would tax the common all-local case; a newly added remote
+/// project starts routing within the TTL.
+pub fn remote_project_roots() -> Vec<(String, SshSettings)> {
+    use std::sync::{Mutex, OnceLock};
+    use std::time::{Duration, Instant};
+    const TTL: Duration = Duration::from_secs(2);
+    static CACHE: OnceLock<Mutex<Option<(Instant, Vec<(String, SshSettings)>)>>> = OnceLock::new();
+    let cell = CACHE.get_or_init(|| Mutex::new(None));
+    let mut guard = cell.lock().unwrap();
+    if let Some((at, cached)) = guard.as_ref() {
+        if at.elapsed() < TTL {
+            return cached.clone();
+        }
+    }
+    let fresh = scan_remote_project_roots();
+    *guard = Some((Instant::now(), fresh.clone()));
+    fresh
 }
 
 /// Saved project order from settings (`projectOrder`).
@@ -2200,5 +2278,61 @@ mod resolve_actions_tests {
         assert_eq!(ios_info.children.len(), 1);
         assert_eq!(ios_info.children[0].name, "Build:iOS:Release");
         assert_eq!(ios_info.children[0].cmd, "r");
+    }
+}
+
+#[cfg(test)]
+mod ssh_exec_tests {
+    use super::*;
+
+    fn remote(dir: &str) -> SshSettings {
+        SshSettings {
+            host: "example.com".into(),
+            user: "dev".into(),
+            port: 0,
+            key: String::new(),
+            dir: dir.into(),
+        }
+    }
+
+    #[test]
+    fn ssh_exec_args_never_allocate_a_tty() {
+        let args = ssh_exec_args(&remote("~/proj"));
+        assert!(!args.iter().any(|a| a == "-t"), "exec must be tty-less: {args:?}");
+        assert!(args.iter().any(|a| a == "ControlMaster=auto"));
+        assert_eq!(args.last().unwrap(), "dev@example.com");
+    }
+
+    #[test]
+    fn ssh_exec_args_adds_port_and_key() {
+        let ssh = SshSettings {
+            host: "h".into(),
+            user: "u".into(),
+            port: 2222,
+            key: "~/.ssh/id".into(),
+            dir: String::new(),
+        };
+        let args = ssh_exec_args(&ssh);
+        assert!(args.windows(2).any(|w| w == ["-p", "2222"]));
+        assert!(args.iter().any(|a| a == "-i"));
+        // default port 22 is omitted
+        let d = ssh_exec_args(&SshSettings { port: 22, ..ssh.clone() });
+        assert!(!d.iter().any(|a| a == "-p"));
+    }
+
+    #[test]
+    fn frontend_root_uses_remote_dir_verbatim() {
+        // Remote dir is a path on the SSH host: kept as-is, never local-home-expanded.
+        assert_eq!(frontend_root("", &remote("~/code/app")), "~/code/app");
+        assert_eq!(frontend_root("ignored", &remote("/srv/app")), "/srv/app");
+        // No dir -> empty (frontend then has no cwd to pass; git stays inert).
+        assert_eq!(frontend_root("", &remote("  ")), "");
+    }
+
+    #[test]
+    fn frontend_root_expands_local_home() {
+        let local = SshSettings::default();
+        assert_eq!(frontend_root("/abs/path", &local), "/abs/path");
+        assert_eq!(frontend_root("~", &local), expand_home("~"));
     }
 }

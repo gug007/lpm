@@ -12,6 +12,29 @@ use tauri::{AppHandle, Emitter, State};
 
 // ---- helpers ----------------------------------------------------------------
 
+/// Build a git/gh invocation, routed to the project's SSH host when `cwd`
+/// resolves to a remote project, else run as a local subprocess. Remote commands
+/// carry the cwd + env inside the ssh script (see sshexec); local commands set
+/// them on the child directly. Every downstream helper funnels through here, so a
+/// remote project's whole git surface follows without per-command changes.
+fn tool_command(cwd: &str, program: &str, args: &[&str], envs: &[(&str, &str)]) -> Command {
+    match crate::sshexec::remote_project_for_path(cwd) {
+        Some(ssh) => crate::sshexec::remote_command(&ssh, cwd, program, args, envs),
+        None => {
+            let mut cmd = Command::new(program);
+            cmd.args(args).current_dir(cwd);
+            for (k, v) in envs {
+                cmd.env(k, v);
+            }
+            cmd
+        }
+    }
+}
+
+fn git_command(cwd: &str, args: &[&str], envs: &[(&str, &str)]) -> Command {
+    tool_command(cwd, "git", args, envs)
+}
+
 /// Run git in `cwd`, trimmed stdout on success; trimmed stderr (or status) on error.
 fn git_out(cwd: &str, args: &[&str]) -> Result<String, String> {
     git_out_env(cwd, args, &[])
@@ -19,12 +42,7 @@ fn git_out(cwd: &str, args: &[&str]) -> Result<String, String> {
 
 /// Like `git_out`, with extra environment variables set on the git process.
 fn git_out_env(cwd: &str, args: &[&str], envs: &[(&str, &str)]) -> Result<String, String> {
-    let mut cmd = Command::new("git");
-    cmd.args(args).current_dir(cwd);
-    for (k, v) in envs {
-        cmd.env(k, v);
-    }
-    let out = cmd.output().map_err(|e| e.to_string())?;
+    let out = git_command(cwd, args, envs).output().map_err(|e| e.to_string())?;
     if !out.status.success() {
         let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
         if !stderr.is_empty() {
@@ -38,9 +56,7 @@ fn git_out_env(cwd: &str, args: &[&str], envs: &[(&str, &str)]) -> Result<String
 /// Raw stdout (NOT trimmed, exit code ignored). For porcelain -z (leading
 /// spaces matter) and `diff --no-index` (exits 1 on differences).
 fn git_raw(cwd: &str, args: &[&str]) -> String {
-    Command::new("git")
-        .args(args)
-        .current_dir(cwd)
+    git_command(cwd, args, &[])
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
         .unwrap_or_default()
@@ -49,9 +65,7 @@ fn git_raw(cwd: &str, args: &[&str]) -> String {
 /// Raw stdout bytes of a successful command, empty otherwise. Bytes (not lossy
 /// UTF-8) so binary content is detectable before it is decoded for display.
 fn git_bytes(cwd: &str, args: &[&str]) -> Vec<u8> {
-    Command::new("git")
-        .args(args)
-        .current_dir(cwd)
+    git_command(cwd, args, &[])
         .output()
         .ok()
         .filter(|o| o.status.success())
@@ -552,9 +566,7 @@ pub fn git_file_diffs(
         None
     };
 
-    let mut child = Command::new("git")
-        .args(["cat-file", "--batch"])
-        .current_dir(&cwd)
+    let mut child = git_command(&cwd, &["cat-file", "--batch"], &[])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
@@ -967,9 +979,7 @@ pub fn create_pull_request(
         args.push("--base");
         args.push(&base);
     }
-    let out = Command::new("gh")
-        .args(&args)
-        .current_dir(&cwd)
+    let out = tool_command(&cwd, "gh", &args, &[])
         .output()
         .map_err(|e| e.to_string())?;
     if !out.status.success() {
@@ -1040,7 +1050,9 @@ pub(crate) fn should_ignore(root: &str, full: &str) -> bool {
 struct ActiveWatch {
     path: String,
     stop: Arc<AtomicBool>,
-    _watcher: notify::RecommendedWatcher,
+    // None for a remote project: a poll thread (gated by `stop`) stands in for the
+    // notify watcher, which can't observe a filesystem on the SSH host.
+    _watcher: Option<notify::RecommendedWatcher>,
 }
 
 pub struct WatchState {
@@ -1063,9 +1075,13 @@ pub fn start_watching_project(
 ) -> Result<(), String> {
     use notify::{RecursiveMode, Watcher};
 
-    // FSEvents delivers absolute (canonical) paths; canonicalize so strip_prefix matches.
-    let path = if path.is_empty() {
-        String::new()
+    // A remote project's `path` is a directory on the SSH host: it can't be
+    // canonicalized or notify-watched locally, so keep it verbatim and poll.
+    let remote = crate::sshexec::remote_project_for_path(&path);
+    // FSEvents delivers absolute (canonical) paths; canonicalize so strip_prefix
+    // matches. Local only — a remote path has no local form to resolve.
+    let path = if path.is_empty() || remote.is_some() {
+        path
     } else {
         std::fs::canonicalize(&path)
             .map(|p| p.to_string_lossy().into_owned())
@@ -1083,6 +1099,13 @@ pub fn start_watching_project(
     }
     if path.is_empty() {
         return Ok(()); // empty path => just stop
+    }
+
+    if let Some(ssh) = remote {
+        let stop = Arc::new(AtomicBool::new(false));
+        spawn_remote_poll(app, ssh, path.clone(), stop.clone());
+        *guard = Some(ActiveWatch { path, stop, _watcher: None });
+        return Ok(());
     }
 
     let stop = Arc::new(AtomicBool::new(false));
@@ -1166,9 +1189,76 @@ pub fn start_watching_project(
     *guard = Some(ActiveWatch {
         path,
         stop,
-        _watcher: watcher,
+        _watcher: Some(watcher),
     });
     Ok(())
+}
+
+// Poll interval for the remote git watcher; total sleep is checked against the
+// stop flag in short slices so stop/replace stays responsive.
+const REMOTE_POLL: Duration = Duration::from_secs(5);
+
+/// A remote repo's HEAD + working-tree state, as an opaque snapshot string. None
+/// when the host is unreachable (skip the tick rather than emit a false change).
+fn remote_git_snapshot(ssh: &crate::config::SshSettings, dir: &str) -> Option<String> {
+    let status = crate::sshexec::remote_command(ssh, dir, "git", STATUS_PORCELAIN, &[])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())?;
+    let head = crate::sshexec::remote_command(ssh, dir, "git", &["rev-parse", "HEAD"], &[])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| o.stdout)
+        .unwrap_or_default();
+    let mut snap = head;
+    snap.push(0);
+    snap.extend_from_slice(&status.stdout);
+    Some(String::from_utf8_lossy(&snap).into_owned())
+}
+
+/// Stand-in for the notify watcher on a remote project: poll the SSH host every
+/// REMOTE_POLL and emit the same `git-changed` (files: None => "refetch all")
+/// whenever the snapshot moves. The first successful snapshot only seeds the
+/// baseline, so watching doesn't fire a spurious change on start.
+fn spawn_remote_poll(
+    app: AppHandle,
+    ssh: crate::config::SshSettings,
+    path: String,
+    stop: Arc<AtomicBool>,
+) {
+    std::thread::spawn(move || {
+        let mut prev: Option<String> = None;
+        loop {
+            if stop.load(Ordering::SeqCst) {
+                return;
+            }
+            if let Some(snap) = remote_git_snapshot(&ssh, &path) {
+                match &prev {
+                    Some(p) if *p == snap => {}
+                    Some(_) => {
+                        let _ = app.emit(
+                            "git-changed",
+                            &GitChangedPayload {
+                                path: path.clone(),
+                                files: None,
+                            },
+                        );
+                        prev = Some(snap);
+                    }
+                    None => prev = Some(snap),
+                }
+            }
+            let mut waited = Duration::ZERO;
+            while waited < REMOTE_POLL {
+                if stop.load(Ordering::SeqCst) {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(200));
+                waited += Duration::from_millis(200);
+            }
+        }
+    });
 }
 
 #[tauri::command(async)]

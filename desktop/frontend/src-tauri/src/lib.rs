@@ -35,6 +35,7 @@ mod skill_install;
 mod socketsrv;
 mod sound;
 mod sshconfig;
+mod sshexec;
 mod sshsync;
 mod status;
 mod sys;
