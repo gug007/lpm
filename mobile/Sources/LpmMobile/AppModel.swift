@@ -415,13 +415,15 @@ final class AppModel: ObservableObject {
         if client == nil, let cred = activeCredential() { connectBest(credential: cred) }
     }
 
-    /// Give the active Mac a user-chosen display name. A blank/whitespace name
-    /// clears it, reverting to the learned name. Only touches `customName`, which
-    /// learning/re-pairing never overwrites, so the rename survives reconnects.
+    /// Give the active Mac a user-chosen display name. A blank/whitespace name —
+    /// or saving the learned name unchanged — clears it, reverting to (or staying
+    /// on) the learned name, so future serverName updates aren't pinned over. Only
+    /// touches `customName`, which learning/re-pairing never overwrites, so the
+    /// rename survives reconnects.
     func renameActiveMac(_ newName: String) {
         guard let id = activeMacId, let idx = macs.firstIndex(where: { $0.localId == id }) else { return }
         let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
-        macs[idx].customName = trimmed.isEmpty ? nil : trimmed
+        macs[idx].customName = (trimmed.isEmpty || trimmed == macs[idx].name) ? nil : trimmed
         persistMacs()
     }
 

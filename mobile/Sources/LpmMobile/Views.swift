@@ -260,12 +260,12 @@ struct ProjectsView: View {
     /// A friendly reference to a Mac in confirmation copy: its name in quotes, or
     /// "the Mac at <address>" while it's still identified only by an IP.
     private func macReference(_ record: MacRecord) -> String {
-        record.isAddressName ? "the Mac at \(record.displayAddress)" : "“\(record.name)”"
+        record.isAddressName ? "the Mac at \(record.displayAddress)" : "“\(record.displayName)”"
     }
 
     private var removeMacTitle: String {
         guard let active = model.activeRecord else { return "Remove this Mac?" }
-        return active.isAddressName ? "Remove this Mac?" : "Remove “\(active.name)”?"
+        return active.isAddressName ? "Remove this Mac?" : "Remove “\(active.displayName)”?"
     }
 
     private var removeMacMessage: String {
@@ -319,6 +319,12 @@ struct ProjectsView: View {
                     Button { showingNotifications = true } label: {
                         Label("Notifications", systemImage: "bell.badge")
                     }
+                    Button {
+                        renameText = model.activeRecord?.displayName ?? ""
+                        renamingMac = true
+                    } label: {
+                        Label("Rename this Mac", systemImage: "pencil")
+                    }
                     Button(role: .destructive) { confirmingRemove = true } label: {
                         Label("Remove this Mac", systemImage: "trash")
                     }
@@ -358,6 +364,13 @@ struct ProjectsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text(removeMacMessage)
+        }
+        .alert("Rename Mac", isPresented: $renamingMac) {
+            TextField("Mac name", text: $renameText)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") { model.renameActiveMac(renameText) }
+        } message: {
+            Text("Leave blank to use the name reported by the Mac.")
         }
         .sheet(isPresented: $model.addingMac, onDismiss: { model.cancelAddMac() }) {
             NavigationStack {
