@@ -37,7 +37,7 @@ import {
 import { stripAnsi } from "./terminal/filterLines";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { registerFileDropHandler } from "../fileDrop";
-import { isPeerName } from "../peer/markers";
+import { isPeerName, PEER_IMAGE_MAX_BYTES } from "../peer/markers";
 import {
   IS_MIRROR_WINDOW,
   REALM,
@@ -346,16 +346,21 @@ function extractImageBlob(
 }
 
 function saveImageBlob(terminalId: string, blob: File, mimeType: string) {
-  // Image attachments target a local path the host can't see — unsupported for
-  // remote (peer) terminals in v1.
-  if (isPeerName(terminalId)) return;
+  const peer = isPeerName(terminalId);
+  // A remote (peer) terminal caps the image so its base64 stays under the peer
+  // link's frame limit; the upload command runs on the host and returns a path
+  // the host pane can read.
+  if (peer && blob.size > PEER_IMAGE_MAX_BYTES) {
+    writeTerminalError(terminalId, "image too large to send to a remote Mac (max 8 MB)");
+    return;
+  }
   const reader = new FileReader();
   reader.onload = () => {
     const dataUrl = reader.result as string;
     const b64 = dataUrl.split(",")[1];
     if (!b64) return;
     getTerminalRemote(terminalId).then((remote) => {
-      if (remote) {
+      if (remote || peer) {
         UploadClipboardImageForTerminal(terminalId, b64, mimeType)
           .then((text) => pasteToTerminal(terminalId, text))
           .catch((err) => writeTerminalError(terminalId, err));

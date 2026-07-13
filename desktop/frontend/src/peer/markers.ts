@@ -9,6 +9,12 @@
 // A root stays a valid absolute-looking path (starts with /) so string ops and
 // display don't break. Both forms are Tauri-event-name safe.
 
+// A peer image upload travels as one base64 JSON frame over the peer WebSocket
+// (tungstenite's ~16 MiB default max frame). Cap the raw image at 8 MB so its
+// base64 (~10.7 MB) plus envelope stays comfortably under that, and so a LAN
+// transfer finishes well within the client's invoke deadline.
+export const PEER_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+
 const SLUG = "[0-9a-f]{8}";
 const NAME_RE = new RegExp(`^peer-(${SLUG})-([\\s\\S]*)$`);
 const ROOT_RE = new RegExp(`^/@peer-(${SLUG})(/[\\s\\S]*)$`);

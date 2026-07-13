@@ -12,13 +12,15 @@ import {
 import { toast } from "sonner";
 import {
   GetServiceLogs,
+  NotesReadFileAsInput,
   ReadClipboardFiles,
   SaveClipboardImage,
   TransformText,
   UploadAndQuoteForTerminal,
+  UploadClipboardImageForTerminal,
 } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
-import { isPeerName } from "../peer/markers";
+import { isPeerName, PEER_IMAGE_MAX_BYTES } from "../peer/markers";
 import { useAIPicker } from "../hooks/useAIPicker";
 import { getSettings } from "../store/settings";
 import {
@@ -190,8 +192,9 @@ function sameTabView(a: ComposerTabView[], b: ComposerTabView[]): boolean {
 }
 
 export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, actionName, fontSize, onSubmit, onFocusTerminal, onRunInDuplicates }: TerminalComposerProps) {
-  // Image/file attachments resolve against a local path the host can't read, so
-  // they're unsupported for a remote (peer) terminal in v1.
+  // A remote (peer) terminal runs on another Mac. Images are still supported:
+  // they're uploaded to the host (which returns a host-valid path) at attach time
+  // via UploadClipboardImageForTerminal; other file types stay unsupported.
   const isRemotePeer = isPeerName(terminalId);
   // `blank` drives the placeholder (no content at all); `disabled` drives the
   // send button (nothing but whitespace).
@@ -532,19 +535,53 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     return chip;
   }, []);
 
+  // Register a chip for an image already uploaded to the host, seating its
+  // thumbnail from bytes we hold locally — the returned path lives on the host's
+  // disk, so hydrateChips (which reads from THIS Mac) would fail to load it. The
+  // `thumb` flag marks it handled so hydrateChips skips the doomed disk read.
+  const registerPeerImageChip = useCallback(
+    (hostPath: string, dataUrl: string): HTMLSpanElement => {
+      const chip = registerImagePath(hostPath);
+      chip.dataset.thumb = "data";
+      setChipThumbnail(chip, dataUrl);
+      return chip;
+    },
+    [registerImagePath],
+  );
+
+  // Upload one image (raw bytes + mime) to the host and return its chip, or null
+  // on failure/oversize. Shared by pasted/dropped blobs and Finder-path reads.
+  const uploadPeerImage = useCallback(
+    async (b64: string, mimeType: string, rawBytes: number): Promise<HTMLSpanElement | null> => {
+      if (rawBytes > PEER_IMAGE_MAX_BYTES) {
+        toast.error("Image too large to send to a remote Mac (max 8 MB)");
+        return null;
+      }
+      try {
+        const hostPath = await UploadClipboardImageForTerminal(terminalId, b64, mimeType);
+        if (typeof hostPath !== "string" || !hostPath) return null;
+        return registerPeerImageChip(hostPath, `data:${mimeType};base64,${b64}`);
+      } catch {
+        return null;
+      }
+    },
+    [terminalId, registerPeerImageChip],
+  );
+
   const addImageBlob = useCallback(
     async (blob: Blob): Promise<HTMLSpanElement | null> => {
-      if (isRemotePeer) return null;
       const b64 = await blobToBase64(blob);
       if (!b64) return null;
+      const mime = blob.type || "image/png";
+      if (isRemotePeer) return uploadPeerImage(b64, mime, blob.size);
       try {
-        const path = await SaveClipboardImage(b64, blob.type || "image/png");
+        const path = await SaveClipboardImage(b64, mime);
         return typeof path === "string" && path ? registerImagePath(path) : null;
       } catch {
         return null;
       }
     },
-    [registerImagePath],
+    [isRemotePeer, uploadPeerImage, registerImagePath],
   );
 
   const insertItems = useCallback(
@@ -579,6 +616,33 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     [insertItems, registerImagePath],
   );
 
+  // Read client-local image paths (a Finder drop or copied file), upload each to
+  // the host, and insert the resulting chips. Non-image files can't be sent to a
+  // remote Mac, so they're dropped with a notice rather than silently ignored.
+  const addPeerLocalImages = useCallback(
+    async (paths: string[]) => {
+      const images = paths.filter((p) => isImagePath(p));
+      if (images.length < paths.length) {
+        toast.error("Only images can be sent to a remote Mac");
+      }
+      if (images.length === 0) return;
+      const chips = await Promise.all(
+        images.map(async (path) => {
+          try {
+            const input = await NotesReadFileAsInput(path);
+            const b64 = input?.data;
+            if (!b64) return null;
+            return uploadPeerImage(b64, input.mimeType || "image/png", base64ByteLength(b64));
+          } catch {
+            return null;
+          }
+        }),
+      );
+      insertImageChips(chips, images.length);
+    },
+    [uploadPeerImage, insertImageChips],
+  );
+
   const pointInComposer = useCallback((x: number, y: number): boolean => {
     const r = containerRef.current?.getBoundingClientRect();
     return !!r && x >= r.left && x < r.right && y >= r.top && y < r.bottom;
@@ -597,13 +661,14 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // OS file drops (from Finder) arrive as paths via the shared drop bridge.
   useEffect(() => {
     return registerFileDropHandler("terminal-composer", (x, y, paths) => {
-      if (isRemotePeer || paths.length === 0 || !pointInComposer(x, y)) return false;
+      if (paths.length === 0 || !pointInComposer(x, y)) return false;
       focusAtPoint(x, y);
-      insertFilePaths(paths);
+      if (isRemotePeer) void addPeerLocalImages(paths);
+      else insertFilePaths(paths);
       setDragOver(false);
       return true;
     });
-  }, [insertFilePaths, pointInComposer, focusAtPoint]);
+  }, [isRemotePeer, addPeerLocalImages, insertFilePaths, pointInComposer, focusAtPoint]);
 
   // Native (Finder) drags don't raise DOM dragover in the webview — the runtime
   // shim republishes them as app:* events instead — so drive the drop overlay
@@ -662,7 +727,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         e.preventDefault();
         void ReadClipboardFiles()
           .then((paths) => {
-            if (Array.isArray(paths) && paths.length > 0) insertFilePaths(paths);
+            if (!Array.isArray(paths) || paths.length === 0) return;
+            if (isRemotePeer) void addPeerLocalImages(paths);
+            else insertFilePaths(paths);
           })
           .catch(() => {});
         return;
@@ -697,7 +764,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       histIdx.current = -1;
       syncState();
     },
-    [addImageBlob, insertFilePaths, insertImageChips, insertItems, registerImagePath, syncState],
+    [addImageBlob, addPeerLocalImages, insertFilePaths, insertImageChips, insertItems, isRemotePeer, registerImagePath, syncState],
   );
 
   // In-app / web drags deliver File objects through the DOM (OS file drops go
@@ -705,7 +772,6 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const handleDrop = useCallback(
     (e: DragEvent<HTMLDivElement>) => {
       setDragOver(false);
-      if (isRemotePeer) return;
       const files = Array.from(e.dataTransfer?.files ?? []).filter((f) => f.type.startsWith("image/"));
       if (files.length === 0) return;
       e.preventDefault();
@@ -771,7 +837,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       segments.map(async (s) => {
         const path = s.image === null ? undefined : images[s.image];
         if (path === undefined) return s.text;
-        // A peer terminal has no host-side upload; pass the token text through.
+        // For a peer terminal the path is already host-valid — the image was
+        // uploaded to the host when it was attached — so paste it through as-is.
         if (isRemotePeer) return ` ${path} `;
         const uploaded = await UploadAndQuoteForTerminal(terminalId, [path]).catch(() => "");
         return ` ${uploaded || path} `;
@@ -1823,6 +1890,14 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       />
     </div>
   );
+}
+
+// Raw byte length a base64 string decodes to, for the peer upload size gate —
+// avoids decoding the whole payload just to measure it.
+function base64ByteLength(b64: string): number {
+  if (b64.length === 0) return 0;
+  const padding = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;
+  return (b64.length * 3) / 4 - padding;
 }
 
 function blobToBase64(blob: Blob): Promise<string | null> {

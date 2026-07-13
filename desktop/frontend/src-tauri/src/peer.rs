@@ -662,6 +662,35 @@ fn dispatch_invoke(
     cmd: &str,
     args: Value,
 ) {
+    // A clipboard-image upload carries a multi-MB base64 blob. Run it directly in
+    // Rust on a worker thread (the temp-write + a possible scp for an ssh-backed
+    // host pane can block) and reply async via the out-queue, instead of
+    // round-tripping the whole payload through the host webview. Args arrive with
+    // the frontend's camelCase keys on this direct path.
+    if cmd == "upload_clipboard_image_for_terminal" {
+        let s = |k: &str| args.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
+        let terminal_id = s("terminalId");
+        let b64 = s("b64Data");
+        let mime = {
+            let m = s("mimeType");
+            if m.is_empty() { "image/png".to_string() } else { m }
+        };
+        let (app, out) = (app.clone(), out.clone());
+        std::thread::spawn(move || {
+            let res = crate::upload::upload_clipboard_image_for_terminal(
+                app.state::<pty::PtyState>(),
+                terminal_id,
+                b64,
+                mime,
+            );
+            let frame = match res {
+                Ok(path) => result_frame(&req_id, true, Value::String(path)),
+                Err(e) => result_frame(&req_id, false, Value::String(e)),
+            };
+            let _ = out.try_send(frame);
+        });
+        return;
+    }
     if let Some(r) = fast_path(app, cmd, &args) {
         let frame = match r {
             Ok(value) => result_frame(&req_id, true, value),
