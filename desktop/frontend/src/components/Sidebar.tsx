@@ -867,6 +867,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         {peerSections.map((section) => (
           <SidebarPeerSection
             key={section.slug}
+            slug={section.slug}
             alias={section.alias}
             projects={section.projects}
             selected={selected}
