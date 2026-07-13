@@ -404,7 +404,10 @@ fn inject_args(cmd: &str, flag: &str, value: &str) -> String {
 }
 
 /// (startCmd, resumeCmd). Known recipe: claude --session-id/--resume <uuid>.
-/// Unknown programs return an empty resumeCmd (not persisted).
+/// Unknown programs return an empty resumeCmd (not persisted). Codex is NOT
+/// handled here — it has no launch-time session id; its resumeCmd is assigned
+/// after the fact from the SessionStart hook -> socketsrv `set_resume` ->
+/// `codex-session` event (see hooks.rs / useTerminals.ts).
 fn resolve_restore_cmds(cmd: &str) -> (String, String) {
     let fields: Vec<&str> = cmd.split_whitespace().collect();
     let prog = program_index(&fields).map(|i| fields[i]).unwrap_or("");

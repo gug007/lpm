@@ -16,6 +16,7 @@
 //                     [--run-action=X | --run-command=X] [--prompt=TEXT]
 //   remove_project <project>
 //   run_task <project> [--action=X | --command=X] [--prompt=TEXT]
+//   set_resume <project> <pane_id> <session_id>
 // Each line gets a single-line reply, EXCEPT `duplicate_project`, which streams
 // zero or more `PROGRESS <done> <total> <copy-name>` lines and then a final JSON
 // line (`{"ok":true,"names":[...]}` / `{"ok":false,"error":...}`) — cloning N
@@ -113,6 +114,7 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "restart_service" => cmd_restart_service(args, app),
         "remove_project" => cmd_remove_project(args, app),
         "run_task" => cmd_run_task(args, app),
+        "set_resume" => cmd_set_resume(args, app),
         _ => "ERROR: unknown command".into(),
     }
 }
@@ -340,6 +342,44 @@ fn cmd_run_task(args: &[String], app: &AppHandle) -> String {
     "OK".into()
 }
 
+/// Codex's SessionStart hook reports the real session id here (Codex has no
+/// launch-time session id). Validated separately from the emit so the parsing
+/// path is testable without an AppHandle.
+struct ResumeArgs {
+    project: String,
+    pane_id: String,
+    session_id: String,
+}
+
+fn parse_resume_args(args: &[String]) -> Result<ResumeArgs, String> {
+    let (positional, _) = parse_options(args);
+    if positional.len() < 3 {
+        return Err("usage: set_resume <project> <pane> <session-id>".into());
+    }
+    Ok(ResumeArgs {
+        project: positional[0].clone(),
+        pane_id: positional[1].clone(),
+        session_id: positional[2].clone(),
+    })
+}
+
+fn cmd_set_resume(args: &[String], app: &AppHandle) -> String {
+    match parse_resume_args(args) {
+        Ok(a) => {
+            let _ = app.emit(
+                "codex-session",
+                serde_json::json!({
+                    "project": a.project,
+                    "paneId": a.pane_id,
+                    "sessionId": a.session_id,
+                }),
+            );
+            "OK".into()
+        }
+        Err(e) => format!("ERROR: {e}"),
+    }
+}
+
 fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> String {
     let (positional, options) = parse_options(args);
     if positional.len() < 3 {
@@ -484,10 +524,22 @@ mod tests {
         }
         for bad in [
             "start_project", "stop_project", "start_service", "stop_service",
-            "restart_service", "remove_project", "run_task", "duplicate_project", "unknown",
+            "restart_service", "remove_project", "run_task", "duplicate_project",
+            "set_resume", "unknown",
         ] {
             assert!(!remote_allowed(bad), "{bad} must be refused on the remote socket");
         }
+    }
+
+    #[test]
+    fn set_resume_requires_three_positionals() {
+        let mk = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert!(parse_resume_args(&mk(&["proj", "pane-1"])).is_err());
+        assert!(parse_resume_args(&mk(&["proj"])).is_err());
+        let ok = parse_resume_args(&mk(&["proj", "pane-1", "sess-abc"])).unwrap();
+        assert_eq!(ok.project, "proj");
+        assert_eq!(ok.pane_id, "pane-1");
+        assert_eq!(ok.session_id, "sess-abc");
     }
 
     #[test]

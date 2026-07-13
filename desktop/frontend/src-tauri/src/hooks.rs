@@ -168,7 +168,10 @@ pub fn install_remote_claude_hooks_once(ssh: &crate::config::SshSettings) {
 }
 
 fn install_codex_hooks() {
-    let codex_dir = home().join(".codex");
+    install_codex_hooks_at(&home().join(".codex"));
+}
+
+fn install_codex_hooks_at(codex_dir: &Path) {
     let config_path = codex_dir.join("config.toml");
     let hooks_path = codex_dir.join("hooks.json");
 
@@ -180,13 +183,16 @@ fn install_codex_hooks() {
     // Per-pane key, same reason as the Claude hooks.
     let set_running = send_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Running --icon=sparkle --color=#10A37F --pane=$LPM_PANE_ID");
     let set_done = send_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID");
+    let set_resume = capture_resume_cmd();
 
-    // Each event maps to an array holding one hook entry (Codex shape).
-    let new_events: Vec<(&str, Value)> = vec![
-        ("SessionStart", codex_hook(&set_running)),
-        ("UserPromptSubmit", codex_hook(&set_running)),
-        ("PreToolUse", codex_hook(&set_running)),
-        ("Stop", codex_hook(&set_done)),
+    // Each event maps to its ordered list of hook entries. SessionStart carries
+    // two: the status ping plus the resume-capture hook that reports Codex's
+    // real session id back to the socket (Codex has no --session-id-at-launch).
+    let new_events: Vec<(&str, Vec<Value>)> = vec![
+        ("SessionStart", vec![codex_entry(&set_running), codex_entry(&set_resume)]),
+        ("UserPromptSubmit", vec![codex_entry(&set_running)]),
+        ("PreToolUse", vec![codex_entry(&set_running)]),
+        ("Stop", vec![codex_entry(&set_done)]),
     ];
 
     let original = std::fs::read(&hooks_path)
@@ -199,15 +205,16 @@ fn install_codex_hooks() {
     {
         let eh = existing.get_mut("hooks").unwrap().as_object_mut().unwrap();
         strip_lpm_hooks(eh);
-        for (event, entry_arr) in &new_events {
-            let entry = entry_arr.as_array().and_then(|a| a.first()).cloned().unwrap_or(Value::Null);
-            append_hook(eh, event, entry);
+        for (event, entries) in &new_events {
+            for entry in entries {
+                append_hook(eh, event, entry.clone());
+            }
         }
         existing
     } else {
         let mut m = Map::new();
-        for (event, entry_arr) in new_events {
-            m.insert(event.to_string(), entry_arr);
+        for (event, entries) in new_events {
+            m.insert(event.to_string(), Value::Array(entries));
         }
         json!({ "hooks": Value::Object(m) })
     };
@@ -245,9 +252,21 @@ fn claude_hook(cmd: &str, matcher: &str) -> Value {
     json!({ "matcher": matcher, "hooks": [ { "type": "command", "command": cmd } ] })
 }
 
-/// Codex hook entry: [{hooks: [{type: command, command}]}].
-fn codex_hook(cmd: &str) -> Value {
-    json!([ { "hooks": [ { "type": "command", "command": cmd } ] } ])
+/// Codex hook entry: {hooks: [{type: command, command}]}.
+fn codex_entry(cmd: &str) -> Value {
+    json!({ "hooks": [ { "type": "command", "command": cmd } ] })
+}
+
+/// SessionStart resume hook: read Codex's JSON payload from stdin, extract
+/// `session_id`, and report it to the socket as `set_resume` so the tab can
+/// later resume this exact session (Codex has no --session-id-at-launch). stdin
+/// is consumed synchronously by `sed` before the send is backgrounded — the
+/// plain `send_cmd` helper ignores stdin, so this hook needs its own shape.
+/// Ends with the `# lpm-hook` marker like the others so strip/idempotency works.
+fn capture_resume_cmd() -> String {
+    format!(
+        "sid=$(sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PANE_ID\" ] && [ -n \"$sid\" ] && echo \"set_resume '$LPM_PROJECT_NAME' $LPM_PANE_ID $sid\" | nc -w1 -U \"$LPM_SOCKET_PATH\" & }} >/dev/null 2>&1; {MARKER}"
+    )
 }
 
 fn has_marker(hooks: &Value) -> bool {
@@ -408,6 +427,110 @@ mod tests {
     fn send_cmd_shape_matches_go() {
         let s = send_cmd("clear_status 'x' k");
         assert!(s.starts_with(r#"{ [ -n "$LPM_SOCKET_PATH" ] && [ -S "$LPM_SOCKET_PATH" ] && echo "clear_status 'x' k" | nc -w1 -U "$LPM_SOCKET_PATH" & } >/dev/null 2>&1; "#));
+        assert!(s.ends_with(MARKER));
+    }
+
+    fn codex_dir_with(body: Option<&str>) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        // install_codex_hooks_at is a no-op unless the .codex dir exists.
+        let codex = dir.path().join(".codex");
+        std::fs::create_dir(&codex).unwrap();
+        std::fs::write(codex.join("config.toml"), "").unwrap();
+        if let Some(b) = body {
+            std::fs::write(codex.join("hooks.json"), b).unwrap();
+        }
+        dir
+    }
+
+    fn codex_hooks(dir: &std::path::Path) -> Value {
+        let data = std::fs::read(dir.join(".codex").join("hooks.json")).unwrap();
+        serde_json::from_slice(&data).unwrap()
+    }
+
+    #[test]
+    fn codex_install_adds_resume_hook_on_session_start() {
+        let dir = codex_dir_with(None);
+        install_codex_hooks_at(&dir.path().join(".codex"));
+
+        let v = codex_hooks(dir.path());
+        let hooks = v["hooks"].as_object().unwrap();
+        for ev in ["SessionStart", "UserPromptSubmit", "PreToolUse", "Stop"] {
+            assert!(hooks.contains_key(ev), "missing {ev}");
+        }
+        // SessionStart holds the status ping AND the resume-capture hook.
+        let start = v["hooks"]["SessionStart"].as_array().unwrap();
+        assert_eq!(start.len(), 2, "SessionStart should carry two lpm hooks");
+        let has_resume = start.iter().any(|e| {
+            e["hooks"][0]["command"]
+                .as_str()
+                .map(|c| c.contains("set_resume") && c.contains("session_id"))
+                .unwrap_or(false)
+        });
+        assert!(has_resume, "SessionStart missing set_resume hook: {start:?}");
+        assert!(has_marker(&v["hooks"]));
+    }
+
+    #[test]
+    fn codex_install_is_idempotent() {
+        let dir = codex_dir_with(None);
+        let codex = dir.path().join(".codex");
+        install_codex_hooks_at(&codex);
+        let first = std::fs::read_to_string(codex.join("hooks.json")).unwrap();
+        install_codex_hooks_at(&codex);
+        assert_eq!(
+            std::fs::read_to_string(codex.join("hooks.json")).unwrap(),
+            first,
+            "re-run must not duplicate codex hooks"
+        );
+        // Exactly one resume hook survives a re-run.
+        let v = codex_hooks(dir.path());
+        let resume_count = v["hooks"]["SessionStart"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|e| {
+                e["hooks"][0]["command"]
+                    .as_str()
+                    .map(|c| c.contains("set_resume"))
+                    .unwrap_or(false)
+            })
+            .count();
+        assert_eq!(resume_count, 1, "resume hook not duplicated");
+    }
+
+    #[test]
+    fn codex_install_preserves_user_hooks() {
+        let body = r#"{
+          "hooks": {
+            "SessionStart": [
+              { "hooks": [ { "type": "command", "command": "my-own-codex-hook" } ] }
+            ]
+          }
+        }"#;
+        let dir = codex_dir_with(Some(body));
+        install_codex_hooks_at(&dir.path().join(".codex"));
+
+        let v = codex_hooks(dir.path());
+        let start = v["hooks"]["SessionStart"].as_array().unwrap();
+        assert!(
+            start.iter().any(|e| e["hooks"][0]["command"] == "my-own-codex-hook"),
+            "user hook must survive install"
+        );
+        assert!(
+            start.iter().any(|e| e["hooks"][0]["command"]
+                .as_str()
+                .map(|c| c.contains("set_resume"))
+                .unwrap_or(false)),
+            "resume hook must be added alongside the user hook"
+        );
+    }
+
+    #[test]
+    fn capture_resume_cmd_shape() {
+        let s = capture_resume_cmd();
+        assert!(s.contains("session_id"), "extracts session_id from stdin");
+        assert!(s.contains("set_resume '$LPM_PROJECT_NAME' $LPM_PANE_ID $sid"));
+        assert!(s.contains("[ -S \"$LPM_SOCKET_PATH\" ]") && s.contains("[ -n \"$sid\" ]"));
         assert!(s.ends_with(MARKER));
     }
 }
