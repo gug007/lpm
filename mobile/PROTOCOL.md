@@ -21,13 +21,18 @@ The phone sends exactly one of:
 
 **Pair** (first time, using a one-time code from the desktop's QR):
 ```json
-{ "t": "pair", "code": "AB12-CD34", "name": "Gurgen's iPhone" }
+{ "t": "pair", "code": "AB12-CD34", "name": "My iPhone" }
 ```
 → on success the server replies and the code is consumed (single use):
 ```json
-{ "t": "paired", "deviceId": "<uuid>", "token": "<base64 bearer token>" }
+{ "t": "paired", "deviceId": "<uuid>", "token": "<base64 bearer token>",
+  "serverId": "<uuid>", "serverName": "My MacBook Pro" }
 ```
-The phone stores `deviceId` + `token` in the Keychain. On rejection:
+The phone stores `deviceId` + `token` in the Keychain. `serverId` is this Mac's
+stable identity (minted once, persisted in `remote.json`); `serverName` is its
+user-visible computer name (from `scutil --get ComputerName`, falling back to the
+hostname). Together they let a phone paired with **several Macs** tell them apart
+and label each one. On rejection:
 ```json
 { "t": "error", "error": "pairing rejected" }
 ```
@@ -36,7 +41,11 @@ The phone stores `deviceId` + `token` in the Keychain. On rejection:
 ```json
 { "t": "auth", "deviceId": "<uuid>", "token": "<base64 bearer token>" }
 ```
-→ `{ "t": "ready" }` on success, or `{ "t": "error", "error": "unauthorized" }`.
+→ `{ "t": "ready", "serverId": "<uuid>", "serverName": "My MacBook Pro" }`
+on success, or `{ "t": "error", "error": "unauthorized" }`. `serverId` and
+`serverName` are the same stable identity + computer name returned by `paired`,
+re-sent on every resume so a phone paired with multiple Macs keeps them labeled
+and can route each connection to the right Mac.
 
 The server stores only `sha256(token)`; the raw token never leaves the phone
 after pairing. Revoking a device in desktop Settings deletes its hash and drops
@@ -154,28 +163,37 @@ per (project, status key) so a re-reported identical status never re-notifies.
 
 **Payload encryption.** The notification plaintext is JSON:
 ```
-{ "project": "<name>", "terminal": "<tab label>", "status": "Waiting"|"Done"|"Error", "ts": <unix millis>, "key": "<status entry key>" }
+{ "serverId": "<uuid>", "project": "<name>", "terminal": "<tab label>", "status": "Waiting"|"Done"|"Error", "ts": <unix millis>, "key": "<status entry key>" }
 ```
 (`terminal` may be empty when the pane label is unknown; `key` identifies the
-status entry so a later clear can find this notification.) It is sealed with
-AES-256-GCM under the device's push key, encoded as `nonce(12) || ciphertext ||
-tag(16)` in standard base64 — CryptoKit's `AES.GCM.SealedBox(combined:)` format.
+status entry so a later clear can find this notification. `serverId` is this Mac's
+stable identity — the phone scopes notification matching by `(serverId, project,
+key)` so a same-named project on another paired Mac isn't confused with this one;
+it is **absent** on Macs running an older desktop build, so treat a missing
+`serverId` as unscoped.) It is sealed with AES-256-GCM under the device's push
+key, encoded as `nonce(12) || ciphertext || tag(16)` in standard base64 —
+CryptoKit's `AES.GCM.SealedBox(combined:)` format.
 
 **Withdrawing notifications.** When a pushed status is cleared on the desktop
 (tab-click dismiss, pane close, agent moving on), the desktop sends a **silent
 background push** per registered device whose blob plaintext is:
 ```
-{ "clear": [ { "project": "<name>", "key": "<status entry key>" }… ] }
+{ "serverId": "<uuid>", "clear": [ { "project": "<name>", "key": "<status entry key>" }… ] }
 ```
 The app wakes briefly, decrypts, and removes the delivered notifications whose
-`(project, key)` match. Clears are sent regardless of `notify` preferences (they
+`(serverId, project, key)` match. The top-level `serverId` scopes the clear to
+this Mac so a phone paired with several Macs can't remove another Mac's
+notifications for a same-named project; it is **absent** on older desktop builds
+(treat as unscoped). Clears are sent regardless of `notify` preferences (they
 can only remove). Best-effort by design: iOS throttles background pushes and
 drops them entirely for force-quit apps, so the phone also **reconciles on
 foreground** — after reconnecting and refreshing projects, it prunes delivered
 notifications whose status entry no longer exists. Alert pushes also carry an
-`apns-collapse-id` derived from `(project, key)` (sha-256 hex, truncated to 60
-chars), so a status change on the same pane (Waiting → Done) replaces the
-displayed notification instead of stacking a new one.
+`apns-collapse-id` derived from `(serverId, project, key)` (sha-256 hex,
+truncated to 60 chars), so a status change on the same pane (Waiting → Done)
+replaces the displayed notification instead of stacking a new one. The `serverId`
+is mixed in so two Macs with same-named projects can't collapse each other's
+notifications on a phone paired with both.
 
 **Relay contract.** The desktop POSTs JSON to the relay
 (`https://lpm.cx/api/push` by default; `pushRelay` in `remote.json` overrides,
@@ -251,7 +269,7 @@ showing the id.
 ```
 kind: "window" | "mobile"   // a desktop window, or a phone
 id: string                  // "main" / "detached:<project>" for windows; the deviceId for a phone
-label: string               // human name for the placeholder, e.g. "Main window" / "Gurgen's iPhone"
+label: string               // human name for the placeholder, e.g. "Main window" / "My iPhone"
 ```
 `null` means nobody currently owns it. Equality is on `(kind, id)`.
 

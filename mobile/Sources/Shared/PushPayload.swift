@@ -24,4 +24,13 @@ enum PushPayload {
     static func statusIdentity(project: String, statusKey: String) -> String {
         project + "\u{0}" + statusKey
     }
+
+    /// Backward-compatible `serverId` match used to scope a notification clear to
+    /// the Mac it came from. Equal when both sides carry an id; a match by default
+    /// when either side lacks one — so pre-upgrade notifications (no stored id) and
+    /// old Macs (no id in the payload) keep working.
+    static func serverIdsMatch(_ a: String?, _ b: String?) -> Bool {
+        guard let a, !a.isEmpty, let b, !b.isEmpty else { return true }
+        return a == b
+    }
 }

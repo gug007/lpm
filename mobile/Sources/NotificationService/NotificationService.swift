@@ -40,6 +40,11 @@ final class NotificationService: UNNotificationServiceExtension {
         // Carry the status entry key so a later background clear / foreground
         // reconcile can find and withdraw exactly this notification.
         info["statusKey"] = statusKey
+        // Carry the sending Mac's id (absent on old Macs) so a clear/reconcile from
+        // one Mac never withdraws a same-named project's notification from another.
+        if let serverId = payload["serverId"] as? String, !serverId.isEmpty {
+            info["serverId"] = serverId
+        }
         mutable.userInfo = info
         return mutable
     }

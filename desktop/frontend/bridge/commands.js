@@ -76,6 +76,9 @@ export function CreateProject(name, root) {
 export function CreateProjectFromClone(name, url, branch, destParent) {
   return invoke("create_project_from_clone", { name, url, branch, destParent });
 }
+export function StartCloneProject(name, url, branch, destParent) {
+  return invoke("start_clone_project", { name, url, branch, destParent });
+}
 export function CreatePullRequest(cwd, title, body, base) {
   return invoke("create_pull_request", { cwd, title, body, base });
 }
@@ -117,6 +120,9 @@ export function FileExists(absPath) {
 }
 export function ListDirFiles(root) {
   return invoke("list_dir_files", { root });
+}
+export function ListDirs(path) {
+  return invoke("list_dirs", { path });
 }
 export function FocusDetachedWindow(projectName) {
   return invoke("focus_detached_window", { projectName });

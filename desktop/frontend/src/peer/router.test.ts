@@ -132,6 +132,19 @@ describe("translatePeerEventPayload", () => {
     expect(translatePeerEventPayload("projects-changed", A, null)).toBeNull();
     expect(translatePeerEventPayload("action-output", A, { line: "x" })).toEqual({ line: "x" });
   });
+
+  it("prefixes the project name for clone-done and keeps ok/error", () => {
+    expect(translatePeerEventPayload("clone-done", A, { name: "app", ok: true, error: null })).toEqual(
+      { name: prefixName(A, "app"), ok: true, error: null },
+    );
+    expect(
+      translatePeerEventPayload("clone-done", A, { name: "app", ok: false, error: "boom" }),
+    ).toEqual({ name: prefixName(A, "app"), ok: false, error: "boom" });
+  });
+
+  it("leaves a malformed clone-done payload untouched", () => {
+    expect(translatePeerEventPayload("clone-done", A, { ok: true })).toEqual({ ok: true });
+  });
 });
 
 describe("isLocalOnlyCommand", () => {

@@ -56,6 +56,52 @@ pub async fn browse_folder(
     }
 }
 
+/// One level of a filesystem browse: the resolved directory, its parent (None at
+/// the root), and the names of its immediate child directories.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirListing {
+    pub path: String,
+    pub parent: Option<String>,
+    pub dirs: Vec<String>,
+}
+
+/// List the immediate child directories of `path`, for browsing a filesystem
+/// remotely (over the peer proxy) without a native dialog. An empty path, `~`,
+/// or `~/...` resolves to $HOME; any other value is taken as an absolute path.
+/// Returns the canonicalized path, its parent, and the sorted names of child
+/// directories, skipping dot-directories and non-directories. Symlinks are
+/// followed via metadata(); entries that error (broken links, unreadable) are
+/// skipped. Runs off the UI thread — the fs walk must never block the main loop.
+#[tauri::command(async)]
+pub fn list_dirs(path: String) -> Result<DirListing, String> {
+    let trimmed = path.trim();
+    let raw = if trimmed.is_empty() { expand_home("~") } else { expand_home(trimmed) };
+    let canon = std::fs::canonicalize(&raw).map_err(|e| format!("cannot open {raw}: {e}"))?;
+    if !canon.is_dir() {
+        return Err(format!("not a directory: {}", canon.display()));
+    }
+    let mut dirs: Vec<String> = Vec::new();
+    for entry in std::fs::read_dir(&canon).map_err(|e| e.to_string())? {
+        let Ok(entry) = entry else { continue };
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.starts_with('.') {
+            continue;
+        }
+        match std::fs::metadata(entry.path()) {
+            Ok(meta) if meta.is_dir() => dirs.push(name),
+            _ => {}
+        }
+    }
+    dirs.sort_by_key(|n| n.to_lowercase());
+    let parent = canon.parent().map(|p| p.to_string_lossy().into_owned());
+    Ok(DirListing {
+        path: canon.to_string_lossy().into_owned(),
+        parent,
+        dirs,
+    })
+}
+
 #[tauri::command]
 pub async fn pick_image_file(app: AppHandle) -> Result<String, String> {
     let picked = pick_path(app, |app| {

@@ -16,7 +16,15 @@ final class AppModel: ObservableObject {
     @Published var slashCommands: [String: [SlashCommand]] = [:] // terminal id -> commands
     @Published var mentions: [String: [MentionEntry]] = [:] // project -> @-mention targets
     @Published var history: [String: [HistoryRow]] = [:] // project -> recent sent prompts
-    @Published var paired: Bool = false
+
+    // Saved Macs and which one is live. The phone talks to exactly one Mac at a
+    // time; `activeMacId` names it. An empty `macs` list means "not paired with any
+    // Mac" and drives the root gate to the pairing screen.
+    @Published var macs: [MacRecord] = []
+    @Published var activeMacId: UUID?
+    // Drives the "Add a Mac" pairing sheet over the projects list. Cleared once a
+    // pairing succeeds (the new Mac becomes active) or the user cancels.
+    @Published var addingMac = false
 
     // MARK: composer parity
 
@@ -218,11 +226,34 @@ final class AppModel: ObservableObject {
     // The host the live client was built for, so migration only rebuilds when a
     // *different* address becomes reachable.
     private var currentHost: String?
+    // The candidate addresses/port of an in-flight pairing, stamped onto the
+    // saved-Mac record once the `paired` frame lands.
+    private var pendingPairHosts: [String] = []
+    private var pendingPairPort: UInt16 = MacStore.defaultPort
 
     func bootstrap() {
-        guard let cred = Keychain.load() else { paired = false; return }
-        paired = true
+        MacStore.migrateLegacyIfNeeded()
+        macs = MacStore.loadRecords()
+        activeMacId = MacStore.loadActiveId() ?? macs.first?.localId
+        guard let cred = activeCredential() else { return }
         connectBest(credential: cred)
+    }
+
+    /// The saved Mac the phone is (or should be) connected to.
+    var activeRecord: MacRecord? {
+        guard let id = activeMacId else { return nil }
+        return macs.first { $0.localId == id }
+    }
+
+    /// The active Mac's stored credential, if any.
+    private func activeCredential() -> LpmClient.Credential? {
+        guard let id = activeMacId, macs.contains(where: { $0.localId == id }) else { return nil }
+        return Keychain.load(for: id)
+    }
+
+    private func persistMacs() {
+        MacStore.saveRecords(macs)
+        MacStore.saveActiveId(activeMacId)
     }
 
     /// Probe the remembered addresses and connect to whichever the phone can
@@ -266,7 +297,7 @@ final class AppModel: ObservableObject {
     /// with no timer.
     private func repickHostIfStale(_ s: LpmClient.State, from c: LpmClient) {
         guard case .failed(LpmClient.offlineHint) = s,
-              c === client, !repicking, let cred = Keychain.load() else { return }
+              c === client, !repicking, let cred = activeCredential() else { return }
         repicking = true
         Task { @MainActor in
             defer { repicking = false }
@@ -287,9 +318,15 @@ final class AppModel: ObservableObject {
         c.connect()
     }
 
+    /// Begin pairing a Mac — the first Mac, or an additional one from "Add a Mac".
+    /// The saved-Mac record isn't created until the `paired` frame lands (see
+    /// `handlePaired`), which is also where a re-pair of an already-saved Mac is
+    /// deduped by serverId. Tears down any current session first, so pairing a new
+    /// Mac cleanly replaces the live one.
     func pair(hosts: [String], port: Int, code: String) {
-        persistHosts(hosts)
-        UserDefaults.standard.set(port, forKey: "lpm.port")
+        resetSessionState()
+        pendingPairHosts = hosts
+        pendingPairPort = UInt16(clamping: port)
         attemptHosts = hosts
         connection = .connecting
         Task { @MainActor in
@@ -318,7 +355,7 @@ final class AppModel: ObservableObject {
         // for a reachable address) on a cold start with no client.
         if let client {
             client.connect()
-        } else if let cred = Keychain.load() {
+        } else if let cred = activeCredential() {
             connectBest(credential: cred)
         }
     }
@@ -328,42 +365,140 @@ final class AppModel: ObservableObject {
     func retryConnection() {
         if let client {
             client.retryNow()
-        } else if let cred = Keychain.load() {
+        } else if let cred = activeCredential() {
             connectBest(credential: cred)
         }
     }
 
     private func savedHosts() -> [String] {
-        if let data = UserDefaults.standard.data(forKey: "lpm.hosts"),
-           let arr = try? JSONDecoder().decode([String].self, from: data), !arr.isEmpty {
-            return arr
-        }
-        if let h = UserDefaults.standard.string(forKey: "lpm.host") { return [h] }
-        return ["127.0.0.1"]
-    }
-
-    private func persistHosts(_ hosts: [String]) {
-        if let data = try? JSONEncoder().encode(hosts) {
-            UserDefaults.standard.set(data, forKey: "lpm.hosts")
-        }
-        if let first = hosts.first { UserDefaults.standard.set(first, forKey: "lpm.host") }
+        let hosts = activeRecord?.hosts ?? []
+        return hosts.isEmpty ? ["127.0.0.1"] : hosts
     }
 
     private func savedPort() -> Int {
-        UserDefaults.standard.integer(forKey: "lpm.port").nonzero ?? 8765
+        Int(activeRecord?.port ?? MacStore.defaultPort)
     }
 
-    /// Forget this device's pairing: drop the live connection, wipe the Keychain
-    /// credential and remembered endpoint, and clear all cached state so the next
-    /// device to pair here starts clean. Returns the UI to the pairing screen.
-    func logout() {
+    // MARK: saved Macs
+
+    /// Switch the live connection to another saved Mac: tear down the current
+    /// session, reset all cached per-session state, then connect to the target.
+    func switchTo(_ record: MacRecord) {
+        guard record.localId != activeMacId else { return }
+        resetSessionState()
+        activeMacId = record.localId
+        MacStore.saveActiveId(activeMacId)
+        if let cred = Keychain.load(for: record.localId) {
+            connectBest(credential: cred)
+        }
+    }
+
+    /// Open the "Add a Mac" pairing sheet. Pairing there creates (or, by serverId,
+    /// re-adopts) a saved-Mac record and switches to it on success.
+    func beginAddMac() { addingMac = true }
+
+    /// Dismiss the "Add a Mac" sheet: reconnect to the Mac that was active before,
+    /// whose session `pair()` tore down. A pairing attempt still in flight (or
+    /// failed) leaves a client that never authenticated — tear it down first so it
+    /// can't later stamp the wrong hosts onto a new record, and so the previous Mac
+    /// actually reconnects. A client that DID authenticate is a pairing that just
+    /// succeeded (this dismissal is the post-`handlePaired` one); its `deviceId` is
+    /// non-nil, so the guard skips it and the fresh connection is left untouched.
+    func cancelAddMac() {
+        addingMac = false
+        if let client, client.deviceId == nil {
+            client.disconnect()
+            self.client = nil
+            currentHost = nil
+            pendingPairHosts = []
+        }
+        if client == nil, let cred = activeCredential() { connectBest(credential: cred) }
+    }
+
+    /// Give the active Mac a user-chosen display name. A blank/whitespace name
+    /// clears it, reverting to the learned name. Only touches `customName`, which
+    /// learning/re-pairing never overwrites, so the rename survives reconnects.
+    func renameActiveMac(_ newName: String) {
+        guard let id = activeMacId, let idx = macs.firstIndex(where: { $0.localId == id }) else { return }
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        macs[idx].customName = trimmed.isEmpty ? nil : trimmed
+        persistMacs()
+    }
+
+    /// The Mac `removeActiveMac()` would switch to after removing the active one
+    /// (nil if the active Mac is the only one). Shared with the confirmation copy so
+    /// the named fallback can never diverge from the actual behavior.
+    var nextMacAfterRemoval: MacRecord? {
+        macs.first { $0.localId != activeMacId }
+    }
+
+    /// Remove the active Mac: drop its connection, delete its record + Keychain
+    /// credential, then switch to another saved Mac if one remains — otherwise
+    /// return to the pairing screen.
+    func removeActiveMac() {
+        guard let id = activeMacId else { return }
+        let next = nextMacAfterRemoval
+        resetSessionState()
+        Keychain.delete(for: id)
+        macs.removeAll { $0.localId == id }
+        activeMacId = next?.localId
+        persistMacs()
+        if let next, let cred = Keychain.load(for: next.localId) {
+            connectBest(credential: cred)
+        }
+    }
+
+    /// A fresh pairing landed. Persist the credential and create the saved-Mac
+    /// record — or, when the Mac's `serverId` matches one we already have (a
+    /// re-pair), refresh that record in place instead of duplicating it. Either
+    /// way the paired Mac becomes active.
+    private func handlePaired(deviceId: String, token: String, serverId: String?, serverName: String?) {
+        let hosts = pendingPairHosts.isEmpty ? savedHosts() : pendingPairHosts
+        let port = pendingPairPort
+        pendingPairHosts = []
+
+        let localId: UUID
+        if let sid = serverId, !sid.isEmpty, let idx = macs.firstIndex(where: { $0.serverId == sid }) {
+            localId = macs[idx].localId
+            macs[idx].hosts = hosts
+            macs[idx].port = port
+            if let name = serverName, !name.isEmpty { macs[idx].name = name }
+        } else {
+            let record = MacRecord(localId: UUID(), serverId: serverId,
+                                   name: serverName?.trimmedNonEmpty ?? hosts.first ?? "My Mac",
+                                   hosts: hosts, port: port)
+            macs.append(record)
+            localId = record.localId
+        }
+        Keychain.save(deviceId: deviceId, token: token, for: localId)
+        activeMacId = localId
+        persistMacs()
+        addingMac = false
+    }
+
+    /// A reconnect reached `ready` carrying identity: learn/refresh the active
+    /// record's serverId and name.
+    private func learnIdentity(serverId: String?, serverName: String?) {
+        guard let id = activeMacId, let idx = macs.firstIndex(where: { $0.localId == id }) else { return }
+        var changed = false
+        if let sid = serverId, !sid.isEmpty, macs[idx].serverId != sid {
+            macs[idx].serverId = sid
+            changed = true
+        }
+        if let name = serverName?.trimmedNonEmpty, macs[idx].name != name {
+            macs[idx].name = name
+            changed = true
+        }
+        if changed { persistMacs() }
+    }
+
+    /// Tear down the live connection to the current Mac and clear every cached
+    /// per-session value, so switching Macs (or removing one) starts clean. Does
+    /// NOT touch the saved-Mac records or their Keychain credentials.
+    private func resetSessionState() {
         client?.disconnect()
         client = nil
         currentHost = nil
-        Keychain.clear()
-        UserDefaults.standard.removeObject(forKey: "lpm.host")
-        UserDefaults.standard.removeObject(forKey: "lpm.hosts")
-        UserDefaults.standard.removeObject(forKey: "lpm.port")
 
         connection = .idle
         projects = []
@@ -434,7 +569,6 @@ final class AppModel: ObservableObject {
         pendingWatchRefresh = []
         gitViewed = [:]
         pendingAgentPrompt = [:]
-        paired = false
     }
 
     // MARK: push notifications
@@ -1151,6 +1285,12 @@ final class AppModel: ObservableObject {
         for project in projects {
             liveKeys[project.name] = Set(project.statusEntries.map(\.key))
         }
+        // This projects list belongs to the active Mac, so it may only prune that
+        // Mac's notifications. A notification with a serverId is pruned only when it
+        // matches the active record's serverId; one without a serverId (pre-upgrade,
+        // or posted by an old Mac) is always eligible. When the active record has no
+        // serverId yet, only serverId-less notifications may be pruned.
+        let activeServerId = activeRecord?.serverId
         let center = UNUserNotificationCenter.current()
         center.getDeliveredNotifications { delivered in
             let stale = delivered.compactMap { note -> String? in
@@ -1159,6 +1299,10 @@ final class AppModel: ObservableObject {
                       let key = info["statusKey"] as? String,
                       let keys = liveKeys[project], !keys.contains(key)
                 else { return nil }
+                if let noteServerId = info["serverId"] as? String, !noteServerId.isEmpty,
+                   noteServerId != activeServerId {
+                    return nil
+                }
                 return note.request.identifier
             }
             if !stale.isEmpty { center.removeDeliveredNotifications(withIdentifiers: stale) }
@@ -1176,13 +1320,18 @@ final class AppModel: ObservableObject {
             if self.wasReady && !nowReady { self.handleConnectionReset() }
             self.wasReady = nowReady
             if nowReady {
-                self.paired = true
                 c.requestProjects()
                 c.requestSidebar()
                 c.requestDuplicateDefaults()
                 self.requestPushRegistration()
                 self.sendApnsTokenIfPossible()
             }
+        }
+        c.onPaired = { [weak self] deviceId, token, serverId, serverName in
+            self?.handlePaired(deviceId: deviceId, token: token, serverId: serverId, serverName: serverName)
+        }
+        c.onIdentity = { [weak self] serverId, serverName in
+            self?.learnIdentity(serverId: serverId, serverName: serverName)
         }
         c.onApnsToken = { ok in
             if !ok { print("apns: server rejected token registration") }
@@ -1486,6 +1635,11 @@ enum SidebarItem: Identifiable {
     }
 }
 
-private extension Int {
-    var nonzero: Int? { self == 0 ? nil : self }
+private extension String {
+    /// The string trimmed of surrounding whitespace, or nil if that leaves nothing —
+    /// so an empty/blank `serverName` never overwrites a real record name.
+    var trimmedNonEmpty: String? {
+        let t = trimmingCharacters(in: .whitespacesAndNewlines)
+        return t.isEmpty ? nil : t
+    }
 }

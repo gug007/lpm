@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Modal } from "./ui/Modal";
+import { RemoteFolderBrowserModal } from "./RemoteFolderBrowserModal";
 import { XIcon } from "./icons";
 import { slugify } from "../slugify";
 import { useAppStore } from "../store/app";
@@ -44,9 +45,11 @@ export function AddCloneRepoModal() {
   const onClose = useAppStore((s) => s.closeAddCloneModal);
   const busy = useAppStore((s) => s.addingCloneProject);
   const onCreate = useAppStore((s) => s.addCloneProject);
+  const target = useAppStore((s) => s.addProjectTarget);
 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [browserOpen, setBrowserOpen] = useState(false);
 
   const {
     register,
@@ -66,13 +69,14 @@ export function AddCloneRepoModal() {
     reset(DEFAULT_VALUES);
     setShowAdvanced(false);
     setSubmitError("");
+    setBrowserOpen(false);
   }, [open, reset]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || target) return; // a local default dir is meaningless on a peer
     const dir = getSettings().defaultProjectDirectory;
     if (dir) setValue("destParent", dir, { shouldDirty: false, shouldValidate: true });
-  }, [open, setValue]);
+  }, [open, target, setValue]);
 
   const url = watch("url");
   const nameDirty = !!dirtyFields.name;
@@ -81,16 +85,18 @@ export function AddCloneRepoModal() {
     setValue("name", deriveNameFromUrl(url), { shouldDirty: false });
   }, [url, nameDirty, setValue]);
 
+  const setDest = (dir: string) =>
+    setValue("destParent", dir, { shouldDirty: true, shouldValidate: true });
+
   const pickDest = async () => {
     if (busy) return;
+    if (target) {
+      setBrowserOpen(true);
+      return;
+    }
     try {
       const dir = await BrowseFolder(getSettings().defaultProjectDirectory);
-      if (dir) {
-        setValue("destParent", dir, {
-          shouldDirty: true,
-          shouldValidate: true,
-        });
-      }
+      if (dir) setDest(dir);
     } catch {
       // BrowseFolder is the user's own picker; cancellations are normal.
     }
@@ -125,8 +131,8 @@ export function AddCloneRepoModal() {
     <Modal
       open={open}
       onClose={onClose}
-      closeOnBackdrop={!busy}
-      closeOnEscape={!busy}
+      closeOnBackdrop={!busy && !browserOpen}
+      closeOnEscape={!busy && !browserOpen}
       zIndexClassName="z-[60]"
       contentClassName="w-[460px] rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-5 shadow-xl"
     >
@@ -147,8 +153,9 @@ export function AddCloneRepoModal() {
         </div>
 
         <p className="mt-2 text-[11px] leading-relaxed text-[var(--text-muted)]">
-          Clones a Git repo into a folder on this machine and adds it as a
-          project.
+          {target
+            ? `Clones a Git repo into a folder on ${target.alias} and adds it as a project there.`
+            : "Clones a Git repo into a folder on this machine and adds it as a project."}
         </p>
 
         {submitError && (
@@ -276,6 +283,20 @@ export function AddCloneRepoModal() {
           </p>
         )}
       </form>
+      {target && (
+        <RemoteFolderBrowserModal
+          open={browserOpen}
+          slug={target.slug}
+          alias={target.alias}
+          title="Choose a destination folder"
+          confirmLabel="Use this folder"
+          onChoose={(dir) => {
+            setDest(dir);
+            setBrowserOpen(false);
+          }}
+          onClose={() => setBrowserOpen(false)}
+        />
+      )}
     </Modal>
   );
 }

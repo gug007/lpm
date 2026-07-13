@@ -1,15 +1,47 @@
 import Foundation
 import Security
 
-/// The paired-device credential (deviceId + bearer token) in the iOS Keychain as
-/// a single generic-password item. The token authenticates every connection and
-/// is the one long-lived secret on the phone, so it must never touch
+/// Paired-device credentials (deviceId + bearer token) in the iOS Keychain, one
+/// generic-password item per saved Mac. The token authenticates every connection
+/// and is the one long-lived secret on the phone, so it must never touch
 /// UserDefaults. Accessible after first unlock so a background reconnect works.
+///
+/// Each Mac's credential lives under account `device-credential.<localId>`. The
+/// old single-item account (`device-credential`) is read only for the one-time
+/// migration to per-Mac records.
 enum Keychain {
     private static let service = "cx.lpm.mobile"
-    private static let account = "device-credential"
+    private static let legacyAccount = "device-credential"
 
-    static func save(deviceId: String, token: String) {
+    private static func account(for localId: UUID) -> String {
+        "device-credential.\(localId.uuidString)"
+    }
+
+    static func save(deviceId: String, token: String, for localId: UUID) {
+        saveCredential(deviceId: deviceId, token: token, account: account(for: localId))
+    }
+
+    static func load(for localId: UUID) -> LpmClient.Credential? {
+        loadCredential(account: account(for: localId))
+    }
+
+    static func delete(for localId: UUID) {
+        deleteCredential(account: account(for: localId))
+    }
+
+    // MARK: legacy single-item (pre multi-Mac) — migration only
+
+    static func loadLegacy() -> LpmClient.Credential? {
+        loadCredential(account: legacyAccount)
+    }
+
+    static func clearLegacy() {
+        deleteCredential(account: legacyAccount)
+    }
+
+    // MARK: shared implementation
+
+    private static func saveCredential(deviceId: String, token: String, account: String) {
         guard let data = try? JSONSerialization.data(withJSONObject: ["deviceId": deviceId, "token": token]) else {
             return
         }
@@ -31,7 +63,7 @@ enum Keychain {
         }
     }
 
-    static func load() -> LpmClient.Credential? {
+    private static func loadCredential(account: String) -> LpmClient.Credential? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -50,7 +82,7 @@ enum Keychain {
         return LpmClient.Credential(deviceId: id, token: token)
     }
 
-    static func clear() {
+    private static func deleteCredential(account: String) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

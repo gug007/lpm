@@ -54,6 +54,7 @@ const FORWARDED_EVENTS: &[&str] = &[
     "action-done",
     "action-bg-output",
     "templates-changed",
+    "clone-done",
 ];
 
 // --- persisted config (~/.lpm/peer.json, shared with peerclient.rs) -----------

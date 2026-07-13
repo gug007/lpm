@@ -56,6 +56,13 @@ final class LpmClient: NSObject {
     var onGitCheckout: ((_ project: String, _ error: String?) -> Void)?
     var onGitDiscardAll: ((_ project: String, _ error: String?) -> Void)?
     var onGitChanged: ((_ project: String) -> Void)?
+    // A fresh pairing succeeded: the new credential plus the Mac's advertised
+    // identity. The model persists the credential (per-Mac Keychain) and creates
+    // or dedupes the saved-Mac record. serverId/serverName are absent on older Macs.
+    var onPaired: ((_ deviceId: String, _ token: String, _ serverId: String?, _ serverName: String?) -> Void)?
+    // A reconnect reached `ready` carrying the Mac's identity, so the active
+    // record can learn/refresh its serverId and name. Absent on older Macs.
+    var onIdentity: ((_ serverId: String?, _ serverName: String?) -> Void)?
     // The desktop acknowledged (or rejected) an apnsToken registration.
     var onApnsToken: ((_ ok: Bool) -> Void)?
     // Composer parity replies.
@@ -461,15 +468,16 @@ final class LpmClient: NSObject {
     /// Dispatch one parsed inbound frame. Always called on the main queue.
     private func dispatch(_ frame: Wire.Inbound) {
         switch frame {
-            case .paired(let deviceId, let token):
+            case .paired(let deviceId, let token, let serverId, let serverName):
                 self.credential = Credential(deviceId: deviceId, token: token)
                 self.pairingCode = nil
-                Keychain.save(deviceId: deviceId, token: token)
                 self.set(.ready)
                 self.onConnected()
                 self.flushPending()
+                // The model owns the Keychain (per-Mac) and the saved-Mac record.
+                self.onPaired?(deviceId, token, serverId, serverName)
                 self.onProjectsChanged?()
-            case .ready:
+            case .ready(let serverId, let serverName):
                 self.set(.ready)
                 self.onConnected()
                 // Re-subscribe to any terminals we were watching before a drop.
@@ -477,6 +485,7 @@ final class LpmClient: NSObject {
                 // Re-watch git for any review screen that was open before a drop.
                 for p in self.watchedProjects { self.sendLive(Wire.gitWatch(project: p as! String)) }
                 self.flushPending()
+                self.onIdentity?(serverId, serverName)
             case .error(let e):
                 self.fatal(e)
             case .projects(let p): self.onProjects?(p)

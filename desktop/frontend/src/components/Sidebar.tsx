@@ -171,8 +171,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       if (arr) arr.push(p);
       else bySlug.set(slug, [p]);
     }
+    // A connected peer always gets a section, even with no projects yet, so its
+    // header (and the add-project button in it) is reachable on a fresh host.
     return peerState.peers
-      .filter((peer) => peer.connected && bySlug.has(peer.slug))
+      .filter((peer) => peer.connected)
       .map((peer) => ({
         slug: peer.slug,
         alias: peer.alias || peer.host,

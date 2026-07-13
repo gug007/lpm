@@ -62,6 +62,7 @@ export const GLOBAL_PEER_EVENTS = new Set<string>([
   "action-done",
   "action-bg-output",
   "templates-changed",
+  "clone-done",
 ]);
 
 // Scan a command's arguments (top level + one array level deep) for peer
@@ -162,6 +163,16 @@ export function translatePeerEventPayload(
         const p = payload as { path?: unknown };
         if (typeof p.path === "string") {
           return { ...(payload as object), path: prefixRoot(slug, p.path) };
+        }
+      }
+      return payload;
+    case "clone-done":
+      // { name: hostProjectName, ok, error } — prefix the name so a client
+      // waiting on its remote clone matches on the id it can actually see.
+      if (payload && typeof payload === "object") {
+        const p = payload as { name?: unknown };
+        if (typeof p.name === "string") {
+          return { ...(payload as object), name: prefixName(slug, p.name) };
         }
       }
       return payload;

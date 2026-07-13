@@ -14,6 +14,7 @@ import { FeedbackModal } from "./components/FeedbackModal";
 import { NewProjectPicker } from "./components/NewProjectPicker";
 import { AddSSHProjectModal } from "./components/AddSSHProjectModal";
 import { AddCloneRepoModal } from "./components/AddCloneRepoModal";
+import { RemoteFolderPickerHost } from "./components/RemoteFolderPickerHost";
 import { PortConflictDialog } from "./components/PortConflictDialog";
 import { FileViewerHost } from "./components/FileViewerHost";
 import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverlayHost";
@@ -325,6 +326,7 @@ export default function App() {
       <NewProjectPicker />
       <AddSSHProjectModal />
       <AddCloneRepoModal />
+      <RemoteFolderPickerHost />
       <PortConflictDialog />
       <FileViewerHost />
       <TerminalDropOverlayHost />

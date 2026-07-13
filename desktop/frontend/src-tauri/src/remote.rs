@@ -106,6 +106,10 @@ struct RemoteConfig {
     pairing_code: String, // non-empty while an unused pairing code is outstanding
     tailscale: bool, // advertise this Mac's Tailscale address in the pairing QR
     push_relay: String, // override for the APNs relay URL (empty => DEFAULT_PUSH_RELAY)
+    // Stable identity of this Mac, minted on first run and persisted. Sent to the
+    // phone so it can distinguish and label multiple paired Macs, and mixed into
+    // the push collapse id so same-named projects on different Macs don't collide.
+    server_id: Option<String>,
     devices: Vec<Device>,
 }
 
@@ -118,6 +122,7 @@ impl Default for RemoteConfig {
             pairing_code: String::new(),
             tailscale: true, // away-from-home works out of the box; the toggle opts out
             push_relay: String::new(),
+            server_id: None,
             devices: Vec::new(),
         }
     }
@@ -133,6 +138,37 @@ impl RemoteConfig {
             self.push_relay.clone()
         }
     }
+
+    /// Fill in a stable server id if absent, returning whether one was minted (so
+    /// the caller knows to persist).
+    fn ensure_server_id(&mut self) -> bool {
+        if self.server_id.as_deref().unwrap_or_default().is_empty() {
+            self.server_id = Some(uuid::Uuid::new_v4().to_string());
+            true
+        } else {
+            false
+        }
+    }
+}
+
+/// This Mac's user-visible name, resolved once per process. Prefers the Sharing
+/// pane's ComputerName, falling back to the local hostname, then a literal.
+fn server_name() -> String {
+    static NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    NAME.get_or_init(|| {
+        for key in ["ComputerName", "LocalHostName"] {
+            if let Ok(out) = std::process::Command::new("scutil").arg("--get").arg(key).output() {
+                if out.status.success() {
+                    let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                    if !name.is_empty() {
+                        return name;
+                    }
+                }
+            }
+        }
+        "Mac".to_string()
+    })
+    .clone()
 }
 
 fn effective_port(p: u16) -> u16 {
@@ -231,6 +267,19 @@ pub struct RemoteHub {
 impl RemoteHub {
     fn config(&self) -> RemoteConfig {
         self.inner.config.lock().unwrap().clone()
+    }
+
+    /// This Mac's stable id, minting and persisting one if it is somehow still
+    /// unset (start() normally does this at load time).
+    fn server_id(&self) -> String {
+        let mut cfg = self.inner.config.lock().unwrap();
+        if cfg.ensure_server_id() {
+            let snapshot = cfg.clone();
+            drop(cfg);
+            let _ = save_config(&snapshot);
+            return snapshot.server_id.unwrap_or_default();
+        }
+        cfg.server_id.clone().unwrap_or_default()
     }
 
     fn device_exists(&self, id: &str) -> bool {
@@ -355,7 +404,11 @@ fn mobile_owner(hub: &RemoteHub, device_id: &str) -> crate::control::Owner {
 /// Load persisted config, install event forwarders, and start the server if
 /// enabled. Called once from lib.rs setup (mirrors socketsrv::start).
 pub fn start(hub: RemoteHub, app: AppHandle) {
-    *hub.inner.config.lock().unwrap() = load_config();
+    let mut cfg = load_config();
+    if cfg.ensure_server_id() {
+        let _ = save_config(&cfg);
+    }
+    *hub.inner.config.lock().unwrap() = cfg;
     install_forwarders(&hub, &app);
     apply(&hub, &app);
 }
@@ -577,7 +630,14 @@ fn authenticate(ws: &mut WebSocket<TcpStream>, hub: &RemoteHub) -> Option<AuthOu
             match pair_device(hub, code, name) {
                 Some((id, token)) => {
                     let _ = ws.send(Message::text(
-                        json!({ "t": "paired", "deviceId": id, "token": token }).to_string(),
+                        json!({
+                            "t": "paired",
+                            "deviceId": id,
+                            "token": token,
+                            "serverId": hub.server_id(),
+                            "serverName": server_name(),
+                        })
+                        .to_string(),
                     ));
                     Some(AuthOutcome::Paired(id))
                 }
@@ -593,7 +653,14 @@ fn authenticate(ws: &mut WebSocket<TcpStream>, hub: &RemoteHub) -> Option<AuthOu
             let id = v.get("deviceId").and_then(Value::as_str).unwrap_or_default();
             let token = v.get("token").and_then(Value::as_str).unwrap_or_default();
             if check_device(hub, id, token) {
-                let _ = ws.send(Message::text(json!({ "t": "ready" }).to_string()));
+                let _ = ws.send(Message::text(
+                    json!({
+                        "t": "ready",
+                        "serverId": hub.server_id(),
+                        "serverName": server_name(),
+                    })
+                    .to_string(),
+                ));
                 Some(AuthOutcome::Resumed(id.to_string()))
             } else {
                 let _ = ws.send(Message::text(
@@ -2239,10 +2306,12 @@ fn dedup_status_pushes(
 }
 
 /// The `apns-collapse-id` for an alert about a status entry: sha-256 hex of
-/// `"<project>|<key>"` truncated to 60 chars, so a later transition on the same
-/// pane replaces the shown notification instead of stacking a new one.
-fn push_collapse_id(project: &str, key: &str) -> String {
-    let mut id = sha256_hex(format!("{project}|{key}").as_bytes());
+/// `"<server_id>|<project>|<key>"` truncated to 60 chars, so a later transition on
+/// the same pane replaces the shown notification instead of stacking a new one.
+/// The server id keeps two Macs with same-named projects from collapsing each
+/// other's notifications on a phone paired with both.
+fn push_collapse_id(server_id: &str, project: &str, key: &str) -> String {
+    let mut id = sha256_hex(format!("{server_id}|{project}|{key}").as_bytes());
     id.truncate(60);
     id
 }
@@ -2294,6 +2363,35 @@ struct PushJob {
     ts: i64,
     key: String,
     collapse_id: String,
+}
+
+/// The sealed plaintext for an alert push: the status entry plus this Mac's
+/// `serverId`, which the phone uses to scope notification matching so a same-named
+/// project on another paired Mac isn't confused with this one.
+fn alert_payload(server_id: &str, project: &str, job: &PushJob) -> String {
+    json!({
+        "serverId": server_id,
+        "project": project,
+        "terminal": job.terminal,
+        "status": job.value,
+        "ts": job.ts,
+        "key": job.key,
+    })
+    .to_string()
+}
+
+/// The sealed plaintext for a withdrawal (silent) push: the vanished entry keys
+/// plus this Mac's `serverId`, scoping which delivered notifications the phone
+/// removes so it can't clear another paired Mac's notifications.
+fn clear_payload(server_id: &str, project: &str, keys: &[String]) -> String {
+    json!({
+        "serverId": server_id,
+        "clear": keys
+            .iter()
+            .map(|k| json!({ "project": project, "key": k }))
+            .collect::<Vec<_>>(),
+    })
+    .to_string()
 }
 
 /// Decode a device into a `PushDevice`, or None when its push key isn't a valid
@@ -2397,6 +2495,7 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
     // concurrent in-memory registration.
     let cfg = load_config();
     let relay = cfg.effective_relay();
+    let server_id = cfg.server_id.clone().unwrap_or_default();
     let recipients: Vec<PushDevice> = if want_alert {
         alert_recipients(&cfg.devices, &connected)
     } else {
@@ -2420,7 +2519,7 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
                     .get(&key)
                     .and_then(|pane| labels.get(pane).cloned())
                     .unwrap_or_default();
-                let collapse_id = push_collapse_id(project, &key);
+                let collapse_id = push_collapse_id(&server_id, project, &key);
                 PushJob { terminal, value, ts, key, collapse_id }
             })
             .collect()
@@ -2442,14 +2541,7 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
         // Alert pushes, one per (device, wanted job).
         for dev in &recipients {
             for job in jobs.iter().filter(|j| dev.wants(&j.value)) {
-                let plaintext = json!({
-                    "project": project,
-                    "terminal": job.terminal,
-                    "status": job.value,
-                    "ts": job.ts,
-                    "key": job.key,
-                })
-                .to_string();
+                let plaintext = alert_payload(&server_id, &project, job);
                 let Some(blob) = seal_push(&dev.key, plaintext.as_bytes()) else {
                     continue;
                 };
@@ -2468,13 +2560,7 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
 
         // Withdrawal: one batched background push per registered device.
         if !clear_recipients.is_empty() {
-            let clear_plaintext = json!({
-                "clear": vanished_keys
-                    .iter()
-                    .map(|k| json!({ "project": project, "key": k }))
-                    .collect::<Vec<_>>(),
-            })
-            .to_string();
+            let clear_plaintext = clear_payload(&server_id, &project, &vanished_keys);
             for dev in &clear_recipients {
                 let Some(blob) = seal_push(&dev.key, clear_plaintext.as_bytes()) else {
                     continue;
@@ -2985,6 +3071,7 @@ mod tests {
             pairing_code: "AB12-CD34".into(),
             tailscale: true,
             push_relay: "http://localhost:3000/api/push".into(),
+            server_id: Some("srv-1".into()),
             devices: vec![Device {
                 id: "d1".into(),
                 name: "iPhone".into(),
@@ -3002,6 +3089,7 @@ mod tests {
         let back: RemoteConfig = serde_json::from_str(&s).unwrap();
         assert_eq!(back.port, 9000);
         assert!(back.enabled && back.lan);
+        assert_eq!(back.server_id.as_deref(), Some("srv-1"));
         assert_eq!(back.push_relay, "http://localhost:3000/api/push");
         assert_eq!(back.effective_relay(), "http://localhost:3000/api/push");
         assert_eq!(back.devices.len(), 1);
@@ -3031,6 +3119,7 @@ mod tests {
         }"#;
         let cfg: RemoteConfig = serde_json::from_str(json).unwrap();
         assert!(cfg.push_relay.is_empty());
+        assert!(cfg.server_id.is_none());
         assert_eq!(cfg.effective_relay(), DEFAULT_PUSH_RELAY);
         assert_eq!(cfg.devices.len(), 1);
         assert!(cfg.devices[0].apns_token.is_empty());
@@ -3092,12 +3181,54 @@ mod tests {
 
     #[test]
     fn collapse_id_is_deterministic_hex_60() {
-        let id = push_collapse_id("web-app", "pane-1");
+        let id = push_collapse_id("srv-a", "web-app", "pane-1");
         assert_eq!(id.len(), 60);
         assert!(id.chars().all(|c| c.is_ascii_hexdigit()));
-        assert_eq!(id, push_collapse_id("web-app", "pane-1"), "deterministic");
-        assert_ne!(id, push_collapse_id("web-app", "pane-2"), "key participates");
-        assert_ne!(id, push_collapse_id("other", "pane-1"), "project participates");
+        assert_eq!(id, push_collapse_id("srv-a", "web-app", "pane-1"), "deterministic");
+        assert_ne!(id, push_collapse_id("srv-a", "web-app", "pane-2"), "key participates");
+        assert_ne!(id, push_collapse_id("srv-a", "other", "pane-1"), "project participates");
+        assert_ne!(id, push_collapse_id("srv-b", "web-app", "pane-1"), "server participates");
+    }
+
+    #[test]
+    fn ensure_server_id_mints_once_and_is_stable() {
+        let mut cfg = RemoteConfig::default();
+        assert!(cfg.server_id.is_none());
+        assert!(cfg.ensure_server_id(), "first call mints");
+        let first = cfg.server_id.clone().unwrap();
+        assert!(!first.is_empty());
+        assert!(!cfg.ensure_server_id(), "second call is a no-op");
+        assert_eq!(cfg.server_id.as_deref(), Some(first.as_str()), "stable across calls");
+    }
+
+    #[test]
+    fn alert_payload_carries_server_id_and_fields() {
+        let job = PushJob {
+            terminal: "Ultracode".into(),
+            value: STATUS_WAITING.into(),
+            ts: 123,
+            key: "pane-1".into(),
+            collapse_id: "ignored".into(),
+        };
+        let v: Value = serde_json::from_str(&alert_payload("srv-a", "web-app", &job)).unwrap();
+        assert_eq!(v["serverId"], "srv-a");
+        assert_eq!(v["project"], "web-app");
+        assert_eq!(v["terminal"], "Ultracode");
+        assert_eq!(v["status"], STATUS_WAITING);
+        assert_eq!(v["ts"], 123);
+        assert_eq!(v["key"], "pane-1");
+    }
+
+    #[test]
+    fn clear_payload_carries_server_id_and_keys() {
+        let keys = vec!["pane-1".to_string(), "pane-2".to_string()];
+        let v: Value = serde_json::from_str(&clear_payload("srv-a", "web-app", &keys)).unwrap();
+        assert_eq!(v["serverId"], "srv-a");
+        let cleared = v["clear"].as_array().unwrap();
+        assert_eq!(cleared.len(), 2);
+        assert_eq!(cleared[0]["project"], "web-app");
+        assert_eq!(cleared[0]["key"], "pane-1");
+        assert_eq!(cleared[1]["key"], "pane-2");
     }
 
     #[test]

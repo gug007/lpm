@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { StatusDot } from "./StatusDot";
-import { ChevronRightIcon, XIcon } from "./icons";
+import { ChevronRightIcon, PlusIcon, XIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { peerRawName, peerSlugOf } from "../peer/markers";
 import { isPeerSectionCollapsed, setPeerSectionCollapsed } from "../peer/peerSectionCollapse";
@@ -45,10 +45,9 @@ export function SidebarPeerSection({
   onSelect: (name: string) => void;
 }) {
   const clearSelection = useAppStore((s) => s.clearSelection);
+  const addProjectForPeer = useAppStore((s) => s.addProjectForPeer);
   const [collapsed, setCollapsed] = useState(() => isPeerSectionCollapsed(slug));
   const [confirmOpen, setConfirmOpen] = useState(false);
-
-  if (projects.length === 0) return null;
 
   const toggle = () => {
     setCollapsed((prev) => {
@@ -70,7 +69,7 @@ export function SidebarPeerSection({
       <div className="group/peer relative">
         <button
           onClick={toggle}
-          className="flex w-full select-none items-center gap-1 rounded-md px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)] group-hover/peer:pr-9"
+          className="flex w-full select-none items-center gap-1 rounded-md px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)] group-hover/peer:pr-16"
         >
           <span
             className={`shrink-0 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
@@ -79,11 +78,23 @@ export function SidebarPeerSection({
           </span>
           <span className="truncate">{alias}</span>
           <span className="shrink-0 opacity-70">— remote</span>
-          {collapsed && (
+          {collapsed && projects.length > 0 && (
             <span className="ml-auto shrink-0 text-[11px] tabular-nums text-[var(--text-muted)] transition-opacity group-hover/peer:opacity-0">
               {projects.length}
             </span>
           )}
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            addProjectForPeer(slug, alias);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="absolute right-8 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] pointer-events-none opacity-0 group-hover/peer:pointer-events-auto group-hover/peer:opacity-100 [&_svg]:h-3.5 [&_svg]:w-3.5"
+          title={`Add project on ${alias}`}
+          aria-label={`Add project on ${alias}`}
+        >
+          <PlusIcon />
         </button>
         <button
           onClick={(e) => {

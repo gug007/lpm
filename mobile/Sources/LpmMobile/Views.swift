@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-// Root view: show pairing until we have a credential, then the projects list.
+// Root view: show pairing until at least one Mac is saved, then the projects list.
 struct ContentView: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.scenePhase) private var scenePhase
@@ -10,10 +10,10 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if model.paired {
-                NavigationStack(path: $path) { ProjectsView() }
-            } else {
+            if model.macs.isEmpty {
                 PairingView()
+            } else {
+                NavigationStack(path: $path) { ProjectsView() }
             }
         }
         .onChange(of: scenePhase) { _, phase in
@@ -39,6 +39,9 @@ struct ContentView: View {
 }
 
 struct PairingView: View {
+    // Non-nil when shown as the "Add a Mac" sheet: adds a Cancel button that
+    // returns to the projects list (reconnecting the previously active Mac).
+    var onCancel: (() -> Void)? = nil
     @EnvironmentObject var model: AppModel
     @State private var host = ""
     @State private var port = "8765"
@@ -194,6 +197,13 @@ struct PairingView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+        .toolbar {
+            if let onCancel {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { onCancel() }
+                }
+            }
+        }
         .sheet(isPresented: $scanning) {
             QRScannerView { payload in
                 host = payload.host
@@ -234,7 +244,9 @@ struct PairingFieldRow: View {
 struct ProjectsView: View {
     @EnvironmentObject var model: AppModel
     @State private var expandedOverride: [String: Bool] = [:]
-    @State private var confirmingLogout = false
+    @State private var confirmingRemove = false
+    @State private var renamingMac = false
+    @State private var renameText = ""
     @State private var showingNotifications = false
     // The duplicate pending removal-confirmation. Removing deletes its folder from
     // disk, so it always routes through a confirmation dialog.
@@ -244,6 +256,26 @@ struct ProjectsView: View {
     @State private var duplicating: Project?
 
     private func isExpanded(_ g: ProjectFolder) -> Bool { expandedOverride[g.id] ?? !g.collapsed }
+
+    /// A friendly reference to a Mac in confirmation copy: its name in quotes, or
+    /// "the Mac at <address>" while it's still identified only by an IP.
+    private func macReference(_ record: MacRecord) -> String {
+        record.isAddressName ? "the Mac at \(record.displayAddress)" : "“\(record.name)”"
+    }
+
+    private var removeMacTitle: String {
+        guard let active = model.activeRecord else { return "Remove this Mac?" }
+        return active.isAddressName ? "Remove this Mac?" : "Remove “\(active.name)”?"
+    }
+
+    private var removeMacMessage: String {
+        let active = model.activeRecord
+        let first = (active?.isAddressName ?? false)
+            ? "This iPhone will be unpaired from the Mac at \(active!.displayAddress) and its notifications will stop."
+            : "This iPhone will be unpaired and notifications from this Mac will stop."
+        let switchSentence = model.nextMacAfterRemoval.map { " You’ll switch to \(macReference($0))." } ?? ""
+        return first + switchSentence + " To add it back, scan its QR code again."
+    }
 
     var body: some View {
         List {
@@ -279,13 +311,16 @@ struct ProjectsView: View {
             ToolbarItem(placement: .topBarLeading) {
                 ConnectionIndicator(state: model.connection)
             }
+            ToolbarItem(placement: .principal) {
+                MacSwitcherMenu()
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button { showingNotifications = true } label: {
                         Label("Notifications", systemImage: "bell.badge")
                     }
-                    Button(role: .destructive) { confirmingLogout = true } label: {
-                        Label("Log out", systemImage: "rectangle.portrait.and.arrow.right")
+                    Button(role: .destructive) { confirmingRemove = true } label: {
+                        Label("Remove this Mac", systemImage: "trash")
                     }
                 } label: {
                     Image(systemName: "ellipsis")
@@ -318,11 +353,17 @@ struct ProjectsView: View {
             }
         }
         .animation(.default, value: model.projectsLoaded)
-        .confirmationDialog("Log out of this Mac?", isPresented: $confirmingLogout, titleVisibility: .visible) {
-            Button("Log out", role: .destructive) { model.logout() }
+        .alert(removeMacTitle, isPresented: $confirmingRemove) {
+            Button("Remove", role: .destructive) { model.removeActiveMac() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This device will be unpaired. You'll need to scan a new QR code to reconnect.")
+            Text(removeMacMessage)
+        }
+        .sheet(isPresented: $model.addingMac, onDismiss: { model.cancelAddMac() }) {
+            NavigationStack {
+                PairingView(onCancel: { model.addingMac = false })
+                    .navigationBarTitleDisplayMode(.inline)
+            }
         }
         .confirmationDialog(
             "Remove duplicate?",

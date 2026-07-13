@@ -104,25 +104,27 @@ pub fn create_ssh_project(app: AppHandle, name: String, ssh: SshConfig) -> Resul
 
 // ---- clone ------------------------------------------------------------------
 
-#[tauri::command(async)]
-pub fn create_project_from_clone(
-    app: AppHandle,
-    name: String,
-    url: String,
-    branch: String,
-    dest_parent: String,
-) -> Result<(), String> {
-    config::validate_name(&name)?;
-    if config::project_exists(&name) {
+/// Fast, synchronous validation shared by the local and remote clone flows.
+/// Returns the normalized branch (empty = default) and the resolved destination
+/// folder. Never touches the network, so it's safe to run inline before handing
+/// a slow clone off to a background thread.
+fn validate_clone_request(
+    name: &str,
+    url: &str,
+    branch: &str,
+    dest_parent: &str,
+) -> Result<(String, PathBuf), String> {
+    config::validate_name(name)?;
+    if config::project_exists(name) {
         return Err(format!("project {name:?} already exists"));
     }
-    validate_clone_url(&url)?;
+    validate_clone_url(url)?;
     let branch = branch.trim().to_string();
     if !branch.is_empty() {
         validate_branch_name(&branch)?;
     }
 
-    let parent = Path::new(&dest_parent);
+    let parent = Path::new(dest_parent);
     let meta = std::fs::metadata(parent)
         .map_err(|_| format!("destination parent does not exist: {dest_parent}"))?;
     if !meta.is_dir() {
@@ -130,19 +132,25 @@ pub fn create_project_from_clone(
     }
     check_writable(parent)?;
 
-    let dest = parent.join(&name);
+    let dest = parent.join(name);
     if dest.exists() {
         return Err(format!("destination folder: {} already exists", dest.display()));
     }
+    Ok((branch, dest))
+}
 
+/// Run the (network-blocking) clone into `dest`; on success write the project
+/// config and emit `projects-changed`, otherwise clean up the partial clone.
+/// `branch` empty means the repository's default branch.
+fn run_clone(app: &AppHandle, name: &str, url: &str, branch: &str, dest: &Path) -> Result<(), String> {
     let mut argv: Vec<String> = vec!["clone".into(), "--progress".into()];
     if !branch.is_empty() {
         argv.push("--branch".into());
-        argv.push(branch.clone());
+        argv.push(branch.to_string());
         argv.push("--single-branch".into());
     }
     argv.push("--".into());
-    argv.push(url.clone());
+    argv.push(url.to_string());
     argv.push(dest.to_string_lossy().into_owned());
 
     let out = Command::new("git")
@@ -153,20 +161,70 @@ pub fn create_project_from_clone(
         let mut combined = out.stdout.clone();
         combined.extend_from_slice(&out.stderr);
         let msg = clean_git_output(&String::from_utf8_lossy(&combined));
-        clone_cleanup(&dest);
+        clone_cleanup(dest);
         return Err(map_clone_error(&msg));
     }
 
-    let write = write_project_yaml(&name, |m| {
-        yset(m, "name", name.as_str());
+    let write = write_project_yaml(name, |m| {
+        yset(m, "name", name);
         yset(m, "root", config::collapse_home(&dest.to_string_lossy()).as_str());
         m.insert(Yaml::from("services"), dev_services());
     });
     if let Err(e) = write {
-        clone_cleanup(&dest);
+        clone_cleanup(dest);
         return Err(e);
     }
     let _ = app.emit("projects-changed", ());
+    Ok(())
+}
+
+#[tauri::command(async)]
+pub fn create_project_from_clone(
+    app: AppHandle,
+    name: String,
+    url: String,
+    branch: String,
+    dest_parent: String,
+) -> Result<(), String> {
+    let (branch, dest) = validate_clone_request(&name, &url, &branch, &dest_parent)?;
+    run_clone(&app, &name, &url, &branch, &dest)
+}
+
+/// Outcome of a `start_clone_project` clone, delivered via the `clone-done`
+/// event once the background thread finishes.
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct CloneDone {
+    name: String,
+    ok: bool,
+    error: Option<String>,
+}
+
+/// Async-shaped clone for the peer proxy: validate synchronously (so a bad
+/// request fails the caller immediately, well within the dispatch timeout), then
+/// run the network-blocking clone on a background thread and report the outcome
+/// via a `clone-done` event. Used when adding a project on a remote Mac, where a
+/// large clone can outlast the peer dispatch deadline.
+#[tauri::command(async)]
+pub fn start_clone_project(
+    app: AppHandle,
+    name: String,
+    url: String,
+    branch: String,
+    dest_parent: String,
+) -> Result<(), String> {
+    let (branch, dest) = validate_clone_request(&name, &url, &branch, &dest_parent)?;
+    std::thread::spawn(move || {
+        let result = run_clone(&app, &name, &url, &branch, &dest);
+        let _ = app.emit(
+            "clone-done",
+            CloneDone {
+                name,
+                ok: result.is_ok(),
+                error: result.err(),
+            },
+        );
+    });
     Ok(())
 }
 

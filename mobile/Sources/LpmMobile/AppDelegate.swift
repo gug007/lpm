@@ -59,13 +59,17 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         })
         guard !targets.isEmpty else { completionHandler(.noData); return }
 
+        // The Mac this clear came from (absent on old Macs), so a clear only
+        // withdraws notifications posted by the same Mac.
+        let incomingServerId = payload["serverId"] as? String
         let center = UNUserNotificationCenter.current()
         center.getDeliveredNotifications { delivered in
             let ids = delivered.compactMap { note -> String? in
                 let info = note.request.content.userInfo
                 guard let project = info["project"] as? String,
                       let key = info["statusKey"] as? String,
-                      targets.contains(PushPayload.statusIdentity(project: project, statusKey: key))
+                      targets.contains(PushPayload.statusIdentity(project: project, statusKey: key)),
+                      PushPayload.serverIdsMatch(info["serverId"] as? String, incomingServerId)
                 else { return nil }
                 return note.request.identifier
             }

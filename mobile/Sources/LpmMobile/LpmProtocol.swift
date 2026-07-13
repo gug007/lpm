@@ -210,8 +210,8 @@ enum Wire {
     // MARK: Inbound
 
     enum Inbound {
-        case paired(deviceId: String, token: String)
-        case ready
+        case paired(deviceId: String, token: String, serverId: String?, serverName: String?)
+        case ready(serverId: String?, serverName: String?)
         case error(String)
         case projects([Project])
         case sidebar(order: [String], groups: [ProjectFolder])
@@ -289,8 +289,12 @@ enum Wire {
             switch t {
             case "paired":
                 return .paired(deviceId: obj["deviceId"] as? String ?? "",
-                               token: obj["token"] as? String ?? "")
-            case "ready": return .ready
+                               token: obj["token"] as? String ?? "",
+                               serverId: obj["serverId"] as? String,
+                               serverName: obj["serverName"] as? String)
+            case "ready":
+                return .ready(serverId: obj["serverId"] as? String,
+                              serverName: obj["serverName"] as? String)
             case "error": return .error(obj["error"] as? String ?? "error")
             case "projects":
                 return .projects((obj["projects"] as? [[String: Any]] ?? []).map(Project.init))

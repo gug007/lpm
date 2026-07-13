@@ -28,6 +28,7 @@ import {
   ListProjects,
   ListTemplates,
   MoveProjectRoot,
+  PeerState,
   ReadConfig,
   RemoveProject,
   RemoveProjectCascade,
@@ -36,11 +37,13 @@ import {
   ResolvePortConflict,
   SaveConfig,
   SetProjectLabel,
+  StartCloneProject,
   StartProject,
   StopProject,
   ToggleProjectService,
   TrashProject,
 } from "../../bridge/commands";
+import { EventsOn } from "../../bridge/runtime";
 import type { main } from "../../bridge/models";
 import { getSettings, loadSettings, saveSettings } from "./settings";
 import { loadGroups, saveGroups, type GroupsConfig } from "./groups";
@@ -62,7 +65,7 @@ import {
   layoutsEqual,
 } from "../components/sidebarLayout";
 import { forgetProjectTerminals, appendPersistedTab, removePersistedTabById } from "../terminals";
-import { isPeerName } from "../peer/markers";
+import { isPeerName, prefixName, prefixRoot } from "../peer/markers";
 import { activeChatStorageKey } from "../components/NotesView";
 import { ACTION_SECTIONS, type ActionSection } from "../actionConfig";
 import { editGlobalDoc, editProjectDoc, editRepoDoc } from "../yamlQueue";
@@ -134,6 +137,11 @@ interface AppState {
   // once per mount.
   spawnTasks: Record<string, { tasks: SpawnTask[]; nonce: number }>;
   addProjectPickerOpen: boolean;
+  // Non-null when the add-project flow targets a remote Mac (peer). The whole
+  // flow — picker, clone modal, folder browser — reads this to route creation to
+  // the peer instead of the local machine.
+  addProjectTarget: { slug: string; alias: string } | null;
+  remoteFolderPickerOpen: boolean;
   sshModalOpen: boolean;
   addingSSHProject: boolean;
   cloneModalOpen: boolean;
@@ -177,7 +185,10 @@ interface AppState {
     conflicts: main.PortConflictInfo[],
   ) => Promise<boolean>;
   addProject: () => void;
+  addProjectForPeer: (slug: string, alias: string) => void;
   closeAddProjectPicker: () => void;
+  closeRemoteFolderPicker: () => void;
+  createRemoteProjectFromFolder: (hostDir: string) => Promise<void>;
   pickAddProjectKind: (kind: "local" | "ssh" | "clone") => Promise<void>;
   closeSSHModal: () => void;
   addSSHProject: (params: SSHProjectParams) => Promise<void>;
@@ -549,6 +560,55 @@ let remoteRequestNonce = 0;
 // gets silently dropped — the same hazard `remoteRequestNonce` guards against.
 let spawnTaskNonce = 0;
 
+// Rejected from a remote clone wait when the peer drops mid-clone, so the caller
+// can distinguish "connection lost" (toast) from a clone failure (modal error).
+class LostPeerError extends Error {
+  constructor() {
+    super("Lost connection to the remote Mac.");
+    this.name = "LostPeerError";
+  }
+}
+
+// Wait for a clone started on a peer via StartCloneProject to finish. Resolves on
+// the matching `clone-done` (peer payloads arrive translated, so match on the
+// prefixed name); rejects on a clone error, or with LostPeerError if the peer
+// disconnects mid-clone. Listeners are torn down on settle or via `cancel`, so no
+// global subscription leaks when the start call itself fails.
+function waitForRemoteClone(
+  prefixedName: string,
+  slug: string,
+): { promise: Promise<void>; cancel: () => void } {
+  let cleanup = () => {};
+  const promise = new Promise<void>((resolve, reject) => {
+    let off = () => {};
+    let offPeer = () => {};
+    cleanup = () => {
+      off();
+      offPeer();
+    };
+    off = EventsOn("clone-done", (payload) => {
+      const p = payload as { name?: string; ok?: boolean; error?: string } | null;
+      if (!p || p.name !== prefixedName) return;
+      cleanup();
+      if (p.ok) resolve();
+      else reject(new Error(p.error || "Clone failed"));
+    });
+    offPeer = EventsOn("peer-state-changed", () => {
+      void PeerState()
+        .then((s) => {
+          const peers =
+            (s as { peers?: { slug: string; connected: boolean }[] } | null)?.peers ?? [];
+          if (!peers.some((pe) => pe.slug === slug && pe.connected)) {
+            cleanup();
+            reject(new LostPeerError());
+          }
+        })
+        .catch(() => {});
+    });
+  });
+  return { promise, cancel: () => cleanup() };
+}
+
 const projectsByName = (projects: ProjectInfo[]): Map<string, ProjectInfo> =>
   new Map(projects.map((p) => [p.name, p]));
 
@@ -599,6 +659,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   spawnTasks: {},
   removingNames: new Set<string>(),
   addProjectPickerOpen: false,
+  addProjectTarget: null,
+  remoteFolderPickerOpen: false,
   sshModalOpen: false,
   addingSSHProject: false,
   cloneModalOpen: false,
@@ -826,11 +888,38 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  addProject: () => set({ addProjectPickerOpen: true }),
+  addProject: () => set({ addProjectTarget: null, addProjectPickerOpen: true }),
 
-  closeAddProjectPicker: () => set({ addProjectPickerOpen: false }),
+  addProjectForPeer: (slug, alias) =>
+    set({ addProjectTarget: { slug, alias }, addProjectPickerOpen: true }),
+
+  closeAddProjectPicker: () => set({ addProjectPickerOpen: false, addProjectTarget: null }),
+
+  closeRemoteFolderPicker: () =>
+    set({ remoteFolderPickerOpen: false, addProjectTarget: null }),
+
+  createRemoteProjectFromFolder: async (hostDir) => {
+    const target = get().addProjectTarget;
+    if (!target) return;
+    const name = hostDir.split("/").filter(Boolean).pop() || "new-project";
+    try {
+      // The marked root routes CreateProject to the peer (marker stripped before
+      // it reaches the host), so the folder is adopted on the remote Mac.
+      await CreateProject(name, prefixRoot(target.slug, hostDir));
+      await get().refreshProjects();
+      set({
+        selected: prefixName(target.slug, name),
+        view: "projects",
+        remoteFolderPickerOpen: false,
+        addProjectTarget: null,
+      });
+    } catch (err) {
+      toast.error(`Failed to add project on ${target.alias}: ${err}`);
+    }
+  },
 
   pickAddProjectKind: async (kind) => {
+    const target = get().addProjectTarget;
     set({ addProjectPickerOpen: false });
     if (kind === "ssh") {
       set({ sshModalOpen: true });
@@ -838,6 +927,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     if (kind === "clone") {
       set({ cloneModalOpen: true });
+      return;
+    }
+    // Local Folder: on a peer, browse the host filesystem; locally, use the
+    // native picker.
+    if (target) {
+      set({ remoteFolderPickerOpen: true });
       return;
     }
     try {
@@ -958,7 +1053,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   openAddCloneModal: () => set({ cloneModalOpen: true }),
 
-  closeAddCloneModal: () => set({ cloneModalOpen: false }),
+  closeAddCloneModal: () => set({ cloneModalOpen: false, addProjectTarget: null }),
 
   addCloneProject: async (params) => {
     if (get().addingCloneProject) return;
@@ -971,16 +1066,44 @@ export const useAppStore = create<AppState>((set, get) => ({
         "Repository URL, destination, and project name are required.",
       );
     }
+    const target = get().addProjectTarget;
     set({ addingCloneProject: true });
     try {
-      await CreateProjectFromClone(name, url, branch, destParent);
-      await get().refreshProjects();
-      set({
-        selected: name,
-        view: "projects",
-        cloneModalOpen: false,
-      });
-      toast.success(`Cloned ${name}`);
+      if (target) {
+        // Remote clone: the host runs it on a background thread (it can outlast
+        // the peer dispatch timeout) and reports the result via `clone-done`.
+        const prefixed = prefixName(target.slug, name);
+        const waiter = waitForRemoteClone(prefixed, target.slug);
+        try {
+          await StartCloneProject(name, url, branch, prefixRoot(target.slug, destParent));
+        } catch (err) {
+          waiter.cancel();
+          throw err;
+        }
+        await waiter.promise;
+        await get().refreshProjects();
+        set({
+          selected: prefixed,
+          view: "projects",
+          cloneModalOpen: false,
+          addProjectTarget: null,
+        });
+        toast.success(`Cloned ${name} on ${target.alias}`);
+      } else {
+        await CreateProjectFromClone(name, url, branch, destParent);
+        await get().refreshProjects();
+        set({
+          selected: name,
+          view: "projects",
+          cloneModalOpen: false,
+        });
+        toast.success(`Cloned ${name}`);
+      }
+    } catch (err) {
+      // A dropped peer surfaces as a toast (the modal error line covers clone
+      // failures); rethrow so the modal clears its busy state and shows it too.
+      if (err instanceof LostPeerError) toast.error(err.message);
+      throw err;
     } finally {
       set({ addingCloneProject: false });
     }
