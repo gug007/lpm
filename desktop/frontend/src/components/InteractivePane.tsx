@@ -56,6 +56,7 @@ import {
   amControlOwner,
   onControlChange,
   applyControlOwner,
+  isOwnedByDetachedWindow,
   type ControlOwner,
 } from "../store/terminalControl";
 import {
@@ -660,11 +661,19 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   // Exactly one window acks a PTY's output — two acking the same bytes would
   // desync the single shared flow-control counter. The owner acks by default;
   // when a focused, visible mirror declares itself the ack authority (because
-  // the owner is hidden and its ack loop is throttled), the owner defers and the
-  // mirror acks instead, keeping the producer flowing for the window the user is
-  // actually watching. With no mirror both flags stay false → owner acks, as before.
+  // the owner is hidden and its ack loop is throttled), it takes over acking the
+  // terminals it renders live. Ack authority is scoped per terminal by control
+  // ownership: a mirror acks only the terminals it OWNS, and the owner defers
+  // only for the terminals a focused mirror owns — so terminals the mirror shows
+  // behind a "take control" placeholder, other projects, and background tabs keep
+  // being acked by the owner instead of starving while a mirror is focused. With
+  // no mirror both flags stay false → owner acks everything, as before.
   const ackData = (charCount: number) => {
-    if (IS_MIRROR_WINDOW ? !mirrorAmAckAuthority : mirrorIsAckAuthority) return;
+    if (IS_MIRROR_WINDOW) {
+      if (!mirrorAmAckAuthority || !amControlOwner(terminalId)) return;
+    } else if (mirrorIsAckAuthority && isOwnedByDetachedWindow(terminalId)) {
+      return;
+    }
     unsentAck += charCount;
     while (unsentAck >= ACK_SIZE) {
       unsentAck -= ACK_SIZE;

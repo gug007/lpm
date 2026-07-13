@@ -139,6 +139,7 @@ pub fn run() {
             // (matches the Wails app). Detached project windows close normally.
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "main" {
+                    mainwindow::persist_now(window.app_handle());
                     api.prevent_close();
                     let _ = window.hide();
                 }
@@ -216,6 +217,7 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app, event| match event {
             tauri::RunEvent::Exit => {
+                mainwindow::persist_now(app); // capture the final window bounds before teardown
                 tts::stop_on_exit(app); // kill any suspended python TTS child
                 portforward::stop_all_forwards(app); // kill ssh -L tunnels + pollers
                 statusfwd::stop_all(app); // kill ssh -R status forwards

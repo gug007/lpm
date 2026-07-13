@@ -2,17 +2,34 @@
 // Hidden (not destroyed) on close, so we save on every Moved/Resized. Single writer
 // of windowX/Y/Width/Height in logical px — the frontend resize-saver was removed to
 // avoid two writers using different coordinate spaces for the same keys.
-use crate::bounds::{read_logical_bounds, valid_bounds};
+use crate::bounds::{self, read_logical_bounds, valid_bounds};
 use crate::config;
-use tauri::{LogicalPosition, LogicalSize, WebviewWindow, WindowEvent};
+use std::sync::Arc;
+use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewWindow, WindowEvent};
 
 pub fn attach(win: &WebviewWindow) {
-    let w = win.clone();
+    let app = win.app_handle().clone();
+    let bounds_tx = bounds::spawn_bounds_saver(app.clone(), {
+        let app = app.clone();
+        Arc::new(move || persist_now(&app))
+    });
     win.on_window_event(move |event| {
-        if matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {
-            persist(&w);
+        if matches!(
+            event,
+            WindowEvent::Moved(_) | WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. }
+        ) {
+            let _ = bounds_tx.try_send(());
         }
     });
+}
+
+// Synchronous flush of the current main-window bounds. Called on the debounce
+// worker's main-thread hop, and directly on window close + app exit so the last
+// position is never lost between settle windows. No-op if the window is gone.
+pub fn persist_now(app: &AppHandle) {
+    if let Some(win) = app.get_webview_window("main") {
+        persist(&win);
+    }
 }
 
 fn persist(win: &WebviewWindow) {

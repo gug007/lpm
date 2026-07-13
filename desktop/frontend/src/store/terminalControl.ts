@@ -82,6 +82,16 @@ export function useControlOwner(id: string): ControlOwner | null | undefined {
   return useTerminalControl((s) => s.ownerById[id]);
 }
 
+// Is this terminal currently owned by a detached (mirror) window? The owner
+// (main) window scopes its flow-control ack deferral to exactly the terminals a
+// mirror renders live, instead of deferring for every terminal it hosts — which
+// would starve unrelated projects' and background terminals' PTYs while a mirror
+// is focused. Detached surfaces register as `window`/`detached:<project>`.
+export function isOwnedByDetachedWindow(id: string): boolean {
+  const owner = useTerminalControl.getState().ownerById[id];
+  return !!owner && owner.kind === "window" && owner.id.startsWith("detached:");
+}
+
 // May this window drive the shared PTY size? Stricter than `isControlledHere`:
 // only when ownership is CONFIRMED to be this window (or explicitly unowned),
 // never while it's still unknown — so two windows racing to mount can't both

@@ -7,7 +7,7 @@
 use crate::bounds;
 use crate::config;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 const EVENT_CHANGED: &str = "detached-changed";
@@ -198,15 +198,20 @@ fn attach_events(app: &AppHandle, project_name: &str, label: &str, win: &tauri::
     let app = app.clone();
     let name = project_name.to_string();
     let label = label.to_string();
+    let bounds_tx = bounds::spawn_bounds_saver(app.clone(), {
+        let app = app.clone();
+        let name = name.clone();
+        let label = label.clone();
+        Arc::new(move || persist_current_bounds(&app, &name, &label))
+    });
     win.on_window_event(move |event| match event {
-        WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
-            if let Some(w) = app.get_webview_window(&label) {
-                if let Some((x, y, ww, hh)) = bounds::read_logical_bounds(&w) {
-                    persist_detached_bounds(&name, x, y, ww, hh);
-                }
-            }
+        WindowEvent::Moved(_)
+        | WindowEvent::Resized(_)
+        | WindowEvent::ScaleFactorChanged { .. } => {
+            let _ = bounds_tx.try_send(());
         }
         WindowEvent::CloseRequested { .. } => {
+            persist_current_bounds(&app, &name, &label);
             app.state::<DetachedState>().labels.lock().unwrap().remove(&name);
             persist_detached_flag(&name, false);
             let _ = app.emit(EVENT_CHANGED, ());
@@ -225,6 +230,16 @@ fn attach_events(app: &AppHandle, project_name: &str, label: &str, win: &tauri::
         }
         _ => {}
     });
+}
+
+fn persist_current_bounds(app: &AppHandle, name: &str, label: &str) {
+    let Some(win) = app.get_webview_window(label) else {
+        return;
+    };
+    let Some((x, y, w, h)) = bounds::read_logical_bounds(&win) else {
+        return;
+    };
+    persist_detached_bounds(name, x, y, w, h);
 }
 
 // ---- settings persistence (read-modify-write with change detection) ---------
