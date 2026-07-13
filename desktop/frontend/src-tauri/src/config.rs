@@ -515,6 +515,8 @@ pub struct ServiceFull {
     pub port_conflict: String,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
+    #[serde(rename = "dependsOn", alias = "depends_on", default)]
+    pub depends_on: Vec<String>,
 }
 
 impl ServiceDef {
@@ -1571,26 +1573,93 @@ pub fn services_for_profile(
     }
 }
 
-fn running_service_names(
-    profiles: &BTreeMap<String, Vec<String>>,
-    all_names: &[String],
-    state: &RunState,
-) -> Vec<String> {
-    if !state.services.is_empty() {
-        return state.services.clone();
+/// Expand a requested service set into its transitive-dependency closure in
+/// topological order (each service's `dependsOn` entries start before it). The
+/// incoming order is preserved among services with no dependency relation, the
+/// result is deduped, and every reachable name is included exactly once.
+///
+/// Errors when a `dependsOn` entry names a service the project doesn't define,
+/// when a requested name is unknown, or when the dependencies form a cycle
+/// (a self-dependency is the degenerate cycle). Callers on state-read paths
+/// fall back to the unexpanded list on error; start paths surface it.
+pub fn expand_service_deps(
+    services: &BTreeMap<String, ServiceFull>,
+    requested: &[String],
+) -> Result<Vec<String>, String> {
+    fn visit(
+        name: &str,
+        services: &BTreeMap<String, ServiceFull>,
+        done: &mut HashSet<String>,
+        stack: &mut Vec<String>,
+        out: &mut Vec<String>,
+    ) -> Result<(), String> {
+        if done.contains(name) {
+            return Ok(());
+        }
+        if let Some(from) = stack.iter().position(|s| s == name) {
+            let mut cycle = stack[from..].to_vec();
+            cycle.push(name.to_string());
+            return Err(format!("service dependency cycle: {}", cycle.join(" -> ")));
+        }
+        let svc = services
+            .get(name)
+            .ok_or_else(|| format!("service {name:?} not found"))?;
+        stack.push(name.to_string());
+        for dep in &svc.depends_on {
+            if !services.contains_key(dep) {
+                return Err(format!(
+                    "service {name:?} depends on unknown service {dep:?}"
+                ));
+            }
+            visit(dep, services, done, stack, out)?;
+        }
+        stack.pop();
+        done.insert(name.to_string());
+        out.push(name.to_string());
+        Ok(())
     }
-    services_for_profile(profiles, all_names, &state.profile)
+
+    let mut done = HashSet::new();
+    let mut stack = Vec::new();
+    let mut out = Vec::new();
+    for name in requested {
+        visit(name, services, &mut done, &mut stack, &mut out)?;
+    }
+    Ok(out)
 }
 
-/// projects.go matchProfile: the profile whose service set exactly equals the
-/// running set, or "" if none matches.
-fn match_profile(profiles: &BTreeMap<String, Vec<String>>, running: &[String]) -> String {
+fn running_service_names(
+    services: &BTreeMap<String, ServiceFull>,
+    profiles: &BTreeMap<String, Vec<String>>,
+    state: &RunState,
+) -> Vec<String> {
+    let base = if !state.services.is_empty() {
+        state.services.clone()
+    } else {
+        let all: Vec<String> = services.keys().cloned().collect();
+        services_for_profile(profiles, &all, &state.profile)
+    };
+    expand_service_deps(services, &base).unwrap_or(base)
+}
+
+/// projects.go matchProfile: the profile whose expanded service set exactly
+/// equals the running set, or "" if none matches. Profiles are expanded so an
+/// auto-included dependency doesn't stop a profile from matching.
+fn match_profile(
+    services: &BTreeMap<String, ServiceFull>,
+    profiles: &BTreeMap<String, Vec<String>>,
+    running: &[String],
+) -> String {
     if running.is_empty() {
         return String::new();
     }
     let runset: HashSet<&String> = running.iter().collect();
     for (name, svcs) in profiles {
-        if svcs.len() == running.len() && svcs.iter().all(|s| runset.contains(s)) {
+        let expanded = match expand_service_deps(services, svcs) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        if expanded.len() == running.len() && expanded.iter().all(|s| runset.contains(s)) {
             return name.clone();
         }
     }
@@ -1634,18 +1703,19 @@ fn to_project_info(file_name: &str, mut yaml: ProjectYaml, running: bool, state:
             "port": svc.port,
             "portConflict": svc.port_conflict,
             "env": svc.env,
+            "dependsOn": svc.depends_on,
         })
     };
     let all_services: Vec<Value> = all_names.iter().map(|n| service_info(n)).collect();
 
     // services == the resolved running list (frontend gates display on `running`).
-    let running_names = running_service_names(&yaml.profiles, &all_names, state);
+    let running_names = running_service_names(&services, &yaml.profiles, state);
     let running_services: Vec<Value> = running_names.iter().map(|n| service_info(n)).collect();
 
     let active_profile = if !state.profile.is_empty() {
         state.profile.clone()
     } else if running {
-        match_profile(&yaml.profiles, &running_names)
+        match_profile(&services, &yaml.profiles, &running_names)
     } else {
         String::new()
     };
@@ -2000,8 +2070,113 @@ pub fn resolve_action_full(file_name: &str, action_name: &str) -> Option<ActionR
 
 /// Resolve the running-service name list for a project given its run-state.
 pub fn resolve_running_services(info: &SpawnInfo, state: &RunState) -> Vec<String> {
-    let all: Vec<String> = info.services.keys().cloned().collect();
-    running_service_names(&info.profiles, &all, state)
+    running_service_names(&info.services, &info.profiles, state)
+}
+
+#[cfg(test)]
+mod service_deps_tests {
+    use super::*;
+
+    fn services(pairs: &[(&str, &[&str])]) -> BTreeMap<String, ServiceFull> {
+        pairs
+            .iter()
+            .map(|(n, deps)| {
+                let svc = ServiceFull {
+                    depends_on: deps.iter().map(|d| d.to_string()).collect(),
+                    ..Default::default()
+                };
+                (n.to_string(), svc)
+            })
+            .collect()
+    }
+
+    fn req(names: &[&str]) -> Vec<String> {
+        names.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn passthrough_preserves_order_when_no_deps() {
+        let svcs = services(&[("web", &[]), ("db", &[]), ("api", &[])]);
+        assert_eq!(
+            expand_service_deps(&svcs, &req(&["web", "db", "api"])).unwrap(),
+            req(&["web", "db", "api"]),
+        );
+    }
+
+    #[test]
+    fn transitive_deps_come_before_dependents() {
+        let svcs = services(&[("db", &[]), ("api", &["db"]), ("web", &["api"])]);
+        assert_eq!(
+            expand_service_deps(&svcs, &req(&["web"])).unwrap(),
+            req(&["db", "api", "web"]),
+        );
+    }
+
+    #[test]
+    fn dedupes_when_dep_also_requested() {
+        let svcs = services(&[("db", &[]), ("api", &["db"])]);
+        assert_eq!(
+            expand_service_deps(&svcs, &req(&["db", "api"])).unwrap(),
+            req(&["db", "api"]),
+        );
+        assert_eq!(
+            expand_service_deps(&svcs, &req(&["api", "db"])).unwrap(),
+            req(&["db", "api"]),
+        );
+    }
+
+    #[test]
+    fn diamond_includes_shared_dep_once() {
+        let svcs = services(&[
+            ("d", &[]),
+            ("b", &["d"]),
+            ("c", &["d"]),
+            ("a", &["b", "c"]),
+        ]);
+        assert_eq!(
+            expand_service_deps(&svcs, &req(&["a"])).unwrap(),
+            req(&["d", "b", "c", "a"]),
+        );
+    }
+
+    #[test]
+    fn cycle_is_an_error() {
+        let svcs = services(&[("a", &["b"]), ("b", &["a"])]);
+        let err = expand_service_deps(&svcs, &req(&["a"])).unwrap_err();
+        assert!(err.contains("cycle"), "{err}");
+        assert!(err.contains("a -> b -> a"), "{err}");
+    }
+
+    #[test]
+    fn self_dependency_is_a_cycle() {
+        let svcs = services(&[("a", &["a"])]);
+        let err = expand_service_deps(&svcs, &req(&["a"])).unwrap_err();
+        assert!(err.contains("cycle"), "{err}");
+    }
+
+    #[test]
+    fn unknown_dependency_is_an_error() {
+        let svcs = services(&[("api", &["db"])]);
+        let err = expand_service_deps(&svcs, &req(&["api"])).unwrap_err();
+        assert!(err.contains("api"), "{err}");
+        assert!(err.contains("db"), "{err}");
+    }
+
+    #[test]
+    fn unknown_requested_service_is_an_error() {
+        let svcs = services(&[("web", &[])]);
+        assert!(expand_service_deps(&svcs, &req(&["ghost"])).is_err());
+    }
+
+    #[test]
+    fn depends_on_alias_parses() {
+        let svc: ServiceFull =
+            serde_yaml::from_str("cmd: go run .\ndepends_on: [db]\n").unwrap();
+        assert_eq!(svc.depends_on, req(&["db"]));
+        let camel: ServiceFull =
+            serde_yaml::from_str("cmd: go run .\ndependsOn: [db]\n").unwrap();
+        assert_eq!(camel.depends_on, req(&["db"]));
+    }
 }
 
 #[cfg(test)]

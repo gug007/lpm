@@ -346,6 +346,7 @@ pub fn check_port_conflicts(name: String, profile: String) -> Result<Vec<PortCon
     let info = config::spawn_info(&name)?;
     let all: Vec<String> = info.services.keys().cloned().collect();
     let svc_names = config::services_for_profile(&info.profiles, &all, &profile);
+    let svc_names = config::expand_service_deps(&info.services, &svc_names).unwrap_or(svc_names);
     Ok(check_services(&info, &svc_names))
 }
 

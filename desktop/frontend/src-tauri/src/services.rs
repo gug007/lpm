@@ -85,6 +85,7 @@ fn do_start_with_services(
             return Err(format!("service {s:?} not found in project {name:?}"));
         }
     }
+    let services = config::expand_service_deps(&info.services, &services)?;
     tmux::start_project_services(&info.session, &info.root, &tuples_for(&info, &services), ssh_of(&info))?;
     state.set(name, RunState { profile: String::new(), services });
     crate::portforward::start_port_poller(app, name); // remote-only, idempotent
@@ -130,6 +131,7 @@ pub fn start_project(
     if services.is_empty() {
         return Err(format!("no services to start for profile {profile:?}"));
     }
+    let services = config::expand_service_deps(&info.services, &services)?;
     tmux::start_project_services(&info.session, &info.root, &tuples_for(&info, &services), ssh_of(&info))?;
     state.set(&name, RunState { profile, services: vec![] });
     crate::portforward::start_port_poller(&app, &name); // remote-only, idempotent
@@ -201,11 +203,16 @@ pub fn set_service_running(
     }
 
     let next = if on {
-        // turn on: split a new pane at the end
-        let svc = info.services.get(service_name).cloned().unwrap_or_default();
-        tmux::split_session_pane(&info.session, &info.root, &svc.cmd, &svc.cwd, &svc.env, ssh_of(&info))?;
+        // turn on: pull in the service plus any not-yet-running dependencies,
+        // splitting a pane for each in dependency order (the target last).
+        let want = config::expand_service_deps(&info.services, &[service_name.to_string()])?;
+        let missing: Vec<String> = want.into_iter().filter(|s| !running.contains(s)).collect();
+        for svc_name in &missing {
+            let svc = info.services.get(svc_name).cloned().unwrap_or_default();
+            tmux::split_session_pane(&info.session, &info.root, &svc.cmd, &svc.cwd, &svc.env, ssh_of(&info))?;
+        }
         let mut next = running.clone();
-        next.push(service_name.to_string());
+        next.extend(missing);
         next
     } else if running.len() == 1 {
         // turning off the only running service stops the whole project

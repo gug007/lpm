@@ -8,6 +8,7 @@ export interface ServiceInfo {
   port: number;
   portConflict?: ActionPortConflict;
   env?: Record<string, string>;
+  dependsOn?: string[];
 }
 
 export interface ProfileInfo {

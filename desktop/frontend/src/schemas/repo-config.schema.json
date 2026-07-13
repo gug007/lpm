@@ -110,6 +110,15 @@
               "description": "What to do when this service's port is busy at start. \"ask\" (default) prompts before freeing it; \"free\" frees it automatically; \"fail\" refuses to start."
             },
             "env": { "$ref": "#/definitions/envMap" },
+            "dependsOn": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Other services this one needs. They start first (in dependency order) and are pulled in automatically whenever this service starts. No readiness wait; unknown names or cycles are errors."
+            },
+            "depends_on": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
             "profiles": {
               "type": "array",
               "items": { "type": "string" }

@@ -98,6 +98,8 @@ pub struct ServiceFull {
     pub port_conflict: String,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
+    #[serde(rename = "dependsOn", alias = "depends_on", default)]
+    pub depends_on: Vec<String>,
 }
 
 impl ServiceDef {
@@ -484,6 +486,9 @@ fn merge_service(dst: &mut ServiceFull, src: &ServiceFull) {
     }
     if dst.env.is_empty() {
         dst.env = src.env.clone();
+    }
+    if dst.depends_on.is_empty() {
+        dst.depends_on = src.depends_on.clone();
     }
 }
 

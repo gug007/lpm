@@ -27,6 +27,18 @@ function ensureServicesMap(doc: ReturnType<typeof YAML.parseDocument>) {
   return YAML.isMap(verified) ? verified : null;
 }
 
+function forEachSeqRef(
+  list: unknown,
+  update: (list: YAML.YAMLSeq, index: number, name: string) => void,
+) {
+  if (!YAML.isSeq(list)) return;
+  for (let i = list.items.length - 1; i >= 0; i--) {
+    const v = list.items[i];
+    const name = YAML.isScalar(v) ? String(v.value) : v;
+    update(list, i, String(name));
+  }
+}
+
 function forEachProfileServiceRef(
   doc: ReturnType<typeof YAML.parseDocument>,
   update: (list: YAML.YAMLSeq, index: number, name: string) => void,
@@ -34,14 +46,59 @@ function forEachProfileServiceRef(
   const profiles = doc.get("profiles", true);
   if (!YAML.isMap(profiles)) return;
   for (const item of profiles.items) {
-    const list = item.value;
-    if (!YAML.isSeq(list)) continue;
-    for (let i = list.items.length - 1; i >= 0; i--) {
-      const v = list.items[i];
-      const name = YAML.isScalar(v) ? String(v.value) : v;
-      update(list, i, String(name));
-    }
+    forEachSeqRef(item.value, update);
   }
+}
+
+function forEachDependsOnRef(
+  doc: ReturnType<typeof YAML.parseDocument>,
+  update: (list: YAML.YAMLSeq, index: number, name: string) => void,
+) {
+  const services = getServicesMap(doc);
+  if (!services) return;
+  for (const item of services.items) {
+    const entry = item.value;
+    if (!YAML.isMap(entry)) continue;
+    forEachSeqRef(entry.get("dependsOn", true), update);
+    forEachSeqRef(entry.get("depends_on", true), update);
+  }
+}
+
+// Rewrites every reference to a service name — in profile lists and in other
+// services' dependency lists — within one document. Returns whether it changed.
+export function rewriteServiceRefs(
+  doc: ReturnType<typeof YAML.parseDocument>,
+  oldKey: string,
+  newKey: string,
+): boolean {
+  let changed = false;
+  const rename = (list: YAML.YAMLSeq, i: number, name: string) => {
+    if (name === oldKey) {
+      list.set(i, newKey);
+      changed = true;
+    }
+  };
+  forEachProfileServiceRef(doc, rename);
+  forEachDependsOnRef(doc, rename);
+  return changed;
+}
+
+// Strips every reference to a service name — in profile lists and in other
+// services' dependency lists — within one document. Returns whether it changed.
+export function stripServiceRefs(
+  doc: ReturnType<typeof YAML.parseDocument>,
+  key: string,
+): boolean {
+  let changed = false;
+  const strip = (list: YAML.YAMLSeq, i: number, name: string) => {
+    if (name === key) {
+      list.delete(i);
+      changed = true;
+    }
+  };
+  forEachProfileServiceRef(doc, strip);
+  forEachDependsOnRef(doc, strip);
+  return changed;
 }
 
 function serviceLayers(projectName: string): readonly ConfigLayer[] {
@@ -82,8 +139,8 @@ export async function replaceService(projectName: string, key: string, patch: Se
   });
 }
 
-// Renames in the topmost layer that has the service; profile refs are
-// rewritten in every layer so nothing dangles under the old name.
+// Renames in the topmost layer that has the service; profile and dependency
+// refs are rewritten in every layer so nothing dangles under the old name.
 export async function renameService(projectName: string, oldKey: string, newKey: string) {
   if (oldKey === newKey) return;
   let renamed = false;
@@ -99,17 +156,13 @@ export async function renameService(projectName: string, oldKey: string, newKey:
         changed = true;
       }
     }
-    forEachProfileServiceRef(doc, (list, i, name) => {
-      if (name === oldKey) {
-        list.set(i, newKey);
-        changed = true;
-      }
-    });
+    if (rewriteServiceRefs(doc, oldKey, newKey)) changed = true;
     return changed;
   });
 }
 
-// Strips profile refs across all layers so the resulting YAML stays valid.
+// Strips profile and dependency refs across all layers so the resulting YAML
+// stays valid after the service is gone.
 export async function deleteService(projectName: string, key: string) {
   let removed = false;
   await editAllLayers(serviceLayers(projectName), (doc) => {
@@ -123,12 +176,7 @@ export async function deleteService(projectName: string, key: string) {
         changed = true;
       }
     }
-    forEachProfileServiceRef(doc, (list, i, name) => {
-      if (name === key) {
-        list.delete(i);
-        changed = true;
-      }
-    });
+    if (stripServiceRefs(doc, key)) changed = true;
     return changed;
   });
 }

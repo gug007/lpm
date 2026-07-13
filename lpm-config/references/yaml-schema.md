@@ -49,11 +49,13 @@ services:
 
 ```yaml
 services:
+  db: docker compose up postgres
   api:
     cmd: go run .
     cwd: ./backend
     port: 8080
     portConflict: ask
+    dependsOn: [db]
     env:
       DATABASE_URL: postgres://localhost/myapp
 ```
@@ -69,8 +71,35 @@ services:
 | `port` | int | no | — | The **single** port the service listens on (0–65535). Must be unique across services. Feeds port forwarding, the service uniqueness check, and a start-time conflict probe. Unlike an action's `port`, it does not take a list or range. |
 | `portConflict` | string | no | `ask` | What to do when the service's `port` is busy at start: `ask` (prompt via the conflict picker), `free` (kill the holder), `fail` (refuse to start). |
 | `env` | map[string]string | no | — | Environment variables. |
+| `dependsOn` | list of strings | no | — | Other services this one requires. See [Dependencies](#dependencies). Also accepted as `depends_on`. |
 
 > To group services, use the project-level `profiles:` map (see [Profiles](#profiles)) — services do not carry a per-service `profiles` list.
+
+### Dependencies
+
+`dependsOn` lists other services a service needs. Two things follow from it:
+
+- **Auto-start.** Starting a service (or a profile) pulls in its dependencies automatically, transitively — you never have to list them yourself.
+- **Start order.** Dependencies start before the services that depend on them. Panes are created in that order.
+
+```yaml
+services:
+  db: docker compose up postgres
+  api:
+    cmd: go run .
+    dependsOn: [db]
+  web:
+    cmd: npm run dev
+    dependsOn: [api]
+```
+
+Starting `web` here starts `db`, then `api`, then `web`.
+
+Notes:
+
+- There is **no readiness wait** — lpm starts a dependency's pane before the dependent's, but does not wait for it to be listening or healthy first.
+- **Stopping a service does not stop its dependents.** Dependencies drive start-up only.
+- An unknown dependency name, or a dependency cycle (including a service depending on itself), is an error when the service starts.
 
 ---
 
@@ -733,6 +762,7 @@ Constraints a valid config must satisfy. lpm surfaces many of these as load-time
 12. `port` on actions/terminals is in range 0–65535 (or omitted). Range entries use the quoted `"lo-hi"` form (inclusive) — never an unquoted dash range (`port: 3002-3010` / `[3000, 3002-3010]` is invalid; quote as `"3002-3010"`). `portConflict` is only `ask`, `free`, or `fail`.
 13. `position` is a number (integer or float).
 14. `.lpm.yml` and templates must NOT contain `name`, `root`, `parent_name`, or `ssh` — identity stays in personal project files.
+15. Every service `dependsOn` entry names a service defined in the same project, and the dependency graph has no cycle (a service may not depend on itself, directly or transitively).
 
 ---
 

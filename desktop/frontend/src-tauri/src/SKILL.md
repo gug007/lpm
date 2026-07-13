@@ -255,6 +255,7 @@ services:                # required — at least one (omitted when parent_name i
     cwd: <path>          # optional (remote path on SSH projects)
     port: <int>          # optional (0-65535, unique)
     env: {}              # optional
+    dependsOn: []        # optional — services that start first + auto-start with this one (no cycles, no unknown names)
     profiles: []         # optional
 
 actions:                 # optional — one-shot commands
@@ -315,6 +316,7 @@ profiles:                # optional — named service subsets
 - `type` values are only `terminal` or `background` (or omitted).
 - `mode` values are only `remote` or `sync` (or omitted); `sync` requires an SSH project.
 - Profile entries reference defined services.
+- Every service `dependsOn` entry names a defined service, and the dependency graph has no cycle (no service depends on itself, directly or transitively).
 - Nested sub-actions are validated recursively.
 - `parent_name` references an existing project.
 

@@ -19,6 +19,7 @@ import {
   isExplicitPolicy,
   toPickerValue,
 } from "./PortConflictPicker";
+import { DependsOnPicker } from "./DependsOnPicker";
 import { StartMenuPreview } from "./StartMenuPreview";
 
 const FALLBACK_KEY = "new-service";
@@ -86,6 +87,7 @@ interface ServiceDraft {
   port: number;
   portConflict: string;
   envObj: Record<string, string>;
+  dependsOn: string[];
 }
 
 interface EnvDraft {
@@ -100,6 +102,7 @@ interface FormValues {
   port: string;
   portConflict: string;
   env: EnvDraft[];
+  dependsOn: string[];
 }
 
 const DEFAULT_VALUES: FormValues = {
@@ -109,6 +112,7 @@ const DEFAULT_VALUES: FormValues = {
   port: "",
   portConflict: "",
   env: [],
+  dependsOn: [],
 };
 
 function buildPayload(draft: ServiceDraft): Record<string, unknown> {
@@ -119,6 +123,7 @@ function buildPayload(draft: ServiceDraft): Record<string, unknown> {
     payload.portConflict = draft.portConflict;
   }
   if (Object.keys(draft.envObj).length > 0) payload.env = draft.envObj;
+  if (draft.dependsOn.length > 0) payload.dependsOn = draft.dependsOn;
   return payload;
 }
 
@@ -126,7 +131,7 @@ function buildPatch(payload: Record<string, unknown>): ServicePatch {
   // Explicitly remove fields the user cleared so stale values don't linger
   // from the previous YAML.
   const remove: string[] = [];
-  for (const field of ["cwd", "port", "portConflict", "env"] as const) {
+  for (const field of ["cwd", "port", "portConflict", "env", "dependsOn", "depends_on"] as const) {
     if (payload[field] === undefined) remove.push(field);
   }
   return { set: payload, remove };
@@ -164,6 +169,7 @@ export function ServiceForm({
       port: portInputSchema,
       portConflict: z.string(),
       env: z.array(envEntrySchema),
+      dependsOn: z.array(z.string()),
     });
   }, [services, editing]);
 
@@ -200,6 +206,7 @@ export function ServiceForm({
         port: editing.port > 0 ? String(editing.port) : "",
         portConflict,
         env: envFromRecord(editing.env),
+        dependsOn: editing.dependsOn ?? [],
       });
       // Auto-expand Advanced when any optional field is already set, so the
       // user can see existing values without hunting for the disclosure.
@@ -207,7 +214,8 @@ export function ServiceForm({
         Boolean(editing.cwd) ||
           editing.port > 0 ||
           Boolean(portConflict) ||
-          Object.keys(editing.env ?? {}).length > 0,
+          Object.keys(editing.env ?? {}).length > 0 ||
+          (editing.dependsOn ?? []).length > 0,
       );
     } else {
       reset(DEFAULT_VALUES);
@@ -227,6 +235,12 @@ export function ServiceForm({
   const watchedPort = watch("port");
   const watchedPortConflict = watch("portConflict");
   const watchedEnv = watch("env");
+  const watchedDependsOn = watch("dependsOn");
+
+  const otherServiceNames = useMemo(
+    () => services.filter((s) => !editing || s.name !== editing.name).map((s) => s.name),
+    [services, editing],
+  );
 
   const trimmedName = watchedName.trim();
   const trimmedCmd = watchedCmd.trim();
@@ -252,8 +266,9 @@ export function ServiceForm({
       port: portValid ? portValue : 0,
       portConflict: watchedPortConflict,
       envObj: envToRecord(watchedEnv),
+      dependsOn: watchedDependsOn,
     }),
-    [trimmedName, trimmedCmd, trimmedCwd, portValid, portValue, watchedPortConflict, watchedEnv],
+    [trimmedName, trimmedCmd, trimmedCwd, portValid, portValue, watchedPortConflict, watchedEnv, watchedDependsOn],
   );
 
   const previewServiceEntries = useMemo(() => {
@@ -293,6 +308,7 @@ export function ServiceForm({
         port: portInfo.valid ? portInfo.value : 0,
         portConflict: values.portConflict,
         envObj: envToRecord(values.env),
+        dependsOn: values.dependsOn.filter((n) => otherServiceNames.includes(n)),
       };
       const targetKey = computeDesiredKey({
         rawName: submitDraft.trimmedName,
@@ -416,6 +432,19 @@ export function ServiceForm({
                       verb="start"
                     />
                   )}
+
+                  <Field
+                    label="Depends on"
+                    hint="These services start first, in order, and turn on automatically with this one."
+                  >
+                    <DependsOnPicker
+                      options={otherServiceNames}
+                      value={watchedDependsOn}
+                      onChange={(next) =>
+                        setValue("dependsOn", next, { shouldDirty: true })
+                      }
+                    />
+                  </Field>
 
                   <div>
                     <div className="mb-2 flex items-center justify-between">

@@ -65,6 +65,7 @@ Map the request to a shape, then open the named schema-doc section for the field
 | Run a one-shot command (test, lint, build, deploy) | `actions` entry (shorthand, or full form for options) | Actions |
 | Long-running / interactive thing on demand (log tailer, watcher, REPL) | action with `type: terminal`; add `reuse: true` to keep **one** pane | Terminal Actions |
 | Always-available interactive shell (psql, redis-cli) | `terminals` entry | Terminals |
+| Start one service before another / pull in a service's prerequisites automatically | `dependsOn:` on the service | Dependencies |
 | Run silently, notify when done (build, `git fetch`, migrate) | action with `type: background` | Background Actions |
 | Send a command into the currently focused/active terminal | action with `type: command` | Active-Terminal Actions |
 | Prompt for parameters before running | add `inputs` (use `type: radio` for fixed choices) | Input Fields |
