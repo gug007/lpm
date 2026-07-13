@@ -2,6 +2,7 @@
 
 :root,
 [data-theme="light"] {
+  color-scheme: light;
   --bg-primary: #ffffff;
   --bg-secondary: #f5f5f5;
   --bg-sidebar: #fafafa;
@@ -34,6 +35,7 @@
 }
 
 [data-theme="dark"] {
+  color-scheme: dark;
   --bg-primary: #1a1a1a;
   --bg-secondary: #242424;
   --bg-sidebar: #1e1e1e;
