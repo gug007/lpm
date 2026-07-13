@@ -5,6 +5,7 @@ import UIKit
 struct LpmMobileApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var model = AppModel()
+    @AppStorage(AppearanceMode.storageKey) private var appearanceRaw = AppearanceMode.system.rawValue
 
     init() {
         // Pin every nav-bar state (standard/compact/scrollEdge) to the same
@@ -27,6 +28,7 @@ struct LpmMobileApp: App {
             ContentView()
                 .environmentObject(model)
                 .onAppear { appDelegate.attach(model) }
+                .preferredColorScheme((AppearanceMode(rawValue: appearanceRaw) ?? .system).colorScheme)
         }
     }
 }
