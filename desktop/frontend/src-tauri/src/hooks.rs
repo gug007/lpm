@@ -183,6 +183,7 @@ fn install_codex_hooks_at(codex_dir: &Path) {
     // Per-pane key, same reason as the Claude hooks.
     let set_running = send_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Running --icon=sparkle --color=#10A37F --pane=$LPM_PANE_ID");
     let set_done = send_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID");
+    let set_waiting = send_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Waiting --icon=bell --color=#f59e0b --pane=$LPM_PANE_ID");
     let set_resume = capture_resume_cmd();
 
     // Each event maps to its ordered list of hook entries. SessionStart carries
@@ -192,6 +193,9 @@ fn install_codex_hooks_at(codex_dir: &Path) {
         ("SessionStart", vec![codex_entry(&set_running), codex_entry(&set_resume)]),
         ("UserPromptSubmit", vec![codex_entry(&set_running)]),
         ("PreToolUse", vec![codex_entry(&set_running)]),
+        // Abstains from the allow/deny decision (no stdout), so approvals still
+        // reach the user — it only flips the status badge to Waiting.
+        ("PermissionRequest", vec![codex_entry(&set_waiting)]),
         ("Stop", vec![codex_entry(&set_done)]),
     ];
 
@@ -454,9 +458,13 @@ mod tests {
 
         let v = codex_hooks(dir.path());
         let hooks = v["hooks"].as_object().unwrap();
-        for ev in ["SessionStart", "UserPromptSubmit", "PreToolUse", "Stop"] {
+        for ev in ["SessionStart", "UserPromptSubmit", "PreToolUse", "PermissionRequest", "Stop"] {
             assert!(hooks.contains_key(ev), "missing {ev}");
         }
+        let waiting = v["hooks"]["PermissionRequest"][0]["hooks"][0]["command"]
+            .as_str()
+            .unwrap();
+        assert!(waiting.contains("codex_$LPM_PANE_ID Waiting"), "PermissionRequest must set Waiting: {waiting}");
         // SessionStart holds the status ping AND the resume-capture hook.
         let start = v["hooks"]["SessionStart"].as_array().unwrap();
         assert_eq!(start.len(), 2, "SessionStart should carry two lpm hooks");
