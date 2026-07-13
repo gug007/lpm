@@ -1148,6 +1148,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           content="Quick shells for scripts, system commands, and anything not tied to a project."
           side="right"
           wide
+          delay={500}
           triggerClassName="flex w-full"
         >
           <button
