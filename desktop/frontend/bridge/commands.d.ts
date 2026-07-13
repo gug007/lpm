@@ -23,6 +23,8 @@ export function CreateBranch(...args: any[]): Promise<any>;
 export function CreateProject(...args: any[]): Promise<any>;
 export function CreateProjectFromClone(...args: any[]): Promise<any>;
 export function StartCloneProject(...args: any[]): Promise<any>;
+export function StartDuplicateProject(...args: any[]): Promise<any>;
+export function DuplicateStatus(...args: any[]): Promise<any>;
 export function CreatePullRequest(...args: any[]): Promise<any>;
 export function CreateSSHProject(...args: any[]): Promise<any>;
 export function CreateTemplate(...args: any[]): Promise<any>;

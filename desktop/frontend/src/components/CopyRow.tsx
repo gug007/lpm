@@ -1,5 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import { CopyRunConfig } from "./CopyRunConfig";
+import { CopyMacSelect, type CopyTargetOption } from "./CopyMacSelect";
 import type { ComposerHistory } from "./InputComposer";
 import { FIELD_CLASS } from "./ui/fields";
 import type { ActionInfo, CopyOverride, CopyRunMode } from "../types";
@@ -15,6 +16,9 @@ interface CopyRowProps {
   actions: ActionInfo[];
   onChangeMode: (mode: CopyRunMode) => void;
   onPatchOverride: (patch: Partial<CopyOverride>) => void;
+  targets?: CopyTargetOption[];
+  target?: string;
+  onTargetChange?: (name: string) => void;
   history?: ComposerHistory;
   aiCwd?: string;
   autoFocus?: boolean;
@@ -31,25 +35,38 @@ export function CopyRow({
   actions,
   onChangeMode,
   onPatchOverride,
+  targets,
+  target,
+  onTargetChange,
   history,
   aiCwd,
   autoFocus,
 }: CopyRowProps) {
+  const showTargets = targets !== undefined && targets.length > 1 && onTargetChange !== undefined;
   return (
     <div className="grid grid-cols-[1rem_1fr_6.5rem] items-center gap-2.5">
       <span className="text-right text-[12px] tabular-nums text-[var(--text-muted)]">
         {index + 1}
       </span>
-      <input
-        value={label}
-        onChange={(e) => onLabelChange(e.target.value)}
-        autoFocus={autoFocus}
-        spellCheck={false}
-        autoCapitalize="off"
-        autoCorrect="off"
-        placeholder="Auto-named"
-        className={`${FIELD_CLASS} h-9 px-3`}
-      />
+      <div className="flex min-w-0 items-center gap-2">
+        <input
+          value={label}
+          onChange={(e) => onLabelChange(e.target.value)}
+          autoFocus={autoFocus}
+          spellCheck={false}
+          autoCapitalize="off"
+          autoCorrect="off"
+          placeholder="Auto-named"
+          className={`${FIELD_CLASS} h-9 min-w-0 flex-1 px-3`}
+        />
+        {showTargets && (
+          <CopyMacSelect
+            options={targets}
+            value={target ?? targets[0].name}
+            onChange={onTargetChange}
+          />
+        )}
+      </div>
       <button
         type="button"
         onClick={onToggleExpand}

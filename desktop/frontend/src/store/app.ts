@@ -23,6 +23,7 @@ import {
   DeleteTemplate,
   DetachProject,
   DuplicateProject,
+  DuplicateStatus,
   FocusDetachedWindow,
   ListDetachedProjects,
   ListProjects,
@@ -38,6 +39,7 @@ import {
   SaveConfig,
   SetProjectLabel,
   StartCloneProject,
+  StartDuplicateProject,
   StartProject,
   StopProject,
   ToggleProjectService,
@@ -65,7 +67,7 @@ import {
   layoutsEqual,
 } from "../components/sidebarLayout";
 import { forgetProjectTerminals, appendPersistedTab, removePersistedTabById } from "../terminals";
-import { isPeerName, prefixName, prefixRoot } from "../peer/markers";
+import { isPeerName, peerSlugOf, prefixName, prefixRoot } from "../peer/markers";
 import { activeChatStorageKey } from "../components/NotesView";
 import { ACTION_SECTIONS, type ActionSection } from "../actionConfig";
 import { editGlobalDoc, editProjectDoc, editRepoDoc } from "../yamlQueue";
@@ -257,6 +259,11 @@ interface AppState {
       pullLatest?: boolean;
       labels?: string[];
       tasksPerCopy?: SpawnTask[][];
+      // Index-aligned with labels/tasksPerCopy: the project each copy is
+      // duplicated FROM — a local name or a prefixed peer name, so a copy can be
+      // created on whichever Mac already has the project. Missing/empty entries
+      // fall back to `name`. Never copies files between machines.
+      targetsPerCopy?: string[];
       groupName?: string;
     },
   ) => Promise<void>;
@@ -569,6 +576,20 @@ class LostPeerError extends Error {
   }
 }
 
+// Invoke `onLost` when the given peer is no longer connected. Returns an
+// unsubscribe for the underlying peer-state-changed listener.
+function watchPeerLoss(slug: string, onLost: () => void): () => void {
+  return EventsOn("peer-state-changed", () => {
+    void PeerState()
+      .then((s) => {
+        const peers =
+          (s as { peers?: { slug: string; connected: boolean }[] } | null)?.peers ?? [];
+        if (!peers.some((pe) => pe.slug === slug && pe.connected)) onLost();
+      })
+      .catch(() => {});
+  });
+}
+
 // Wait for a clone started on a peer via StartCloneProject to finish. Resolves on
 // the matching `clone-done` (peer payloads arrive translated, so match on the
 // prefixed name); rejects on a clone error, or with LostPeerError if the peer
@@ -593,20 +614,99 @@ function waitForRemoteClone(
       if (p.ok) resolve();
       else reject(new Error(p.error || "Clone failed"));
     });
-    offPeer = EventsOn("peer-state-changed", () => {
-      void PeerState()
-        .then((s) => {
-          const peers =
-            (s as { peers?: { slug: string; connected: boolean }[] } | null)?.peers ?? [];
-          if (!peers.some((pe) => pe.slug === slug && pe.connected)) {
-            cleanup();
-            reject(new LostPeerError());
-          }
-        })
-        .catch(() => {});
+    offPeer = watchPeerLoss(slug, () => {
+      cleanup();
+      reject(new LostPeerError());
     });
   });
   return { promise, cancel: () => cleanup() };
+}
+
+const DUPLICATE_STATUS_POLL_MS = 10_000;
+
+// Collect `duplicate-done` outcomes for duplicates started on a peer via
+// StartDuplicateProject. Must be created BEFORE the first start call: the peer
+// event tap is installed per-subscription via an async listen(), so subscribing
+// only after the (full peer round-trip) start call could drop a fast duplicate's
+// event and leave its waiter hanging forever. Events arriving before their
+// `wait` are buffered by copy name; a peer disconnect rejects all pending and
+// future waits with LostPeerError. The event is only the fast path — the host
+// forwards it over a bounded queue that drops frames under load — so each wait
+// also polls the host's authoritative `duplicate_status` registry until it
+// settles. `dispose` tears down the listeners and any live polls.
+function collectRemoteDuplicates(slug: string): {
+  wait: (prefixedName: string) => Promise<void>;
+  dispose: () => void;
+} {
+  type Outcome = { ok: boolean; error?: string };
+  interface Waiter {
+    settle: (o: Outcome) => void;
+    fail: (e: Error) => void;
+  }
+  const buffered = new Map<string, Outcome>();
+  const pending = new Map<string, Waiter>();
+  let lost = false;
+  const failure = (o: Outcome) => new Error(o.error || "Duplicate failed");
+  const off = EventsOn("duplicate-done", (payload) => {
+    const p = payload as { name?: string; ok?: boolean; error?: string } | null;
+    if (!p || typeof p.name !== "string") return;
+    const outcome: Outcome = { ok: p.ok === true, error: p.error };
+    const waiter = pending.get(p.name);
+    if (waiter) waiter.settle(outcome);
+    else buffered.set(p.name, outcome);
+  });
+  const offPeer = watchPeerLoss(slug, () => {
+    lost = true;
+    const waiters = [...pending.values()];
+    for (const w of waiters) w.fail(new LostPeerError());
+  });
+  return {
+    wait: (prefixedName) => {
+      const seen = buffered.get(prefixedName);
+      if (seen) {
+        buffered.delete(prefixedName);
+        return seen.ok ? Promise.resolve() : Promise.reject(failure(seen));
+      }
+      if (lost) return Promise.reject(new LostPeerError());
+      return new Promise<void>((resolve, reject) => {
+        const poll = setInterval(() => {
+          void DuplicateStatus(prefixedName)
+            .then((status) => {
+              const waiter = pending.get(prefixedName);
+              if (!waiter) return;
+              const done = (status as { done?: { ok?: boolean; error?: string } } | null)?.done;
+              if (done) waiter.settle({ ok: done.ok === true, error: done.error ?? undefined });
+              else if (status === "unknown") {
+                waiter.fail(
+                  new Error("The remote Mac no longer reports this copy — it may have restarted."),
+                );
+              }
+            })
+            .catch(() => {});
+        }, DUPLICATE_STATUS_POLL_MS);
+        const finish = () => {
+          clearInterval(poll);
+          pending.delete(prefixedName);
+        };
+        pending.set(prefixedName, {
+          settle: (o) => {
+            finish();
+            if (o.ok) resolve();
+            else reject(failure(o));
+          },
+          fail: (e) => {
+            finish();
+            reject(e);
+          },
+        });
+      });
+    },
+    dispose: () => {
+      off();
+      offPeer();
+      for (const w of pending.values()) w.fail(new LostPeerError());
+    },
+  };
 }
 
 const projectsByName = (projects: ProjectInfo[]): Map<string, ProjectInfo> =>
@@ -1140,21 +1240,58 @@ export const useAppStore = create<AppState>((set, get) => ({
     const noun = (n: number) => (n === 1 ? "copy" : "copies");
     const toastId = toast.loading(`Creating ${count} ${noun(count)} of ${name}…`);
     const created: string[] = [];
+    const createdLocal: string[] = [];
+    // A peer-hosted source clones on that host's background thread (a large copy
+    // can outlast the peer dispatch timeout): reserve the copy name, then wait
+    // for its `duplicate-done` before moving on. Local sources duplicate inline.
+    // Every needed collector is armed up front, before any start call — the peer
+    // event tap installs via an async listen(), so arming one just before its
+    // start call could still drop a fast duplicate's event.
+    const sourceAt = (i: number) => opts.targetsPerCopy?.[i] || name;
+    const copyArgs = (i: number) =>
+      [
+        (opts.labels?.[i] ?? "").trim(),
+        opts.excludeUncommitted ?? false,
+        opts.reinstallDeps ?? false,
+        opts.pullLatest ?? true,
+      ] as const;
+    const collectors = new Map<string, ReturnType<typeof collectRemoteDuplicates>>();
+    for (let i = 0; i < count; i++) {
+      const slug = peerSlugOf(sourceAt(i));
+      if (slug && !collectors.has(slug)) collectors.set(slug, collectRemoteDuplicates(slug));
+    }
+    // A host running an older build rejects the async start command; fall back
+    // to the synchronous duplicate for the rest of the batch. Matched narrowly
+    // (command name + Tauri's unknown-command shape) so real duplicate failures
+    // still surface.
+    let legacyPeerDuplicate = false;
+    const isMissingStartCommand = (err: unknown) => {
+      const msg = String(err);
+      return msg.includes("start_duplicate_project") && /not found/i.test(msg);
+    };
     try {
       // Create copies one at a time so each can start working the moment it's
       // ready, instead of waiting for the whole batch. After each copy: queue
       // its tasks, refresh so it (with its actions) enters the list, then mark
       // it visited — that mounts its detail and fires the auto-run effect.
       for (let i = 0; i < count; i++) {
+        const source = sourceAt(i);
+        const slug = peerSlugOf(source);
         let newName: string | null;
         try {
-          newName = await DuplicateProject(
-            name,
-            (opts.labels?.[i] ?? "").trim(),
-            opts.excludeUncommitted ?? false,
-            opts.reinstallDeps ?? false,
-            opts.pullLatest ?? true,
-          );
+          if (slug && !legacyPeerDuplicate) {
+            try {
+              const prefixed = await StartDuplicateProject(source, ...copyArgs(i));
+              await collectors.get(slug)!.wait(prefixed);
+              newName = prefixed;
+            } catch (err) {
+              if (!isMissingStartCommand(err)) throw err;
+              legacyPeerDuplicate = true;
+              newName = await DuplicateProject(source, ...copyArgs(i));
+            }
+          } else {
+            newName = await DuplicateProject(source, ...copyArgs(i));
+          }
         } catch (err) {
           if (created.length === 0) throw err;
           break;
@@ -1162,6 +1299,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (!newName) break;
         const copyName = newName;
         created.push(copyName);
+        if (!slug) createdLocal.push(copyName);
         const tasks = tasksPerCopy[i] ?? [];
         if (tasks.length > 0) {
           set((s) => ({
@@ -1176,10 +1314,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (created.length === 1) set({ selected: copyName, view: "projects" });
       }
       // Grouping mutates the LOCAL sidebar layout/groups; peer projects live in
-      // their own flat section (groups are local-only), so skip it for a peer
-      // source — the copies exist on the host, which groups its own.
+      // their own flat section (groups are local-only), so only the copies
+      // created on this Mac are grouped — a host groups its own.
       const folderName = opts.groupName?.trim();
-      if (folderName && created.length > 0 && !isPeerName(name)) {
+      if (folderName && createdLocal.length > 0) {
         try {
           let layout: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
           let group =
@@ -1189,12 +1327,16 @@ export const useAppStore = create<AppState>((set, get) => ({
             );
           if (!group) {
             group = { id: crypto.randomUUID(), name: folderName, members: [] };
-            // Drop the new folder directly below the project being duplicated,
-            // not at the bottom of the sidebar.
-            const atIndex = topLevelIndexOfProject(layout, name) + 1;
+            // Drop the new folder directly below the local project the copies
+            // came from, not at the bottom of the sidebar.
+            const anchor =
+              Array.from({ length: count }, (_, i) => sourceAt(i)).find(
+                (s) => !isPeerName(s),
+              ) ?? name;
+            const atIndex = topLevelIndexOfProject(layout, anchor) + 1;
             layout = addGroupToLayout(layout, group, atIndex);
           }
-          for (const copyName of created) layout = moveIntoGroup(layout, copyName, group.id);
+          for (const copyName of createdLocal) layout = moveIntoGroup(layout, copyName, group.id);
           await get().applySidebarLayout(layout);
         } catch (err) {
           toast.error(`Couldn't add copies to folder: ${err}`);
@@ -1216,6 +1358,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (err) {
       toast.error(`Failed to duplicate ${name}: ${err}`, { id: toastId });
     } finally {
+      for (const collector of collectors.values()) collector.dispose();
       set((s) => {
         const i = s.duplicatingNames.indexOf(name);
         if (i < 0) return s;

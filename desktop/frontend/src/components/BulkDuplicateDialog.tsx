@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Folder, GitBranch, Package, RefreshCw, X } from "lucide-react";
 import { useEventListener } from "../hooks/useEventListener";
 import { Modal } from "./ui/Modal";
@@ -10,6 +10,7 @@ import {
 } from "./InputComposer";
 import { splitByImageTokens } from "./composerEditor";
 import { CopyRow } from "./CopyRow";
+import { CopyMacSelect, type CopyTargetOption } from "./CopyMacSelect";
 import { ShellCommandInput } from "./ShellCommandInput";
 import { SwitchRow } from "./SwitchRow";
 import { CollapsibleSection } from "./CollapsibleSection";
@@ -21,6 +22,9 @@ import {
   SECTION_LABEL,
 } from "./ui/fields";
 import { getSettings, saveSettings } from "../store/settings";
+import { useAppStore } from "../store/app";
+import { usePeerState } from "../peer/usePeerState";
+import { isPeerName, peerSlugOf, stripMarker } from "../peer/markers";
 import { detectAICLI } from "../slashCommands";
 import { findActionByPath, flattenRunnableActions } from "../actionTree";
 import type {
@@ -49,11 +53,14 @@ function randomId6(): string {
   return out;
 }
 
-// One draft copy: its display label plus an optional per-copy run override.
-// `override === null` means the copy runs the shared default below.
+// One draft copy: its display label, an optional per-copy run override
+// (`override === null` means the copy runs the shared default below), and the
+// project it's duplicated from — the source itself, or the same project on
+// another connected Mac.
 interface CopyDraft {
   label: string;
   override: CopyOverride | null;
+  target: string;
 }
 
 export interface BulkDuplicateOptions {
@@ -64,6 +71,10 @@ export interface BulkDuplicateOptions {
   // One entry per copy (index-aligned with `labels`): the tasks to run on that
   // copy, resolved from either its override or the shared default.
   tasksPerCopy: SpawnTask[][];
+  // Index-aligned with `labels`: the project each copy is duplicated FROM (a
+  // local name or a prefixed peer name), so a copy can be created on whichever
+  // Mac already has the project. No files ever move between machines.
+  targetsPerCopy: string[];
   groupName: string;
 }
 
@@ -108,7 +119,7 @@ export function BulkDuplicateDialog({
 }: BulkDuplicateDialogProps) {
   const seeded = seed !== undefined;
   const [copies, setCopies] = useState<CopyDraft[]>([
-    { label: "", override: null },
+    { label: "", override: null, target: "" },
   ]);
   const count = copies.length;
   // The shared default applied to every copy that doesn't override it.
@@ -148,6 +159,55 @@ export function BulkDuplicateDialog({
   const actionTree = project?.actions ?? [];
   const runnableActions = flattenRunnableActions(actionTree);
 
+  // Every place this project already exists — here and on connected Macs with a
+  // same-named project. A copy targeted at another Mac is created THERE by
+  // duplicating that Mac's own project; no files ever move between machines.
+  const projects = useAppStore((s) => s.projects);
+  const { state: peerState } = usePeerState();
+  const sourceName = project?.name ?? "";
+  const rawName = stripMarker(sourceName);
+  const targets = useMemo<CopyTargetOption[]>(() => {
+    if (!sourceName) return [];
+    const out: CopyTargetOption[] = [];
+    if (projects.some((p) => !isPeerName(p.name) && p.name === rawName)) {
+      out.push({ name: rawName, label: "This Mac" });
+    }
+    for (const peer of peerState.peers) {
+      if (!peer.connected) continue;
+      const match = projects.find(
+        (p) => peerSlugOf(p.name) === peer.slug && stripMarker(p.name) === rawName,
+      );
+      if (match) out.push({ name: match.name, label: peer.alias || peer.host });
+    }
+    if (!out.some((t) => t.name === sourceName)) {
+      const slug = peerSlugOf(sourceName);
+      const peer = peerState.peers.find((p) => p.slug === slug);
+      out.unshift({
+        name: sourceName,
+        label: slug ? peer?.alias || peer?.host || "Connected Mac" : "This Mac",
+      });
+    }
+    return out;
+  }, [projects, peerState.peers, sourceName, rawName]);
+  const showTargets = targets.length > 1;
+
+  // A Mac can disconnect while the dialog is open, removing its entry from
+  // `targets` — remap any copy still pointing at it back to the source location
+  // so a stale target is never submitted (and the select never renders a value
+  // outside its options).
+  useEffect(() => {
+    if (!sourceName || targets.length === 0) return;
+    const valid = new Set(targets.map((t) => t.name));
+    const fallback = valid.has(sourceName) ? sourceName : targets[0].name;
+    setCopies((prev) =>
+      prev.some((c) => c.target !== "" && !valid.has(c.target))
+        ? prev.map((c) =>
+            c.target !== "" && !valid.has(c.target) ? { ...c, target: fallback } : c,
+          )
+        : prev,
+    );
+  }, [targets, sourceName]);
+
   useEffect(() => {
     if (!open) return;
     const s = getSettings();
@@ -170,6 +230,7 @@ export function BulkDuplicateDialog({
       Array.from({ length: initialCount }, () => ({
         label: genLabel(),
         override: null,
+        target: project?.name ?? "",
       })),
     );
     // Prefer running the originating action (a clean, re-resolved command per
@@ -224,7 +285,8 @@ export function BulkDuplicateDialog({
           : trimmed;
       }
       const out = prev.slice();
-      while (out.length < n) out.push({ label: genLabel(), override: null });
+      while (out.length < n)
+        out.push({ label: genLabel(), override: null, target: project?.name ?? "" });
       return out;
     });
     setEditing((e) => (e !== null && e >= n ? null : e));
@@ -233,6 +295,11 @@ export function BulkDuplicateDialog({
   const setLabelAt = (i: number, value: string) =>
     setCopies((prev) =>
       prev.map((c, idx) => (idx === i ? { ...c, label: value } : c)),
+    );
+
+  const setTargetAt = (i: number, target: string) =>
+    setCopies((prev) =>
+      prev.map((c, idx) => (idx === i ? { ...c, target } : c)),
     );
 
   const setOverrideAt = (i: number, override: CopyOverride | null) =>
@@ -272,11 +339,16 @@ export function BulkDuplicateDialog({
   const single = count === 1;
   const noun = single ? "copy" : "copies";
   const copyRef = single ? "the copy" : "each copy";
+  // With a per-copy Mac picker the dialog's "remote-ness" is per copy; without
+  // one it falls back to the source-level `remote` prop.
+  const targetOf = (c: CopyDraft) => c.target || sourceName;
+  const anyRemoteCopy = showTargets ? copies.some((c) => isPeerName(targetOf(c))) : remote;
+  const anyLocalCopy = showTargets ? copies.some((c) => !isPeerName(targetOf(c))) : !remote;
   const folderOptions = Array.from(
     new Set(folderNames.map((n) => n.trim()).filter(Boolean)),
   );
   const trimmedGroup = groupName.trim();
-  const hasGroup = !single && !remote && trimmedGroup.length > 0;
+  const hasGroup = !single && anyLocalCopy && trimmedGroup.length > 0;
   // Hold submit while any prompt — the shared default or a per-copy override —
   // still has an image saving to disk.
   const imagesPending =
@@ -437,13 +509,19 @@ export function BulkDuplicateDialog({
         duplicateCommand: command || undefined,
       });
     }
+    const valid = new Set(targets.map((t) => t.name));
+    const fallback = valid.has(sourceName) || targets.length === 0 ? sourceName : targets[0].name;
     onConfirm(count, {
       excludeUncommitted,
       reinstallDeps,
       pullLatest,
       labels: copies.map((c) => c.label.trim()),
       tasksPerCopy: buildTasksPerCopy(),
-      groupName: single ? "" : trimmedGroup,
+      targetsPerCopy: copies.map((c) => {
+        const t = targetOf(c);
+        return valid.size === 0 || valid.has(t) ? t : fallback;
+      }),
+      groupName: single || !anyLocalCopy ? "" : trimmedGroup,
     });
   };
 
@@ -579,15 +657,25 @@ export function BulkDuplicateDialog({
                     placeholder="Auto-named"
                     className={`${FIELD_CLASS} h-9 flex-1 px-3`}
                   />
+                  {showTargets && (
+                    <CopyMacSelect
+                      options={targets}
+                      value={copies[0] ? targetOf(copies[0]) : sourceName}
+                      onChange={(v) => setTargetAt(0, v)}
+                    />
+                  )}
                 </div>
                 <p className={`mt-2 ${HELPER_TEXT}`}>
                   A label to recognize the copy by. Leave blank to name it
                   automatically.
+                  {showTargets &&
+                    anyRemoteCopy &&
+                    " The copy is created on the chosen Mac, from its own copy of the project."}
                 </p>
               </div>
             ) : (
               <div>
-                {!single && !remote && (
+                {!single && anyLocalCopy && (
                   <div className="relative">
                     <Folder
                       size={14}
@@ -676,6 +764,9 @@ export function BulkDuplicateDialog({
                       actions={actionTree}
                       onChangeMode={(m) => pickCopyMode(i, m)}
                       onPatchOverride={(patch) => patchOverrideAt(i, patch)}
+                      targets={showTargets ? targets : undefined}
+                      target={targetOf(copy)}
+                      onTargetChange={(v) => setTargetAt(i, v)}
                       history={composerHistory}
                       aiCwd={aiCwd}
                       autoFocus={i === 0}
@@ -686,11 +777,16 @@ export function BulkDuplicateDialog({
                 <p className={`mt-2 ${HELPER_TEXT}`}>
                   {seeded
                     ? `Run #1 is ${currentName} — the prompt runs in its existing terminal; the rest are fresh copies.`
-                    : remote
-                      ? "The copies are created on the connected Mac."
+                    : anyRemoteCopy && !anyLocalCopy
+                      ? showTargets
+                        ? "The copies are created on the chosen Mac, from its own copy of the project."
+                        : "The copies are created on the connected Mac."
                       : hasGroup
                         ? `The copies are grouped under “${trimmedGroup}” in the sidebar.`
-                        : "Name a folder above to keep the copies together in the sidebar, or leave it blank."}{" "}
+                        : "Name a folder above to keep the copies together in the sidebar, or leave it blank."}
+                  {anyRemoteCopy &&
+                    (anyLocalCopy || seeded) &&
+                    " Copies set to another Mac are created there, from that Mac's own copy of the project."}{" "}
                   Use the menu beside a copy to run a different action or command
                   on it.
                 </p>

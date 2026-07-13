@@ -34,6 +34,7 @@ import { forgetComposerDraft } from "../store/composerDrafts";
 import { useTTSHotkeys } from "../hooks/useTTSHotkeys";
 import { TTSControls } from "./TTSControls";
 import { joinAbs } from "../path";
+import { isPeerName } from "../peer/markers";
 
 interface TerminalViewProps {
   projectName: string;
@@ -805,6 +806,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
           key={duplicateNonce}
           open
           project={duplicateProject}
+          remote={isPeerName(projectName)}
           folderNames={folderNames}
           seed={duplicateSeed}
           onCancel={() => {

@@ -50,6 +50,8 @@ macro_rules! all_command_handlers {
         create_project,
         create_project_from_clone,
         start_clone_project,
+        start_duplicate_project,
+        duplicate_status,
         create_pull_request,
         create_ssh_project,
         create_template,

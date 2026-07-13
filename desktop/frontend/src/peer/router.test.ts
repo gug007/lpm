@@ -89,6 +89,9 @@ describe("translateResult", () => {
 
   it("prefixes the new name(s) returned by duplicate commands", () => {
     expect(translateResult("duplicate_project", A, "app-copy-1")).toBe(prefixName(A, "app-copy-1"));
+    expect(translateResult("start_duplicate_project", A, "app-copy-1")).toBe(
+      prefixName(A, "app-copy-1"),
+    );
     expect(translateResult("duplicate_projects", A, ["app-1", "app-2"])).toEqual([
       prefixName(A, "app-1"),
       prefixName(A, "app-2"),
@@ -144,6 +147,19 @@ describe("translatePeerEventPayload", () => {
 
   it("leaves a malformed clone-done payload untouched", () => {
     expect(translatePeerEventPayload("clone-done", A, { ok: true })).toEqual({ ok: true });
+  });
+
+  it("prefixes the project name for duplicate-done and keeps ok/error", () => {
+    expect(
+      translatePeerEventPayload("duplicate-done", A, { name: "app-copy-1", ok: true, error: null }),
+    ).toEqual({ name: prefixName(A, "app-copy-1"), ok: true, error: null });
+    expect(
+      translatePeerEventPayload("duplicate-done", A, { name: "app-copy-1", ok: false, error: "boom" }),
+    ).toEqual({ name: prefixName(A, "app-copy-1"), ok: false, error: "boom" });
+  });
+
+  it("leaves a malformed duplicate-done payload untouched", () => {
+    expect(translatePeerEventPayload("duplicate-done", A, { ok: true })).toEqual({ ok: true });
   });
 });
 

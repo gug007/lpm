@@ -442,14 +442,20 @@ fn run_install(root: &Path, pm: PackageManager) -> Result<(), String> {
     Err(format!("{} failed:\n{}", pm.install_cmd(), tail.join("\n").trim()))
 }
 
-fn duplicate_one(
-    app: &AppHandle,
-    name: &str,
-    label: Option<&str>,
-    exclude_uncommitted: bool,
-    reinstall_deps: bool,
-    pull_latest: bool,
-) -> Result<String, String> {
+/// The reserved name and resolved paths for one duplicate, produced by the fast
+/// synchronous phase so a caller learns the copy's name before the slow clone
+/// runs.
+struct DuplicatePlan {
+    src_root: String,
+    original: String,
+    new_name: String,
+    new_root: PathBuf,
+}
+
+/// Cheap, filesystem-light validation shared by the local and remote duplicate
+/// flows: resolve the source root and reserve a unique copy name. Never runs the
+/// clone, so it's safe inline before handing the slow work to a background thread.
+fn prepare_duplicate(name: &str) -> Result<DuplicatePlan, String> {
     let src = load_root_and_parent(name)?;
     if src.root.trim().is_empty() {
         return Err("cannot duplicate an SSH project (no local root)".into());
@@ -459,50 +465,84 @@ fn duplicate_one(
         .parent()
         .ok_or("source root has no parent directory")?
         .to_path_buf();
-
     // The folder always gets an auto-generated name; any user-typed value is a
     // display label, not the directory name.
     let (new_name, new_root) = next_available_duplicate(&original, &parent_dir)?;
-    let label = label.map(str::trim).filter(|l| !l.is_empty());
+    Ok(DuplicatePlan {
+        src_root: src.root,
+        original,
+        new_name,
+        new_root,
+    })
+}
 
-    if let Err(e) = cp_clone(Path::new(&src.root), &new_root, reinstall_deps) {
-        let _ = std::fs::remove_dir_all(&new_root);
+/// Run the slow duplicate work for a prepared plan: clone the source tree,
+/// optionally strip uncommitted changes / pull latest / reinstall deps, and write
+/// the copy's config. On any failure before the config is written the partial
+/// folder is removed; a failed reinstall leaves the (already written) copy in
+/// place, matching the previous synchronous behavior.
+fn run_duplicate(
+    app: &AppHandle,
+    plan: &DuplicatePlan,
+    label: Option<&str>,
+    exclude_uncommitted: bool,
+    reinstall_deps: bool,
+    pull_latest: bool,
+) -> Result<(), String> {
+    let label = label.map(str::trim).filter(|l| !l.is_empty());
+    let new_root = &plan.new_root;
+
+    if let Err(e) = cp_clone(Path::new(&plan.src_root), new_root, reinstall_deps) {
+        let _ = std::fs::remove_dir_all(new_root);
         return Err(e);
     }
     // Drop worktree registrations copied from the source (stale refs).
     let _ = std::fs::remove_dir_all(new_root.join(".git").join("worktrees"));
 
     if exclude_uncommitted {
-        if let Err(e) = strip_uncommitted(&new_root) {
-            let _ = std::fs::remove_dir_all(&new_root);
+        if let Err(e) = strip_uncommitted(new_root) {
+            let _ = std::fs::remove_dir_all(new_root);
             return Err(e);
         }
     }
 
     if pull_latest {
-        let _ = pull_latest_branch(&new_root);
+        let _ = pull_latest_branch(new_root);
     }
 
-    let write = write_project_yaml(&new_name, |m| {
-        yset(m, "name", new_name.as_str());
+    let write = write_project_yaml(&plan.new_name, |m| {
+        yset(m, "name", plan.new_name.as_str());
         yset(m, "root", config::collapse_home(&new_root.to_string_lossy()).as_str());
-        yset(m, "parent_name", original.as_str());
+        yset(m, "parent_name", plan.original.as_str());
         if let Some(l) = label {
             yset(m, "label", l);
         }
     });
     if let Err(e) = write {
-        let _ = std::fs::remove_dir_all(&new_root);
+        let _ = std::fs::remove_dir_all(new_root);
         return Err(e);
     }
     let _ = app.emit("projects-changed", ());
 
     if reinstall_deps {
-        if let Some(pm) = detect_package_manager(&new_root) {
-            run_install(&new_root, pm)?;
+        if let Some(pm) = detect_package_manager(new_root) {
+            run_install(new_root, pm)?;
         }
     }
-    Ok(new_name)
+    Ok(())
+}
+
+fn duplicate_one(
+    app: &AppHandle,
+    name: &str,
+    label: Option<&str>,
+    exclude_uncommitted: bool,
+    reinstall_deps: bool,
+    pull_latest: bool,
+) -> Result<String, String> {
+    let plan = prepare_duplicate(name)?;
+    run_duplicate(app, &plan, label, exclude_uncommitted, reinstall_deps, pull_latest)?;
+    Ok(plan.new_name)
 }
 
 #[tauri::command(async)]
@@ -522,6 +562,110 @@ pub fn duplicate_project(
         reinstall_deps,
         pull_latest,
     )
+}
+
+/// Outcome of a `start_duplicate_project` copy, delivered via the
+/// `duplicate-done` event once the background thread finishes.
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateDone {
+    name: String,
+    ok: bool,
+    error: Option<String>,
+}
+
+enum DupStatus {
+    Running,
+    Done { ok: bool, error: Option<String> },
+}
+
+/// Authoritative outcome registry for async duplicates, keyed by the reserved
+/// copy name. The `duplicate-done` event is the fast path, but its peer-forwarded
+/// delivery is lossy (bounded per-client out-queue), so clients poll
+/// `duplicate_status` as the backstop. Completed entries are evicted
+/// oldest-first past a small cap; running entries are never evicted.
+struct DupStatusMap {
+    statuses: std::collections::HashMap<String, DupStatus>,
+    completed: std::collections::VecDeque<String>,
+}
+
+const DUP_STATUS_COMPLETED_CAP: usize = 64;
+
+static DUPLICATE_STATUS: std::sync::LazyLock<std::sync::Mutex<DupStatusMap>> =
+    std::sync::LazyLock::new(|| {
+        std::sync::Mutex::new(DupStatusMap {
+            statuses: std::collections::HashMap::new(),
+            completed: std::collections::VecDeque::new(),
+        })
+    });
+
+fn dup_status_start(name: &str) {
+    let mut map = DUPLICATE_STATUS.lock().unwrap();
+    map.statuses.insert(name.to_string(), DupStatus::Running);
+}
+
+fn dup_status_finish(name: &str, ok: bool, error: Option<String>) {
+    let mut map = DUPLICATE_STATUS.lock().unwrap();
+    map.statuses
+        .insert(name.to_string(), DupStatus::Done { ok, error });
+    map.completed.push_back(name.to_string());
+    while map.completed.len() > DUP_STATUS_COMPLETED_CAP {
+        if let Some(old) = map.completed.pop_front() {
+            map.statuses.remove(&old);
+        }
+    }
+}
+
+#[tauri::command(async)]
+pub fn duplicate_status(name: String) -> serde_json::Value {
+    match DUPLICATE_STATUS.lock().unwrap().statuses.get(&name) {
+        Some(DupStatus::Running) => serde_json::json!("running"),
+        Some(DupStatus::Done { ok, error }) => {
+            serde_json::json!({ "done": { "ok": ok, "error": error } })
+        }
+        None => serde_json::json!("unknown"),
+    }
+}
+
+/// Async-shaped duplicate for the peer proxy: reserve the copy name synchronously
+/// (returned immediately, well within the dispatch timeout), then run the slow
+/// clone on a background thread and report the outcome via a `duplicate-done`
+/// event keyed by that name. Used when duplicating a project on a remote Mac,
+/// where a large clone can outlast the peer dispatch deadline.
+#[tauri::command(async)]
+pub fn start_duplicate_project(
+    app: AppHandle,
+    name: String,
+    label: Option<String>,
+    exclude_uncommitted: bool,
+    reinstall_deps: bool,
+    pull_latest: bool,
+) -> Result<String, String> {
+    let plan = prepare_duplicate(&name)?;
+    let new_name = plan.new_name.clone();
+    dup_status_start(&new_name);
+    std::thread::spawn(move || {
+        let result = run_duplicate(
+            &app,
+            &plan,
+            label.as_deref(),
+            exclude_uncommitted,
+            reinstall_deps,
+            pull_latest,
+        );
+        let ok = result.is_ok();
+        let error = result.err();
+        dup_status_finish(&plan.new_name, ok, error.clone());
+        let _ = app.emit(
+            "duplicate-done",
+            DuplicateDone {
+                name: plan.new_name,
+                ok,
+                error,
+            },
+        );
+    });
+    Ok(new_name)
 }
 
 /// Create `count` copies of a project in one pass (used to spawn a batch of

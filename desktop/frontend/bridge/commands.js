@@ -79,6 +79,12 @@ export function CreateProjectFromClone(name, url, branch, destParent) {
 export function StartCloneProject(name, url, branch, destParent) {
   return invoke("start_clone_project", { name, url, branch, destParent });
 }
+export function StartDuplicateProject(name, label, excludeUncommitted, reinstallDeps, pullLatest) {
+  return invoke("start_duplicate_project", { name, label, excludeUncommitted, reinstallDeps, pullLatest });
+}
+export function DuplicateStatus(name) {
+  return invoke("duplicate_status", { name });
+}
 export function CreatePullRequest(cwd, title, body, base) {
   return invoke("create_pull_request", { cwd, title, body, base });
 }

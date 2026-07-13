@@ -63,6 +63,7 @@ export const GLOBAL_PEER_EVENTS = new Set<string>([
   "action-bg-output",
   "templates-changed",
   "clone-done",
+  "duplicate-done",
 ]);
 
 // Scan a command's arguments (top level + one array level deep) for peer
@@ -126,7 +127,10 @@ export function translateResult(cmd: string, slug: string, result: unknown): unk
   }
   // Duplicate commands return freshly created host project name(s); prefix them
   // so the client selects / marks / spawns against the id it can actually see.
-  if (cmd === "duplicate_project" && typeof result === "string") {
+  if (
+    (cmd === "duplicate_project" || cmd === "start_duplicate_project") &&
+    typeof result === "string"
+  ) {
     return prefixName(slug, result);
   }
   if (cmd === "duplicate_projects" && Array.isArray(result)) {
@@ -167,8 +171,9 @@ export function translatePeerEventPayload(
       }
       return payload;
     case "clone-done":
+    case "duplicate-done":
       // { name: hostProjectName, ok, error } — prefix the name so a client
-      // waiting on its remote clone matches on the id it can actually see.
+      // waiting on its remote clone/duplicate matches on the id it can see.
       if (payload && typeof payload === "object") {
         const p = payload as { name?: unknown };
         if (typeof p.name === "string") {
