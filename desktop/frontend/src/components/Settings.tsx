@@ -1,5 +1,19 @@
 import { useState, useEffect, useMemo } from "react";
-import { ChevronRight } from "lucide-react";
+import {
+  ChevronRight,
+  SlidersHorizontal,
+  Bell,
+  SquareTerminal,
+  Keyboard,
+  Sparkles,
+  AudioLines,
+  LayoutTemplate,
+  DatabaseBackup,
+  Smartphone,
+  MonitorSmartphone,
+  FileCode2,
+  type LucideIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useSettingsStore } from "../store/settings";
 import { useComposerStore } from "../store/composer";
@@ -56,14 +70,31 @@ import { ClaudeLoginModal } from "./ClaudeLoginModal";
 import { InlineNameEditor } from "./InlineNameEditor";
 import { modalInputDefaults } from "../forms/styles";
 import { SettingsSearch } from "./SettingsSearch";
+import { SettingsSelect } from "./SettingsSelect";
 import {
   buildSearchEntries,
   matchSettings,
   rowProps,
   visibleNavGroups,
+  TAB_TITLES,
   SOUND_EVENTS,
   type SettingsSearchEntry,
 } from "../settings-registry";
+import type { SettingsTab } from "../store/app";
+
+const NAV_ICONS: Record<string, LucideIcon> = {
+  general: SlidersHorizontal,
+  notifications: Bell,
+  terminal: SquareTerminal,
+  shortcuts: Keyboard,
+  ai: Sparkles,
+  tts: AudioLines,
+  templates: LayoutTemplate,
+  backup: DatabaseBackup,
+  mobile: Smartphone,
+  "connect-macs": MonitorSmartphone,
+  "global-config": FileCode2,
+};
 
 const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
@@ -78,11 +109,11 @@ const HOOKS_DESCRIPTION: Record<HooksStatus, string> = {
   "no-settings": "Claude Code settings not found",
 };
 
-const SELECT_CLASS =
-  "rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1.5 text-xs text-[var(--text-primary)]";
-
-
 import type { View } from "../store/app";
+
+const PAGE_SUBTITLES: Partial<Record<SettingsTab, string>> = {
+  shortcuts: "Click a shortcut, then press the keys you want. Requires ⌘ or ⌥.",
+};
 
 interface SettingsProps {
   onNavigate: (view: View) => void;
@@ -410,7 +441,7 @@ export function Settings({
     <div className="-mx-6 flex flex-1 overflow-hidden">
       {updateStatus === "installing" && <InstallingOverlay phase={installPhase} progress={installProgress} />}
 
-      <nav className="flex w-42 shrink-0 flex-col overflow-y-auto border-r border-[var(--border)] bg-[var(--bg-sidebar)] px-3 pt-6">
+      <nav className="flex w-52 shrink-0 flex-col overflow-y-auto border-r border-[var(--border)] bg-[var(--bg-sidebar)] px-3 pt-6">
         <h1 className="mb-3 px-2 text-lg font-semibold tracking-tight text-[var(--text-primary)]">Settings</h1>
         <SettingsSearch
           query={query}
@@ -420,45 +451,70 @@ export function Settings({
         />
         {query.trim() === "" &&
           visibleNavGroups({ experimentalTTS: Boolean(experimentalTTS) }).map((group) => (
-            <div key={group.title} className="mb-1">
-              <div className="mb-0.5 mt-3 px-2 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
+            <div key={group.title} className="mb-2">
+              <div className="mb-1 mt-3 px-2.5 text-[10px] font-medium uppercase tracking-[0.09em] text-[var(--text-muted)] opacity-70">
                 {group.title}
               </div>
-              {group.items.map((item) =>
-                item.kind === "view" ? (
+              {group.items.map((item) => {
+                const Icon = NAV_ICONS[item.kind === "view" ? item.view : item.tab];
+                const active = item.kind === "tab" && activeTab === item.tab;
+                return item.kind === "view" ? (
                   <button
                     key={item.view}
                     onClick={() => onNavigate(item.view)}
-                    className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
+                    className="group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-[13px] text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
                   >
-                    <span>{item.label}</span>
-                    <ChevronRight size={14} className="shrink-0 opacity-60" />
+                    {Icon && (
+                      <Icon
+                        size={15}
+                        strokeWidth={1.75}
+                        className="shrink-0 text-[var(--text-muted)] transition-colors group-hover:text-[var(--text-secondary)]"
+                      />
+                    )}
+                    <span className="flex-1 truncate">{item.label}</span>
+                    <ChevronRight size={13} className="shrink-0 opacity-50" />
                   </button>
                 ) : (
                   <button
                     key={item.tab}
                     onClick={() => setActiveTab(item.tab)}
-                    className={`w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
-                      activeTab === item.tab
+                    className={`group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-[13px] transition-colors ${
+                      active
                         ? "bg-[var(--bg-active)] font-medium text-[var(--text-primary)]"
                         : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
                     }`}
                   >
-                    {item.label}
+                    {Icon && (
+                      <Icon
+                        size={15}
+                        strokeWidth={active ? 2 : 1.75}
+                        className={`shrink-0 transition-colors ${
+                          active
+                            ? "text-[var(--text-primary)]"
+                            : "text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]"
+                        }`}
+                      />
+                    )}
+                    <span className="truncate">{item.label}</span>
                   </button>
-                ),
-              )}
+                );
+              })}
             </div>
           ))}
       </nav>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-lg px-6 pt-6 pb-6">
+        <div key={activeTab} className="settings-pane-in mx-auto max-w-xl px-8 pt-8 pb-10">
+          <PageHeader
+            icon={NAV_ICONS[activeTab]}
+            title={TAB_TITLES[activeTab]}
+            description={PAGE_SUBTITLES[activeTab]}
+          />
           {activeTab === "general" && (
             <>
-            <SettingsSection title="General">
+            <SettingsSection>
               <SettingsRow {...rowProps("general.theme")}>
-                <div className="flex rounded-lg border border-[var(--border)] p-0.5">
+                <div className="flex rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] p-0.5">
                   <SegmentButton label="Light" icon={<SunIcon />} active={theme === "light"} onClick={() => setTheme("light")} />
                   <SegmentButton label="Dark" icon={<MoonIcon />} active={theme === "dark"} onClick={() => setTheme("dark")} />
                   <SegmentButton label="System" icon={<MonitorIcon />} active={theme === "system"} onClick={() => setTheme("system")} />
@@ -535,7 +591,7 @@ export function Settings({
           )}
 
           {activeTab === "notifications" && (
-            <SettingsSection title="Notifications">
+            <SettingsSection>
               <SettingsRow {...rowProps("notifications.sound")}>
                 <Toggle enabled={soundEnabled} onChange={(v) => updateSettings({ soundNotifications: v })} />
               </SettingsRow>
@@ -573,24 +629,24 @@ export function Settings({
           )}
 
           {activeTab === "terminal" && (
-            <SettingsSection title="Terminal">
+            <SettingsSection>
               <SettingsRow {...rowProps("terminal.fontSize")}>
-                <div className="flex items-center gap-2 rounded-md border border-[var(--border)] px-2 py-1">
+                <div className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] p-0.5">
                   <button
                     onClick={terminalZoomOut}
                     disabled={terminalFontSize <= MIN_TERMINAL_FONT_SIZE}
-                    className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-[15px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
                     aria-label="Decrease terminal font size"
                   >
                     −
                   </button>
-                  <span className="min-w-[1.5rem] text-center font-mono text-xs tabular-nums text-[var(--text-primary)]">
+                  <span className="min-w-[1.75rem] text-center font-mono text-xs tabular-nums text-[var(--text-primary)]">
                     {terminalFontSize}
                   </span>
                   <button
                     onClick={terminalZoomIn}
                     disabled={terminalFontSize >= MAX_TERMINAL_FONT_SIZE}
-                    className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-[15px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
                     aria-label="Increase terminal font size"
                   >
                     +
@@ -599,17 +655,17 @@ export function Settings({
               </SettingsRow>
               <div>
                 <SettingsRow {...rowProps("terminal.theme")}>
-                  <select
+                  <SettingsSelect
                     value={terminalTheme}
                     onChange={(e) => setTerminalTheme(e.target.value as TerminalThemeName)}
-                    className={SELECT_CLASS}
+                    aria-label="Terminal theme"
                   >
                     {terminalThemeNames.map((name) => (
                       <option key={name} value={name}>
                         {name === "default" ? "Default" : name}
                       </option>
                     ))}
-                  </select>
+                  </SettingsSelect>
                 </SettingsRow>
                 <div className="px-4 pb-3">
                   <TerminalThemePreview theme={terminalTheme} fontSize={terminalFontSize} />
@@ -643,10 +699,7 @@ export function Settings({
           )}
 
           {activeTab === "shortcuts" && (
-            <SettingsSection
-              title="Keyboard Shortcuts"
-              description="Click a shortcut, then press the keys you want. Requires ⌘ or ⌥."
-            >
+            <SettingsSection>
               {HOTKEYS.map((def) => {
                 const value = resolveHotkey(hotkeys, def.id);
                 const isDefault = value === def.default;
@@ -681,7 +734,7 @@ export function Settings({
           )}
 
           {activeTab === "tts" && (
-            <SettingsSection title="Text to Speech">
+            <SettingsSection>
               <SettingsRow
                 {...rowProps("tts.enable", {
                   description: ttsEnabled
@@ -694,23 +747,31 @@ export function Settings({
               {ttsEnabled && (
                 <>
                   <SettingsRow {...rowProps("tts.voice")}>
-                    <select value={ttsVoice} onChange={(e) => updateSettings({ ttsVoice: e.target.value })} className={SELECT_CLASS}>
+                    <SettingsSelect
+                      value={ttsVoice}
+                      onChange={(e) => updateSettings({ ttsVoice: e.target.value })}
+                      aria-label="Voice"
+                    >
                       <option value="af_heart">af_heart</option>
                       <option value="af_bella">af_bella</option>
                       <option value="af_sarah">af_sarah</option>
                       <option value="am_adam">am_adam</option>
                       <option value="am_michael">am_michael</option>
-                    </select>
+                    </SettingsSelect>
                   </SettingsRow>
                   <SettingsRow {...rowProps("tts.speed")}>
-                    <select value={ttsSpeed} onChange={(e) => updateSettings({ ttsSpeed: parseFloat(e.target.value) })} className={SELECT_CLASS}>
+                    <SettingsSelect
+                      value={ttsSpeed}
+                      onChange={(e) => updateSettings({ ttsSpeed: parseFloat(e.target.value) })}
+                      aria-label="Playback speed"
+                    >
                       <option value={0.5}>0.5x</option>
                       <option value={0.75}>0.75x</option>
                       <option value={1.0}>1.0x</option>
                       <option value={1.25}>1.25x</option>
                       <option value={1.5}>1.5x</option>
                       <option value={2.0}>2.0x</option>
-                    </select>
+                    </SettingsSelect>
                   </SettingsRow>
                   <KokoroEngineRow status={kokoroStatus} onStatusChange={setKokoroStatus} />
                 </>
@@ -720,7 +781,7 @@ export function Settings({
 
           {activeTab === "ai" && (
             <>
-            <SettingsSection title="AI & Integrations">
+            <SettingsSection>
               <SettingsRow {...rowProps("ai.commitInstructions")}>
                 <button onClick={() => onNavigate("commit-instructions")} className={BTN_SECONDARY}>Edit</button>
               </SettingsRow>
@@ -813,7 +874,6 @@ export function Settings({
           {activeTab === "templates" && (
             <SettingsSection
               id="templates.list"
-              title="Templates"
               description="Reusable sets of services, actions, and profiles you can apply to multiple projects. Handy when several projects share a common setup — for example, one template for all your Rails apps."
             >
               {templates.length === 0 && !creatingTemplate && (
@@ -846,7 +906,7 @@ export function Settings({
 
           {activeTab === "backup" && (
             <>
-            <SettingsSection title="Backup & Transfer">
+            <SettingsSection>
               <SettingsRow {...rowProps("backup.export")}>
                 <button onClick={handleExport} disabled={exporting} className={BTN_SECONDARY}>
                   {exporting ? <RefreshIcon spinning /> : "Export…"}
@@ -1030,6 +1090,34 @@ export function Settings({
   );
 }
 
+function PageHeader({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon?: LucideIcon;
+  title: string;
+  description?: string;
+}) {
+  return (
+    <div className="mb-2">
+      <div className="flex items-center gap-2.5">
+        {Icon && (
+          <Icon size={18} strokeWidth={1.9} className="shrink-0 text-[var(--text-secondary)]" />
+        )}
+        <h1 className="text-[19px] font-semibold tracking-tight text-[var(--text-primary)]">
+          {title}
+        </h1>
+      </div>
+      {description && (
+        <p className="mt-1.5 max-w-md text-xs leading-relaxed text-[var(--text-muted)]">
+          {description}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function SettingsSection({
   id,
   title,
@@ -1041,7 +1129,7 @@ function SettingsSection({
   summary,
 }: {
   id?: string;
-  title: string;
+  title?: string;
   description?: string;
   children: React.ReactNode;
   collapsible?: boolean;
@@ -1055,7 +1143,7 @@ function SettingsSection({
         <button
           type="button"
           onClick={onToggle}
-          className="group flex w-full items-center justify-between gap-4 rounded-lg border border-[var(--border)] px-4 py-3 text-left transition-colors hover:bg-[var(--bg-hover)]"
+          className="group flex w-full items-center justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-3 text-left transition-colors hover:bg-[var(--bg-hover)]"
         >
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-medium text-[var(--text-primary)]">
@@ -1085,13 +1173,13 @@ function SettingsSection({
           {description}
         </p>
       )}
-      <div className="divide-y divide-[var(--border)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+      <div className="divide-y divide-[var(--border)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]">
         {children}
       </div>
     </>
   );
   return (
-    <div className="mt-6 space-y-1" data-settings-row={id}>
+    <div className="mt-6 space-y-2" data-settings-row={id}>
       {collapsible ? (
         <button
           type="button"
@@ -1102,12 +1190,14 @@ function SettingsSection({
           <ChevronRight size={14} className="rotate-90 transition-transform group-hover:translate-y-0.5" />
         </button>
       ) : (
-        <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
-          {title}
-        </h2>
+        title && (
+          <h2 className="px-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
+            {title}
+          </h2>
+        )
       )}
       {collapsible ? (
-        <div className="field-reveal space-y-1">{content}</div>
+        <div className="field-reveal space-y-2">{content}</div>
       ) : (
         content
       )}
@@ -1176,9 +1266,9 @@ function SegmentButton({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+      className={`flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-xs font-medium transition-colors ${
         active
-          ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+          ? "bg-[var(--bg-active)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
           : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
       }`}
     >
@@ -1188,17 +1278,29 @@ function SegmentButton({
   );
 }
 
-function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
+function Toggle({
+  enabled,
+  onChange,
+  "aria-label": ariaLabel,
+}: {
+  enabled: boolean;
+  onChange: (v: boolean) => void;
+  "aria-label"?: string;
+}) {
   return (
     <button
+      type="button"
+      role="switch"
+      aria-checked={enabled}
+      aria-label={ariaLabel}
       onClick={() => onChange(!enabled)}
-      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-        enabled ? "bg-[var(--accent-green)]" : "bg-[var(--border)]"
+      className={`relative inline-flex h-[22px] w-[38px] shrink-0 cursor-pointer items-center rounded-full outline-none transition-colors duration-200 ease-out focus-visible:ring-2 focus-visible:ring-[var(--accent-green)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-secondary)] ${
+        enabled ? "bg-[var(--accent-green)]" : "bg-[var(--bg-active)]"
       }`}
     >
       <span
-        className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
-          enabled ? "translate-x-4" : "translate-x-0.5"
+        className={`inline-block h-[18px] w-[18px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.3)] transition-transform duration-200 ease-out ${
+          enabled ? "translate-x-[18px]" : "translate-x-0.5"
         }`}
       />
     </button>

@@ -1,8 +1,6 @@
 import { Play, FolderOpen } from "lucide-react";
 import { PlaySoundPreview, PickAudioFile } from "../../bridge/commands";
-
-const SELECT_CLASS =
-  "max-w-[150px] truncate rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1.5 text-xs text-[var(--text-primary)]";
+import { SettingsSelect } from "./SettingsSelect";
 
 const ICON_BTN =
   "flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--border)] text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-active)] disabled:opacity-40";
@@ -32,10 +30,10 @@ export function SoundPicker({
 
   return (
     <div className="flex items-center gap-1.5">
-      <select
+      <SettingsSelect
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={SELECT_CLASS}
+        className="max-w-[150px] truncate"
         title={isPath ? value : undefined}
       >
         <option value="chime">Chime (default)</option>
@@ -46,7 +44,7 @@ export function SoundPicker({
             {name}
           </option>
         ))}
-      </select>
+      </SettingsSelect>
       <button type="button" aria-label="Choose audio file" title="Choose audio file" onClick={() => void chooseFile()} className={ICON_BTN}>
         <FolderOpen size={13} />
       </button>
