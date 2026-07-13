@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { useSettingsStore } from "../store/settings";
@@ -47,7 +47,7 @@ import { TrafficLights } from "./ui/TrafficLights";
 import { MobileSettingsPane } from "./MobileSettingsPane";
 import { ConnectMacsPane } from "./ConnectMacsPane";
 import { PencilIcon, PlusIcon, TrashIcon } from "./icons";
-import { useAppStore, type SettingsTab } from "../store/app";
+import { useAppStore } from "../store/app";
 import { useAccountsStore } from "../store/accounts";
 import type { ClaudeAccount } from "../types";
 import { ClaudeAccountRow } from "./ClaudeAccountRow";
@@ -55,6 +55,15 @@ import { ClaudeAccountsSetupGuide } from "./ClaudeAccountsSetupGuide";
 import { ClaudeLoginModal } from "./ClaudeLoginModal";
 import { InlineNameEditor } from "./InlineNameEditor";
 import { modalInputDefaults } from "../forms/styles";
+import { SettingsSearch } from "./SettingsSearch";
+import {
+  buildSearchEntries,
+  matchSettings,
+  rowProps,
+  visibleNavGroups,
+  SOUND_EVENTS,
+  type SettingsSearchEntry,
+} from "../settings-registry";
 
 const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
@@ -205,6 +214,52 @@ export function Settings({
   const [accountsCollapsed, setAccountsCollapsed] = useState(true);
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState<ClaudeAccount | null>(null);
   const [loginAccount, setLoginAccount] = useState<ClaudeAccount | null>(null);
+  const [query, setQuery] = useState("");
+  const [pendingRevealId, setPendingRevealId] = useState<string | null>(null);
+
+  const searchEntries = useMemo(
+    () => buildSearchEntries({ experimentalTTS: Boolean(experimentalTTS) }),
+    [experimentalTTS],
+  );
+  const searchResults = useMemo(
+    () => matchSettings(searchEntries, query),
+    [searchEntries, query],
+  );
+
+  const activateEntry = (entry: SettingsSearchEntry) => {
+    if (entry.kind === "view") {
+      setQuery("");
+      onNavigate(entry.view);
+      return;
+    }
+    setActiveTab(entry.tab);
+    if (entry.id === "ai.accounts") setAccountsCollapsed(false);
+    setPendingRevealId(entry.id);
+    setQuery("");
+  };
+
+  useEffect(() => {
+    if (!pendingRevealId) return;
+    const id = pendingRevealId;
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        const el = document.querySelector<HTMLElement>(
+          `[data-settings-row="${id}"]`,
+        );
+        if (el) {
+          el.scrollIntoView({ block: "center", behavior: "smooth" });
+          el.classList.add("settings-search-flash");
+          window.setTimeout(() => el.classList.remove("settings-search-flash"), 1500);
+        }
+        setPendingRevealId(null);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
+  }, [pendingRevealId]);
 
   useEffect(() => {
     if (showImportOptions) setImportOverwrite(false);
@@ -345,51 +400,56 @@ export function Settings({
     }
   };
 
-  const navItems: [SettingsTab, string][] = [
-    ["general", "General"],
-    ["notifications", "Notifications"],
-    ["terminal", "Terminal"],
-    ["shortcuts", "Shortcuts"],
-    ...(experimentalTTS ? [["tts", "Text to Speech"] as [SettingsTab, string]] : []),
-    ["ai", "AI & Integrations"],
-    ["global-config", "Global Config"],
-    ["templates", "Templates"],
-    ["backup", "Backup & Transfer"],
-    ["mobile", "Mobile devices"],
-    ["connect-macs", "Connect Macs"],
-  ];
-
-  const soundRows: {
-    event: "done" | "waiting" | "error";
-    label: string;
-    desc: string;
-    value: string;
-    apply: (v: string) => void;
-  }[] = [
-    { event: "done", label: "Finished sound", desc: "Plays when an agent finishes", value: doneSound, apply: (v) => updateSettings({ doneSound: v }) },
-    { event: "waiting", label: "Needs approval sound", desc: "Plays when an agent is waiting for you", value: waitingSound, apply: (v) => updateSettings({ waitingSound: v }) },
-    { event: "error", label: "Error sound", desc: "Plays when an agent stops with an error", value: errorSound, apply: (v) => updateSettings({ errorSound: v }) },
-  ];
+  const soundValues: Record<"done" | "waiting" | "error", { value: string; apply: (v: string) => void }> = {
+    done: { value: doneSound, apply: (v) => updateSettings({ doneSound: v }) },
+    waiting: { value: waitingSound, apply: (v) => updateSettings({ waitingSound: v }) },
+    error: { value: errorSound, apply: (v) => updateSettings({ errorSound: v }) },
+  };
 
   return (
     <div className="-mx-6 flex flex-1 overflow-hidden">
       {updateStatus === "installing" && <InstallingOverlay phase={installPhase} progress={installProgress} />}
 
-      <nav className="flex w-42 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--bg-sidebar)] px-3 pt-6">
-        <h1 className="mb-4 px-2 text-lg font-semibold tracking-tight text-[var(--text-primary)]">Settings</h1>
-        {navItems.map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setActiveTab(key)}
-            className={`rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
-              activeTab === key
-                ? "bg-[var(--bg-active)] font-medium text-[var(--text-primary)]"
-                : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+      <nav className="flex w-42 shrink-0 flex-col overflow-y-auto border-r border-[var(--border)] bg-[var(--bg-sidebar)] px-3 pt-6">
+        <h1 className="mb-3 px-2 text-lg font-semibold tracking-tight text-[var(--text-primary)]">Settings</h1>
+        <SettingsSearch
+          query={query}
+          onQueryChange={setQuery}
+          results={searchResults}
+          onActivate={activateEntry}
+        />
+        {query.trim() === "" &&
+          visibleNavGroups({ experimentalTTS: Boolean(experimentalTTS) }).map((group) => (
+            <div key={group.title} className="mb-1">
+              <div className="mb-0.5 mt-3 px-2 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
+                {group.title}
+              </div>
+              {group.items.map((item) =>
+                item.kind === "view" ? (
+                  <button
+                    key={item.view}
+                    onClick={() => onNavigate(item.view)}
+                    className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
+                  >
+                    <span>{item.label}</span>
+                    <ChevronRight size={14} className="shrink-0 opacity-60" />
+                  </button>
+                ) : (
+                  <button
+                    key={item.tab}
+                    onClick={() => setActiveTab(item.tab)}
+                    className={`w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
+                      activeTab === item.tab
+                        ? "bg-[var(--bg-active)] font-medium text-[var(--text-primary)]"
+                        : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ),
+              )}
+            </div>
+          ))}
       </nav>
 
       <div className="flex-1 overflow-y-auto">
@@ -397,17 +457,17 @@ export function Settings({
           {activeTab === "general" && (
             <>
             <SettingsSection title="General">
-              <SettingsRow label="Theme" description="Choose your preferred look">
+              <SettingsRow {...rowProps("general.theme")}>
                 <div className="flex rounded-lg border border-[var(--border)] p-0.5">
                   <SegmentButton label="Light" icon={<SunIcon />} active={theme === "light"} onClick={() => setTheme("light")} />
                   <SegmentButton label="Dark" icon={<MoonIcon />} active={theme === "dark"} onClick={() => setTheme("dark")} />
                   <SegmentButton label="System" icon={<MonitorIcon />} active={theme === "system"} onClick={() => setTheme("system")} />
                 </div>
               </SettingsRow>
-              <SettingsRow label="Double-click to start/stop" description="Double-click a project in sidebar to toggle it">
+              <SettingsRow {...rowProps("general.doubleClick")}>
                 <Toggle enabled={dblClick} onChange={(v) => updateSettings({ doubleClickToToggle: v })} />
               </SettingsRow>
-              <SettingsRow label="Default project directory" description="Add project, clone destination, and global terminals open here">
+              <SettingsRow {...rowProps("general.defaultDir")}>
                 <div className="flex items-center gap-2">
                   <span
                     className="max-w-[180px] truncate font-mono text-xs text-[var(--text-muted)]"
@@ -431,10 +491,17 @@ export function Settings({
             </SettingsSection>
 
             <SettingsSection title="About">
-              <SettingsRow label="Version" description="lpm desktop">
+              <SettingsRow {...rowProps("general.version")}>
                 <span className="text-xs text-[var(--text-muted)]">{version || "..."}</span>
               </SettingsRow>
-              <SettingsRow label="Updates" description={version === "dev" ? "Not available in development builds" : getUpdateDescription(updateStatus, latestVersion, updateError)}>
+              <SettingsRow
+                {...rowProps("general.updates", {
+                  description:
+                    version === "dev"
+                      ? "Not available in development builds"
+                      : getUpdateDescription(updateStatus, latestVersion, updateError),
+                })}
+              >
                 {version === "dev" ? null : updateStatus === "available" ? (
                   <button onClick={handleInstallUpdate} className="rounded-md bg-[var(--accent-green)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90">
                     Update
@@ -446,8 +513,7 @@ export function Settings({
                 )}
               </SettingsRow>
               <SettingsRow
-                label="Agent tools"
-                description="Teach AI coding agents to author configs and drive lpm from the command line."
+                {...rowProps("general.agentTools")}
                 details={
                   <>
                     <p>Skills teach AI coding agents how lpm works. Claude Code, Codex, Gemini CLI, and OpenCode pick them up automatically.</p>
@@ -459,7 +525,7 @@ export function Settings({
               >
                 <SkillInstallControl />
               </SettingsRow>
-              <SettingsRow label="Send feedback" description="Report a bug or share ideas">
+              <SettingsRow {...rowProps("general.feedback")}>
                 <button onClick={() => setFeedbackOpen(true)} className={BTN_SECONDARY}>
                   Open
                 </button>
@@ -470,16 +536,30 @@ export function Settings({
 
           {activeTab === "notifications" && (
             <SettingsSection title="Notifications">
-              <SettingsRow label="Sound notifications" description="Play a sound when agents finish or need approval">
+              <SettingsRow {...rowProps("notifications.sound")}>
                 <Toggle enabled={soundEnabled} onChange={(v) => updateSettings({ soundNotifications: v })} />
               </SettingsRow>
               {soundEnabled &&
-                soundRows.map((r) => (
-                  <SettingsRow key={r.event} label={r.label} description={r.desc}>
-                    <SoundPicker event={r.event} value={r.value} sounds={systemSounds} onChange={r.apply} />
+                SOUND_EVENTS.map((r) => (
+                  <SettingsRow
+                    key={r.event}
+                    id={`sound.${r.event}`}
+                    label={r.label}
+                    description={r.description}
+                  >
+                    <SoundPicker
+                      event={r.event}
+                      value={soundValues[r.event].value}
+                      sounds={systemSounds}
+                      onChange={soundValues[r.event].apply}
+                    />
                   </SettingsRow>
                 ))}
-              <SettingsRow label="Claude Code Hooks" description={HOOKS_DESCRIPTION[hooksStatus]}>
+              <SettingsRow
+                {...rowProps("notifications.hooks", {
+                  description: HOOKS_DESCRIPTION[hooksStatus],
+                })}
+              >
                 <div className="flex items-center gap-2">
                   <button onClick={handleCheckHooks} disabled={hooksStatus === "checking" || resettingHooks} className={BTN_SECONDARY}>
                     {hooksStatus === "checking" ? <RefreshIcon spinning /> : "Check"}
@@ -494,7 +574,7 @@ export function Settings({
 
           {activeTab === "terminal" && (
             <SettingsSection title="Terminal">
-              <SettingsRow label="Font size" description="Used by the built-in terminal">
+              <SettingsRow {...rowProps("terminal.fontSize")}>
                 <div className="flex items-center gap-2 rounded-md border border-[var(--border)] px-2 py-1">
                   <button
                     onClick={terminalZoomOut}
@@ -518,7 +598,7 @@ export function Settings({
                 </div>
               </SettingsRow>
               <div>
-                <SettingsRow label="Theme" description="Color scheme for the built-in terminal">
+                <SettingsRow {...rowProps("terminal.theme")}>
                   <select
                     value={terminalTheme}
                     onChange={(e) => setTerminalTheme(e.target.value as TerminalThemeName)}
@@ -535,37 +615,25 @@ export function Settings({
                   <TerminalThemePreview theme={terminalTheme} fontSize={terminalFontSize} />
                 </div>
               </div>
-              <SettingsRow
-                label="Open files in default app"
-                description="Click a file path in the terminal to open it in the OS default app instead of the in-app preview"
-              >
+              <SettingsRow {...rowProps("terminal.openInDefaultApp")}>
                 <Toggle
                   enabled={openFilesInDefaultApp}
                   onChange={(v) => updateSettings({ terminalOpenInDefaultApp: v })}
                 />
               </SettingsRow>
-              <SettingsRow
-                label="Terminal input"
-                description="Show the message input below each terminal. Toggle anytime with ⌘I"
-              >
+              <SettingsRow {...rowProps("terminal.input")}>
                 <Toggle
                   enabled={terminalInputOpen}
                   onChange={(v) => useComposerStore.getState().setOpen(v)}
                 />
               </SettingsRow>
-              <SettingsRow
-                label="Auto close composer on send"
-                description="Sending a prepared input clears it and closes its tab when more than one is open, instead of keeping the tab"
-              >
+              <SettingsRow {...rowProps("terminal.autoCloseComposer")}>
                 <Toggle
                   enabled={autoCloseComposerOnSend}
                   onChange={(v) => updateSettings({ autoCloseComposerOnSend: v })}
                 />
               </SettingsRow>
-              <SettingsRow
-                label="App tips"
-                description="Show a rotating tip with shortcuts in the terminal footer"
-              >
+              <SettingsRow {...rowProps("terminal.appTips")}>
                 <Toggle
                   enabled={appTipsEnabled}
                   onChange={(v) => updateSettings({ appTipsDismissed: !v })}
@@ -583,7 +651,12 @@ export function Settings({
                 const value = resolveHotkey(hotkeys, def.id);
                 const isDefault = value === def.default;
                 return (
-                  <SettingsRow key={def.id} label={def.label} description={def.description}>
+                  <SettingsRow
+                    key={def.id}
+                    id={`shortcut.${def.id}`}
+                    label={def.label}
+                    description={def.description}
+                  >
                     <div className="flex items-start gap-2">
                       {!isDefault && (
                         <button
@@ -610,14 +683,17 @@ export function Settings({
           {activeTab === "tts" && (
             <SettingsSection title="Text to Speech">
               <SettingsRow
-                label="Enable"
-                description={ttsEnabled ? "Cmd+Shift+R to read selected text" : "Read terminal text aloud using Kokoro"}
+                {...rowProps("tts.enable", {
+                  description: ttsEnabled
+                    ? "Cmd+Shift+R to read selected text"
+                    : "Read terminal text aloud using Kokoro",
+                })}
               >
                 <Toggle enabled={ttsEnabled} onChange={(v) => updateSettings({ ttsEnabled: v })} />
               </SettingsRow>
               {ttsEnabled && (
                 <>
-                  <SettingsRow label="Voice" description="Kokoro voice">
+                  <SettingsRow {...rowProps("tts.voice")}>
                     <select value={ttsVoice} onChange={(e) => updateSettings({ ttsVoice: e.target.value })} className={SELECT_CLASS}>
                       <option value="af_heart">af_heart</option>
                       <option value="af_bella">af_bella</option>
@@ -626,7 +702,7 @@ export function Settings({
                       <option value="am_michael">am_michael</option>
                     </select>
                   </SettingsRow>
-                  <SettingsRow label="Speed" description="Playback speed">
+                  <SettingsRow {...rowProps("tts.speed")}>
                     <select value={ttsSpeed} onChange={(e) => updateSettings({ ttsSpeed: parseFloat(e.target.value) })} className={SELECT_CLASS}>
                       <option value={0.5}>0.5x</option>
                       <option value={0.75}>0.75x</option>
@@ -645,21 +721,22 @@ export function Settings({
           {activeTab === "ai" && (
             <>
             <SettingsSection title="AI & Integrations">
-              <SettingsRow label="Commit Instructions" description="Custom instructions for AI commit messages">
+              <SettingsRow {...rowProps("ai.commitInstructions")}>
                 <button onClick={() => onNavigate("commit-instructions")} className={BTN_SECONDARY}>Edit</button>
               </SettingsRow>
-              <SettingsRow label="PR Instructions" description="Custom instructions for AI-generated PR titles and descriptions">
+              <SettingsRow {...rowProps("ai.prInstructions")}>
                 <button onClick={() => onNavigate("pr-instructions")} className={BTN_SECONDARY}>Edit</button>
               </SettingsRow>
-              <SettingsRow label="Branch Name Instructions" description="Custom instructions for AI-generated branch names">
+              <SettingsRow {...rowProps("ai.branchInstructions")}>
                 <button onClick={() => onNavigate("branch-instructions")} className={BTN_SECONDARY}>Edit</button>
               </SettingsRow>
-              <SettingsRow label="VoiceToText" description="Free offline dictation — Claude Code, Codex, Cursor, Slack, or any text field">
+              <SettingsRow {...rowProps("ai.voiceToText")}>
                 <button onClick={() => BrowserOpenURL("https://voicetotext.cc")} className={BTN_SECONDARY}>Learn more</button>
               </SettingsRow>
             </SettingsSection>
 
             <SettingsSection
+              id="ai.accounts"
               title="Claude accounts"
               description="Keep each project signed in to the right Claude account."
               collapsible
@@ -733,27 +810,9 @@ export function Settings({
             </>
           )}
 
-          {activeTab === "global-config" && (
-            <SettingsSection
-              title="Global Config"
-              description="Actions and terminals defined here are available in every project. Stored in ~/.lpm/global.yml."
-            >
-              <SettingsRow
-                label="Edit global config"
-                description="Open the YAML editor."
-              >
-                <button
-                  onClick={() => onNavigate("global-config")}
-                  className={BTN_SECONDARY}
-                >
-                  Edit
-                </button>
-              </SettingsRow>
-            </SettingsSection>
-          )}
-
           {activeTab === "templates" && (
             <SettingsSection
+              id="templates.list"
               title="Templates"
               description="Reusable sets of services, actions, and profiles you can apply to multiple projects. Handy when several projects share a common setup — for example, one template for all your Rails apps."
             >
@@ -788,12 +847,12 @@ export function Settings({
           {activeTab === "backup" && (
             <>
             <SettingsSection title="Backup & Transfer">
-              <SettingsRow label="Export config" description="Save a portable archive of your projects and settings">
+              <SettingsRow {...rowProps("backup.export")}>
                 <button onClick={handleExport} disabled={exporting} className={BTN_SECONDARY}>
                   {exporting ? <RefreshIcon spinning /> : "Export…"}
                 </button>
               </SettingsRow>
-              <SettingsRow label="Import config" description="Restore from an archive (current config backed up first)">
+              <SettingsRow {...rowProps("backup.import")}>
                 <button onClick={() => setShowImportOptions(true)} disabled={importing} className={BTN_SECONDARY}>
                   {importing ? <RefreshIcon spinning /> : "Import…"}
                 </button>
@@ -803,18 +862,12 @@ export function Settings({
               title="Encryption key"
               description="Your notes are locked with a secret key. Back it up to move notes between Macs or recover them later."
             >
-              <SettingsRow
-                label="Back up your key"
-                description="Saves a password-protected file. Keep it somewhere safe."
-              >
+              <SettingsRow {...rowProps("backup.vaultExport")}>
                 <button onClick={() => setShowVaultExport(true)} className={BTN_SECONDARY}>
                   Back up…
                 </button>
               </SettingsRow>
-              <SettingsRow
-                label="Restore your key"
-                description="Load a saved key file to unlock notes on this Mac."
-              >
+              <SettingsRow {...rowProps("backup.vaultImport")}>
                 <button onClick={() => setShowVaultImport(true)} className={BTN_SECONDARY}>
                   Restore…
                 </button>
@@ -823,9 +876,17 @@ export function Settings({
             </>
           )}
 
-          {activeTab === "mobile" && <MobileSettingsPane />}
+          {activeTab === "mobile" && (
+            <div data-settings-row="mobile.devices">
+              <MobileSettingsPane />
+            </div>
+          )}
 
-          {activeTab === "connect-macs" && <ConnectMacsPane />}
+          {activeTab === "connect-macs" && (
+            <div data-settings-row="connect-macs.peers">
+              <ConnectMacsPane />
+            </div>
+          )}
 
           <ConfirmDialog
             open={showResetDialog}
@@ -970,6 +1031,7 @@ export function Settings({
 }
 
 function SettingsSection({
+  id,
   title,
   description,
   children,
@@ -978,6 +1040,7 @@ function SettingsSection({
   onToggle,
   summary,
 }: {
+  id?: string;
   title: string;
   description?: string;
   children: React.ReactNode;
@@ -988,7 +1051,7 @@ function SettingsSection({
 }) {
   if (collapsible && collapsed) {
     return (
-      <div className="mt-6">
+      <div className="mt-6" data-settings-row={id}>
         <button
           type="button"
           onClick={onToggle}
@@ -1028,7 +1091,7 @@ function SettingsSection({
     </>
   );
   return (
-    <div className="mt-6 space-y-1">
+    <div className="mt-6 space-y-1" data-settings-row={id}>
       {collapsible ? (
         <button
           type="button"
@@ -1053,11 +1116,13 @@ function SettingsSection({
 }
 
 function SettingsRow({
+  id,
   label,
   description,
   children,
   details,
 }: {
+  id?: string;
   label: string;
   description: string;
   children: React.ReactNode;
@@ -1065,7 +1130,7 @@ function SettingsRow({
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   return (
-    <div className="px-4 py-3">
+    <div className="px-4 py-3" data-settings-row={id}>
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-[var(--text-primary)]">{label}</p>
@@ -1282,7 +1347,7 @@ function KokoroEngineRow({ status, onStatusChange }: { status: KokoroStatus; onS
   };
 
   return (
-    <SettingsRow label="Kokoro Engine" description={KOKORO_DESCRIPTION[status]}>
+    <SettingsRow id="tts.kokoro" label="Kokoro Engine" description={KOKORO_DESCRIPTION[status]}>
       {status === "installed" ? (
         <button onClick={handleUninstall} className={BTN_SECONDARY}>Uninstall</button>
       ) : status === "not-installed" ? (
