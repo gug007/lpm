@@ -247,8 +247,7 @@ struct ProjectsView: View {
     @State private var confirmingRemove = false
     @State private var renamingMac = false
     @State private var renameText = ""
-    @State private var showingNotifications = false
-    @AppStorage(AppearanceMode.storageKey) private var appearanceRaw = AppearanceMode.system.rawValue
+    @State private var showingSettings = false
     // The duplicate pending removal-confirmation. Removing deletes its folder from
     // disk, so it always routes through a confirmation dialog.
     @State private var removing: Project?
@@ -317,15 +316,8 @@ struct ProjectsView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Picker(selection: $appearanceRaw) {
-                        ForEach(AppearanceMode.allCases) { mode in
-                            Label(mode.label, systemImage: mode.systemImage).tag(mode.rawValue)
-                        }
-                    } label: {
-                        Label("Appearance", systemImage: "circle.lefthalf.filled")
-                    }
-                    Button { showingNotifications = true } label: {
-                        Label("Notifications", systemImage: "bell.badge")
+                    Button { showingSettings = true } label: {
+                        Label("Settings", systemImage: "gearshape")
                     }
                     Button {
                         renameText = model.activeRecord?.displayName ?? ""
@@ -410,8 +402,8 @@ struct ProjectsView: View {
                 model.duplicateProject(p, options: options)
             }
         }
-        .sheet(isPresented: $showingNotifications) {
-            NotificationSettingsSheet()
+        .sheet(isPresented: $showingSettings) {
+            SettingsSheet()
         }
         .alert(
             "Heads up",
