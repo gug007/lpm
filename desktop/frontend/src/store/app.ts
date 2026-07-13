@@ -1175,8 +1175,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         get().markVisited(copyName);
         if (created.length === 1) set({ selected: copyName, view: "projects" });
       }
+      // Grouping mutates the LOCAL sidebar layout/groups; peer projects live in
+      // their own flat section (groups are local-only), so skip it for a peer
+      // source — the copies exist on the host, which groups its own.
       const folderName = opts.groupName?.trim();
-      if (folderName && created.length > 0) {
+      if (folderName && created.length > 0 && !isPeerName(name)) {
         try {
           let layout: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
           let group =

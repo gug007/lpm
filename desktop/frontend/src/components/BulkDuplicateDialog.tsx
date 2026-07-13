@@ -82,6 +82,10 @@ export interface DuplicatePromptSeed {
 interface BulkDuplicateDialogProps {
   open: boolean;
   project: ProjectInfo | null;
+  // The target lives on a paired Mac. Sidebar folders are a local-only concept
+  // (peer projects render in their own flat section), so the folder-grouping
+  // field is hidden — the copies are created on the host.
+  remote?: boolean;
   folderNames: string[];
   // Opened from a composer's "run in duplicates": pre-fill the shared prompt,
   // the copy count, and how each copy runs it — the originating project action
@@ -96,6 +100,7 @@ interface BulkDuplicateDialogProps {
 export function BulkDuplicateDialog({
   open,
   project,
+  remote = false,
   folderNames,
   seed,
   onCancel,
@@ -271,7 +276,7 @@ export function BulkDuplicateDialog({
     new Set(folderNames.map((n) => n.trim()).filter(Boolean)),
   );
   const trimmedGroup = groupName.trim();
-  const hasGroup = !single && trimmedGroup.length > 0;
+  const hasGroup = !single && !remote && trimmedGroup.length > 0;
   // Hold submit while any prompt — the shared default or a per-copy override —
   // still has an image saving to disk.
   const imagesPending =
@@ -582,7 +587,7 @@ export function BulkDuplicateDialog({
               </div>
             ) : (
               <div>
-                {!single && (
+                {!single && !remote && (
                   <div className="relative">
                     <Folder
                       size={14}
@@ -681,9 +686,11 @@ export function BulkDuplicateDialog({
                 <p className={`mt-2 ${HELPER_TEXT}`}>
                   {seeded
                     ? `Run #1 is ${currentName} — the prompt runs in its existing terminal; the rest are fresh copies.`
-                    : hasGroup
-                      ? `The copies are grouped under “${trimmedGroup}” in the sidebar.`
-                      : "Name a folder above to keep the copies together in the sidebar, or leave it blank."}{" "}
+                    : remote
+                      ? "The copies are created on the connected Mac."
+                      : hasGroup
+                        ? `The copies are grouped under “${trimmedGroup}” in the sidebar.`
+                        : "Name a folder above to keep the copies together in the sidebar, or leave it blank."}{" "}
                   Use the menu beside a copy to run a different action or command
                   on it.
                 </p>

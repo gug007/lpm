@@ -17,6 +17,11 @@ interface ProjectContextMenuProps {
   isDuplicate: boolean;
   isDetached: boolean;
   canSelect: boolean;
+  // A project living on a paired Mac. Hides items that would act on the wrong
+  // machine or a local-only concept (open-with, browser, detach, folders,
+  // select); Git / Duplicate / Rename / Copy path / Remove stay and route to
+  // the peer.
+  remote: boolean;
   projectName: string;
   running: boolean;
   services: { name: string; port: number }[];
@@ -48,6 +53,7 @@ export function ProjectContextMenu({
   isDuplicate,
   isDetached,
   canSelect,
+  remote,
   projectName,
   running,
   services,
@@ -79,7 +85,7 @@ export function ProjectContextMenu({
 
   return (
     <ContextMenuShell x={x} y={y} minWidth={180} onClose={onClose}>
-      {projectPath && openInTargets.length > 0 && (
+      {!remote && projectPath && openInTargets.length > 0 && (
         <ContextMenuSubmenu
           label="Open with"
           icon={primaryTarget ? <img src={primaryTarget.icon} alt="" className="h-4 w-4 shrink-0" /> : undefined}
@@ -119,36 +125,41 @@ export function ProjectContextMenu({
         onClick={close(onBulkDuplicate)}
         disabled={duplicateDisabled}
       />
-      <OpenInBrowserSubmenu
-        projectName={projectName}
-        running={running}
-        services={services}
-        onClose={onClose}
-      />
-      <ContextMenuItem label="Rename" icon={<PencilIcon />} onClick={close(onRename)} />
-      <ContextMenuItem label="Copy path" icon={<ClipboardIcon />} onClick={close(onCopyPath)} />
-      {isDetached ? (
-        <ContextMenuItem
-          label="Attach to main window"
-          icon={<DetachIcon />}
-          onClick={close(onAttach)}
-        />
-      ) : (
-        <ContextMenuItem
-          label="Detach to new window"
-          icon={<DetachIcon />}
-          onClick={close(onDetach)}
+      {!remote && (
+        <OpenInBrowserSubmenu
+          projectName={projectName}
+          running={running}
+          services={services}
+          onClose={onClose}
         />
       )}
-      <MoveToFolderSubmenu
-        groups={groups}
-        disabledGroupId={currentGroupId}
-        showRemove={Boolean(currentGroupId)}
-        onMoveToGroup={onMoveToGroup}
-        onCreateGroupWith={onCreateGroupWith}
-        onClose={onClose}
-      />
-      {canSelect && (
+      <ContextMenuItem label="Rename" icon={<PencilIcon />} onClick={close(onRename)} />
+      <ContextMenuItem label="Copy path" icon={<ClipboardIcon />} onClick={close(onCopyPath)} />
+      {!remote &&
+        (isDetached ? (
+          <ContextMenuItem
+            label="Attach to main window"
+            icon={<DetachIcon />}
+            onClick={close(onAttach)}
+          />
+        ) : (
+          <ContextMenuItem
+            label="Detach to new window"
+            icon={<DetachIcon />}
+            onClick={close(onDetach)}
+          />
+        ))}
+      {!remote && (
+        <MoveToFolderSubmenu
+          groups={groups}
+          disabledGroupId={currentGroupId}
+          showRemove={Boolean(currentGroupId)}
+          onMoveToGroup={onMoveToGroup}
+          onCreateGroupWith={onCreateGroupWith}
+          onClose={onClose}
+        />
+      )}
+      {!remote && canSelect && (
         <ContextMenuItem
           label="Select"
           icon={<CheckSquareIcon />}

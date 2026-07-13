@@ -52,7 +52,7 @@ import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Tooltip } from "./ui/Tooltip";
 import { SpinnerIcon } from "./project-detail/icons";
 import { SidebarPeerSection } from "./SidebarPeerSection";
-import { isPeerName, peerSlugOf } from "../peer/markers";
+import { isPeerName, peerSlugOf, stripMarker } from "../peer/markers";
 import { usePeerState } from "../peer/usePeerState";
 
 const ROW_BASE_CLASS =
@@ -185,6 +185,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const contextProject = contextMenu
     ? projects.find((p) => p.name === contextMenu.name)
     : null;
+
+  // Lookup across BOTH local and peer projects. projectByName (built later) holds
+  // only local projects since it drives the reorderable tree; context-menu-driven
+  // modals (rename / remove / duplicate) must resolve a peer row's target too.
+  const allByName = useMemo(() => new Map(projects.map((p) => [p.name, p])), [projects]);
 
   const openGitModal = (kind: GitModalTarget["kind"]) => {
     if (contextProject?.root && contextMenu) {
@@ -351,9 +356,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // own Escape handler closes it first).
   useKeyboardShortcut({ key: "Escape" }, exitSelectMode, selectMode && !contextMenu && !groupMenu);
 
-  const renamingProject = renamingName ? projectByName.get(renamingName) : undefined;
+  const renamingProject = renamingName ? allByName.get(renamingName) : undefined;
   const renamingParent = renamingProject?.parentName
-    ? projectByName.get(renamingProject.parentName)
+    ? allByName.get(renamingProject.parentName)
     : undefined;
   const renamingGroup = renamingGroupId ? groups.find((g) => g.id === renamingGroupId) : undefined;
   const deletingGroup = deletingGroupId ? groups.find((g) => g.id === deletingGroupId) : undefined;
@@ -376,9 +381,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       ? `Delete folder and ${groupRemovalCount} ${groupRemovalCount === 1 ? "copy" : "copies"}`
       : `Delete folder and ${groupRemovalCount} ${groupRemovalCount === 1 ? "project" : "projects"}`;
 
-  const pendingRemove = confirmRemove ? projectByName.get(confirmRemove) : undefined;
+  const pendingRemove = confirmRemove ? allByName.get(confirmRemove) : undefined;
   const pendingRemoveParent = pendingRemove?.parentName
-    ? projectByName.get(pendingRemove.parentName)
+    ? allByName.get(pendingRemove.parentName)
     : undefined;
   const pendingRemoveLabel = pendingRemove
     ? projectDisplayName(pendingRemove, pendingRemoveParent)
@@ -458,7 +463,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           ),
         };
 
-  const pendingTrash = confirmTrash ? projectByName.get(confirmTrash) : undefined;
+  const pendingTrash = confirmTrash ? allByName.get(confirmTrash) : undefined;
   const pendingTrashLabel = pendingTrash ? projectDisplayName(pendingTrash) : "";
   const trashDupCount = pendingTrash
     ? projects.filter((p) => p.parentName === pendingTrash.name).length
@@ -873,7 +878,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             alias={section.alias}
             projects={section.projects}
             selected={selected}
+            contextTargetName={contextMenu?.name ?? null}
             onSelect={onSelect}
+            onContextMenu={(name, x, y) => setContextMenu({ name, x, y })}
           />
         ))}
       </nav>
@@ -913,6 +920,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             isDuplicate={Boolean(contextProject?.parentName)}
             isDetached={detached.has(contextMenu.name)}
             canSelect={projects.length > 1}
+            remote={isPeerName(contextMenu.name)}
             projectName={contextMenu.name}
             running={contextProject?.running ?? false}
             services={contextProject?.services ?? []}
@@ -922,7 +930,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             onRename={() => setRenamingName(contextMenu.name)}
             onBulkDuplicate={() => setBulkDuplicateName(contextMenu.name)}
             onCopyPath={() => {
-              if (contextProject?.root) navigator.clipboard.writeText(contextProject.root);
+              // Copy the host-native path; the /@peer-… marker is a routing key,
+              // meaningless outside lpm (a no-op strip for local projects).
+              if (contextProject?.root) navigator.clipboard.writeText(stripMarker(contextProject.root));
             }}
             onDetach={() => onDetachProject(contextMenu.name)}
             onAttach={() => onAttachProject(contextMenu.name)}
@@ -1067,7 +1077,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       />
       <BulkDuplicateDialog
         open={bulkDuplicateName !== null}
-        project={bulkDuplicateName ? projectByName.get(bulkDuplicateName) ?? null : null}
+        project={bulkDuplicateName ? allByName.get(bulkDuplicateName) ?? null : null}
+        remote={isPeerName(bulkDuplicateName ?? "")}
         folderNames={groups.map((g) => g.name)}
         onCancel={() => setBulkDuplicateName(null)}
         onConfirm={(count, opts) => {
@@ -1081,7 +1092,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           renamingProject ? projectDisplayName(renamingProject, renamingParent) : ""
         }
         currentRoot={renamingProject?.root ?? ""}
-        canRenameFolder={Boolean(renamingProject) && !renamingProject?.isRemote}
+        canRenameFolder={
+          Boolean(renamingProject) && !renamingProject?.isRemote && !isPeerName(renamingName ?? "")
+        }
         folderBusy={Boolean(renamingProject?.running)}
         onClose={() => setRenamingName(null)}
         onRenameLabel={(value) => {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { StatusDot } from "./StatusDot";
-import { ChevronRightIcon, PlusIcon, XIcon } from "./icons";
+import { ChevronRightIcon, MoreVerticalIcon, PlusIcon, XIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { peerRawName, peerSlugOf } from "../peer/markers";
 import { isPeerSectionCollapsed, setPeerSectionCollapsed } from "../peer/peerSectionCollapse";
@@ -36,13 +36,17 @@ export function SidebarPeerSection({
   alias,
   projects,
   selected,
+  contextTargetName,
   onSelect,
+  onContextMenu,
 }: {
   slug: string;
   alias: string;
   projects: ProjectInfo[];
   selected: string | null;
+  contextTargetName?: string | null;
   onSelect: (name: string) => void;
+  onContextMenu: (name: string, x: number, y: number) => void;
 }) {
   const clearSelection = useAppStore((s) => s.clearSelection);
   const addProjectForPeer = useAppStore((s) => s.addProjectForPeer);
@@ -112,23 +116,52 @@ export function SidebarPeerSection({
       {!collapsed &&
         projects.map((project) => {
           const isSelected = selected === project.name;
+          const isContextTarget = contextTargetName === project.name;
           const cls = statusClass(project);
           const label = project.label || peerRawName(project.name);
           return (
-            <button
-              key={project.name}
-              onClick={() => onSelect(project.name)}
-              className={`${ROW_BASE_CLASS} ${
-                isSelected
-                  ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                  : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              <StatusDot running={project.running} />
-              <span className="truncate" title={label}>
-                {cls ? <span className={cls}>{label}</span> : label}
-              </span>
-            </button>
+            <div key={project.name} className="group/row relative">
+              <button
+                onClick={() => onSelect(project.name)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  onContextMenu(project.name, e.clientX, e.clientY);
+                }}
+                className={`${ROW_BASE_CLASS} ${
+                  isContextTarget
+                    ? "pr-9 ring-1 ring-inset ring-[var(--accent-cyan)]/60"
+                    : "group-hover/row:pr-9"
+                } ${
+                  isSelected
+                    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                <StatusDot running={project.running} />
+                <span className="truncate" title={label}>
+                  {cls ? <span className={cls}>{label}</span> : label}
+                </span>
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // useOutsideClick's mousedown already closed the menu — skip the reopen so the second click toggles off.
+                  if (isContextTarget) return;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  onContextMenu(project.name, rect.left, rect.bottom + 4);
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+                className={`absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
+                  isContextTarget
+                    ? "opacity-100"
+                    : "pointer-events-none opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100"
+                }`}
+                title="More options"
+                aria-label={`More options for ${label}`}
+              >
+                <MoreVerticalIcon />
+              </button>
+            </div>
           );
         })}
 
