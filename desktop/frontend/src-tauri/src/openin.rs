@@ -13,6 +13,9 @@ pub struct OpenInTarget {
     pub icon: String,
     #[serde(rename = "fileOnly", skip_serializing_if = "std::ops::Not::not")]
     pub file_only: bool,
+    // Can open a project that lives on an SSH host (VS Code-family Remote-SSH).
+    #[serde(rename = "remoteCapable", skip_serializing_if = "std::ops::Not::not")]
+    pub remote_capable: bool,
 }
 
 struct Target {
@@ -20,24 +23,25 @@ struct Target {
     label: &'static str,
     icon: &'static str, // png filename, or "" when no asset
     file_only: bool,
+    remote_capable: bool,
 }
 
 // Display order = this order.
 const TARGETS: &[Target] = &[
-    Target { id: "cursor", label: "Cursor", icon: "cursor.png", file_only: false },
-    Target { id: "vscode", label: "Visual Studio Code", icon: "vscode.png", file_only: false },
-    Target { id: "vscode-insiders", label: "Visual Studio Code - Insiders", icon: "vscode-insiders.png", file_only: false },
-    Target { id: "windsurf", label: "Windsurf", icon: "windsurf.png", file_only: false },
-    Target { id: "zed", label: "Zed", icon: "zed.png", file_only: false },
-    Target { id: "xcode", label: "Xcode", icon: "xcode.png", file_only: false },
-    Target { id: "sublime-text", label: "Sublime Text", icon: "sublime-text.png", file_only: false },
-    Target { id: "webstorm", label: "WebStorm", icon: "", file_only: false },
-    Target { id: "typora", label: "Typora", icon: "typora.png", file_only: true },
-    Target { id: "terminal", label: "Terminal", icon: "terminal.png", file_only: false },
-    Target { id: "iterm2", label: "iTerm", icon: "iterm2.png", file_only: false },
-    Target { id: "ghostty", label: "Ghostty", icon: "ghostty.png", file_only: false },
-    Target { id: "warp", label: "Warp", icon: "warp.png", file_only: false },
-    Target { id: "finder", label: "Finder", icon: "finder.png", file_only: false },
+    Target { id: "cursor", label: "Cursor", icon: "cursor.png", file_only: false, remote_capable: true },
+    Target { id: "vscode", label: "Visual Studio Code", icon: "vscode.png", file_only: false, remote_capable: true },
+    Target { id: "vscode-insiders", label: "Visual Studio Code - Insiders", icon: "vscode-insiders.png", file_only: false, remote_capable: true },
+    Target { id: "windsurf", label: "Windsurf", icon: "windsurf.png", file_only: false, remote_capable: true },
+    Target { id: "zed", label: "Zed", icon: "zed.png", file_only: false, remote_capable: false },
+    Target { id: "xcode", label: "Xcode", icon: "xcode.png", file_only: false, remote_capable: false },
+    Target { id: "sublime-text", label: "Sublime Text", icon: "sublime-text.png", file_only: false, remote_capable: false },
+    Target { id: "webstorm", label: "WebStorm", icon: "", file_only: false, remote_capable: false },
+    Target { id: "typora", label: "Typora", icon: "typora.png", file_only: true, remote_capable: false },
+    Target { id: "terminal", label: "Terminal", icon: "terminal.png", file_only: false, remote_capable: false },
+    Target { id: "iterm2", label: "iTerm", icon: "iterm2.png", file_only: false, remote_capable: false },
+    Target { id: "ghostty", label: "Ghostty", icon: "ghostty.png", file_only: false, remote_capable: false },
+    Target { id: "warp", label: "Warp", icon: "warp.png", file_only: false, remote_capable: false },
+    Target { id: "finder", label: "Finder", icon: "finder.png", file_only: false, remote_capable: false },
 ];
 
 fn home() -> String {
@@ -165,6 +169,7 @@ pub fn list_open_in_targets() -> Vec<OpenInTarget> {
                 icon_data_uri(t.icon)
             },
             file_only: t.file_only,
+            remote_capable: t.remote_capable,
         })
         .collect()
 }
@@ -172,9 +177,15 @@ pub fn list_open_in_targets() -> Vec<OpenInTarget> {
 #[tauri::command(async)]
 pub fn open_in(target_id: String, project_path: String) -> Result<(), String> {
     let t = target(&target_id).ok_or_else(|| format!("unknown open-in target: {target_id}"))?;
-    detect(&target_id).ok_or_else(|| format!("{} is not installed", t.label))?;
+    let app_path = detect(&target_id).ok_or_else(|| format!("{} is not installed", t.label))?;
     if project_path.is_empty() {
         return Err("empty project path".into());
+    }
+    if let Some(ssh) = crate::sshexec::remote_project_for_path(&project_path) {
+        if !t.remote_capable {
+            return Err(format!("{} can't open a remote project", t.label));
+        }
+        return open_remote(t, &app_path, &ssh, &project_path);
     }
     let path = expand_home(&project_path);
     match target_id.as_str() {
@@ -184,6 +195,68 @@ pub fn open_in(target_id: String, project_path: String) -> Result<(), String> {
         "ghostty" => launch_ghostty(&path),
         _ => run(Command::new("open").args(["-a", t.label, &path])),
     }
+}
+
+/// Open a project on an SSH host via VS Code-family Remote-SSH. The remote dir
+/// (possibly `~`-relative) is resolved to an absolute path once and cached, then
+/// handed to the app's embedded CLI as a `vscode-remote://ssh-remote+…` folder
+/// URI. Preferring the embedded CLI over `open -a --args` is what makes this
+/// reliable when the app is already running.
+fn open_remote(t: &Target, app_path: &str, ssh: &crate::config::SshSettings, project_dir: &str) -> Result<(), String> {
+    let abs = resolve_remote_abs(ssh, project_dir)?;
+    let uri = remote_folder_uri(&ssh.user, &ssh.host, &abs);
+    match embedded_cli(app_path) {
+        Some(cli) => run(Command::new(cli).args(["--folder-uri", &uri])),
+        None => run(Command::new("open").args(["-a", t.label, "--args", "--folder-uri", &uri])),
+    }
+}
+
+// Authority carries no port: for a non-22 host VS Code relies on the user's
+// ~/.ssh/config (which we never modify).
+fn remote_folder_uri(user: &str, host: &str, abs_path: &str) -> String {
+    format!("vscode-remote://ssh-remote+{user}@{host}{abs_path}")
+}
+
+/// The remote dir resolved to an absolute path (`cd <dir> && pwd` over the mux),
+/// cached per (host, dir). ssh.dir may be `~/…`; the folder URI needs it absolute.
+fn resolve_remote_abs(ssh: &crate::config::SshSettings, dir: &str) -> Result<String, String> {
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+    static CACHE: OnceLock<Mutex<HashMap<(String, String), String>>> = OnceLock::new();
+    let key = (format!("{}@{}", ssh.user, ssh.host), dir.to_string());
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some(hit) = cache.lock().unwrap().get(&key) {
+        return Ok(hit.clone());
+    }
+    let out = crate::sshexec::remote_command(ssh, dir, "pwd", &[], &[])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        return Err(if err.is_empty() { "could not resolve remote path".into() } else { err });
+    }
+    let abs = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if abs.is_empty() {
+        return Err("could not resolve remote path".into());
+    }
+    cache.lock().unwrap().insert(key, abs.clone());
+    Ok(abs)
+}
+
+/// The launcher binary inside `<App>.app/Contents/Resources/app/bin` (VS Code
+/// forks ship exactly one primary CLI there), detected rather than hardcoded.
+/// The `*-tunnel` companion is skipped; the remaining name wins.
+fn embedded_cli(app_path: &str) -> Option<String> {
+    let bin = std::path::Path::new(app_path).join("Contents/Resources/app/bin");
+    let mut names: Vec<String> = std::fs::read_dir(&bin)
+        .ok()?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().map(|ft| ft.is_file()).unwrap_or(false))
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| !n.ends_with("-tunnel"))
+        .collect();
+    names.sort();
+    names.into_iter().next().map(|n| bin.join(n).to_string_lossy().into_owned())
 }
 
 #[tauri::command(async)]
@@ -280,4 +353,40 @@ fn launch_ghostty(path: &str) -> Result<(), String> {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
     let inner = format!("cd {} && exec {shell}", shell_quote(path));
     run(Command::new("open").args(["-na", "Ghostty.app", "--args", "-e", &shell, "-lc", &inner]))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn folder_uri_has_ssh_remote_authority_and_absolute_path() {
+        // ssh.dir "~/code/app" resolves (remotely) to an absolute path, which the
+        // URI carries verbatim after the user@host authority.
+        let uri = remote_folder_uri("dev", "example.com", "/Users/dev/code/app");
+        assert_eq!(uri, "vscode-remote://ssh-remote+dev@example.com/Users/dev/code/app");
+    }
+
+    #[test]
+    fn remote_capable_set_is_exactly_the_vscode_family() {
+        let capable: Vec<&str> = TARGETS.iter().filter(|t| t.remote_capable).map(|t| t.id).collect();
+        assert_eq!(capable, vec!["cursor", "vscode", "vscode-insiders", "windsurf"]);
+    }
+
+    #[test]
+    fn embedded_cli_detects_launcher_and_skips_tunnel() {
+        let app = tempfile::tempdir().unwrap();
+        let bin = app.path().join("Contents/Resources/app/bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::write(bin.join("code"), "#!/bin/sh\n").unwrap();
+        std::fs::write(bin.join("code-tunnel"), "#!/bin/sh\n").unwrap();
+        let cli = embedded_cli(&app.path().to_string_lossy()).unwrap();
+        assert!(cli.ends_with("/bin/code"), "{cli}");
+    }
+
+    #[test]
+    fn embedded_cli_none_when_bin_missing() {
+        let app = tempfile::tempdir().unwrap();
+        assert!(embedded_cli(&app.path().to_string_lossy()).is_none());
+    }
 }

@@ -38,6 +38,7 @@ mod sshconfig;
 mod sshexec;
 mod sshsync;
 mod status;
+mod statusfwd;
 mod sys;
 mod templates;
 mod textinput;
@@ -125,6 +126,7 @@ pub fn run() {
         .manage(updates::UpdateState::default())
         .manage(tts::TtsState::default())
         .manage(portforward::PortFwdState::default())
+        .manage(statusfwd::StatusFwdState::default())
         .manage(sshsync::SyncState::default())
         .manage(browser::BrowserState::default())
         .manage(remote::RemoteHub::default())
@@ -160,7 +162,10 @@ pub fn run() {
             // Status socket server (agents in panes report status here) + the
             // dead-PID sweep. Both run on background threads.
             let store = app.state::<std::sync::Arc<status::StatusStore>>().inner().clone();
-            socketsrv::start(config::socket_path(), store.clone(), handle.clone());
+            socketsrv::start(config::socket_path(), store.clone(), handle.clone(), false);
+            // Second, restricted socket that SSH hosts reach over `ssh -R` — status
+            // verbs only, so a remote host can never control the Mac.
+            socketsrv::start(config::remote_socket_path(), store.clone(), handle.clone(), true);
             status::start_pid_sweep(store, handle.clone());
 
             // Mobile remote-control server (the phone app connects here). Reads
@@ -213,11 +218,13 @@ pub fn run() {
             tauri::RunEvent::Exit => {
                 tts::stop_on_exit(app); // kill any suspended python TTS child
                 portforward::stop_all_forwards(app); // kill ssh -L tunnels + pollers
+                statusfwd::stop_all(app); // kill ssh -R status forwards
                 sshsync::stop_all_sync_watchers(app); // drop rsync mirror watchers
                 remote::stop(&app.state::<remote::RemoteHub>()); // retire the mobile server threads
                 peer::stop(&app.state::<peer::PeerHub>()); // retire the peer host threads
                 peerclient::stop(&app.state::<peerclient::PeerClientHub>()); // drop peer client conns
                 let _ = std::fs::remove_file(config::socket_path());
+                let _ = std::fs::remove_file(config::remote_socket_path());
             }
             // Dock-icon click with no visible window restores the hidden main
             // window — otherwise it would stay hidden after the close button.

@@ -921,6 +921,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             isDetached={detached.has(contextMenu.name)}
             canSelect={projects.length > 1}
             remote={isPeerName(contextMenu.name)}
+            sshRemote={contextProject?.isRemote ?? false}
             projectName={contextMenu.name}
             running={contextProject?.running ?? false}
             services={contextProject?.services ?? []}

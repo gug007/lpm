@@ -67,17 +67,14 @@ pub fn install_agent_hooks() {
     install_codex_hooks();
 }
 
-fn install_claude_hooks_at(path: &Path) -> Result<(), String> {
-    let Ok(data) = std::fs::read(path) else {
-        return Ok(()); // missing settings — do NOT create the file
-    };
-    let Ok(mut settings) = serde_json::from_slice::<Value>(&data) else {
-        return Ok(()); // leave invalid JSON untouched
-    };
+/// Merge the six lpm Claude hooks into settings JSON `data`, returning Some(new
+/// bytes) when a change is needed and None when unchanged or the input is not a
+/// JSON object (invalid JSON is never rewritten). Pure — the transport (local fs
+/// vs remote ssh) is the caller's job, so both share this exact merge/strip logic.
+fn merge_claude_hooks(data: &[u8]) -> Option<Vec<u8>> {
+    let mut settings = serde_json::from_slice::<Value>(data).ok()?;
     let original = settings.clone();
-    let Some(obj) = settings.as_object_mut() else {
-        return Ok(());
-    };
+    let obj = settings.as_object_mut()?;
     if !obj.get("hooks").map(Value::is_object).unwrap_or(false) {
         obj.insert("hooks".into(), json!({}));
     }
@@ -101,12 +98,73 @@ fn install_claude_hooks_at(path: &Path) -> Result<(), String> {
     append_hook(hooks, "StopFailure", claude_hook(&set_error, ""));
     append_hook(hooks, "SessionEnd", claude_hook(&clear, ""));
 
+    if settings == original {
+        return None;
+    }
+    serde_json::to_string_pretty(&settings).ok().map(String::into_bytes)
+}
+
+fn install_claude_hooks_at(path: &Path) -> Result<(), String> {
+    let Ok(data) = std::fs::read(path) else {
+        return Ok(()); // missing settings — do NOT create the file
+    };
     // Write only on change; errors propagate so the Reset button can surface them.
-    if settings != original {
-        let out = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
+    if let Some(out) = merge_claude_hooks(&data) {
         std::fs::write(path, out).map_err(|e| format!("cannot write Claude settings: {e}"))?;
     }
     Ok(())
+}
+
+/// Best-effort: install the Claude status hooks into the REMOTE
+/// ~/.claude/settings.json over ssh, so agents on the host report status. Reads
+/// via `cat` (skips a missing/unreadable file — never creates it), reuses the
+/// shared merge, and writes back only on change via a temp file + atomic rename.
+/// Codex remote hooks are out of scope (remote TOML editing).
+pub fn install_remote_claude_hooks(ssh: &crate::config::SshSettings) {
+    let read = crate::sshexec::remote_command(
+        ssh,
+        "",
+        "bash",
+        &["-lc", "cat \"$HOME/.claude/settings.json\" 2>/dev/null"],
+        &[],
+    )
+    .output();
+    let Ok(out) = read else { return };
+    if !out.status.success() || out.stdout.is_empty() {
+        return; // missing/unreadable settings — never create
+    }
+    let Some(merged) = merge_claude_hooks(&out.stdout) else { return };
+    write_remote_claude_settings(ssh, &merged);
+}
+
+fn write_remote_claude_settings(ssh: &crate::config::SshSettings, bytes: &[u8]) {
+    let script = "t=\"$HOME/.claude/.settings.json.lpmtmp\"; cat > \"$t\" && mv -f \"$t\" \"$HOME/.claude/settings.json\"";
+    let child = crate::sshexec::remote_command(ssh, "", "bash", &["-lc", script], &[])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+    let Ok(mut child) = child else { return };
+    if let Some(mut stdin) = child.stdin.take() {
+        use std::io::Write;
+        let _ = stdin.write_all(bytes); // stdin drops here -> EOF so `cat` finishes
+    }
+    let _ = child.wait();
+}
+
+/// Install the remote Claude hooks once per host per app run (best-effort,
+/// off-thread). Called on remote terminal spawn.
+pub fn install_remote_claude_hooks_once(ssh: &crate::config::SshSettings) {
+    use std::collections::HashSet;
+    use std::sync::{Mutex, OnceLock};
+    static DONE: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    let key = format!("{}@{}:{}", ssh.user, ssh.host, ssh.port);
+    let first = DONE.get_or_init(Default::default).lock().unwrap().insert(key);
+    if !first {
+        return;
+    }
+    let ssh = ssh.clone();
+    std::thread::spawn(move || install_remote_claude_hooks(&ssh));
 }
 
 fn install_codex_hooks() {
@@ -331,6 +389,19 @@ mod tests {
         assert_eq!(v["model"], "opus");
         assert!(has_marker(&v["hooks"]), "reinstalled after reset");
         assert_eq!(v["hooks"]["Stop"].as_array().unwrap().len(), 1, "no duplication");
+    }
+
+    #[test]
+    fn merge_returns_change_then_none_and_ignores_invalid() {
+        // First merge changes the object; a second merge of the result is a no-op
+        // (idempotent) — the same guarantee the remote install relies on.
+        let first = merge_claude_hooks(br#"{"model":"opus"}"#).expect("first merge changes");
+        let v: Value = serde_json::from_slice(&first).unwrap();
+        assert_eq!(v["model"], "opus");
+        assert!(has_marker(&v["hooks"]));
+        assert!(merge_claude_hooks(&first).is_none(), "second merge is a no-op");
+        // Invalid JSON never rewritten.
+        assert!(merge_claude_hooks(b"{ not json").is_none());
     }
 
     #[test]

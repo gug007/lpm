@@ -1042,6 +1042,13 @@ pub fn socket_path() -> String {
     lpm_dir().join("lpm.sock").to_string_lossy().into_owned()
 }
 
+/// Second, restricted status socket that remote (SSH) hosts reach over an
+/// `ssh -R` forward. Only status verbs are served here — never the project
+/// control verbs — so a remote host can't drive the Mac (socketsrv.rs).
+pub fn remote_socket_path() -> String {
+    lpm_dir().join("lpm-remote.sock").to_string_lossy().into_owned()
+}
+
 /// (expanded root, is_remote) for a project, for terminal spawning.
 pub fn project_root(name: &str) -> Result<(String, bool), String> {
     let y = parse_project_yaml(name)?;
@@ -2334,5 +2341,24 @@ mod ssh_exec_tests {
         let local = SshSettings::default();
         assert_eq!(frontend_root("/abs/path", &local), "/abs/path");
         assert_eq!(frontend_root("~", &local), expand_home("~"));
+    }
+
+    #[test]
+    fn remote_script_exports_lpm_env_and_keeps_home_expr() {
+        let mut env = BTreeMap::new();
+        env.insert("LPM_PROJECT_NAME".to_string(), "My app".to_string());
+        env.insert("LPM_PANE_ID".to_string(), "p-1".to_string());
+        // LPM_SOCKET_PATH is set via the inner command (raw, not an env export) so
+        // the remote login shell expands $HOME rather than a local lookup.
+        let inner = "export LPM_SOCKET_PATH=\"$HOME/.lpm/fwd/status-x.sock\" && exec \"$SHELL\" -l";
+        let script = build_remote_script("", &env, inner);
+        // Env exports are single-quoted, so a project name with a space is safe.
+        assert!(script.contains("export LPM_PROJECT_NAME='My app'"), "{script}");
+        assert!(script.contains("export LPM_PANE_ID='p-1'"), "{script}");
+        // The socket path's $HOME survives verbatim for remote expansion.
+        assert!(script.contains("export LPM_SOCKET_PATH=\"$HOME/.lpm/fwd/status-x.sock\""), "{script}");
+        // ssh_command_argv wraps the same script for the login shell.
+        let ssh = SshSettings { host: "h".into(), user: "u".into(), port: 0, key: String::new(), dir: String::new() };
+        assert!(ssh_command_argv(&ssh, "", &env, inner).pop().unwrap().contains("LPM_SOCKET_PATH"));
     }
 }

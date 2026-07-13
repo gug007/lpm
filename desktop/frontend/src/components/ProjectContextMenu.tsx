@@ -22,6 +22,9 @@ interface ProjectContextMenuProps {
   // select); Git / Duplicate / Rename / Copy path / Remove stay and route to
   // the peer.
   remote: boolean;
+  // An SSH project (root lives on an SSH host). Limits "Open with" to editors
+  // that can open a remote folder (VS Code-family Remote-SSH).
+  sshRemote: boolean;
   projectName: string;
   running: boolean;
   services: { name: string; port: number }[];
@@ -54,6 +57,7 @@ export function ProjectContextMenu({
   isDetached,
   canSelect,
   remote,
+  sshRemote,
   projectName,
   running,
   services,
@@ -76,7 +80,7 @@ export function ProjectContextMenu({
   onRemoveFromDisk,
   onClose,
 }: ProjectContextMenuProps) {
-  const openInTargets = useOpenInTargets().filter((t) => !t.fileOnly);
+  const openInTargets = useOpenInTargets().filter((t) => !t.fileOnly && (!sshRemote || t.remoteCapable));
   const primaryTarget = primaryOpenInTarget(openInTargets);
   const close = (fn: () => void) => () => {
     fn();

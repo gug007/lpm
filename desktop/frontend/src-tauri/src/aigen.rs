@@ -207,22 +207,48 @@ fn read_to_string(path: &std::path::Path) -> String {
     std::fs::read_to_string(path).unwrap_or_default()
 }
 
+// ---- per-file classification (shared by the local and remote scans) ---------
+// Each takes a file's derived name + raw contents and produces the AgentCommand,
+// so the SSH scan reuses the exact naming/frontmatter/skip rules rather than
+// re-deriving them.
+
+// Claude command: name is the filename stem.
+fn claude_command_entry(name: &str, contents: &str, source: &str) -> AgentCommand {
+    let (description, argument_hint, _) = parse_frontmatter(contents);
+    AgentCommand { name: name.to_string(), description, argument_hint, source: source.to_string() }
+}
+
+// Claude skill: name is the skill directory name. `user-invocable: false` skills
+// are background-only and skipped (None).
+fn claude_skill_entry(name: &str, contents: &str, source: &str) -> Option<AgentCommand> {
+    let (description, argument_hint, user_invocable) = parse_frontmatter(contents);
+    if !user_invocable {
+        return None;
+    }
+    Some(AgentCommand { name: name.to_string(), description, argument_hint, source: source.to_string() })
+}
+
+// Codex prompt: surfaced as `prompts:<name>` (the canonical invocation form),
+// always user scope.
+fn codex_prompt_entry(name: &str, contents: &str) -> AgentCommand {
+    let (description, argument_hint, _) = parse_frontmatter(contents);
+    AgentCommand {
+        name: format!("prompts:{name}"),
+        description,
+        argument_hint,
+        source: "user".to_string(),
+    }
+}
+
 // Claude `.claude/commands/**/*.md` — command name is the filename stem.
 fn scan_claude_commands(dir: &std::path::Path, source: &str, out: &mut Vec<AgentCommand>) {
     for path in glob_md(dir, true) {
         let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else { continue };
-        let (description, argument_hint, _) = parse_frontmatter(&read_to_string(&path));
-        out.push(AgentCommand {
-            name: stem.to_string(),
-            description,
-            argument_hint,
-            source: source.to_string(),
-        });
+        out.push(claude_command_entry(stem, &read_to_string(&path), source));
     }
 }
 
 // Claude `.claude/skills/<name>/SKILL.md` — command name is the directory name.
-// Skills flagged `user-invocable: false` are background-only and skipped.
 fn scan_claude_skills(skills_dir: &std::path::Path, source: &str, out: &mut Vec<AgentCommand>) {
     let Ok(entries) = std::fs::read_dir(skills_dir) else { return };
     for entry in entries.filter_map(|e| e.ok()) {
@@ -232,31 +258,17 @@ fn scan_claude_skills(skills_dir: &std::path::Path, source: &str, out: &mut Vec<
             continue;
         }
         let Some(name) = dir.file_name().and_then(|s| s.to_str()) else { continue };
-        let (description, argument_hint, user_invocable) = parse_frontmatter(&read_to_string(&skill_md));
-        if !user_invocable {
-            continue;
+        if let Some(cmd) = claude_skill_entry(name, &read_to_string(&skill_md), source) {
+            out.push(cmd);
         }
-        out.push(AgentCommand {
-            name: name.to_string(),
-            description,
-            argument_hint,
-            source: source.to_string(),
-        });
     }
 }
 
-// Codex `${CODEX_HOME:-~/.codex}/prompts/*.md` (top-level only). Surfaced as
-// `prompts:<name>`, the current canonical invocation form.
+// Codex `${CODEX_HOME:-~/.codex}/prompts/*.md` (top-level only).
 fn scan_codex_prompts(prompts_dir: &std::path::Path, out: &mut Vec<AgentCommand>) {
     for path in glob_md(prompts_dir, false) {
         let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else { continue };
-        let (description, argument_hint, _) = parse_frontmatter(&read_to_string(&path));
-        out.push(AgentCommand {
-            name: format!("prompts:{stem}"),
-            description,
-            argument_hint,
-            source: "user".to_string(),
-        });
+        out.push(codex_prompt_entry(stem, &read_to_string(&path)));
     }
 }
 
@@ -312,15 +324,128 @@ fn dedup_and_sort(items: Vec<AgentCommand>) -> Vec<AgentCommand> {
     out
 }
 
+// ---- remote (SSH) custom-command scan ---------------------------------------
+// For an SSH terminal the agent runs on the host, so both the user scope
+// (remote $HOME) and the project scope (remote cwd) live remotely. One `bash`
+// round trip streams the candidate files length-framed as
+// `KIND\x1fSCOPE\x1fNAME\x1f<bytelen>\n<contents>` (control-byte delimited,
+// explicit length so markdown bodies can hold anything). Any ssh failure yields
+// an empty list, degrading the composer to builtins-only.
+
+const REMOTE_SCAN_FILE_CAP: usize = 500;
+const REMOTE_SCAN_BYTE_CAP: usize = 65536;
+
+// Shared preamble: `emit KIND SCOPE NAME FILE` frames one file, capped in count
+// and per-file bytes. `\037` is the field separator (0x1f).
+const REMOTE_SCAN_PREAMBLE: &str = "N=0
+emit() {
+  [ \"$N\" -ge 500 ] && return 0
+  [ -f \"$4\" ] || return 0
+  L=$(head -c 65536 \"$4\" | wc -c | tr -d ' ')
+  printf '%s\\037%s\\037%s\\037%s\\n' \"$1\" \"$2\" \"$3\" \"$L\"
+  head -c 65536 \"$4\"
+  N=$((N+1))
+}
+";
+
+fn remote_scan_script(cli: &str, dir: &str) -> String {
+    match cli {
+        "claude" => format!(
+            "{REMOTE_SCAN_PREAMBLE}CWD={cwd}
+scan_cmds() {{
+  [ -d \"$1/.claude/commands\" ] || return 0
+  while IFS= read -r f; do b=\"${{f##*/}}\"; emit command \"$2\" \"${{b%.md}}\" \"$f\"; done < <(find \"$1/.claude/commands\" -type f -name '*.md' 2>/dev/null)
+}}
+scan_skills() {{
+  [ -d \"$1/.claude/skills\" ] || return 0
+  while IFS= read -r f; do d=\"${{f%/*}}\"; emit skill \"$2\" \"${{d##*/}}\" \"$f\"; done < <(find \"$1/.claude/skills\" -mindepth 2 -maxdepth 2 -type f -name 'SKILL.md' 2>/dev/null)
+}}
+scan_cmds \"$HOME\" user
+scan_skills \"$HOME\" user
+if [ -n \"$CWD\" ]; then scan_cmds \"$CWD\" project; scan_skills \"$CWD\" project; fi
+",
+            cwd = config::quote_remote_path(dir)
+        ),
+        "codex" => format!(
+            "{REMOTE_SCAN_PREAMBLE}CH=\"${{CODEX_HOME:-$HOME/.codex}}\"
+if [ -d \"$CH/prompts\" ]; then
+  while IFS= read -r f; do b=\"${{f##*/}}\"; emit codex user \"${{b%.md}}\" \"$f\"; done < <(find \"$CH/prompts\" -maxdepth 1 -type f -name '*.md' 2>/dev/null)
+fi
+"
+        ),
+        _ => String::new(),
+    }
+}
+
+fn scan_custom_remote(cli: &str, ssh: &config::SshSettings, dir: &str) -> Vec<AgentCommand> {
+    let script = remote_scan_script(cli, dir);
+    if script.is_empty() {
+        return Vec::new();
+    }
+    let out = crate::sshexec::remote_command(ssh, "", "bash", &["-lc", &script], &[]).output();
+    match out {
+        Ok(o) if o.status.success() => parse_remote_scan(&o.stdout),
+        _ => Vec::new(),
+    }
+}
+
+fn parse_remote_scan(bytes: &[u8]) -> Vec<AgentCommand> {
+    let mut user: Vec<AgentCommand> = Vec::new();
+    let mut project: Vec<AgentCommand> = Vec::new();
+    let mut i = 0;
+    let mut count = 0;
+    while i < bytes.len() && count < REMOTE_SCAN_FILE_CAP {
+        let Some(nl) = bytes[i..].iter().position(|&b| b == b'\n') else { break };
+        let header = &bytes[i..i + nl];
+        i += nl + 1;
+        let fields: Vec<&[u8]> = header.split(|&b| b == 0x1f).collect();
+        if fields.len() != 4 {
+            break;
+        }
+        let kind = String::from_utf8_lossy(fields[0]);
+        let scope = String::from_utf8_lossy(fields[1]);
+        let name = String::from_utf8_lossy(fields[2]).into_owned();
+        let Some(len) = std::str::from_utf8(fields[3]).ok().and_then(|s| s.trim().parse::<usize>().ok())
+        else {
+            break;
+        };
+        if len > REMOTE_SCAN_BYTE_CAP || i + len > bytes.len() {
+            break;
+        }
+        let contents = String::from_utf8_lossy(&bytes[i..i + len]).into_owned();
+        i += len;
+        count += 1;
+        let source = if scope == "project" { "project" } else { "user" };
+        let bucket = if scope == "project" { &mut project } else { &mut user };
+        match kind.as_ref() {
+            "command" => bucket.push(claude_command_entry(&name, &contents, source)),
+            "skill" => {
+                if let Some(cmd) = claude_skill_entry(&name, &contents, source) {
+                    bucket.push(cmd);
+                }
+            }
+            "codex" => user.push(codex_prompt_entry(&name, &contents)),
+            _ => {}
+        }
+    }
+    // User before project so the first-wins dedup keeps the user copy on clash.
+    user.extend(project);
+    user
+}
+
 /// Enumerate the slash commands available for `cli` (built-ins + custom commands
 /// discovered under `cwd` and the user's home), for the composer's autocomplete.
-/// Pure, stateless filesystem query — the frontend caches per (cli, cwd).
+/// Pure, stateless filesystem query — the frontend caches per (cli, cwd). For an
+/// SSH project both scopes are scanned on the remote host instead.
 #[tauri::command(async)]
 pub fn list_agent_commands(cli: String, cwd: String) -> Result<Vec<AgentCommand>, String> {
     if !is_supported_cli(&cli) {
         return Err(format!("unsupported AI CLI {cli:?}"));
     }
-    let mut items = scan_custom(&cli, &cwd);
+    let mut items = match crate::sshexec::remote_project_for_path(&cwd) {
+        Some(ssh) => scan_custom_remote(&cli, &ssh, &cwd),
+        None => scan_custom(&cli, &cwd),
+    };
     items.extend(builtins(&cli));
     Ok(dedup_and_sort(items))
 }
@@ -998,4 +1123,81 @@ fn build_action_yaml_prompt(
     }
 
     format!("{ctx}\n# Reference: lpm skill\n\n{LPM_SKILL}\n\n{task}")
+}
+
+#[cfg(test)]
+mod remote_scan_tests {
+    use super::*;
+
+    // Frame one file the way the remote script does: header fields separated by
+    // 0x1f, then a newline, then exactly `contents.len()` bytes.
+    fn record(kind: &str, scope: &str, name: &str, contents: &str) -> Vec<u8> {
+        let mut v = Vec::new();
+        v.extend_from_slice(format!("{kind}\u{1f}{scope}\u{1f}{name}\u{1f}{}\n", contents.len()).as_bytes());
+        v.extend_from_slice(contents.as_bytes());
+        v
+    }
+
+    #[test]
+    fn parses_multiple_files_and_scopes() {
+        let mut stream = Vec::new();
+        stream.extend(record("command", "user", "review", "---\ndescription: Review it\n---\nbody"));
+        stream.extend(record("command", "project", "deploy", "just the body line"));
+        let cmds = parse_remote_scan(&stream);
+        assert_eq!(cmds.len(), 2);
+        let review = cmds.iter().find(|c| c.name == "review").unwrap();
+        assert_eq!(review.description, "Review it");
+        assert_eq!(review.source, "user");
+        let deploy = cmds.iter().find(|c| c.name == "deploy").unwrap();
+        assert_eq!(deploy.description, "just the body line");
+        assert_eq!(deploy.source, "project");
+    }
+
+    #[test]
+    fn frontmatter_with_apostrophes_and_multiline_survives() {
+        // A description containing an apostrophe and a body with control-adjacent
+        // punctuation must round-trip because framing is length-based, not
+        // delimiter-scanning.
+        let body = "---\ndescription: don't drop this line\nargument-hint: <path>\n---\nline one\nline two";
+        let cmds = parse_remote_scan(&record("command", "user", "x", body));
+        assert_eq!(cmds[0].description, "don't drop this line");
+        assert_eq!(cmds[0].argument_hint, "<path>");
+    }
+
+    #[test]
+    fn skill_user_invocable_false_is_skipped() {
+        let mut stream = Vec::new();
+        stream.extend(record("skill", "user", "shown", "---\ndescription: A\n---\n"));
+        stream.extend(record("skill", "project", "hidden", "---\ndescription: B\nuser-invocable: false\n---\n"));
+        let cmds = parse_remote_scan(&stream);
+        assert_eq!(cmds.len(), 1);
+        assert_eq!(cmds[0].name, "shown");
+    }
+
+    #[test]
+    fn codex_prompts_get_prefix_and_user_source() {
+        let cmds = parse_remote_scan(&record("codex", "user", "draftpr", "---\ndescription: Draft a PR\n---\n"));
+        assert_eq!(cmds[0].name, "prompts:draftpr");
+        assert_eq!(cmds[0].source, "user");
+    }
+
+    #[test]
+    fn truncated_or_malformed_stream_stops_cleanly() {
+        // Header promises 999 bytes but the stream is short: no panic, no entry.
+        let bad = b"command\x1fuser\x1fx\x1f999\nshort".to_vec();
+        assert!(parse_remote_scan(&bad).is_empty());
+        // A header with the wrong field count is ignored.
+        assert!(parse_remote_scan(b"command\x1fuser\x1f5\nhello").is_empty());
+    }
+
+    #[test]
+    fn script_embeds_remote_home_expanded_cwd_for_claude() {
+        let script = remote_scan_script("claude", "~/code/app");
+        assert!(script.contains("CWD=\"$HOME\"'/code/app'"), "{script}");
+        assert!(script.contains(".claude/commands"));
+        assert!(script.contains("SKILL.md"));
+        // codex/other CLIs produce their own / no script.
+        assert!(remote_scan_script("codex", "/x").contains("CODEX_HOME"));
+        assert!(remote_scan_script("gemini", "/x").is_empty());
+    }
 }

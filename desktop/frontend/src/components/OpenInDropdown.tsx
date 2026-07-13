@@ -2,12 +2,16 @@ import { useMemo, useState } from "react";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { launchOpenInTarget, useOpenInTargets, OPEN_IN_SELECTED_KEY, type OpenInTarget } from "../hooks/useOpenInTargets";
 
-export function OpenInDropdown({ projectPath }: {
+export function OpenInDropdown({ projectPath, isRemote = false }: {
   projectPath: string;
+  isRemote?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const allTargets = useOpenInTargets();
-  const targets = useMemo(() => allTargets.filter((t) => !t.fileOnly), [allTargets]);
+  const targets = useMemo(
+    () => allTargets.filter((t) => !t.fileOnly && (!isRemote || t.remoteCapable)),
+    [allTargets, isRemote],
+  );
   const [selectedId, setSelectedId] = useState<string>(() => localStorage.getItem(OPEN_IN_SELECTED_KEY) ?? "");
   const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
 

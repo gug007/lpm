@@ -251,10 +251,24 @@ fn start_internal(
         config::ensure_ssh_control_dir()?;
         let mut remote_env: BTreeMap<String, String> = BTreeMap::new();
         remote_env.insert("TERM_PROGRAM".into(), "kitty".into());
+        // Baked into the remote script so the agent hooks running on the host can
+        // report status back (LPM_* on the local ssh client below is never
+        // forwarded). LPM_SOCKET_PATH must resolve to an absolute REMOTE path, so
+        // it goes through an inner export whose $HOME the remote login shell
+        // expands — no blocking home lookup on this (UI-thread) spawn. The
+        // matching `ssh -R` forward + remote hook install run on their own threads.
+        remote_env.insert("LPM_PROJECT_NAME".into(), project_name.to_string());
+        remote_env.insert("LPM_PANE_ID".into(), id.clone());
         for (k, v) in extra_env {
             remote_env.insert(k.clone(), v.clone());
         }
-        let argv = config::ssh_command_argv(ssh, raw_cwd, &remote_env, "exec \"$SHELL\" -l");
+        let inner = format!(
+            "export LPM_SOCKET_PATH={} && exec \"$SHELL\" -l",
+            crate::statusfwd::remote_socket_env_expr()
+        );
+        let argv = config::ssh_command_argv(ssh, raw_cwd, &remote_env, &inner);
+        crate::statusfwd::ensure_status_forward(app, ssh);
+        crate::hooks::install_remote_claude_hooks_once(ssh);
         builder = CommandBuilder::new(&argv[0]);
         for a in &argv[1..] {
             builder.arg(a);

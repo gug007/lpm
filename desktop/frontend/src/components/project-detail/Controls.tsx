@@ -76,7 +76,7 @@ export function Controls({
     <>
       {project.isRemote && <PortsButton projectName={project.name} />}
       <div style={NO_DRAG_STYLE}>
-        <OpenInDropdown projectPath={project.root} />
+        <OpenInDropdown projectPath={project.root} isRemote={project.isRemote} />
       </div>
       <div className="relative" style={NO_DRAG_STYLE}>
         <button

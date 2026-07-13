@@ -36,8 +36,11 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
 /// Bind the socket and serve forever on a background thread. Failure is logged,
-/// not fatal — the rest of the app still runs (badges just stay dark).
-pub fn start(socket_path: String, store: Arc<StatusStore>, app: AppHandle) {
+/// not fatal — the rest of the app still runs (badges just stay dark). When
+/// `restricted`, only the status verbs are served (the socket a remote SSH host
+/// reaches over `ssh -R`); every control verb is refused so a remote host can
+/// never drive the Mac.
+pub fn start(socket_path: String, store: Arc<StatusStore>, app: AppHandle, restricted: bool) {
     let _ = std::fs::remove_file(&socket_path); // clear a stale socket from an unclean exit
     let listener = match UnixListener::bind(&socket_path) {
         Ok(l) => l,
@@ -55,12 +58,18 @@ pub fn start(socket_path: String, store: Arc<StatusStore>, app: AppHandle) {
         for conn in listener.incoming() {
             let Ok(stream) = conn else { continue };
             let (store, app) = (store.clone(), app.clone());
-            std::thread::spawn(move || handle_client(stream, &store, &app));
+            std::thread::spawn(move || handle_client(stream, &store, &app, restricted));
         }
     });
 }
 
-fn handle_client(stream: UnixStream, store: &StatusStore, app: &AppHandle) {
+/// Verbs a remote host is allowed to send on the restricted socket: status
+/// reporting only, never project control.
+fn remote_allowed(command: &str) -> bool {
+    matches!(command, "ping" | "set_status" | "clear_status" | "list_status")
+}
+
+fn handle_client(stream: UnixStream, store: &StatusStore, app: &AppHandle, restricted: bool) {
     let _ = stream.set_read_timeout(Some(Duration::from_secs(30)));
     let Ok(mut writer) = stream.try_clone() else { return };
     let reader = BufReader::new(stream);
@@ -71,8 +80,10 @@ fn handle_client(stream: UnixStream, store: &StatusStore, app: &AppHandle) {
         }
         // `duplicate_project` streams its own PROGRESS lines + final JSON; every
         // other verb maps one request line to exactly one reply line.
-        let first = shell_split(&line).into_iter().next().unwrap_or_default();
-        let write_result = if first.to_lowercase() == "duplicate_project" {
+        let first = shell_split(&line).into_iter().next().unwrap_or_default().to_lowercase();
+        let write_result = if restricted && !remote_allowed(&first) {
+            writeln!(writer, "ERROR: not allowed on remote socket")
+        } else if first == "duplicate_project" {
             cmd_duplicate_project(&line, app, &mut writer)
         } else {
             writeln!(writer, "{}", process_command(&line, store, app))
@@ -464,6 +475,19 @@ mod tests {
         let (pos, opts) = parse_options(&a);
         assert_eq!(pos, ["myproj"]);
         assert_eq!(opts.get("profile").unwrap(), "staging");
+    }
+
+    #[test]
+    fn restricted_socket_allows_only_status_verbs() {
+        for ok in ["ping", "set_status", "clear_status", "list_status"] {
+            assert!(remote_allowed(ok), "{ok} should be allowed on the remote socket");
+        }
+        for bad in [
+            "start_project", "stop_project", "start_service", "stop_service",
+            "restart_service", "remove_project", "run_task", "duplicate_project", "unknown",
+        ] {
+            assert!(!remote_allowed(bad), "{bad} must be refused on the remote socket");
+        }
     }
 
     #[test]
