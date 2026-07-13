@@ -55,6 +55,11 @@ const MATRIX_ROWS: MatrixRow[] = [
     competitor: true,
   },
   {
+    label: "Declares startup order between services",
+    lpm: "start order",
+    competitor: "order + health gate",
+  },
+  {
     label: "Runs services natively on the host",
     lpm: true,
     competitor: false,

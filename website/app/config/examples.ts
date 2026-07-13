@@ -8,15 +8,28 @@ export const SERVICES_EXAMPLE = `name: myapp
 root: ~/Projects/myapp
 services:
   # shorthand — key is the name, value is the command
-  web: npm run dev
+  server: node server.js
 
-  # full form — use this when you need cwd, port, or env
-  server:
-    cmd: node server.js
-    cwd: ./server             # run from a subfolder (great for monorepos)
-    port: 4000                # unique per project; shown as a link in the app
+  # full form — use this when you need cwd, port, env, or dependsOn
+  web:
+    cmd: npm run dev
+    cwd: ./web                # run from a subfolder (great for monorepos)
+    port: 3000                # unique per project; shown as a link in the app
+    dependsOn: [server]       # start "server" first, pulled in automatically
     env:                      # extra env vars just for this service
-      API_KEY: dev-secret
+      API_URL: http://localhost:4000
+`;
+
+export const SERVICES_DEPENDS_EXAMPLE = `name: myapp
+root: ~/Projects/myapp
+services:
+  db: docker compose up postgres
+  api:
+    cmd: npm run api
+    dependsOn: [db]           # lpm starts db before api
+  web:
+    cmd: npm run dev
+    dependsOn: [api]          # lpm starts api before web
 `;
 
 export const ACTIONS_EXAMPLE = `name: myapp

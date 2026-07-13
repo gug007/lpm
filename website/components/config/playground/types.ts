@@ -5,7 +5,8 @@ export type ServiceDef =
       cwd?: string;
       port?: number;
       env?: Record<string, string>;
-      profiles?: string[];
+      dependsOn?: string[];
+      depends_on?: string[];
     };
 
 export type ActionDef =

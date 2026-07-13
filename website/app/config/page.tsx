@@ -25,6 +25,7 @@ import {
   RECIPE_MONOREPO,
   RECIPE_NEXT_NODE,
   RECIPE_TESTS,
+  SERVICES_DEPENDS_EXAMPLE,
   SERVICES_EXAMPLE,
   TERMINALS_AGENTS_EXAMPLE,
   TERMINALS_EXAMPLE,
@@ -142,20 +143,17 @@ const serviceFields: Field[] = [
     ),
   },
   {
-    name: "profiles",
+    name: "dependsOn",
     type: "[]string",
     required: false,
     description: (
       <>
-        Names of the profiles this service belongs to. Profiles let you start a
-        named subset of services instead of everything at once — see the{" "}
-        <a
-          href="#profiles"
-          className="text-gray-600 dark:text-gray-300 underline underline-offset-2"
-        >
-          Profiles
-        </a>{" "}
-        section below.
+        Other services this one needs — name them here and lpm starts them
+        first, pulling them in automatically whenever you start this service
+        (even if you only picked this one). It&rsquo;s ordering only: the
+        dependencies launch ahead of this service, but lpm doesn&rsquo;t wait
+        for them to finish booting or start listening before it moves on. Also
+        accepted as <code className="font-mono">depends_on</code>.
       </>
     ),
   },
@@ -480,6 +478,29 @@ export default function ConfigPage() {
                   initial={SERVICES_EXAMPLE}
                 />
                 <FieldTable fields={serviceFields} />
+
+                <p className="mt-8 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                  <strong className="font-medium text-gray-700 dark:text-gray-200">
+                    Services that depend on each other.
+                  </strong>{" "}
+                  When one service builds on another — a web app that talks to an
+                  API, an API that reads from the database — list the ones it
+                  needs in{" "}
+                  <code className="font-mono">dependsOn</code>. Start{" "}
+                  <code className="font-mono">web</code> here and lpm pulls in{" "}
+                  <code className="font-mono">api</code> and{" "}
+                  <code className="font-mono">db</code> for you and launches them
+                  in order: <code className="font-mono">db</code>, then{" "}
+                  <code className="font-mono">api</code>, then{" "}
+                  <code className="font-mono">web</code>. It starts them in that
+                  order but doesn&rsquo;t wait for each one to be ready before
+                  moving to the next, so a service that connects on boot should
+                  retry until its dependency answers.
+                </p>
+                <ConfigPlayground
+                  filename="services-depends.yml"
+                  initial={SERVICES_DEPENDS_EXAMPLE}
+                />
 
                 <div className="mt-6 mb-4 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-900/40 px-4 py-3 text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
                   <p className="font-medium text-gray-700 dark:text-gray-200 mb-1">
