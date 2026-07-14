@@ -64,6 +64,7 @@ export function TerminalHistoryPopover({
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [confirmingClear, setConfirmingClear] = useState(false);
+  const [confirmingFolderDelete, setConfirmingFolderDelete] = useState<Folder | null>(null);
   const [folderMenu, setFolderMenu] = useState<{ message: HistoryMessage; anchor: DOMRect } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -187,10 +188,7 @@ export function TerminalHistoryPopover({
           collection={collection}
           folders={folders}
           onSelect={selectCollection}
-          onDeleteFolder={(id) => {
-            deleteFolder(id);
-            if (collection === id) selectCollection(COLLECTION_ALL);
-          }}
+          onDeleteFolder={setConfirmingFolderDelete}
         />
 
         <div className="min-w-0 flex-1" />
@@ -269,6 +267,26 @@ export function TerminalHistoryPopover({
         onCancel={() => setConfirmingClear(false)}
         onConfirm={clear}
       />
+      <ConfirmDialog
+        open={confirmingFolderDelete !== null}
+        title="Delete folder"
+        body={
+          <>
+            Delete “{confirmingFolderDelete?.name}”? Messages in this folder will stay in history but
+            will no longer be organized in a folder.
+          </>
+        }
+        confirmLabel="Delete"
+        variant="destructive"
+        zIndexClassName="z-[10000]"
+        onCancel={() => setConfirmingFolderDelete(null)}
+        onConfirm={() => {
+          if (!confirmingFolderDelete) return;
+          deleteFolder(confirmingFolderDelete.id);
+          if (collection === confirmingFolderDelete.id) selectCollection(COLLECTION_ALL);
+          setConfirmingFolderDelete(null);
+        }}
+      />
     </div>
   );
 }
@@ -282,7 +300,7 @@ function CollectionBar({
   collection: string;
   folders: Folder[];
   onSelect: (c: string) => void;
-  onDeleteFolder: (id: string) => void;
+  onDeleteFolder: (folder: Folder) => void;
 }) {
   const [creating, setCreating] = useState(false);
 
@@ -313,7 +331,7 @@ function CollectionBar({
             onClick={() => onSelect(f.id)}
             icon={<FolderIcon />}
             count={f.count}
-            onDelete={() => onDeleteFolder(f.id)}
+            onDelete={() => onDeleteFolder(f)}
           >
             {f.name}
           </Chip>

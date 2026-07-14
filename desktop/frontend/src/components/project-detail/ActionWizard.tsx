@@ -21,7 +21,7 @@ import { MonacoEditor } from "../MonacoEditor";
 import { slugify } from "../../slugify";
 import { uniqueKey } from "../../uniqueKey";
 import { withEmoji } from "../../withEmoji";
-import type { ActionInfo } from "../../types";
+import { isFooterDisplay, type ActionInfo } from "../../types";
 import { forEachAction } from "../../actionTree";
 import { useShortcutCapture } from "../../hooks/useShortcutCapture";
 import { useSettingsStore } from "../../store/settings";
@@ -46,6 +46,8 @@ import {
   FolderIcon,
   HelpCircleIcon,
   MoonIcon,
+  PanelBottomIcon,
+  PanelTopIcon,
   PlayIcon,
   PlusIcon,
   SendIcon,
@@ -361,6 +363,7 @@ interface FormDraft {
   runMode: RunMode;
   reuse: boolean;
   confirm: boolean;
+  display: "header" | "footer";
 }
 
 // Ports may be entered as a single value or a space/comma-separated list.
@@ -443,6 +446,7 @@ function buildActionPatch({
   runMode,
   reuse,
   confirm,
+  display,
 }: FormDraft): ActionPatch {
   const set: Record<string, unknown> = { label: name.trim() };
   const remove: string[] = [];
@@ -454,6 +458,9 @@ function buildActionPatch({
   // command-bearing shapes; dropdowns have no command to fire.
   if (shape !== "dropdown" && shortcut.trim()) set.shortcut = shortcut.trim();
   else remove.push("shortcut");
+
+  if (display === "footer") set.display = "footer";
+  else remove.push("display");
 
   if (shape === "dropdown") {
     remove.push("cmd", "cwd", "type", "reuse", "confirm", "port", "portConflict");
@@ -487,7 +494,7 @@ function buildCreatePayload(
   position: number,
 ): Record<string, unknown> {
   const { set } = buildActionPatch(draft);
-  return { ...set, display: "header", position };
+  return { ...set, display: draft.display, position };
 }
 
 type Submission =
@@ -608,6 +615,7 @@ function actionToDraft(action: ActionInfo): FormDraft {
     runMode: toRunMode(action.type),
     reuse: action.reuse ?? false,
     confirm: action.confirm,
+    display: isFooterDisplay(action.display) ? "footer" : "header",
   };
 }
 
@@ -626,6 +634,7 @@ function defaultDraft(): FormDraft {
     runMode: "terminal",
     reuse: false,
     confirm: false,
+    display: "header",
   };
 }
 
@@ -718,6 +727,7 @@ export function ActionWizard({
     runMode,
     reuse,
     confirm,
+    display,
   } = draft;
   const takenShortcuts = useMemo(
     () => collectTakenShortcuts(actions, editing?.name),
@@ -1027,6 +1037,15 @@ export function ActionWizard({
                         onChange={(next) => updateField("shape", next)}
                       />
                     </FieldSection>
+                  </Reveal>
+                )}
+
+                {showShape && (
+                  <Reveal>
+                    <DisplayPicker
+                      display={display}
+                      onChange={(value) => updateField("display", value)}
+                    />
                   </Reveal>
                 )}
 
@@ -2231,6 +2250,43 @@ function ConfirmPicker({
           icon={<HelpCircleIcon />}
           title="Ask before running"
           onClick={() => onConfirm(true)}
+        />
+      </div>
+    </div>
+  );
+}
+
+function DisplayPicker({
+  display,
+  onChange,
+}: {
+  display: "header" | "footer";
+  onChange: (value: "header" | "footer") => void;
+}) {
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <span className="text-[13px] font-medium text-[var(--text-primary)]">
+          Where should it appear?
+        </span>
+        <span className="text-[12px] text-[var(--text-muted)]">
+          {display === "footer"
+            ? "Pinned to the terminal footer bar."
+            : "In the header row above the terminal."}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-1 rounded-lg bg-[var(--bg-secondary)] p-1">
+        <ModeButton
+          active={display === "header"}
+          icon={<PanelTopIcon />}
+          title="Header"
+          onClick={() => onChange("header")}
+        />
+        <ModeButton
+          active={display === "footer"}
+          icon={<PanelBottomIcon />}
+          title="Footer"
+          onClick={() => onChange("footer")}
         />
       </div>
     </div>
