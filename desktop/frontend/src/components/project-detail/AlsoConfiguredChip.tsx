@@ -17,7 +17,7 @@ export function AlsoConfiguredChip({
     <button
       type="button"
       onClick={onOpenEditor}
-      className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--bg-secondary)] px-2.5 py-1 text-[11px] text-[var(--text-secondary)] transition-colors hover:border-[var(--text-muted)] hover:text-[var(--text-primary)]"
+      className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-[var(--bg-secondary)] px-2.5 py-1 text-[11px] text-[var(--text-secondary)] transition-colors hover:border-[var(--text-muted)] hover:text-[var(--text-primary)]"
     >
       <span className="text-[var(--text-muted)]">Also configured:</span>
       <span className="font-medium">{keys.join(", ")}</span>

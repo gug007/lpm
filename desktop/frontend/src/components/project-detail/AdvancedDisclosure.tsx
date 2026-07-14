@@ -28,7 +28,7 @@ export function AdvancedDisclosure({
         {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
         Advanced
       </button>
-      {expanded && <div className="mt-5 space-y-7">{children}</div>}
+      {expanded && <div className="mt-5 space-y-6">{children}</div>}
     </div>
   );
 }

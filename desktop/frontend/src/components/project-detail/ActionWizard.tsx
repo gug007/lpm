@@ -71,13 +71,13 @@ import {
   PlayIcon,
   PlusIcon,
   SendIcon,
-  SparkleIcon,
   TerminalIcon,
   TrashIcon,
   XIcon,
   ZapIcon,
 } from "../icons";
 import { Modal } from "../ui/Modal";
+import { AIButton } from "../ui/AIButton";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { TrafficLights } from "../ui/TrafficLights";
 import { EmojiSlotButton } from "../EmojiPickerButton";
@@ -289,7 +289,6 @@ function runModeHint(mode: RunMode, reuse: boolean) {
 
 function wizardCopy(editing: boolean): {
   title: string;
-  hint?: string;
   primary: string;
 } {
   if (editing) {
@@ -299,8 +298,7 @@ function wizardCopy(editing: boolean): {
     };
   }
   return {
-    title: "Add a header action",
-    hint: "Start from a template, or fill in the fields to make your own.",
+    title: "Add an action",
     primary: "Create action",
   };
 }
@@ -781,7 +779,7 @@ export function ActionWizard({
   const missingHint = getMissingHint(draft, hasMenuOption);
   const formIsValid = missingHint === null;
   const actionLabel = withEmoji(emoji, name.trim() || PLACEHOLDER_LABEL);
-  const { title, hint, primary: primaryLabel } = wizardCopy(isEditing);
+  const { title, primary: primaryLabel } = wizardCopy(isEditing);
   const savingLabel = isEditing ? "Saving..." : "Creating...";
 
   const updateField = <K extends keyof FormDraft>(
@@ -1058,23 +1056,21 @@ export function ActionWizard({
           className="flex h-[min(820px,92vh)] w-[min(960px,calc(100vw-32px))] flex-col"
           onKeyDown={onKeyDown}
         >
-          <header className="px-8 pb-5 pt-7">
+          <header className="px-7 pb-4 pt-6">
             <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)] ring-1 ring-inset ring-[var(--accent-cyan)]/20">
+                  <ZapIcon />
+                </div>
+                <h2 className="text-[17px] font-semibold tracking-tight text-[var(--text-primary)]">
                   {title}
                 </h2>
-                {hint && (
-                  <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[var(--text-secondary)]">
-                    {hint}
-                  </p>
-                )}
               </div>
               <button
                 type="button"
                 onClick={requestClose}
                 aria-label="Close"
-                className="-mr-2 -mt-2 rounded-xl p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                className="-mr-2 -mt-2 rounded-lg p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
               >
                 <XIcon />
               </button>
@@ -1120,8 +1116,8 @@ export function ActionWizard({
           </header>
 
           {mode === "editor" ? (
-            <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] px-8 py-6">
-              <div className="min-h-[420px] flex-1 overflow-hidden rounded-xl border border-[var(--border)]">
+            <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] px-7 py-6">
+              <div className="min-h-[420px] flex-1 overflow-hidden rounded-lg border border-[var(--border)]">
                 {isEditing && editingPayload === null ? (
                   <div className="flex h-full items-center justify-center text-[12px] text-[var(--text-muted)]">
                     Loading action…
@@ -1145,14 +1141,14 @@ export function ActionWizard({
             </div>
           ) : (
             <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] lg:flex-row">
-              <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-8 py-7">
+              <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-7 py-6">
                 {!isEditing && !nameFilled && !cmdFilled && (
                   <TemplateGallery
                     onPick={pickTemplate}
                     suggestions={projectSuggestions}
                   />
                 )}
-                <FieldSection label="Button name">
+                <FieldSection label="Name">
                   <div className="relative">
                     <EmojiSlotButton
                       inputRef={nameRef}
@@ -1171,7 +1167,7 @@ export function ActionWizard({
                         handleNameEnter();
                       }}
                       placeholder="Run tests"
-                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] py-3.5 pl-12 pr-4 text-[15px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--text-primary)] focus:bg-[var(--bg-primary)]"
+                      className="w-full rounded-lg border border-transparent bg-[var(--bg-secondary)] py-3 pl-12 pr-4 text-[14px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
                     />
                   </div>
                 </FieldSection>
@@ -1193,7 +1189,7 @@ export function ActionWizard({
 
                 {showShape && (
                   <Reveal className="relative z-20">
-                    <FieldSection label="How should it appear?">
+                    <FieldSection label="Appearance">
                       <ShapeMenu
                         shape={shape}
                         options={SHAPE_OPTIONS}
@@ -1215,7 +1211,7 @@ export function ActionWizard({
 
                 {showRunMode && (
                   <Reveal>
-                    <div className="space-y-7">
+                    <div className="space-y-6">
                       <RunModePicker
                         runMode={runMode}
                         reuse={reuse}
@@ -1294,31 +1290,26 @@ export function ActionWizard({
             </div>
           )}
 
-          <footer className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-8 py-4">
+          <footer className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-7 py-4">
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={requestClose}
-                className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                className="rounded-lg px-4 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
               >
                 Cancel
               </button>
-              <button
-                type="button"
+              <AIButton
                 onClick={() => setAiModalOpen(true)}
                 disabled={isEditing && editingPayload === null}
-                className="group relative inline-flex shrink-0 items-center rounded-xl p-[1px] [background:linear-gradient(135deg,#6366f1,#a855f7,#ec4899)] shadow-sm transition-all hover:shadow-md hover:shadow-purple-500/20 active:scale-[0.98] disabled:opacity-50"
                 title={
                   isEditing
                     ? "Edit this action with AI"
                     : "Generate an action with AI"
                 }
               >
-                <span className="inline-flex items-center gap-1.5 rounded-[11px] bg-[var(--bg-primary)] px-3 py-1.5 text-[13px] font-medium text-[var(--text-primary)] transition-colors group-hover:bg-transparent group-hover:text-white">
-                  <SparkleIcon />
-                  {isEditing ? "Edit with AI" : "Generate with AI"}
-                </span>
-              </button>
+                {isEditing ? "Edit with AI" : "Generate with AI"}
+              </AIButton>
             </div>
             <div className="flex items-center gap-3">
               {mode === "form" && missingHint && (
@@ -1330,7 +1321,7 @@ export function ActionWizard({
                 type="button"
                 onClick={() => void submit()}
                 disabled={saving || (mode === "form" && !formIsValid)}
-                className="rounded-xl bg-[var(--text-primary)] px-5 py-2.5 text-[13px] font-semibold text-[var(--bg-primary)] shadow-sm transition hover:opacity-90 disabled:opacity-40 disabled:shadow-none"
+                className="rounded-lg bg-[var(--text-primary)] px-4 py-2 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition hover:opacity-90 disabled:opacity-40 disabled:shadow-none"
               >
                 {saving ? savingLabel : primaryLabel}
               </button>
@@ -1406,7 +1397,7 @@ function ModeMenu({
         <ChevronDownIcon />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1.5 min-w-[200px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-2xl">
+        <div className="absolute right-0 top-full z-50 mt-1.5 min-w-[200px] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] p-1 shadow-2xl">
           {MODE_OPTIONS.map((opt) => {
             const active = opt.value === mode;
             return (
@@ -1414,7 +1405,7 @@ function ModeMenu({
                 key={opt.value}
                 type="button"
                 onClick={() => choose(opt.value)}
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
+                className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
               >
                 <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-[var(--text-primary)]">
                   {active && <CheckIcon />}
@@ -1475,7 +1466,7 @@ function ConfigLayerMenu({
         <ChevronDownIcon />
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1.5 min-w-[260px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-2xl">
+        <div className="absolute left-0 top-full z-50 mt-1.5 min-w-[260px] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] p-1 shadow-2xl">
           {CONFIG_LAYER_OPTIONS.map((opt) => {
             const active = opt.value === value;
             return (
@@ -1483,7 +1474,7 @@ function ConfigLayerMenu({
                 key={opt.value}
                 type="button"
                 onClick={() => choose(opt.value)}
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
+                className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
               >
                 <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-[var(--text-primary)]">
                   {active && <CheckIcon />}
@@ -1516,7 +1507,7 @@ function FieldSection({
 }) {
   return (
     <div className="space-y-2.5">
-      <div className="text-[13px] font-medium text-[var(--text-primary)]">
+      <div className="text-[12px] font-medium text-[var(--text-secondary)]">
         {label}
       </div>
       {children}
@@ -1551,10 +1542,10 @@ function ShortcutField({
         ? `${formatShortcut(parsed)} is already used by another action`
         : null;
   const borderClass = recording
-    ? "border-[var(--text-primary)] bg-[var(--bg-primary)]"
+    ? "border-[var(--accent-cyan)] bg-[var(--bg-secondary)]"
     : warning
       ? "border-[var(--text-error,#e15252)] bg-[var(--bg-secondary)]"
-      : "border-[var(--border)] bg-[var(--bg-secondary)]";
+      : "border-transparent bg-[var(--bg-secondary)]";
 
   return (
     <FieldSection label="Keyboard shortcut">
@@ -1562,7 +1553,7 @@ function ShortcutField({
         <button
           type="button"
           onClick={toggle}
-          className={`flex-1 rounded-xl border px-4 py-3 text-left text-[14px] outline-none transition ${borderClass} ${
+          className={`flex-1 rounded-lg border px-4 py-3 text-left text-[14px] outline-none transition ${borderClass} ${
             parsed
               ? "text-[var(--text-primary)]"
               : "text-[var(--text-muted)]"
@@ -1578,7 +1569,7 @@ function ShortcutField({
           <button
             type="button"
             onClick={() => onChange("")}
-            className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            className="rounded-lg px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           >
             Clear
           </button>
@@ -1610,7 +1601,7 @@ function TemplateButton({
     <button
       type="button"
       onClick={() => onPick(template)}
-      className="flex min-w-0 flex-col gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2.5 text-left transition-colors hover:border-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
+      className="flex min-w-0 flex-col gap-0.5 rounded-lg border border-transparent bg-[var(--bg-secondary)] px-3 py-2.5 text-left transition-colors hover:border-[var(--border)] hover:bg-[var(--bg-hover)]"
     >
       <span className="truncate text-[13px] font-medium text-[var(--text-primary)]">
         {template.emoji} {template.name}
@@ -1661,13 +1652,6 @@ function TemplateGallery({
           ))}
         </div>
       </FieldSection>
-      <div className="flex items-center gap-3">
-        <span className="h-px flex-1 bg-[var(--border)]" />
-        <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-          or build your own
-        </span>
-        <span className="h-px flex-1 bg-[var(--border)]" />
-      </div>
     </>
   );
 }
@@ -1702,7 +1686,7 @@ function YamlPreview({
         {expanded ? "Hide config" : "Show config"}
       </button>
       {expanded && (
-        <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3.5 py-3 font-mono text-[12px] leading-relaxed text-[var(--text-secondary)]">
+        <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3.5 py-3 font-mono text-[12px] leading-relaxed text-[var(--text-secondary)]">
           {YAML.stringify(
             { actions: { [submission.key]: submission.payload } },
             { lineWidth: 0 },
@@ -1759,7 +1743,7 @@ function ActionPreviewPanel({
   const handleCancel = () => setRunning(null);
 
   const dropdown = menuOpen && (
-    <div className="absolute right-0 top-full z-10 mt-2 w-56 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl">
+    <div className="absolute right-0 top-full z-10 mt-2 w-56 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl">
       {visibleOptions.length === 0 ? (
         <div className="px-4 py-2 text-[12px] italic text-[var(--text-muted)]">
           Add menu options to fill this menu.
@@ -1780,7 +1764,7 @@ function ActionPreviewPanel({
   );
 
   return (
-    <aside className="flex border-t border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-7 lg:w-[300px] lg:shrink-0 lg:border-l lg:border-t-0">
+    <aside className="flex border-t border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-6 lg:w-[300px] lg:shrink-0 lg:border-l lg:border-t-0">
       <div className="flex min-h-[140px] flex-1 flex-col lg:min-h-0">
         <div className="mb-4 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
           Preview
@@ -2033,14 +2017,14 @@ function ShapeMenu({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label={previewLabel}
-        className={`flex w-full items-center gap-2 rounded-xl border py-3.5 pl-4 pr-3.5 text-left transition ${
+        className={`flex w-full items-center gap-2 rounded-lg border py-2.5 pl-4 pr-3.5 text-left transition ${
           open
-            ? "border-[var(--text-primary)] bg-[var(--bg-primary)]"
-            : "border-[var(--border)] bg-[var(--bg-secondary)] hover:border-[var(--text-muted)]"
+            ? "border-[var(--accent-cyan)] bg-[var(--bg-primary)]"
+            : "border-transparent bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)]"
         }`}
       >
         <span className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="text-[15px] text-[var(--text-primary)]">
+          <span className="text-[13px] text-[var(--text-primary)]">
             {current.title}
           </span>
           {current.badge && <ShapeBadge label={current.badge} />}
@@ -2050,7 +2034,7 @@ function ShapeMenu({
         </span>
       </button>
       {open && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1.5 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-2xl">
+        <div className="absolute left-0 right-0 top-full z-50 mt-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] p-1 shadow-2xl">
           {options.map((opt) => {
             const active = opt.shape === shape;
             return (
@@ -2058,7 +2042,7 @@ function ShapeMenu({
                 key={opt.shape}
                 type="button"
                 onClick={() => choose(opt.shape)}
-                className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
+                className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
               >
                 <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-[var(--text-primary)]">
                   {active && <CheckIcon />}
@@ -2143,7 +2127,7 @@ function CommandField({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 flex items-center justify-between gap-3 text-[13px] font-medium text-[var(--text-primary)]">
+      <span className="mb-2 flex items-center justify-between gap-3 text-[12px] font-medium text-[var(--text-secondary)]">
         <span>{label}</span>
         {hint && (
           <span className="text-[12px] font-normal text-[var(--text-muted)]">
@@ -2165,7 +2149,7 @@ function CommandField({
         autoCorrect="off"
         autoCapitalize="off"
         spellCheck={false}
-        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-3 font-mono text-[13px] text-[var(--text-primary)] outline-none transition placeholder:font-sans placeholder:text-[var(--text-muted)] focus:border-[var(--text-primary)]"
+        className="w-full rounded-lg border border-transparent bg-[var(--bg-secondary)] px-4 py-3 font-mono text-[13px] text-[var(--text-primary)] outline-none transition placeholder:font-sans placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
       />
     </label>
   );
@@ -2231,7 +2215,7 @@ function MenuOptionsEditor({
 
   return (
     <div className="space-y-3">
-      <div className="text-[13px] font-medium text-[var(--text-primary)]">
+      <div className="text-[12px] font-medium text-[var(--text-secondary)]">
         Menu options
       </div>
       <SortableList
@@ -2252,7 +2236,7 @@ function MenuOptionsEditor({
                   value={child.label}
                   onChange={(e) => updateField(child, "label", e.target.value)}
                   placeholder="Label"
-                  className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)]"
+                  className="rounded-lg border border-transparent bg-[var(--bg-secondary)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--accent-cyan)]"
                 />
                 <input
                   value={child.cmd}
@@ -2262,7 +2246,7 @@ function MenuOptionsEditor({
                   autoCorrect="off"
                   autoCapitalize="off"
                   spellCheck={false}
-                  className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)]"
+                  className="rounded-lg border border-transparent bg-[var(--bg-secondary)] px-3 py-2.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--accent-cyan)]"
                 />
                 <button
                   type="button"
@@ -2371,8 +2355,8 @@ function RunModePicker({
   return (
     <div>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <span className="text-[13px] font-medium text-[var(--text-primary)]">
-          How should it run?
+        <span className="text-[12px] font-medium text-[var(--text-secondary)]">
+          Run mode
         </span>
         <span className="text-[12px] text-[var(--text-muted)]">
           {runModeHint(runMode, reuse)}
@@ -2382,16 +2366,16 @@ function RunModePicker({
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className={`flex w-full items-center gap-2.5 rounded-xl border py-3 pl-4 pr-3.5 text-left transition ${
+          className={`flex w-full items-center gap-2.5 rounded-lg border py-2.5 pl-4 pr-3.5 text-left transition ${
             open
-              ? "border-[var(--text-primary)] bg-[var(--bg-primary)]"
-              : "border-[var(--border)] bg-[var(--bg-secondary)] hover:border-[var(--text-muted)]"
+              ? "border-[var(--accent-cyan)] bg-[var(--bg-primary)]"
+              : "border-transparent bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)]"
           }`}
         >
           <span className="shrink-0 text-[var(--text-primary)]">
             {current.icon}
           </span>
-          <span className="min-w-0 flex-1 text-[14px] text-[var(--text-primary)]">
+          <span className="min-w-0 flex-1 text-[13px] text-[var(--text-primary)]">
             {current.title}
           </span>
           <span className="shrink-0 text-[var(--text-muted)]">
@@ -2399,7 +2383,7 @@ function RunModePicker({
           </span>
         </button>
         {open && (
-          <div className="absolute left-0 right-0 top-full z-50 mt-1.5 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-2xl">
+          <div className="absolute left-0 right-0 top-full z-50 mt-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] p-1 shadow-2xl">
             {RUN_MODE_OPTIONS.map((opt) => {
               const active = opt.value === runMode;
               return (
@@ -2407,7 +2391,7 @@ function RunModePicker({
                   key={opt.value}
                   type="button"
                   onClick={() => choose(opt.value)}
-                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
+                  className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
                 >
                   <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-[var(--text-primary)]">
                     {active && <CheckIcon />}
@@ -2455,8 +2439,8 @@ function ConfirmPicker({
   return (
     <div>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <span className="text-[13px] font-medium text-[var(--text-primary)]">
-          Confirm before running?
+        <span className="text-[12px] font-medium text-[var(--text-secondary)]">
+          Confirmation
         </span>
         <span className="text-[12px] text-[var(--text-muted)]">
           {confirm
@@ -2492,8 +2476,8 @@ function DisplayPicker({
   return (
     <div>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <span className="text-[13px] font-medium text-[var(--text-primary)]">
-          Where should it appear?
+        <span className="text-[12px] font-medium text-[var(--text-secondary)]">
+          Placement
         </span>
         <span className="text-[12px] text-[var(--text-muted)]">
           {display === "footer"
