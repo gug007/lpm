@@ -12,11 +12,14 @@ import { toast } from "sonner";
 import {
   appendActionToLayer,
   findActionSource,
+  mergeActionPayload,
+  readActionPayload,
   replaceAction,
   replaceActionPayload,
   type ActionConfigLayer,
   type ActionPatch,
 } from "../../actionConfig";
+import { applyAutoSettings, type RunMode } from "./actionInference";
 import { MonacoEditor } from "../MonacoEditor";
 import { slugify } from "../../slugify";
 import { uniqueKey } from "../../uniqueKey";
@@ -58,20 +61,15 @@ import {
   ZapIcon,
 } from "../icons";
 import { Modal } from "../ui/Modal";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { TrafficLights } from "../ui/TrafficLights";
 import { EmojiSlotButton } from "../EmojiPickerButton";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 
 type Shape = "button" | "split" | "dropdown";
-type RunMode = "once" | "terminal" | "command" | "background";
 
 const SHAPE_PREVIEW_BUTTON_CLASS =
   "border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-primary)]";
-
-const TERMINAL_KEYWORDS = /\b(tail|watch|log|logs|shell|console|server)\b/;
-const BACKGROUND_KEYWORDS = /\b(fetch|pull|build|install|compile|generate)\b/;
-const CONFIRM_KEYWORDS =
-  /\b(deploy|migrate|reset|drop|delete|destroy|remove|kill|prune)\b/i;
 
 const NEW_ACTION_KEY = "new-action";
 const PLACEHOLDER_LABEL = "New action";
@@ -232,6 +230,10 @@ interface ChildDraft {
   runMode: RunMode;
   reuse: boolean;
   confirm: boolean;
+  // Local-only flags: once the user (or a deliberate prefill) sets run mode or
+  // confirm, auto-inference stops overriding it. Never serialized to YAML.
+  runModeTouched: boolean;
+  confirmTouched: boolean;
 }
 
 interface ActionWizardProps {
@@ -259,32 +261,9 @@ function newChild(): ChildDraft {
     runMode: "once",
     reuse: false,
     confirm: false,
+    runModeTouched: false,
+    confirmTouched: false,
   };
-}
-
-function inferRunMode(text: string): RunMode {
-  const value = text.toLowerCase();
-  if (TERMINAL_KEYWORDS.test(value)) return "terminal";
-  if (BACKGROUND_KEYWORDS.test(value)) return "background";
-  return "once";
-}
-
-function shouldConfirm(text: string): boolean {
-  return CONFIRM_KEYWORDS.test(text);
-}
-
-// Auto-suggests run mode and confirm flag from the action's text. Run mode is
-// only inferred while still on its default ("once"); confirm is sticky once on.
-function applyAutoSettings(
-  prev: FormDraft,
-  nextName: string,
-  nextCmd: string,
-): Partial<FormDraft> {
-  const text = `${nextName} ${nextCmd}`;
-  const patch: Partial<FormDraft> = {};
-  if (prev.runMode === "once") patch.runMode = inferRunMode(text);
-  if (!prev.confirm && shouldConfirm(text)) patch.confirm = true;
-  return patch;
 }
 
 function runModeHint(mode: RunMode, reuse: boolean) {
@@ -328,6 +307,8 @@ function applyTemplate(template: ActionTemplate, base: FormDraft): FormDraft {
     runMode: template.runMode,
     reuse: template.reuse ?? false,
     confirm: template.confirm ?? false,
+    runModeTouched: true,
+    confirmTouched: true,
     configLayer: template.configLayer ?? base.configLayer,
     children: [newChild()],
   };
@@ -364,6 +345,10 @@ interface FormDraft {
   reuse: boolean;
   confirm: boolean;
   display: "header" | "footer";
+  // Local-only, see ChildDraft. Kept out of every buildActionPatch / build*
+  // path so they never reach YAML.
+  runModeTouched: boolean;
+  confirmTouched: boolean;
 }
 
 // Ports may be entered as a single value or a space/comma-separated list.
@@ -533,6 +518,21 @@ function buildSubmission(
   };
 }
 
+// Serializes the current edit-mode state for the YAML editor by merging the
+// form's patch onto the action's on-disk payload, so fields the form doesn't
+// manage (env, inputs, position, ...) ride along instead of being dropped.
+function buildEditorContentForEdit(
+  draft: FormDraft,
+  base: Record<string, unknown> | null,
+): string {
+  const merged = mergeActionPayload(base, buildActionPatch(draft));
+  return YAML.stringify(merged, { lineWidth: 0 });
+}
+
+function buildCreateEditorContent(draft: FormDraft, position: number): string {
+  return YAML.stringify(buildCreatePayload(draft, position), { lineWidth: 0 });
+}
+
 function inferShape(action: ActionInfo): Shape {
   const hasChildren = (action.children?.length ?? 0) > 0;
   const hasCmd = Boolean(action.cmd);
@@ -600,6 +600,8 @@ function actionToDraft(action: ActionInfo): FormDraft {
     runMode: toRunMode(c.type),
     reuse: c.reuse ?? false,
     confirm: c.confirm,
+    runModeTouched: true,
+    confirmTouched: true,
   }));
   return {
     shape: inferShape(action),
@@ -616,6 +618,8 @@ function actionToDraft(action: ActionInfo): FormDraft {
     reuse: action.reuse ?? false,
     confirm: action.confirm,
     display: isFooterDisplay(action.display) ? "footer" : "header",
+    runModeTouched: true,
+    confirmTouched: true,
   };
 }
 
@@ -635,6 +639,8 @@ function defaultDraft(): FormDraft {
     reuse: false,
     confirm: false,
     display: "header",
+    runModeTouched: false,
+    confirmTouched: false,
   };
 }
 
@@ -674,30 +680,55 @@ export function ActionWizard({
   const [editorSeed, setEditorSeed] = useState(0);
   const [editSource, setEditSource] = useState<ActionConfigLayer | null>(null);
   const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  // The action's full on-disk payload (edit mode only). Null until the read
+  // resolves; drives the editor merge so unmanaged fields survive a save.
+  const [editingPayload, setEditingPayload] =
+    useState<Record<string, unknown> | null>(null);
+  // Dirtiness baselines captured at open: the form draft and the editor's
+  // original canonical serialization. Editor edits are dirty when the content
+  // diverges from this baseline, not from whatever it was last re-seeded with.
+  const [draftBaseline, setDraftBaseline] = useState("");
+  const [editorBaseline, setEditorBaseline] = useState("");
   const nameRef = useRef<HTMLInputElement>(null);
   const commandRef = useRef<HTMLInputElement>(null);
+  // Mirrors for the async payload read: it must seed the editor iff the editor
+  // is showing when it resolves, from the draft as it is then — the stored mode
+  // and the draft captured at open may both be stale by that point.
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
 
   useEffect(() => {
     if (!open) return;
     const nextDraft = editing ? actionToDraft(editing) : defaultDraft();
     setDraft(nextDraft);
+    setDraftBaseline(JSON.stringify(nextDraft));
     setShowYaml(false);
     setSaving(false);
     setEditorError(null);
     setEditSource(null);
     setAiModalOpen(false);
+    setDiscardOpen(false);
+    setEditingPayload(null);
     const initialMode = readStoredMode();
     if (initialMode === "editor") {
-      const submission = buildSubmission(nextDraft, {
-        editing,
-        existingActionKeys,
-        nextPosition,
-      });
-      setEditorContent(YAML.stringify(submission.payload, { lineWidth: 0 }));
+      // Edit mode seeds lazily once editingPayload resolves (see the read
+      // effect) to avoid serializing a payload that's missing on-disk fields.
+      if (editing) {
+        setEditorContent("");
+        setEditorBaseline("");
+      } else {
+        const content = buildCreateEditorContent(nextDraft, nextPosition);
+        setEditorContent(content);
+        setEditorBaseline(content);
+      }
       setEditorSeed((n) => n + 1);
       setMode("editor");
     } else {
       setMode("form");
+      if (!editing) setEditorBaseline("");
       setTimeout(() => nameRef.current?.focus(), 50);
     }
   }, [open, editing, existingActionKeys, nextPosition]);
@@ -705,8 +736,19 @@ export function ActionWizard({
   useEffect(() => {
     if (!open || !editing) return;
     let cancelled = false;
-    findActionSource(projectName, editing.name).then((layer) => {
-      if (!cancelled) setEditSource(layer);
+    Promise.all([
+      findActionSource(projectName, editing.name),
+      readActionPayload(projectName, editing.name),
+    ]).then(([layer, payload]) => {
+      if (cancelled) return;
+      setEditSource(layer);
+      const base = payload ?? {};
+      setEditingPayload(base);
+      setEditorBaseline(buildEditorContentForEdit(actionToDraft(editing), base));
+      if (modeRef.current === "editor") {
+        setEditorContent(buildEditorContentForEdit(draftRef.current, base));
+        setEditorSeed((n) => n + 1);
+      }
     });
     return () => {
       cancelled = true;
@@ -756,15 +798,37 @@ export function ActionWizard({
     setDraft((prev) => ({
       ...prev,
       name: value,
-      ...applyAutoSettings(prev, value, prev.cmd),
+      ...applyAutoSettings(
+        {
+          name: value,
+          cmd: prev.cmd,
+          runModeTouched: prev.runModeTouched,
+          confirmTouched: prev.confirmTouched,
+        },
+        "terminal",
+      ),
     }));
 
   const updateCmd = (value: string) =>
     setDraft((prev) => ({
       ...prev,
       cmd: value,
-      ...applyAutoSettings(prev, prev.name, value),
+      ...applyAutoSettings(
+        {
+          name: prev.name,
+          cmd: value,
+          runModeTouched: prev.runModeTouched,
+          confirmTouched: prev.confirmTouched,
+        },
+        "terminal",
+      ),
     }));
+
+  const setRunMode = (mode: RunMode) =>
+    setDraft((prev) => ({ ...prev, runMode: mode, runModeTouched: true }));
+
+  const setConfirm = (value: boolean) =>
+    setDraft((prev) => ({ ...prev, confirm: value, confirmTouched: true }));
 
   const submit = async () => {
     if (saving) return;
@@ -849,12 +913,24 @@ export function ActionWizard({
   };
 
   const switchToEditor = () => {
-    const submission = buildSubmission(draft, {
-      editing,
-      existingActionKeys,
-      nextPosition,
-    });
-    setEditorContent(YAML.stringify(submission.payload, { lineWidth: 0 }));
+    if (editing) {
+      // While the on-disk payload is still loading, leave the editor empty (it
+      // shows a loading state); the read effect seeds it on resolve. Seeding
+      // from a null base here would serialize without the unmanaged fields.
+      setEditorContent(
+        editingPayload === null
+          ? ""
+          : buildEditorContentForEdit(draft, editingPayload),
+      );
+    } else {
+      setEditorContent(buildCreateEditorContent(draft, nextPosition));
+      setEditorBaseline(
+        buildCreateEditorContent(
+          JSON.parse(draftBaseline) as FormDraft,
+          nextPosition,
+        ),
+      );
+    }
     setEditorError(null);
     setEditorSeed((n) => n + 1);
     setMode("editor");
@@ -868,14 +944,20 @@ export function ActionWizard({
   };
 
   const buildCurrentYAML = (): string => {
-    const isFreshCreate = !editing && !draft.name.trim() && !draft.cmd.trim();
-    if (isFreshCreate) return "";
-    const submission = buildSubmission(draft, {
-      editing,
-      existingActionKeys,
-      nextPosition,
-    });
-    return YAML.stringify(submission.payload, { lineWidth: 0 });
+    if (editing) return buildEditorContentForEdit(draft, editingPayload);
+    if (!draft.name.trim() && !draft.cmd.trim()) return "";
+    return buildCreateEditorContent(draft, nextPosition);
+  };
+
+  const isDirty = () =>
+    mode === "editor"
+      ? editorContent !== editorBaseline
+      : JSON.stringify(draft) !== draftBaseline;
+
+  const requestClose = () => {
+    if (saving) return;
+    if (isDirty()) setDiscardOpen(true);
+    else onClose();
   };
 
   const applyAiResult = (yaml: string) => {
@@ -917,7 +999,9 @@ export function ActionWizard({
     <>
       <Modal
         open={open}
-        onClose={onClose}
+        onClose={requestClose}
+        closeOnEscape={!discardOpen && !aiModalOpen}
+        closeOnBackdrop={!discardOpen && !aiModalOpen}
         backdropClassName="bg-black/50 backdrop-blur-sm"
         contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
       >
@@ -939,7 +1023,7 @@ export function ActionWizard({
               </div>
               <button
                 type="button"
-                onClick={onClose}
+                onClick={requestClose}
                 aria-label="Close"
                 className="-mr-2 -mt-2 rounded-xl p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
               >
@@ -982,14 +1066,20 @@ export function ActionWizard({
           {mode === "editor" ? (
             <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] px-8 py-6">
               <div className="min-h-[420px] flex-1 overflow-hidden rounded-xl border border-[var(--border)]">
-                <MonacoEditor
-                  key={`action-editor-${editing?.name ?? "new"}-${editorSeed}`}
-                  value={editorContent}
-                  onChange={setEditorContent}
-                  language="yaml"
-                  modelUri={`inmemory://action-${editing?.name ?? "new"}-${editorSeed}.yaml`}
-                  onSave={() => void submit()}
-                />
+                {isEditing && editingPayload === null ? (
+                  <div className="flex h-full items-center justify-center text-[12px] text-[var(--text-muted)]">
+                    Loading action…
+                  </div>
+                ) : (
+                  <MonacoEditor
+                    key={`action-editor-${editing?.name ?? "new"}-${editorSeed}`}
+                    value={editorContent}
+                    onChange={setEditorContent}
+                    language="yaml"
+                    modelUri={`inmemory://action-${editing?.name ?? "new"}-${editorSeed}.yaml`}
+                    onSave={() => void submit()}
+                  />
+                )}
               </div>
               {editorError && (
                 <p className="mt-3 text-[12px] text-[var(--text-error,#e15252)]">
@@ -1085,12 +1175,12 @@ export function ActionWizard({
                       <RunModePicker
                         runMode={runMode}
                         reuse={reuse}
-                        onRunMode={(mode) => updateField("runMode", mode)}
+                        onRunMode={setRunMode}
                         onReuse={(value) => updateField("reuse", value)}
                       />
                       <ConfirmPicker
                         confirm={confirm}
-                        onConfirm={(value) => updateField("confirm", value)}
+                        onConfirm={setConfirm}
                       />
                       <PortField
                         port={port}
@@ -1147,7 +1237,7 @@ export function ActionWizard({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={requestClose}
                 className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
               >
                 Cancel
@@ -1155,7 +1245,8 @@ export function ActionWizard({
               <button
                 type="button"
                 onClick={() => setAiModalOpen(true)}
-                className="group relative inline-flex shrink-0 items-center rounded-xl p-[1px] [background:linear-gradient(135deg,#6366f1,#a855f7,#ec4899)] shadow-sm transition-all hover:shadow-md hover:shadow-purple-500/20 active:scale-[0.98]"
+                disabled={isEditing && editingPayload === null}
+                className="group relative inline-flex shrink-0 items-center rounded-xl p-[1px] [background:linear-gradient(135deg,#6366f1,#a855f7,#ec4899)] shadow-sm transition-all hover:shadow-md hover:shadow-purple-500/20 active:scale-[0.98] disabled:opacity-50"
                 title={
                   isEditing
                     ? "Edit this action with AI"
@@ -1193,6 +1284,19 @@ export function ActionWizard({
         currentYAML={buildCurrentYAML()}
         onClose={() => setAiModalOpen(false)}
         onGenerated={applyAiResult}
+      />
+      <ConfirmDialog
+        open={discardOpen}
+        title="Discard changes?"
+        body="Your edits to this action won't be saved."
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        variant="destructive"
+        onCancel={() => setDiscardOpen(false)}
+        onConfirm={() => {
+          setDiscardOpen(false);
+          onClose();
+        }}
       />
     </>
   );
@@ -2017,12 +2121,17 @@ function MenuOptionsEditor({
     field: "label" | "cmd",
     value: string,
   ) => {
-    const text =
-      field === "label" ? `${value} ${child.cmd}` : `${child.label} ${value}`;
     updateChild(child.id, {
       [field]: value,
-      runMode: child.runMode === "once" ? inferRunMode(text) : child.runMode,
-      confirm: child.confirm || shouldConfirm(text),
+      ...applyAutoSettings(
+        {
+          name: field === "label" ? value : child.label,
+          cmd: field === "cmd" ? value : child.cmd,
+          runModeTouched: child.runModeTouched,
+          confirmTouched: child.confirmTouched,
+        },
+        "once",
+      ),
     });
   };
 
@@ -2067,12 +2176,16 @@ function MenuOptionsEditor({
               <RunModePicker
                 runMode={child.runMode}
                 reuse={child.reuse}
-                onRunMode={(mode) => updateChild(child.id, { runMode: mode })}
+                onRunMode={(mode) =>
+                  updateChild(child.id, { runMode: mode, runModeTouched: true })
+                }
                 onReuse={(value) => updateChild(child.id, { reuse: value })}
               />
               <ConfirmPicker
                 confirm={child.confirm}
-                onConfirm={(value) => updateChild(child.id, { confirm: value })}
+                onConfirm={(value) =>
+                  updateChild(child.id, { confirm: value, confirmTouched: true })
+                }
               />
             </div>
           )}

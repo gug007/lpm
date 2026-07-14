@@ -90,6 +90,59 @@ export async function findActionSource(
   return null;
 }
 
+// Normalizes an action entry node to a plain object. The scalar-string
+// shorthand (`key: some command`) expands to `{ cmd: <value> }`; a mapping is
+// returned as-is so unmanaged fields (env, inputs, position, ...) survive.
+export function actionEntryToPayload(
+  entry: unknown,
+): Record<string, unknown> | null {
+  if (YAML.isScalar(entry)) {
+    const value = (entry as YAML.Scalar).value;
+    if (typeof value === "string" && value.trim() !== "") return { cmd: value };
+    return null;
+  }
+  if (YAML.isMap(entry)) {
+    return (entry as YAML.YAMLMap).toJSON() as Record<string, unknown>;
+  }
+  return null;
+}
+
+// Reads the action's full body from the topmost layer that carries it, using
+// the same layer-selection rule as findActionSource. Feeds the YAML editor a
+// complete payload so a save doesn't drop fields the form never surfaced.
+export async function readActionPayload(
+  projectName: string,
+  key: string,
+): Promise<Record<string, unknown> | null> {
+  for (const layer of actionLayers(projectName)) {
+    try {
+      const content = await layer.read();
+      const doc = YAML.parseDocument(content || "{}");
+      const match = findActionSection(doc, key);
+      if (!match) continue;
+      const entry = match.node.get(key, true);
+      if (!hasActionBody(entry)) continue;
+      return actionEntryToPayload(entry);
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+// Applies a form-derived patch onto a base payload without discarding unknown
+// fields: removes precede sets, mirroring replaceAction's in-place semantics so
+// the editor's whole-payload save preserves env/inputs/position.
+export function mergeActionPayload(
+  base: Record<string, unknown> | null,
+  patch: ActionPatch,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...(base ?? {}) };
+  for (const key of patch.remove) delete merged[key];
+  for (const [key, value] of Object.entries(patch.set)) merged[key] = value;
+  return merged;
+}
+
 // Acts on the topmost layer that defines the key; the lower layer remains
 // as the new fallback once the topmost copy is removed.
 export async function deleteAction(projectName: string, key: string) {
