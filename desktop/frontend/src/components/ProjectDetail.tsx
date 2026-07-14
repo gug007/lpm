@@ -695,6 +695,8 @@ export function ProjectDetail({
           actions={project.actions}
           existingActionKeys={existingActionKeys}
           nextPosition={nextHeaderActionPosition}
+          projectRoot={project.root}
+          isRemote={project.isRemote}
           editing={editingAction}
           onClose={() => {
             setShowCreateAction(false);

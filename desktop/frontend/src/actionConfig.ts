@@ -7,10 +7,19 @@ import {
   editRepoDoc,
   globalLayer,
   projectLayer,
+  queueWrite,
   repoLayer,
 } from "./yamlQueue";
 
 export type ActionConfigLayer = "project" | "repo" | "global";
+
+type ActionDoc = ReturnType<typeof YAML.parseDocument>;
+
+function layerFor(projectName: string, layer: ActionConfigLayer): ConfigLayer {
+  if (layer === "repo") return repoLayer(projectName);
+  if (layer === "global") return globalLayer;
+  return projectLayer(projectName);
+}
 
 export const ACTION_SECTIONS = ["actions", "terminals"] as const;
 export type ActionSection = (typeof ACTION_SECTIONS)[number];
@@ -187,5 +196,71 @@ export async function replaceActionPayload(projectName: string, key: string, pay
     if (!hasActionBody(entry)) return false;
     match.node.set(key, payload);
     return true;
+  });
+}
+
+// Relocates an action entry from one doc to another, carrying its full node
+// (and any unmanaged fields) as-is and preserving its section: a `terminals:`
+// entry lands under `terminals:` in the target, not `actions:`. Throws — before
+// mutating either doc — if the target already defines the key with a body, so a
+// collision leaves both docs untouched.
+export function moveActionBetweenDocs(
+  sourceDoc: ActionDoc,
+  targetDoc: ActionDoc,
+  key: string,
+) {
+  const source = findActionSection(sourceDoc, key);
+  if (!source) {
+    throw new Error(`Couldn't find "${key}" in its config to move it.`);
+  }
+  const collision = findActionSection(targetDoc, key);
+  if (collision && hasActionBody(collision.node.get(key, true))) {
+    throw new Error(
+      `An action named "${key}" already exists in that config. Remove or rename it there first.`,
+    );
+  }
+
+  const entry = source.node.get(key, true);
+  let targetSection = targetDoc.get(source.section, true);
+  if (!YAML.isMap(targetSection)) {
+    targetSection = targetDoc.createNode({});
+    targetDoc.set(source.section, targetSection);
+  }
+  (targetSection as YAML.YAMLMap).set(key, entry);
+
+  source.node.delete(key);
+  if (source.node.items.length === 0) sourceDoc.delete(source.section);
+}
+
+// Serializes work across the given queue keys in a stable order so two files
+// can be edited without racing other writers and without deadlocking when the
+// keys coincide (project and repo share one).
+function lockLayers<T>(keys: string[], fn: () => Promise<T>): Promise<T> {
+  const distinct = [...new Set(keys)].sort();
+  return distinct.reduceRight<() => Promise<T>>(
+    (next, queueKey) => () => queueWrite(queueKey, next),
+    fn,
+  )();
+}
+
+// Moves an action's definition from one config layer to another, carrying the
+// whole entry along. The caller applies any pending field edits afterward via
+// the normal save path, which now finds the entry in its new home. Fails
+// without touching either layer when the target already defines the key.
+export async function moveAction(
+  projectName: string,
+  key: string,
+  from: ActionConfigLayer,
+  to: ActionConfigLayer,
+) {
+  if (from === to) return;
+  const src = layerFor(projectName, from);
+  const dst = layerFor(projectName, to);
+  await lockLayers([src.queueKey, dst.queueKey], async () => {
+    const srcDoc = YAML.parseDocument((await src.read()) || "{}");
+    const dstDoc = YAML.parseDocument((await dst.read()) || "{}");
+    moveActionBetweenDocs(srcDoc, dstDoc, key);
+    await dst.save(String(dstDoc));
+    await src.save(String(srcDoc));
   });
 }

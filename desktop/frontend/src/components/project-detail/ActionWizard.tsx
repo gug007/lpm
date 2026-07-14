@@ -13,6 +13,7 @@ import {
   appendActionToLayer,
   findActionSource,
   mergeActionPayload,
+  moveAction,
   readActionPayload,
   replaceAction,
   replaceActionPayload,
@@ -31,8 +32,11 @@ import {
 } from "./actionYaml";
 import { AdvancedDisclosure } from "./AdvancedDisclosure";
 import { AlsoConfiguredChip } from "./AlsoConfiguredChip";
+import { useProjectSuggestions } from "./useProjectSuggestions";
+import type { ActionTemplate } from "./projectSuggestions";
 import { SortableItem, SortableList } from "../ui/SortableList";
 import { MonacoEditor } from "../MonacoEditor";
+import { ACTION_MODEL_URI } from "../../monaco-setup";
 import { slugify } from "../../slugify";
 import { uniqueKey } from "../../uniqueKey";
 import { withEmoji } from "../../withEmoji";
@@ -129,19 +133,6 @@ const SHAPE_OPTIONS: Array<{
     description: "Just a menu of related commands.",
   },
 ];
-
-interface ActionTemplate {
-  id: string;
-  emoji: string;
-  name: string;
-  cmd: string;
-  runMode: RunMode;
-  reuse?: boolean;
-  confirm?: boolean;
-  // Overrides where the action saves when this template is picked. Defaults to
-  // whatever layer the wizard is currently on (usually "project").
-  configLayer?: ActionConfigLayer;
-}
 
 const ACTION_TEMPLATES: ActionTemplate[] = [
   {
@@ -262,6 +253,10 @@ interface ActionWizardProps {
   existingActionKeys?: string[];
   // Create-only: position assigned to the new entry.
   nextPosition?: number;
+  // The project's directory, scanned for real commands to suggest as templates.
+  // Absent for rootless mounts; skipped for remote/SSH projects.
+  projectRoot?: string;
+  isRemote?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -647,10 +642,18 @@ export function ActionWizard({
   actions = [],
   existingActionKeys = [],
   nextPosition = 1,
+  projectRoot,
+  isRemote = false,
   onClose,
   onSaved,
 }: ActionWizardProps) {
   const isEditing = Boolean(editing);
+  const projectSuggestions = useProjectSuggestions({
+    open,
+    editing: isEditing,
+    isRemote,
+    projectRoot,
+  });
   const [draft, setDraft] = useState<FormDraft>(defaultDraft);
   const [showYaml, setShowYaml] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -659,6 +662,10 @@ export function ActionWizard({
   const [editorError, setEditorError] = useState<string | null>(null);
   const [editorSeed, setEditorSeed] = useState(0);
   const [editSource, setEditSource] = useState<ActionConfigLayer | null>(null);
+  // Edit mode only: the layer the user wants to move this action to. Null means
+  // "leave it where it is". Armed by picking a different layer than editSource;
+  // the move runs on Save, before the field save.
+  const [moveTarget, setMoveTarget] = useState<ActionConfigLayer | null>(null);
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   // The action's full on-disk payload (edit mode only). Null until the read
@@ -694,6 +701,7 @@ export function ActionWizard({
     setSaving(false);
     setEditorError(null);
     setEditSource(null);
+    setMoveTarget(null);
     setAiModalOpen(false);
     setDiscardOpen(false);
     setEditingPayload(null);
@@ -766,7 +774,7 @@ export function ActionWizard({
   const cmdFilled = Boolean(cmd.trim());
   const hasMenuOption = children.some((child) => child.cmd.trim());
   const showShape = nameFilled;
-  const showCommand = nameFilled && shape !== "dropdown";
+  const showCommand = shape !== "dropdown";
   const showRunMode = showCommand && cmdFilled;
   const showMenuOptions =
     nameFilled && (shape === "dropdown" || (shape === "split" && cmdFilled));
@@ -817,6 +825,21 @@ export function ActionWizard({
   const setConfirm = (value: boolean) =>
     setDraft((prev) => ({ ...prev, confirm: value, confirmTouched: true }));
 
+  // The layer to move the action into on Save, or null when no move is armed.
+  const pendingMoveTarget =
+    isEditing && editSource && moveTarget && moveTarget !== editSource
+      ? moveTarget
+      : null;
+
+  // Relocates the action before the field save so replaceAction/-Payload find
+  // it in its new home. A collision throws before either layer is touched, so
+  // the surrounding try/catch surfaces it without a partial write.
+  const runPendingMove = async (key: string) => {
+    if (pendingMoveTarget && editSource) {
+      await moveAction(projectName, key, editSource, pendingMoveTarget);
+    }
+  };
+
   const submit = async () => {
     if (saving) return;
     if (mode === "editor") {
@@ -833,6 +856,7 @@ export function ActionWizard({
         workingBase,
       });
       if (submission.kind === "edit") {
+        await runPendingMove(submission.key);
         // A plain replaceAction patch leaves unmanaged fields alone, which is
         // safest against concurrent external edits — but if the user changed
         // env/inputs/etc. in the editor before switching to the form, only a
@@ -885,6 +909,7 @@ export function ActionWizard({
     setSaving(true);
     try {
       if (editing) {
+        await runPendingMove(editing.name);
         await replaceActionPayload(projectName, editing.name, payload);
         toast.success("Action updated");
       } else {
@@ -968,6 +993,7 @@ export function ActionWizard({
   };
 
   const isDirty = () => {
+    if (pendingMoveTarget) return true;
     if (mode === "editor") return editorContent !== editorBaseline;
     if (baselineDraft && draftSignature(draft) !== draftSignature(baselineDraft))
       return true;
@@ -1056,20 +1082,19 @@ export function ActionWizard({
             <div className="mt-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 {isEditing ? (
-                  <div className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
-                    <FolderIcon />
-                    {editSource ? (
-                      <>
-                        Saves to{" "}
-                        <span className="text-[var(--text-secondary)]">
-                          {configLayerLabel(editSource)}
-                        </span>{" "}
-                        config
-                      </>
-                    ) : (
-                      "Locating config…"
-                    )}
-                  </div>
+                  editSource ? (
+                    <ConfigLayerMenu
+                      value={moveTarget ?? editSource}
+                      onChange={(next) =>
+                        setMoveTarget(next === editSource ? null : next)
+                      }
+                    />
+                  ) : (
+                    <div className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
+                      <FolderIcon />
+                      Locating config…
+                    </div>
+                  )
                 ) : (
                   <ConfigLayerMenu
                     value={configLayer}
@@ -1107,7 +1132,7 @@ export function ActionWizard({
                     value={editorContent}
                     onChange={setEditorContent}
                     language="yaml"
-                    modelUri={`inmemory://action-${editing?.name ?? "new"}-${editorSeed}.yaml`}
+                    modelUri={ACTION_MODEL_URI}
                     onSave={() => void submit()}
                   />
                 )}
@@ -1122,7 +1147,10 @@ export function ActionWizard({
             <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] lg:flex-row">
               <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-8 py-7">
                 {!isEditing && !nameFilled && !cmdFilled && (
-                  <TemplateGallery onPick={pickTemplate} />
+                  <TemplateGallery
+                    onPick={pickTemplate}
+                    suggestions={projectSuggestions}
+                  />
                 )}
                 <FieldSection label="Button name">
                   <div className="relative">
@@ -1148,6 +1176,21 @@ export function ActionWizard({
                   </div>
                 </FieldSection>
 
+                {showCommand && (
+                  <CommandField
+                    inputRef={commandRef}
+                    label={shape === "split" ? "Default command" : "Command"}
+                    value={cmd}
+                    onChange={updateCmd}
+                    onEnter={() => void submit()}
+                    placeholder={
+                      shape === "split"
+                        ? "npm run deploy:staging"
+                        : "npm run dev"
+                    }
+                  />
+                )}
+
                 {showShape && (
                   <Reveal className="relative z-20">
                     <FieldSection label="How should it appear?">
@@ -1166,23 +1209,6 @@ export function ActionWizard({
                     <DisplayPicker
                       display={display}
                       onChange={(value) => updateField("display", value)}
-                    />
-                  </Reveal>
-                )}
-
-                {showCommand && (
-                  <Reveal>
-                    <CommandField
-                      inputRef={commandRef}
-                      label={shape === "split" ? "Default command" : "Command"}
-                      value={cmd}
-                      onChange={updateCmd}
-                      onEnter={() => void submit()}
-                      placeholder={
-                        shape === "split"
-                          ? "npm run deploy:staging"
-                          : "npm run dev"
-                      }
                     />
                   </Reveal>
                 )}
@@ -1573,32 +1599,65 @@ function ShortcutField({
   );
 }
 
-function TemplateGallery({
+function TemplateButton({
+  template,
   onPick,
 }: {
+  template: ActionTemplate;
   onPick: (template: ActionTemplate) => void;
 }) {
   return (
+    <button
+      type="button"
+      onClick={() => onPick(template)}
+      className="flex min-w-0 flex-col gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2.5 text-left transition-colors hover:border-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
+    >
+      <span className="truncate text-[13px] font-medium text-[var(--text-primary)]">
+        {template.emoji} {template.name}
+      </span>
+      <span
+        className="truncate font-mono text-[11px] text-[var(--text-muted)]"
+        title={template.cmd}
+      >
+        $ {template.cmd}
+      </span>
+    </button>
+  );
+}
+
+function TemplateGallery({
+  onPick,
+  suggestions,
+}: {
+  onPick: (template: ActionTemplate) => void;
+  suggestions: ActionTemplate[];
+}) {
+  const hasSuggestions = suggestions.length > 0;
+  return (
     <>
-      <FieldSection label="Start with a template">
+      {hasSuggestions && (
+        <FieldSection label="From this project">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {suggestions.map((template) => (
+              <TemplateButton
+                key={template.id}
+                template={template}
+                onPick={onPick}
+              />
+            ))}
+          </div>
+        </FieldSection>
+      )}
+      <FieldSection
+        label={hasSuggestions ? "Or start from a template" : "Start with a template"}
+      >
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {ACTION_TEMPLATES.map((template) => (
-            <button
+            <TemplateButton
               key={template.id}
-              type="button"
-              onClick={() => onPick(template)}
-              className="flex min-w-0 flex-col gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2.5 text-left transition-colors hover:border-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
-            >
-              <span className="truncate text-[13px] font-medium text-[var(--text-primary)]">
-                {template.emoji} {template.name}
-              </span>
-              <span
-                className="truncate font-mono text-[11px] text-[var(--text-muted)]"
-                title={template.cmd}
-              >
-                $ {template.cmd}
-              </span>
-            </button>
+              template={template}
+              onPick={onPick}
+            />
           ))}
         </div>
       </FieldSection>

@@ -19,10 +19,15 @@ type WorkerLabel = string;
 export const PROJECT_SCHEMA_URI = "lpm://schemas/project-config.json";
 export const GLOBAL_SCHEMA_URI = "lpm://schemas/global-config.json";
 export const REPO_SCHEMA_URI = "lpm://schemas/repo-config.json";
+export const ACTION_SCHEMA_URI = "lpm://schemas/action.json";
 export const PROJECT_MODEL_URI = "inmemory://lpm/project.yml";
 export const GLOBAL_MODEL_URI = "inmemory://lpm/global.yml";
 export const REPO_MODEL_URI = "inmemory://lpm/repo.yml";
 export const TEMPLATE_MODEL_URI = "inmemory://lpm/template.yml";
+// The action wizard editor validates a single action mapping, not a whole
+// config. A fixed model URI (exact fileMatch, like the entries above) keeps
+// matching deterministic; the wizard forces a fresh editor via its React key.
+export const ACTION_MODEL_URI = "inmemory://lpm/action.yml";
 
 let configured = false;
 
@@ -73,6 +78,17 @@ export function setupMonaco(): typeof monaco {
         // both file types — Monaco picks it up via two model URIs.
         fileMatch: [REPO_MODEL_URI, TEMPLATE_MODEL_URI],
         schema: repoSchema as object,
+      },
+      {
+        uri: ACTION_SCHEMA_URI,
+        fileMatch: [ACTION_MODEL_URI],
+        // The action wizard edits a single action mapping. The `action`
+        // definition $refs siblings (actionInput/envMap), so the whole
+        // definitions map rides along for those references to resolve.
+        schema: {
+          $ref: "#/definitions/action",
+          definitions: projectSchema.definitions,
+        },
       },
     ],
   });
