@@ -215,6 +215,16 @@ fn event_safe(s: &str) -> String {
         .collect()
 }
 
+/// A Finder-launched app inherits no locale, so its PTYs would too. Any child
+/// that pipes text through `pbcopy` (Claude Code's copyOnSelect copies its
+/// selection that way) then decodes stdin as Mac Roman and mangles multi-byte
+/// text. True when none of the standard locale vars are set, so we can seed a
+/// UTF-8 default — same fallback Terminal.app applies, mirrors the LC_CTYPE
+/// override in clipboard.rs. Any inherited locale is left untouched.
+fn env_lacks_locale<I: IntoIterator<Item = (String, String)>>(vars: I) -> bool {
+    !vars.into_iter().any(|(k, _)| k == "LANG" || k == "LC_ALL" || k == "LC_CTYPE")
+}
+
 /// Project-level launch inputs resolved once per spawn: root dir, ssh (Some
 /// only when remote), and the Claude account env decision (applied to local
 /// terminals only — the pinned dir is a local path).
@@ -298,6 +308,9 @@ fn start_internal(
         builder.cwd(&dir);
         // Inherit the full parent env (== Go os.Environ()); CommandBuilder otherwise
         // passes only what we set, which would drop PATH and break the shell.
+        if env_lacks_locale(std::env::vars()) {
+            builder.env("LC_CTYPE", "UTF-8");
+        }
         for (k, v) in std::env::vars() {
             builder.env(k, v);
         }
@@ -535,6 +548,9 @@ pub fn start_claude_login(
     builder.arg("-ilc");
     builder.arg("claude /login");
     builder.cwd(&home);
+    if env_lacks_locale(std::env::vars()) {
+        builder.env("LC_CTYPE", "UTF-8");
+    }
     for (k, v) in std::env::vars() {
         builder.env(k, v);
     }
@@ -739,7 +755,7 @@ pub fn remote_terminals(state: &PtyState, project: &str) -> Vec<RemoteTerminal> 
 
 #[cfg(test)]
 mod tests {
-    use super::event_safe;
+    use super::{env_lacks_locale, event_safe};
 
     #[test]
     fn sanitizes_chars_illegal_in_event_names() {
@@ -747,5 +763,23 @@ mod tests {
         assert_eq!(event_safe("my.app"), "my_app");
         assert_eq!(event_safe("a/b:c"), "a_b_c");
         assert_eq!(event_safe("plain-name_1"), "plain-name_1");
+    }
+
+    fn env(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
+        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+    }
+
+    #[test]
+    fn detects_missing_locale() {
+        assert!(env_lacks_locale(env(&[("PATH", "/usr/bin"), ("TERM", "xterm")])));
+        assert!(env_lacks_locale(env(&[])));
+    }
+
+    #[test]
+    fn detects_present_locale() {
+        assert!(!env_lacks_locale(env(&[("LANG", "en_US.UTF-8")])));
+        assert!(!env_lacks_locale(env(&[("LC_ALL", "C")])));
+        assert!(!env_lacks_locale(env(&[("LC_CTYPE", "UTF-8")])));
+        assert!(!env_lacks_locale(env(&[("PATH", "/bin"), ("LANG", "C")])));
     }
 }

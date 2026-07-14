@@ -141,15 +141,20 @@ const APP_SELECTION_WINDOW_MS = 60000;
 // its terminal (a copy is always an answer to a keystroke or click there).
 // Anything later — or from a session the user isn't touching — is dropped.
 const APP_CLIPBOARD_INPUT_WINDOW_MS = 15000;
-// While its selection is active, Claude Code advertises the copy chord as
-// " · ctrl+c to copy" in its status row. Requiring that advertisement — in
-// its separator form, and only in the last drawn rows where the status line
-// lives — means a Ctrl+C is only ever sent to an app that just promised it
-// copies, and transcript prose merely mentioning the chord can't authorize
-// one. The status row is the last non-blank row: Claude draws inline (blank
-// screen below its chrome) in short sessions and bottom-anchored in full
-// ones, so fixed bottom offsets miss it.
-const APP_COPY_HINT_RE = /·\s*ctrl\+c to copy/i;
+// While its selection is active, Claude Code advertises how to lift it in its
+// status row, and the form depends on its copyOnSelect setting: with it off,
+// " · ctrl+c to copy" (Ctrl+C copies the selection); with it on, it has
+// already copied the selection at mouseup and the row instead reads
+// "shift+click to native select" (or "option+click …" on some configs).
+// Either advertisement proves the app's selection is still alive, and Ctrl+C
+// is safe to send while it is: Claude consumes it — copying when copyOnSelect
+// is off, clearing the already-copied selection when on — so it never lands
+// as an interrupt. Requiring one of these rows (and only in the last drawn
+// rows where the status line lives) means transcript prose merely mentioning
+// a chord can't authorize a Ctrl+C. The status row is the last non-blank row:
+// Claude draws inline (blank screen below its chrome) in short sessions and
+// bottom-anchored in full ones, so fixed bottom offsets miss it.
+const APP_COPY_HINT_RE = /·\s*ctrl\+c to copy|(?:shift|option)\+click to native select/i;
 const APP_COPY_HINT_ROWS = 3;
 
 // Serialized so two copies arriving close together can't land out of order
@@ -470,12 +475,15 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   } catch {}
 
   // When an app owns the mouse it also owns the selection: Claude Code
-  // highlights dragged text itself and copies it (via OSC 52) only when it
-  // receives Ctrl+C while that selection is active. Watch the outgoing SGR
-  // mouse reports for a left-button drag — the gesture that gives the app a
-  // selection worth copying — so ⌘C right after can be translated into the
-  // app's own copy. A motionless click clears the app's selection, so it
-  // clears the marker too.
+  // highlights dragged text itself and lifts it to the clipboard on Ctrl+C
+  // while that selection is active (with copyOnSelect it copies at mouseup
+  // instead and the Ctrl+C just clears the highlight — still consumed, never
+  // an interrupt). Its kitty cmd+c binding is NOT active at the REPL (probed
+  // 2.1.208), so translating ⌘C into Ctrl+C stays the only copy trigger lpm
+  // can drive. Watch the outgoing SGR mouse reports for a left-button drag —
+  // the gesture that gives the app a selection worth copying — so ⌘C right
+  // after can be translated into the app's own copy. A motionless click
+  // clears the app's selection, so it clears the marker too.
   let lastAppDragAt = 0;
   let lastUserInputAt = 0;
   let dragHasMotion = false;
