@@ -20,6 +20,18 @@ import {
   type ActionPatch,
 } from "../../actionConfig";
 import { applyAutoSettings, type RunMode } from "./actionInference";
+import {
+  actionInfoFromPayload,
+  pickUnmanaged,
+  reorderById,
+  toRunMode,
+  unmanagedActionKeys,
+  unmanagedFieldsChanged,
+  yamlToActionInfo,
+} from "./actionYaml";
+import { AdvancedDisclosure } from "./AdvancedDisclosure";
+import { AlsoConfiguredChip } from "./AlsoConfiguredChip";
+import { SortableItem, SortableList } from "../ui/SortableList";
 import { MonacoEditor } from "../MonacoEditor";
 import { slugify } from "../../slugify";
 import { uniqueKey } from "../../uniqueKey";
@@ -47,6 +59,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   FolderIcon,
+  GripVerticalIcon,
   HelpCircleIcon,
   MoonIcon,
   PanelBottomIcon,
@@ -477,9 +490,20 @@ function buildActionPatch({
 function buildCreatePayload(
   draft: FormDraft,
   position: number,
+  base: Record<string, unknown> | null = null,
 ): Record<string, unknown> {
   const { set } = buildActionPatch(draft);
-  return { ...set, display: draft.display, position };
+  return { ...pickUnmanaged(base), ...set, display: draft.display, position };
+}
+
+// Semantic identity of a draft for dirty checks. Raw draft JSON won't do:
+// regenerated child UUIDs and touched flags differ after a mere editor→form
+// round-trip even though nothing the user cares about changed.
+function draftSignature(draft: FormDraft): string {
+  return JSON.stringify({
+    patch: buildActionPatch(draft),
+    configLayer: draft.configLayer,
+  });
 }
 
 type Submission =
@@ -497,6 +521,7 @@ function buildSubmission(
     editing: ActionInfo | null | undefined;
     existingActionKeys: string[];
     nextPosition: number;
+    workingBase: Record<string, unknown>;
   },
 ): Submission {
   if (context.editing) {
@@ -514,7 +539,7 @@ function buildSubmission(
       slugify(draft.name) || NEW_ACTION_KEY,
       context.existingActionKeys,
     ),
-    payload: buildCreatePayload(draft, context.nextPosition),
+    payload: buildCreatePayload(draft, context.nextPosition, context.workingBase),
   };
 }
 
@@ -529,8 +554,14 @@ function buildEditorContentForEdit(
   return YAML.stringify(merged, { lineWidth: 0 });
 }
 
-function buildCreateEditorContent(draft: FormDraft, position: number): string {
-  return YAML.stringify(buildCreatePayload(draft, position), { lineWidth: 0 });
+function buildCreateEditorContent(
+  draft: FormDraft,
+  position: number,
+  base: Record<string, unknown> | null = null,
+): string {
+  return YAML.stringify(buildCreatePayload(draft, position, base), {
+    lineWidth: 0,
+  });
 }
 
 function inferShape(action: ActionInfo): Shape {
@@ -539,57 +570,6 @@ function inferShape(action: ActionInfo): Shape {
   if (hasChildren && hasCmd) return "split";
   if (hasChildren) return "dropdown";
   return "button";
-}
-
-function toRunMode(type: string | undefined): RunMode {
-  return type === "terminal" || type === "command" || type === "background" ? type : "once";
-}
-
-// Coerces AI-generated YAML into the ActionInfo shape so we can re-use
-// actionToDraft. Throws if the document isn't a mapping; unknown fields are
-// silently dropped — the form only surfaces what it understands.
-function yamlToActionInfo(yaml: string): ActionInfo {
-  const parsed = YAML.parse(yaml);
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("YAML must be a mapping of action fields");
-  }
-  const obj = parsed as Record<string, unknown>;
-  return {
-    name: "",
-    label: typeof obj.label === "string" ? obj.label : "",
-    emoji: typeof obj.emoji === "string" ? obj.emoji : undefined,
-    shortcut: typeof obj.shortcut === "string" ? obj.shortcut : undefined,
-    cmd: typeof obj.cmd === "string" ? obj.cmd : "",
-    cwd: typeof obj.cwd === "string" ? obj.cwd : undefined,
-    confirm: Boolean(obj.confirm),
-    display: typeof obj.display === "string" ? obj.display : "header",
-    type: typeof obj.type === "string" ? obj.type : undefined,
-    reuse: Boolean(obj.reuse),
-    children: yamlChildMapToList(obj.actions),
-  };
-}
-
-function yamlChildMapToList(actions: unknown): ActionInfo[] | undefined {
-  if (!actions || typeof actions !== "object" || Array.isArray(actions))
-    return undefined;
-  const out: ActionInfo[] = [];
-  for (const [name, value] of Object.entries(
-    actions as Record<string, unknown>,
-  )) {
-    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
-    const v = value as Record<string, unknown>;
-    out.push({
-      name,
-      label: typeof v.label === "string" ? v.label : name,
-      cmd: typeof v.cmd === "string" ? v.cmd : "",
-      cwd: typeof v.cwd === "string" ? v.cwd : undefined,
-      confirm: Boolean(v.confirm),
-      display: "",
-      type: typeof v.type === "string" ? v.type : undefined,
-      reuse: Boolean(v.reuse),
-    });
-  }
-  return out.length ? out : undefined;
 }
 
 function actionToDraft(action: ActionInfo): FormDraft {
@@ -685,10 +665,15 @@ export function ActionWizard({
   // resolves; drives the editor merge so unmanaged fields survive a save.
   const [editingPayload, setEditingPayload] =
     useState<Record<string, unknown> | null>(null);
+  // The merge base for every editor seed: the on-disk payload in edit mode, or
+  // the unmanaged fields the user typed in the editor and carried back to the
+  // form. Unlike editingPayload it tracks in-session editor edits, so switching
+  // editor→form→editor no longer drops hand-authored fields.
+  const [workingBase, setWorkingBase] = useState<Record<string, unknown>>({});
   // Dirtiness baselines captured at open: the form draft and the editor's
   // original canonical serialization. Editor edits are dirty when the content
   // diverges from this baseline, not from whatever it was last re-seeded with.
-  const [draftBaseline, setDraftBaseline] = useState("");
+  const [baselineDraft, setBaselineDraft] = useState<FormDraft | null>(null);
   const [editorBaseline, setEditorBaseline] = useState("");
   const nameRef = useRef<HTMLInputElement>(null);
   const commandRef = useRef<HTMLInputElement>(null);
@@ -704,7 +689,7 @@ export function ActionWizard({
     if (!open) return;
     const nextDraft = editing ? actionToDraft(editing) : defaultDraft();
     setDraft(nextDraft);
-    setDraftBaseline(JSON.stringify(nextDraft));
+    setBaselineDraft(nextDraft);
     setShowYaml(false);
     setSaving(false);
     setEditorError(null);
@@ -712,6 +697,7 @@ export function ActionWizard({
     setAiModalOpen(false);
     setDiscardOpen(false);
     setEditingPayload(null);
+    setWorkingBase({});
     const initialMode = readStoredMode();
     if (initialMode === "editor") {
       // Edit mode seeds lazily once editingPayload resolves (see the read
@@ -744,6 +730,7 @@ export function ActionWizard({
       setEditSource(layer);
       const base = payload ?? {};
       setEditingPayload(base);
+      setWorkingBase(base);
       setEditorBaseline(buildEditorContentForEdit(actionToDraft(editing), base));
       if (modeRef.current === "editor") {
         setEditorContent(buildEditorContentForEdit(draftRef.current, base));
@@ -843,9 +830,22 @@ export function ActionWizard({
         editing,
         existingActionKeys,
         nextPosition,
+        workingBase,
       });
       if (submission.kind === "edit") {
-        await replaceAction(projectName, submission.key, submission.patch);
+        // A plain replaceAction patch leaves unmanaged fields alone, which is
+        // safest against concurrent external edits — but if the user changed
+        // env/inputs/etc. in the editor before switching to the form, only a
+        // whole-payload write applies them.
+        if (unmanagedFieldsChanged(workingBase, editingPayload ?? {})) {
+          await replaceActionPayload(
+            projectName,
+            submission.key,
+            mergeActionPayload(workingBase, submission.patch),
+          );
+        } else {
+          await replaceAction(projectName, submission.key, submission.patch);
+        }
         toast.success("Action updated");
       } else {
         await appendActionToLayer(
@@ -920,15 +920,12 @@ export function ActionWizard({
       setEditorContent(
         editingPayload === null
           ? ""
-          : buildEditorContentForEdit(draft, editingPayload),
+          : buildEditorContentForEdit(draft, workingBase),
       );
     } else {
-      setEditorContent(buildCreateEditorContent(draft, nextPosition));
+      setEditorContent(buildCreateEditorContent(draft, nextPosition, workingBase));
       setEditorBaseline(
-        buildCreateEditorContent(
-          JSON.parse(draftBaseline) as FormDraft,
-          nextPosition,
-        ),
+        buildCreateEditorContent(baselineDraft ?? draft, nextPosition),
       );
     }
     setEditorError(null);
@@ -937,22 +934,47 @@ export function ActionWizard({
     writeStoredMode("editor");
   };
 
+  // Parses the editor content back into the form. Invalid or non-mapping YAML
+  // keeps us in the editor with the error shown rather than silently discarding
+  // the edits. Unmanaged fields the user typed become the new workingBase so
+  // they survive the next editor seed and a form-side save.
   const switchToForm = () => {
+    let parsed: unknown;
+    try {
+      parsed = YAML.parse(editorContent);
+    } catch (err) {
+      setEditorError(err instanceof Error ? err.message : "Invalid YAML");
+      return;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      setEditorError("YAML must be a mapping of action fields");
+      return;
+    }
+    const payload = parsed as Record<string, unknown>;
+    setDraft((prev) => ({
+      ...actionToDraft(actionInfoFromPayload(payload)),
+      configLayer: prev.configLayer,
+    }));
+    setWorkingBase(payload);
     setEditorError(null);
     setMode("form");
     writeStoredMode("form");
   };
 
   const buildCurrentYAML = (): string => {
-    if (editing) return buildEditorContentForEdit(draft, editingPayload);
+    if (editing) return buildEditorContentForEdit(draft, workingBase);
     if (!draft.name.trim() && !draft.cmd.trim()) return "";
-    return buildCreateEditorContent(draft, nextPosition);
+    return buildCreateEditorContent(draft, nextPosition, workingBase);
   };
 
-  const isDirty = () =>
-    mode === "editor"
-      ? editorContent !== editorBaseline
-      : JSON.stringify(draft) !== draftBaseline;
+  const isDirty = () => {
+    if (mode === "editor") return editorContent !== editorBaseline;
+    if (baselineDraft && draftSignature(draft) !== draftSignature(baselineDraft))
+      return true;
+    // Editor-only edits to unmanaged fields leave the form draft untouched, so
+    // also compare the carried unmanaged fields against their on-disk origin.
+    return unmanagedFieldsChanged(workingBase, editing ? editingPayload ?? {} : {});
+  };
 
   const requestClose = () => {
     if (saving) return;
@@ -964,6 +986,7 @@ export function ActionWizard({
     setEditorContent(yaml);
     try {
       const info = yamlToActionInfo(yaml);
+      setWorkingBase(YAML.parse(yaml) as Record<string, unknown>);
       setDraft((prev) => ({
         ...actionToDraft(info),
         configLayer: prev.configLayer,
@@ -1061,6 +1084,14 @@ export function ActionWizard({
                 }
               />
             </div>
+            {mode === "form" && unmanagedActionKeys(workingBase).length > 0 && (
+              <div className="mt-3">
+                <AlsoConfiguredChip
+                  payload={workingBase}
+                  onOpenEditor={switchToEditor}
+                />
+              </div>
+            )}
           </header>
 
           {mode === "editor" ? (
@@ -1156,19 +1187,6 @@ export function ActionWizard({
                   </Reveal>
                 )}
 
-                {showCommand && (
-                  <Reveal>
-                    <CommandField
-                      label="Working directory"
-                      hint="Defaults to the project directory"
-                      value={cwd}
-                      onChange={(value) => updateField("cwd", value)}
-                      onEnter={() => void submit()}
-                      placeholder="./backend"
-                    />
-                  </Reveal>
-                )}
-
                 {showRunMode && (
                   <Reveal>
                     <div className="space-y-7">
@@ -1182,17 +1200,33 @@ export function ActionWizard({
                         confirm={confirm}
                         onConfirm={setConfirm}
                       />
-                      <PortField
-                        port={port}
-                        portConflict={portConflict}
-                        onPort={(value) => updateField("port", value)}
-                        onPortConflict={(value) => updateField("portConflict", value)}
-                      />
-                      <ShortcutField
-                        value={shortcut}
-                        taken={takenShortcuts}
-                        onChange={(value) => updateField("shortcut", value)}
-                      />
+                      <AdvancedDisclosure
+                        hasValue={Boolean(
+                          cwd.trim() || port.trim() || shortcut.trim(),
+                        )}
+                      >
+                        <CommandField
+                          label="Working directory"
+                          hint="Defaults to the project directory"
+                          value={cwd}
+                          onChange={(value) => updateField("cwd", value)}
+                          onEnter={() => void submit()}
+                          placeholder="./backend"
+                        />
+                        <PortField
+                          port={port}
+                          portConflict={portConflict}
+                          onPort={(value) => updateField("port", value)}
+                          onPortConflict={(value) =>
+                            updateField("portConflict", value)
+                          }
+                        />
+                        <ShortcutField
+                          value={shortcut}
+                          taken={takenShortcuts}
+                          onChange={(value) => updateField("shortcut", value)}
+                        />
+                      </AdvancedDisclosure>
                     </div>
                   </Reveal>
                 )}
@@ -1215,6 +1249,7 @@ export function ActionWizard({
                         editing,
                         existingActionKeys,
                         nextPosition,
+                        workingBase,
                       })}
                     />
                   </Reveal>
@@ -2140,57 +2175,76 @@ function MenuOptionsEditor({
       <div className="text-[13px] font-medium text-[var(--text-primary)]">
         Menu options
       </div>
-      {options.map((child, index) => (
-        <div key={child.id} className="space-y-4">
-          <div className="grid grid-cols-[minmax(90px,0.8fr)_minmax(140px,1.4fr)_auto] gap-2">
-            <input
-              value={child.label}
-              onChange={(e) => updateField(child, "label", e.target.value)}
-              placeholder="Label"
-              className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)]"
-            />
-            <input
-              value={child.cmd}
-              onChange={(e) => updateField(child, "cmd", e.target.value)}
-              placeholder="Command"
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)]"
-            />
-            <button
-              type="button"
-              onClick={() =>
-                onChange(options.filter((item) => item.id !== child.id))
-              }
-              disabled={options.length === 1}
-              aria-label="Remove option"
-              className="rounded-lg p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-30"
-            >
-              <TrashIcon />
-            </button>
-          </div>
-          {child.cmd.trim() && (
-            <div className="space-y-4 border-l-2 border-[var(--border)] pl-4">
-              <RunModePicker
-                runMode={child.runMode}
-                reuse={child.reuse}
-                onRunMode={(mode) =>
-                  updateChild(child.id, { runMode: mode, runModeTouched: true })
-                }
-                onReuse={(value) => updateChild(child.id, { reuse: value })}
-              />
-              <ConfirmPicker
-                confirm={child.confirm}
-                onConfirm={(value) =>
-                  updateChild(child.id, { confirm: value, confirmTouched: true })
-                }
-              />
+      <SortableList
+        ids={options.map((child) => child.id)}
+        onReorder={(order) => onChange(reorderById(options, order))}
+      >
+        {options.map((child) => (
+          <SortableItem key={child.id} id={child.id}>
+            <div className="space-y-4 pb-3">
+              <div className="grid grid-cols-[auto_minmax(90px,0.8fr)_minmax(140px,1.4fr)_auto] items-center gap-2">
+                <span
+                  aria-hidden
+                  className="flex cursor-grab items-center justify-center text-[var(--text-muted)] transition-colors hover:text-[var(--text-secondary)]"
+                >
+                  <GripVerticalIcon />
+                </span>
+                <input
+                  value={child.label}
+                  onChange={(e) => updateField(child, "label", e.target.value)}
+                  placeholder="Label"
+                  className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)]"
+                />
+                <input
+                  value={child.cmd}
+                  onChange={(e) => updateField(child, "cmd", e.target.value)}
+                  placeholder="Command"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)]"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    onChange(options.filter((item) => item.id !== child.id))
+                  }
+                  disabled={options.length === 1}
+                  aria-label="Remove option"
+                  className="rounded-lg p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-30"
+                >
+                  <TrashIcon />
+                </button>
+              </div>
+              {child.cmd.trim() && (
+                <div className="space-y-4 border-l-2 border-[var(--border)] pl-4">
+                  <RunModePicker
+                    runMode={child.runMode}
+                    reuse={child.reuse}
+                    onRunMode={(mode) =>
+                      updateChild(child.id, {
+                        runMode: mode,
+                        runModeTouched: true,
+                      })
+                    }
+                    onReuse={(value) => updateChild(child.id, { reuse: value })}
+                  />
+                  <ConfirmPicker
+                    confirm={child.confirm}
+                    onConfirm={(value) =>
+                      updateChild(child.id, {
+                        confirm: value,
+                        confirmTouched: true,
+                      })
+                    }
+                  />
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      ))}
+          </SortableItem>
+        ))}
+      </SortableList>
       <button
         type="button"
         onClick={() => onChange([...options, newChild()])}
