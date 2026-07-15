@@ -33,6 +33,11 @@ jobs:
         run: bash scripts/check-skills.sh
       - name: Test CLI
         run: cargo test --manifest-path cli/Cargo.toml
+      - name: Stage CLI sidecar
+        # cargo test builds the Tauri crate, whose build script validates the
+        # `externalBin` sidecar exists. `tauri build`'s beforeBuildCommand isn't
+        # run here, so stage binaries/lpm-cli-<triple> ourselves first.
+        run: bash scripts/build-cli.sh
       - name: Test desktop skill integration
         run: |
           cargo test --manifest-path desktop/frontend/src-tauri/Cargo.toml skill_install::tests
