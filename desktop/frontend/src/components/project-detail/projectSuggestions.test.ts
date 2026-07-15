@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   buildSuggestions,
   detectPackageManager,
+  filterStaticTemplates,
   parseJustfileRecipes,
   parseMakefileTargets,
   parsePackageJsonScripts,
+  type ActionTemplate,
   type LockPresence,
+  type SuggestionSources,
 } from "./projectSuggestions";
 
 const noLocks: LockPresence = {
@@ -14,6 +17,25 @@ const noLocks: LockPresence = {
   yarn: false,
   npm: false,
 };
+
+function sources(overrides: Partial<SuggestionSources> = {}): SuggestionSources {
+  return {
+    scripts: [],
+    makeTargets: [],
+    justRecipes: [],
+    hasCompose: false,
+    hasClaude: false,
+    hasCodex: false,
+    hasGemini: false,
+    hasOpencode: false,
+    hasCargo: false,
+    hasGoMod: false,
+    hasPyproject: false,
+    hasUvLock: false,
+    locks: noLocks,
+    ...overrides,
+  };
+}
 
 describe("parsePackageJsonScripts", () => {
   it("returns script names in declaration order", () => {
@@ -121,6 +143,14 @@ describe("buildSuggestions", () => {
       makeTargets: [],
       justRecipes: [],
       hasCompose: false,
+      hasClaude: false,
+      hasCodex: false,
+      hasGemini: false,
+      hasOpencode: false,
+      hasCargo: false,
+      hasGoMod: false,
+      hasPyproject: false,
+      hasUvLock: false,
       locks: noLocks,
     });
     const dev = suggestions.find((s) => s.name === "Dev");
@@ -142,6 +172,14 @@ describe("buildSuggestions", () => {
       makeTargets: [],
       justRecipes: [],
       hasCompose: false,
+      hasClaude: false,
+      hasCodex: false,
+      hasGemini: false,
+      hasOpencode: false,
+      hasCargo: false,
+      hasGoMod: false,
+      hasPyproject: false,
+      hasUvLock: false,
       locks: { bun: false, pnpm: true, yarn: false, npm: false },
     });
     expect(suggestion.cmd).toBe("pnpm run dev");
@@ -153,10 +191,18 @@ describe("buildSuggestions", () => {
       makeTargets: [],
       justRecipes: [],
       hasCompose: false,
+      hasClaude: false,
+      hasCodex: false,
+      hasGemini: false,
+      hasOpencode: false,
+      hasCargo: false,
+      hasGoMod: false,
+      hasPyproject: false,
+      hasUvLock: false,
       locks: noLocks,
     });
     expect(suggestion).toMatchObject({
-      emoji: "🔧",
+      emoji: "🚢",
       cmd: "npm run deploy",
       confirm: true,
     });
@@ -168,6 +214,14 @@ describe("buildSuggestions", () => {
       makeTargets: ["ship"],
       justRecipes: ["fmt"],
       hasCompose: true,
+      hasClaude: false,
+      hasCodex: false,
+      hasGemini: false,
+      hasOpencode: false,
+      hasCargo: false,
+      hasGoMod: false,
+      hasPyproject: false,
+      hasUvLock: false,
       locks: noLocks,
     });
     expect(suggestions.map((s) => s.cmd)).toEqual([
@@ -184,6 +238,14 @@ describe("buildSuggestions", () => {
       makeTargets: ["ship", "ship"],
       justRecipes: [],
       hasCompose: false,
+      hasClaude: false,
+      hasCodex: false,
+      hasGemini: false,
+      hasOpencode: false,
+      hasCargo: false,
+      hasGoMod: false,
+      hasPyproject: false,
+      hasUvLock: false,
       locks: noLocks,
     });
     expect(suggestions.map((s) => s.cmd)).toEqual(["make ship"]);
@@ -195,6 +257,14 @@ describe("buildSuggestions", () => {
       makeTargets: ["ship"],
       justRecipes: [],
       hasCompose: false,
+      hasClaude: false,
+      hasCodex: false,
+      hasGemini: false,
+      hasOpencode: false,
+      hasCargo: false,
+      hasGoMod: false,
+      hasPyproject: false,
+      hasUvLock: false,
       locks: noLocks,
     });
     expect(suggestions).toHaveLength(9);
@@ -208,8 +278,412 @@ describe("buildSuggestions", () => {
       makeTargets: [],
       justRecipes: [],
       hasCompose: false,
+      hasClaude: false,
+      hasCodex: false,
+      hasGemini: false,
+      hasOpencode: false,
+      hasCargo: false,
+      hasGoMod: false,
+      hasPyproject: false,
+      hasUvLock: false,
       locks: noLocks,
     });
     expect(suggestion.id).toBe("scan-npm-run-dev");
+  });
+});
+
+describe("suggestion emoji mapping", () => {
+  it("maps common script names to distinct emoji", () => {
+    const suggestions = buildSuggestions({
+      scripts: [
+        "clean",
+        "format",
+        "typecheck",
+        "ios",
+        "android",
+        "migrate",
+        "storybook",
+        "e2e",
+        "docs",
+      ],
+      makeTargets: [],
+      justRecipes: [],
+      hasCompose: false,
+      hasClaude: false,
+      hasCodex: false,
+      hasGemini: false,
+      hasOpencode: false,
+      hasCargo: false,
+      hasGoMod: false,
+      hasPyproject: false,
+      hasUvLock: false,
+      locks: noLocks,
+    });
+    const emojiFor = (name: string) =>
+      suggestions.find((s) => s.name === name)?.emoji;
+    expect(emojiFor("Clean")).toBe("🧹");
+    expect(emojiFor("Format")).toBe("🎨");
+    expect(emojiFor("Typecheck")).toBe("🔍");
+    expect(emojiFor("Ios")).toBe("📱");
+    expect(emojiFor("Android")).toBe("🤖");
+    expect(emojiFor("Migrate")).toBe("🗃️");
+    expect(emojiFor("Storybook")).toBe("📖");
+    expect(emojiFor("E2e")).toBe("🎭");
+    expect(emojiFor("Docs")).toBe("📚");
+  });
+
+  it("falls back to 🔧 for unrecognized names", () => {
+    const [suggestion] = buildSuggestions({
+      scripts: ["frobnicate"],
+      makeTargets: [],
+      justRecipes: [],
+      hasCompose: false,
+      hasClaude: false,
+      hasCodex: false,
+      hasGemini: false,
+      hasOpencode: false,
+      hasCargo: false,
+      hasGoMod: false,
+      hasPyproject: false,
+      hasUvLock: false,
+      locks: noLocks,
+    });
+    expect(suggestion.emoji).toBe("🔧");
+  });
+
+  it("applies the mapping to make targets too", () => {
+    const [suggestion] = buildSuggestions({
+      scripts: [],
+      makeTargets: ["clean"],
+      justRecipes: [],
+      hasCompose: false,
+      hasClaude: false,
+      hasCodex: false,
+      hasGemini: false,
+      hasOpencode: false,
+      hasCargo: false,
+      hasGoMod: false,
+      hasPyproject: false,
+      hasUvLock: false,
+      locks: noLocks,
+    });
+    expect(suggestion).toMatchObject({ cmd: "make clean", emoji: "🧹" });
+  });
+});
+
+describe("filterStaticTemplates", () => {
+  const staticTemplate = (id: string, cmd: string): ActionTemplate => ({
+    id,
+    emoji: "🔧",
+    name: id,
+    cmd,
+    runMode: "once",
+  });
+
+  it("drops statics whose job a package-manager suggestion covers", () => {
+    const statics = [
+      staticTemplate("dev", "npm run dev"),
+      staticTemplate("build", "npm run build"),
+      staticTemplate("tests", "npm test"),
+      staticTemplate("logs", "tail -f log.txt"),
+    ];
+    const suggestions = [
+      staticTemplate("scan-1", "pnpm run dev"),
+      staticTemplate("scan-2", "pnpm run build"),
+    ];
+    expect(
+      filterStaticTemplates(statics, suggestions).map((t) => t.id),
+    ).toEqual(["tests", "logs"]);
+  });
+
+  it("matches on the last word so make/just recipes count", () => {
+    const statics = [
+      staticTemplate("build", "npm run build"),
+      staticTemplate("lint", "npm run lint -- --fix"),
+      staticTemplate("tests", "npm test"),
+    ];
+    const suggestions = [
+      staticTemplate("scan-1", "make build"),
+      staticTemplate("scan-2", "just lint"),
+    ];
+    expect(
+      filterStaticTemplates(statics, suggestions).map((t) => t.id),
+    ).toEqual(["tests"]);
+  });
+
+  it("treats a start suggestion as covering the dev template", () => {
+    const statics = [staticTemplate("dev", "npm run dev")];
+    const suggestions = [staticTemplate("scan-1", "npm run start")];
+    expect(filterStaticTemplates(statics, suggestions)).toEqual([]);
+  });
+
+  it("drops the docker template when a compose suggestion shares its command", () => {
+    const statics = [
+      staticTemplate("docker-up", "docker compose up -d"),
+      staticTemplate("dev", "npm run dev"),
+    ];
+    const suggestions = [staticTemplate("scan-1", "docker compose up -d")];
+    expect(
+      filterStaticTemplates(statics, suggestions).map((t) => t.id),
+    ).toEqual(["dev"]);
+  });
+
+  it("drops the install template when an install suggestion exists", () => {
+    const statics = [staticTemplate("install", "npm install")];
+    const suggestions = [staticTemplate("scan-1", "npm install")];
+    expect(filterStaticTemplates(statics, suggestions)).toEqual([]);
+  });
+
+  it("keeps everything when there are no suggestions", () => {
+    const statics = [
+      staticTemplate("dev", "npm run dev"),
+      staticTemplate("logs", "tail -f log.txt"),
+    ];
+    expect(filterStaticTemplates(statics, [])).toEqual(statics);
+  });
+
+  it("drops the AI coding session template but keeps Claude Ultracode", () => {
+    const statics = [
+      staticTemplate("ai-agent", "claude"),
+      staticTemplate("claude-ultracode", `claude --settings '{"ultracode":true}'`),
+    ];
+    const suggestions = [staticTemplate("scan-claude", "claude")];
+    expect(
+      filterStaticTemplates(statics, suggestions).map((t) => t.id),
+    ).toEqual(["claude-ultracode"]);
+  });
+
+  it("matches a job token past the last word so Go commands count", () => {
+    const statics = [
+      staticTemplate("build", "npm run build"),
+      staticTemplate("tests", "npm test"),
+      staticTemplate("dev", "npm run dev"),
+    ];
+    const suggestions = [
+      staticTemplate("scan-1", "go build ./..."),
+      staticTemplate("scan-2", "go test ./..."),
+    ];
+    expect(
+      filterStaticTemplates(statics, suggestions).map((t) => t.id),
+    ).toEqual(["dev"]);
+  });
+
+  it("drops the build template for cargo build", () => {
+    const statics = [staticTemplate("build", "npm run build")];
+    const suggestions = [staticTemplate("scan-1", "cargo build")];
+    expect(filterStaticTemplates(statics, suggestions)).toEqual([]);
+  });
+
+  it("lets uv run pytest drop tests without touching dev", () => {
+    const statics = [
+      staticTemplate("tests", "npm test"),
+      staticTemplate("dev", "npm run dev"),
+    ];
+    const suggestions = [staticTemplate("scan-1", "uv run pytest")];
+    expect(
+      filterStaticTemplates(statics, suggestions).map((t) => t.id),
+    ).toEqual(["dev"]);
+  });
+});
+
+describe("AI agent suggestions", () => {
+  it("prepends Claude and Codex ahead of scripts when both are available", () => {
+    const suggestions = buildSuggestions({
+      scripts: ["dev"],
+      makeTargets: [],
+      justRecipes: [],
+      hasCompose: false,
+      hasClaude: true,
+      hasCodex: true,
+      hasGemini: false,
+      hasOpencode: false,
+      hasCargo: false,
+      hasGoMod: false,
+      hasPyproject: false,
+      hasUvLock: false,
+      locks: noLocks,
+    });
+    expect(suggestions.slice(0, 2)).toEqual([
+      {
+        id: "scan-claude",
+        emoji: "🤖",
+        name: "Claude Code",
+        cmd: "claude",
+        runMode: "terminal",
+      },
+      {
+        id: "scan-codex",
+        emoji: "🤖",
+        name: "Codex",
+        cmd: "codex",
+        runMode: "terminal",
+      },
+    ]);
+    expect(suggestions[2].cmd).toBe("npm run dev");
+  });
+
+  it("omits AI agents when the CLIs are unavailable", () => {
+    const suggestions = buildSuggestions({
+      scripts: ["dev"],
+      makeTargets: [],
+      justRecipes: [],
+      hasCompose: false,
+      hasClaude: false,
+      hasCodex: false,
+      hasGemini: false,
+      hasOpencode: false,
+      hasCargo: false,
+      hasGoMod: false,
+      hasPyproject: false,
+      hasUvLock: false,
+      locks: noLocks,
+    });
+    expect(suggestions.map((s) => s.cmd)).toEqual(["npm run dev"]);
+  });
+
+  it("keeps prepended AI agents within the nine-suggestion cap", () => {
+    const suggestions = buildSuggestions({
+      scripts: ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"],
+      makeTargets: [],
+      justRecipes: [],
+      hasCompose: false,
+      hasClaude: true,
+      hasCodex: true,
+      hasGemini: false,
+      hasOpencode: false,
+      hasCargo: false,
+      hasGoMod: false,
+      hasPyproject: false,
+      hasUvLock: false,
+      locks: noLocks,
+    });
+    expect(suggestions).toHaveLength(9);
+    expect(suggestions[0].cmd).toBe("claude");
+    expect(suggestions[1].cmd).toBe("codex");
+  });
+
+  it("prepends all four agents in Claude, Codex, Gemini, OpenCode order", () => {
+    const suggestions = buildSuggestions(
+      sources({
+        scripts: ["dev"],
+        hasClaude: true,
+        hasCodex: true,
+        hasGemini: true,
+        hasOpencode: true,
+      }),
+    );
+    expect(suggestions.slice(0, 4).map((s) => s.cmd)).toEqual([
+      "claude",
+      "codex",
+      "gemini",
+      "opencode",
+    ]);
+    expect(suggestions.find((s) => s.cmd === "gemini")).toMatchObject({
+      id: "scan-gemini",
+      emoji: "🤖",
+      name: "Gemini",
+      runMode: "terminal",
+    });
+    expect(suggestions.find((s) => s.cmd === "opencode")).toMatchObject({
+      id: "scan-opencode",
+      name: "OpenCode",
+      runMode: "terminal",
+    });
+    expect(suggestions[4].cmd).toBe("npm run dev");
+  });
+
+  it("omits Gemini and OpenCode when unavailable", () => {
+    const suggestions = buildSuggestions(
+      sources({ hasClaude: true, hasCodex: true }),
+    );
+    expect(suggestions.map((s) => s.cmd)).toEqual(["claude", "codex"]);
+  });
+});
+
+describe("ecosystem suggestions", () => {
+  it("adds Cargo Run/Test/Build for a Rust project", () => {
+    const suggestions = buildSuggestions(sources({ hasCargo: true }));
+    expect(suggestions).toEqual([
+      {
+        id: "scan-cargo-run",
+        emoji: "🚀",
+        name: "Run",
+        cmd: "cargo run",
+        runMode: "terminal",
+        reuse: true,
+      },
+      {
+        id: "scan-cargo-test",
+        emoji: "🧪",
+        name: "Test",
+        cmd: "cargo test",
+        runMode: "once",
+        reuse: false,
+      },
+      {
+        id: "scan-cargo-build",
+        emoji: "📦",
+        name: "Build",
+        cmd: "cargo build",
+        runMode: "once",
+        reuse: false,
+      },
+    ]);
+  });
+
+  it("adds Go Run/Test/Build for a go.mod project", () => {
+    const suggestions = buildSuggestions(sources({ hasGoMod: true }));
+    expect(suggestions.map((s) => s.cmd)).toEqual([
+      "go run .",
+      "go test ./...",
+      "go build ./...",
+    ]);
+    expect(suggestions[0]).toMatchObject({ runMode: "terminal", reuse: true });
+  });
+
+  it("uses plain pytest for pyproject without uv.lock", () => {
+    const suggestions = buildSuggestions(sources({ hasPyproject: true }));
+    expect(suggestions).toEqual([
+      {
+        id: "scan-pytest",
+        emoji: "🧪",
+        name: "Test",
+        cmd: "pytest",
+        runMode: "once",
+        reuse: false,
+      },
+    ]);
+  });
+
+  it("uses uv run pytest when uv.lock is present", () => {
+    const suggestions = buildSuggestions(
+      sources({ hasPyproject: true, hasUvLock: true }),
+    );
+    expect(suggestions.map((s) => s.cmd)).toEqual(["uv run pytest"]);
+  });
+
+  it("places ecosystem defaults after scripts and before make targets", () => {
+    const suggestions = buildSuggestions(
+      sources({ scripts: ["dev"], hasCargo: true, makeTargets: ["ship"] }),
+    );
+    expect(suggestions.map((s) => s.cmd)).toEqual([
+      "npm run dev",
+      "cargo run",
+      "cargo test",
+      "cargo build",
+      "make ship",
+    ]);
+  });
+
+  it("keeps AI agents leading and honors the nine cap with ecosystem entries", () => {
+    const suggestions = buildSuggestions(
+      sources({
+        scripts: ["a", "b", "c", "d", "e"],
+        hasClaude: true,
+        hasGoMod: true,
+      }),
+    );
+    expect(suggestions).toHaveLength(9);
+    expect(suggestions[0].cmd).toBe("claude");
   });
 });

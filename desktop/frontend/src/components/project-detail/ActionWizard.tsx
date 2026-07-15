@@ -33,7 +33,7 @@ import {
 import { AdvancedDisclosure } from "./AdvancedDisclosure";
 import { AlsoConfiguredChip } from "./AlsoConfiguredChip";
 import { useProjectSuggestions } from "./useProjectSuggestions";
-import type { ActionTemplate } from "./projectSuggestions";
+import { filterStaticTemplates, type ActionTemplate } from "./projectSuggestions";
 import { SortableItem, SortableList } from "../ui/SortableList";
 import { MonacoEditor } from "../MonacoEditor";
 import { ACTION_MODEL_URI } from "../../monaco-setup";
@@ -215,7 +215,6 @@ const ACTION_TEMPLATES: ActionTemplate[] = [
     name: "AI coding session",
     cmd: "claude",
     runMode: "terminal",
-    reuse: true,
   },
   {
     id: "claude-ultracode",
@@ -771,6 +770,14 @@ export function ActionWizard({
   const nameFilled = Boolean(name.trim());
   const cmdFilled = Boolean(cmd.trim());
   const hasMenuOption = children.some((child) => child.cmd.trim());
+  // A brand-new create form with nothing typed yet: the disabled primary button
+  // is signal enough, so we hold back the "Name is required" hint until the user
+  // actually starts filling the form.
+  const isPristine =
+    !isEditing &&
+    !nameFilled &&
+    !cmdFilled &&
+    !children.some((child) => child.label.trim() || child.cmd.trim());
   const showShape = nameFilled;
   const showCommand = shape !== "dropdown";
   const showRunMode = showCommand && cmdFilled;
@@ -1053,7 +1060,7 @@ export function ActionWizard({
         contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
       >
         <div
-          className="flex h-[min(820px,92vh)] w-[min(960px,calc(100vw-32px))] flex-col"
+          className="flex max-h-[min(820px,92vh)] w-[min(960px,calc(100vw-32px))] flex-col"
           onKeyDown={onKeyDown}
         >
           <header className="px-7 pb-4 pt-6">
@@ -1312,7 +1319,7 @@ export function ActionWizard({
               </AIButton>
             </div>
             <div className="flex items-center gap-3">
-              {mode === "form" && missingHint && (
+              {mode === "form" && missingHint && !isPristine && (
                 <span className="hidden text-[12px] text-[var(--text-muted)] sm:inline">
                   {missingHint}
                 </span>
@@ -1616,6 +1623,45 @@ function TemplateButton({
   );
 }
 
+function TemplateGrid({
+  templates,
+  onPick,
+}: {
+  templates: ActionTemplate[];
+  onPick: (template: ActionTemplate) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {templates.map((template) => (
+        <TemplateButton key={template.id} template={template} onPick={onPick} />
+      ))}
+    </div>
+  );
+}
+
+function DisclosureToggle({
+  open,
+  label,
+  onClick,
+}: {
+  open: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+    >
+      {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
+      {label}
+    </button>
+  );
+}
+
+const VISIBLE_SUGGESTIONS = 6;
+
 function TemplateGallery({
   onPick,
   suggestions,
@@ -1624,35 +1670,70 @@ function TemplateGallery({
   suggestions: ActionTemplate[];
 }) {
   const hasSuggestions = suggestions.length > 0;
-  return (
-    <>
-      {hasSuggestions && (
-        <FieldSection label="From this project">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {suggestions.map((template) => (
-              <TemplateButton
-                key={template.id}
-                template={template}
-                onPick={onPick}
-              />
-            ))}
-          </div>
+  const [showAllSuggestions, setShowAllSuggestions] = useState(false);
+  const [showStaticTemplates, setShowStaticTemplates] = useState(false);
+  const staticTemplates = useMemo(
+    () =>
+      hasSuggestions
+        ? filterStaticTemplates(ACTION_TEMPLATES, suggestions)
+        : ACTION_TEMPLATES,
+    [hasSuggestions, suggestions],
+  );
+
+  if (!hasSuggestions) {
+    return (
+      <div className="space-y-5">
+        <FieldSection label="Start with a template">
+          <TemplateGrid templates={staticTemplates} onPick={onPick} />
         </FieldSection>
-      )}
-      <FieldSection
-        label={hasSuggestions ? "Or start from a template" : "Start with a template"}
-      >
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {ACTION_TEMPLATES.map((template) => (
-            <TemplateButton
-              key={template.id}
-              template={template}
-              onPick={onPick}
-            />
-          ))}
-        </div>
+        <PathDivider />
+      </div>
+    );
+  }
+
+  const visibleSuggestions = showAllSuggestions
+    ? suggestions
+    : suggestions.slice(0, VISIBLE_SUGGESTIONS);
+  const hiddenCount = suggestions.length - visibleSuggestions.length;
+
+  return (
+    <div className="space-y-5">
+      <FieldSection label="Suggested for this project">
+        <TemplateGrid templates={visibleSuggestions} onPick={onPick} />
+        {hiddenCount > 0 && (
+          <DisclosureToggle
+            open={showAllSuggestions}
+            label={showAllSuggestions ? "Show fewer" : `Show ${hiddenCount} more`}
+            onClick={() => setShowAllSuggestions((value) => !value)}
+          />
+        )}
       </FieldSection>
-    </>
+      {staticTemplates.length > 0 && (
+        <div className="space-y-2.5">
+          <DisclosureToggle
+            open={showStaticTemplates}
+            label="More templates"
+            onClick={() => setShowStaticTemplates((value) => !value)}
+          />
+          {showStaticTemplates && (
+            <TemplateGrid templates={staticTemplates} onPick={onPick} />
+          )}
+        </div>
+      )}
+      <PathDivider />
+    </div>
+  );
+}
+
+function PathDivider() {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="h-px flex-1 bg-[var(--border)]" />
+      <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
+        or create your own
+      </span>
+      <span className="h-px flex-1 bg-[var(--border)]" />
+    </div>
   );
 }
 
@@ -1772,7 +1853,12 @@ function ActionPreviewPanel({
 
         <div className="flex flex-1 flex-col items-center justify-center gap-5">
           {!hasName ? (
-            <div className="h-7 w-24 rounded-md border border-dashed border-[var(--border)]" />
+            <div className="flex flex-col items-center gap-3">
+              <MockActionPlaceholder />
+              <span className="text-[11px] text-[var(--text-muted)]">
+                Your action appears here.
+              </span>
+            </div>
           ) : shape === "button" ? (
             <button
               type="button"
@@ -1854,20 +1940,12 @@ function MockModalShell({
   );
 }
 
-function RunModeDemo({
-  running,
-  cmd,
-  label,
-  onTrigger,
-  onConfirm,
-  onCancel,
+function MockAppFrame({
+  headerSlot,
+  children,
 }: {
-  running: DemoState;
-  cmd: string;
-  label: string;
-  onTrigger: () => void;
-  onConfirm: () => void;
-  onCancel: () => void;
+  headerSlot: ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="relative w-full max-w-[240px] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] shadow-md">
@@ -1884,24 +1962,69 @@ function RunModeDemo({
 
         <div className="relative flex flex-1 flex-col overflow-hidden">
           <div className="flex h-[16px] items-center justify-end border-b border-[var(--border)] px-1.5">
-            <button
-              type="button"
-              onClick={onTrigger}
-              className="max-w-[80px] truncate rounded border border-[var(--border)] bg-[var(--bg-primary)] px-1 py-[1px] text-[7px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
-            >
-              {label}
-            </button>
+            {headerSlot}
           </div>
 
-          <div className="relative flex-1 overflow-hidden p-2">
-            <div className="space-y-1">
-              <div className="h-[3px] w-3/4 rounded bg-[var(--border)] opacity-70" />
-              <div className="h-[3px] w-1/2 rounded bg-[var(--border)] opacity-70" />
-              <div className="h-[3px] w-2/3 rounded bg-[var(--border)] opacity-70" />
-              <div className="h-[3px] w-1/3 rounded bg-[var(--border)] opacity-70" />
-            </div>
+          <div className="relative flex-1 overflow-hidden p-2">{children}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-            {running === "confirm" && (
+function MockBodyLines() {
+  return (
+    <div className="space-y-1">
+      <div className="h-[3px] w-3/4 rounded bg-[var(--border)] opacity-70" />
+      <div className="h-[3px] w-1/2 rounded bg-[var(--border)] opacity-70" />
+      <div className="h-[3px] w-2/3 rounded bg-[var(--border)] opacity-70" />
+      <div className="h-[3px] w-1/3 rounded bg-[var(--border)] opacity-70" />
+    </div>
+  );
+}
+
+function MockActionPlaceholder() {
+  return (
+    <MockAppFrame
+      headerSlot={
+        <span className="h-[9px] w-[34px] rounded-[3px] border border-dashed border-[var(--border)]" />
+      }
+    >
+      <MockBodyLines />
+    </MockAppFrame>
+  );
+}
+
+function RunModeDemo({
+  running,
+  cmd,
+  label,
+  onTrigger,
+  onConfirm,
+  onCancel,
+}: {
+  running: DemoState;
+  cmd: string;
+  label: string;
+  onTrigger: () => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <MockAppFrame
+      headerSlot={
+        <button
+          type="button"
+          onClick={onTrigger}
+          className="max-w-[80px] truncate rounded border border-[var(--border)] bg-[var(--bg-primary)] px-1 py-[1px] text-[7px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
+        >
+          {label}
+        </button>
+      }
+    >
+      <MockBodyLines />
+
+      {running === "confirm" && (
               <MockModalShell width={140}>
                 <div className="space-y-1 px-2 py-1.5">
                   <div className="text-[8px] font-medium text-[var(--text-primary)]">
@@ -1976,10 +2099,7 @@ function RunModeDemo({
                 </span>
               </div>
             )}
-          </div>
-        </div>
-      </div>
-    </div>
+    </MockAppFrame>
   );
 }
 

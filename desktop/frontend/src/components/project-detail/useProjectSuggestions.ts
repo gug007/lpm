@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FileExists, ReadFile } from "../../../bridge/commands";
+import { CheckAICLIs, FileExists, ReadFile } from "../../../bridge/commands";
 import {
   buildSuggestions,
   parseJustfileRecipes,
@@ -44,6 +44,27 @@ async function anyExists(root: string, names: string[]): Promise<boolean> {
   return results.some(Boolean);
 }
 
+interface AICLIPresence {
+  claude: boolean;
+  codex: boolean;
+  gemini: boolean;
+  opencode: boolean;
+}
+
+async function detectAICLIs(): Promise<AICLIPresence> {
+  try {
+    const available = await CheckAICLIs();
+    return {
+      claude: available?.claude === true,
+      codex: available?.codex === true,
+      gemini: available?.gemini === true,
+      opencode: available?.opencode === true,
+    };
+  } catch {
+    return { claude: false, codex: false, gemini: false, opencode: false };
+  }
+}
+
 export async function loadProjectSuggestions(
   root: string,
 ): Promise<ActionTemplate[]> {
@@ -52,7 +73,18 @@ export async function loadProjectSuggestions(
     readFirst(root, ["Makefile", "makefile"]),
     readFirst(root, ["justfile", "Justfile", ".justfile"]),
   ]);
-  const [bun, pnpm, yarn, npm, hasCompose] = await Promise.all([
+  const [
+    bun,
+    pnpm,
+    yarn,
+    npm,
+    hasCompose,
+    hasCargo,
+    hasGoMod,
+    hasPyproject,
+    hasUvLock,
+    aiCLIs,
+  ] = await Promise.all([
     anyExists(root, ["bun.lockb", "bun.lock"]),
     tryExists(joinPath(root, "pnpm-lock.yaml")),
     tryExists(joinPath(root, "yarn.lock")),
@@ -63,12 +95,25 @@ export async function loadProjectSuggestions(
       "compose.yml",
       "compose.yaml",
     ]),
+    tryExists(joinPath(root, "Cargo.toml")),
+    tryExists(joinPath(root, "go.mod")),
+    tryExists(joinPath(root, "pyproject.toml")),
+    tryExists(joinPath(root, "uv.lock")),
+    detectAICLIs(),
   ]);
   return buildSuggestions({
     scripts: pkg ? parsePackageJsonScripts(pkg) : [],
     makeTargets: makefile ? parseMakefileTargets(makefile) : [],
     justRecipes: justfile ? parseJustfileRecipes(justfile) : [],
     hasCompose,
+    hasClaude: aiCLIs.claude,
+    hasCodex: aiCLIs.codex,
+    hasGemini: aiCLIs.gemini,
+    hasOpencode: aiCLIs.opencode,
+    hasCargo,
+    hasGoMod,
+    hasPyproject,
+    hasUvLock,
     locks: { bun, pnpm, yarn, npm },
   });
 }
