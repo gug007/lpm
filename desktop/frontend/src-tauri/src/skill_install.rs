@@ -6,9 +6,16 @@ use serde_json::{json, Value};
 use std::path::PathBuf;
 
 const LPM_CONFIG_SKILL: &str = include_str!("../../../../lpm-config/SKILL.md");
-const LPM_CONFIG_YAML_SCHEMA: &str = include_str!("../../../../lpm-config/references/yaml-schema.md");
+const LPM_CONFIG_CORE: &str = include_str!("../../../../lpm-config/references/core.md");
+const LPM_CONFIG_ACTIONS: &str = include_str!("../../../../lpm-config/references/actions.md");
+const LPM_CONFIG_SHARING: &str = include_str!("../../../../lpm-config/references/sharing.md");
+const LPM_CONFIG_SSH: &str = include_str!("../../../../lpm-config/references/ssh.md");
+const LPM_CONFIG_VALIDATION: &str = include_str!("../../../../lpm-config/references/validation.md");
+const LPM_CONFIG_OPENAI: &str = include_str!("../../../../lpm-config/agents/openai.yaml");
 const LPM_CLI_SKILL: &str = include_str!("../../../../lpm-cli/SKILL.md");
+const LPM_CLI_OPENAI: &str = include_str!("../../../../lpm-cli/agents/openai.yaml");
 const LPM_SHORTCUT_SKILL: &str = include_str!("../../../../lpm/SKILL.md");
+const LPM_SHORTCUT_OPENAI: &str = include_str!("../../../../lpm/agents/openai.yaml");
 
 struct SkillFile {
     rel_path: &'static str,
@@ -17,12 +24,20 @@ struct SkillFile {
 
 const SKILL_FILES: &[SkillFile] = &[
     SkillFile { rel_path: "lpm-config/SKILL.md", content: LPM_CONFIG_SKILL },
-    SkillFile { rel_path: "lpm-config/references/yaml-schema.md", content: LPM_CONFIG_YAML_SCHEMA },
+    SkillFile { rel_path: "lpm-config/references/core.md", content: LPM_CONFIG_CORE },
+    SkillFile { rel_path: "lpm-config/references/actions.md", content: LPM_CONFIG_ACTIONS },
+    SkillFile { rel_path: "lpm-config/references/sharing.md", content: LPM_CONFIG_SHARING },
+    SkillFile { rel_path: "lpm-config/references/ssh.md", content: LPM_CONFIG_SSH },
+    SkillFile { rel_path: "lpm-config/references/validation.md", content: LPM_CONFIG_VALIDATION },
+    SkillFile { rel_path: "lpm-config/agents/openai.yaml", content: LPM_CONFIG_OPENAI },
     SkillFile { rel_path: "lpm-cli/SKILL.md", content: LPM_CLI_SKILL },
+    SkillFile { rel_path: "lpm-cli/agents/openai.yaml", content: LPM_CLI_OPENAI },
     SkillFile { rel_path: "lpm/SKILL.md", content: LPM_SHORTCUT_SKILL },
+    SkillFile { rel_path: "lpm/agents/openai.yaml", content: LPM_SHORTCUT_OPENAI },
 ];
 
 const ENTRY_SKILLS: &[&str] = &["lpm-config/SKILL.md", "lpm-cli/SKILL.md"];
+const REMOVED_SKILL_FILES: &[&str] = &["lpm-config/references/yaml-schema.md"];
 
 fn targets() -> [PathBuf; 2] {
     let home = dirs::home_dir().unwrap_or_default();
@@ -36,6 +51,9 @@ fn status_at(dir: &std::path::Path) -> &'static str {
     let missing_entry = ENTRY_SKILLS.iter().any(|rel| !dir.join(rel).exists());
     if missing_entry {
         return "not-installed";
+    }
+    if REMOVED_SKILL_FILES.iter().any(|rel| dir.join(rel).exists()) {
+        return "outdated";
     }
     let outdated = SKILL_FILES.iter().any(|f| {
         std::fs::read_to_string(dir.join(f.rel_path))
@@ -58,6 +76,13 @@ fn install_at(dir: &std::path::Path) -> Result<(), String> {
         }
         std::fs::write(&dest, f.content)
             .map_err(|e| format!("cannot write {}: {e}", dest.display()))?;
+    }
+    for rel in REMOVED_SKILL_FILES {
+        let path = dir.join(rel);
+        if path.exists() {
+            std::fs::remove_file(&path)
+                .map_err(|e| format!("cannot remove {}: {e}", path.display()))?;
+        }
     }
     Ok(())
 }
@@ -155,6 +180,19 @@ mod tests {
         install_at(dir.path()).unwrap();
         std::fs::write(dir.path().join("lpm-cli/SKILL.md"), "stale").unwrap();
         install_at(dir.path()).unwrap();
+        assert_eq!(status_at(dir.path()), "installed");
+    }
+
+    #[test]
+    fn install_removes_replaced_schema() {
+        let dir = tempfile::tempdir().unwrap();
+        install_at(dir.path()).unwrap();
+        let stale = dir.path().join(REMOVED_SKILL_FILES[0]);
+        std::fs::create_dir_all(stale.parent().unwrap()).unwrap();
+        std::fs::write(&stale, "stale").unwrap();
+        assert_eq!(status_at(dir.path()), "outdated");
+        install_at(dir.path()).unwrap();
+        assert!(!stale.exists());
         assert_eq!(status_at(dir.path()), "installed");
     }
 

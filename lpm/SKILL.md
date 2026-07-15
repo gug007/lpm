@@ -6,4 +6,4 @@ description: "Shortcut that loads the two lpm skills — `lpm-cli` (control proj
 This skill is a shortcut for the two lpm skills, installed as sibling directories of this skill's folder. Read the one that matches the task and follow it; read both when the task spans them or is unclear:
 
 - `../lpm-cli/SKILL.md` — controlling projects via the `lpm` command: start/stop projects and services, read service logs, check AI-agent status, wait for readiness, duplicate a project into parallel copies, queue work in app terminals.
-- `../lpm-config/SKILL.md` — creating, modifying, and deleting lpm project configs at `~/.lpm/projects/*.yml` (services, actions, terminals). When writing YAML, also read `../lpm-config/references/yaml-schema.md`.
+- `../lpm-config/SKILL.md` — creating, modifying, and deleting lpm project configs and shared layers. Follow its routing instructions to load only the relevant reference files.

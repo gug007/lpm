@@ -1,0 +1,4 @@
+interface:
+  display_name: "lpm"
+  short_description: "Route requests to the right lpm skill"
+  default_prompt: "Use $lpm to help me with this lpm task."

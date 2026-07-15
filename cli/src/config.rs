@@ -430,13 +430,31 @@ pub fn infer_project_name(ctx: &Ctx) -> Result<String, String> {
 
     let cwd = std::env::current_dir()
         .map_err(|e| format!("cannot determine current directory: {e}"))?;
-    let cwd = canonical(&cwd);
+    let resolution = resolve_project_for_cwd(ctx, &cwd);
+    match resolution.candidates.len() {
+        1 => Ok(resolution.candidates[0].clone()),
+        0 => Err(
+            "no project given and none could be inferred from the current directory".to_string(),
+        ),
+        _ => Err(format!(
+            "current directory matches multiple projects: {}",
+            resolution.candidates.join(", ")
+        )),
+    }
+}
 
-    // Every root that contains the cwd, tagged with its depth (component count)
-    // so the deepest wins and exact-depth ties can be reported.
+pub struct CwdResolution {
+    pub cwd: PathBuf,
+    pub candidates: Vec<String>,
+    pub available: Vec<String>,
+}
+
+pub fn resolve_project_for_cwd(ctx: &Ctx, cwd: &Path) -> CwdResolution {
+    let cwd = canonical(cwd);
+    let available = project_names(ctx);
     let mut matches: Vec<(usize, String)> = Vec::new();
-    for name in project_names(ctx) {
-        let Ok(project) = resolve_project(ctx, &name) else {
+    for name in &available {
+        let Ok(project) = resolve_project(ctx, name) else {
             continue;
         };
         if project.root.is_empty() {
@@ -444,27 +462,20 @@ pub fn infer_project_name(ctx: &Ctx) -> Result<String, String> {
         }
         let root = canonical(Path::new(&project.root));
         if cwd.starts_with(&root) {
-            matches.push((root.components().count(), name));
+            matches.push((root.components().count(), name.clone()));
         }
     }
-
-    let Some(deepest) = matches.iter().map(|(d, _)| *d).max() else {
-        return Err(
-            "no project given and none could be inferred from the current directory".to_string(),
-        );
-    };
-    let mut winners: Vec<String> = matches
+    let deepest = matches.iter().map(|(d, _)| *d).max();
+    let mut candidates: Vec<String> = matches
         .into_iter()
-        .filter(|(d, _)| *d == deepest)
-        .map(|(_, n)| n)
+        .filter(|(depth, _)| Some(*depth) == deepest)
+        .map(|(_, name)| name)
         .collect();
-    winners.sort();
-    match winners.len() {
-        1 => Ok(winners.into_iter().next().unwrap()),
-        _ => Err(format!(
-            "current directory matches multiple projects: {}",
-            winners.join(", ")
-        )),
+    candidates.sort();
+    CwdResolution {
+        cwd,
+        candidates,
+        available,
     }
 }
 
@@ -645,6 +656,7 @@ pub struct ResolvedService {
     pub port: i64,
     pub port_conflict: String,
     pub env: BTreeMap<String, String>,
+    pub depends_on: Vec<String>,
 }
 
 pub struct ResolvedAction {
@@ -794,6 +806,7 @@ pub fn resolve_project(ctx: &Ctx, file_name: &str) -> Result<ResolvedProject, St
             port: s.port,
             port_conflict: s.port_conflict,
             env: s.env,
+            depends_on: s.depends_on,
         })
         .collect();
 

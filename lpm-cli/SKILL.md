@@ -1,6 +1,6 @@
 ---
 name: lpm-cli
-description: "Control dev projects managed by the lpm app via the `lpm` command: start/stop projects and services, restart a dev server, read service logs, check AI-agent status, wait for a port to be ready, and duplicate a project into parallel copies for multi-agent work. Use whenever the LPM_PROJECT_NAME environment variable is set (the terminal is inside lpm), or when the user mentions lpm and wants to run/stop/restart/inspect services, read dev-server logs, or fan out work across project copies. For creating or editing lpm project YAML configs, use the `lpm-config` skill instead."
+description: "Operate lpm-managed projects through the `lpm` CLI: start or stop projects and services, inspect logs and agent status, wait for readiness, run actions, and duplicate projects for parallel work. Use when the user asks to operate or inspect lpm runtime state. `LPM_PROJECT_NAME` selects the default project after the skill triggers; it is not a trigger by itself. For editing YAML configuration, use `lpm-config`."
 ---
 
 `lpm` is a command-line companion to the lpm desktop app. Verify it is available with `lpm --version`; if it is missing, install it from the lpm app's Settings.
@@ -16,6 +16,8 @@ description: "Control dev projects managed by the lpm app via the `lpm` command:
 
 - `lpm list` — all projects, running state, agent counts.
 - `lpm project [name] [--full]` — one project in full (`--full` adds env maps, action details, terminal history).
+- `lpm config resolve [--cwd PATH] [--json]` — match a directory to its deepest project root without using `LPM_PROJECT_NAME`.
+- `lpm config validate <file> [--json]` — validate syntax, fields, layer rules, and effective merged configuration.
 - `lpm logs [service] [-n 30] [-p proj]` — service scrollback, exactly N lines.
 - `lpm status [project]` — live agent statuses (Running/Waiting/Done/Error).
 - `lpm start [project] [--profile X]` / `lpm stop [project]` — start / stop a project's services.

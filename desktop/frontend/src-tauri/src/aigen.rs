@@ -9,7 +9,8 @@ use std::io::{BufRead, BufReader, Read};
 use std::process::{Command, Stdio};
 use tauri::{AppHandle, Emitter};
 
-const LPM_SKILL: &str = include_str!("SKILL.md");
+const LPM_ACTION_REFERENCE: &str =
+    include_str!("../../../../lpm-config/references/actions.md");
 const MAX_OUTPUT: usize = 4 * 1024 * 1024;
 const MAX_DIFF: usize = 30_000;
 const MAX_BRANCH_DIFF: usize = 6_000;
@@ -1122,7 +1123,22 @@ fn build_action_yaml_prompt(
         task.push_str(&format!("User's instruction:\n{user_prompt}\n\nCurrent action YAML:\n{current_yaml}\n"));
     }
 
-    format!("{ctx}\n# Reference: lpm skill\n\n{LPM_SKILL}\n\n{task}")
+    format!("{ctx}\n# Reference: lpm action schema\n\n{LPM_ACTION_REFERENCE}\n\n{task}")
+}
+
+#[cfg(test)]
+mod action_yaml_prompt_tests {
+    use super::*;
+
+    #[test]
+    fn prompt_uses_focused_canonical_reference() {
+        let prompt = build_action_yaml_prompt("web", "/tmp/web", false, "run tests", "");
+        assert!(prompt.contains("# Actions and terminals"));
+        assert!(prompt.contains("`command`"));
+        assert!(prompt.contains("Output ONLY the action's YAML fields"));
+        assert!(!prompt.contains("Install this skill"));
+        assert!(!prompt.contains("Pick the target project file"));
+    }
 }
 
 #[cfg(test)]

@@ -1,0 +1,39 @@
+name: Skills
+
+on:
+  pull_request:
+    paths:
+      - "cli/**"
+      - "desktop/frontend/src-tauri/src/aigen.rs"
+      - "desktop/frontend/src-tauri/src/skill_install.rs"
+      - "lpm/**"
+      - "lpm-cli/**"
+      - "lpm-config/**"
+      - "scripts/check-skills.sh"
+      - ".github/workflows/skills.yml"
+  push:
+    branches: [main]
+    paths:
+      - "cli/**"
+      - "desktop/frontend/src-tauri/src/aigen.rs"
+      - "desktop/frontend/src-tauri/src/skill_install.rs"
+      - "lpm/**"
+      - "lpm-cli/**"
+      - "lpm-config/**"
+      - "scripts/check-skills.sh"
+      - ".github/workflows/skills.yml"
+
+jobs:
+  validate:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Check skills
+        run: bash scripts/check-skills.sh
+      - name: Test CLI
+        run: cargo test --manifest-path cli/Cargo.toml
+      - name: Test desktop skill integration
+        run: |
+          cargo test --manifest-path desktop/frontend/src-tauri/Cargo.toml skill_install::tests
+          cargo test --manifest-path desktop/frontend/src-tauri/Cargo.toml action_yaml_prompt_tests

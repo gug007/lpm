@@ -485,6 +485,7 @@ mod tests {
             port: 3000,
             port_conflict: String::new(),
             env: [("SECRET".to_string(), "x".to_string())].into_iter().collect(),
+            depends_on: Vec::new(),
         }];
         p.actions = vec![sample_action()];
         p

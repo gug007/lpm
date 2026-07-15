@@ -6,6 +6,7 @@
 //! `~/.lpm` or the repo configs directly — all mutation flows through the app.
 
 mod config;
+mod config_cmd;
 mod control;
 mod duplicate;
 mod error;
@@ -48,7 +49,7 @@ const VERSION: &str = match option_env!("LPM_CLI_VERSION") {
 configuration from ~/.lpm and live state from tmux and the app's status socket, and can \
 control projects — start, stop, restart services, set agent status — by asking the running \
 app over that socket (so the app stays the single owner of run-state).\n\n\
-Read commands: `list`, `project`, `logs`, `status`. Control commands (need the app running): \
+Read commands: `list`, `project`, `logs`, `status`, `config`. Control commands (need the app running): \
 `start`, `stop`, `service`, `set-status`, `clear-status`, `duplicate`, `remove`, `run`. \
 `wait` polls client-side, except its `--agent` mode which queries the app. Inside an lpm \
 terminal or a project directory the project name \
@@ -64,6 +65,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Resolve and validate lpm YAML configuration.
+    Config {
+        #[command(subcommand)]
+        command: config_cmd::Command,
+    },
     /// List every project with its running state, service counts, and agents.
     List {
         /// Emit a single machine-readable JSON object (no ANSI).
@@ -263,6 +269,7 @@ fn main() -> ExitCode {
     let ctx = config::Ctx::from_home();
 
     let result = match cli.command {
+        Commands::Config { command } => config_cmd::run(&ctx, command),
         Commands::List { json } => list::run(&ctx, json),
         Commands::Project { name, json, full } => project::run(&ctx, name.as_deref(), json, full),
         Commands::Logs {

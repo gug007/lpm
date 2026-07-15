@@ -1,6 +1,6 @@
 # lpm-cli
 
-Agent skill for the [lpm](https://lpm.cx) command-line tool. Lets your AI coding agent control running lpm projects from the terminal — start/stop projects and services, restart a dev server, read service logs, check agent status, wait for a port, and duplicate a project into parallel copies for multi-agent work.
+Agent skill for the [lpm](https://lpm.cx) command-line tool. Lets your AI coding agent control running lpm projects from the terminal, resolve config targets, validate YAML, start/stop projects and services, read logs, check agent status, wait for a port, and duplicate projects for parallel work.
 
 ## Install
 
@@ -21,6 +21,6 @@ In Claude Code you can also trigger it explicitly as a slash command: `/lpm-cli`
 
 ## What it does
 
-Inside an lpm terminal (`LPM_PROJECT_NAME` is set) or a project directory, the skill lets your agent run the `lpm` CLI to start/stop services, tail logs, check live agent status, wait for readiness, and fan work out across duplicate copies — with token-lean output by default.
+The skill uses `LPM_PROJECT_NAME` or the current directory to select a project after an lpm operation is requested. It can start/stop services, tail logs, check live agent status, wait for readiness, validate config files, and fan work out across duplicate copies with token-lean output by default.
 
 For creating or editing lpm project YAML configs, use the companion [`lpm-config`](../lpm-config/README.md) skill.

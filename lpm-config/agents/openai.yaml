@@ -1,0 +1,4 @@
+interface:
+  display_name: "lpm Config"
+  short_description: "Create and edit validated lpm YAML configs"
+  default_prompt: "Use $lpm-config to configure lpm for this project."

@@ -50,6 +50,8 @@ The skill guides the agent to write correct lpm YAML configs at `~/.lpm/projects
 - **Profiles** — named subsets of services
 - **Duplicate projects** — inherit config from a parent project (`parent_name`)
 - **Global config** — shared actions/terminals across all projects
+- **Repo and template layers** — `.lpm.yml`, reusable templates, and sparse overrides
+- **Deterministic validation** — target resolution and semantic checks through `lpm config`
 
 ## Prerequisites
 
