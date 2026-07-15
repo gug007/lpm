@@ -8,7 +8,7 @@ export function StatsSkeleton() {
   const block = "rounded bg-[var(--bg-hover)]";
 
   return (
-    <div className={`space-y-4 pb-2 ${pulse}`}>
+    <div className={`flex min-h-full flex-col space-y-4 pb-2 ${pulse}`}>
       <div className="grid grid-cols-4 gap-3">
         {Array.from({ length: 4 }).map((_, index) => (
           <div
@@ -53,17 +53,17 @@ export function StatsSkeleton() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid min-h-0 flex-1 grid-cols-2 gap-3">
         {Array.from({ length: 2 }).map((_, panel) => (
           <div
             key={panel}
-            className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]"
+            className="flex flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]"
           >
             <div className="border-b border-[var(--border)] px-4 py-3">
               <div className={`h-4 w-28 ${block}`} />
             </div>
-            <div className="divide-y divide-[var(--border)]">
-              {Array.from({ length: 6 }).map((_, row) => (
+            <div className="flex-1 divide-y divide-[var(--border)] overflow-hidden">
+              {Array.from({ length: 14 }).map((_, row) => (
                 <div key={row} className="flex items-center gap-3 px-4 py-2.5">
                   <div className={`h-3 flex-1 ${block}`} />
                   <div className={`h-3 w-16 ${block}`} />
