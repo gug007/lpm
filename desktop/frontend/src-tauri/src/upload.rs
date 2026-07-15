@@ -65,7 +65,7 @@ fn new_batch_id() -> String {
         .map(|d| d.as_secs())
         .unwrap_or(0);
     let mut rb = [0u8; 3];
-    let _ = getrandom::getrandom(&mut rb);
+    let _ = getrandom::fill(&mut rb);
     format!("{secs}-{}", hex::encode(rb))
 }
 

@@ -40,10 +40,13 @@ impl BlobStore {
         std::fs::create_dir_all(&self.dir).map_err(|e| format!("notes: mkdir blobs: {e}"))?;
 
         let mut nonce = [0u8; NONCE_LEN];
-        getrandom::getrandom(&mut nonce).map_err(|e| format!("notes: rand nonce: {e}"))?;
+        getrandom::fill(&mut nonce).map_err(|e| format!("notes: rand nonce: {e}"))?;
         let sealed = self
             .cipher
-            .encrypt(Nonce::from_slice(&nonce), Payload { msg: data, aad: hash.as_bytes() })
+            .encrypt(
+                &Nonce::try_from(nonce.as_slice()).expect("nonce is 12 bytes"),
+                Payload { msg: data, aad: hash.as_bytes() },
+            )
             .map_err(|_| "notes: seal blob".to_string())?;
 
         // Temp-then-rename so a crash mid-write can't leave a half-blob at the
@@ -77,7 +80,10 @@ impl BlobStore {
         }
         let (nonce, sealed) = raw.split_at(NONCE_LEN);
         self.cipher
-            .decrypt(Nonce::from_slice(nonce), Payload { msg: sealed, aad: hash.as_bytes() })
+            .decrypt(
+                &Nonce::try_from(nonce).expect("nonce is 12 bytes"),
+                Payload { msg: sealed, aad: hash.as_bytes() },
+            )
             .map_err(|_| format!("notes: decrypt {hash}: authentication failed"))
     }
 

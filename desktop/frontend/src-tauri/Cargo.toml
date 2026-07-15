@@ -3,7 +3,7 @@ name = "lpm-desktop"
 version = "0.0.1"
 description = "lpm — Local Project Manager"
 edition = "2021"
-rust-version = "1.77"
+rust-version = "1.85"
 
 # Tauri 2 convention: a lib crate (the app logic) plus a thin main.rs binary.
 [lib]
@@ -22,11 +22,11 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
-dirs = "5"
-portable-pty = "0.8"
+dirs = "6"
+portable-pty = "0.9"
 hex = "0.4"
 uuid = { version = "1", features = ["v4"] }
-notify = "6"
+notify = "8"
 tauri-plugin-dialog = "2"
 base64 = "0.22"
 urlencoding = "2"
@@ -38,19 +38,19 @@ regex = "1"           # sniff localhost URLs from remote PTY output (port poller
 # SQLCipher 4.x compiled from source with vendored OpenSSL so the build is
 # self-contained (no Homebrew openssl / OPENSSL_DIR). On-disk format is crypto-
 # provider-independent, so it reads files written by Go's go-sqlcipher/v4.
-rusqlite = { version = "0.32", features = ["bundled-sqlcipher-vendored-openssl"] }
-aes-gcm = "0.10"        # AES-256-GCM blob + export AEAD (ct||tag, 12B nonce)
+rusqlite = { version = "0.40", features = ["bundled-sqlcipher-vendored-openssl"] }
+aes-gcm = "0.11"        # AES-256-GCM blob + export AEAD (ct||tag, 12B nonce)
 argon2 = "0.5"          # Argon2id KEK for vault key export/import
-sha2 = "0.10"           # blob content addressing
-getrandom = "0.2"       # key / salt / nonce CSPRNG
+sha2 = "0.11"           # blob content addressing
+getrandom = "0.4"       # key / salt / nonce CSPRNG
 zeroize = "1"           # wipe key buffers
 tempfile = "3"          # atomic blob temp-then-rename
 # macOS Keychain (legacy login keychain, generic password). Raw SecItem FFI:
 # kSec* constants + errSec codes from -sys, core-foundation to build the query
 # dictionaries. We mirror go-keychain's exact attributes (SynchronizableAny on
 # read) so the existing vault key is found, never recreated.
-security-framework-sys = "2.11"
-core-foundation = "0.9"
+security-framework-sys = "2.17"
+core-foundation = "0.10"
 core-foundation-sys = "0.8"
 chrono = "0.4"         # vault-export filename timestamp (local time)
 mime_guess = "2"       # attachment MIME from extension
@@ -63,7 +63,7 @@ reqwest = { version = "0.13", default-features = false, features = ["blocking", 
 # --- Mobile remote-control server (remote.rs) ---
 # Blocking WebSocket per the socketsrv std::thread house style (no tokio). Each
 # phone connection is one thread; output is teed from the PTY flush point.
-tungstenite = "0.24"
+tungstenite = "0.30"
 # QR encode the pairing payload to an SVG string the Settings pane renders inline
 # (svg feature only — avoids pulling the `image` crate).
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }

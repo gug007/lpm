@@ -214,7 +214,7 @@ pub fn key() -> Result<[u8; KEY_LEN], VaultError> {
 
 fn create_key() -> Result<[u8; KEY_LEN], VaultError> {
     let mut key = [0u8; KEY_LEN];
-    getrandom::getrandom(&mut key)
+    getrandom::fill(&mut key)
         .map_err(|e| VaultError::Other(format!("vault: generate key: {e}")))?;
     write_key(&key)?;
     Ok(key)
@@ -262,7 +262,7 @@ fn argon2_kek(passphrase: &str, salt: &[u8], m: u32, t: u32, p: u32, l: u32) -> 
 
 fn wrap_key(passphrase: &str, key: &[u8; KEY_LEN]) -> Result<String, VaultError> {
     let mut salt = [0u8; SALT_LEN];
-    getrandom::getrandom(&mut salt)
+    getrandom::fill(&mut salt)
         .map_err(|e| VaultError::Other(format!("vault: rand salt: {e}")))?;
     let mut kek = argon2_kek(passphrase, &salt, ARGON2_MEMORY, ARGON2_TIME, ARGON2_PAR, KEY_LEN as u32)?;
 
@@ -270,10 +270,13 @@ fn wrap_key(passphrase: &str, key: &[u8; KEY_LEN]) -> Result<String, VaultError>
         .map_err(|_| VaultError::Other("vault: new cipher".into()))?;
     kek.zeroize();
     let mut nonce = [0u8; 12];
-    getrandom::getrandom(&mut nonce)
+    getrandom::fill(&mut nonce)
         .map_err(|e| VaultError::Other(format!("vault: rand nonce: {e}")))?;
     let ciphertext = cipher
-        .encrypt(Nonce::from_slice(&nonce), Payload { msg: key, aad: AAD_PREFIX })
+        .encrypt(
+            &Nonce::try_from(nonce.as_slice()).expect("nonce is 12 bytes"),
+            Payload { msg: key, aad: AAD_PREFIX },
+        )
         .map_err(|_| VaultError::Other("vault: seal export".into()))?;
 
     let out = ExportedKey {
@@ -325,7 +328,10 @@ fn unwrap_key(passphrase: &str, data: &[u8]) -> Result<[u8; KEY_LEN], VaultError
         .map_err(|_| VaultError::Other("vault: new cipher".into()))?;
     kek.zeroize();
     let plain = cipher
-        .decrypt(Nonce::from_slice(&nonce), Payload { msg: &ciphertext, aad: AAD_PREFIX })
+        .decrypt(
+            &Nonce::try_from(nonce.as_slice()).expect("nonce is 12 bytes"),
+            Payload { msg: &ciphertext, aad: AAD_PREFIX },
+        )
         .map_err(|_| VaultError::WrongPassphrase)?;
     if plain.len() != KEY_LEN {
         return Err(VaultError::Other(format!("vault: decrypted key has wrong length {}", plain.len())));

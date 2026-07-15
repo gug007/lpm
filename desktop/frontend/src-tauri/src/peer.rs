@@ -1011,7 +1011,7 @@ pub fn peer_dispatch_reply(hub: State<'_, PeerHub>, req_id: u64, ok: bool, value
 
 fn gen_token() -> String {
     let mut b = [0u8; 32];
-    getrandom::getrandom(&mut b).expect("csprng");
+    getrandom::fill(&mut b).expect("csprng");
     base64_url(&b)
 }
 
@@ -1022,7 +1022,7 @@ fn base64_url(b: &[u8]) -> String {
 
 fn gen_pairing_code() -> String {
     let mut b = [0u8; 4];
-    let _ = getrandom::getrandom(&mut b);
+    let _ = getrandom::fill(&mut b);
     let n = u32::from_be_bytes(b);
     format!("{:04X}-{:04X}", (n >> 16) & 0xFFFF, n & 0xFFFF)
 }
@@ -1031,7 +1031,7 @@ fn gen_pairing_code() -> String {
 fn gen_slug(existing: &[PeerDevice]) -> String {
     loop {
         let mut b = [0u8; 4];
-        let _ = getrandom::getrandom(&mut b);
+        let _ = getrandom::fill(&mut b);
         let s = hex::encode(b);
         if !existing.iter().any(|d| d.slug_assigned == s) {
             return s;

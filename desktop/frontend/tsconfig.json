@@ -13,9 +13,8 @@
     "noEmit": true,
     "allowJs": true,
     "checkJs": false,
-    "baseUrl": "src",
     "paths": {
-      "bridge/*": ["../bridge/*"]
+      "bridge/*": ["./bridge/*"]
     }
   },
   "include": ["src", "bridge"]

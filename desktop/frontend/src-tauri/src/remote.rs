@@ -2322,8 +2322,10 @@ fn push_collapse_id(server_id: &str, project: &str, key: &str) -> String {
 fn seal_push(key: &[u8; 32], plaintext: &[u8]) -> Option<String> {
     let cipher = Aes256Gcm::new_from_slice(key).ok()?;
     let mut nonce = [0u8; 12];
-    getrandom::getrandom(&mut nonce).ok()?;
-    let sealed = cipher.encrypt(Nonce::from_slice(&nonce), plaintext).ok()?;
+    getrandom::fill(&mut nonce).ok()?;
+    let sealed = cipher
+        .encrypt(&Nonce::try_from(nonce.as_slice()).ok()?, plaintext)
+        .ok()?;
     let mut out = Vec::with_capacity(nonce.len() + sealed.len());
     out.extend_from_slice(&nonce);
     out.extend_from_slice(&sealed);
@@ -2627,13 +2629,13 @@ fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {
 
 fn gen_token() -> String {
     let mut b = [0u8; 32];
-    getrandom::getrandom(&mut b).expect("csprng");
+    getrandom::fill(&mut b).expect("csprng");
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(b)
 }
 
 fn gen_pairing_code() -> String {
     let mut b = [0u8; 4];
-    let _ = getrandom::getrandom(&mut b);
+    let _ = getrandom::fill(&mut b);
     let n = u32::from_be_bytes(b);
     format!("{:04X}-{:04X}", (n >> 16) & 0xFFFF, n & 0xFFFF)
 }
@@ -3242,7 +3244,9 @@ mod tests {
         assert!(raw.len() > 12 + 16, "nonce + ciphertext + tag");
         let (nonce, sealed) = raw.split_at(12);
         let cipher = Aes256Gcm::new_from_slice(&key).unwrap();
-        let opened = cipher.decrypt(Nonce::from_slice(nonce), sealed).expect("open");
+        let opened = cipher
+            .decrypt(&Nonce::try_from(nonce).expect("nonce is 12 bytes"), sealed)
+            .expect("open");
         assert_eq!(opened, plaintext);
 
         // A fresh seal uses a fresh random nonce -> different ciphertext.

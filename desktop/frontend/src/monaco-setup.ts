@@ -52,15 +52,15 @@ export function setupMonaco(): typeof monaco {
     noSyntaxValidation: true,
     noSuggestionDiagnostics: true,
   };
-  monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions(tsDiagnostics);
-  monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions(tsDiagnostics);
+  monaco.typescript.typescriptDefaults.setDiagnosticsOptions(tsDiagnostics);
+  monaco.typescript.javascriptDefaults.setDiagnosticsOptions(tsDiagnostics);
 
   configureMonacoYaml(monaco, {
     enableSchemaRequest: false,
     hover: true,
     completion: true,
     validate: true,
-    format: true,
+    format: { enable: true },
     schemas: [
       {
         uri: PROJECT_SCHEMA_URI,

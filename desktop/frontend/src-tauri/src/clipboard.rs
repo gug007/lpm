@@ -125,7 +125,7 @@ pub fn save_clipboard_file_impl(b64_data: &str, name: &str) -> Result<String, St
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "file".to_string());
     let mut rb = [0u8; 4];
-    let _ = getrandom::getrandom(&mut rb);
+    let _ = getrandom::fill(&mut rb);
     let dir = std::env::temp_dir().join(format!("lpm-upload-{}", hex::encode(rb)));
     std::fs::create_dir_all(&dir).map_err(|e| format!("create upload dir: {e}"))?;
     let path = dir.join(&base);
