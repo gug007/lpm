@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { GlobalTerminalsView } from "./components/GlobalTerminalsView";
+import { StatsView } from "./components/StatsView";
 import { Settings } from "./components/Settings";
 import { GlobalConfigEditor } from "./components/GlobalConfigEditor";
 import { TemplateEditor } from "./components/TemplateEditor";
@@ -88,7 +89,8 @@ export default function App() {
   };
 
   const isTerminalsView = view === "terminals";
-  const isSettingsView = view !== "projects" && view !== "terminals";
+  const isStatsView = view === "stats";
+  const isSettingsView = view !== "projects" && view !== "terminals" && view !== "stats";
   const selectedProject = projects.find((p) => p.name === selected) || null;
 
   const [globalTerminalsVisited, setGlobalTerminalsVisited] = useState(false);
@@ -226,6 +228,7 @@ export default function App() {
           onSelect={handleSelect}
           onToggle={toggleProjectRunning}
           onTerminals={() => setView("terminals")}
+          onStats={() => setView("stats")}
           onSettings={() => setView("settings")}
           onAddProject={addProject}
           onBulkDuplicate={bulkDuplicate}
@@ -246,6 +249,7 @@ export default function App() {
           onAttachProject={attachProject}
           detached={detached}
           showTerminals={isTerminalsView}
+          showStats={isStatsView}
           showSettings={isSettingsView}
           duplicatingNames={duplicatingNames}
           removingNames={removingNames}
@@ -269,6 +273,7 @@ export default function App() {
             </div>
           )}
           {view === "settings" && <Settings onNavigate={setView} />}
+          {isStatsView && <StatsView />}
           {view === "global-config" && (
             <GlobalConfigEditor onBack={() => setView("settings")} />
           )}

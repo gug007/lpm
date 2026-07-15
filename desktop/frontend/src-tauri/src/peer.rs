@@ -110,6 +110,8 @@ pub(crate) struct PeerEntry {
     pub token: String,
     #[serde(default = "default_true")]
     pub enabled: bool,
+    #[serde(default)]
+    pub last_sync_at: i64, // millis of the last successful config sync, 0 = never
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -530,7 +532,9 @@ fn authenticate(ws: &mut WebSocket<TcpStream>, hub: &PeerHub, app: &AppHandle) -
             let token = v.get("token").and_then(Value::as_str).unwrap_or_default();
             if check_device(hub, id, token) {
                 let _ = ws.send(Message::text(
-                    json!({ "t": "ready", "hostName": machine_name() }).to_string(),
+                    json!({ "t": "ready", "hostName": machine_name(),
+                        "features": [crate::peersync::SYNC_FEATURE] })
+                    .to_string(),
                 ));
                 Some(id.to_string())
             } else {
@@ -643,9 +647,62 @@ fn handle_msg(
             let args = v.get("args").cloned().unwrap_or_else(|| json!({}));
             dispatch_invoke(hub, app, out, req_id, &cmd, args);
         }
+        // Config sync — dedicated frames that never touch the generic invoke
+        // proxy (nor its denylist). The client only sends these after seeing the
+        // configSync feature in `ready`, so an older host simply ignores them.
+        "syncDigest" | "syncFetch" | "syncApply" => handle_sync(app, out, t, &v),
         _ => {}
     }
     Ok(())
+}
+
+/// Answer one config-sync request from a client. Digest/fetch are read-only;
+/// apply snapshots ~/.lpm first, then applies with the shared portable-merge
+/// rules and refreshes the host UI.
+fn handle_sync(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
+    let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
+    match t {
+        "syncDigest" => {
+            let dm = crate::peersync::local_digest_map();
+            let value = serde_json::to_value(dm).unwrap_or(Value::Null);
+            let _ = out.try_send(result_frame(&req_id, true, value));
+        }
+        "syncFetch" => {
+            let mut fetched = Vec::new();
+            for it in v.get("items").and_then(Value::as_array).cloned().unwrap_or_default() {
+                let kind = it.get("kind").and_then(Value::as_str).unwrap_or_default();
+                let name = it.get("name").and_then(Value::as_str).unwrap_or_default();
+                if let Ok(w) = crate::peersync::read_item(kind, name) {
+                    if let Ok(val) = serde_json::to_value(w) {
+                        fetched.push(val);
+                    }
+                }
+            }
+            let _ = out.try_send(result_frame(&req_id, true, json!({ "items": fetched })));
+        }
+        "syncApply" => {
+            let items: Vec<crate::peersync::WireItem> =
+                serde_json::from_value(v.get("items").cloned().unwrap_or_else(|| json!([])))
+                    .unwrap_or_default();
+            let mut applied = 0u64;
+            let mut errors: Vec<String> = Vec::new();
+            match crate::transfer::snapshot_backup() {
+                Ok(_) => {
+                    for it in &items {
+                        match crate::peersync::apply_item(it) {
+                            Ok(()) => applied += 1,
+                            Err(e) => errors.push(format!("{}/{}: {e}", it.kind, it.name)),
+                        }
+                    }
+                    let _ = app.emit("projects-changed", ());
+                    let _ = app.emit("templates-changed", ());
+                }
+                Err(e) => errors.push(format!("backup failed: {e}")),
+            }
+            let _ = out.try_send(result_frame(&req_id, true, json!({ "applied": applied, "errors": errors })));
+        }
+        _ => {}
+    }
 }
 
 fn result_frame(req_id: &Value, ok: bool, value: Value) -> String {
@@ -1154,6 +1211,7 @@ mod tests {
                 device_id: "x".into(),
                 token: "secret".into(),
                 enabled: true,
+                last_sync_at: 0,
             }],
         };
         let s = serde_json::to_string(&cfg).unwrap();

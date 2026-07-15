@@ -1,4 +1,5 @@
 mod actions;
+mod agent_usage;
 mod aigen;
 mod bounds;
 mod browser;
@@ -25,6 +26,7 @@ mod openin;
 mod portforward;
 mod peer;
 mod peerclient;
+mod peersync;
 mod ports;
 mod proctree;
 mod projects_crud;
@@ -54,6 +56,7 @@ mod voicetotext;
 // macro (which lists them unqualified) resolves the hand-written real
 // commands and the generated stubs.
 use actions::*;
+use agent_usage::*;
 use aigen::*;
 use browser::*;
 use cli_install::*;
@@ -74,7 +77,8 @@ use peer::{
     peer_host_start_pairing, peer_state,
 };
 use peerclient::{
-    peer_add, peer_invoke, peer_remove, peer_set_enabled, peer_term_attach, peer_term_detach,
+    peer_add, peer_invoke, peer_remove, peer_set_enabled, peer_sync_run, peer_sync_status,
+    peer_term_attach, peer_term_detach,
 };
 use portforward::*;
 use ports::*;

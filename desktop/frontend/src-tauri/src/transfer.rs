@@ -22,7 +22,7 @@ const TOP_LEVEL_FILES: [&str; 5] = [
     "pr-title-instructions.txt",
     "pr-description-instructions.txt",
 ];
-const PER_MACHINE_KEYS: [&str; 6] = [
+pub(crate) const PER_MACHINE_KEYS: [&str; 6] = [
     "windowWidth",
     "windowHeight",
     "windowX",
@@ -168,13 +168,7 @@ pub async fn import_config(app: AppHandle, overwrite: bool) -> Result<Option<Imp
         return Err("archive does not contain an lpm config".into());
     }
 
-    let backup = format!(
-        "{}.backup-{}",
-        config::lpm_dir().to_string_lossy(),
-        chrono::Local::now().format("%Y%m%d-%H%M%S")
-    );
-    snapshot_lpm(&config::lpm_dir(), Path::new(&backup))
-        .map_err(|e| format!("snapshot existing config: {e}"))?;
+    let backup = snapshot_backup().map_err(|e| format!("snapshot existing config: {e}"))?;
 
     let mut report = ImportReport {
         backup_path: backup,
@@ -253,7 +247,20 @@ fn safe_relative(name: &Path) -> Option<PathBuf> {
     Some(rel)
 }
 
-fn snapshot_lpm(src: &Path, dst: &Path) -> Result<(), String> {
+/// Snapshot the whole ~/.lpm tree to a timestamped `~/.lpm.backup-<ts>` sibling,
+/// returning the backup path. Shared by config import and peer config sync so both
+/// take an identical, restorable backup before mutating config.
+pub(crate) fn snapshot_backup() -> Result<String, String> {
+    let backup = format!(
+        "{}.backup-{}",
+        config::lpm_dir().to_string_lossy(),
+        chrono::Local::now().format("%Y%m%d-%H%M%S")
+    );
+    snapshot_lpm(&config::lpm_dir(), Path::new(&backup))?;
+    Ok(backup)
+}
+
+pub(crate) fn snapshot_lpm(src: &Path, dst: &Path) -> Result<(), String> {
     let info = match std::fs::metadata(src) {
         Ok(i) => i,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -369,13 +376,21 @@ fn merge_accounts_file(src: &Path) -> Result<(), String> {
 }
 
 fn merge_settings_file(src: &Path, dst: &Path) -> Result<(), String> {
-    let incoming: Map<String, Value> =
-        serde_json::from_slice(&std::fs::read(src).map_err(|e| e.to_string())?)
-            .map_err(|e| e.to_string())?;
-    let mut current: Map<String, Value> = std::fs::read(dst)
-        .ok()
-        .and_then(|b| serde_json::from_slice(&b).ok())
-        .unwrap_or_default();
+    let incoming = std::fs::read(src).map_err(|e| e.to_string())?;
+    let current = std::fs::read(dst).unwrap_or_default();
+    let merged = merge_settings_bytes(&incoming, &current)?;
+    write_mode(dst, &merged, 0o644)
+}
+
+/// Merge settings.json bytes: every incoming key wins, except the per-machine keys
+/// which keep their existing local values. Shared by config import and peer sync.
+pub(crate) fn merge_settings_bytes(incoming: &[u8], current: &[u8]) -> Result<Vec<u8>, String> {
+    let incoming: Map<String, Value> = serde_json::from_slice(incoming).map_err(|e| e.to_string())?;
+    let mut current: Map<String, Value> = if current.is_empty() {
+        Map::new()
+    } else {
+        serde_json::from_slice(current).unwrap_or_default()
+    };
     let keep: Vec<(String, Value)> = PER_MACHINE_KEYS
         .iter()
         .filter_map(|k| current.get(*k).map(|v| (k.to_string(), v.clone())))
@@ -386,8 +401,9 @@ fn merge_settings_file(src: &Path, dst: &Path) -> Result<(), String> {
     for (k, v) in keep {
         current.insert(k, v); // per-machine values re-applied last
     }
-    let out = serde_json::to_string_pretty(&Value::Object(current)).map_err(|e| e.to_string())?;
-    write_mode(dst, out.as_bytes(), 0o644)
+    serde_json::to_string_pretty(&Value::Object(current))
+        .map(String::into_bytes)
+        .map_err(|e| e.to_string())
 }
 
 /// Advisory lists for the import report: local projects whose root is gone, and

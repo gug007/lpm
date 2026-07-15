@@ -2,6 +2,7 @@
 // this .d.ts loosens types to keep v3 map-key nullability from cascading.
 
 export function AckTerminalData(...args: any[]): Promise<any>;
+export function AgentUsageStats(...args: any[]): Promise<any>;
 export function AddPortForward(...args: any[]): Promise<any>;
 export function AttachProject(...args: any[]): Promise<any>;
 export function BrowseFolder(...args: any[]): Promise<any>;
@@ -240,5 +241,7 @@ export function PeerAdd(...args: any[]): Promise<any>;
 export function PeerRemove(...args: any[]): Promise<any>;
 export function PeerSetEnabled(...args: any[]): Promise<any>;
 export function PeerInvoke(...args: any[]): Promise<any>;
+export function PeerSyncStatus(...args: any[]): Promise<any>;
+export function PeerSyncRun(...args: any[]): Promise<any>;
 export function PeerTermAttach(...args: any[]): Promise<any>;
 export function PeerTermDetach(...args: any[]): Promise<any>;

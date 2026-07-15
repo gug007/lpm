@@ -15,6 +15,7 @@ macro_rules! all_command_handlers {
     () => {
         tauri::generate_handler![
         ack_terminal_data,
+        agent_usage_stats,
         add_port_forward,
         attach_project,
         browse_folder,
@@ -174,6 +175,8 @@ macro_rules! all_command_handlers {
         peer_remove,
         peer_set_enabled,
         peer_invoke,
+        peer_sync_status,
+        peer_sync_run,
         peer_term_attach,
         peer_term_detach,
         remote_revoke_device,

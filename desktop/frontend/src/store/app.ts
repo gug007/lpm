@@ -80,6 +80,7 @@ import type { ActionLevel } from "../actionLevels";
 export type View =
   | "projects"
   | "terminals"
+  | "stats"
   | "settings"
   | "global-config"
   | "commit-instructions"

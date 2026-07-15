@@ -114,6 +114,54 @@ export interface ProjectInfo {
   isRemote: boolean;
 }
 
+export interface TokenUsage {
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  reasoningTokens: number;
+  totalTokens: number;
+}
+
+export interface UsageBreakdown {
+  key: string;
+  label: string;
+  sessions: number;
+  tokens: TokenUsage;
+}
+
+export interface DailyUsage {
+  date: string;
+  claudeTokens: number;
+  codexTokens: number;
+  totalTokens: number;
+}
+
+export interface AgentSessionUsage {
+  provider: string;
+  project: string;
+  model: string;
+  startedAt: number;
+  lastAt: number;
+  tokens: TokenUsage;
+}
+
+export interface UsageSource {
+  provider: string;
+  files: number;
+}
+
+export interface AgentUsageStats {
+  generatedAt: number;
+  days: number;
+  sessions: number;
+  totals: TokenUsage;
+  providers: UsageBreakdown[];
+  projects: UsageBreakdown[];
+  daily: DailyUsage[];
+  recentSessions: AgentSessionUsage[];
+  sources: UsageSource[];
+}
+
 // A user-created sidebar folder. Persisted in ~/.lpm/groups.json; `members` are
 // project names in their within-folder order — usually top-level projects, but
 // a duplicate explicitly placed in a folder is listed here too (promoted out of

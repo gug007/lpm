@@ -1,6 +1,7 @@
 import { usePeerState } from "../peer/usePeerState";
 import { HostSection } from "./connect-macs/HostSection";
 import { ClientSection } from "./connect-macs/ClientSection";
+import { SyncSection } from "./connect-macs/SyncSection";
 
 // Two roles, one pane: let another Mac control this one (host), and connect to
 // Macs this one drives (client). Both stay live via peer-state-changed.
@@ -15,6 +16,7 @@ export function ConnectMacsPane() {
       </p>
       <HostSection host={state.host} refresh={refresh} />
       <ClientSection peers={state.peers} refresh={refresh} />
+      {state.peers.length > 0 && <SyncSection peers={state.peers} />}
     </div>
   );
 }

@@ -16,6 +16,9 @@ function invoke(cmd, args) {
 export function AckTerminalData(id, charCount) {
   return invoke("ack_terminal_data", { id, charCount });
 }
+export function AgentUsageStats(days) {
+  return invoke("agent_usage_stats", { days });
+}
 export function AddPortForward(project, remotePort, localPort) {
   return invoke("add_port_forward", { project, remotePort, localPort });
 }
@@ -738,6 +741,12 @@ export function PeerSetEnabled(slug, enabled) {
 }
 export function PeerInvoke(slug, cmd, args) {
   return invoke("peer_invoke", { slug, cmd, args });
+}
+export function PeerSyncStatus(slug) {
+  return invoke("peer_sync_status", { slug });
+}
+export function PeerSyncRun(slug, items) {
+  return invoke("peer_sync_run", { slug, items });
 }
 export function PeerTermAttach(prefixedId) {
   return invoke("peer_term_attach", { id: prefixedId });

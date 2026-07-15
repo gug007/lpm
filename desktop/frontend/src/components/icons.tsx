@@ -20,6 +20,7 @@ export function GlobeIcon() { return <svg {...iconProps}><circle cx="12" cy="12"
 export function SunIcon() { return <svg {...iconProps}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" /></svg>; }
 export function MoonIcon() { return <svg {...iconProps}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>; }
 export function TerminalIcon() { return <svg {...iconProps}><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="m7 10 2.5 2-2.5 2" /><line x1="12.5" y1="14" x2="16" y2="14" /></svg>; }
+export function StatsIcon() { return <svg {...iconProps}><path d="M4 20V10" /><path d="M10 20V4" /><path d="M16 20v-7" /><path d="M22 20H2" /></svg>; }
 export function ChevronLeftIcon() { return <svg {...iconProps}><polyline points="15 18 9 12 15 6" /></svg>; }
 export function ChevronRightIcon() { return <svg {...iconProps}><polyline points="9 18 15 12 9 6" /></svg>; }
 export function ChevronDownIcon() { return <svg {...iconProps}><path d="m6 9 6 6 6-6" /></svg>; }

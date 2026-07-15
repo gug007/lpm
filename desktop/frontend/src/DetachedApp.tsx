@@ -107,6 +107,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
           onSelect={handleSelect}
           onToggle={toggleProjectRunning}
           onTerminals={() => FocusMainWindow(undefined, "terminals")}
+          onStats={() => FocusMainWindow(undefined, "stats")}
           onSettings={() => FocusMainWindow(undefined, "settings")}
           onAddProject={() => FocusMainWindow(undefined, undefined, true)}
           onBulkDuplicate={bulkDuplicate}
@@ -128,6 +129,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
           detached={detached}
           detachedSelf={projectName}
           showTerminals={false}
+          showStats={false}
           showSettings={false}
           duplicatingNames={duplicatingNames}
           removingNames={removingNames}

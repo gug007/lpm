@@ -350,6 +350,14 @@ export const ROWS = {
     description: "Control another Mac's projects from this one",
     keywords: ["peer", "remote", "mac"],
   },
+  "connect-macs.sync": {
+    kind: "row",
+    tab: "connect-macs",
+    id: "connect-macs.sync",
+    label: "Config sync",
+    description: "Mirror projects and settings between paired Macs",
+    keywords: ["sync", "transfer", "mirror", "config", "peer", "mac"],
+  },
 } satisfies Record<string, SettingsRowEntry>;
 
 export type SettingsRowId = keyof typeof ROWS;

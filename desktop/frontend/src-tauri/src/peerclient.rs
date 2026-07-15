@@ -26,6 +26,9 @@ const POLL: Duration = Duration::from_millis(25);
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(3); // per-candidate dial cap when pairing
 const INVOKE_TIMEOUT: Duration = Duration::from_secs(35);
+const SYNC_TIMEOUT: Duration = Duration::from_secs(60); // digest / fetch round-trip
+const SYNC_APPLY_TIMEOUT: Duration = Duration::from_secs(180); // host snapshots ~/.lpm first
+const SYNC_UNSUPPORTED: &str = "the other Mac needs to update lpm to sync config";
 const PING_INTERVAL: Duration = Duration::from_secs(20);
 const BACKOFF_MIN: Duration = Duration::from_secs(1);
 const BACKOFF_MAX: Duration = Duration::from_secs(30);
@@ -49,6 +52,7 @@ struct PeerConn {
     attached: Mutex<HashSet<String>>, // raw host terminal ids the frontend has open
     pending: Mutex<HashMap<u64, Arc<Pending>>>,
     enabled: AtomicBool,
+    supports_sync: AtomicBool, // host advertised the configSync feature in `ready`
     generation: AtomicU64, // bump to retire the current connection thread
 }
 
@@ -62,6 +66,7 @@ impl PeerConn {
             attached: Mutex::new(HashSet::new()),
             pending: Mutex::new(HashMap::new()),
             enabled: AtomicBool::new(true),
+            supports_sync: AtomicBool::new(false),
             generation: AtomicU64::new(0),
         }
     }
@@ -138,6 +143,7 @@ impl PeerClientHub {
             .map(|p| {
                 let conn = conns.get(&p.slug);
                 let connected = conn.map(|c| c.connected.load(Ordering::Relaxed)).unwrap_or(false);
+                let supports_sync = conn.map(|c| c.supports_sync.load(Ordering::Relaxed)).unwrap_or(false);
                 let last_error = conn.map(|c| c.last_error.lock().unwrap().clone()).unwrap_or_default();
                 json!({
                     "slug": p.slug,
@@ -146,6 +152,8 @@ impl PeerClientHub {
                     "port": p.port,
                     "enabled": p.enabled,
                     "connected": connected,
+                    "supportsSync": supports_sync,
+                    "lastSyncAt": p.last_sync_at,
                     "lastError": last_error,
                 })
             })
@@ -177,6 +185,21 @@ impl PeerClientHub {
     }
 
     fn invoke_blocking(&self, slug: &str, cmd: &str, args: Value) -> Result<Value, String> {
+        self.request_blocking(slug, INVOKE_TIMEOUT, |req| {
+            json!({ "t": "invoke", "reqId": req, "cmd": cmd, "args": args })
+        })
+    }
+
+    /// Send one correlated request frame and block on its `result` reply (or a
+    /// disconnect / timeout). The frame builder receives the allocated reqId so
+    /// callers can shape any frame type — invoke, syncDigest, syncFetch, syncApply
+    /// — over the same pending-map machinery.
+    fn request_blocking(
+        &self,
+        slug: &str,
+        timeout: Duration,
+        make_frame: impl FnOnce(u64) -> Value,
+    ) -> Result<Value, String> {
         let conn = self
             .inner
             .conns
@@ -194,21 +217,21 @@ impl PeerClientHub {
             cv: Condvar::new(),
         });
         conn.pending.lock().unwrap().insert(req, pending.clone());
-        let frame = json!({ "t": "invoke", "reqId": req, "cmd": cmd, "args": args }).to_string();
+        let frame = make_frame(req).to_string();
         if let Err(e) = conn.send(frame) {
             conn.pending.lock().unwrap().remove(&req);
             return Err(e);
         }
 
-        let deadline = Instant::now() + INVOKE_TIMEOUT;
+        let deadline = Instant::now() + timeout;
         let mut guard = pending.done.lock().unwrap();
         while guard.is_none() {
             let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
                 break;
             };
-            let (g, timeout) = pending.cv.wait_timeout(guard, remaining).unwrap();
+            let (g, to) = pending.cv.wait_timeout(guard, remaining).unwrap();
             guard = g;
-            if timeout.timed_out() {
+            if to.timed_out() {
                 break;
             }
         }
@@ -216,6 +239,118 @@ impl PeerClientHub {
         drop(guard);
         conn.pending.lock().unwrap().remove(&req);
         result.unwrap_or_else(|| Err("peer request timed out".to_string()))
+    }
+
+    /// Guard: the peer must be connected and its host must speak config sync.
+    fn require_sync_peer(&self, slug: &str) -> Result<(), String> {
+        let conn = self
+            .inner
+            .conns
+            .lock()
+            .unwrap()
+            .get(slug)
+            .cloned()
+            .ok_or_else(|| "unknown peer".to_string())?;
+        if !conn.connected.load(Ordering::Relaxed) {
+            return Err("peer not connected".to_string());
+        }
+        if !conn.supports_sync.load(Ordering::Relaxed) {
+            return Err(SYNC_UNSUPPORTED.to_string());
+        }
+        Ok(())
+    }
+
+    /// Exchange digests with the peer and return the diff plan plus the persisted
+    /// last-sync time.
+    fn sync_status(&self, slug: &str) -> Result<Value, String> {
+        self.require_sync_peer(slug)?;
+        let remote_v = self.request_blocking(slug, SYNC_TIMEOUT, |req| {
+            json!({ "t": "syncDigest", "v": 1, "reqId": req })
+        })?;
+        let remote: crate::peersync::DigestMap =
+            serde_json::from_value(remote_v).map_err(|e| format!("bad digest reply: {e}"))?;
+        let local = crate::peersync::local_digest_map();
+        let items = crate::peersync::compute_plan(&local, &remote);
+        let last = self.peer_entry(slug).map(|p| p.last_sync_at).unwrap_or(0);
+        Ok(json!({ "items": items, "lastSyncAt": last }))
+    }
+
+    /// Run the sync both directions: pull remote-newer items (local backup first,
+    /// then apply) and push local-newer items to the host (it backs up + applies).
+    fn sync_run(&self, slug: &str, items: Vec<crate::peersync::SyncItem>) -> Result<Value, String> {
+        self.require_sync_peer(slug)?;
+        let (to_local, to_remote): (Vec<_>, Vec<_>) =
+            items.into_iter().partition(|i| i.direction == "toLocal");
+        let mut applied = 0u64;
+        let mut pushed = 0u64;
+        let mut errors: Vec<String> = Vec::new();
+
+        if !to_local.is_empty() {
+            let req_items: Vec<Value> = to_local
+                .iter()
+                .map(|i| json!({ "kind": i.kind, "name": i.name }))
+                .collect();
+            let resp = self.request_blocking(slug, SYNC_TIMEOUT, |req| {
+                json!({ "t": "syncFetch", "v": 1, "reqId": req, "items": req_items })
+            })?;
+            let fetched: Vec<crate::peersync::WireItem> =
+                serde_json::from_value(resp.get("items").cloned().unwrap_or_else(|| json!([])))
+                    .map_err(|e| format!("bad fetch reply: {e}"))?;
+            match crate::transfer::snapshot_backup() {
+                Ok(_) => {
+                    for it in &fetched {
+                        match crate::peersync::apply_item(it) {
+                            Ok(()) => applied += 1,
+                            Err(e) => errors.push(format!("{}/{}: {e}", it.kind, it.name)),
+                        }
+                    }
+                    if let Some(app) = self.app() {
+                        let _ = app.emit("projects-changed", ());
+                        let _ = app.emit("templates-changed", ());
+                    }
+                }
+                Err(e) => errors.push(format!("local backup failed: {e}")),
+            }
+        }
+
+        if !to_remote.is_empty() {
+            let mut wire: Vec<Value> = Vec::new();
+            for i in &to_remote {
+                match crate::peersync::read_item(&i.kind, &i.name) {
+                    Ok(w) => {
+                        if let Ok(val) = serde_json::to_value(w) {
+                            wire.push(val);
+                        }
+                    }
+                    Err(e) => errors.push(format!("read {}/{}: {e}", i.kind, i.name)),
+                }
+            }
+            if !wire.is_empty() {
+                let resp = self.request_blocking(slug, SYNC_APPLY_TIMEOUT, |req| {
+                    json!({ "t": "syncApply", "v": 1, "reqId": req, "items": wire })
+                })?;
+                pushed += resp.get("applied").and_then(Value::as_u64).unwrap_or(0);
+                if let Some(errs) = resp.get("errors").and_then(Value::as_array) {
+                    for e in errs {
+                        if let Some(s) = e.as_str() {
+                            errors.push(format!("other Mac: {s}"));
+                        }
+                    }
+                }
+            }
+        }
+
+        {
+            let mut cfg = self.inner.config.lock().unwrap();
+            if let Some(p) = cfg.peers.iter_mut().find(|p| p.slug == slug) {
+                p.last_sync_at = crate::status::now_millis();
+            }
+            let snapshot = cfg.clone();
+            drop(cfg);
+            let _ = peer::save_config(&snapshot);
+        }
+        emit_state_changed(self);
+        Ok(json!({ "applied": applied, "pushed": pushed, "errors": errors }))
     }
 }
 
@@ -270,6 +405,7 @@ fn run_conn(hub: PeerClientHub, conn: Arc<PeerConn>, generation: u64) {
             }
         }
         conn.connected.store(false, Ordering::Relaxed);
+        conn.supports_sync.store(false, Ordering::Relaxed);
         *conn.out.lock().unwrap() = None;
         conn.fail_pending("peer disconnected");
         emit_state_changed(&hub);
@@ -337,6 +473,12 @@ fn connect_session(
         let err = rv.get("error").and_then(Value::as_str).unwrap_or("authentication failed");
         return Err(err.to_string());
     }
+    let supports_sync = rv
+        .get("features")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().any(|f| f.as_str() == Some(crate::peersync::SYNC_FEATURE)))
+        .unwrap_or(false);
+    conn.supports_sync.store(supports_sync, Ordering::Relaxed);
 
     let (tx, rx) = mpsc::sync_channel::<String>(OUT_QUEUE);
     *conn.out.lock().unwrap() = Some(tx);
@@ -514,6 +656,7 @@ pub async fn peer_add(
                 device_id,
                 token,
                 enabled: true,
+                last_sync_at: 0,
             });
             let snapshot = cfg.clone();
             drop(cfg);
@@ -631,6 +774,31 @@ pub async fn peer_invoke(
 ) -> Result<Value, String> {
     let hub = hub.inner().clone();
     tauri::async_runtime::spawn_blocking(move || hub.invoke_blocking(&slug, &cmd, args))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Compute the config-sync diff against a paired Mac: exchange portable digests
+/// and return the items that differ (each with its newest-wins direction) plus
+/// the last successful sync time. Off the UI thread — it does blocking WS IO.
+#[tauri::command]
+pub async fn peer_sync_status(hub: State<'_, PeerClientHub>, slug: String) -> Result<Value, String> {
+    let hub = hub.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || hub.sync_status(&slug))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Apply a previously-previewed config-sync plan both directions and record the
+/// sync time. Each side that receives changes snapshots ~/.lpm first.
+#[tauri::command]
+pub async fn peer_sync_run(
+    hub: State<'_, PeerClientHub>,
+    slug: String,
+    items: Vec<crate::peersync::SyncItem>,
+) -> Result<Value, String> {
+    let hub = hub.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || hub.sync_run(&slug, items))
         .await
         .map_err(|e| e.to_string())?
 }

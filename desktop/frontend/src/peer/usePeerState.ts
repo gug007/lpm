@@ -28,6 +28,8 @@ export interface PeerClient {
   port: number;
   enabled: boolean;
   connected: boolean;
+  supportsSync?: boolean;
+  lastSyncAt?: number;
   lastError?: string;
 }
 
