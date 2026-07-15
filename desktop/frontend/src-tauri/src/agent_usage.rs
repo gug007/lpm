@@ -12,6 +12,8 @@ use std::path::{Path, PathBuf};
 pub struct TokenUsage {
     pub input_tokens: u64,
     pub cached_input_tokens: u64,
+    pub cache_creation_input_tokens: u64,
+    pub cache_read_input_tokens: u64,
     pub output_tokens: u64,
     pub reasoning_tokens: u64,
     pub total_tokens: u64,
@@ -23,6 +25,12 @@ impl TokenUsage {
         self.cached_input_tokens = self
             .cached_input_tokens
             .saturating_add(other.cached_input_tokens);
+        self.cache_creation_input_tokens = self
+            .cache_creation_input_tokens
+            .saturating_add(other.cache_creation_input_tokens);
+        self.cache_read_input_tokens = self
+            .cache_read_input_tokens
+            .saturating_add(other.cache_read_input_tokens);
         self.output_tokens = self.output_tokens.saturating_add(other.output_tokens);
         self.reasoning_tokens = self.reasoning_tokens.saturating_add(other.reasoning_tokens);
         self.total_tokens = self.total_tokens.saturating_add(other.total_tokens);
@@ -78,6 +86,7 @@ pub struct AgentUsageStats {
     totals: TokenUsage,
     providers: Vec<UsageBreakdown>,
     projects: Vec<UsageBreakdown>,
+    models: Vec<UsageBreakdown>,
     daily: Vec<DailyUsage>,
     recent_sessions: Vec<AgentSessionUsage>,
     sources: Vec<UsageSource>,
@@ -163,6 +172,14 @@ fn usage_delta(current: TokenUsage, previous: TokenUsage) -> TokenUsage {
     TokenUsage {
         input_tokens: delta(current.input_tokens, previous.input_tokens),
         cached_input_tokens: delta(current.cached_input_tokens, previous.cached_input_tokens),
+        cache_creation_input_tokens: delta(
+            current.cache_creation_input_tokens,
+            previous.cache_creation_input_tokens,
+        ),
+        cache_read_input_tokens: delta(
+            current.cache_read_input_tokens,
+            previous.cache_read_input_tokens,
+        ),
         output_tokens: delta(current.output_tokens, previous.output_tokens),
         reasoning_tokens: delta(current.reasoning_tokens, previous.reasoning_tokens),
         total_tokens: delta(current.total_tokens, previous.total_tokens),
@@ -220,6 +237,39 @@ fn claude_project_dirs() -> Vec<PathBuf> {
         .collect()
 }
 
+fn parse_files_parallel<F>(files: Vec<PathBuf>, parse: F) -> Vec<UsageEvent>
+where
+    F: Fn(&Path) -> Vec<UsageEvent> + Sync,
+{
+    if files.is_empty() {
+        return Vec::new();
+    }
+    let workers = std::thread::available_parallelism()
+        .map(|count| count.get())
+        .unwrap_or(1)
+        .max(1);
+    let chunk_size = files.len().div_ceil(workers).max(1);
+    let parse = &parse;
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = files
+            .chunks(chunk_size)
+            .map(|chunk| {
+                scope.spawn(move || {
+                    let mut local = Vec::new();
+                    for path in chunk {
+                        local.extend(parse(path));
+                    }
+                    local
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .flat_map(|handle| handle.join().unwrap_or_default())
+            .collect()
+    })
+}
+
 fn collect_claude_events(
     matcher: &ProjectMatcher,
     cutoff: Option<i64>,
@@ -229,10 +279,7 @@ fn collect_claude_events(
         collect_jsonl_files(&dir, cutoff, &mut files);
     }
     let file_count = files.len();
-    let mut events = Vec::new();
-    for path in files {
-        events.extend(parse_claude_file(&path, matcher, cutoff));
-    }
+    let events = parse_files_parallel(files, |path| parse_claude_file(path, matcher, cutoff));
     (events, file_count)
 }
 
@@ -251,6 +298,9 @@ fn parse_claude_file(
         .to_string();
     let mut messages: HashMap<String, UsageEvent> = HashMap::new();
     for line in BufReader::new(file).lines().map_while(Result::ok) {
+        if !line.contains("\"usage\"") {
+            continue;
+        }
         let Ok(record) = serde_json::from_str::<Value>(&line) else {
             continue;
         };
@@ -282,6 +332,8 @@ fn parse_claude_file(
         let tokens = TokenUsage {
             input_tokens: input,
             cached_input_tokens: cache_creation.saturating_add(cache_read),
+            cache_creation_input_tokens: cache_creation,
+            cache_read_input_tokens: cache_read,
             output_tokens: output,
             reasoning_tokens: 0,
             total_tokens: input.saturating_add(output),
@@ -340,10 +392,7 @@ fn collect_codex_events(matcher: &ProjectMatcher, cutoff: Option<i64>) -> (Vec<U
     let mut files = Vec::new();
     collect_jsonl_files(&root, cutoff, &mut files);
     let file_count = files.len();
-    let mut events = Vec::new();
-    for path in files {
-        events.extend(parse_codex_file(&path, matcher, cutoff));
-    }
+    let events = parse_files_parallel(files, |path| parse_codex_file(path, matcher, cutoff));
     (events, file_count)
 }
 
@@ -361,6 +410,12 @@ fn parse_codex_file(path: &Path, matcher: &ProjectMatcher, cutoff: Option<i64>) 
     let mut previous = TokenUsage::default();
     let mut events = Vec::new();
     for line in BufReader::new(file).lines().map_while(Result::ok) {
+        if !line.contains("token_count")
+            && !line.contains("session_meta")
+            && !line.contains("turn_context")
+        {
+            continue;
+        }
         let Ok(record) = serde_json::from_str::<Value>(&line) else {
             continue;
         };
@@ -401,9 +456,12 @@ fn parse_codex_file(path: &Path, matcher: &ProjectMatcher, cutoff: Option<i64>) 
         };
         let input = value_u64(total, "input_tokens");
         let output = value_u64(total, "output_tokens");
+        let cache_read = value_u64(total, "cached_input_tokens");
         let current = TokenUsage {
             input_tokens: input,
-            cached_input_tokens: value_u64(total, "cached_input_tokens"),
+            cached_input_tokens: cache_read,
+            cache_creation_input_tokens: 0,
+            cache_read_input_tokens: cache_read,
             output_tokens: output,
             reasoning_tokens: value_u64(total, "reasoning_output_tokens"),
             total_tokens: {
@@ -504,6 +562,7 @@ fn aggregate(events: Vec<UsageEvent>, days: i64, sources: Vec<UsageSource>) -> A
     let mut totals = TokenUsage::default();
     let mut provider_groups: HashMap<String, GroupAggregate> = HashMap::new();
     let mut project_groups: HashMap<String, GroupAggregate> = HashMap::new();
+    let mut model_groups: HashMap<String, GroupAggregate> = HashMap::new();
     let mut sessions: HashMap<String, SessionAggregate> = HashMap::new();
     let mut daily: BTreeMap<String, DailyAggregate> = BTreeMap::new();
     for event in events {
@@ -520,6 +579,9 @@ fn aggregate(events: Vec<UsageEvent>, days: i64, sources: Vec<UsageSource>) -> A
         let project = project_groups.entry(event.project.clone()).or_default();
         project.tokens.add(event.tokens);
         project.sessions.insert(session_key.clone());
+        let model = model_groups.entry(event.model.clone()).or_default();
+        model.tokens.add(event.tokens);
+        model.sessions.insert(session_key.clone());
         let session = sessions
             .entry(session_key)
             .or_insert_with(|| SessionAggregate {
@@ -572,6 +634,7 @@ fn aggregate(events: Vec<UsageEvent>, days: i64, sources: Vec<UsageSource>) -> A
         totals,
         providers: breakdowns(provider_groups, &provider_labels),
         projects: breakdowns(project_groups, &HashMap::new()),
+        models: breakdowns(model_groups, &HashMap::new()),
         daily: daily
             .into_iter()
             .map(|(date, totals)| DailyUsage {
@@ -658,8 +721,34 @@ mod tests {
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].tokens.input_tokens, 152);
         assert_eq!(events[0].tokens.cached_input_tokens, 150);
+        assert_eq!(events[0].tokens.cache_creation_input_tokens, 100);
+        assert_eq!(events[0].tokens.cache_read_input_tokens, 50);
         assert_eq!(events[0].tokens.output_tokens, 120);
         assert_eq!(events[0].tokens.total_tokens, 272);
+    }
+
+    #[test]
+    fn aggregate_groups_tokens_by_model() {
+        let event = |model: &str, total: u64| UsageEvent {
+            provider: "claude",
+            project: "lpm".into(),
+            session_id: "session".into(),
+            model: model.into(),
+            timestamp: 1_700_000_000_000,
+            tokens: TokenUsage {
+                input_tokens: total,
+                total_tokens: total,
+                ..Default::default()
+            },
+        };
+        let stats = aggregate(
+            vec![event("claude-opus", 100), event("claude-opus", 50)],
+            0,
+            Vec::new(),
+        );
+        assert_eq!(stats.models.len(), 1);
+        assert_eq!(stats.models[0].label, "claude-opus");
+        assert_eq!(stats.models[0].tokens.total_tokens, 150);
     }
 
     #[test]

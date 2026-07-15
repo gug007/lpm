@@ -117,6 +117,8 @@ export interface ProjectInfo {
 export interface TokenUsage {
   inputTokens: number;
   cachedInputTokens: number;
+  cacheCreationInputTokens: number;
+  cacheReadInputTokens: number;
   outputTokens: number;
   reasoningTokens: number;
   totalTokens: number;
@@ -157,6 +159,7 @@ export interface AgentUsageStats {
   totals: TokenUsage;
   providers: UsageBreakdown[];
   projects: UsageBreakdown[];
+  models: UsageBreakdown[];
   daily: DailyUsage[];
   recentSessions: AgentSessionUsage[];
   sources: UsageSource[];

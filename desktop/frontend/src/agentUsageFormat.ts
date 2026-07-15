@@ -17,3 +17,21 @@ export function shortUsageDate(date: string): string {
     new Date(`${date}T12:00:00`),
   );
 }
+
+function trimDecimal(value: number): string {
+  return value.toFixed(1).replace(/\.0$/, "");
+}
+
+export function formatDuration(ms: number): string {
+  const seconds = Math.max(0, ms) / 1000;
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  if (seconds < 3_600) return `${Math.round(seconds / 60)}m`;
+  if (seconds < 86_400) return `${trimDecimal(seconds / 3_600)}h`;
+  const days = seconds / 86_400;
+  return days < 10 ? `${trimDecimal(days)}d` : `${Math.round(days)}d`;
+}
+
+export function formatPercent(frac: number, dp = 0): string {
+  if (!Number.isFinite(frac)) return "0%";
+  return `${(frac * 100).toFixed(dp)}%`;
+}
