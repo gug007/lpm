@@ -13,7 +13,6 @@ import {
 } from "./chartScale";
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
 
-const PLOT = 150;
 const PROVIDER_KEYS = ["claude", "codex"] as const;
 
 interface TokenActivityChartProps {
@@ -129,13 +128,13 @@ export function TokenActivityChart({ daily }: TokenActivityChartProps) {
         </div>
       </div>
 
-      <div className="mt-4 flex gap-2">
-        <div className="relative w-11 shrink-0" style={{ height: PLOT }}>
+      <div className="mt-4 flex min-h-0 flex-1 gap-2">
+        <div className="relative w-11 shrink-0">
           {ticks.map((tick) => (
             <span
               key={tick.frac}
               className="absolute right-0 -translate-y-1/2 text-[10px] tabular-nums text-[var(--text-muted)]"
-              style={{ top: (1 - tick.frac) * PLOT }}
+              style={{ top: `${(1 - tick.frac) * 100}%` }}
             >
               {tick.label}
             </span>
@@ -151,7 +150,6 @@ export function TokenActivityChart({ daily }: TokenActivityChartProps) {
           onMouseLeave={() => setCursor(null)}
           onKeyDown={onKeyDown}
           className="relative flex-1 rounded-md outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)]/50"
-          style={{ height: PLOT }}
         >
           {ticks.map((tick) => (
             <div
@@ -159,27 +157,26 @@ export function TokenActivityChart({ daily }: TokenActivityChartProps) {
               className={`absolute inset-x-0 border-t ${
                 tick.frac === 0 ? "border-[var(--border)]" : "border-[var(--border)]/50"
               }`}
-              style={{ top: (1 - tick.frac) * PLOT }}
+              style={{ top: `${(1 - tick.frac) * 100}%` }}
             />
           ))}
 
           {cursor !== null && (
             <div
-              className="absolute top-0 bg-[var(--bg-hover)]"
+              className="absolute inset-y-0 bg-[var(--bg-hover)]"
               style={{
                 left: `${(cursor / count) * 100}%`,
                 width: `${100 / count}%`,
-                height: PLOT,
               }}
             />
           )}
 
-          <div className="absolute inset-0 flex items-end">
+          <div className="absolute inset-0 flex items-end overflow-hidden">
             {days.map((day, index) => {
               const seg = stackSegments(day, mode, maxValue);
-              const claudePx = seg.claude <= 0 ? 0 : Math.max(2, seg.claude * PLOT);
-              const codexPx = seg.codex <= 0 ? 0 : Math.max(2, seg.codex * PLOT);
-              const empty = claudePx === 0 && codexPx === 0;
+              const claude = seg.claude <= 0 ? 0 : seg.claude * 100;
+              const codex = seg.codex <= 0 ? 0 : seg.codex * 100;
+              const empty = claude === 0 && codex === 0;
               const dimmed = cursor !== null && cursor !== index;
               return (
                 <div
@@ -187,7 +184,7 @@ export function TokenActivityChart({ daily }: TokenActivityChartProps) {
                   className="flex h-full min-w-0 flex-1 flex-col justify-end px-[2px]"
                 >
                   <div
-                    className="mx-auto flex w-full flex-col justify-end"
+                    className="mx-auto flex h-full w-full flex-col justify-end"
                     style={{
                       maxWidth: barWidth,
                       opacity: dimmed ? 0.55 : 1,
@@ -202,22 +199,24 @@ export function TokenActivityChart({ daily }: TokenActivityChartProps) {
                       <div className="h-px w-full bg-[var(--border)]" />
                     ) : (
                       <>
-                        {codexPx > 0 && (
+                        {codex > 0 && (
                           <div
-                            className="w-full rounded-t-[2px]"
+                            className="w-full shrink-0 rounded-t-[2px]"
                             style={{
-                              height: codexPx,
+                              height: `${codex}%`,
+                              minHeight: 2,
                               backgroundColor: providerMeta("codex").color,
                               transition: reducedMotion ? "none" : "height 240ms ease-out",
                             }}
                           />
                         )}
-                        {codexPx > 0 && claudePx > 0 && <div style={{ height: 2 }} />}
-                        {claudePx > 0 && (
+                        {codex > 0 && claude > 0 && <div className="shrink-0" style={{ height: 2 }} />}
+                        {claude > 0 && (
                           <div
-                            className={`w-full ${codexPx > 0 ? "" : "rounded-t-[2px]"}`}
+                            className={`w-full shrink-0 ${codex > 0 ? "" : "rounded-t-[2px]"}`}
                             style={{
-                              height: claudePx,
+                              height: `${claude}%`,
+                              minHeight: 2,
                               backgroundColor: providerMeta("claude").color,
                               transition: reducedMotion ? "none" : "height 240ms ease-out",
                             }}
@@ -233,8 +232,8 @@ export function TokenActivityChart({ daily }: TokenActivityChartProps) {
 
           {cursor !== null && (
             <div
-              className="absolute top-0 w-px bg-[var(--text-muted)]"
-              style={{ left: `${centerFraction * 100}%`, height: PLOT }}
+              className="absolute inset-y-0 w-px bg-[var(--text-muted)]"
+              style={{ left: `${centerFraction * 100}%` }}
             />
           )}
 

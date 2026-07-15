@@ -37,12 +37,12 @@ export function StatsSkeleton({ days }: StatsSkeletonProps) {
         ))}
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1.55fr)_minmax(280px,0.9fr)] items-start gap-4">
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+      <div className="grid grid-cols-[minmax(0,1.55fr)_minmax(280px,0.9fr)] gap-4">
+        <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
           <div className={`h-4 w-32 ${block}`} />
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex min-h-0 flex-1 gap-2">
             <div className="w-11 shrink-0" />
-            <div className="relative h-[150px] flex-1">
+            <div className="relative flex-1">
               {[0, 0.5, 1].map((frac) => (
                 <div
                   key={frac}

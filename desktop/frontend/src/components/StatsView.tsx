@@ -138,7 +138,7 @@ export function StatsView() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-[minmax(0,1.55fr)_minmax(280px,0.9fr)] items-start gap-4">
+                <div className="grid grid-cols-[minmax(0,1.55fr)_minmax(280px,0.9fr)] gap-4">
                   <TokenActivityChart daily={chartDays} />
                   <BreakdownPanel providers={stats.providers} totals={stats.totals} />
                 </div>
