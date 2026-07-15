@@ -1783,6 +1783,11 @@ fn handle_msg(
                 let reply = match config::spawn_info(&project) {
                     Ok(info) => {
                         let running = crate::tmux::running_sessions().contains(&info.session);
+                        let run_state = if running {
+                            services::run_state_from_tmux(&info.session, info.services.keys()).unwrap_or(run_state)
+                        } else {
+                            run_state
+                        };
                         let svc = |name: &str, pane: Option<usize>, run: bool| {
                             let s = info.services.get(name).cloned().unwrap_or_default();
                             json!({ "name": name, "paneIndex": pane, "running": run,

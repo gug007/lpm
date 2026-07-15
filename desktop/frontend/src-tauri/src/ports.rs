@@ -379,7 +379,7 @@ pub fn detect_service_ports(
     name: String,
 ) -> Result<Vec<ServicePorts>, String> {
     let info = config::spawn_info(&name)?;
-    let running = config::resolve_running_services(&info, &state.get(&name));
+    let running = config::resolve_running_services(&info, &state.get_for_project(&name, &info));
 
     // Remote ports listen on the remote host where this lsof can't reach, so
     // those services just fall through with no detected ports.

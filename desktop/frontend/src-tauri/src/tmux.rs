@@ -7,10 +7,34 @@ use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 use std::process::Command;
 
+const SERVICE_OPTION: &str = "@lpm_service";
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ServicePane {
+    pub id: String,
+    pub service: String,
+}
+
+fn tmux_command() -> Command {
+    #[cfg(not(test))]
+    {
+        Command::new("tmux")
+    }
+    #[cfg(test)]
+    {
+        use std::sync::OnceLock;
+        static SOCKET: OnceLock<String> = OnceLock::new();
+        let mut command = Command::new("tmux");
+        let socket = SOCKET.get_or_init(|| format!("lpm-tests-{}", std::process::id()));
+        command.args(["-L", socket]);
+        command
+    }
+}
+
 /// Set of live tmux session names (`tmux list-sessions -F '#{session_name}'`).
 /// Empty when no server is running or tmux is absent — both are non-errors.
 pub fn running_sessions() -> HashSet<String> {
-    let output = Command::new("tmux")
+    let output = tmux_command()
         .args(["list-sessions", "-F", "#{session_name}"])
         .output();
     match output {
@@ -25,7 +49,7 @@ pub fn running_sessions() -> HashSet<String> {
 
 /// Run tmux with args, returning trimmed stdout. Errors include stderr.
 fn run(args: &[&str]) -> Result<String, String> {
-    let out = Command::new("tmux")
+    let out = tmux_command()
         .args(args)
         .output()
         .map_err(|e| format!("tmux: {e}"))?;
@@ -40,7 +64,7 @@ fn run(args: &[&str]) -> Result<String, String> {
 }
 
 pub fn session_exists(name: &str) -> bool {
-    Command::new("tmux")
+    tmux_command()
         .args(["has-session", "-t", name])
         .status()
         .map(|s| s.success())
@@ -63,6 +87,26 @@ fn list_pane_field(session: &str, field: &str) -> Vec<String> {
 /// Pane ids for a session in creation order (`%0`, `%1`, …). Empty on error.
 pub fn list_pane_ids(session: &str) -> Vec<String> {
     list_pane_field(session, "#{pane_id}")
+}
+
+fn parse_service_panes(output: &str) -> Option<Vec<ServicePane>> {
+    let panes: Option<Vec<ServicePane>> = output
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| {
+            let (id, service) = line.split_once('\t')?;
+            if id.is_empty() || service.is_empty() {
+                return None;
+            }
+            Some(ServicePane { id: id.to_string(), service: service.to_string() })
+        })
+        .collect();
+    panes.filter(|panes| !panes.is_empty())
+}
+
+pub fn list_service_panes(session: &str) -> Option<Vec<ServicePane>> {
+    let output = run(&["list-panes", "-t", session, "-F", "#{pane_id}\t#{@lpm_service}"]).ok()?;
+    parse_service_panes(&output)
 }
 
 /// Pane shell pids for a session in creation order — aligned with list_pane_ids
@@ -162,8 +206,32 @@ fn pane_spawn_dir(root: &str, cwd_raw: &str, ssh: Option<&config::SshSettings>) 
     }
 }
 
-/// A service to launch: (cmd, cwd, env). Order is the resolved running order.
-pub type ServiceTuple = (String, String, BTreeMap<String, String>);
+/// A service to launch: (name, cmd, cwd, env). Order is the resolved running order.
+pub type ServiceTuple = (String, String, String, BTreeMap<String, String>);
+
+fn set_pane_service(pane_id: &str, service: &str) -> Result<(), String> {
+    run(&["set-option", "-p", "-t", pane_id, SERVICE_OPTION, service]).map(|_| ())
+}
+
+fn rollback_error(error: String, rollback: Result<(), String>) -> String {
+    match rollback {
+        Ok(()) => error,
+        Err(rollback_error) => format!("{error}; rollback failed: {rollback_error}"),
+    }
+}
+
+fn rollback_panes(panes: Vec<String>, error: String) -> String {
+    let rollback_errors: Vec<String> = panes
+        .into_iter()
+        .rev()
+        .filter_map(|pane| kill_pane(&pane).err())
+        .collect();
+    if rollback_errors.is_empty() {
+        error
+    } else {
+        format!("{error}; rollback failed: {}", rollback_errors.join("; "))
+    }
+}
 
 /// Create a session with one pane per service (port StartProjectServices).
 /// Kills any existing session of the same name first. For remote projects each
@@ -178,19 +246,27 @@ pub fn start_project_services(
         config::ensure_ssh_control_dir()?;
     }
     let _ = kill_session(session); // ignore — matches Go
-    let Some((cmd0, cwd0, env0)) = services.first() else {
+    let Some((name0, cmd0, cwd0, env0)) = services.first() else {
         return Err("no services to start".into());
     };
 
     let dir0 = pane_spawn_dir(root, cwd0, ssh);
     let first_pane = new_session_in(session, &dir0)?;
-    send_keys(&first_pane, &build_command(root, cwd0, env0, cmd0, ssh))?;
+    let launch = (|| {
+        set_pane_service(&first_pane, name0)?;
+        send_keys(&first_pane, &build_command(root, cwd0, env0, cmd0, ssh))?;
 
-    for (i, (cmd, cwd, env)) in services[1..].iter().enumerate() {
-        let split = if i > 0 { "-v" } else { "-h" }; // 2nd: -h, 3rd+: -v
-        let dir = pane_spawn_dir(root, cwd, ssh);
-        let pane = split_window_in(split, session, &dir)?;
-        send_keys(&pane, &build_command(root, cwd, env, cmd, ssh))?;
+        for (i, (name, cmd, cwd, env)) in services[1..].iter().enumerate() {
+            let split = if i > 0 { "-v" } else { "-h" };
+            let dir = pane_spawn_dir(root, cwd, ssh);
+            let pane = split_window_in(split, session, &dir)?;
+            set_pane_service(&pane, name)?;
+            send_keys(&pane, &build_command(root, cwd, env, cmd, ssh))?;
+        }
+        Ok(())
+    })();
+    if let Err(error) = launch {
+        return Err(rollback_error(error, kill_session(session)));
     }
     Ok(())
 }
@@ -200,6 +276,7 @@ pub fn start_project_services(
 pub fn split_session_pane(
     session: &str,
     root: &str,
+    service: &str,
     cmd: &str,
     cwd: &str,
     env: &BTreeMap<String, String>,
@@ -210,13 +287,33 @@ pub fn split_session_pane(
     }
     let dir = pane_spawn_dir(root, cwd, ssh);
     let pane = split_window_in("", session, &dir)?;
-    send_keys(&pane, &build_command(root, cwd, env, cmd, ssh))?;
+    if let Err(error) = set_pane_service(&pane, service)
+        .and_then(|_| send_keys(&pane, &build_command(root, cwd, env, cmd, ssh)))
+    {
+        return Err(rollback_error(error, kill_pane(&pane)));
+    }
     let _ = run(&["select-layout", "-t", session, "tiled"]);
     Ok(pane)
 }
 
+pub fn split_session_services(
+    session: &str,
+    root: &str,
+    services: &[ServiceTuple],
+    ssh: Option<&config::SshSettings>,
+) -> Result<Vec<String>, String> {
+    let mut panes = Vec::new();
+    for (name, cmd, cwd, env) in services {
+        match split_session_pane(session, root, name, cmd, cwd, env, ssh) {
+            Ok(pane) => panes.push(pane),
+            Err(error) => return Err(rollback_panes(panes, error)),
+        }
+    }
+    Ok(panes)
+}
+
 fn new_session_in(session: &str, dir: &str) -> Result<String, String> {
-    let out = Command::new("tmux")
+    let out = tmux_command()
         .args(["new-session", "-d", "-s", session, "-P", "-F", "#{pane_id}"])
         .current_dir(spawn_dir_or_root(dir))
         .output()
@@ -236,7 +333,7 @@ fn split_window_in(split: &str, session: &str, dir: &str) -> Result<String, Stri
         args.push(split);
     }
     args.extend_from_slice(&["-t", session, "-P", "-F", "#{pane_id}"]);
-    let out = Command::new("tmux")
+    let out = tmux_command()
         .args(&args)
         .current_dir(spawn_dir_or_root(dir))
         .output()
@@ -257,5 +354,93 @@ fn spawn_dir_or_root(dir: &str) -> &str {
         dir
     } else {
         "."
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct SessionGuard(String);
+
+    impl SessionGuard {
+        fn new() -> Self {
+            let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+            Self(format!("lpm-test-{}-{nonce}", std::process::id()))
+        }
+    }
+
+    impl Drop for SessionGuard {
+        fn drop(&mut self) {
+            let _ = kill_session(&self.0);
+        }
+    }
+
+    fn service(name: &str, command: String) -> ServiceTuple {
+        (name.to_string(), command, String::new(), BTreeMap::new())
+    }
+
+    #[test]
+    fn parses_complete_service_identity() {
+        assert_eq!(
+            parse_service_panes("%3\tdb\n%7\tweb\n"),
+            Some(vec![
+                ServicePane { id: "%3".into(), service: "db".into() },
+                ServicePane { id: "%7".into(), service: "web".into() },
+            ])
+        );
+    }
+
+    #[test]
+    fn rejects_partial_or_empty_service_identity() {
+        assert_eq!(parse_service_panes("%3\tdb\n%7\t\n"), None);
+        assert_eq!(parse_service_panes(""), None);
+    }
+
+    #[test]
+    fn stores_service_identity_on_each_pane() {
+        let session = SessionGuard::new();
+        let services = vec![service("db", "sleep 30".into()), service("web", "sleep 30".into())];
+        start_project_services(&session.0, ".", &services, None).unwrap();
+        let names: Vec<String> = list_service_panes(&session.0)
+            .unwrap()
+            .into_iter()
+            .map(|pane| pane.service)
+            .collect();
+        assert_eq!(names, ["db", "web"]);
+        let configured = vec!["api".to_string(), "db".to_string(), "web".to_string()];
+        let recovered = crate::services::run_state_from_tmux(&session.0, configured.iter()).unwrap();
+        assert_eq!(recovered.services, ["db", "web"]);
+        let incomplete_config = vec!["db".to_string()];
+        assert!(crate::services::run_state_from_tmux(&session.0, incomplete_config.iter()).is_none());
+    }
+
+    #[test]
+    fn failed_multi_service_start_removes_the_session() {
+        let session = SessionGuard::new();
+        let services = vec![
+            service("db", "sleep 30".into()),
+            service("web", "x".repeat(4 * 1024 * 1024)),
+        ];
+        assert!(start_project_services(&session.0, ".", &services, None).is_err());
+        assert!(!running_sessions().contains(&session.0));
+    }
+
+    #[test]
+    fn failed_multi_service_split_keeps_the_original_panes() {
+        let session = SessionGuard::new();
+        start_project_services(&session.0, ".", &[service("db", "sleep 30".into())], None).unwrap();
+        let additions = vec![
+            service("cache", "sleep 30".into()),
+            service("web", "x".repeat(4 * 1024 * 1024)),
+        ];
+        assert!(split_session_services(&session.0, ".", &additions, None).is_err());
+        let names: Vec<String> = list_service_panes(&session.0)
+            .unwrap()
+            .into_iter()
+            .map(|pane| pane.service)
+            .collect();
+        assert_eq!(names, ["db"]);
     }
 }

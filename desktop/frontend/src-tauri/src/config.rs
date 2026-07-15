@@ -1693,6 +1693,12 @@ fn to_project_info(file_name: &str, mut yaml: ProjectYaml, running: bool, state:
     merge_parent_services_profiles(file_name, &mut services, &mut yaml.profiles);
     merge_repo_services_profiles(&root, is_remote, &mut services, &mut yaml.profiles);
     let all_names: Vec<String> = services.keys().cloned().collect();
+    let recovered_state = if running {
+        crate::services::run_state_from_tmux(&session, services.keys())
+    } else {
+        None
+    };
+    let state = recovered_state.as_ref().unwrap_or(state);
 
     let service_info = |name: &str| -> Value {
         let svc = services.get(name).cloned().unwrap_or_default();
