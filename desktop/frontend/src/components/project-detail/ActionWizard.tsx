@@ -70,6 +70,7 @@ import {
   PanelTopIcon,
   PlayIcon,
   PlusIcon,
+  RefreshIcon,
   SendIcon,
   TerminalIcon,
   TrashIcon,
@@ -84,6 +85,8 @@ import { EmojiSlotButton } from "../EmojiPickerButton";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 
 type Shape = "button" | "split" | "dropdown";
+
+type PreviewHint = "shape" | "placement" | "runMode" | "confirm";
 
 const SHAPE_PREVIEW_BUTTON_CLASS =
   "border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-primary)]";
@@ -652,6 +655,7 @@ export function ActionWizard({
     projectRoot,
   });
   const [draft, setDraft] = useState<FormDraft>(defaultDraft);
+  const [hoveredHint, setHoveredHint] = useState<PreviewHint | null>(null);
   const [showYaml, setShowYaml] = useState(false);
   const [saving, setSaving] = useState(false);
   const [mode, setMode] = useState<"form" | "editor">("form");
@@ -1196,39 +1200,59 @@ export function ActionWizard({
 
                 {showShape && (
                   <Reveal className="relative z-20">
-                    <FieldSection label="Appearance">
-                      <ShapeMenu
-                        shape={shape}
-                        options={SHAPE_OPTIONS}
-                        previewLabel={actionLabel}
-                        onChange={(next) => updateField("shape", next)}
-                      />
-                    </FieldSection>
+                    <div
+                      onMouseEnter={() => setHoveredHint("shape")}
+                      onMouseLeave={() => setHoveredHint(null)}
+                    >
+                      <FieldSection label="Appearance">
+                        <ShapeMenu
+                          shape={shape}
+                          options={SHAPE_OPTIONS}
+                          previewLabel={actionLabel}
+                          onChange={(next) => updateField("shape", next)}
+                        />
+                      </FieldSection>
+                    </div>
                   </Reveal>
                 )}
 
                 {showShape && (
                   <Reveal>
-                    <DisplayPicker
-                      display={display}
-                      onChange={(value) => updateField("display", value)}
-                    />
+                    <div
+                      onMouseEnter={() => setHoveredHint("placement")}
+                      onMouseLeave={() => setHoveredHint(null)}
+                    >
+                      <DisplayPicker
+                        display={display}
+                        onChange={(value) => updateField("display", value)}
+                      />
+                    </div>
                   </Reveal>
                 )}
 
                 {showRunMode && (
                   <Reveal>
                     <div className="space-y-6">
-                      <RunModePicker
-                        runMode={runMode}
-                        reuse={reuse}
-                        onRunMode={setRunMode}
-                        onReuse={(value) => updateField("reuse", value)}
-                      />
-                      <ConfirmPicker
-                        confirm={confirm}
-                        onConfirm={setConfirm}
-                      />
+                      <div
+                        onMouseEnter={() => setHoveredHint("runMode")}
+                        onMouseLeave={() => setHoveredHint(null)}
+                      >
+                        <RunModePicker
+                          runMode={runMode}
+                          reuse={reuse}
+                          onRunMode={setRunMode}
+                          onReuse={(value) => updateField("reuse", value)}
+                        />
+                      </div>
+                      <div
+                        onMouseEnter={() => setHoveredHint("confirm")}
+                        onMouseLeave={() => setHoveredHint(null)}
+                      >
+                        <ConfirmPicker
+                          confirm={confirm}
+                          onConfirm={setConfirm}
+                        />
+                      </div>
                       <AdvancedDisclosure
                         hasValue={Boolean(
                           cwd.trim() || port.trim() || shortcut.trim(),
@@ -1293,6 +1317,8 @@ export function ActionWizard({
                 runMode={runMode}
                 confirm={confirm}
                 cmd={cmd}
+                display={display}
+                hoveredHint={hoveredHint}
               />
             </div>
           )}
@@ -1780,6 +1806,56 @@ function YamlPreview({
 
 type DemoState = RunMode | "confirm" | null;
 
+type FrameHighlight = "header" | "footer" | "content" | null;
+
+const PREVIEW_RING =
+  "0 0 0 3px color-mix(in srgb, var(--accent-cyan) 35%, transparent)";
+const PREVIEW_TINT = "color-mix(in srgb, var(--accent-cyan) 16%, transparent)";
+const PREVIEW_CONTENT_RING =
+  "inset 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 45%, transparent)";
+const DEMO_OUTPUT_WIDTHS = ["72%", "48%", "62%"];
+
+function useDemoScript(
+  cmd: string,
+  steps: number,
+  onFinished?: () => void,
+) {
+  const [chars, setChars] = useState(0);
+  const [step, setStep] = useState(0);
+  const finishedRef = useRef(onFinished);
+  finishedRef.current = onFinished;
+
+  useEffect(() => {
+    setChars(0);
+    setStep(0);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const charMs = 28;
+    const stepMs = 260;
+    let typed = 0;
+    const typeNext = () => {
+      typed += 1;
+      setChars(typed);
+      if (typed < cmd.length) {
+        timers.push(setTimeout(typeNext, charMs));
+        return;
+      }
+      for (let s = 1; s <= steps; s += 1) {
+        timers.push(
+          setTimeout(() => {
+            setStep(s);
+            if (s === steps) finishedRef.current?.();
+          }, s * stepMs),
+        );
+      }
+      if (steps === 0) finishedRef.current?.();
+    };
+    timers.push(setTimeout(typeNext, charMs));
+    return () => timers.forEach(clearTimeout);
+  }, [cmd, steps]);
+
+  return { typed: cmd.slice(0, chars), typingDone: chars >= cmd.length, step };
+}
+
 function ActionPreviewPanel({
   name,
   emoji,
@@ -1788,6 +1864,8 @@ function ActionPreviewPanel({
   runMode,
   confirm,
   cmd,
+  display,
+  hoveredHint,
 }: {
   name: string;
   emoji: string;
@@ -1796,12 +1874,16 @@ function ActionPreviewPanel({
   runMode: RunMode;
   confirm: boolean;
   cmd: string;
+  display: "header" | "footer";
+  hoveredHint: PreviewHint | null;
 }) {
   const trimmedName = name.trim();
   const hasName = trimmedName.length > 0;
   const displayLabel = withEmoji(emoji, trimmedName);
   const [menuOpen, setMenuOpen] = useState(false);
   const [running, setRunning] = useState<DemoState>(null);
+  const [replayNonce, setReplayNonce] = useState(0);
+  const [demoFinished, setDemoFinished] = useState(false);
   const menuRef = useOutsideClick<HTMLDivElement>(
     () => setMenuOpen(false),
     menuOpen,
@@ -1815,6 +1897,10 @@ function ActionPreviewPanel({
     setRunning(canRun ? runMode : null);
   }, [runMode, canRun]);
 
+  useEffect(() => {
+    setDemoFinished(false);
+  }, [running, replayNonce]);
+
   const triggerRun = () => {
     if (!canRun) return;
     setRunning(confirm ? "confirm" : runMode);
@@ -1822,6 +1908,19 @@ function ActionPreviewPanel({
 
   const handleConfirm = () => setRunning(runMode);
   const handleCancel = () => setRunning(null);
+  const replayDemo = () => {
+    setDemoFinished(false);
+    setReplayNonce((n) => n + 1);
+  };
+
+  const shownRunning: DemoState =
+    hoveredHint === "confirm" && confirm ? "confirm" : running;
+  const frameHighlight: FrameHighlight =
+    hoveredHint === "placement"
+      ? display
+      : hoveredHint === "runMode"
+        ? "content"
+        : null;
 
   const dropdown = menuOpen && (
     <div className="absolute right-0 top-full z-10 mt-2 w-56 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl">
@@ -1851,68 +1950,103 @@ function ActionPreviewPanel({
           Preview
         </div>
 
-        <div className="flex flex-1 flex-col items-center justify-center gap-5">
+        <div className="flex flex-1 flex-col items-center justify-center">
           {!hasName ? (
-            <div className="flex flex-col items-center gap-3">
-              <MockActionPlaceholder />
+            <div className="flex w-full flex-col items-center gap-3">
+              <MockActionPlaceholder
+                display={display}
+                highlight={frameHighlight}
+              />
               <span className="text-[11px] text-[var(--text-muted)]">
                 Your action appears here.
               </span>
             </div>
-          ) : shape === "button" ? (
-            <button
-              type="button"
-              onClick={triggerRun}
-              className={`inline-flex whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--bg-hover)] ${SHAPE_PREVIEW_BUTTON_CLASS}`}
-            >
-              {displayLabel}
-            </button>
-          ) : shape === "split" ? (
-            <div ref={menuRef} className="relative">
-              <span
-                className={`inline-flex items-stretch rounded-lg border text-xs font-medium ${SHAPE_PREVIEW_BUTTON_CLASS}`}
-              >
-                <button
-                  type="button"
-                  onClick={triggerRun}
-                  className="whitespace-nowrap rounded-l-lg px-3.5 py-1.5 transition-colors hover:bg-[var(--bg-hover)]"
-                >
-                  {displayLabel}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMenuOpen((v) => !v)}
-                  className={`flex items-center rounded-r-lg border-l border-[var(--border)] px-1.5 transition-colors hover:bg-[var(--bg-hover)] ${menuOpen ? "bg-[var(--bg-hover)]" : ""}`}
-                >
-                  <ChevronDownIcon />
-                </button>
-              </span>
-              {dropdown}
-            </div>
           ) : (
-            <div ref={menuRef} className="relative">
-              <button
-                type="button"
-                onClick={() => setMenuOpen((v) => !v)}
-                className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--bg-hover)] ${SHAPE_PREVIEW_BUTTON_CLASS} ${menuOpen ? "bg-[var(--bg-hover)]" : ""}`}
+            <div className="flex w-full flex-col items-center gap-4">
+              <div
+                className="rounded-lg transition-shadow duration-150"
+                style={
+                  hoveredHint === "shape"
+                    ? { boxShadow: PREVIEW_RING }
+                    : undefined
+                }
               >
-                {displayLabel}
-                <ChevronDownIcon />
-              </button>
-              {dropdown}
-            </div>
-          )}
+                {shape === "button" ? (
+                  <button
+                    type="button"
+                    onClick={triggerRun}
+                    className={`inline-flex whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--bg-hover)] ${SHAPE_PREVIEW_BUTTON_CLASS}`}
+                  >
+                    {displayLabel}
+                  </button>
+                ) : shape === "split" ? (
+                  <div ref={menuRef} className="relative">
+                    <span
+                      className={`inline-flex items-stretch rounded-lg border text-xs font-medium ${SHAPE_PREVIEW_BUTTON_CLASS}`}
+                    >
+                      <button
+                        type="button"
+                        onClick={triggerRun}
+                        className="whitespace-nowrap rounded-l-lg px-3.5 py-1.5 transition-colors hover:bg-[var(--bg-hover)]"
+                      >
+                        {displayLabel}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMenuOpen((v) => !v)}
+                        className={`flex items-center rounded-r-lg border-l border-[var(--border)] px-1.5 transition-colors hover:bg-[var(--bg-hover)] ${menuOpen ? "bg-[var(--bg-hover)]" : ""}`}
+                      >
+                        <ChevronDownIcon />
+                      </button>
+                    </span>
+                    {dropdown}
+                  </div>
+                ) : (
+                  <div ref={menuRef} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setMenuOpen((v) => !v)}
+                      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--bg-hover)] ${SHAPE_PREVIEW_BUTTON_CLASS} ${menuOpen ? "bg-[var(--bg-hover)]" : ""}`}
+                    >
+                      {displayLabel}
+                      <ChevronDownIcon />
+                    </button>
+                    {dropdown}
+                  </div>
+                )}
+              </div>
 
-          {canRun && (
-            <RunModeDemo
-              key={running ?? "idle"}
-              running={running}
-              cmd={cmd}
-              label={displayLabel}
-              onTrigger={triggerRun}
-              onConfirm={handleConfirm}
-              onCancel={handleCancel}
-            />
+              {canRun && (
+                <>
+                  <RunModeDemo
+                    key={`${running ?? "idle"}-${replayNonce}`}
+                    running={shownRunning}
+                    cmd={cmd}
+                    label={displayLabel}
+                    display={display}
+                    highlight={frameHighlight}
+                    onTrigger={triggerRun}
+                    onConfirm={handleConfirm}
+                    onCancel={handleCancel}
+                    onFinished={() => setDemoFinished(true)}
+                  />
+                  {demoFinished ? (
+                    <button
+                      type="button"
+                      onClick={replayDemo}
+                      className="inline-flex items-center gap-1 text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] [&>svg]:h-3 [&>svg]:w-3"
+                    >
+                      <RefreshIcon />
+                      Replay
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-[var(--text-muted)]">
+                      Click the button to try it.
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -1942,9 +2076,13 @@ function MockModalShell({
 
 function MockAppFrame({
   headerSlot,
+  footerSlot,
+  highlight = null,
   children,
 }: {
   headerSlot: ReactNode;
+  footerSlot?: ReactNode;
+  highlight?: FrameHighlight;
   children: ReactNode;
 }) {
   return (
@@ -1960,12 +2098,41 @@ function MockAppFrame({
           <div className="h-1.5 w-2/3 rounded bg-[var(--border)] opacity-70" />
         </div>
 
-        <div className="relative flex flex-1 flex-col overflow-hidden">
-          <div className="flex h-[16px] items-center justify-end border-b border-[var(--border)] px-1.5">
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <div
+            className="flex h-[16px] items-center justify-end border-b border-[var(--border)] px-1.5 transition-colors duration-150"
+            style={
+              highlight === "header"
+                ? { backgroundColor: PREVIEW_TINT }
+                : undefined
+            }
+          >
             {headerSlot}
           </div>
 
-          <div className="relative flex-1 overflow-hidden p-2">{children}</div>
+          <div
+            className="relative flex-1 overflow-hidden p-2 transition-shadow duration-150"
+            style={
+              highlight === "content"
+                ? { boxShadow: PREVIEW_CONTENT_RING }
+                : undefined
+            }
+          >
+            {children}
+          </div>
+
+          {footerSlot && (
+            <div
+              className="flex h-[16px] items-center border-t border-[var(--border)] px-1.5 transition-colors duration-150"
+              style={
+                highlight === "footer"
+                  ? { backgroundColor: PREVIEW_TINT }
+                  : undefined
+              }
+            >
+              {footerSlot}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1983,12 +2150,24 @@ function MockBodyLines() {
   );
 }
 
-function MockActionPlaceholder() {
+function MockActionPlaceholder({
+  display,
+  highlight = null,
+}: {
+  display: "header" | "footer";
+  highlight?: FrameHighlight;
+}) {
+  const slot = (
+    <span
+      key={display}
+      className="demo-slot-in h-[9px] w-[34px] rounded-[3px] border border-dashed border-[var(--border)]"
+    />
+  );
   return (
     <MockAppFrame
-      headerSlot={
-        <span className="h-[9px] w-[34px] rounded-[3px] border border-dashed border-[var(--border)]" />
-      }
+      headerSlot={display === "header" ? slot : null}
+      footerSlot={display === "footer" ? slot : undefined}
+      highlight={highlight}
     >
       <MockBodyLines />
     </MockAppFrame>
@@ -1999,107 +2178,196 @@ function RunModeDemo({
   running,
   cmd,
   label,
+  display,
+  highlight,
   onTrigger,
   onConfirm,
   onCancel,
+  onFinished,
 }: {
   running: DemoState;
   cmd: string;
   label: string;
+  display: "header" | "footer";
+  highlight: FrameHighlight;
   onTrigger: () => void;
   onConfirm: () => void;
   onCancel: () => void;
+  onFinished: () => void;
 }) {
+  const actionButton = (
+    <button
+      key={display}
+      type="button"
+      onClick={onTrigger}
+      className="demo-slot-in max-w-[80px] truncate rounded border border-[var(--border)] bg-[var(--bg-primary)] px-1 py-[1px] text-[7px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
+    >
+      {label}
+    </button>
+  );
   return (
     <MockAppFrame
-      headerSlot={
-        <button
-          type="button"
-          onClick={onTrigger}
-          className="max-w-[80px] truncate rounded border border-[var(--border)] bg-[var(--bg-primary)] px-1 py-[1px] text-[7px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
-        >
-          {label}
-        </button>
-      }
+      headerSlot={display === "header" ? actionButton : null}
+      footerSlot={display === "footer" ? actionButton : undefined}
+      highlight={highlight}
     >
       <MockBodyLines />
 
       {running === "confirm" && (
-              <MockModalShell width={140}>
-                <div className="space-y-1 px-2 py-1.5">
-                  <div className="text-[8px] font-medium text-[var(--text-primary)]">
-                    Run {label}?
-                  </div>
-                  <div className="truncate font-mono text-[7px] text-[var(--text-muted)]">
-                    $ {cmd}
-                  </div>
-                </div>
-                <div className="flex justify-end gap-1 border-t border-[var(--border)] px-1.5 py-1">
-                  <button
-                    type="button"
-                    onClick={onCancel}
-                    className="rounded px-1.5 py-[1px] text-[7px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onConfirm}
-                    className="rounded bg-[var(--text-primary)] px-1.5 py-[1px] text-[7px] font-medium text-[var(--bg-primary)]"
-                  >
-                    Run
-                  </button>
-                </div>
-              </MockModalShell>
-            )}
+        <MockModalShell width={140}>
+          <div className="space-y-1 px-2 py-1.5">
+            <div className="text-[8px] font-medium text-[var(--text-primary)]">
+              Run {label}?
+            </div>
+            <div className="truncate font-mono text-[7px] text-[var(--text-muted)]">
+              $ {cmd}
+            </div>
+          </div>
+          <div className="flex justify-end gap-1 border-t border-[var(--border)] px-1.5 py-1">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded px-1.5 py-[1px] text-[7px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              className="rounded bg-[var(--text-primary)] px-1.5 py-[1px] text-[7px] font-medium text-[var(--bg-primary)]"
+            >
+              Run
+            </button>
+          </div>
+        </MockModalShell>
+      )}
 
-            {running === "once" && (
-              <MockModalShell width={124}>
-                <div className="flex items-center justify-between border-b border-[var(--border)] px-1.5 py-1">
-                  <span className="truncate text-[7px] font-medium text-[var(--text-primary)]">
-                    {label}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={onCancel}
-                    className="rounded text-[7px] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                  >
-                    ×
-                  </button>
-                </div>
-                <div className="space-y-0.5 px-1.5 py-1 font-mono text-[6px] leading-tight">
-                  <div className="truncate text-[var(--text-primary)]">
-                    $ {cmd}
-                  </div>
-                  <div className="text-[var(--text-muted)]">output…</div>
-                </div>
-              </MockModalShell>
-            )}
+      {running === "once" && (
+        <OnceDemo
+          cmd={cmd}
+          label={label}
+          onCancel={onCancel}
+          onFinished={onFinished}
+        />
+      )}
 
-            {running === "terminal" && (
-              <div className="demo-terminal absolute inset-0 bg-black p-1.5 font-mono text-[7px] leading-tight text-white/90">
-                <div className="truncate">$ {cmd}</div>
-                <span className="demo-cursor mt-0.5 inline-block h-[6px] w-[3px] bg-white/80" />
-              </div>
-            )}
+      {running === "terminal" && (
+        <TerminalDemo prompt="$" cmd={cmd} onFinished={onFinished} />
+      )}
 
-            {running === "command" && (
-              <div className="demo-terminal absolute inset-0 bg-black p-1.5 font-mono text-[7px] leading-tight text-white/90">
-                <div className="truncate text-white/40">~ % </div>
-                <div className="truncate">~ % {cmd}</div>
-                <span className="demo-cursor mt-0.5 inline-block h-[6px] w-[3px] bg-white/80" />
-              </div>
-            )}
+      {running === "command" && (
+        <TerminalDemo prompt="~ %" cmd={cmd} priorPrompt onFinished={onFinished} />
+      )}
 
-            {running === "background" && (
-              <div className="demo-toast absolute right-1.5 top-1.5 flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--bg-primary)] px-1.5 py-1 shadow">
-                <span className="h-1 w-1 animate-pulse rounded-full bg-[var(--text-secondary)]" />
-                <span className="max-w-[90px] truncate text-[7px] text-[var(--text-secondary)]">
-                  {label} running…
-                </span>
-              </div>
-            )}
+      {running === "background" && (
+        <BackgroundDemo label={label} onFinished={onFinished} />
+      )}
     </MockAppFrame>
+  );
+}
+
+function TerminalDemo({
+  prompt,
+  cmd,
+  priorPrompt = false,
+  onFinished,
+}: {
+  prompt: string;
+  cmd: string;
+  priorPrompt?: boolean;
+  onFinished: () => void;
+}) {
+  const { typed, typingDone, step } = useDemoScript(cmd, 3, onFinished);
+  return (
+    <div className="demo-terminal absolute inset-0 overflow-hidden bg-black p-1.5 font-mono text-[7px] leading-tight text-white/90">
+      {priorPrompt && <div className="truncate text-white/40">{prompt}</div>}
+      <div className="truncate">
+        {prompt} {typed}
+        {!typingDone && (
+          <span className="demo-cursor ml-[1px] inline-block h-[6px] w-[3px] translate-y-[1px] bg-white/80" />
+        )}
+      </div>
+      {typingDone && (
+        <div className="mt-1 space-y-1">
+          {DEMO_OUTPUT_WIDTHS.map((width, i) => (
+            <div
+              key={i}
+              className="h-[3px] rounded bg-white/25 transition-opacity duration-200"
+              style={{ width, opacity: step > i ? 1 : 0 }}
+            />
+          ))}
+        </div>
+      )}
+      {step >= 3 && (
+        <div className="mt-1 flex items-center gap-1 text-white/50">
+          <span>{prompt}</span>
+          <span className="demo-cursor inline-block h-[6px] w-[3px] bg-white/80" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OnceDemo({
+  cmd,
+  label,
+  onCancel,
+  onFinished,
+}: {
+  cmd: string;
+  label: string;
+  onCancel: () => void;
+  onFinished: () => void;
+}) {
+  const { typed, typingDone, step } = useDemoScript(cmd, 2, onFinished);
+  return (
+    <MockModalShell width={124}>
+      <div className="flex items-center justify-between border-b border-[var(--border)] px-1.5 py-1">
+        <span className="truncate text-[7px] font-medium text-[var(--text-primary)]">
+          {label}
+        </span>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded text-[7px] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+        >
+          ×
+        </button>
+      </div>
+      <div className="space-y-0.5 px-1.5 py-1 font-mono text-[6px] leading-tight">
+        <div className="truncate text-[var(--text-primary)]">
+          $ {typed}
+          {!typingDone && (
+            <span className="demo-cursor ml-[1px] inline-block h-[5px] w-[2px] translate-y-[1px] bg-[var(--text-primary)]" />
+          )}
+        </div>
+        {step >= 1 && <div className="text-[var(--text-muted)]">output…</div>}
+        {step >= 2 && <div className="text-[var(--text-muted)]">✓ Done</div>}
+      </div>
+    </MockModalShell>
+  );
+}
+
+function BackgroundDemo({
+  label,
+  onFinished,
+}: {
+  label: string;
+  onFinished: () => void;
+}) {
+  const finishedRef = useRef(onFinished);
+  finishedRef.current = onFinished;
+  useEffect(() => {
+    const timer = setTimeout(() => finishedRef.current(), 1200);
+    return () => clearTimeout(timer);
+  }, []);
+  return (
+    <div className="demo-toast absolute right-1.5 top-1.5 flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--bg-primary)] px-1.5 py-1 shadow">
+      <span className="h-1 w-1 animate-pulse rounded-full bg-[var(--text-secondary)]" />
+      <span className="max-w-[90px] truncate text-[7px] text-[var(--text-secondary)]">
+        {label} running…
+      </span>
+    </div>
   );
 }
 
