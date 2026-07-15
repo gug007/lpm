@@ -54,7 +54,7 @@ export function ProjectsPanel({ projects, days }: ProjectsPanelProps) {
                 key={option.key}
                 type="button"
                 onClick={() => onSort(option.key, option.defaultDir)}
-                className={`flex items-center gap-0.5 rounded-md px-1 py-0.5 transition-colors duration-[120ms] ${
+                className={`flex items-center gap-0.5 rounded-md px-1 py-0.5 transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] ${
                   active
                     ? "text-[var(--text-primary)]"
                     : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
@@ -92,7 +92,7 @@ export function ProjectsPanel({ projects, days }: ProjectsPanelProps) {
                     }}
                   />
                 </span>
-                <span className="w-16 shrink-0 text-right tabular-nums text-[var(--text-muted)]">
+                <span className="w-20 shrink-0 whitespace-nowrap text-right tabular-nums text-[var(--text-muted)]">
                   {project.sessions} session{project.sessions === 1 ? "" : "s"}
                 </span>
                 <span className="w-14 shrink-0 text-right font-medium tabular-nums">
@@ -105,7 +105,7 @@ export function ProjectsPanel({ projects, days }: ProjectsPanelProps) {
             <button
               type="button"
               onClick={() => setExpanded((value) => !value)}
-              className="w-full border-t border-[var(--border)] px-4 py-2 text-[11px] font-medium text-[var(--text-muted)] transition-colors duration-[120ms] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              className="w-full border-t border-[var(--border)] px-4 py-2 text-[11px] font-medium text-[var(--text-muted)] transition-colors duration-[120ms] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent-blue)]"
             >
               {expanded ? "Show less" : `Show all (${projects.length})`}
             </button>

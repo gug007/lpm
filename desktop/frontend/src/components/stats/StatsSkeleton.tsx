@@ -1,15 +1,30 @@
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
 
-const BAR_HEIGHTS = [40, 62, 30, 78, 54, 88, 46, 70, 34, 60, 82, 50, 66, 44];
+const BAR_HEIGHTS = [
+  40, 62, 30, 78, 54, 88, 46, 70, 34, 60, 82, 50, 66, 44, 72, 38, 84, 48, 58, 90, 42, 68, 32, 76,
+  52, 64, 44, 80,
+];
 
-export function StatsSkeleton() {
+function barCount(days: number): number {
+  if (days === 1) return 1;
+  if (days === 0) return 28;
+  return days;
+}
+
+interface StatsSkeletonProps {
+  days: number;
+}
+
+export function StatsSkeleton({ days }: StatsSkeletonProps) {
   const reducedMotion = usePrefersReducedMotion();
   const pulse = reducedMotion ? "" : "animate-pulse";
   const block = "rounded bg-[var(--bg-hover)]";
+  const count = barCount(days);
+  const barWidth = count === 1 ? 48 : count <= 7 ? 32 : count <= 14 ? 22 : 14;
 
   return (
     <div className={`flex min-h-full flex-col space-y-4 pb-2 ${pulse}`}>
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map((_, index) => (
           <div
             key={index}
@@ -22,25 +37,35 @@ export function StatsSkeleton() {
         ))}
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1.55fr)_minmax(280px,0.9fr)] gap-3">
+      <div className="grid grid-cols-[minmax(0,1.55fr)_minmax(280px,0.9fr)] items-start gap-4">
         <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
           <div className={`h-4 w-32 ${block}`} />
-          <div className="relative mt-6 h-[150px]">
-            {[0, 0.5, 1].map((frac) => (
-              <div
-                key={frac}
-                className="absolute inset-x-0 border-t border-[var(--border)]/50"
-                style={{ top: `${(1 - frac) * 100}%` }}
-              />
-            ))}
-            <div className="absolute inset-0 flex items-end gap-[3px]">
-              {BAR_HEIGHTS.map((height, index) => (
+          <div className="mt-4 flex gap-2">
+            <div className="w-11 shrink-0" />
+            <div className="relative h-[150px] flex-1">
+              {[0, 0.5, 1].map((frac) => (
                 <div
-                  key={index}
-                  className={`mx-auto w-full max-w-[14px] ${block}`}
-                  style={{ height: `${height}%` }}
+                  key={frac}
+                  className="absolute inset-x-0 border-t border-[var(--border)]/50"
+                  style={{ top: `${(1 - frac) * 100}%` }}
                 />
               ))}
+              <div className="absolute inset-0 flex items-end">
+                {Array.from({ length: count }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="flex h-full min-w-0 flex-1 flex-col justify-end px-[2px]"
+                  >
+                    <div
+                      className={`mx-auto w-full ${block}`}
+                      style={{
+                        maxWidth: barWidth,
+                        height: `${BAR_HEIGHTS[index % BAR_HEIGHTS.length]}%`,
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -53,7 +78,7 @@ export function StatsSkeleton() {
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-2 gap-3">
+      <div className="grid min-h-0 flex-1 grid-cols-2 gap-4">
         {Array.from({ length: 2 }).map((_, panel) => (
           <div
             key={panel}

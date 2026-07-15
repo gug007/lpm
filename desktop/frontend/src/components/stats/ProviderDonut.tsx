@@ -100,7 +100,7 @@ export function ProviderDonut({ providers, total }: ProviderDonutProps) {
               key={provider.key}
               onMouseEnter={() => setHovered(provider.key)}
               onMouseLeave={() => setHovered(null)}
-              className="flex w-full items-center gap-2 rounded-md px-1 py-0.5 transition-opacity duration-[120ms]"
+              className="flex w-full items-center gap-2 rounded-md px-1 py-0.5 transition-[background-color,opacity] duration-[120ms] hover:bg-[var(--bg-hover)]"
               style={{ opacity: dim ? 0.4 : 1 }}
             >
               <span
@@ -112,7 +112,7 @@ export function ProviderDonut({ providers, total }: ProviderDonutProps) {
                   <span className="truncate text-xs font-medium text-[var(--text-primary)]">
                     {meta.label}
                   </span>
-                  <span className="shrink-0 text-xs tabular-nums text-[var(--text-secondary)]">
+                  <span className="shrink-0 text-xs font-medium tabular-nums text-[var(--text-primary)]">
                     {formatPercent(share)}
                   </span>
                 </span>

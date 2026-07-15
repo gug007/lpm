@@ -35,15 +35,18 @@ export function CompositionBar({ totals }: CompositionBarProps) {
         {segments.map((segment) => (
           <span
             key={segment.key}
-            className="group flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]"
+            title={formatTokenCount(segment.value)}
+            className="group flex cursor-help items-center gap-1.5 text-[11px] text-[var(--text-muted)]"
           >
             <span
               className="h-2 w-2 rounded-[2px]"
               style={{ backgroundColor: "var(--text-secondary)", opacity: RAMP[segment.key] }}
             />
             <span className="text-[var(--text-secondary)]">{segment.label}</span>
-            <span className="tabular-nums group-hover:hidden">{formatPercent(segment.pct)}</span>
-            <span className="hidden tabular-nums group-hover:inline">
+            <span className="tabular-nums text-[var(--text-secondary)] group-hover:hidden">
+              {formatPercent(segment.pct)}
+            </span>
+            <span className="hidden tabular-nums text-[var(--text-secondary)] group-hover:inline">
               {formatTokenCount(segment.value)}
             </span>
           </span>

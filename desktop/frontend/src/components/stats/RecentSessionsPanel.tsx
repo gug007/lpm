@@ -44,7 +44,7 @@ export function RecentSessionsPanel({ sessions, days }: RecentSessionsPanelProps
             <button
               type="button"
               onClick={() => setExpanded((value) => !value)}
-              className="w-full border-t border-[var(--border)] px-4 py-2 text-[11px] font-medium text-[var(--text-muted)] transition-colors duration-[120ms] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              className="w-full border-t border-[var(--border)] px-4 py-2 text-[11px] font-medium text-[var(--text-muted)] transition-colors duration-[120ms] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent-blue)]"
             >
               {expanded ? "Show less" : `Show all (${sessions.length})`}
             </button>

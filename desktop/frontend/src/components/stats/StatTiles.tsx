@@ -15,8 +15,6 @@ interface StatTilesProps {
   days: number;
 }
 
-const caption = "mt-2 text-[11px] text-[var(--text-muted)]";
-
 export function StatTiles({
   totals,
   sessions,
@@ -33,7 +31,7 @@ export function StatTiles({
   const singleDay = days === 1;
 
   return (
-    <div className="grid grid-cols-4 gap-3">
+    <div className="grid grid-cols-4 gap-4">
       <StatTile
         label="Total tokens"
         value={formatTokenCount(totals.totalTokens)}
@@ -43,9 +41,16 @@ export function StatTiles({
               title="Estimated at current public list prices, per model — cached reads and writes priced separately. OpenAI/Codex pricing is approximate."
               className="shrink-0 text-sm font-medium tabular-nums text-[var(--text-secondary)]"
             >
-              ≈ {formatUsd(cost)}
+              <span className="text-[var(--text-muted)]">≈</span> {formatUsd(cost)}
             </span>
           ) : undefined
+        }
+        caption={
+          singleDay
+            ? "so far today"
+            : peak
+              ? `peak ${formatTokenCount(peak.totalTokens)} · ${shortUsageDate(peak.date)}`
+              : undefined
         }
       >
         {!singleDay && daily.length > 0 && (
@@ -53,39 +58,36 @@ export function StatTiles({
             <Sparkline data={daily.map((day) => day.totalTokens)} />
           </div>
         )}
-        {singleDay ? (
-          <div className={caption}>so far today</div>
-        ) : peak ? (
-          <div className={caption}>
-            peak {formatTokenCount(peak.totalTokens)} · {shortUsageDate(peak.date)}
-          </div>
-        ) : null}
       </StatTile>
 
-      <StatTile label="Input" value={formatTokenCount(totals.inputTokens)}>
+      <StatTile
+        label="Input"
+        value={formatTokenCount(totals.inputTokens)}
+        caption={cache > 0 ? `${formatPercent(cache)} from cache` : "no cache"}
+      >
         {cache > 0 && (
-          <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-[var(--bg-active)]">
+          <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-[var(--bg-active)]">
             <div
               className="h-full rounded-full bg-[var(--accent-blue)]"
               style={{ width: `${Math.min(100, cache * 100)}%` }}
             />
           </div>
         )}
-        <div className={caption}>{cache > 0 ? `${formatPercent(cache)} from cache` : "no cache"}</div>
       </StatTile>
 
-      <StatTile label="Output" value={formatTokenCount(totals.outputTokens)}>
-        <div className={caption}>
-          {reasoning > 0 ? `${formatPercent(reasoning)} reasoning` : "no reasoning tokens"}
-        </div>
-      </StatTile>
+      <StatTile
+        label="Output"
+        value={formatTokenCount(totals.outputTokens)}
+        caption={reasoning > 0 ? `${formatPercent(reasoning)} reasoning` : "no reasoning tokens"}
+      />
 
-      <StatTile label="Sessions" value={sessions.toLocaleString()}>
-        <div className={caption}>
-          {projectCount} project{projectCount === 1 ? "" : "s"} · {modelCount} model
-          {modelCount === 1 ? "" : "s"}
-        </div>
-      </StatTile>
+      <StatTile
+        label="Sessions"
+        value={sessions.toLocaleString()}
+        caption={`${projectCount} project${projectCount === 1 ? "" : "s"} · ${modelCount} model${
+          modelCount === 1 ? "" : "s"
+        }`}
+      />
     </div>
   );
 }

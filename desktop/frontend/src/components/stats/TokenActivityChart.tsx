@@ -95,10 +95,10 @@ export function TokenActivityChart({ daily }: TokenActivityChartProps) {
                   key={key}
                   type="button"
                   onClick={() => toggleProvider(key)}
-                  className={`flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[11px] transition-colors duration-[120ms] ${
+                  className={`flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[11px] transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] ${
                     on
-                      ? "text-[var(--text-secondary)]"
-                      : "text-[var(--text-muted)] line-through"
+                      ? "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                      : "text-[var(--text-muted)] line-through hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
                   }`}
                 >
                   <span
@@ -117,7 +117,7 @@ export function TokenActivityChart({ daily }: TokenActivityChartProps) {
               key={option}
               type="button"
               onClick={() => setMode(option)}
-              className={`rounded-md px-2.5 py-1 text-[11px] font-medium capitalize transition-colors duration-[120ms] ${
+              className={`rounded-md px-2.5 py-1 text-[11px] font-medium capitalize transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] ${
                 mode === option
                   ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
                   : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
@@ -129,7 +129,7 @@ export function TokenActivityChart({ daily }: TokenActivityChartProps) {
         </div>
       </div>
 
-      <div className="mt-5 flex gap-2">
+      <div className="mt-4 flex gap-2">
         <div className="relative w-11 shrink-0" style={{ height: PLOT }}>
           {ticks.map((tick) => (
             <span
@@ -150,7 +150,7 @@ export function TokenActivityChart({ daily }: TokenActivityChartProps) {
           onMouseMove={onMouseMove}
           onMouseLeave={() => setCursor(null)}
           onKeyDown={onKeyDown}
-          className="relative flex-1 outline-none"
+          className="relative flex-1 rounded-md outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)]/50"
           style={{ height: PLOT }}
         >
           {ticks.map((tick) => (

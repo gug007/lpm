@@ -33,18 +33,18 @@ export function SessionRow({ session }: SessionRowProps) {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs transition-colors duration-[120ms] hover:bg-[var(--bg-hover)]"
+        className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs transition-colors duration-[120ms] hover:bg-[var(--bg-hover)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent-blue)]"
       >
         <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: meta.color }} />
         <span className="shrink-0 text-[var(--text-secondary)]">{meta.short}</span>
         <span className="min-w-0 flex-1 truncate font-medium">{session.project}</span>
         <span
-          className="max-w-[84px] shrink-0 truncate rounded bg-[var(--bg-active)] px-1.5 py-0.5 text-[10px] text-[var(--text-muted)]"
+          className="max-w-[84px] shrink-0 truncate rounded bg-[var(--bg-active)] px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)]"
           title={session.model}
         >
           {session.model}
         </span>
-        <span className="shrink-0 tabular-nums text-[var(--text-muted)]">
+        <span className="w-9 shrink-0 text-right tabular-nums text-[var(--text-muted)]">
           {formatDuration(session.lastAt - session.startedAt)}
         </span>
         <span className="w-10 shrink-0 text-right tabular-nums text-[var(--text-muted)]">

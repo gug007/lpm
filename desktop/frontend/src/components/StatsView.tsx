@@ -47,7 +47,7 @@ export function StatsView() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="app-drag flex items-center gap-4 -mx-3 py-1">
+      <div className="app-drag flex items-center gap-4 -mx-6 px-6 py-1">
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-semibold tracking-tight">Stats</h1>
           <p className="mt-0.5 text-xs text-[var(--text-muted)]">
@@ -64,7 +64,7 @@ export function StatsView() {
                   setDays(period.days);
                 }
               }}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] ${
                 days === period.days
                   ? "bg-[var(--bg-primary)] text-[var(--text-primary)] shadow-sm"
                   : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
@@ -78,7 +78,7 @@ export function StatsView() {
           onClick={() => void load()}
           disabled={loading}
           aria-label="Refresh stats"
-          className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--border)] text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
+          className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--border)] text-[var(--text-muted)] transition-colors duration-[120ms] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:opacity-50"
         >
           {loading ? <LoaderCircle size={14} className="animate-spin" /> : <RefreshCw size={14} />}
         </button>
@@ -90,14 +90,14 @@ export function StatsView() {
             <span>Could not load agent stats: {error}</span>
             <button
               onClick={() => void load()}
-              className="shrink-0 font-medium underline underline-offset-2 hover:no-underline"
+              className="shrink-0 rounded font-medium underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)]"
             >
               Try again
             </button>
           </div>
         )}
 
-        {!error && !stats && loading && <StatsSkeleton />}
+        {!error && !stats && loading && <StatsSkeleton days={days} />}
 
         {stats && (
           <div
@@ -138,19 +138,19 @@ export function StatsView() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-[minmax(0,1.55fr)_minmax(280px,0.9fr)] gap-3">
+                <div className="grid grid-cols-[minmax(0,1.55fr)_minmax(280px,0.9fr)] items-start gap-4">
                   <TokenActivityChart daily={chartDays} />
                   <BreakdownPanel providers={stats.providers} totals={stats.totals} />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   <ProjectsPanel projects={stats.projects} days={days} />
                   <RecentSessionsPanel sessions={stats.recentSessions} days={days} />
                 </div>
               </>
             )}
 
-            <div className="flex items-center justify-between px-1 text-[10px] text-[var(--text-muted)]">
+            <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)]">
               <span>Usage metadata stays on this Mac. Prompts and responses are not included.</span>
               <span>{totalFiles.toLocaleString()} local history files scanned · SSH projects excluded</span>
             </div>
