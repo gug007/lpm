@@ -92,7 +92,7 @@ export function DemoSection() {
     <section
       id="demo"
       aria-label="Live interactive demo"
-      className="scroll-mt-20 py-16 sm:py-20"
+      className="scroll-mt-20 pt-10 sm:pt-14 pb-16 sm:pb-20"
     >
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <SectionHeader

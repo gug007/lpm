@@ -20,7 +20,7 @@ export function HighlightPlatform() {
   }, [detected]);
 
   return (
-    <p className="text-xs text-indigo-500 dark:text-indigo-400 font-medium mb-6 min-h-[1em]">
+    <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-6 min-h-[1em]">
       {detected ? LABELS[detected] : ""}
     </p>
   );

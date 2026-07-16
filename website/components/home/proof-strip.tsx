@@ -3,6 +3,7 @@ import {
   formatCount,
   getDownloadStats,
 } from "@/lib/github-stats";
+import { REPO_URL } from "@/lib/links";
 
 function formatDownloads(n: number): string {
   if (n >= 1000) {
@@ -24,11 +25,21 @@ export async function ProofStrip() {
   if (stars !== null && stars >= 50) {
     parts.push(`${formatCount(stars)} GitHub stars`);
   }
-  parts.push("Free & open source");
 
   return (
     <p className="mt-6 text-[12px] text-gray-500 dark:text-gray-400 tracking-wide">
-      {parts.join(" · ")}
+      {parts.map((part) => (
+        <span key={part}>
+          {part}
+          <span aria-hidden="true"> · </span>
+        </span>
+      ))}
+      <a
+        href={REPO_URL}
+        className="underline decoration-gray-300 dark:decoration-gray-600 underline-offset-4 hover:text-gray-900 dark:hover:text-white hover:decoration-current transition-colors duration-200"
+      >
+        Free &amp; open source
+      </a>
     </p>
   );
 }

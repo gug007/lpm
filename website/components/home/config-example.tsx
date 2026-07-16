@@ -1,4 +1,5 @@
 import { ConfigPlayground } from "@/components/config/playground";
+import { SectionHeader } from "@/components/section-header";
 
 const HOME_EXAMPLE = `name: myapp
 root: ~/Projects/myapp
@@ -31,15 +32,14 @@ actions:
 
 export function ConfigExample() {
   return (
-    <section className="pb-20">
+    <section className="py-16 sm:py-20">
       <div className="max-w-3xl mx-auto px-6">
-        <h2 className="text-2xl sm:text-3xl font-bold text-center mb-3">
-          One config file. That&apos;s it.
-        </h2>
-        <p className="text-sm text-gray-400 dark:text-gray-500 text-center mb-8">
-          Define your services, group them into profiles, and add one-shot
-          actions. Edit below to see it live.
-        </p>
+        <SectionHeader
+          eyebrow="Config"
+          title="One config file. That's it."
+          description="Define your services, group them into profiles, and add one-shot actions. Edit below to see it live."
+          className="mb-10"
+        />
 
         <ConfigPlayground
           filename="~/.lpm/projects/myapp.yml"
@@ -47,31 +47,31 @@ export function ConfigExample() {
         />
 
         <div className="grid gap-3 sm:grid-cols-3 mt-4">
-          <div className="rounded-lg border border-gray-200 dark:border-gray-800 px-3.5 py-2.5">
-            <p className="text-[11px] font-medium text-gray-900 dark:text-gray-200 mb-0.5">
+          <div className="rounded-lg border border-gray-200 dark:border-gray-800 px-4 py-3">
+            <p className="text-xs font-semibold text-gray-900 dark:text-gray-200 mb-1">
               Services
             </p>
-            <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
               Long-running processes. Use string shorthand or full config with{" "}
               <code className="font-mono">cwd</code>,{" "}
               <code className="font-mono">port</code>,{" "}
               <code className="font-mono">env</code>.
             </p>
           </div>
-          <div className="rounded-lg border border-gray-200 dark:border-gray-800 px-3.5 py-2.5">
-            <p className="text-[11px] font-medium text-gray-900 dark:text-gray-200 mb-0.5">
+          <div className="rounded-lg border border-gray-200 dark:border-gray-800 px-4 py-3">
+            <p className="text-xs font-semibold text-gray-900 dark:text-gray-200 mb-1">
               Profiles
             </p>
-            <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
               Named groups of services. Pick a profile from the header and
               start only that subset.
             </p>
           </div>
-          <div className="rounded-lg border border-gray-200 dark:border-gray-800 px-3.5 py-2.5">
-            <p className="text-[11px] font-medium text-gray-900 dark:text-gray-200 mb-0.5">
+          <div className="rounded-lg border border-gray-200 dark:border-gray-800 px-4 py-3">
+            <p className="text-xs font-semibold text-gray-900 dark:text-gray-200 mb-1">
               Actions
             </p>
-            <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
               One-shot commands. Appear as buttons in the app — trigger tests,
               migrations, or deploys in one click.
             </p>

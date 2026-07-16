@@ -62,9 +62,9 @@ body {
 }
 .dl-card.recommended {
   box-shadow:
-    0 0 0 2px rgba(99, 102, 241, 0.5),
-    0 0 16px -2px rgba(99, 102, 241, 0.15);
-  border-color: rgb(99, 102, 241) !important;
+    0 0 0 2px rgba(16, 185, 129, 0.45),
+    0 0 16px -2px rgba(16, 185, 129, 0.15);
+  border-color: rgb(16, 185, 129) !important;
   position: relative;
 }
 .dl-card.recommended::before {
@@ -77,15 +77,15 @@ body {
   font-weight: 600;
   letter-spacing: 0.04em;
   color: white;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #10b981, #059669);
   padding: 1px 10px;
   border-radius: 9999px;
   white-space: nowrap;
 }
 .dl-card.recommended:hover {
   box-shadow:
-    0 0 0 2px rgba(99, 102, 241, 0.6),
-    0 0 24px -2px rgba(99, 102, 241, 0.25),
+    0 0 0 2px rgba(16, 185, 129, 0.55),
+    0 0 24px -2px rgba(16, 185, 129, 0.25),
     0 10px 25px -5px rgba(0, 0, 0, 0.08);
 }
 
@@ -237,5 +237,19 @@ body {
   }
   50% {
     opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-bounce-soft,
+  .animate-cta-breath,
+  .animate-icon-glow,
+  .start-ring-pulse,
+  .sidebar-shimmer,
+  .sidebar-waiting {
+    animation: none;
+  }
+  .dl-card:hover {
+    transform: none;
   }
 }

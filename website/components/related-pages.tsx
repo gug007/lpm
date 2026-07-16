@@ -16,7 +16,7 @@ export function RelatedPages({ links }: { links: RelatedLink[] }) {
         </h2>
         <div
           className={`grid gap-4 sm:grid-cols-2 ${
-            links.length >= 3 ? "lg:grid-cols-3" : ""
+            links.length % 3 === 0 ? "lg:grid-cols-3" : ""
           }`}
         >
           {links.map((link) => (

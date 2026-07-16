@@ -104,7 +104,7 @@ const FEATURES: Feature[] = [
 
 export function Features() {
   return (
-    <section className="py-20 sm:py-24">
+    <section className="py-16 sm:py-20">
       <div className="max-w-3xl mx-auto px-6">
         <SectionHeader
           eyebrow="What you get"
