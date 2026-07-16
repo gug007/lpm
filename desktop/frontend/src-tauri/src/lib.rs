@@ -15,6 +15,7 @@ mod files;
 mod generated_commands;
 mod git;
 mod hooks;
+mod jobs;
 mod log_streaming;
 mod mainwindow;
 mod menu;
@@ -68,6 +69,7 @@ use detached::*;
 use files::*;
 use git::*;
 use hooks::*;
+use jobs::*;
 use log_streaming::*;
 use message_history::*;
 use notes_cmds::*;
@@ -118,6 +120,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(pty::PtyState::default())
         .manage(services::ServiceState::default())
         .manage(log_streaming::LogState::default())
@@ -203,6 +206,10 @@ pub fn run() {
             // (the window may be hidden). The Sidebar also pulls on mount, so the
             // launch notification never depends on the startup emit's timing.
             updates::start_auto_check(handle.clone());
+
+            // Scheduled-jobs runner: a wall-clock tick that fires per-project
+            // jobs on their schedule. Same sleep-survival model as the updater.
+            jobs::start_scheduler(handle.clone());
 
             // Backgrounded startup chores: reap stale clipboard image temp files,
             // drop sync caches for deleted projects, and resume port pollers for
