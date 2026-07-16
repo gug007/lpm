@@ -32,7 +32,7 @@ export function SectionHeader({
         {title}
       </As>
       {description && (
-        <p className="mt-3 text-sm sm:text-base text-gray-400 dark:text-gray-500 max-w-lg mx-auto leading-relaxed">
+        <p className="mt-3 text-sm sm:text-base text-gray-500 dark:text-gray-400 max-w-lg mx-auto leading-relaxed">
           {description}
         </p>
       )}

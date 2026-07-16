@@ -501,6 +501,10 @@ struct ActiveRun {
     started_at: u64,
     #[serde(rename = "logPath")]
     log_path: String,
+    /// Which agent CLI is writing the log — how a salvaged or live-tailed log
+    /// gets read. None for plain command runs (and records from older builds).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    agent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     copy: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -837,13 +841,15 @@ fn agent_prompt_cmdline(agent: &str, model: &str, effort: &str, full_access: boo
                 if full_access { " --dangerously-bypass-approvals-and-sandbox" } else { "" };
             format!("codex exec{model_arg}{effort_arg}{access_arg} {q}")
         }
-        // Gemini/OpenCode have no effort control.
+        // Gemini/OpenCode have no effort control. Gemini's json output mode
+        // wraps the final message in a `response` field the feed can extract,
+        // instead of whatever banners the CLI prints around it.
         "gemini" => {
             let access_arg = if full_access { " --yolo" } else { "" };
             if model.is_empty() {
-                format!("gemini{access_arg} -p {q}")
+                format!("gemini{access_arg} -o json -p {q}")
             } else {
-                format!("gemini{access_arg} -m {m} -p {q}")
+                format!("gemini{access_arg} -o json -m {m} -p {q}")
             }
         }
         // OpenCode runs tools without prompting in its non-interactive mode, so
@@ -879,7 +885,12 @@ fn claude_cmdline(
     let model_arg = if model.is_empty() { String::new() } else { format!(" --model {m}") };
     let effort_arg = if effort.is_empty() { String::new() } else { format!(" --effort {e}") };
     let access_arg = if full_access { " --dangerously-skip-permissions" } else { "" };
-    format!("claude{resume_arg}{model_arg}{effort_arg}{access_arg} -p --output-format json {q}")
+    // stream-json (which requires --verbose in print mode) writes an event per
+    // message as the run progresses, so the log can be tailed live; its final
+    // `result` event carries the same fields the plain json mode did.
+    format!(
+        "claude{resume_arg}{model_arg}{effort_arg}{access_arg} -p --verbose --output-format stream-json {q}"
+    )
 }
 
 /// Claude's json output mode wraps the final message in a single-line JSON
@@ -914,6 +925,129 @@ fn extract_result(raw: &str) -> Option<(String, Option<String>, Option<f64>)> {
         }
     }
     None
+}
+
+/// Where Codex writes its final message: a sidecar next to the run's log,
+/// named via `--output-last-message` so the feed doesn't have to parse the
+/// human-oriented log Codex prints.
+fn last_message_path(log_path: &Path) -> PathBuf {
+    log_path.with_extension("last")
+}
+
+fn extract_codex(log_path: &Path) -> Option<(String, Option<String>, Option<f64>)> {
+    let msg = std::fs::read_to_string(last_message_path(log_path)).ok()?;
+    let msg = msg.trim();
+    if msg.is_empty() {
+        return None;
+    }
+    Some((msg.to_string(), None, None))
+}
+
+/// Gemini's json output mode prints one (pretty-printed, multi-line) object
+/// with the message under `response`; credential banners and warnings can
+/// precede it. Parse from the last line that opens an object, tolerating
+/// trailing noise.
+fn extract_gemini(raw: &str) -> Option<(String, Option<String>, Option<f64>)> {
+    let mut opens: Vec<usize> = Vec::new();
+    let mut pos = 0;
+    for line in raw.split_inclusive('\n') {
+        if line.trim_start().starts_with('{') {
+            opens.push(pos + (line.len() - line.trim_start().len()));
+        }
+        pos += line.len();
+    }
+    for &off in opens.iter().rev() {
+        let mut stream = serde_json::Deserializer::from_str(&raw[off..]).into_iter::<Value>();
+        if let Some(Ok(v)) = stream.next() {
+            if let Some(resp) = v
+                .get("response")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+            {
+                return Some((resp.to_string(), None, None));
+            }
+        }
+    }
+    None
+}
+
+/// The agent's clean final message (plus session/cost when it reports them),
+/// by whatever contract that agent's headless mode offers. None means the raw
+/// log is all there is.
+fn extract_output(
+    agent: Option<&str>,
+    raw: &str,
+    log_path: &Path,
+) -> Option<(String, Option<String>, Option<f64>)> {
+    match agent {
+        Some("codex") => extract_codex(log_path),
+        Some("gemini") => extract_gemini(raw),
+        Some("opencode") => None,
+        // Claude — and legacy records that predate the agent field.
+        _ => extract_result(raw),
+    }
+}
+
+/// A Claude stream-json log rendered as a readable activity feed: the agent's
+/// message text as it lands, one `→ Tool` line per tool call. Lines that
+/// aren't JSON (stderr, hook output) pass through verbatim — they're why a
+/// run failed; a JSON-shaped line that doesn't parse is a partial write and
+/// is dropped.
+fn render_claude_stream(raw: &str) -> Option<String> {
+    let mut out = String::new();
+    let mut push_line = |s: &str| {
+        if !out.is_empty() {
+            out.push('\n');
+        }
+        out.push_str(s);
+    };
+    for line in raw.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if !line.starts_with('{') {
+            push_line(line);
+            continue;
+        }
+        let Ok(v) = serde_json::from_str::<Value>(line) else { continue };
+        if v.get("type").and_then(Value::as_str) != Some("assistant") {
+            continue;
+        }
+        let blocks = v.pointer("/message/content").and_then(Value::as_array);
+        for block in blocks.into_iter().flatten() {
+            match block.get("type").and_then(Value::as_str) {
+                Some("text") => {
+                    if let Some(t) =
+                        block.get("text").and_then(Value::as_str).map(str::trim).filter(|t| !t.is_empty())
+                    {
+                        push_line(t);
+                    }
+                }
+                Some("tool_use") => {
+                    if let Some(name) = block.get("name").and_then(Value::as_str) {
+                        push_line(&format!("→ {name}"));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    let out = out.trim().to_string();
+    (!out.is_empty()).then_some(out)
+}
+
+/// What the feed stores when there is no clean final message: Claude's stream
+/// log renders to a readable trace; anything else keeps its raw tail
+/// (failures live at the end).
+fn fallback_output(agent: Option<&str>, raw: &str) -> String {
+    match agent {
+        Some("claude") => {
+            render_claude_stream(raw).map_or_else(|| tail_chars(raw, OUTPUT_CAP_CHARS), |r| tail_chars(&r, OUTPUT_CAP_CHARS))
+        }
+        _ => tail_chars(raw, OUTPUT_CAP_CHARS),
+    }
 }
 
 fn hit_context_limit(output: Option<&str>) -> bool {
@@ -981,26 +1115,33 @@ fn digest_of(entries: &[&HistoryEntry]) -> String {
 }
 
 /// Drop the entry at `at` — or, for `whole_thread`, the entire conversation it
-/// belongs to. Returns false when no such entry exists.
-fn remove_history_entries(history: &mut Vec<HistoryEntry>, at: u64, whole_thread: bool) -> bool {
+/// belongs to. Returns what was removed (empty when no such entry exists).
+fn remove_history_entries(
+    history: &mut Vec<HistoryEntry>,
+    at: u64,
+    whole_thread: bool,
+) -> Vec<HistoryEntry> {
     let Some(pos) = history.iter().position(|e| e.at == at) else {
-        return false;
+        return Vec::new();
     };
     if !whole_thread {
-        history.remove(pos);
-        return true;
+        return vec![history.remove(pos)];
     }
     let Some(group) = thread_groups(history).into_iter().find(|g| g.contains(&pos)) else {
-        return false;
+        return Vec::new();
     };
     let doomed: HashSet<usize> = group.into_iter().collect();
+    let mut removed = Vec::new();
     let mut i = 0;
-    history.retain(|_| {
+    history.retain(|e| {
         let keep = !doomed.contains(&i);
+        if !keep {
+            removed.push(e.clone());
+        }
         i += 1;
         keep
     });
-    true
+    removed
 }
 
 fn digest_prompt(digest: &str, message: &str) -> String {
@@ -1017,6 +1158,30 @@ fn tail_chars(s: &str, max: usize) -> String {
         return s.trim_end().to_string();
     }
     s.chars().skip(count - max).collect::<String>().trim_end().to_string()
+}
+
+/// The last `max_bytes` of a file, starting at a line boundary so a chopped
+/// first line (or a split UTF-8 character) can't garble what follows. Reading
+/// the whole log every poll would make a chatty run's tail cost megabytes.
+fn read_log_tail(path: &Path, max_bytes: u64) -> String {
+    use std::io::{Read, Seek, SeekFrom};
+    let Ok(mut f) = std::fs::File::open(path) else {
+        return String::new();
+    };
+    let len = f.metadata().map(|m| m.len()).unwrap_or(0);
+    let skip = len.saturating_sub(max_bytes);
+    if f.seek(SeekFrom::Start(skip)).is_err() {
+        return String::new();
+    }
+    let mut buf = Vec::new();
+    if f.read_to_end(&mut buf).is_err() {
+        return String::new();
+    }
+    let mut s = String::from_utf8_lossy(&buf).into_owned();
+    if skip > 0 {
+        s = s.split_once('\n').map(|(_, rest)| rest.to_string()).unwrap_or_default();
+    }
+    s
 }
 
 /// An agent's final message reads top-down, so when it exceeds the cap keep the
@@ -1039,6 +1204,9 @@ fn head_chars(s: &str, max: usize) -> String {
 /// that starts condensed (its primary already carries a digest).
 struct CaptureSpec {
     cmdline: String,
+    /// Which agent CLI the command runs (None for a plain `cmd` job) — it
+    /// decides how the log is read back into a clean message.
+    agent: Option<String>,
     copy: Option<String>,
     question: Option<String>,
     resumed: Option<String>,
@@ -1048,9 +1216,10 @@ struct CaptureSpec {
 }
 
 impl CaptureSpec {
-    fn run(cmdline: String, copy: Option<String>) -> Self {
+    fn run(cmdline: String, agent: Option<String>, copy: Option<String>) -> Self {
         CaptureSpec {
             cmdline,
+            agent,
             copy,
             question: None,
             resumed: None,
@@ -1069,28 +1238,29 @@ fn reap_run(
     key: &str,
     log_path: &Path,
     is_reply: bool,
+    agent: Option<&str>,
 ) -> (&'static str, Option<String>, Option<String>, Option<f64>) {
     let verdict = wait_or_kill(child, std::time::Instant::now() + RUN_TIMEOUT, Some(key));
     let canceled = take_canceled(key);
+    let raw = std::fs::read_to_string(log_path).unwrap_or_default();
     let mut session = None;
     let mut cost = None;
-    let output = std::fs::read_to_string(log_path)
-        .ok()
-        .map(|s| match extract_result(&s) {
-            Some((msg, sid, c)) => {
-                session = sid;
-                cost = c;
-                head_chars(&msg, OUTPUT_CAP_CHARS)
-            }
-            None => tail_chars(&s, OUTPUT_CAP_CHARS),
-        })
-        .filter(|s| !s.is_empty());
+    let output = match extract_output(agent, &raw, log_path) {
+        Some((msg, sid, c)) => {
+            session = sid;
+            cost = c;
+            Some(head_chars(&msg, OUTPUT_CAP_CHARS))
+        }
+        None => Some(fallback_output(agent, &raw)).filter(|s| !s.is_empty()),
+    };
     let result = match verdict {
         Ok(WaitVerdict::Canceled) => CANCELED,
         _ if canceled => CANCELED,
         Ok(WaitVerdict::TimedOut) => TIMED_OUT,
         Ok(WaitVerdict::Exited(true)) => COMPLETED,
-        _ if is_reply && hit_context_limit(output.as_deref()) => CONTEXT_FULL,
+        // The limit error can land on stderr outside the rendered message, so
+        // the raw log is what's checked.
+        _ if is_reply && hit_context_limit(Some(&raw)) => CONTEXT_FULL,
         _ => ERROR,
     };
     (result, output, session, cost)
@@ -1104,13 +1274,27 @@ fn captured_shell_line(cmdline: &str, log_path: &Path) -> String {
 /// ~/.lpm/job-logs; a watcher thread reaps the exit off the job lock and
 /// records a completion entry with the output tail, so the run's result is
 /// reviewable from the Scheduled view instead of vanishing.
+/// Codex won't repeat its final message anywhere parseable in the log, but it
+/// will write it to a file on request — point it at the run's sidecar.
+fn capture_cmdline(agent: Option<&str>, cmdline: &str, log_path: &Path) -> String {
+    match agent {
+        Some("codex") => format!(
+            "{cmdline} --output-last-message {}",
+            config::shell_quote(&last_message_path(log_path).to_string_lossy())
+        ),
+        _ => cmdline.to_string(),
+    }
+}
+
 fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> Dispatch {
     let logs = config::lpm_dir().join("job-logs");
     if std::fs::create_dir_all(&logs).is_err() {
         return Dispatch::Error;
     }
-    let CaptureSpec { cmdline, copy, question, resumed, follows, fallback, compacted } = spec;
+    let CaptureSpec { cmdline, agent, copy, question, resumed, follows, fallback, compacted } =
+        spec;
     let log_path = logs.join(format!("{}-{}.log", key.replace('/', "_"), now_secs()));
+    let cmdline = capture_cmdline(agent.as_deref(), &cmdline, &log_path);
     match shell_command(root, &captured_shell_line(&cmdline, &log_path)).spawn() {
         Ok(mut child) => {
             let started = now_secs();
@@ -1120,6 +1304,7 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                     pid: child.id() as i32,
                     started_at: started,
                     log_path: log_path.to_string_lossy().into_owned(),
+                    agent: agent.clone(),
                     copy: copy.clone(),
                     question: question.clone(),
                     resumed: resumed.clone(),
@@ -1134,7 +1319,7 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
             std::thread::spawn(move || {
                 let is_reply = question.is_some();
                 let (mut result, mut output, mut session, mut cost) =
-                    reap_run(&mut child, &key2, &log_path, is_reply);
+                    reap_run(&mut child, &key2, &log_path, is_reply, agent.as_deref());
                 let mut compacted = compacted;
                 // The session had no room left: retry once as a fresh session
                 // seeded with the thread's condensed transcript. The key stays
@@ -1158,7 +1343,7 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                                 }
                             });
                             (result, output, session, cost) =
-                                reap_run(&mut retry, &key2, &log2, true);
+                                reap_run(&mut retry, &key2, &log2, true, agent.as_deref());
                             compacted = true;
                         }
                     }
@@ -1207,7 +1392,7 @@ fn dispatch_run(app: &AppHandle, key: &str, target: &str, job: &JobResolved) -> 
                 Ok((r, false)) if !r.is_empty() => r,
                 _ => return Dispatch::Error,
             };
-            spawn_captured(app, key, &root, CaptureSpec::run(cmd.clone(), copy))
+            spawn_captured(app, key, &root, CaptureSpec::run(cmd.clone(), None, copy))
         }
         RunTarget::Action(id) => {
             let terminal = config::resolve_action_full(target, id)
@@ -1244,6 +1429,7 @@ fn dispatch_run(app: &AppHandle, key: &str, target: &str, job: &JobResolved) -> 
                 &root,
                 CaptureSpec::run(
                     agent_prompt_cmdline(&agent, model, effort, *full_access, prompt),
+                    Some(agent),
                     copy,
                 ),
             )
@@ -1485,14 +1671,15 @@ fn orphan_entry(
     let mut session = None;
     let mut cost = None;
     let mut finished_cleanly = false;
-    let output = match extract_result(log) {
+    let agent = run.agent.as_deref();
+    let output = match extract_output(agent, log, Path::new(&run.log_path)) {
         Some((msg, sid, c)) => {
             session = sid;
             cost = c;
             finished_cleanly = true;
             Some(head_chars(&msg, OUTPUT_CAP_CHARS))
         }
-        None => Some(tail_chars(log, OUTPUT_CAP_CHARS)).filter(|s| !s.is_empty()),
+        None => Some(fallback_output(agent, log)).filter(|s| !s.is_empty()),
     };
     let result = if canceled {
         CANCELED
@@ -1891,6 +2078,7 @@ pub fn send_job_followup(
     let spec = match resume {
         Some(sid) => CaptureSpec {
             cmdline: claude_cmdline(Some(&sid), &model, &effort, full_access, &message),
+            agent: Some(agent),
             copy: tail.copy.clone(),
             question: Some(message),
             resumed: Some(sid),
@@ -1900,6 +2088,7 @@ pub fn send_job_followup(
         },
         None => CaptureSpec {
             cmdline: agent_prompt_cmdline(&agent, &model, &effort, full_access, &condensed),
+            agent: Some(agent),
             copy: tail.copy.clone(),
             question: Some(message),
             resumed: None,
@@ -1917,48 +2106,132 @@ pub fn send_job_followup(
     }
 }
 
+/// The duplicate project names a set of history entries worked in, each once.
+fn copies_of(entries: &[HistoryEntry]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for e in entries {
+        if let Some(c) = &e.copy {
+            if !out.contains(c) {
+                out.push(c.clone());
+            }
+        }
+    }
+    out
+}
+
+/// Delete a job-made copy alongside its history: only ever a duplicate (an
+/// original can share a name with a stale record, but never gets torn down),
+/// only while it still exists, and never the project the job belongs to.
+fn remove_job_copy(app: &AppHandle, project: &str, copy: &str) -> Result<(), String> {
+    if copy == project || !config::project_exists(copy) {
+        return Ok(());
+    }
+    if config::peek_parent(copy).is_none() {
+        return Ok(());
+    }
+    crate::projects_crud::remove_project(app.clone(), copy.to_string())
+        .map_err(|e| format!("The run's copy \"{copy}\" couldn't be removed: {e}"))
+}
+
+fn remove_job_copies(app: &AppHandle, project: &str, copies: &[String]) -> Result<(), String> {
+    let mut first_err = None;
+    for copy in copies {
+        if let Err(e) = remove_job_copy(app, project, copy) {
+            first_err.get_or_insert(e);
+        }
+    }
+    match first_err {
+        Some(e) => Err(e),
+        None => Ok(()),
+    }
+}
+
 /// Remove one message from a job's feed — or, with `thread`, the whole
-/// conversation it belongs to.
+/// conversation it belongs to. With `delete_copies`, the duplicate projects
+/// those runs worked in are torn down too, so reviewed copies don't pile up.
 #[tauri::command(async)]
 pub fn delete_job_history(
+    app: AppHandle,
     project: String,
     job_id: String,
     at: u64,
     thread: bool,
+    delete_copies: bool,
 ) -> Result<(), String> {
-    with_state(|f| {
-        if let Some(st) = f.jobs.get_mut(&state_key(&project, &job_id)) {
-            remove_history_entries(&mut st.history, at, thread);
-        }
-    })
+    // A live run may be working inside the very copy on the block — the UI
+    // disables removal while running, but the run could have started since.
+    if delete_copies && running_since(&state_key(&project, &job_id)).is_some() {
+        return Err("This job is running — wait for it to finish.".into());
+    }
+    let removed = with_state(|f| {
+        f.jobs
+            .get_mut(&state_key(&project, &job_id))
+            .map(|st| remove_history_entries(&mut st.history, at, thread))
+            .unwrap_or_default()
+    })?;
+    if delete_copies {
+        remove_job_copies(&app, &project, &copies_of(&removed))?;
+    }
+    Ok(())
 }
 
 /// Forget a deleted job's saved state — run history, pause override, pending
 /// work — so re-creating the same id later starts clean instead of inheriting
-/// the old job's past.
+/// the old job's past. With `delete_copies`, duplicates its runs made and left
+/// behind go too.
 #[tauri::command(async)]
-pub fn clear_job_state(project: String, job_id: String) -> Result<(), String> {
-    with_state(|f| {
-        f.jobs.remove(&state_key(&project, &job_id));
-    })
+pub fn clear_job_state(
+    app: AppHandle,
+    project: String,
+    job_id: String,
+    delete_copies: bool,
+) -> Result<(), String> {
+    let removed = with_state(|f| f.jobs.remove(&state_key(&project, &job_id)))?;
+    if delete_copies {
+        if let Some(st) = removed {
+            remove_job_copies(&app, &project, &copies_of(&st.history))?;
+        }
+    }
+    Ok(())
 }
 
 /// The same, for a deleted all-projects job: drop its state in every project
 /// where no other config layer still defines that id — a project or repo job
-/// wearing the same id keeps its history.
+/// wearing the same id keeps its history (and its copies).
 #[tauri::command(async)]
-pub fn clear_job_state_global(job_id: String) -> Result<(), String> {
+pub fn clear_job_state_global(
+    app: AppHandle,
+    job_id: String,
+    delete_copies: bool,
+) -> Result<(), String> {
     let suffix = format!("/{job_id}");
     let keep: HashSet<String> = config::project_names()
         .into_iter()
         .filter(|p| resolve_jobs(p).iter().any(|(id, _, _)| *id == job_id))
         .collect();
-    with_state(|f| {
-        f.jobs.retain(|key, _| match key.strip_suffix(&suffix) {
-            Some(project) => keep.contains(project),
-            None => true,
+    let removed = with_state(|f| {
+        let mut dropped: Vec<(String, JobState)> = Vec::new();
+        f.jobs.retain(|key, st| match key.strip_suffix(&suffix) {
+            Some(project) if !keep.contains(project) => {
+                dropped.push((project.to_string(), st.clone()));
+                false
+            }
+            _ => true,
         });
-    })
+        dropped
+    })?;
+    if delete_copies {
+        let mut first_err = None;
+        for (project, st) in removed {
+            if let Err(e) = remove_job_copies(&app, &project, &copies_of(&st.history)) {
+                first_err.get_or_insert(e);
+            }
+        }
+        if let Some(e) = first_err {
+            return Err(e);
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command(async)]
@@ -2008,6 +2281,29 @@ pub fn drain_pending_job_tasks(app: AppHandle) -> Result<(), String> {
         emit_status(&app, project, job_id, FOUND_WORK, &copy);
     }
     Ok(())
+}
+
+const LIVE_TAIL_CHARS: usize = 4_000;
+const LIVE_READ_BYTES: u64 = 256 * 1024;
+
+/// What the job's current run has said so far — the tail of its live log,
+/// rendered readable — for the run pages to poll while it works. Null when
+/// nothing is being captured (idle, or still in the check/duplicate phase).
+#[tauri::command(async)]
+pub fn job_live_output(project: String, job_id: String) -> Result<Value, String> {
+    let st = load_job_state(&state_key(&project, &job_id));
+    let Some(run) = st.active_run else {
+        return Ok(Value::Null);
+    };
+    let raw = read_log_tail(Path::new(&run.log_path), LIVE_READ_BYTES);
+    let text = match run.agent.as_deref() {
+        Some("claude") => render_claude_stream(&raw).unwrap_or_default(),
+        _ => raw,
+    };
+    Ok(json!({
+        "startedAt": run.started_at,
+        "text": tail_chars(&text, LIVE_TAIL_CHARS),
+    }))
 }
 
 #[tauri::command(async)]
@@ -2364,6 +2660,7 @@ mod tests {
             pid: 0,
             started_at: 100,
             log_path: String::new(),
+            agent: None,
             copy: Some("proj-abc".into()),
             question: None,
             resumed: None,
@@ -2414,15 +2711,15 @@ mod tests {
     fn agent_cmdlines_run_headless() {
         assert_eq!(
             agent_prompt_cmdline("claude", "", "", false, "fix it"),
-            "claude -p --output-format json 'fix it'"
+            "claude -p --verbose --output-format stream-json 'fix it'"
         );
         assert_eq!(
             agent_prompt_cmdline("claude", "opus", "", false, "fix it"),
-            "claude --model 'opus' -p --output-format json 'fix it'"
+            "claude --model 'opus' -p --verbose --output-format stream-json 'fix it'"
         );
         assert_eq!(
             agent_prompt_cmdline("claude", "opus", "high", false, "fix it"),
-            "claude --model 'opus' --effort 'high' -p --output-format json 'fix it'"
+            "claude --model 'opus' --effort 'high' -p --verbose --output-format stream-json 'fix it'"
         );
         assert_eq!(
             agent_prompt_cmdline("codex", "gpt-5.6-sol", "", false, "fix"),
@@ -2434,9 +2731,9 @@ mod tests {
         );
         assert_eq!(
             agent_prompt_cmdline("claude", "", "max", false, "fix it"),
-            "claude --effort 'max' -p --output-format json 'fix it'"
+            "claude --effort 'max' -p --verbose --output-format stream-json 'fix it'"
         );
-        assert_eq!(agent_prompt_cmdline("gemini", "", "", false, "fix"), "gemini -p 'fix'");
+        assert_eq!(agent_prompt_cmdline("gemini", "", "", false, "fix"), "gemini -o json -p 'fix'");
         assert_eq!(agent_prompt_cmdline("opencode", "", "", false, "fix"), "opencode run 'fix'");
     }
 
@@ -2444,17 +2741,20 @@ mod tests {
     fn full_access_cmdlines_grant_unattended_mode() {
         assert_eq!(
             agent_prompt_cmdline("claude", "", "", true, "fix it"),
-            "claude --dangerously-skip-permissions -p --output-format json 'fix it'"
+            "claude --dangerously-skip-permissions -p --verbose --output-format stream-json 'fix it'"
         );
         assert_eq!(
             agent_prompt_cmdline("claude", "haiku", "low", true, "fix it"),
-            "claude --model 'haiku' --effort 'low' --dangerously-skip-permissions -p --output-format json 'fix it'"
+            "claude --model 'haiku' --effort 'low' --dangerously-skip-permissions -p --verbose --output-format stream-json 'fix it'"
         );
         assert_eq!(
             agent_prompt_cmdline("codex", "", "", true, "fix"),
             "codex exec --dangerously-bypass-approvals-and-sandbox 'fix'"
         );
-        assert_eq!(agent_prompt_cmdline("gemini", "", "", true, "fix"), "gemini --yolo -p 'fix'");
+        assert_eq!(
+            agent_prompt_cmdline("gemini", "", "", true, "fix"),
+            "gemini --yolo -o json -p 'fix'"
+        );
         assert_eq!(agent_prompt_cmdline("opencode", "", "", true, "fix"), "opencode run 'fix'");
     }
 
@@ -2496,15 +2796,91 @@ mod tests {
     }
 
     #[test]
+    fn gemini_json_output_extraction() {
+        // Pretty-printed response object after credential noise, with trailing
+        // chatter — the response text comes out clean.
+        let raw = "Loaded cached credentials.\n{\n  \"response\": \"All deps current.\",\n  \"stats\": {\n    \"models\": {}\n  }\n}\ntrailing note";
+        let (text, session, cost) = extract_gemini(raw).unwrap();
+        assert_eq!(text, "All deps current.");
+        assert_eq!(session, None);
+        assert_eq!(cost, None);
+        // Single-line form works too, and the last object wins.
+        let raw = "{\"response\":\"old\"}\n{\"response\":\"new\"}";
+        assert_eq!(extract_gemini(raw).unwrap().0, "new");
+        // No response object → nothing extracted, the raw tail stands.
+        assert_eq!(extract_gemini("plain failure text"), None);
+        assert_eq!(extract_gemini("{\"error\":\"quota\"}"), None);
+        assert_eq!(extract_gemini("{\"response\":\"\"}"), None);
+    }
+
+    #[test]
+    fn codex_sidecar_extraction_reads_the_last_message() {
+        let dir = std::env::temp_dir().join(format!("lpm-jobs-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let log = dir.join("run.log");
+        assert_eq!(extract_codex(&log), None, "no sidecar yet");
+        std::fs::write(last_message_path(&log), "  Fixed the flaky test.\n").unwrap();
+        assert_eq!(extract_codex(&log).unwrap().0, "Fixed the flaky test.");
+        std::fs::write(last_message_path(&log), "   \n").unwrap();
+        assert_eq!(extract_codex(&log), None, "an empty sidecar is no message");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn claude_stream_renders_readably() {
+        let raw = concat!(
+            "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s\"}\n",
+            "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Looking at the tests.\"}]}}\n",
+            "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{}}]}}\n",
+            "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"huge dump\"}]}}\n",
+            "hook: Stop\n",
+            "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Done.\"}]}}\n",
+            "{\"type\":\"assistant\",\"mess", // partial write of the next event
+        );
+        let got = render_claude_stream(raw).unwrap();
+        assert_eq!(got, "Looking at the tests.\n→ Bash\nhook: Stop\nDone.");
+        assert_eq!(render_claude_stream(""), None);
+        // A log with only unparseable JSON renders to nothing → raw tail wins.
+        assert_eq!(render_claude_stream("{\"type\":\"user\",\"message\":{}}"), None);
+        // Plain stderr (an API failure) is kept — it's why the run died.
+        assert_eq!(render_claude_stream("API Error: overloaded").unwrap(), "API Error: overloaded");
+    }
+
+    #[test]
+    fn log_tail_reads_from_a_line_boundary() {
+        let dir = std::env::temp_dir().join(format!("lpm-jobs-tail-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("t.log");
+        std::fs::write(&path, "first line\nsecond line\nthird line\n").unwrap();
+        assert_eq!(read_log_tail(&path, 1024), "first line\nsecond line\nthird line\n");
+        // A capped read drops the chopped first line instead of garbling it.
+        assert_eq!(read_log_tail(&path, 17), "third line\n");
+        assert_eq!(read_log_tail(&dir.join("missing.log"), 64), "");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn resume_cmdline_continues_the_session() {
         assert_eq!(
             claude_cmdline(Some("abc-123"), "", "", true, "yes, proceed"),
-            "claude --resume 'abc-123' --dangerously-skip-permissions -p --output-format json 'yes, proceed'"
+            "claude --resume 'abc-123' --dangerously-skip-permissions -p --verbose --output-format stream-json 'yes, proceed'"
         );
         assert_eq!(
             claude_cmdline(Some("abc-123"), "haiku", "low", false, "why?"),
-            "claude --resume 'abc-123' --model 'haiku' --effort 'low' -p --output-format json 'why?'"
+            "claude --resume 'abc-123' --model 'haiku' --effort 'low' -p --verbose --output-format stream-json 'why?'"
         );
+    }
+
+    #[test]
+    fn codex_runs_write_a_last_message_sidecar() {
+        let log = Path::new("/tmp/logs/proj_job-5.log");
+        assert_eq!(
+            capture_cmdline(Some("codex"), "codex exec 'fix'", log),
+            "codex exec 'fix' --output-last-message '/tmp/logs/proj_job-5.last'"
+        );
+        // Every other runner's command line passes through untouched.
+        assert_eq!(capture_cmdline(Some("claude"), "claude -p 'x'", log), "claude -p 'x'");
+        assert_eq!(capture_cmdline(None, "make build", log), "make build");
     }
 
     fn entry(
@@ -2579,13 +2955,34 @@ mod tests {
         assert_eq!(groups, vec![vec![0, 2, 3], vec![1]]);
 
         // Deleting one reply keeps the rest of the thread.
-        assert!(remove_history_entries(&mut history, 4, false));
+        let removed = remove_history_entries(&mut history, 4, false);
+        assert_eq!(removed.iter().map(|e| e.at).collect::<Vec<_>>(), [4]);
         assert_eq!(thread_groups(&history), vec![vec![0, 2], vec![1]]);
-        // Deleting the root with `thread` removes the whole conversation.
-        assert!(remove_history_entries(&mut history, 1, true));
+        // Deleting the root with `thread` removes the whole conversation and
+        // hands back its entries — where copy cleanup finds its targets.
+        let removed = remove_history_entries(&mut history, 1, true);
+        assert_eq!(removed.iter().map(|e| e.at).collect::<Vec<_>>(), [1, 3]);
         assert_eq!(history.len(), 1);
         assert_eq!(history[0].at, 2);
-        assert!(!remove_history_entries(&mut history, 99, true));
+        assert!(remove_history_entries(&mut history, 99, true).is_empty());
+    }
+
+    #[test]
+    fn copies_dedupe_across_a_thread() {
+        let with_copy = |at: u64, copy: Option<&str>| HistoryEntry {
+            at,
+            result: COMPLETED.to_string(),
+            copy: copy.map(str::to_string),
+            ..HistoryEntry::default()
+        };
+        let entries = vec![
+            with_copy(1, Some("proj-copy")),
+            with_copy(2, None),
+            with_copy(3, Some("proj-copy")),
+            with_copy(4, Some("proj-copy-2")),
+        ];
+        assert_eq!(copies_of(&entries), ["proj-copy", "proj-copy-2"]);
+        assert!(copies_of(&[with_copy(1, None)]).is_empty());
     }
 
     #[test]

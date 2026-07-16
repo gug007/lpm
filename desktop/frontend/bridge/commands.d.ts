@@ -100,6 +100,7 @@ export function ClearJobState(...args: any[]): Promise<any>;
 export function ClearJobStateGlobal(...args: any[]): Promise<any>;
 export function DeleteJobHistory(...args: any[]): Promise<any>;
 export function JobHistory(...args: any[]): Promise<any>;
+export function JobLiveOutput(...args: any[]): Promise<any>;
 export function TestJobCheck(...args: any[]): Promise<any>;
 export function DrainPendingJobTasks(...args: any[]): Promise<any>;
 export function ListSSHHosts(...args: any[]): Promise<any>;

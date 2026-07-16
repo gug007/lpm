@@ -10,7 +10,7 @@ export default function Hero() {
         <p className="text-xs font-medium uppercase tracking-[0.25em] text-teal-700/70 dark:text-teal-300/70 mb-6">
           SSH terminal for Mac developers
         </p>
-        <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.05] bg-gradient-to-br from-gray-950 via-gray-700 to-gray-500 dark:from-white dark:via-gray-200 dark:to-gray-500 bg-clip-text text-transparent">
+        <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.05] bg-gradient-to-br from-gray-950 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
           The SSH terminal for Mac that makes remote dev boxes feel local.
         </h1>
         <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed tracking-wide">

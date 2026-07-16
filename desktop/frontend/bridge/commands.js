@@ -295,17 +295,20 @@ export function StopJobRun(project, jobId) {
 export function SendJobFollowup(project, jobId, at, message, agent, model, effort) {
   return invoke("send_job_followup", { project, jobId, at, message, agent, model, effort });
 }
-export function ClearJobState(project, jobId) {
-  return invoke("clear_job_state", { project, jobId });
+export function ClearJobState(project, jobId, deleteCopies) {
+  return invoke("clear_job_state", { project, jobId, deleteCopies });
 }
-export function ClearJobStateGlobal(jobId) {
-  return invoke("clear_job_state_global", { jobId });
+export function ClearJobStateGlobal(jobId, deleteCopies) {
+  return invoke("clear_job_state_global", { jobId, deleteCopies });
 }
-export function DeleteJobHistory(project, jobId, at, thread) {
-  return invoke("delete_job_history", { project, jobId, at, thread });
+export function DeleteJobHistory(project, jobId, at, thread, deleteCopies) {
+  return invoke("delete_job_history", { project, jobId, at, thread, deleteCopies });
 }
 export function JobHistory(project, jobId) {
   return invoke("job_history", { project, jobId });
+}
+export function JobLiveOutput(project, jobId) {
+  return invoke("job_live_output", { project, jobId });
 }
 export function TestJobCheck(project, check) {
   return invoke("test_job_check", { project, check });

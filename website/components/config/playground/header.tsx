@@ -71,11 +71,11 @@ export function Header(props: HeaderProps) {
   };
 
   return (
-    <div className="flex items-center gap-4 -mx-3 py-1">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 -mx-3 py-1">
       <div className="shrink-0 text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
         {projectName}
       </div>
-      <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
         {plainActions.map((a) => (
           <SecondaryButton key={a.key} onClick={() => handleOpenAction(a)}>
             {a.label}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { DeleteJobHistory, JobHistory } from "../../../../bridge/commands";
 import { Switch } from "../../ui/Switch";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
@@ -12,6 +13,7 @@ import {
 import { PlayIcon } from "../icons";
 import { useNow } from "../../../hooks/useNow";
 import { JobRunRow } from "./JobRunRow";
+import { JobLiveOutput } from "./JobLiveOutput";
 import {
   formatNextRun,
   formatRunningFor,
@@ -60,6 +62,7 @@ export function JobMessages({
   const [entries, setEntries] = useState<JobHistoryEntry[] | null>(null);
   // A run pending removal, awaiting confirmation.
   const [removing, setRemoving] = useState<number | null>(null);
+  const [removeCopy, setRemoveCopy] = useState(false);
   const [reload, setReload] = useState(0);
   const now = useNow(job.running === true);
 
@@ -77,24 +80,36 @@ export function JobMessages({
     };
   }, [project, job.id, refreshKey, reload]);
 
-  const removeRun = async () => {
-    if (removing === null) return;
-    const at = removing;
-    setRemoving(null);
-    try {
-      await DeleteJobHistory(project, job.id, at, true);
-    } finally {
-      setReload((n) => n + 1);
-      onChanged?.();
-    }
-  };
-
   const threads =
     entries === null
       ? null
       : groupJobThreads(entries).sort(
           (a, b) => jobThreadTail(b).at - jobThreadTail(a).at,
         );
+
+  // The copy the to-be-removed run worked in, offered for removal with it.
+  const removingThread =
+    removing !== null ? threads?.find((t) => t.root.at === removing) : undefined;
+  const removingCopy = removingThread
+    ? [removingThread.root, ...removingThread.replies].find((e) => e.copy)?.copy
+    : undefined;
+
+  const removeRun = async () => {
+    if (removing === null) return;
+    const at = removing;
+    const alsoCopy = removeCopy && !!removingCopy;
+    setRemoving(null);
+    try {
+      await DeleteJobHistory(project, job.id, at, true, alsoCopy);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't remove the run.",
+      );
+    } finally {
+      setReload((n) => n + 1);
+      onChanged?.();
+    }
+  };
 
   const scheduleText = job.schedule ? formatSchedule(job.schedule) : "";
   const nextRunText = job.enabled ? formatNextRun(job.nextFireAt) : "Paused";
@@ -193,18 +208,25 @@ export function JobMessages({
         ) : (
           <div className="-mx-2">
             {job.running && (
-              <div className="flex items-center gap-3 px-2 py-3">
-                <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
-                <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--accent-cyan)]">
-                  {formatRunningFor(job.runningSince, now)}
-                </span>
-                <button
-                  type="button"
-                  onClick={onStop}
-                  className="shrink-0 text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--accent-red)]"
-                >
-                  Stop
-                </button>
+              <div className="px-2 pb-2">
+                <div className="flex items-center gap-3 py-3">
+                  <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
+                  <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--accent-cyan)]">
+                    {formatRunningFor(job.runningSince, now)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onStop}
+                    className="shrink-0 text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--accent-red)]"
+                  >
+                    Stop
+                  </button>
+                </div>
+                <JobLiveOutput
+                  project={project}
+                  jobId={job.id}
+                  running={job.running === true}
+                />
               </div>
             )}
             {threads.map((thread, i) => (
@@ -218,7 +240,12 @@ export function JobMessages({
                 }
                 onOpenCopy={onOpenCopy}
                 onRemove={
-                  job.running ? undefined : () => setRemoving(thread.root.at)
+                  job.running
+                    ? undefined
+                    : () => {
+                        setRemoveCopy(false);
+                        setRemoving(thread.root.at);
+                      }
                 }
               />
             ))}
@@ -229,7 +256,23 @@ export function JobMessages({
       <ConfirmDialog
         open={removing !== null}
         title="Remove this run?"
-        body="The run and its replies are removed from this job's history. This cannot be undone."
+        body={
+          <>
+            The run and its replies are removed from this job's history. This
+            cannot be undone.
+            {removingCopy && (
+              <label className="mt-3 flex cursor-pointer items-center gap-1.5 text-[12px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]">
+                <input
+                  type="checkbox"
+                  checked={removeCopy}
+                  onChange={(e) => setRemoveCopy(e.target.checked)}
+                  className="accent-[var(--accent-blue)] h-3 w-3"
+                />
+                Also remove {removingCopy}, the copy it worked in
+              </label>
+            )}
+          </>
+        }
         confirmLabel="Remove"
         variant="destructive"
         onCancel={() => setRemoving(null)}

@@ -464,7 +464,7 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       ref={containerRef}
       onPointerDownCapture={markInteracted}
       className={`relative flex overflow-hidden rounded-xl border border-gray-200 dark:border-[#2e2e2e] shadow-2xl shadow-gray-200/60 dark:shadow-black/60 bg-[#1a1a1a] h-[var(--demo-h)] sm:h-[var(--demo-h-sm)] transition-[box-shadow] duration-700 ${
-        glowActive ? "ring-2 ring-indigo-500/30" : "ring-0 ring-transparent"
+        glowActive ? "ring-2 ring-emerald-500/30" : "ring-0 ring-transparent"
       }`}
       style={
         {

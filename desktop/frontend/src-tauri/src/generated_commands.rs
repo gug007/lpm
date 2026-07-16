@@ -111,6 +111,7 @@ macro_rules! all_command_handlers {
         clear_job_state_global,
         delete_job_history,
         job_history,
+        job_live_output,
         list_all_jobs,
         list_jobs,
         run_job_now,

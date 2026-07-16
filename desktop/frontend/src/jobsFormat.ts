@@ -204,6 +204,17 @@ export function jobOutputSnippet(output: string | undefined, max = 160): string 
   return flat.length <= max ? flat : `${flat.slice(0, max).trimEnd()}…`;
 }
 
+// The last few lines of a live run's log, cleaned for display: terminal
+// escape codes stripped, trailing blank lines dropped, capped to `maxLines`.
+export function liveOutputTail(text: string | undefined, maxLines = 12): string {
+  if (!text) return "";
+  // eslint-disable-next-line no-control-regex
+  const clean = text.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").replace(/\r/g, "");
+  const lines = clean.split("\n").map((l) => l.trimEnd());
+  while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+  return lines.slice(-maxLines).join("\n");
+}
+
 // "12s", "4m", "4m 30s", "1h 12m" — how long a run took.
 export function formatDuration(secs: number): string {
   if (secs < 60) return `${Math.max(0, Math.round(secs))}s`;

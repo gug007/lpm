@@ -54,7 +54,7 @@ export default async function StatsPage() {
 
   if (!stats) {
     return (
-      <article className="max-w-3xl mx-auto px-6 py-16">
+      <article className="max-w-3xl mx-auto px-6 pt-28 pb-16 sm:pt-32 sm:pb-20">
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
@@ -80,7 +80,7 @@ export default async function StatsPage() {
   const { total, releases } = stats;
 
   return (
-    <article className="max-w-3xl mx-auto px-6 py-16">
+    <article className="max-w-3xl mx-auto px-6 pt-28 pb-16 sm:pt-32 sm:pb-20">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}

@@ -219,10 +219,10 @@ export function JobEditorModal({
     try {
       if (source === "global") {
         await deleteJobGlobal(editing.job.id);
-        await ClearJobStateGlobal(editing.job.id);
+        await ClearJobStateGlobal(editing.job.id, false);
       } else {
         await deleteJob(editing.project, editing.job.id);
-        await ClearJobState(editing.project, editing.job.id);
+        await ClearJobState(editing.project, editing.job.id, false);
       }
       toast.success("Job deleted");
       onSaved();

@@ -18,3 +18,5 @@ secrets
 prompts
 prompts.superpowers/
 lpm.cx-Performance-*
+.playwright-cli/
+

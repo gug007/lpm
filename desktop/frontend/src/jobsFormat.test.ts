@@ -12,6 +12,7 @@ import {
   groupJobThreads,
   jobOutputSnippet,
   jobThreadTail,
+  liveOutputTail,
   jobResultLabel,
   jobResultTone,
   payloadToDraft,
@@ -136,6 +137,20 @@ describe("jobOutputSnippet", () => {
     ).toBe("Done Upgraded 3 deps via PR. - all tests pass");
     expect(jobOutputSnippet(undefined)).toBe("");
     expect(jobOutputSnippet("x".repeat(200), 10)).toBe(`${"x".repeat(10)}…`);
+  });
+});
+
+describe("liveOutputTail", () => {
+  it("keeps the last lines, stripped of terminal escapes", () => {
+    expect(liveOutputTail("one\ntwo\nthree\n\n\n", 2)).toBe("two\nthree");
+    expect(liveOutputTail("\x1b[32mgreen\x1b[0m text\r\n")).toBe(
+      "green text",
+    );
+    expect(liveOutputTail("[info] brackets survive")).toBe(
+      "[info] brackets survive",
+    );
+    expect(liveOutputTail(undefined)).toBe("");
+    expect(liveOutputTail("   \n \n")).toBe("");
   });
 });
 

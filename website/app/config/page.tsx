@@ -266,7 +266,7 @@ const actionFields: Field[] = [
         while the command runs. <code className="font-mono">terminal</code>{" "}
         opens a persistent interactive pane (see the{" "}
         <code className="font-mono">terminals:</code> section).{" "}
-        <code className="font-mono">background</code> runs the command hidden
+        <code className="font-mono">background</code>{" "}runs the command hidden
         and shows a toast when it finishes — perfect for slow, boring commands
         whose only interesting signal is &ldquo;did it succeed.&rdquo;
       </>
@@ -584,7 +584,7 @@ export default function ConfigPage() {
                   wipes, rollbacks, production deploys — add{" "}
                   <code className="font-mono">confirm: true</code> to get a
                   confirmation dialog, and pair it with{" "}
-                  <code className="font-mono">display: header</code> (the
+                  <code className="font-mono">display: header</code>{" "}(the
                   default) so the action lives in the toolbar where you&rsquo;ll
                   find it:
                 </p>
@@ -598,7 +598,7 @@ export default function ConfigPage() {
                     Grouping related actions.
                   </strong>{" "}
                   Give a parent action both a <code className="font-mono">cmd</code>{" "}
-                  and nested <code className="font-mono">actions</code> and
+                  and nested <code className="font-mono">actions</code>{" "}and
                   lpm renders it as a split button: the main part runs the
                   parent&rsquo;s command, the chevron opens a menu with the
                   children. Use this when there&rsquo;s a sensible default plus a
@@ -766,7 +766,7 @@ export default function ConfigPage() {
                   Even two profiles pay off right away — a lightweight one for
                   quick UI fixes and a full one for feature work. Here&rsquo;s
                   the smallest useful setup: a frontend and a backend, with a{" "}
-                  <code className="font-mono">frontend</code> profile that
+                  <code className="font-mono">frontend</code>{" "}profile that
                   skips the API when you don&rsquo;t need it:
                 </p>
                 <ConfigPlayground
@@ -874,7 +874,7 @@ export default function ConfigPage() {
                   <p>
                     Global config supports{" "}
                     <code className="font-mono">actions</code> and{" "}
-                    <code className="font-mono">terminals</code> — that&rsquo;s
+                    <code className="font-mono">terminals</code>{" "}— that&rsquo;s
                     it. No <code className="font-mono">services</code>, no{" "}
                     <code className="font-mono">profiles</code>. Long-running
                     processes and profile groupings always belong to a specific

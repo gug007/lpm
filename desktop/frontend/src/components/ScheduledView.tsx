@@ -103,7 +103,7 @@ export function ScheduledView() {
       .filter((r) => project === null || r.project === project)
       .map((r) => r.id);
 
-  const removeJob = async () => {
+  const removeJob = async (deleteCopies: boolean) => {
     if (!removing) return;
     const { project, job } = removing;
     setRemoving(null);
@@ -111,10 +111,10 @@ export function ScheduledView() {
       void StopJobRun(project, job.id);
       if (job.source === "global") {
         await deleteJobGlobal(job.id);
-        await ClearJobStateGlobal(job.id);
+        await ClearJobStateGlobal(job.id, deleteCopies);
       } else {
         await deleteJob(project, job.id);
-        await ClearJobState(project, job.id);
+        await ClearJobState(project, job.id, deleteCopies);
       }
       toast.success("Job removed");
     } catch (err) {
@@ -173,7 +173,7 @@ export function ScheduledView() {
         <RemoveJobDialog
           removing={removing}
           onCancel={() => setRemoving(null)}
-          onConfirm={() => void removeJob()}
+          onConfirm={(deleteCopies) => void removeJob(deleteCopies)}
         />
         <JobEditorModal
           open={editing !== null}
@@ -287,7 +287,7 @@ export function ScheduledView() {
       <RemoveJobDialog
         removing={removing}
         onCancel={() => setRemoving(null)}
-        onConfirm={() => void removeJob()}
+        onConfirm={(deleteCopies) => void removeJob(deleteCopies)}
       />
     </div>
   );
@@ -300,8 +300,10 @@ function RemoveJobDialog({
 }: {
   removing: { project: string; job: JobInfo } | null;
   onCancel: () => void;
-  onConfirm: () => void;
+  onConfirm: (deleteCopies: boolean) => void;
 }) {
+  const [deleteCopies, setDeleteCopies] = useState(false);
+  useEffect(() => setDeleteCopies(false), [removing]);
   return (
     <ConfirmDialog
       open={removing !== null}
@@ -316,12 +318,23 @@ function RemoveJobDialog({
             ? "from every project"
             : `from ${removing?.project}, along with its run history`}
           . This cannot be undone.
+          {removing?.job.duplicate && (
+            <label className="mt-3 flex cursor-pointer items-center gap-1.5 text-[12px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]">
+              <input
+                type="checkbox"
+                checked={deleteCopies}
+                onChange={(e) => setDeleteCopies(e.target.checked)}
+                className="accent-[var(--accent-blue)] h-3 w-3"
+              />
+              Also remove the copies its runs created
+            </label>
+          )}
         </>
       }
       confirmLabel="Remove"
       variant="destructive"
       onCancel={onCancel}
-      onConfirm={onConfirm}
+      onConfirm={() => onConfirm(deleteCopies)}
     />
   );
 }

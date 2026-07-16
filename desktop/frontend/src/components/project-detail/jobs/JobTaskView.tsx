@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   DeleteJobHistory,
   JobHistory,
@@ -6,6 +7,7 @@ import {
 } from "../../../../bridge/commands";
 import { MessageMarkdown } from "../../MessageMarkdown";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
+import { JobLiveOutput } from "./JobLiveOutput";
 import {
   ArrowUpIcon,
   ChevronLeftIcon,
@@ -69,6 +71,7 @@ export function JobTaskView({
   // The just-sent message, echoed into the page until its answer entry lands.
   const [pending, setPending] = useState<{ text: string; baseCount: number } | null>(null);
   const [removing, setRemoving] = useState<{ at: number; whole: boolean } | null>(null);
+  const [removeCopy, setRemoveCopy] = useState(false);
   const sawRunning = useRef(false);
   const replyRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -134,6 +137,15 @@ export function JobTaskView({
     }
   }, [entries, pending]);
 
+  // Live output grows outside React's knowledge of "content changed" — keep
+  // the page pinned to the newest lines only while the user is already there.
+  const followGrowth = () => {
+    requestAnimationFrame(() => {
+      const el = scrollRef.current;
+      if (el && nearBottom.current) el.scrollTop = el.scrollHeight;
+    });
+  };
+
   const [agent, model] = pick.split("|");
   const efforts = effortsFor(agent);
   const locked = job.running === true;
@@ -163,12 +175,22 @@ export function JobTaskView({
     }
   };
 
+  // The copy this conversation worked in, offered for removal with the run.
+  const threadCopy = thread
+    ? [thread.root, ...thread.replies].find((e) => e.copy)?.copy
+    : undefined;
+
   const removeConfirmed = async () => {
     if (!removing) return;
     const { at, whole } = removing;
+    const alsoCopy = whole && removeCopy && !!threadCopy;
     setRemoving(null);
     try {
-      await DeleteJobHistory(project, job.id, at, whole);
+      await DeleteJobHistory(project, job.id, at, whole, alsoCopy);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't remove the run.",
+      );
     } finally {
       onChanged();
       if (whole) onBack();
@@ -213,7 +235,10 @@ export function JobTaskView({
         )}
         <button
           type="button"
-          onClick={() => setRemoving({ at: rootAt, whole: true })}
+          onClick={() => {
+            setRemoveCopy(false);
+            setRemoving({ at: rootAt, whole: true });
+          }}
           disabled={locked}
           title="Remove this run"
           aria-label="Remove this run"
@@ -258,12 +283,14 @@ export function JobTaskView({
               />
             ))}
             {pending && (
-              <div className="mt-6">
-                <div className="mb-2 flex justify-end">
-                  <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-[var(--bg-secondary)] px-4 py-2.5 text-[13px] leading-relaxed text-[var(--text-primary)]">
-                    {pending.text}
-                  </div>
+              <div className="mt-6 flex justify-end">
+                <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-[var(--bg-secondary)] px-4 py-2.5 text-[13px] leading-relaxed text-[var(--text-primary)]">
+                  {pending.text}
                 </div>
+              </div>
+            )}
+            {job.running && (
+              <div className={pending ? "mt-2" : "mt-6"}>
                 <div className="flex items-center gap-2.5 px-1 py-2">
                   <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
                   <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--text-secondary)]">
@@ -277,6 +304,12 @@ export function JobTaskView({
                     Stop
                   </button>
                 </div>
+                <JobLiveOutput
+                  project={project}
+                  jobId={job.id}
+                  running={job.running === true}
+                  onGrow={followGrowth}
+                />
               </div>
             )}
           </>
@@ -348,9 +381,25 @@ export function JobTaskView({
         open={removing !== null}
         title={removing?.whole ? "Remove this run?" : "Remove this message?"}
         body={
-          removing?.whole
-            ? "The run and its replies are removed from this job's history. This cannot be undone."
-            : "The message is removed from this job's history. This cannot be undone."
+          removing?.whole ? (
+            <>
+              The run and its replies are removed from this job's history. This
+              cannot be undone.
+              {threadCopy && (
+                <label className="mt-3 flex cursor-pointer items-center gap-1.5 text-[12px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]">
+                  <input
+                    type="checkbox"
+                    checked={removeCopy}
+                    onChange={(e) => setRemoveCopy(e.target.checked)}
+                    className="accent-[var(--accent-blue)] h-3 w-3"
+                  />
+                  Also remove {threadCopy}, the copy it worked in
+                </label>
+              )}
+            </>
+          ) : (
+            "The message is removed from this job's history. This cannot be undone."
+          )
         }
         confirmLabel="Remove"
         variant="destructive"
