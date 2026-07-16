@@ -29,6 +29,10 @@ export function useAmbientAppEvents(): void {
           toast.success(`Job "${payload.jobId}" in ${payload.project} finished.`);
         } else if (payload.result === "error") {
           toast.error(`Job "${payload.jobId}" in ${payload.project} hit a problem.`);
+        } else if (payload.result === "timed-out") {
+          toast.error(
+            `Job "${payload.jobId}" in ${payload.project} ran too long and was stopped.`,
+          );
         }
       },
     );

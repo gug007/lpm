@@ -289,6 +289,21 @@ export function RunJobNow(project, jobId) {
 export function SetJobEnabled(project, jobId, enabled) {
   return invoke("set_job_enabled", { project, jobId, enabled });
 }
+export function StopJobRun(project, jobId) {
+  return invoke("stop_job_run", { project, jobId });
+}
+export function SendJobFollowup(project, jobId, at, message, agent, model, effort) {
+  return invoke("send_job_followup", { project, jobId, at, message, agent, model, effort });
+}
+export function ClearJobState(project, jobId) {
+  return invoke("clear_job_state", { project, jobId });
+}
+export function ClearJobStateGlobal(jobId) {
+  return invoke("clear_job_state_global", { jobId });
+}
+export function DeleteJobHistory(project, jobId, at, thread) {
+  return invoke("delete_job_history", { project, jobId, at, thread });
+}
 export function JobHistory(project, jobId) {
   return invoke("job_history", { project, jobId });
 }

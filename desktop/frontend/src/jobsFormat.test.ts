@@ -3,9 +3,15 @@ import {
   buildJobPayload,
   defaultJobDraft,
   describeDraftSchedule,
+  formatCost,
+  formatDuration,
   formatInterval,
   formatNextRun,
+  formatRunningFor,
   formatSchedule,
+  groupJobThreads,
+  jobOutputSnippet,
+  jobThreadTail,
   jobResultLabel,
   jobResultTone,
   payloadToDraft,
@@ -93,6 +99,44 @@ describe("formatNextRun", () => {
       "Next run Monday at 09:00",
     );
   });
+
+  it("treats an overdue fire point as imminent, never a past timestamp", () => {
+    const at = new Date(2026, 6, 16, 7, 55, 0);
+    expect(formatNextRun(Math.floor(at.getTime() / 1000), now)).toBe(
+      "Next run in a moment",
+    );
+    expect(formatNextRun(Math.floor(now.getTime() / 1000), now)).toBe(
+      "Next run in a moment",
+    );
+  });
+});
+
+describe("formatDuration", () => {
+  it("scales seconds into minutes and hours", () => {
+    expect(formatDuration(12)).toBe("12s");
+    expect(formatDuration(60)).toBe("1m");
+    expect(formatDuration(4 * 60 + 30)).toBe("4m 30s");
+    expect(formatDuration(60 * 60)).toBe("1h");
+    expect(formatDuration(72 * 60)).toBe("1h 12m");
+  });
+});
+
+describe("formatCost", () => {
+  it("shows cents and floors tiny costs", () => {
+    expect(formatCost(0.42)).toBe("$0.42");
+    expect(formatCost(1.5)).toBe("$1.50");
+    expect(formatCost(0.001)).toBe("<$0.01");
+  });
+});
+
+describe("jobOutputSnippet", () => {
+  it("flattens markdown into one elided line", () => {
+    expect(
+      jobOutputSnippet("## Done\n\nUpgraded **3 deps** via [PR](https://x.y).\n```\nnpm i\n```\n- all tests pass"),
+    ).toBe("Done Upgraded 3 deps via PR. - all tests pass");
+    expect(jobOutputSnippet(undefined)).toBe("");
+    expect(jobOutputSnippet("x".repeat(200), 10)).toBe(`${"x".repeat(10)}…`);
+  });
 });
 
 describe("job result copy", () => {
@@ -107,6 +151,84 @@ describe("job result copy", () => {
     expect(jobResultTone("error")).toBe("error");
     expect(jobResultTone("found-work")).toBe("success");
     expect(jobResultTone("skipped-overlap")).toBe("warning");
+  });
+
+  it("labels stopped and timed-out runs", () => {
+    expect(jobResultLabel("canceled")).toBe("Stopped");
+    expect(jobResultTone("canceled")).toBe("neutral");
+    expect(jobResultLabel("timed-out")).toBe("Stopped — ran too long");
+    expect(jobResultTone("timed-out")).toBe("error");
+  });
+});
+
+describe("groupJobThreads", () => {
+  it("threads replies onto the run they continued, across newer runs", () => {
+    const entries = [
+      { at: 1, result: "completed", output: "run A", session: "a1" },
+      { at: 2, result: "nothing-to-do" },
+      { at: 3, result: "completed", output: "run B", session: "b1" },
+      { at: 4, result: "completed", output: "re A", session: "a2", resumed: "a1", question: "why?" },
+      { at: 5, result: "completed", output: "re re A", session: "a3", resumed: "a2", question: "go on" },
+      { at: 6, result: "completed", output: "re B", session: "b2", resumed: "b1", question: "ship it" },
+    ];
+    const threads = groupJobThreads(entries);
+    expect(threads.map((t) => t.root.at)).toEqual([1, 2, 3]);
+    expect(threads[0].replies.map((r) => r.at)).toEqual([4, 5]);
+    expect(threads[1].replies).toEqual([]);
+    expect(threads[2].replies.map((r) => r.at)).toEqual([6]);
+    expect(jobThreadTail(threads[0]).at).toBe(5);
+    expect(jobThreadTail(threads[0]).session).toBe("a3");
+    expect(jobThreadTail(threads[1]).at).toBe(2);
+    expect(jobThreadTail(threads[2]).session).toBe("b2");
+  });
+
+  it("threads sessionless replies via follows, keeping the tail replyable", () => {
+    const threads = groupJobThreads([
+      { at: 1, result: "completed", output: "codex run" },
+      { at: 2, result: "completed", output: "run B", session: "b1" },
+      { at: 3, result: "completed", output: "codex reply", question: "and?", follows: 1 },
+      { at: 4, result: "completed", output: "more", question: "more?", follows: 3 },
+    ]);
+    expect(threads.map((t) => t.root.at)).toEqual([1, 2]);
+    expect(threads[0].replies.map((r) => r.at)).toEqual([3, 4]);
+    expect(jobThreadTail(threads[0]).at).toBe(4);
+    expect(jobThreadTail(threads[0]).session).toBeUndefined();
+  });
+
+  it("keeps an orphaned reply as its own thread when its run scrolled off", () => {
+    const threads = groupJobThreads([
+      { at: 9, result: "completed", output: "answer", session: "n2", resumed: "gone", question: "hm?" },
+    ]);
+    expect(threads).toHaveLength(1);
+    expect(jobThreadTail(threads[0]).session).toBe("n2");
+  });
+
+  it("keeps a context-full reply in its thread, still replyable via the tail", () => {
+    const threads = groupJobThreads([
+      { at: 1, result: "completed", output: "run", session: "s1" },
+      { at: 2, result: "context-full", question: "and?", resumed: "s1" },
+    ]);
+    expect(threads).toHaveLength(1);
+    expect(jobThreadTail(threads[0]).at).toBe(2);
+    expect(jobResultLabel("context-full")).toBe("Conversation full");
+    expect(jobResultTone("context-full")).toBe("warning");
+  });
+});
+
+describe("formatRunningFor", () => {
+  const started = 1_700_000_000;
+  const at = (elapsedSecs: number) => (started + elapsedSecs) * 1000;
+
+  it("stays bare under a minute", () => {
+    expect(formatRunningFor(started, at(0))).toBe("Running");
+    expect(formatRunningFor(started, at(59))).toBe("Running");
+    expect(formatRunningFor(undefined, at(500))).toBe("Running");
+  });
+
+  it("shows minutes, then hours and minutes", () => {
+    expect(formatRunningFor(started, at(60))).toBe("Running — 1m");
+    expect(formatRunningFor(started, at(59 * 60))).toBe("Running — 59m");
+    expect(formatRunningFor(started, at(72 * 60))).toBe("Running — 1h 12m");
   });
 });
 
@@ -188,6 +310,25 @@ describe("draft <-> payload round-trip", () => {
     expect(draft.scheduleMode).toBe("interval");
     expect(draft.intervalValue).toBe(6);
     expect(draft.intervalUnit).toBe("hours");
+  });
+
+  it("round-trips read-only access and omits the default full access", () => {
+    const readOnly: JobDraft = {
+      ...defaultJobDraft(),
+      label: "Report",
+      runMode: "prompt",
+      prompt: "Summarize open TODOs",
+      access: "read",
+    };
+    expect(buildJobPayload(readOnly).run).toEqual({
+      prompt: "Summarize open TODOs",
+      access: "read",
+    });
+    expect(payloadToDraft(buildJobPayload(readOnly))).toEqual(readOnly);
+
+    const full = buildJobPayload({ ...readOnly, access: "full" });
+    expect(full.run).toEqual({ prompt: "Summarize open TODOs" });
+    expect(payloadToDraft(full).access).toBe("full");
   });
 });
 

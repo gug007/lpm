@@ -7,7 +7,7 @@ use crate::config;
 use chrono::{Datelike, TimeZone};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -19,17 +19,24 @@ const TICK: Duration = Duration::from_secs(60);
 const MIN_INTERVAL_SECS: u64 = 3600;
 const STALE_LOCK_SECS: u64 = 6 * 3600;
 const CHECK_TIMEOUT: Duration = Duration::from_secs(10 * 60);
-const HISTORY_CAP: usize = 20;
+const RUN_TIMEOUT: Duration = Duration::from_secs(60 * 60);
+const HISTORY_CAP: usize = 50;
 const MAX_JITTER_SECS: u64 = 5 * 60;
 const OUTPUT_CAP_CHARS: usize = 12_000;
+const DIGEST_CAP_CHARS: usize = 24_000;
 
 const NOTHING_TO_DO: &str = "nothing-to-do";
 const FOUND_WORK: &str = "found-work";
 const COMPLETED: &str = "completed";
 const ERROR: &str = "error";
+const CANCELED: &str = "canceled";
+const TIMED_OUT: &str = "timed-out";
+const CONTEXT_FULL: &str = "context-full";
 const SKIPPED_OVERLAP: &str = "skipped-overlap";
 const SKIPPED_PENDING_COPY: &str = "skipped-pending-copy";
 const PENDING_WINDOW: &str = "pending-window";
+// Event-only status emitted when a run starts, never written to history.
+const RUNNING: &str = "running";
 
 const DAY_NAMES: [&str; 7] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
@@ -88,6 +95,8 @@ struct RunDef {
     model: String,
     #[serde(default)]
     effort: String,
+    #[serde(default)]
+    access: String,
 }
 
 const KNOWN_AGENTS: [&str; 4] = ["claude", "codex", "gemini", "opencode"];
@@ -104,7 +113,10 @@ enum Schedule {
 enum RunTarget {
     Action(String),
     Cmd(String),
-    Prompt { prompt: String, agent: String, model: String, effort: String },
+    /// `full_access` grants the agent its autonomous mode (edit files, run
+    /// commands); without it a headless run can only read and report — any
+    /// "may I proceed?" question it asks has no one to answer it.
+    Prompt { prompt: String, agent: String, model: String, effort: String, full_access: bool },
 }
 
 struct JobResolved {
@@ -215,11 +227,21 @@ fn resolve_run(project: &str, run: &RunDef) -> Result<RunTarget, String> {
     if !agent.is_empty() && !KNOWN_AGENTS.contains(&agent.as_str()) {
         return Err(format!("\"{agent}\" isn't an agent lpm knows how to run."));
     }
+    let access = run.access.trim().to_lowercase();
+    if !matches!(access.as_str(), "" | "full" | "read") {
+        return Err("Access must be \"full\" or \"read\".".into());
+    }
+    // OpenCode's non-interactive mode runs tools unconditionally — there is no
+    // read-only to give, so pretending would be worse than refusing.
+    if agent == "opencode" && access == "read" {
+        return Err("OpenCode always runs with full access — pick another agent for a read-only job.".into());
+    }
     Ok(RunTarget::Prompt {
         prompt: prompt.to_string(),
         agent,
         model: run.model.trim().to_string(),
         effort: run.effort.trim().to_lowercase(),
+        full_access: access != "read",
     })
 }
 
@@ -327,12 +349,20 @@ fn day_ok(date: chrono::NaiveDate, days: &[u8]) -> bool {
     days.is_empty() || days.contains(&(date.weekday().num_days_from_monday() as u8))
 }
 
+/// Local wall-clock to epoch, surviving DST folds: an ambiguous time (clocks
+/// fell back) takes its first occurrence, a nonexistent time (clocks sprang
+/// forward) slides an hour later — the job still runs that day.
 fn local_epoch(date: chrono::NaiveDate, at_min: u32) -> Option<i64> {
     let t = chrono::NaiveTime::from_hms_opt(at_min / 60, at_min % 60, 0)?;
-    chrono::Local
-        .from_local_datetime(&date.and_time(t))
-        .single()
-        .map(|dt| dt.timestamp())
+    let dt = date.and_time(t);
+    match chrono::Local.from_local_datetime(&dt) {
+        chrono::LocalResult::Single(x) => Some(x.timestamp()),
+        chrono::LocalResult::Ambiguous(first, _) => Some(first.timestamp()),
+        chrono::LocalResult::None => chrono::Local
+            .from_local_datetime(&(dt + chrono::Duration::hours(1)))
+            .earliest()
+            .map(|x| x.timestamp()),
+    }
 }
 
 fn most_recent_calendar_occurrence(at_min: u32, days: &[u8], now: i64) -> Option<i64> {
@@ -402,26 +432,89 @@ struct JobState {
     history: Vec<HistoryEntry>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     running: Option<RunningLock>,
+    #[serde(default, rename = "activeRun", skip_serializing_if = "Option::is_none")]
+    active_run: Option<ActiveRun>,
     #[serde(default, rename = "pendingTask", skip_serializing_if = "Option::is_none")]
     pending_task: Option<Value>,
     #[serde(default, rename = "enabledOverride", skip_serializing_if = "Option::is_none")]
     enabled_override: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 struct HistoryEntry {
     at: u64,
     result: String,
+    /// How many consecutive identical outcomes this entry stands for — quiet
+    /// checks and skips collapse into one entry instead of flooding the
+    /// history. None means one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    count: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     copy: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     output: Option<String>,
+    /// Spawn-to-exit length of a captured run.
+    #[serde(default, rename = "durationSecs", skip_serializing_if = "Option::is_none")]
+    duration_secs: Option<u64>,
+    /// What the run cost, when the agent reports it (Claude's result JSON).
+    #[serde(default, rename = "costUsd", skip_serializing_if = "Option::is_none")]
+    cost_usd: Option<f64>,
+    /// The agent session behind this run's output, when the agent reported one
+    /// — what a follow-up message resumes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    session: Option<String>,
+    /// The user's follow-up message, when this entry is the agent's reply to
+    /// one rather than a scheduled run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    question: Option<String>,
+    /// The session this entry continued, linking a reply to the run it belongs
+    /// to — how the feed threads a conversation per run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    resumed: Option<String>,
+    /// The `at` of the entry this reply followed — the session-free threading
+    /// link, so a conversation can continue through agents that don't report
+    /// resumable sessions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    follows: Option<u64>,
+    /// The reply ran in a fresh session seeded with a condensed transcript,
+    /// because the original session had no room left.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    compacted: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 struct RunningLock {
     #[serde(rename = "startedAt")]
     started_at: u64,
+}
+
+/// A live captured run, persisted so the run survives the app in a recoverable
+/// way: the agent child is setsid-detached and keeps working when lpm quits,
+/// but its watcher thread dies with the process. On the next launch this
+/// record lets the scheduler re-adopt the child (still stoppable, still
+/// overlap-guarded) or, if it already exited, salvage its result from the log
+/// instead of losing the run without a trace.
+#[derive(Serialize, Deserialize, Clone)]
+struct ActiveRun {
+    pid: i32,
+    #[serde(rename = "startedAt")]
+    started_at: u64,
+    #[serde(rename = "logPath")]
+    log_path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    copy: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    question: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    resumed: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    follows: Option<u64>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    compacted: bool,
+    /// When the machine that spawned the pid booted — a pid from before a
+    /// reboot can only be a stranger wearing the same number.
+    #[serde(default, rename = "bootAt", skip_serializing_if = "Option::is_none")]
+    boot_at: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -473,34 +566,33 @@ fn load_job_state(key: &str) -> JobState {
     load_state_file().jobs.get(key).cloned().unwrap_or_default()
 }
 
-fn is_skip(result: &str) -> bool {
-    matches!(result, SKIPPED_OVERLAP | SKIPPED_PENDING_COPY)
+/// Results whose consecutive repeats collapse into one counted entry: a
+/// blocked job re-skips every tick, and a quiet check-gated job would
+/// otherwise fill the whole history with "nothing to do" between real runs.
+fn is_collapsible(result: &str) -> bool {
+    matches!(result, SKIPPED_OVERLAP | SKIPPED_PENDING_COPY | NOTHING_TO_DO)
 }
 
-/// Append a history entry, capped at the newest `HISTORY_CAP`. Consecutive
-/// identical skip results collapse into one (a job that stays blocked ticks
-/// every minute; without this the real history would scroll off in 20 minutes).
+/// Append a history entry, capped at the newest `HISTORY_CAP`.
 fn push_history(st: &mut JobState, at: u64, result: &str, copy: Option<String>) {
-    push_history_out(st, at, result, copy, None);
+    push_entry(
+        st,
+        HistoryEntry { at, result: result.to_string(), copy, ..HistoryEntry::default() },
+    );
 }
 
-fn push_history_out(
-    st: &mut JobState,
-    at: u64,
-    result: &str,
-    copy: Option<String>,
-    output: Option<String>,
-) {
-    if is_skip(result) {
+fn push_entry(st: &mut JobState, entry: HistoryEntry) {
+    if is_collapsible(&entry.result) {
         if let Some(last) = st.history.last_mut() {
-            if last.result == result {
-                last.at = at;
-                last.copy = copy;
+            if last.result == entry.result {
+                last.at = entry.at;
+                last.copy = entry.copy;
+                last.count = Some(last.count.unwrap_or(1) + 1);
                 return;
             }
         }
     }
-    st.history.push(HistoryEntry { at, result: result.to_string(), copy, output });
+    st.history.push(entry);
     let overflow = st.history.len().saturating_sub(HISTORY_CAP);
     if overflow > 0 {
         st.history.drain(0..overflow);
@@ -525,28 +617,79 @@ fn evaluate_lock(running: &Option<RunningLock>, now: u64) -> LockDecision {
 
 /// In-process guard so a job already running on a worker thread isn't respawned
 /// by the next tick. The persisted `running` lock covers overlap across app
-/// restarts / other instances; this one just prevents per-tick spam.
-fn inflight() -> &'static Mutex<HashSet<String>> {
-    static SET: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
-    SET.get_or_init(|| Mutex::new(HashSet::new()))
+/// restarts / other instances; this one just prevents per-tick spam. Values are
+/// start timestamps so the UI can show how long a run has been going.
+fn inflight() -> &'static Mutex<HashMap<String, u64>> {
+    static SET: OnceLock<Mutex<HashMap<String, u64>>> = OnceLock::new();
+    SET.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 fn mark_inflight(key: &str) -> bool {
-    inflight().lock().unwrap().insert(key.to_string())
+    inflight().lock().unwrap().insert(key.to_string(), now_secs()).is_none()
 }
 
 fn clear_inflight(key: &str) {
     inflight().lock().unwrap().remove(key);
 }
 
+/// Jobs with a child process currently alive (a check or a headless agent
+/// run), keyed to the spawn time. The pipeline's `running` lock is released
+/// once the agent is spawned, so this registry is what makes a long agent run
+/// visible — and stoppable — after the pipeline thread has moved on. The child
+/// itself is owned by the wait loop polling it, which is also where a stop
+/// request gets acted on.
+fn active_runs() -> &'static Mutex<HashMap<String, u64>> {
+    static MAP: OnceLock<Mutex<HashMap<String, u64>>> = OnceLock::new();
+    MAP.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn canceled_keys() -> &'static Mutex<HashSet<String>> {
+    static SET: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    SET.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+fn is_cancel_requested(key: &str) -> bool {
+    canceled_keys().lock().unwrap().contains(key)
+}
+
+fn take_canceled(key: &str) -> bool {
+    canceled_keys().lock().unwrap().remove(key)
+}
+
+/// Flag a running job for cancellation. Only takes effect while the job is
+/// actually running in this process — otherwise a stray flag would mark the
+/// *next* run as stopped the moment it starts.
+fn request_cancel(key: &str) -> bool {
+    let running =
+        inflight().lock().unwrap().contains_key(key) || active_runs().lock().unwrap().contains_key(key);
+    if running {
+        canceled_keys().lock().unwrap().insert(key.to_string());
+    }
+    running
+}
+
+/// When the job started running, if it is running in this process: the pipeline
+/// start while the worker thread holds it, then the agent spawn time once the
+/// pipeline has handed off to the watcher.
+fn running_since(key: &str) -> Option<u64> {
+    if let Some(at) = inflight().lock().unwrap().get(key) {
+        return Some(*at);
+    }
+    active_runs().lock().unwrap().get(key).copied()
+}
+
 struct Outcome {
     result: &'static str,
     copy: Option<String>,
     advance: bool,
+    /// What went wrong (or what blocked the run), in product terms — recorded
+    /// on the history entry so the feed can explain a failure instead of
+    /// showing a bare "Problem during the run".
+    note: Option<String>,
 }
 
-fn err_outcome() -> Outcome {
-    Outcome { result: ERROR, copy: None, advance: true }
+fn err_outcome(note: impl Into<String>) -> Outcome {
+    Outcome { result: ERROR, copy: None, advance: true, note: Some(note.into()) }
 }
 
 enum Dispatch {
@@ -585,26 +728,64 @@ fn shell_command(cwd: &str, cmd: &str) -> Command {
     c
 }
 
-/// Exit 0 = there is work to do; any non-zero exit = nothing to do. A spawn
-/// failure or a timeout is surfaced as an error. A hung check would otherwise
-/// pin the worker thread and its in-process inflight slot forever; on expiry we
-/// SIGKILL the whole process group (setsid makes pgid == the child's pid).
-fn run_check(root: &str, check: &str, timeout: Duration) -> Result<bool, String> {
-    let mut child = shell_command(root, check).spawn().map_err(|e| e.to_string())?;
+fn kill_group(pid: i32) {
+    unsafe {
+        libc::kill(-pid, libc::SIGKILL);
+    }
+}
+
+enum WaitVerdict {
+    Exited(bool),
+    TimedOut,
+    Canceled,
+}
+
+/// Poll a spawned child until it exits, the deadline passes, or (when `key` is
+/// given) a Stop request lands for that job. Timeout and cancel both SIGKILL
+/// the whole process group — setsid makes pgid == the child's pid, so detached
+/// workers die with it. This is the single place a job's child is ever killed.
+fn wait_or_kill(
+    child: &mut std::process::Child,
+    deadline: std::time::Instant,
+    key: Option<&str>,
+) -> Result<WaitVerdict, String> {
     let pid = child.id() as i32;
-    let deadline = std::time::Instant::now() + timeout;
     loop {
+        if key.is_some_and(is_cancel_requested) {
+            kill_group(pid);
+            let _ = child.wait();
+            return Ok(WaitVerdict::Canceled);
+        }
         match child.try_wait().map_err(|e| e.to_string())? {
-            Some(status) => return Ok(status.success()),
+            Some(status) => return Ok(WaitVerdict::Exited(status.success())),
             None if std::time::Instant::now() >= deadline => {
-                unsafe {
-                    libc::kill(-pid, libc::SIGKILL);
-                }
+                kill_group(pid);
                 let _ = child.wait();
-                return Err("check timed out".into());
+                return Ok(WaitVerdict::TimedOut);
             }
             None => std::thread::sleep(Duration::from_millis(100)),
         }
+    }
+}
+
+/// Exit 0 = there is work to do; any non-zero exit = nothing to do. A spawn
+/// failure or a timeout is surfaced as an error. A hung check would otherwise
+/// pin the worker thread and its in-process inflight slot forever. `key` (the
+/// scheduler passes it, the editor's dry-run doesn't) makes the check child
+/// visible to Stop.
+fn run_check(root: &str, check: &str, timeout: Duration, key: Option<&str>) -> Result<bool, String> {
+    let mut child = shell_command(root, check).spawn().map_err(|e| e.to_string())?;
+    if let Some(k) = key {
+        active_runs().lock().unwrap().insert(k.to_string(), now_secs());
+    }
+    let verdict = wait_or_kill(&mut child, std::time::Instant::now() + timeout, key);
+    if let Some(k) = key {
+        active_runs().lock().unwrap().remove(k);
+    }
+    match verdict? {
+        WaitVerdict::Exited(ok) => Ok(ok),
+        WaitVerdict::TimedOut => Err("check timed out".into()),
+        WaitVerdict::Canceled => Err("check stopped".into()),
     }
 }
 
@@ -636,7 +817,10 @@ fn default_ai_cli() -> String {
 /// The agent's non-interactive mode, so a scheduled prompt runs headless like
 /// Codex automations do — no terminal opens in the project and no window is
 /// needed; the run's output is reviewed from the Scheduled view afterwards.
-fn agent_prompt_cmdline(agent: &str, model: &str, effort: &str, prompt: &str) -> String {
+/// With `full_access` the agent gets its unattended mode — there is nobody at a
+/// headless run to answer a permission prompt, so without it the agent can only
+/// read and report.
+fn agent_prompt_cmdline(agent: &str, model: &str, effort: &str, full_access: bool, prompt: &str) -> String {
     let q = config::shell_quote(prompt);
     let m = config::shell_quote(model);
     let e = config::shell_quote(effort);
@@ -649,16 +833,21 @@ fn agent_prompt_cmdline(agent: &str, model: &str, effort: &str, prompt: &str) ->
             } else {
                 format!(" -c model_reasoning_effort={e}")
             };
-            format!("codex exec{model_arg}{effort_arg} {q}")
+            let access_arg =
+                if full_access { " --dangerously-bypass-approvals-and-sandbox" } else { "" };
+            format!("codex exec{model_arg}{effort_arg}{access_arg} {q}")
         }
         // Gemini/OpenCode have no effort control.
         "gemini" => {
+            let access_arg = if full_access { " --yolo" } else { "" };
             if model.is_empty() {
-                format!("gemini -p {q}")
+                format!("gemini{access_arg} -p {q}")
             } else {
-                format!("gemini -m {m} -p {q}")
+                format!("gemini{access_arg} -m {m} -p {q}")
             }
         }
+        // OpenCode runs tools without prompting in its non-interactive mode, so
+        // there is no access flag to pass.
         "opencode" => {
             if model.is_empty() {
                 format!("opencode run {q}")
@@ -667,19 +856,39 @@ fn agent_prompt_cmdline(agent: &str, model: &str, effort: &str, prompt: &str) ->
             }
         }
         // Claude Code takes reasoning effort via `--effort`.
-        _ => {
-            let model_arg = if model.is_empty() { String::new() } else { format!(" --model {m}") };
-            let effort_arg = if effort.is_empty() { String::new() } else { format!(" --effort {e}") };
-            format!("claude{model_arg}{effort_arg} -p --output-format json {q}")
-        }
+        _ => claude_cmdline(None, model, effort, full_access, prompt),
     }
+}
+
+/// The shared Claude Code headless invocation; `resume` continues an earlier
+/// agent session so a follow-up message lands in the same conversation.
+fn claude_cmdline(
+    resume: Option<&str>,
+    model: &str,
+    effort: &str,
+    full_access: bool,
+    prompt: &str,
+) -> String {
+    let q = config::shell_quote(prompt);
+    let m = config::shell_quote(model);
+    let e = config::shell_quote(effort);
+    let resume_arg = match resume {
+        Some(sid) => format!(" --resume {}", config::shell_quote(sid)),
+        None => String::new(),
+    };
+    let model_arg = if model.is_empty() { String::new() } else { format!(" --model {m}") };
+    let effort_arg = if effort.is_empty() { String::new() } else { format!(" --effort {e}") };
+    let access_arg = if full_access { " --dangerously-skip-permissions" } else { "" };
+    format!("claude{resume_arg}{model_arg}{effort_arg}{access_arg} -p --output-format json {q}")
 }
 
 /// Claude's json output mode wraps the final message in a single-line JSON
 /// object with a `result` field; hooks and stats the user has configured can
 /// splatter extra lines around it. Scan from the end for that object so the
-/// feed shows the clean message, not the raw stream.
-fn extract_result_text(raw: &str) -> Option<String> {
+/// feed shows the clean message, not the raw stream. The same object names the
+/// agent session (what makes the run resumable for follow-ups) and what the
+/// run cost.
+fn extract_result(raw: &str) -> Option<(String, Option<String>, Option<f64>)> {
     for line in raw.lines().rev() {
         let line = line.trim();
         if !line.starts_with('{') {
@@ -689,12 +898,117 @@ fn extract_result_text(raw: &str) -> Option<String> {
             if let Some(result) = v.get("result").and_then(Value::as_str) {
                 let result = result.trim();
                 if !result.is_empty() {
-                    return Some(result.to_string());
+                    let session = v
+                        .get("session_id")
+                        .and_then(Value::as_str)
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                        .map(str::to_string);
+                    let cost = v
+                        .get("total_cost_usd")
+                        .and_then(Value::as_f64)
+                        .filter(|c| *c > 0.0);
+                    return Some((result.to_string(), session, cost));
                 }
             }
         }
     }
     None
+}
+
+fn hit_context_limit(output: Option<&str>) -> bool {
+    output.is_some_and(|o| o.to_ascii_lowercase().contains("prompt is too long"))
+}
+
+/// The feed's thread grouping over the whole history, as index groups oldest
+/// first: an entry joins the thread its `resumed` session lives in, or the one
+/// holding the entry its `follows` points at; everything else starts its own.
+fn thread_groups(history: &[HistoryEntry]) -> Vec<Vec<usize>> {
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    let mut by_session: HashMap<&str, usize> = HashMap::new();
+    let mut by_at: HashMap<u64, usize> = HashMap::new();
+    for (i, e) in history.iter().enumerate() {
+        let parent = e
+            .resumed
+            .as_deref()
+            .and_then(|r| by_session.get(r))
+            .or_else(|| e.follows.and_then(|f| by_at.get(&f)))
+            .copied();
+        let idx = match parent {
+            Some(g) => {
+                groups[g].push(i);
+                g
+            }
+            None => {
+                groups.push(vec![i]);
+                groups.len() - 1
+            }
+        };
+        if let Some(s) = e.session.as_deref() {
+            by_session.insert(s, idx);
+        }
+        by_at.insert(e.at, idx);
+    }
+    groups
+}
+
+/// All entries of the conversation containing `session`, oldest first.
+#[cfg(test)]
+fn thread_entries<'a>(history: &'a [HistoryEntry], session: &str) -> Vec<&'a HistoryEntry> {
+    thread_groups(history)
+        .into_iter()
+        .find(|g| g.iter().any(|&i| history[i].session.as_deref() == Some(session)))
+        .map(|g| g.into_iter().map(|i| &history[i]).collect())
+        .unwrap_or_default()
+}
+
+/// The thread's visible transcript, condensed to fit a fresh session — what a
+/// reply falls back to when the original session has no room left, and what
+/// any agent gets when there is no session it could resume.
+fn digest_of(entries: &[&HistoryEntry]) -> String {
+    let mut out = String::new();
+    for e in entries {
+        if let Some(q) = &e.question {
+            out.push_str("\n\nThe user said:\n");
+            out.push_str(q);
+        }
+        if let Some(o) = &e.output {
+            out.push_str("\n\nYou answered:\n");
+            out.push_str(o);
+        }
+    }
+    tail_chars(&out, DIGEST_CAP_CHARS)
+}
+
+/// Drop the entry at `at` — or, for `whole_thread`, the entire conversation it
+/// belongs to. Returns false when no such entry exists.
+fn remove_history_entries(history: &mut Vec<HistoryEntry>, at: u64, whole_thread: bool) -> bool {
+    let Some(pos) = history.iter().position(|e| e.at == at) else {
+        return false;
+    };
+    if !whole_thread {
+        history.remove(pos);
+        return true;
+    }
+    let Some(group) = thread_groups(history).into_iter().find(|g| g.contains(&pos)) else {
+        return false;
+    };
+    let doomed: HashSet<usize> = group.into_iter().collect();
+    let mut i = 0;
+    history.retain(|_| {
+        let keep = !doomed.contains(&i);
+        i += 1;
+        keep
+    });
+    true
+}
+
+fn digest_prompt(digest: &str, message: &str) -> String {
+    format!(
+        "You are continuing an earlier conversation about work you did in this folder. \
+         Its full history no longer fits, so here is the visible transcript, oldest first:{digest}\n\n\
+         Reply to the user's new message:\n{message}"
+    )
 }
 
 fn tail_chars(s: &str, max: usize) -> String {
@@ -713,41 +1027,167 @@ fn head_chars(s: &str, max: usize) -> String {
     }
     let mut out: String = s.chars().take(max).collect();
     out = out.trim_end().to_string();
-    out.push_str("\n\n… (truncated — the full output is in ~/.lpm/job-logs)");
+    out.push_str("\n\n… (shortened — the message was too long to keep in full)");
     out
+}
+
+/// How one captured run is launched and recorded. `copy` names the duplicate
+/// the run happened in (when it isn't the project itself); `question` and
+/// `resumed` mark a follow-up: the message this run answers and the session it
+/// continued. `fallback` is a fresh-session command line to retry with when
+/// the primary hits the agent's context limit, and `compacted` marks a run
+/// that starts condensed (its primary already carries a digest).
+struct CaptureSpec {
+    cmdline: String,
+    copy: Option<String>,
+    question: Option<String>,
+    resumed: Option<String>,
+    follows: Option<u64>,
+    fallback: Option<String>,
+    compacted: bool,
+}
+
+impl CaptureSpec {
+    fn run(cmdline: String, copy: Option<String>) -> Self {
+        CaptureSpec {
+            cmdline,
+            copy,
+            question: None,
+            resumed: None,
+            follows: None,
+            fallback: None,
+            compacted: false,
+        }
+    }
+}
+
+/// Wait out one spawned attempt and classify it. A reply that fails on the
+/// agent's context-limit error is CONTEXT_FULL (headless runs never compact),
+/// which the watcher uses to trigger the condensed retry.
+fn reap_run(
+    child: &mut std::process::Child,
+    key: &str,
+    log_path: &Path,
+    is_reply: bool,
+) -> (&'static str, Option<String>, Option<String>, Option<f64>) {
+    let verdict = wait_or_kill(child, std::time::Instant::now() + RUN_TIMEOUT, Some(key));
+    let canceled = take_canceled(key);
+    let mut session = None;
+    let mut cost = None;
+    let output = std::fs::read_to_string(log_path)
+        .ok()
+        .map(|s| match extract_result(&s) {
+            Some((msg, sid, c)) => {
+                session = sid;
+                cost = c;
+                head_chars(&msg, OUTPUT_CAP_CHARS)
+            }
+            None => tail_chars(&s, OUTPUT_CAP_CHARS),
+        })
+        .filter(|s| !s.is_empty());
+    let result = match verdict {
+        Ok(WaitVerdict::Canceled) => CANCELED,
+        _ if canceled => CANCELED,
+        Ok(WaitVerdict::TimedOut) => TIMED_OUT,
+        Ok(WaitVerdict::Exited(true)) => COMPLETED,
+        _ if is_reply && hit_context_limit(output.as_deref()) => CONTEXT_FULL,
+        _ => ERROR,
+    };
+    (result, output, session, cost)
+}
+
+fn captured_shell_line(cmdline: &str, log_path: &Path) -> String {
+    format!("{{ {cmdline} ; }} > {} 2>&1", config::shell_quote(&log_path.to_string_lossy()))
 }
 
 /// Run a command headless in `root` with output streamed to a log file under
 /// ~/.lpm/job-logs; a watcher thread reaps the exit off the job lock and
 /// records a completion entry with the output tail, so the run's result is
 /// reviewable from the Scheduled view instead of vanishing.
-fn spawn_captured(app: &AppHandle, key: &str, root: &str, cmdline: &str) -> Dispatch {
+fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> Dispatch {
     let logs = config::lpm_dir().join("job-logs");
     if std::fs::create_dir_all(&logs).is_err() {
         return Dispatch::Error;
     }
+    let CaptureSpec { cmdline, copy, question, resumed, follows, fallback, compacted } = spec;
     let log_path = logs.join(format!("{}-{}.log", key.replace('/', "_"), now_secs()));
-    let full = format!(
-        "{{ {cmdline} ; }} > {} 2>&1",
-        config::shell_quote(&log_path.to_string_lossy())
-    );
-    match shell_command(root, &full).spawn() {
+    match shell_command(root, &captured_shell_line(&cmdline, &log_path)).spawn() {
         Ok(mut child) => {
+            let started = now_secs();
+            active_runs().lock().unwrap().insert(key.to_string(), started);
+            let _ = with_state(|f| {
+                f.jobs.entry(key.to_string()).or_default().active_run = Some(ActiveRun {
+                    pid: child.id() as i32,
+                    started_at: started,
+                    log_path: log_path.to_string_lossy().into_owned(),
+                    copy: copy.clone(),
+                    question: question.clone(),
+                    resumed: resumed.clone(),
+                    follows,
+                    compacted,
+                    boot_at: Some(boot_epoch()),
+                });
+            });
             let app2 = app.clone();
             let key2 = key.to_string();
+            let root2 = root.to_string();
             std::thread::spawn(move || {
-                let ok = child.wait().map(|s| s.success()).unwrap_or(false);
-                let output = std::fs::read_to_string(&log_path)
-                    .ok()
-                    .map(|s| match extract_result_text(&s) {
-                        Some(msg) => head_chars(&msg, OUTPUT_CAP_CHARS),
-                        None => tail_chars(&s, OUTPUT_CAP_CHARS),
-                    })
-                    .filter(|s| !s.is_empty());
-                let result = if ok { COMPLETED } else { ERROR };
+                let is_reply = question.is_some();
+                let (mut result, mut output, mut session, mut cost) =
+                    reap_run(&mut child, &key2, &log_path, is_reply);
+                let mut compacted = compacted;
+                // The session had no room left: retry once as a fresh session
+                // seeded with the thread's condensed transcript. The key stays
+                // registered as running throughout, so nothing overlaps it.
+                if result == CONTEXT_FULL {
+                    if let Some(fb) = fallback {
+                        let log2 = log_path.with_extension("compact.log");
+                        if let Ok(mut retry) =
+                            shell_command(&root2, &captured_shell_line(&fb, &log2)).spawn()
+                        {
+                            active_runs().lock().unwrap().insert(key2.clone(), now_secs());
+                            let _ = with_state(|f| {
+                                if let Some(ar) = f
+                                    .jobs
+                                    .get_mut(&key2)
+                                    .and_then(|st| st.active_run.as_mut())
+                                {
+                                    ar.pid = retry.id() as i32;
+                                    ar.log_path = log2.to_string_lossy().into_owned();
+                                    ar.compacted = true;
+                                }
+                            });
+                            (result, output, session, cost) =
+                                reap_run(&mut retry, &key2, &log2, true);
+                            compacted = true;
+                        }
+                    }
+                }
+                active_runs().lock().unwrap().remove(&key2);
                 let at = now_secs();
                 let _ = with_state(|f| {
-                    push_history_out(f.jobs.entry(key2.clone()).or_default(), at, result, None, output);
+                    // The job may have been deleted (its state cleared) while
+                    // this run was live — don't resurrect it with a ghost entry.
+                    if let Some(st) = f.jobs.get_mut(&key2) {
+                        st.active_run = None;
+                        push_entry(
+                            st,
+                            HistoryEntry {
+                                at,
+                                result: result.to_string(),
+                                copy,
+                                output,
+                                session,
+                                question,
+                                resumed,
+                                follows,
+                                compacted,
+                                duration_secs: Some(at.saturating_sub(started)),
+                                cost_usd: cost,
+                                count: None,
+                            },
+                        );
+                    }
                 });
                 let (project, job_id) = key2.split_once('/').unwrap_or((key2.as_str(), ""));
                 emit_status(&app2, project, job_id, result, &None);
@@ -759,13 +1199,15 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, cmdline: &str) -> Disp
 }
 
 fn dispatch_run(app: &AppHandle, key: &str, target: &str, job: &JobResolved) -> Dispatch {
+    let project = key.split_once('/').map(|(p, _)| p).unwrap_or(key);
+    let copy = (target != project).then(|| target.to_string());
     match &job.run {
         RunTarget::Cmd(cmd) => {
             let root = match config::project_root(target) {
                 Ok((r, false)) if !r.is_empty() => r,
                 _ => return Dispatch::Error,
             };
-            spawn_captured(app, key, &root, cmd)
+            spawn_captured(app, key, &root, CaptureSpec::run(cmd.clone(), copy))
         }
         RunTarget::Action(id) => {
             let terminal = config::resolve_action_full(target, id)
@@ -790,13 +1232,21 @@ fn dispatch_run(app: &AppHandle, key: &str, target: &str, job: &JobResolved) -> 
                 Dispatch::Ran
             }
         }
-        RunTarget::Prompt { prompt, agent, model, effort } => {
+        RunTarget::Prompt { prompt, agent, model, effort, full_access } => {
             let root = match config::project_root(target) {
                 Ok((r, false)) if !r.is_empty() => r,
                 _ => return Dispatch::Error,
             };
             let agent = if agent.is_empty() { default_ai_cli() } else { agent.clone() };
-            spawn_captured(app, key, &root, &agent_prompt_cmdline(&agent, model, effort, prompt))
+            spawn_captured(
+                app,
+                key,
+                &root,
+                CaptureSpec::run(
+                    agent_prompt_cmdline(&agent, model, effort, *full_access, prompt),
+                    copy,
+                ),
+            )
         }
     }
 }
@@ -805,20 +1255,25 @@ fn pipeline_body(app: &AppHandle, project: &str, job: &JobResolved, key: &str) -
     let st = load_job_state(key);
     if let Some(prev) = st.history.iter().rev().find_map(|h| h.copy.clone()) {
         if config::project_exists(&prev) {
-            return Outcome { result: SKIPPED_PENDING_COPY, copy: None, advance: false };
+            return Outcome { result: SKIPPED_PENDING_COPY, copy: None, advance: false, note: None };
         }
     }
 
     let root = match config::project_root(project) {
         Ok((r, false)) if !r.is_empty() => r,
-        _ => return err_outcome(),
+        _ => return err_outcome("This project has no local folder to run in."),
     };
 
     if !job.check.is_empty() {
-        match run_check(&root, &job.check, CHECK_TIMEOUT) {
+        match run_check(&root, &job.check, CHECK_TIMEOUT, Some(key)) {
             Ok(true) => {}
-            Ok(false) => return Outcome { result: NOTHING_TO_DO, copy: None, advance: true },
-            Err(_) => return err_outcome(),
+            Ok(false) => {
+                return Outcome { result: NOTHING_TO_DO, copy: None, advance: true, note: None }
+            }
+            Err(e) if e == "check timed out" => {
+                return err_outcome("The check ran too long and was stopped.")
+            }
+            Err(e) => return err_outcome(format!("The check couldn't run: {e}.")),
         }
     }
 
@@ -833,16 +1288,27 @@ fn pipeline_body(app: &AppHandle, project: &str, job: &JobResolved, key: &str) -
             pull,
         ) {
             Ok(c) => (c.clone(), Some(c)),
-            Err(_) => return err_outcome(),
+            Err(e) => return err_outcome(format!("Couldn't duplicate the project: {e}")),
         }
     } else {
         (project.to_string(), None)
     };
 
+    // A Stop that lands during the check or the duplicate step must not still
+    // launch the agent.
+    if is_cancel_requested(key) {
+        return Outcome { result: CANCELED, copy, advance: true, note: None };
+    }
+
     match dispatch_run(app, key, &target, job) {
-        Dispatch::Ran => Outcome { result: FOUND_WORK, copy, advance: true },
-        Dispatch::Parked => Outcome { result: PENDING_WINDOW, copy, advance: true },
-        Dispatch::Error => Outcome { result: ERROR, copy, advance: true },
+        Dispatch::Ran => Outcome { result: FOUND_WORK, copy, advance: true, note: None },
+        Dispatch::Parked => Outcome { result: PENDING_WINDOW, copy, advance: true, note: None },
+        Dispatch::Error => Outcome {
+            result: ERROR,
+            copy,
+            advance: true,
+            note: Some("The run couldn't start.".to_string()),
+        },
     }
 }
 
@@ -852,27 +1318,78 @@ fn emit_status(app: &AppHandle, project: &str, job_id: &str, result: &str, copy:
         payload["copy"] = json!(c);
     }
     let _ = app.emit("job-status", payload);
+    notify_if_unattended(app, project, job_id, result);
+}
+
+/// Jobs exist to work while the user is away — when the window is hidden or in
+/// the background, the in-app toast lands on glass nobody is looking at, so
+/// outcomes worth interrupting for also go out as a system notification. Quiet
+/// days and skips stay silent everywhere.
+fn notify_if_unattended(app: &AppHandle, project: &str, job_id: &str, result: &str) {
+    let (title, body) = match result {
+        COMPLETED => ("Scheduled job finished", format!("\"{job_id}\" in {project} is done.")),
+        FOUND_WORK => {
+            ("Scheduled job found work", format!("\"{job_id}\" in {project} started working."))
+        }
+        ERROR => {
+            ("Scheduled job hit a problem", format!("\"{job_id}\" in {project} needs a look."))
+        }
+        TIMED_OUT => (
+            "Scheduled job stopped",
+            format!("\"{job_id}\" in {project} ran too long and was stopped."),
+        ),
+        _ => return,
+    };
+    let attended = app
+        .get_webview_window("main")
+        .map(|w| w.is_visible().unwrap_or(false) && w.is_focused().unwrap_or(false))
+        .unwrap_or(false);
+    if attended {
+        return;
+    }
+    use tauri_plugin_notification::NotificationExt;
+    let _ = app.notification().builder().title(title).body(&body).show();
 }
 
 fn run_pipeline(app: &AppHandle, project: &str, job: &JobResolved) {
     let key = state_key(project, &job.id);
 
-    let decision = with_state(|f| {
-        let st = f.jobs.entry(key.clone()).or_default();
-        match evaluate_lock(&st.running, now_secs()) {
-            LockDecision::Busy => LockDecision::Busy,
-            LockDecision::Acquire => {
-                st.running = Some(RunningLock { started_at: now_secs() });
-                LockDecision::Acquire
+    // The pipeline releases its lock once the agent is spawned, so a live agent
+    // run only shows up in the active-run registry — without this, a due tick
+    // (or Run now) would start a second run of the same job alongside it.
+    let agent_still_running = active_runs().lock().unwrap().contains_key(&key);
+
+    let decision = if agent_still_running {
+        LockDecision::Busy
+    } else {
+        with_state(|f| {
+            let st = f.jobs.entry(key.clone()).or_default();
+            match evaluate_lock(&st.running, now_secs()) {
+                LockDecision::Busy => LockDecision::Busy,
+                LockDecision::Acquire => {
+                    st.running = Some(RunningLock { started_at: now_secs() });
+                    LockDecision::Acquire
+                }
+                LockDecision::Stale => {
+                    push_entry(
+                        st,
+                        HistoryEntry {
+                            at: now_secs(),
+                            result: ERROR.to_string(),
+                            output: Some(
+                                "An earlier run never reported back, so it was written off."
+                                    .to_string(),
+                            ),
+                            ..HistoryEntry::default()
+                        },
+                    );
+                    st.running = Some(RunningLock { started_at: now_secs() });
+                    LockDecision::Stale
+                }
             }
-            LockDecision::Stale => {
-                push_history(st, now_secs(), ERROR, None);
-                st.running = Some(RunningLock { started_at: now_secs() });
-                LockDecision::Stale
-            }
-        }
-    })
-    .unwrap_or(LockDecision::Acquire);
+        })
+        .unwrap_or(LockDecision::Acquire)
+    };
 
     if let LockDecision::Busy = decision {
         let _ = with_state(|f| {
@@ -882,12 +1399,27 @@ fn run_pipeline(app: &AppHandle, project: &str, job: &JobResolved) {
         return;
     }
 
-    let outcome = pipeline_body(app, project, job, &key);
+    emit_status(app, project, &job.id, RUNNING, &None);
+    let mut outcome = pipeline_body(app, project, job, &key);
+    // The found-work path hands the cancel flag to the agent watcher; every
+    // other exit consumes it here so a Stop pressed mid-pipeline is recorded.
+    if outcome.result != FOUND_WORK && take_canceled(&key) {
+        outcome = Outcome { result: CANCELED, copy: outcome.copy, advance: true, note: None };
+    }
     let at = now_secs();
     let _ = with_state(|f| {
         let st = f.jobs.entry(key.clone()).or_default();
         st.running = None;
-        push_history(st, at, outcome.result, outcome.copy.clone());
+        push_entry(
+            st,
+            HistoryEntry {
+                at,
+                result: outcome.result.to_string(),
+                copy: outcome.copy.clone(),
+                output: outcome.note.clone(),
+                ..HistoryEntry::default()
+            },
+        );
         if outcome.advance {
             st.last_run_at = Some(at);
         }
@@ -909,6 +1441,189 @@ fn spawn_pipeline(app: &AppHandle, project: &str, job: JobResolved) {
         run_pipeline(&app2, &project2, &job);
         clear_inflight(&key);
     });
+}
+
+// ---- orphaned-run recovery ----------------------------------------------------
+
+/// When this machine booted, from the monotonic clock. A persisted pid is only
+/// trusted when it was spawned in this boot.
+fn boot_epoch() -> u64 {
+    let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+    unsafe {
+        libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut ts);
+    }
+    now_secs().saturating_sub(ts.tv_sec as u64)
+}
+
+/// Whether the recorded run child is still alive and still ours: same boot,
+/// pid exists, and the pid still leads its own process group (what setsid gave
+/// it) — a recycled pid fails that test.
+fn orphan_alive(run: &ActiveRun) -> bool {
+    let same_boot = run
+        .boot_at
+        .map(|b| b.abs_diff(boot_epoch()) <= 60)
+        .unwrap_or(false);
+    if !same_boot {
+        return false;
+    }
+    unsafe { libc::kill(run.pid, 0) == 0 && libc::getpgid(run.pid) == run.pid }
+}
+
+/// The history entry for a run whose watcher died with the previous app
+/// process: its result is salvaged from the log. A clean agent result line
+/// means the run finished its work; anything else is honest about what is
+/// known. `ended_at` is None when the exit wasn't observed (the child was
+/// already gone at launch), which leaves the duration unknown.
+fn orphan_entry(
+    run: &ActiveRun,
+    log: &str,
+    canceled: bool,
+    timed_out: bool,
+    at: u64,
+    ended_at: Option<u64>,
+) -> HistoryEntry {
+    let mut session = None;
+    let mut cost = None;
+    let mut finished_cleanly = false;
+    let output = match extract_result(log) {
+        Some((msg, sid, c)) => {
+            session = sid;
+            cost = c;
+            finished_cleanly = true;
+            Some(head_chars(&msg, OUTPUT_CAP_CHARS))
+        }
+        None => Some(tail_chars(log, OUTPUT_CAP_CHARS)).filter(|s| !s.is_empty()),
+    };
+    let result = if canceled {
+        CANCELED
+    } else if timed_out {
+        TIMED_OUT
+    } else if finished_cleanly {
+        COMPLETED
+    } else {
+        ERROR
+    };
+    let output = output.or_else(|| {
+        (result == ERROR).then(|| "The app closed before this run finished.".to_string())
+    });
+    HistoryEntry {
+        at,
+        result: result.to_string(),
+        copy: run.copy.clone(),
+        output,
+        session,
+        question: run.question.clone(),
+        resumed: run.resumed.clone(),
+        follows: run.follows,
+        compacted: run.compacted,
+        duration_secs: ended_at.map(|e| e.saturating_sub(run.started_at)),
+        cost_usd: cost,
+        count: None,
+    }
+}
+
+fn finish_orphan(app: &AppHandle, key: &str, run: &ActiveRun, canceled: bool, timed_out: bool, ended_at: Option<u64>) {
+    let log = std::fs::read_to_string(&run.log_path).unwrap_or_default();
+    let at = now_secs();
+    let entry = orphan_entry(run, &log, canceled, timed_out, at, ended_at);
+    let result = entry.result.clone();
+    let _ = with_state(|f| {
+        if let Some(st) = f.jobs.get_mut(key) {
+            st.active_run = None;
+            push_entry(st, entry);
+        }
+    });
+    let (project, job_id) = key.split_once('/').unwrap_or((key, ""));
+    emit_status(app, project, job_id, &result, &None);
+}
+
+/// Re-own a run that outlived the previous app process: register it as running
+/// (so overlap-skip, the UI's live state, and Stop all work again) and watch
+/// the pid until it exits, is stopped, or crosses the run timeout measured
+/// from its ORIGINAL start.
+fn adopt_orphan(app: AppHandle, key: String, run: ActiveRun) {
+    active_runs().lock().unwrap().insert(key.clone(), run.started_at);
+    std::thread::spawn(move || {
+        let deadline = run.started_at + RUN_TIMEOUT.as_secs();
+        let mut timed_out = false;
+        loop {
+            if is_cancel_requested(&key) {
+                kill_group(run.pid);
+                break;
+            }
+            if !orphan_alive(&run) {
+                break;
+            }
+            if now_secs() >= deadline {
+                kill_group(run.pid);
+                timed_out = true;
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(500));
+        }
+        let canceled = take_canceled(&key);
+        active_runs().lock().unwrap().remove(&key);
+        finish_orphan(&app, &key, &run, canceled, timed_out, Some(now_secs()));
+    });
+}
+
+/// Startup pass over the persisted state: adopt or reap runs the previous app
+/// process left behind, and release pipeline locks whose owner died before it
+/// ever spawned anything (otherwise the job stays silently blocked for hours).
+fn reconcile_orphans(app: &AppHandle) {
+    let snapshot: Vec<(String, JobState)> = {
+        let _g = state_lock().lock().unwrap();
+        load_state_file().jobs.into_iter().collect()
+    };
+    for (key, st) in snapshot {
+        if let Some(run) = st.active_run {
+            if orphan_alive(&run) {
+                adopt_orphan(app.clone(), key, run);
+            } else {
+                finish_orphan(app, &key, &run, false, false, None);
+            }
+        } else if st.running.is_some() {
+            let _ = with_state(|f| {
+                if let Some(s) = f.jobs.get_mut(&key) {
+                    if s.active_run.is_none() && s.running.is_some() {
+                        s.running = None;
+                        push_entry(
+                            s,
+                            HistoryEntry {
+                                at: now_secs(),
+                                result: ERROR.to_string(),
+                                output: Some(
+                                    "The app closed before this run finished.".to_string(),
+                                ),
+                                ..HistoryEntry::default()
+                            },
+                        );
+                    }
+                }
+            });
+            let (project, job_id) = key.split_once('/').unwrap_or((key.as_str(), ""));
+            emit_status(app, project, job_id, ERROR, &None);
+        }
+    }
+}
+
+/// Captured-run logs are an audit trail, not an archive — drop anything older
+/// than two weeks so the folder can't grow forever.
+fn prune_job_logs() {
+    let Ok(entries) = std::fs::read_dir(config::lpm_dir().join("job-logs")) else {
+        return;
+    };
+    let cutoff = SystemTime::now() - Duration::from_secs(14 * 86_400);
+    for e in entries.flatten() {
+        let stale = e
+            .metadata()
+            .and_then(|m| m.modified())
+            .map(|m| m < cutoff)
+            .unwrap_or(false);
+        if stale {
+            let _ = std::fs::remove_file(e.path());
+        }
+    }
 }
 
 // ---- scheduler thread -------------------------------------------------------
@@ -946,9 +1661,19 @@ fn tick(app: &AppHandle) {
 }
 
 pub fn start_scheduler(app: AppHandle) {
-    std::thread::spawn(move || loop {
-        tick(&app);
-        std::thread::sleep(TICK);
+    std::thread::spawn(move || {
+        // Settle what the previous app process left behind before the first
+        // due check, so an adopted run blocks its job from double-running.
+        reconcile_orphans(&app);
+        let mut ticks: u64 = 0;
+        loop {
+            if ticks % (24 * 60) == 0 {
+                prune_job_logs();
+            }
+            tick(&app);
+            ticks += 1;
+            std::thread::sleep(TICK);
+        }
     });
 }
 
@@ -997,10 +1722,16 @@ pub fn list_jobs(project: String) -> Result<Vec<Value>, String> {
             match res {
                 Ok(job) => {
                     let enabled = st.enabled_override.unwrap_or(job.enabled);
-                    let next = st
-                        .last_run_at
-                        .and_then(|l| next_fire_at(&job.schedule, l, jitter_secs(&project, &id), now));
-                    json!({
+                    // A job the scheduler hasn't anchored yet (created moments
+                    // ago) predicts from now — the anchor the next tick writes.
+                    let next = next_fire_at(
+                        &job.schedule,
+                        st.last_run_at.unwrap_or(now),
+                        jitter_secs(&project, &id),
+                        now,
+                    );
+                    let since = running_since(&key);
+                    let mut row = json!({
                         "id": id,
                         "valid": true,
                         "source": source,
@@ -1013,7 +1744,15 @@ pub fn list_jobs(project: String) -> Result<Vec<Value>, String> {
                         "lastRunAt": st.last_run_at,
                         "lastResult": st.history.last().map(|h| h.result.clone()),
                         "nextFireAt": next,
-                    })
+                        "running": since.is_some(),
+                        "runningSince": since,
+                    });
+                    if let RunTarget::Prompt { agent, model, effort, .. } = &job.run {
+                        row["agent"] = json!(agent);
+                        row["model"] = json!(model);
+                        row["effort"] = json!(effort);
+                    }
+                    row
                 }
                 Err(e) => json!({
                     "id": id,
@@ -1043,7 +1782,7 @@ pub fn test_job_check(project: String, check: String) -> Result<Value, String> {
         Ok((_, true)) => return Err("Scheduled jobs aren't available on SSH projects.".into()),
         _ => return Err("This project has no local folder to run the check in.".into()),
     };
-    let work = run_check(&root, check, Duration::from_secs(60))?;
+    let work = run_check(&root, check, Duration::from_secs(60), None)?;
     Ok(json!({ "work": work }))
 }
 
@@ -1056,6 +1795,170 @@ pub fn run_job_now(app: AppHandle, project: String, job_id: String) -> Result<()
         .2?;
     spawn_pipeline(&app, &project, job);
     Ok(())
+}
+
+/// Stop the job's current run. The flag is polled by whichever wait loop owns
+/// the run's child (check or agent), which SIGKILLs its process group and
+/// records a "canceled" entry; a no-op when nothing is running.
+#[tauri::command(async)]
+pub fn stop_job_run(project: String, job_id: String) -> Result<(), String> {
+    request_cancel(&state_key(&project, &job_id));
+    Ok(())
+}
+
+/// Continue one of the job's conversations, addressed by the `at` of any entry
+/// in it. A Claude reply resumes the thread's session when its newest message
+/// carries one (falling back to a fresh session seeded with the thread's
+/// condensed transcript when that session has no room left); any other case —
+/// another agent, a sessionless run, a thread that moved past its session —
+/// gets the condensed transcript directly, so every conversation stays
+/// continuable. Empty `agent`/`model`/`effort` mean the job's own settings.
+/// Runs in the same place the run happened (the project or the copy it worked
+/// in), through the same captured-run pipeline — live, stoppable, and recorded
+/// in that thread with its answer.
+#[tauri::command(async)]
+pub fn send_job_followup(
+    app: AppHandle,
+    project: String,
+    job_id: String,
+    at: u64,
+    message: String,
+    agent: String,
+    model: String,
+    effort: String,
+) -> Result<(), String> {
+    let message = message.trim().to_string();
+    if message.is_empty() {
+        return Err("Type a message to send.".into());
+    }
+    let key = state_key(&project, &job_id);
+    if running_since(&key).is_some() {
+        return Err("This job is running — wait for it to finish.".into());
+    }
+
+    let st = load_job_state(&key);
+    let group = thread_groups(&st.history)
+        .into_iter()
+        .find(|g| g.iter().any(|&i| st.history[i].at == at))
+        .ok_or_else(|| "That conversation isn't available anymore.".to_string())?;
+    let entries: Vec<&HistoryEntry> = group.iter().map(|&i| &st.history[i]).collect();
+    // Replies always continue from the thread's newest message, whichever
+    // entry the user replied under.
+    let tail = *entries.last().expect("a thread group is never empty");
+
+    let job = resolve_jobs(&project)
+        .into_iter()
+        .find(|(id, _, _)| *id == job_id)
+        .ok_or_else(|| "That job doesn't exist.".to_string())?
+        .2?;
+    let full_access = match &job.run {
+        RunTarget::Prompt { full_access, .. } => *full_access,
+        _ => return Err("Replies are only available for AI prompt jobs.".into()),
+    };
+    let agent = {
+        let chosen = agent.trim().to_lowercase();
+        if chosen.is_empty() { default_ai_cli() } else { chosen }
+    };
+    if !KNOWN_AGENTS.contains(&agent.as_str()) {
+        return Err(format!("\"{agent}\" isn't an agent lpm knows how to run."));
+    }
+    if agent == "opencode" && !full_access {
+        return Err(
+            "This job is read-only, and OpenCode always runs with full access — pick another agent."
+                .into(),
+        );
+    }
+    let model = model.trim().to_string();
+    let effort = effort.trim().to_lowercase();
+
+    // Agent sessions live with the folder they ran in, so a reply must run in
+    // the same place.
+    let target = tail.copy.clone().unwrap_or_else(|| project.clone());
+    if tail.copy.is_some() && !config::project_exists(&target) {
+        return Err("The copy that run worked in is gone — run the job again.".into());
+    }
+    let root = match config::project_root(&target) {
+        Ok((r, false)) if !r.is_empty() => r,
+        _ => return Err("This job has no local folder to run in.".into()),
+    };
+
+    let condensed = digest_prompt(&digest_of(&entries), &message);
+    let thread_full = entries.iter().any(|e| e.result == CONTEXT_FULL);
+    // Resuming is only sound when the newest message itself carries the
+    // session — a thread that continued past it (another agent answered)
+    // would lose that exchange.
+    let resume = tail.session.clone().filter(|_| agent == "claude" && !thread_full);
+    let spec = match resume {
+        Some(sid) => CaptureSpec {
+            cmdline: claude_cmdline(Some(&sid), &model, &effort, full_access, &message),
+            copy: tail.copy.clone(),
+            question: Some(message),
+            resumed: Some(sid),
+            follows: Some(tail.at),
+            fallback: Some(claude_cmdline(None, &model, &effort, full_access, &condensed)),
+            compacted: false,
+        },
+        None => CaptureSpec {
+            cmdline: agent_prompt_cmdline(&agent, &model, &effort, full_access, &condensed),
+            copy: tail.copy.clone(),
+            question: Some(message),
+            resumed: None,
+            follows: Some(tail.at),
+            fallback: None,
+            compacted: true,
+        },
+    };
+    match spawn_captured(&app, &key, &root, spec) {
+        Dispatch::Ran => {
+            emit_status(&app, &project, &job_id, RUNNING, &None);
+            Ok(())
+        }
+        _ => Err("Couldn't start the reply.".into()),
+    }
+}
+
+/// Remove one message from a job's feed — or, with `thread`, the whole
+/// conversation it belongs to.
+#[tauri::command(async)]
+pub fn delete_job_history(
+    project: String,
+    job_id: String,
+    at: u64,
+    thread: bool,
+) -> Result<(), String> {
+    with_state(|f| {
+        if let Some(st) = f.jobs.get_mut(&state_key(&project, &job_id)) {
+            remove_history_entries(&mut st.history, at, thread);
+        }
+    })
+}
+
+/// Forget a deleted job's saved state — run history, pause override, pending
+/// work — so re-creating the same id later starts clean instead of inheriting
+/// the old job's past.
+#[tauri::command(async)]
+pub fn clear_job_state(project: String, job_id: String) -> Result<(), String> {
+    with_state(|f| {
+        f.jobs.remove(&state_key(&project, &job_id));
+    })
+}
+
+/// The same, for a deleted all-projects job: drop its state in every project
+/// where no other config layer still defines that id — a project or repo job
+/// wearing the same id keeps its history.
+#[tauri::command(async)]
+pub fn clear_job_state_global(job_id: String) -> Result<(), String> {
+    let suffix = format!("/{job_id}");
+    let keep: HashSet<String> = config::project_names()
+        .into_iter()
+        .filter(|p| resolve_jobs(p).iter().any(|(id, _, _)| *id == job_id))
+        .collect();
+    with_state(|f| {
+        f.jobs.retain(|key, _| match key.strip_suffix(&suffix) {
+            Some(project) => keep.contains(project),
+            None => true,
+        });
+    })
 }
 
 #[tauri::command(async)]
@@ -1115,11 +2018,35 @@ pub fn job_history(project: String, job_id: String) -> Result<Vec<Value>, String
         .iter()
         .map(|h| {
             let mut o = json!({ "at": h.at, "result": h.result });
+            if let Some(n) = h.count.filter(|n| *n > 1) {
+                o["count"] = json!(n);
+            }
             if let Some(c) = &h.copy {
                 o["copy"] = json!(c);
             }
             if let Some(out) = &h.output {
                 o["output"] = json!(out);
+            }
+            if let Some(d) = h.duration_secs {
+                o["durationSecs"] = json!(d);
+            }
+            if let Some(c) = h.cost_usd {
+                o["costUsd"] = json!(c);
+            }
+            if let Some(s) = &h.session {
+                o["session"] = json!(s);
+            }
+            if let Some(r) = &h.resumed {
+                o["resumed"] = json!(r);
+            }
+            if let Some(fl) = h.follows {
+                o["follows"] = json!(fl);
+            }
+            if let Some(q) = &h.question {
+                o["question"] = json!(q);
+            }
+            if h.compacted {
+                o["compacted"] = json!(true);
             }
             o
         })
@@ -1204,6 +2131,7 @@ mod tests {
                 agent: String::new(),
                 model: String::new(),
                 effort: String::new(),
+                full_access: true,
             },
         );
         assert_eq!(
@@ -1213,6 +2141,7 @@ mod tests {
                     prompt: "upgrade".into(),
                     agent: "Codex".into(),
                     model: "gpt-5.6-sol".into(),
+                    access: "Read".into(),
                     ..Default::default()
                 }
             )
@@ -1222,11 +2151,28 @@ mod tests {
                 agent: "codex".into(),
                 model: "gpt-5.6-sol".into(),
                 effort: String::new(),
+                full_access: false,
             },
         );
         assert!(resolve_run(
             "p",
             &RunDef { prompt: "x".into(), agent: "cursor".into(), ..Default::default() }
+        )
+        .is_err());
+        assert!(resolve_run(
+            "p",
+            &RunDef { prompt: "x".into(), access: "sometimes".into(), ..Default::default() }
+        )
+        .is_err());
+        // read-only can't be honored by opencode, so it's refused up front
+        assert!(resolve_run(
+            "p",
+            &RunDef {
+                prompt: "x".into(),
+                agent: "opencode".into(),
+                access: "read".into(),
+                ..Default::default()
+            }
         )
         .is_err());
         // exactly one target required
@@ -1301,13 +2247,14 @@ mod tests {
     #[test]
     fn history_caps_and_dedupes_skips() {
         let mut st = JobState::default();
-        for i in 0..30u64 {
+        let total = HISTORY_CAP as u64 + 10;
+        for i in 0..total {
             push_history(&mut st, i, FOUND_WORK, None);
         }
         assert_eq!(st.history.len(), HISTORY_CAP);
         // oldest entries dropped, newest kept
-        assert_eq!(st.history.first().unwrap().at, 30 - HISTORY_CAP as u64);
-        assert_eq!(st.history.last().unwrap().at, 29);
+        assert_eq!(st.history.first().unwrap().at, total - HISTORY_CAP as u64);
+        assert_eq!(st.history.last().unwrap().at, total - 1);
 
         let mut sk = JobState::default();
         push_history(&mut sk, 1, SKIPPED_OVERLAP, None);
@@ -1315,18 +2262,78 @@ mod tests {
         push_history(&mut sk, 3, SKIPPED_OVERLAP, None);
         assert_eq!(sk.history.len(), 1);
         assert_eq!(sk.history[0].at, 3);
+        assert_eq!(sk.history[0].count, Some(3));
         // a different result breaks the run
         push_history(&mut sk, 4, FOUND_WORK, None);
         assert_eq!(sk.history.len(), 2);
+        assert_eq!(sk.history[1].count, None);
+    }
+
+    #[test]
+    fn quiet_checks_collapse_without_hiding_real_runs() {
+        let mut st = JobState::default();
+        push_history(&mut st, 1, NOTHING_TO_DO, None);
+        push_history(&mut st, 2, NOTHING_TO_DO, None);
+        push_history(&mut st, 3, COMPLETED, None);
+        push_history(&mut st, 4, NOTHING_TO_DO, None);
+        push_history(&mut st, 5, NOTHING_TO_DO, None);
+        push_history(&mut st, 6, NOTHING_TO_DO, None);
+        let got: Vec<(u64, &str, Option<u32>)> =
+            st.history.iter().map(|h| (h.at, h.result.as_str(), h.count)).collect();
+        assert_eq!(
+            got,
+            [
+                (2, NOTHING_TO_DO, Some(2)),
+                (3, COMPLETED, None),
+                (6, NOTHING_TO_DO, Some(3)),
+            ],
+        );
     }
 
     #[test]
     fn check_times_out_and_is_killed() {
         let root = std::env::temp_dir().to_string_lossy().into_owned();
         let start = std::time::Instant::now();
-        let res = run_check(&root, "sleep 5", Duration::from_secs(1));
+        let res = run_check(&root, "sleep 5", Duration::from_secs(1), None);
         assert!(res.is_err(), "a check that outlives its timeout must error");
         assert!(start.elapsed() < Duration::from_secs(4), "the check should be killed, not waited out");
+    }
+
+    #[test]
+    fn wait_or_kill_times_out() {
+        let root = std::env::temp_dir().to_string_lossy().into_owned();
+        let mut child = shell_command(&root, "sleep 30").spawn().unwrap();
+        let start = std::time::Instant::now();
+        let verdict = wait_or_kill(&mut child, std::time::Instant::now() + Duration::from_millis(300), None);
+        assert!(matches!(verdict, Ok(WaitVerdict::TimedOut)));
+        assert!(start.elapsed() < Duration::from_secs(4), "the run should be killed, not waited out");
+    }
+
+    #[test]
+    fn wait_or_kill_honors_stop_request() {
+        let key = "test-cancel/job";
+        let root = std::env::temp_dir().to_string_lossy().into_owned();
+        let mut child = shell_command(&root, "sleep 30").spawn().unwrap();
+        canceled_keys().lock().unwrap().insert(key.to_string());
+        let start = std::time::Instant::now();
+        let verdict = wait_or_kill(&mut child, std::time::Instant::now() + Duration::from_secs(60), Some(key));
+        assert!(matches!(verdict, Ok(WaitVerdict::Canceled)));
+        assert!(start.elapsed() < Duration::from_secs(4), "a stopped run should be killed promptly");
+        assert!(take_canceled(key), "the flag stays for the caller to consume");
+        assert!(!take_canceled(key), "consuming the flag clears it");
+    }
+
+    #[test]
+    fn stop_only_flags_running_jobs() {
+        let key = "test-stop/idle";
+        assert!(!request_cancel(key), "a job with no live run must not be flagged");
+        assert!(!is_cancel_requested(key));
+
+        assert!(mark_inflight(key));
+        assert!(request_cancel(key), "an inflight pipeline accepts a stop request");
+        assert!(is_cancel_requested(key));
+        clear_inflight(key);
+        assert!(take_canceled(key));
     }
 
     #[test]
@@ -1352,6 +2359,45 @@ mod tests {
     }
 
     #[test]
+    fn orphan_runs_salvage_results_from_the_log() {
+        let run = ActiveRun {
+            pid: 0,
+            started_at: 100,
+            log_path: String::new(),
+            copy: Some("proj-abc".into()),
+            question: None,
+            resumed: None,
+            follows: None,
+            compacted: false,
+            boot_at: None,
+        };
+        let clean =
+            "noise\n{\"result\":\"Did the work.\",\"session_id\":\"s-9\",\"total_cost_usd\":0.05}";
+        let e = orphan_entry(&run, clean, false, false, 200, Some(180));
+        assert_eq!(e.result, COMPLETED);
+        assert_eq!(e.output.as_deref(), Some("Did the work."));
+        assert_eq!(e.session.as_deref(), Some("s-9"));
+        assert_eq!(e.copy.as_deref(), Some("proj-abc"));
+        assert_eq!(e.duration_secs, Some(80));
+        assert_eq!(e.cost_usd, Some(0.05));
+
+        // no clean result line: honest error with whatever the log holds
+        let e = orphan_entry(&run, "partial raw log", false, false, 200, None);
+        assert_eq!(e.result, ERROR);
+        assert_eq!(e.output.as_deref(), Some("partial raw log"));
+        assert_eq!(e.duration_secs, None);
+
+        let e = orphan_entry(&run, "", false, false, 200, None);
+        assert_eq!(e.result, ERROR);
+        assert!(e.output.unwrap().contains("app closed"));
+
+        let e = orphan_entry(&run, "", true, false, 200, Some(150));
+        assert_eq!(e.result, CANCELED);
+        let e = orphan_entry(&run, "", false, true, 200, Some(150));
+        assert_eq!(e.result, TIMED_OUT);
+    }
+
+    #[test]
     fn stale_lock_detection() {
         assert!(matches!(evaluate_lock(&None, 100), LockDecision::Acquire));
         assert!(matches!(
@@ -1367,31 +2413,57 @@ mod tests {
     #[test]
     fn agent_cmdlines_run_headless() {
         assert_eq!(
-            agent_prompt_cmdline("claude", "", "", "fix it"),
+            agent_prompt_cmdline("claude", "", "", false, "fix it"),
             "claude -p --output-format json 'fix it'"
         );
         assert_eq!(
-            agent_prompt_cmdline("claude", "opus", "", "fix it"),
+            agent_prompt_cmdline("claude", "opus", "", false, "fix it"),
             "claude --model 'opus' -p --output-format json 'fix it'"
         );
         assert_eq!(
-            agent_prompt_cmdline("claude", "opus", "high", "fix it"),
+            agent_prompt_cmdline("claude", "opus", "high", false, "fix it"),
             "claude --model 'opus' --effort 'high' -p --output-format json 'fix it'"
         );
         assert_eq!(
-            agent_prompt_cmdline("codex", "gpt-5.6-sol", "", "fix"),
+            agent_prompt_cmdline("codex", "gpt-5.6-sol", "", false, "fix"),
             "codex exec -m 'gpt-5.6-sol' 'fix'"
         );
         assert_eq!(
-            agent_prompt_cmdline("codex", "gpt-5.6-sol", "high", "fix"),
+            agent_prompt_cmdline("codex", "gpt-5.6-sol", "high", false, "fix"),
             "codex exec -m 'gpt-5.6-sol' -c model_reasoning_effort='high' 'fix'"
         );
         assert_eq!(
-            agent_prompt_cmdline("claude", "", "max", "fix it"),
+            agent_prompt_cmdline("claude", "", "max", false, "fix it"),
             "claude --effort 'max' -p --output-format json 'fix it'"
         );
-        assert_eq!(agent_prompt_cmdline("gemini", "", "", "fix"), "gemini -p 'fix'");
-        assert_eq!(agent_prompt_cmdline("opencode", "", "", "fix"), "opencode run 'fix'");
+        assert_eq!(agent_prompt_cmdline("gemini", "", "", false, "fix"), "gemini -p 'fix'");
+        assert_eq!(agent_prompt_cmdline("opencode", "", "", false, "fix"), "opencode run 'fix'");
+    }
+
+    #[test]
+    fn full_access_cmdlines_grant_unattended_mode() {
+        assert_eq!(
+            agent_prompt_cmdline("claude", "", "", true, "fix it"),
+            "claude --dangerously-skip-permissions -p --output-format json 'fix it'"
+        );
+        assert_eq!(
+            agent_prompt_cmdline("claude", "haiku", "low", true, "fix it"),
+            "claude --model 'haiku' --effort 'low' --dangerously-skip-permissions -p --output-format json 'fix it'"
+        );
+        assert_eq!(
+            agent_prompt_cmdline("codex", "", "", true, "fix"),
+            "codex exec --dangerously-bypass-approvals-and-sandbox 'fix'"
+        );
+        assert_eq!(agent_prompt_cmdline("gemini", "", "", true, "fix"), "gemini --yolo -p 'fix'");
+        assert_eq!(agent_prompt_cmdline("opencode", "", "", true, "fix"), "opencode run 'fix'");
+    }
+
+    #[test]
+    fn context_limit_error_is_recognized() {
+        assert!(hit_context_limit(Some("API Error: 400 … Prompt is too long")));
+        assert!(hit_context_limit(Some("prompt is too long: 210000 tokens > 200000 maximum")));
+        assert!(!hit_context_limit(Some("some other failure")));
+        assert!(!hit_context_limit(None));
     }
 
     #[test]
@@ -1400,7 +2472,7 @@ mod tests {
         let long: String = "a".repeat(50) + &"b".repeat(100);
         let head = head_chars(&long, 60);
         assert!(head.starts_with("aaaaa"));
-        assert!(head.contains("truncated"));
+        assert!(head.contains("shortened"));
         let tail = tail_chars(&long, 60);
         assert!(tail.ends_with("bbbbb"));
         assert!(!tail.contains('a'));
@@ -1408,13 +2480,128 @@ mod tests {
 
     #[test]
     fn result_text_extraction() {
-        let raw = "hook: Stop\ntokens used\n50310\n{\"type\":\"result\",\"result\":\"All good.\\n\\n- item\",\"cost\":1}\n";
-        assert_eq!(extract_result_text(raw).as_deref(), Some("All good.\n\n- item"));
-        assert_eq!(extract_result_text("plain log output\nno json here"), None);
-        assert_eq!(extract_result_text("{\"result\":\"\"}\n"), None);
+        let raw = "hook: Stop\ntokens used\n50310\n{\"type\":\"result\",\"result\":\"All good.\\n\\n- item\",\"total_cost_usd\":0.42,\"session_id\":\"abc-123\"}\n";
+        let (text, session, cost) = extract_result(raw).unwrap();
+        assert_eq!(text, "All good.\n\n- item");
+        assert_eq!(session.as_deref(), Some("abc-123"));
+        assert_eq!(cost, Some(0.42));
+        assert_eq!(extract_result("plain log output\nno json here"), None);
+        assert_eq!(extract_result("{\"result\":\"\"}\n"), None);
         // the last result object wins even with trailing noise after it
         let noisy = "{\"result\":\"first\"}\nhook: Stop\n{\"result\":\"final\"}\ntrailing";
-        assert_eq!(extract_result_text(noisy).as_deref(), Some("final"));
+        let (text, session, cost) = extract_result(noisy).unwrap();
+        assert_eq!(text, "final");
+        assert_eq!(session, None);
+        assert_eq!(cost, None);
+    }
+
+    #[test]
+    fn resume_cmdline_continues_the_session() {
+        assert_eq!(
+            claude_cmdline(Some("abc-123"), "", "", true, "yes, proceed"),
+            "claude --resume 'abc-123' --dangerously-skip-permissions -p --output-format json 'yes, proceed'"
+        );
+        assert_eq!(
+            claude_cmdline(Some("abc-123"), "haiku", "low", false, "why?"),
+            "claude --resume 'abc-123' --model 'haiku' --effort 'low' -p --output-format json 'why?'"
+        );
+    }
+
+    fn entry(
+        at: u64,
+        result: &str,
+        output: Option<&str>,
+        session: Option<&str>,
+        question: Option<&str>,
+        resumed: Option<&str>,
+    ) -> HistoryEntry {
+        HistoryEntry {
+            at,
+            result: result.to_string(),
+            output: output.map(str::to_string),
+            session: session.map(str::to_string),
+            question: question.map(str::to_string),
+            resumed: resumed.map(str::to_string),
+            ..HistoryEntry::default()
+        }
+    }
+
+    #[test]
+    fn threads_group_replies_with_their_run() {
+        let history = vec![
+            entry(1, COMPLETED, Some("run A"), Some("a1"), None, None),
+            entry(2, NOTHING_TO_DO, None, None, None, None),
+            entry(3, COMPLETED, Some("run B"), Some("b1"), None, None),
+            entry(4, COMPLETED, Some("re A"), Some("a2"), Some("why?"), Some("a1")),
+            // A sessionless exchange (another agent answered) still belongs to
+            // thread A via its resume link.
+            entry(5, COMPLETED, Some("codex says"), None, Some("ask codex"), Some("a2")),
+        ];
+        let a = thread_entries(&history, "a1");
+        assert_eq!(a.iter().map(|e| e.at).collect::<Vec<_>>(), vec![1, 4, 5]);
+        let b = thread_entries(&history, "b1");
+        assert_eq!(b.iter().map(|e| e.at).collect::<Vec<_>>(), vec![3]);
+
+        let digest = digest_of(&thread_entries(&history, "a2"));
+        assert!(digest.contains("run A"));
+        assert!(digest.contains("why?"));
+        assert!(digest.contains("codex says"));
+        assert!(!digest.contains("run B"));
+
+        let is_full = |h: &[HistoryEntry], s: &str| {
+            thread_entries(h, s).iter().any(|e| e.result == CONTEXT_FULL)
+        };
+        assert!(!is_full(&history, "a1"));
+        let mut full = history.clone();
+        full.push(entry(6, CONTEXT_FULL, None, None, Some("more?"), Some("a2")));
+        assert!(is_full(&full, "a1"));
+        assert!(!is_full(&full, "b1"));
+    }
+
+    #[test]
+    fn sessionless_runs_thread_and_delete_via_follows() {
+        let follows = |at: u64, f: u64, q: &str, out: &str| HistoryEntry {
+            at,
+            result: COMPLETED.to_string(),
+            output: Some(out.to_string()),
+            question: Some(q.to_string()),
+            follows: Some(f),
+            ..HistoryEntry::default()
+        };
+        // A codex run (no session) takes replies chained purely by `follows`.
+        let mut history = vec![
+            entry(1, COMPLETED, Some("codex run"), None, None, None),
+            entry(2, COMPLETED, Some("run B"), Some("b1"), None, None),
+            follows(3, 1, "and then?", "codex reply"),
+            follows(4, 3, "more?", "codex reply 2"),
+        ];
+        let groups = thread_groups(&history);
+        assert_eq!(groups, vec![vec![0, 2, 3], vec![1]]);
+
+        // Deleting one reply keeps the rest of the thread.
+        assert!(remove_history_entries(&mut history, 4, false));
+        assert_eq!(thread_groups(&history), vec![vec![0, 2], vec![1]]);
+        // Deleting the root with `thread` removes the whole conversation.
+        assert!(remove_history_entries(&mut history, 1, true));
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].at, 2);
+        assert!(!remove_history_entries(&mut history, 99, true));
+    }
+
+    #[test]
+    fn latest_session_entry_wins_for_replies() {
+        let mut st = JobState::default();
+        push_entry(&mut st, entry(1, COMPLETED, Some("old"), Some("sid-old"), None, None));
+        push_history(&mut st, 2, NOTHING_TO_DO, None);
+        push_entry(
+            &mut st,
+            entry(3, COMPLETED, Some("new"), Some("sid-new"), Some("go on"), Some("sid-old")),
+        );
+        let by_session =
+            st.history.iter().rev().find(|h| h.session.as_deref() == Some("sid-old")).unwrap();
+        assert_eq!(by_session.output.as_deref(), Some("old"));
+        let reply = st.history.iter().rev().find(|h| h.resumed.is_some()).unwrap();
+        assert_eq!(reply.resumed.as_deref(), Some("sid-old"));
     }
 
     #[test]

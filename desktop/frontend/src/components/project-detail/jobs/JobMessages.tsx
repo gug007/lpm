@@ -1,24 +1,26 @@
-import { useEffect, useRef, useState } from "react";
-import { JobHistory } from "../../../../bridge/commands";
+import { useEffect, useState } from "react";
+import { DeleteJobHistory, JobHistory } from "../../../../bridge/commands";
 import { Switch } from "../../ui/Switch";
-import { MessageMarkdown } from "../../MessageMarkdown";
-import { ChevronLeftIcon, ClockIcon, PencilIcon } from "../../icons";
+import { ConfirmDialog } from "../../ui/ConfirmDialog";
+import {
+  ChevronLeftIcon,
+  ClockIcon,
+  PencilIcon,
+  StopIcon,
+  TrashIcon,
+} from "../../icons";
 import { PlayIcon } from "../icons";
-import { relativeTime } from "../../../relativeTime";
+import { useNow } from "../../../hooks/useNow";
+import { JobRunRow } from "./JobRunRow";
 import {
   formatNextRun,
+  formatRunningFor,
   formatSchedule,
-  jobResultLabel,
-  jobResultTone,
-  TONE_DOT_CLASS,
+  groupJobThreads,
+  jobThreadTail,
   type JobHistoryEntry,
   type JobInfo,
 } from "../../../jobsFormat";
-
-function ago(at: number): string {
-  const t = relativeTime(at);
-  return t === "now" ? "just now" : `${t} ago`;
-}
 
 interface JobMessagesProps {
   project: string;
@@ -27,10 +29,20 @@ interface JobMessagesProps {
   onBack: () => void;
   onEdit: () => void;
   onRunNow: () => void;
+  onStop: () => void;
+  onRemove?: () => void;
+  // The job's history changed from inside this page (a run was removed) —
+  // lets the list behind it refresh its last-result line.
+  onChanged?: () => void;
   onToggleEnabled: (enabled: boolean) => void;
   onOpenCopy: (project: string) => void;
+  // Open one run's own page (its conversation), addressed by the run entry's
+  // `at`.
+  onOpenTask: (at: number) => void;
 }
 
+// A job's page: its runs, newest activity first — each run opens its own page
+// with the conversation that grew out of it.
 export function JobMessages({
   project,
   job,
@@ -38,10 +50,18 @@ export function JobMessages({
   onBack,
   onEdit,
   onRunNow,
+  onStop,
+  onRemove,
+  onChanged,
   onToggleEnabled,
   onOpenCopy,
+  onOpenTask,
 }: JobMessagesProps) {
   const [entries, setEntries] = useState<JobHistoryEntry[] | null>(null);
+  // A run pending removal, awaiting confirmation.
+  const [removing, setRemoving] = useState<number | null>(null);
+  const [reload, setReload] = useState(0);
+  const now = useNow(job.running === true);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +75,26 @@ export function JobMessages({
     return () => {
       cancelled = true;
     };
-  }, [project, job.id, refreshKey]);
+  }, [project, job.id, refreshKey, reload]);
+
+  const removeRun = async () => {
+    if (removing === null) return;
+    const at = removing;
+    setRemoving(null);
+    try {
+      await DeleteJobHistory(project, job.id, at, true);
+    } finally {
+      setReload((n) => n + 1);
+      onChanged?.();
+    }
+  };
+
+  const threads =
+    entries === null
+      ? null
+      : groupJobThreads(entries).sort(
+          (a, b) => jobThreadTail(b).at - jobThreadTail(a).at,
+        );
 
   const scheduleText = job.schedule ? formatSchedule(job.schedule) : "";
   const nextRunText = job.enabled ? formatNextRun(job.nextFireAt) : "Paused";
@@ -81,14 +120,25 @@ export function JobMessages({
           </h1>
           <p className="truncate text-[11px] text-[var(--text-muted)]">{meta}</p>
         </div>
-        <button
-          type="button"
-          onClick={onRunNow}
-          className="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-        >
-          <PlayIcon />
-          Run now
-        </button>
+        {job.running ? (
+          <button
+            type="button"
+            onClick={onStop}
+            className="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"
+          >
+            <StopIcon />
+            Stop
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onRunNow}
+            className="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            <PlayIcon />
+            Run now
+          </button>
+        )}
         <button
           type="button"
           onClick={onEdit}
@@ -97,11 +147,29 @@ export function JobMessages({
           <PencilIcon size={12} />
           Edit
         </button>
+        {onRemove && job.source !== "repo" && (
+          <button
+            type="button"
+            onClick={onRemove}
+            title="Remove job"
+            aria-label="Remove job"
+            className="flex shrink-0 items-center rounded-md p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"
+          >
+            <TrashIcon size={13} />
+          </button>
+        )}
         <button
           type="button"
           role="switch"
           aria-checked={job.enabled}
           aria-label={job.enabled ? "Pause job" : "Resume job"}
+          title={
+            job.source === "global"
+              ? job.enabled
+                ? "Pause in this project only"
+                : "Resume in this project only"
+              : undefined
+          }
           onClick={() => onToggleEnabled(!job.enabled)}
           className="shrink-0"
         >
@@ -109,118 +177,64 @@ export function JobMessages({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-6 pt-5">
+      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-6 pt-4">
         {!job.valid ? (
           <p className="py-10 text-center text-[12px] text-[var(--accent-red)]">
             {job.error || "This job can't run — edit it to fix its settings."}
           </p>
-        ) : entries === null ? (
+        ) : threads === null ? (
           <p className="py-10 text-center text-[12px] text-[var(--text-muted)]">
             Loading…
           </p>
-        ) : entries.length === 0 ? (
+        ) : threads.length === 0 && !job.running ? (
           <p className="py-10 text-center text-[12px] text-[var(--text-muted)]">
             No runs yet — use Run now to try it.
           </p>
         ) : (
-          <div className="space-y-3">
-            {[...entries].reverse().map((entry, i) => (
-              <Message
-                key={`${entry.at}-${i}`}
-                entry={entry}
+          <div className="-mx-2">
+            {job.running && (
+              <div className="flex items-center gap-3 px-2 py-3">
+                <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
+                <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--accent-cyan)]">
+                  {formatRunningFor(job.runningSince, now)}
+                </span>
+                <button
+                  type="button"
+                  onClick={onStop}
+                  className="shrink-0 text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--accent-red)]"
+                >
+                  Stop
+                </button>
+              </div>
+            )}
+            {threads.map((thread, i) => (
+              <JobRunRow
+                key={`${thread.root.at}-${i}`}
+                thread={thread}
+                onOpen={
+                  thread.root.output || thread.replies.length > 0
+                    ? () => onOpenTask(thread.root.at)
+                    : undefined
+                }
                 onOpenCopy={onOpenCopy}
+                onRemove={
+                  job.running ? undefined : () => setRemoving(thread.root.at)
+                }
               />
             ))}
           </div>
         )}
       </div>
-    </div>
-  );
-}
 
-const COLLAPSED_MAX_PX = 340;
-
-function Message({
-  entry,
-  onOpenCopy,
-}: {
-  entry: JobHistoryEntry;
-  onOpenCopy: (project: string) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [overflows, setOverflows] = useState(false);
-  const bodyRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = bodyRef.current;
-    if (el) setOverflows(el.scrollHeight > COLLAPSED_MAX_PX + 40);
-  }, [entry.output]);
-
-  const copyOutput = () => {
-    if (!entry.output) return;
-    void navigator.clipboard.writeText(entry.output);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-
-  const header = (
-    <div className="group flex items-center gap-2.5">
-      <span
-        className={`h-1.5 w-1.5 shrink-0 rounded-full ${TONE_DOT_CLASS[jobResultTone(entry.result)]}`}
+      <ConfirmDialog
+        open={removing !== null}
+        title="Remove this run?"
+        body="The run and its replies are removed from this job's history. This cannot be undone."
+        confirmLabel="Remove"
+        variant="destructive"
+        onCancel={() => setRemoving(null)}
+        onConfirm={() => void removeRun()}
       />
-      <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--text-secondary)]">
-        {jobResultLabel(entry.result)}
-        {entry.copy && (
-          <>
-            {" in "}
-            <button
-              type="button"
-              onClick={() => onOpenCopy(entry.copy as string)}
-              className="font-medium text-[var(--accent-cyan)] hover:underline"
-            >
-              {entry.copy}
-            </button>
-          </>
-        )}
-      </span>
-      {entry.output && (
-        <button
-          type="button"
-          onClick={copyOutput}
-          className="shrink-0 text-[11px] font-medium text-[var(--text-muted)] opacity-0 transition-all hover:text-[var(--text-primary)] focus-visible:opacity-100 group-hover:opacity-100"
-        >
-          {copied ? "Copied" : "Copy"}
-        </button>
-      )}
-      <span className="shrink-0 text-[11px] tabular-nums text-[var(--text-muted)]">
-        {ago(entry.at)}
-      </span>
-    </div>
-  );
-
-  if (!entry.output) {
-    return <div className="px-1 py-1">{header}</div>;
-  }
-  return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/40 px-4 py-3">
-      {header}
-      <div
-        ref={bodyRef}
-        className="mt-2.5 overflow-hidden border-t border-[var(--border)] pt-2.5"
-        style={expanded ? undefined : { maxHeight: COLLAPSED_MAX_PX }}
-      >
-        <MessageMarkdown text={entry.output} />
-      </div>
-      {overflows && (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="mt-2 w-full text-center text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
-        >
-          {expanded ? "Show less" : "Show more"}
-        </button>
-      )}
     </div>
   );
 }

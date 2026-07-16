@@ -58,13 +58,59 @@ export interface JobInfo {
   lastRunAt?: number;
   lastResult?: string;
   nextFireAt?: number;
+  running?: boolean;
+  runningSince?: number;
+  agent?: string;
+  model?: string;
+  effort?: string;
 }
 
 export interface JobHistoryEntry {
   at: number;
   result: string;
+  // How many consecutive identical outcomes this entry stands for (quiet
+  // checks and skips collapse into one counted entry).
+  count?: number;
   copy?: string;
   output?: string;
+  durationSecs?: number;
+  costUsd?: number;
+  session?: string;
+  resumed?: string;
+  // The `at` of the entry this reply followed — threading that works without
+  // an agent session.
+  follows?: number;
+  question?: string;
+  compacted?: boolean;
+}
+
+// One run and the conversation that grew out of it: the scheduled (or manual)
+// run is the root, replies chain onto it via the session each one continued.
+export interface JobThread {
+  root: JobHistoryEntry;
+  replies: JobHistoryEntry[];
+}
+
+export function groupJobThreads(entries: JobHistoryEntry[]): JobThread[] {
+  const threads: JobThread[] = [];
+  const bySession = new Map<string, JobThread>();
+  const byAt = new Map<number, JobThread>();
+  for (const entry of entries) {
+    const parent =
+      (entry.resumed ? bySession.get(entry.resumed) : undefined) ??
+      (entry.follows !== undefined ? byAt.get(entry.follows) : undefined);
+    const thread = parent ?? { root: entry, replies: [] };
+    if (parent) parent.replies.push(entry);
+    else threads.push(thread);
+    if (entry.session) bySession.set(entry.session, thread);
+    byAt.set(entry.at, thread);
+  }
+  return threads;
+}
+
+// The thread's newest message — what a reply continues from.
+export function jobThreadTail(thread: JobThread): JobHistoryEntry {
+  return thread.replies[thread.replies.length - 1] ?? thread.root;
 }
 
 // Result strings emitted by the backend pipeline (jobs.rs).
@@ -73,6 +119,9 @@ export type JobResult =
   | "found-work"
   | "completed"
   | "error"
+  | "canceled"
+  | "timed-out"
+  | "context-full"
   | "skipped-overlap"
   | "skipped-pending-copy"
   | "pending-window";
@@ -93,6 +142,9 @@ const RESULT_META: Record<string, ResultMeta> = {
   },
   completed: { label: () => "Done", tone: "success" },
   error: { label: () => "Problem during the run", tone: "error" },
+  canceled: { label: () => "Stopped", tone: "neutral" },
+  "timed-out": { label: () => "Stopped — ran too long", tone: "error" },
+  "context-full": { label: () => "Conversation full", tone: "warning" },
   "skipped-overlap": { label: () => "Skipped — still running", tone: "warning" },
   "skipped-pending-copy": {
     label: () => "Waiting — the copy from the last run is still open",
@@ -124,6 +176,51 @@ export const TONE_DOT_CLASS: Record<JobResultTone, string> = {
 // on the row itself, so the list surfaces it directly.
 export function isBlockedResult(result: string | undefined): boolean {
   return result === "skipped-pending-copy";
+}
+
+// "Running" under a minute, then "Running — 4m" / "Running — 1h 12m".
+// `sinceSecs` is a unix timestamp; `nowMs` is injectable for tests.
+export function formatRunningFor(
+  sinceSecs: number | undefined,
+  nowMs: number = Date.now(),
+): string {
+  const elapsed = sinceSecs ? Math.floor(nowMs / 1000) - sinceSecs : 0;
+  if (elapsed < 60) return "Running";
+  const mins = Math.floor(elapsed / 60);
+  if (mins < 60) return `Running — ${mins}m`;
+  return `Running — ${Math.floor(mins / 60)}h ${mins % 60}m`;
+}
+
+// One-line plain-text preview of a run's output for list rows: markdown
+// dressing stripped, whitespace collapsed, tail elided.
+export function jobOutputSnippet(output: string | undefined, max = 160): string {
+  if (!output) return "";
+  const flat = output
+    .replace(/```[\s\S]*?(```|$)/g, " ")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/[#*_>`|]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return flat.length <= max ? flat : `${flat.slice(0, max).trimEnd()}…`;
+}
+
+// "12s", "4m", "4m 30s", "1h 12m" — how long a run took.
+export function formatDuration(secs: number): string {
+  if (secs < 60) return `${Math.max(0, Math.round(secs))}s`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) {
+    const rest = Math.round(secs % 60);
+    return rest > 0 ? `${mins}m ${rest}s` : `${mins}m`;
+  }
+  const hours = Math.floor(mins / 60);
+  const rest = mins % 60;
+  return rest > 0 ? `${hours}h ${rest}m` : `${hours}h`;
+}
+
+// "$0.42" — what a run cost, when the agent reported it.
+export function formatCost(usd: number): string {
+  if (usd < 0.005) return "<$0.01";
+  return `$${usd.toFixed(2)}`;
 }
 
 function pad2(n: number): string {
@@ -186,6 +283,9 @@ export function formatNextRun(
 ): string {
   if (!nextFireAt) return "";
   const at = new Date(nextFireAt * 1000);
+  // An overdue fire point means the scheduler is about to pick it up — a
+  // timestamp in the past would read as a bug.
+  if (at.getTime() <= now.getTime()) return "Next run in a moment";
   const time = `${pad2(at.getHours())}:${pad2(at.getMinutes())}`;
 
   const tomorrow = new Date(now);
@@ -228,10 +328,13 @@ export interface JobDraft {
   prompt: string;
   // Which agent CLI runs a prompt job and with which model; both empty = the
   // app's default agent with its default model. `effort` is the reasoning
-  // effort (Claude/Codex only); empty = the model's default.
+  // effort (Claude/Codex only); empty = the model's default. `access` is
+  // "full" (the agent can edit files and run commands unattended) or "read"
+  // (look around and report only).
   agent: string;
   model: string;
   effort: string;
+  access: "full" | "read";
 }
 
 export function defaultJobDraft(): JobDraft {
@@ -252,6 +355,7 @@ export function defaultJobDraft(): JobDraft {
     agent: "",
     model: "",
     effort: "",
+    access: "full",
   };
 }
 
@@ -323,6 +427,7 @@ function buildRunBlock(draft: JobDraft): Record<string, unknown> {
   if (draft.agent.trim()) block.agent = draft.agent.trim();
   if (draft.model.trim()) block.model = draft.model.trim();
   if (draft.effort.trim()) block.effort = draft.effort.trim();
+  if (draft.access === "read") block.access = "read";
   return block;
 }
 
@@ -397,6 +502,9 @@ export function payloadToDraft(payload: Record<string, unknown>): JobDraft {
       if (typeof r.agent === "string") draft.agent = r.agent.trim().toLowerCase();
       if (typeof r.model === "string") draft.model = r.model.trim();
       if (typeof r.effort === "string") draft.effort = r.effort.trim().toLowerCase();
+      if (typeof r.access === "string" && r.access.trim().toLowerCase() === "read") {
+        draft.access = "read";
+      }
     }
   }
 
