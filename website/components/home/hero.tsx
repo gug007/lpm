@@ -16,7 +16,7 @@ export function Hero() {
             aria-hidden="true"
             className="h-1.5 w-1.5 rounded-full bg-emerald-500/90 dark:bg-emerald-400/90"
           />
-          Local Project Manager
+          Built for Mac developers
         </p>
         <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.1] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
           Switch between projects and terminals in seconds

@@ -56,7 +56,7 @@ export function ogImage({ headline, subline }: OgImageInput): ImageResponse {
               textTransform: "uppercase",
             }}
           >
-            Local Project Manager
+            Project & Terminal Switcher
           </div>
         </div>
 

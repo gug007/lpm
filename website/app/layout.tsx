@@ -27,7 +27,6 @@ export const metadata: Metadata = {
   description:
     "Native macOS app with a built-in terminal for Claude Code and Codex. Start, stop, duplicate, and switch local dev projects — Rails, Next.js, Go, and more.",
   keywords: [
-    "local project manager",
     "dev tools",
     "macOS app",
     "process manager",
@@ -68,7 +67,6 @@ const structuredData = {
       "@type": "SoftwareApplication",
       "@id": `${SITE_URL}/#app`,
       name: "lpm",
-      alternateName: "Local Project Manager",
       description:
         "A native macOS desktop app to manage local dev projects. Start, stop, duplicate, and switch with a single click.",
       applicationCategory: "DeveloperApplication",

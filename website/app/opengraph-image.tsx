@@ -1,7 +1,7 @@
 import { OG_CONTENT_TYPE, OG_SIZE, ogImage } from "@/lib/og-template";
 
 export const alt =
-  "lpm — Local Project Manager. Start projects in one click. Run AI agents in parallel.";
+  "lpm for macOS. Start projects in one click. Run AI agents in parallel.";
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
 

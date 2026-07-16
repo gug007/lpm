@@ -175,7 +175,7 @@ export default function VsTmuxPage() {
       <ComparisonHero
         eyebrow="lpm vs tmux"
         title="tmux-level visibility, one-command start, no config."
-        description="tmux is a wonderful terminal multiplexer. lpm is a local project manager that happens to give you the same pane-per-service layout for free. If you only use tmux to wire up your dev stack, this page is for you."
+        description="tmux is a wonderful terminal multiplexer. lpm is a project manager for your local dev stacks that happens to give you the same pane-per-service layout for free. If you only use tmux to wire up your dev stack, this page is for you."
       />
 
       <DemoSection />
