@@ -35,6 +35,7 @@ import { useTTSHotkeys } from "../hooks/useTTSHotkeys";
 import { TTSControls } from "./TTSControls";
 import { joinAbs } from "../path";
 import { isPeerName } from "../peer/markers";
+import { isPendingClose } from "../pendingClose";
 
 interface TerminalViewProps {
   projectName: string;
@@ -230,6 +231,10 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     if (sameAsPrev && next.size === prev.size) return;
     for (const id of prev) {
       if (!next.has(id)) {
+        // A tab held open behind an "Undo" toast has left the tree but its
+        // session must survive so undo can reattach it; its teardown runs
+        // later when the toast resolves.
+        if (isPendingClose(id)) continue;
         disposeInteractivePaneSession(id);
         forgetComposerDraft(id);
       }

@@ -187,14 +187,14 @@ export function JobTaskView({
     setRemoving(null);
     try {
       await DeleteJobHistory(project, job.id, at, whole, alsoCopy);
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Couldn't remove the run.",
-      );
-    } finally {
       onChanged();
       if (whole) onBack();
       else setReload((n) => n + 1);
+    } catch (err) {
+      // Nothing was removed — stay on the page and say why.
+      toast.error(err instanceof Error ? err.message : String(err));
+      onChanged();
+      setReload((n) => n + 1);
     }
   };
 
@@ -282,15 +282,16 @@ export function JobTaskView({
                 }
               />
             ))}
+            {/* Scoped to `pending` (a reply sent from this page): the job's
+                other runs — a scheduled fire, another thread's reply — belong
+                to other conversations and must not render here. */}
             {pending && (
-              <div className="mt-6 flex justify-end">
-                <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-[var(--bg-secondary)] px-4 py-2.5 text-[13px] leading-relaxed text-[var(--text-primary)]">
-                  {pending.text}
+              <div className="mt-6">
+                <div className="mb-2 flex justify-end">
+                  <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-[var(--bg-secondary)] px-4 py-2.5 text-[13px] leading-relaxed text-[var(--text-primary)]">
+                    {pending.text}
+                  </div>
                 </div>
-              </div>
-            )}
-            {job.running && (
-              <div className={pending ? "mt-2" : "mt-6"}>
                 <div className="flex items-center gap-2.5 px-1 py-2">
                   <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
                   <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--text-secondary)]">

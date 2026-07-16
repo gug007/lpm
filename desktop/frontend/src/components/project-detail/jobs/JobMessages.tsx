@@ -102,9 +102,7 @@ export function JobMessages({
     try {
       await DeleteJobHistory(project, job.id, at, true, alsoCopy);
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Couldn't remove the run.",
-      );
+      toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setReload((n) => n + 1);
       onChanged?.();

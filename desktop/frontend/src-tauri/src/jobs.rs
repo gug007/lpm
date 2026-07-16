@@ -839,7 +839,9 @@ fn agent_prompt_cmdline(agent: &str, model: &str, effort: &str, full_access: boo
             };
             let access_arg =
                 if full_access { " --dangerously-bypass-approvals-and-sandbox" } else { "" };
-            format!("codex exec{model_arg}{effort_arg}{access_arg} {q}")
+            // Codex refuses to start outside a git repository by default;
+            // scheduled runs must work in any project folder.
+            format!("codex exec --skip-git-repo-check{model_arg}{effort_arg}{access_arg} {q}")
         }
         // Gemini/OpenCode have no effort control. Gemini's json output mode
         // wraps the final message in a `response` field the feed can extract,
@@ -1179,7 +1181,11 @@ fn read_log_tail(path: &Path, max_bytes: u64) -> String {
     }
     let mut s = String::from_utf8_lossy(&buf).into_owned();
     if skip > 0 {
-        s = s.split_once('\n').map(|(_, rest)| rest.to_string()).unwrap_or_default();
+        // No newline in the window means one giant line — keep it (chopped)
+        // rather than going blank.
+        if let Some(nl) = s.find('\n') {
+            s = s[nl + 1..].to_string();
+        }
     }
     s
 }
@@ -1594,20 +1600,23 @@ fn run_pipeline(app: &AppHandle, project: &str, job: &JobResolved) {
     }
     let at = now_secs();
     let _ = with_state(|f| {
-        let st = f.jobs.entry(key.clone()).or_default();
-        st.running = None;
-        push_entry(
-            st,
-            HistoryEntry {
-                at,
-                result: outcome.result.to_string(),
-                copy: outcome.copy.clone(),
-                output: outcome.note.clone(),
-                ..HistoryEntry::default()
-            },
-        );
-        if outcome.advance {
-            st.last_run_at = Some(at);
+        // The job may have been deleted (its state cleared) mid-pipeline —
+        // like the agent watcher, never resurrect it with a ghost entry.
+        if let Some(st) = f.jobs.get_mut(&key) {
+            st.running = None;
+            push_entry(
+                st,
+                HistoryEntry {
+                    at,
+                    result: outcome.result.to_string(),
+                    copy: outcome.copy.clone(),
+                    output: outcome.note.clone(),
+                    ..HistoryEntry::default()
+                },
+            );
+            if outcome.advance {
+                st.last_run_at = Some(at);
+            }
         }
     });
     emit_status(app, project, &job.id, outcome.result, &outcome.copy);
@@ -2146,6 +2155,15 @@ fn remove_job_copies(app: &AppHandle, project: &str, copies: &[String]) -> Resul
     }
 }
 
+/// Whether the job has a run alive anywhere: this process's registries, or the
+/// persisted lock / active-run record another lpm instance (or a
+/// not-yet-reconciled previous process) may own. Copy deletion must never pass
+/// while any of these stand — the copy on the block may be the very folder
+/// that run is working in.
+fn job_is_live(st: &JobState, key: &str) -> bool {
+    st.running.is_some() || st.active_run.is_some() || running_since(key).is_some()
+}
+
 /// Remove one message from a job's feed — or, with `thread`, the whole
 /// conversation it belongs to. With `delete_copies`, the duplicate projects
 /// those runs worked in are torn down too, so reviewed copies don't pile up.
@@ -2158,17 +2176,19 @@ pub fn delete_job_history(
     thread: bool,
     delete_copies: bool,
 ) -> Result<(), String> {
-    // A live run may be working inside the very copy on the block — the UI
-    // disables removal while running, but the run could have started since.
-    if delete_copies && running_since(&state_key(&project, &job_id)).is_some() {
-        return Err("This job is running — wait for it to finish.".into());
-    }
+    let key = state_key(&project, &job_id);
+    // The liveness check rides inside the same state lock as the mutation, so
+    // a run can't slip in between — the UI disables removal while running,
+    // but a run could have started since (or belong to another app instance).
     let removed = with_state(|f| {
-        f.jobs
-            .get_mut(&state_key(&project, &job_id))
-            .map(|st| remove_history_entries(&mut st.history, at, thread))
-            .unwrap_or_default()
-    })?;
+        let Some(st) = f.jobs.get_mut(&key) else {
+            return Ok(Vec::new());
+        };
+        if delete_copies && job_is_live(st, &key) {
+            return Err("This job is running — wait for it to finish.".to_string());
+        }
+        Ok(remove_history_entries(&mut st.history, at, thread))
+    })??;
     if delete_copies {
         remove_job_copies(&app, &project, &copies_of(&removed))?;
     }
@@ -2186,7 +2206,17 @@ pub fn clear_job_state(
     job_id: String,
     delete_copies: bool,
 ) -> Result<(), String> {
-    let removed = with_state(|f| f.jobs.remove(&state_key(&project, &job_id)))?;
+    let key = state_key(&project, &job_id);
+    let removed = with_state(|f| {
+        if delete_copies {
+            if let Some(st) = f.jobs.get(&key) {
+                if job_is_live(st, &key) {
+                    return Err("This job is running — wait for it to finish.".to_string());
+                }
+            }
+        }
+        Ok(f.jobs.remove(&key))
+    })??;
     if delete_copies {
         if let Some(st) = removed {
             remove_job_copies(&app, &project, &copies_of(&st.history))?;
@@ -2198,28 +2228,48 @@ pub fn clear_job_state(
 /// The same, for a deleted all-projects job: drop its state in every project
 /// where no other config layer still defines that id — a project or repo job
 /// wearing the same id keeps its history (and its copies).
+/// The project owning a `<project>/<jobId>` state key, when the key belongs to
+/// `job_id`. Project names can't contain '/', so splitting at the first one is
+/// exact — a suffix match would let job "nightly" swallow "review/nightly".
+fn state_key_project<'a>(key: &'a str, job_id: &str) -> Option<&'a str> {
+    key.split_once('/').filter(|(_, id)| *id == job_id).map(|(project, _)| project)
+}
+
 #[tauri::command(async)]
 pub fn clear_job_state_global(
     app: AppHandle,
     job_id: String,
     delete_copies: bool,
 ) -> Result<(), String> {
-    let suffix = format!("/{job_id}");
     let keep: HashSet<String> = config::project_names()
         .into_iter()
         .filter(|p| resolve_jobs(p).iter().any(|(id, _, _)| *id == job_id))
         .collect();
     let removed = with_state(|f| {
-        let mut dropped: Vec<(String, JobState)> = Vec::new();
-        f.jobs.retain(|key, st| match key.strip_suffix(&suffix) {
-            Some(project) if !keep.contains(project) => {
-                dropped.push((project.to_string(), st.clone()));
-                false
+        let doomed = |key: &str| {
+            state_key_project(key, &job_id).is_some_and(|project| !keep.contains(project))
+        };
+        if delete_copies {
+            for (key, st) in f.jobs.iter() {
+                if doomed(key) && job_is_live(st, key) {
+                    let project = state_key_project(key, &job_id).unwrap_or_default();
+                    return Err(format!(
+                        "This job is running in {project} — wait for it to finish."
+                    ));
+                }
             }
-            _ => true,
+        }
+        let mut dropped: Vec<(String, JobState)> = Vec::new();
+        f.jobs.retain(|key, st| {
+            if !doomed(key) {
+                return true;
+            }
+            let project = state_key_project(key, &job_id).unwrap_or_default();
+            dropped.push((project.to_string(), st.clone()));
+            false
         });
-        dropped
-    })?;
+        Ok(dropped)
+    })??;
     if delete_copies {
         let mut first_err = None;
         for (project, st) in removed {
@@ -2723,11 +2773,11 @@ mod tests {
         );
         assert_eq!(
             agent_prompt_cmdline("codex", "gpt-5.6-sol", "", false, "fix"),
-            "codex exec -m 'gpt-5.6-sol' 'fix'"
+            "codex exec --skip-git-repo-check -m 'gpt-5.6-sol' 'fix'"
         );
         assert_eq!(
             agent_prompt_cmdline("codex", "gpt-5.6-sol", "high", false, "fix"),
-            "codex exec -m 'gpt-5.6-sol' -c model_reasoning_effort='high' 'fix'"
+            "codex exec --skip-git-repo-check -m 'gpt-5.6-sol' -c model_reasoning_effort='high' 'fix'"
         );
         assert_eq!(
             agent_prompt_cmdline("claude", "", "max", false, "fix it"),
@@ -2749,7 +2799,7 @@ mod tests {
         );
         assert_eq!(
             agent_prompt_cmdline("codex", "", "", true, "fix"),
-            "codex exec --dangerously-bypass-approvals-and-sandbox 'fix'"
+            "codex exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox 'fix'"
         );
         assert_eq!(
             agent_prompt_cmdline("gemini", "", "", true, "fix"),
@@ -2965,6 +3015,39 @@ mod tests {
         assert_eq!(history.len(), 1);
         assert_eq!(history[0].at, 2);
         assert!(remove_history_entries(&mut history, 99, true).is_empty());
+    }
+
+    #[test]
+    fn state_keys_match_on_the_first_slash_only() {
+        assert_eq!(state_key_project("web/nightly", "nightly"), Some("web"));
+        // A job id containing '/' matches exactly, never as a suffix of a
+        // longer id — "nightly" must not swallow "review/nightly".
+        assert_eq!(state_key_project("web/review/nightly", "nightly"), None);
+        assert_eq!(state_key_project("web/review/nightly", "review/nightly"), Some("web"));
+        assert_eq!(state_key_project("web/other", "nightly"), None);
+        assert_eq!(state_key_project("no-slash", "nightly"), None);
+    }
+
+    #[test]
+    fn live_jobs_refuse_copy_deletion() {
+        let mut st = JobState::default();
+        assert!(!job_is_live(&st, "quiet/job"));
+        st.running = Some(RunningLock { started_at: 1 });
+        assert!(job_is_live(&st, "quiet/job"));
+        st.running = None;
+        st.active_run = Some(ActiveRun {
+            pid: 0,
+            started_at: 1,
+            log_path: String::new(),
+            agent: None,
+            copy: None,
+            question: None,
+            resumed: None,
+            follows: None,
+            compacted: false,
+            boot_at: None,
+        });
+        assert!(job_is_live(&st, "quiet/job"));
     }
 
     #[test]

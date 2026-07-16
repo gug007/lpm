@@ -88,6 +88,7 @@ export function JobEditorModal({
   const [saving, setSaving] = useState(false);
   const [test, setTest] = useState<TestState>({ kind: "idle" });
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteCopies, setDeleteCopies] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   // Whether the user has edited anything yet — the "what's missing" hint
   // stays quiet on a freshly opened editor.
@@ -219,16 +220,16 @@ export function JobEditorModal({
     try {
       if (source === "global") {
         await deleteJobGlobal(editing.job.id);
-        await ClearJobStateGlobal(editing.job.id, false);
+        await ClearJobStateGlobal(editing.job.id, deleteCopies);
       } else {
         await deleteJob(editing.project, editing.job.id);
-        await ClearJobState(editing.project, editing.job.id, false);
+        await ClearJobState(editing.project, editing.job.id, deleteCopies);
       }
       toast.success("Job deleted");
       onSaved();
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not delete the job");
+      toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(false);
     }
@@ -541,7 +542,10 @@ export function JobEditorModal({
               {isEditing && source !== "repo" && (
                 <button
                   type="button"
-                  onClick={() => setConfirmDelete(true)}
+                  onClick={() => {
+                    setDeleteCopies(false);
+                    setConfirmDelete(true);
+                  }}
                   disabled={saving}
                   className="shrink-0 rounded-lg px-4 py-2 text-[13px] font-medium text-[var(--accent-red)] transition-colors hover:bg-[var(--accent-red)]/10 disabled:opacity-40"
                 >
@@ -591,6 +595,17 @@ export function JobEditorModal({
             </span>{" "}
             from {source === "global" ? "every project" : "this project"}. This
             cannot be undone.
+            {editing?.job.duplicate && (
+              <label className="mt-3 flex cursor-pointer items-center gap-1.5 text-[12px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]">
+                <input
+                  type="checkbox"
+                  checked={deleteCopies}
+                  onChange={(e) => setDeleteCopies(e.target.checked)}
+                  className="accent-[var(--accent-blue)] h-3 w-3"
+                />
+                Also remove the copies its runs created
+              </label>
+            )}
           </>
         }
         confirmLabel="Delete"

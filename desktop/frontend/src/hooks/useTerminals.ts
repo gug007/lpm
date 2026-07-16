@@ -1,10 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { toast } from "sonner";
 import { StartTerminal, StartTerminalForConfig, StartTerminalForRestore, StartTerminalWithCwdEnv, StopTerminal, ClearPaneStatus } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 import { sendTerminalInput, shellQuote } from "../terminal-io";
 import { detectAICLI } from "../slashCommands";
 import { buildCodexResumeCmd } from "../codexResume";
-import { isInteractivePaneSessionDead } from "../components/InteractivePane";
+import { disposeInteractivePaneSession, isInteractivePaneSessionDead } from "../components/InteractivePane";
+import { forgetComposerDraft } from "../store/composerDrafts";
+import { showUndoCloseToast } from "../components/UndoCloseToast";
+import {
+  pendingClosesForProject,
+  registerPendingClose,
+  takePendingClose,
+} from "../pendingClose";
 import {
   appendHistoryEntry,
   getProjectTerminals,
@@ -78,6 +86,9 @@ const PROMPT_MAX_WAIT_MS = 3000;
 // on every tick; batch the resulting disk writes to the trailing edge so
 // a burst produces ~1 write.
 const DEFERRED_PERSIST_MS = 200;
+
+// Grace period the closed tab stays recoverable behind the undo toast.
+const UNDO_CLOSE_DURATION_MS = 3000;
 
 export interface UseTerminalsResult {
   tree: PaneNode | null;
@@ -730,6 +741,88 @@ export function useTerminals(
     [recordClosingTabs, projectName],
   );
 
+  // Runs the deferred teardown once the undo window closes (toast auto-closed,
+  // dismissed, or the project view unmounts). Idempotent: `takePendingClose`
+  // claims the entry so a second trigger — sonner can fire onDismiss right after
+  // an unmount-driven finalize — is a no-op.
+  const finalizePendingClose = useCallback(
+    (id: string) => {
+      const entry = takePendingClose(id);
+      if (!entry || entry.finalized) return;
+      entry.finalized = true;
+      disposeTabs([entry.tab]);
+      disposeInteractivePaneSession(id);
+      forgetComposerDraft(id);
+      toast.dismiss(entry.toastId);
+    },
+    [disposeTabs],
+  );
+
+  // Restores a pending-close tab into the tree. The PTY and xterm buffer were
+  // never torn down, so re-inserting the same tab object reattaches the live
+  // session by id and scrollback survives. Prefers the original pane+index; if
+  // that pane collapsed while the toast was up, falls back to the focused (or
+  // first) leaf, and recreates a root pane if the whole tree is gone.
+  const undoPendingClose = useCallback(
+    (id: string) => {
+      const entry = takePendingClose(id);
+      if (!entry || entry.finalized) return;
+      entry.finalized = true;
+      toast.dismiss(entry.toastId);
+      const current = treeRef.current;
+      const pane = current ? findPane(current, entry.paneId) : null;
+      if (current && pane) {
+        const insertAt = Math.min(entry.tabIdx, pane.tabs.length);
+        const next = mapPane(current, entry.paneId, (p) => ({
+          ...p,
+          tabs: [...p.tabs.slice(0, insertAt), entry.tab, ...p.tabs.slice(insertAt)],
+          activeTabIdx: insertAt,
+          activeServiceName: undefined,
+        }));
+        applyTree(next, entry.paneId);
+        return;
+      }
+      if (current) {
+        const focused = focusedRef.current;
+        const target =
+          focused && findPane(current, focused) ? focused : firstPaneId(current);
+        applyTree(mapPane(current, target, (p) => appendTerminal(p, entry.tab)), target);
+        return;
+      }
+      const paneId = nextId("pane");
+      applyTree(makePaneLeaf(paneId, [entry.tab], 0), paneId);
+    },
+    [applyTree],
+  );
+
+  // Register a closing terminal tab for undo and raise its toast instead of
+  // tearing it down now. Product-language copy only — no PTY/session wording.
+  const beginPendingClose = useCallback(
+    (pane: PaneLeaf, tabIdx: number) => {
+      const tab = pane.tabs[tabIdx];
+      const toastId = `close-tab-${tab.id}`;
+      registerPendingClose({
+        tab,
+        paneId: pane.id,
+        tabIdx,
+        projectName,
+        toastId,
+        finalized: false,
+      });
+      showUndoCloseToast({
+        toastId,
+        label: tab.label,
+        durationMs: UNDO_CLOSE_DURATION_MS,
+        onUndo: () => undoPendingClose(tab.id),
+        onFinalize: () => finalizePendingClose(tab.id),
+      });
+    },
+    [projectName, undoPendingClose, finalizePendingClose],
+  );
+
+  const finalizePendingCloseRef = useRef(finalizePendingClose);
+  finalizePendingCloseRef.current = finalizePendingClose;
+
   const closeTerminal = useCallback(
     (paneId: string, tabIdx: number, opts?: { stop?: boolean; force?: boolean }) => {
       // Forward by tab id, not index: the mirror's local tree lags the owner's
@@ -748,7 +841,15 @@ export function useTerminals(
       if (!pane || !pane.tabs[tabIdx]) return;
       // `force` (a peer-close removing a dead tab) bypasses the pin guard.
       if (!opts?.force && isTabPinned(pane, tabIdx)) return;
-      disposeTabs([pane.tabs[tabIdx]], opts?.stop ?? true);
+      const tab = pane.tabs[tabIdx];
+      // Real terminal tabs closed through the normal path defer teardown behind
+      // an undo toast; a peer-driven close (stop === false, PTY already dead)
+      // and non-PTY tabs (browser/review) tear down immediately.
+      if ((opts?.stop ?? true) && isTerminalTab(tab)) {
+        beginPendingClose(pane, tabIdx);
+      } else {
+        disposeTabs([tab], opts?.stop ?? true);
+      }
 
       // Collapse the pane only when it would otherwise be empty — panes
       // that hold a persistent service tab stay alive even with no
@@ -763,7 +864,7 @@ export function useTerminals(
       const next = mapPane(current, paneId, (p) => ({ ...p, tabs: newTabs, activeTabIdx: newActive }));
       applyTree(next);
     },
-    [applyTree, collapsePane, disposeTabs, forward],
+    [applyTree, collapsePane, disposeTabs, beginPendingClose, forward],
   );
 
   // Closes every unpinned tab in the pane except the one at `tabIdx`; pinned
@@ -1215,6 +1316,11 @@ export function useTerminals(
       cleanups.clear();
       // A mirror window adopts the owner's PTYs; closing it must not stop them.
       if (IS_MIRROR_WINDOW) return;
+      // Pending-close tabs aren't in the tree, so the loop below won't stop
+      // their PTYs — finalize each now so nothing orphans on unmount/quit.
+      for (const entry of pendingClosesForProject(projectName)) {
+        finalizePendingCloseRef.current(entry.tab.id);
+      }
       const current = treeRef.current;
       if (current) {
         collectTerminals(current).forEach((t) => {

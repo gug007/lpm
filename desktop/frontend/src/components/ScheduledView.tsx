@@ -43,7 +43,7 @@ export function ScheduledView() {
       setRefreshKey((n) => n + 1);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Couldn't load scheduled jobs.",
+        err instanceof Error ? err.message : String(err),
       );
       setRows((prev) => prev ?? []);
     }
@@ -54,14 +54,14 @@ export function ScheduledView() {
   const runNow = useCallback((project: string, id: string) => {
     RunJobNow(project, id).catch((err) => {
       toast.error(
-        err instanceof Error ? err.message : "Couldn't start the job.",
+        err instanceof Error ? err.message : String(err),
       );
     });
   }, []);
   const stopRun = useCallback((project: string, id: string) => {
     StopJobRun(project, id).catch((err) => {
       toast.error(
-        err instanceof Error ? err.message : "Couldn't stop the run.",
+        err instanceof Error ? err.message : String(err),
       );
     });
   }, []);
@@ -70,7 +70,7 @@ export function ScheduledView() {
       SetJobEnabled(project, id, enabled)
         .catch((err) => {
           toast.error(
-            err instanceof Error ? err.message : "Couldn't update the job.",
+            err instanceof Error ? err.message : String(err),
           );
         })
         .finally(() => void refetch());
@@ -118,11 +118,23 @@ export function ScheduledView() {
       }
       toast.success("Job removed");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not remove the job");
+      toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       void refetch();
     }
   };
+
+  // Whether the job on the removal block has a run alive anywhere — a global
+  // job rows under every project, and a copy can't be deleted under a live
+  // run (the backend refuses too; this keeps the dialog honest up front).
+  const removingRunning = removing
+    ? (rows ?? []).some(
+        (r) =>
+          r.id === removing.job.id &&
+          r.running === true &&
+          (removing.job.source === "global" || r.project === removing.project),
+      )
+    : false;
 
   const openJob = open
     ? (rows ?? []).find((r) => r.project === open.project && r.id === open.id)
@@ -172,6 +184,7 @@ export function ScheduledView() {
         />
         <RemoveJobDialog
           removing={removing}
+          running={removingRunning}
           onCancel={() => setRemoving(null)}
           onConfirm={(deleteCopies) => void removeJob(deleteCopies)}
         />
@@ -286,6 +299,7 @@ export function ScheduledView() {
       />
       <RemoveJobDialog
         removing={removing}
+        running={removingRunning}
         onCancel={() => setRemoving(null)}
         onConfirm={(deleteCopies) => void removeJob(deleteCopies)}
       />
@@ -295,10 +309,14 @@ export function ScheduledView() {
 
 function RemoveJobDialog({
   removing,
+  running,
   onCancel,
   onConfirm,
 }: {
   removing: { project: string; job: JobInfo } | null;
+  // The job has a run alive (in any project, for a global job) — its copies
+  // can't be removed out from under it.
+  running: boolean;
   onCancel: () => void;
   onConfirm: (deleteCopies: boolean) => void;
 }) {
@@ -319,10 +337,20 @@ function RemoveJobDialog({
             : `from ${removing?.project}, along with its run history`}
           . This cannot be undone.
           {removing?.job.duplicate && (
-            <label className="mt-3 flex cursor-pointer items-center gap-1.5 text-[12px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]">
+            <label
+              title={
+                running ? "A run is in progress — stop it first" : undefined
+              }
+              className={`mt-3 flex items-center gap-1.5 text-[12px] text-[var(--text-secondary)] ${
+                running
+                  ? "opacity-50"
+                  : "cursor-pointer transition-colors hover:text-[var(--text-primary)]"
+              }`}
+            >
               <input
                 type="checkbox"
-                checked={deleteCopies}
+                checked={deleteCopies && !running}
+                disabled={running}
                 onChange={(e) => setDeleteCopies(e.target.checked)}
                 className="accent-[var(--accent-blue)] h-3 w-3"
               />
@@ -334,7 +362,7 @@ function RemoveJobDialog({
       confirmLabel="Remove"
       variant="destructive"
       onCancel={onCancel}
-      onConfirm={() => onConfirm(deleteCopies)}
+      onConfirm={() => onConfirm(deleteCopies && !running)}
     />
   );
 }
