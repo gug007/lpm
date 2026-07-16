@@ -9,6 +9,20 @@ export const metadata: Metadata = {
   alternates: {
     canonical: TERMS_PATH,
   },
+  openGraph: {
+    title: "Terms of Service",
+    description:
+      "Terms of service for lpm — how you may use the software and website.",
+    type: "website",
+    url: TERMS_PATH,
+    siteName: "lpm",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Terms of Service",
+    description:
+      "Terms of service for lpm — how you may use the software and website.",
+  },
 };
 
 export default function TermsPage() {

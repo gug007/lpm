@@ -5,9 +5,10 @@ import {
   AI_AGENTS_PATH,
   CLAUDE_ACCOUNTS_PATH,
   CONNECT_AGENTS_PATH,
+  REVIEW_CHANGES_PATH,
   vsPath,
 } from "@/lib/links";
-import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
+import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 import Benefits from "./_components/benefits";
 import Comparison from "./_components/comparison";
 import Cta from "./_components/cta";
@@ -69,7 +70,7 @@ export default function BestTerminalForClaudeCodeAndCodexPage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
       <DemoSection />
@@ -100,10 +101,10 @@ export default function BestTerminalForClaudeCodeAndCodexPage() {
               "How lpm compares to cmux for running parallel AI coding agents.",
           },
           {
-            href: vsPath("tmux"),
-            title: "lpm vs tmux",
+            href: REVIEW_CHANGES_PATH,
+            title: "Review changes in terminal",
             description:
-              "How lpm compares to tmux for running services and shells side by side.",
+              "See a file-by-file diff of everything your agents changed before you commit.",
           },
         ]}
       />

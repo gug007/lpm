@@ -1,6 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
-import { faqJsonLd } from "@/lib/structured-data";
+import { faqJsonLd, jsonLdString } from "@/lib/structured-data";
 
 type QA = {
   question: string;
@@ -76,7 +76,7 @@ export default function Faq() {
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(faqJsonLd(FAQS)),
+            __html: jsonLdString(faqJsonLd(FAQS)),
           }}
         />
       </div>

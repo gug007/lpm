@@ -5,7 +5,7 @@ import {
   GIT_TERMINAL_MAC_PATH,
   REVIEW_CHANGES_PATH,
 } from "@/lib/links";
-import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
+import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 import Cta from "./_components/cta";
 import Faq from "./_components/faq";
 import Features from "./_components/features";
@@ -66,7 +66,7 @@ export default function ReviewChangesInTerminalPage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
       <ReviewDemo />

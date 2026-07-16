@@ -4,9 +4,10 @@ import { RelatedPages } from "@/components/related-pages";
 import {
   BEST_TERMINAL_MAC_PATH,
   GIT_TERMINAL_MAC_PATH,
+  REVIEW_CHANGES_PATH,
   vsPath,
 } from "@/lib/links";
-import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
+import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 import Benefits from "./_components/benefits";
 import Comparison from "./_components/comparison";
 import Cta from "./_components/cta";
@@ -65,7 +66,7 @@ export default function GitTerminalForMacPage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
       <DemoSection />
@@ -82,6 +83,12 @@ export default function GitTerminalForMacPage() {
             title: "Best terminal for Mac",
             description:
               "Why a native Apple Silicon workspace beats Electron terminals and tab strips.",
+          },
+          {
+            href: REVIEW_CHANGES_PATH,
+            title: "Review changes in terminal",
+            description:
+              "See a file-by-file diff of every change before you commit, without leaving your Mac terminal.",
           },
           {
             href: vsPath("tmux"),

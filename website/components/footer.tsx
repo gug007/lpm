@@ -8,6 +8,7 @@ import {
   MAC_TERMINAL_DEVELOPERS_PATH,
   MOBILE_PATH,
   PRIVACY_PATH,
+  REVIEW_CHANGES_PATH,
   SSH_TERMINAL_MAC_PATH,
   STATS_PATH,
   TELEGRAM_URL,
@@ -76,6 +77,15 @@ export function Footer() {
             className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
           >
             Git terminal for Mac
+          </Link>
+          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
+            ·
+          </span>
+          <Link
+            href={REVIEW_CHANGES_PATH}
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            Review changes in terminal
           </Link>
           <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
             ·

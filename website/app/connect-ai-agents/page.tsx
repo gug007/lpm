@@ -6,7 +6,7 @@ import {
   CONFIG_PATH,
   CONNECT_AGENTS_PATH,
 } from "@/lib/links";
-import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
+import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 import Commands from "./_components/commands";
 import Cta from "./_components/cta";
 import Demos from "./_components/demos";
@@ -79,7 +79,7 @@ export default function ConnectAiAgentsPage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
       <Install />

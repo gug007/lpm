@@ -5,6 +5,7 @@ import "./globals.css";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { SITE_URL, THEME_STORAGE_KEY } from "@/lib/links";
+import { jsonLdString } from "@/lib/structured-data";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,7 +25,7 @@ export const metadata: Metadata = {
     template: "%s — lpm",
   },
   description:
-    "lpm is a native macOS desktop app for managing local dev projects. Start, stop, duplicate, and switch between projects with a single click. Supports Rails, Next.js, Go, Django, Docker Compose, and more.",
+    "Native macOS app with a built-in terminal for Claude Code and Codex. Start, stop, duplicate, and switch local dev projects — Rails, Next.js, Go, and more.",
   keywords: [
     "local project manager",
     "dev tools",
@@ -35,18 +36,18 @@ export const metadata: Metadata = {
     "project switcher",
   ],
   openGraph: {
-    title: "lpm — Local Project Manager",
+    title: "lpm — Project & Terminal Switcher for Claude Code & Codex",
     description:
-      "A native macOS desktop app. Start, stop, duplicate, and switch between local dev projects with a single click.",
+      "A native macOS app with a built-in terminal for Claude Code and Codex. Start, stop, duplicate, and switch between local dev projects with a single click.",
     type: "website",
     url: SITE_URL,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm — Local Project Manager",
+    title: "lpm — Project & Terminal Switcher for Claude Code & Codex",
     description:
-      "A native macOS desktop app. Start, stop, duplicate, and switch between local dev projects with a single click.",
+      "A native macOS app with a built-in terminal for Claude Code and Codex. Start, stop, duplicate, and switch between local dev projects with a single click.",
   },
 };
 
@@ -65,6 +66,7 @@ const structuredData = {
   "@graph": [
     {
       "@type": "SoftwareApplication",
+      "@id": `${SITE_URL}/#app`,
       name: "lpm",
       alternateName: "Local Project Manager",
       description:
@@ -82,6 +84,7 @@ const structuredData = {
     },
     {
       "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
       name: "lpm",
       url: SITE_URL,
     },
@@ -108,7 +111,7 @@ export default function RootLayout({
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+          dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
         />
       </head>
       <body className="min-h-full flex flex-col bg-white text-gray-900 dark:bg-[#111] dark:text-gray-200 font-sans">

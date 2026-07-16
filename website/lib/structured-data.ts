@@ -3,6 +3,9 @@ import { SITE_URL } from "@/lib/links";
 const absoluteUrl = (path: string): string =>
   path === "/" ? SITE_URL : `${SITE_URL}${path}`;
 
+export const jsonLdString = (data: unknown): string =>
+  JSON.stringify(data).replace(/</g, "\\u003c");
+
 type WebPageInput = {
   title: string;
   description: string;
@@ -18,9 +21,7 @@ export function webPageJsonLd({ title, description, path, about }: WebPageInput)
     url: absoluteUrl(path),
     description,
     isPartOf: {
-      "@type": "WebSite",
-      name: "lpm",
-      url: SITE_URL,
+      "@id": `${SITE_URL}/#website`,
     },
     ...(about ? { about } : {}),
   };

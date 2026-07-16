@@ -15,12 +15,12 @@ import {
   VS_BASE_PATH,
   vsPath,
 } from "@/lib/links";
-import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
+import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 
 const PATH = vsPath("docker-compose");
 
 export const metadata: Metadata = {
-  title: "lpm vs Docker Compose",
+  title: { absolute: "lpm vs Docker Compose — Local Dev Without Containers" },
   description:
     "Native dev, without container overhead. Honest comparison of lpm and Docker Compose for running your Rails, Next.js, Go, or Python stack locally.",
   keywords: [
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "lpm vs Docker Compose",
+    title: "lpm vs Docker Compose — Local Dev Without Containers",
     description:
       "Run your Rails, Next.js, Go, or Python stack natively with per-service panes and a visual project switcher — or drive Docker Compose through lpm. Honest comparison.",
     type: "website",
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm vs Docker Compose",
+    title: "lpm vs Docker Compose — Local Dev Without Containers",
     description:
       "Native dev, without container overhead. Or run compose through lpm — they're not mutually exclusive.",
   },
@@ -168,7 +168,7 @@ const FAQ_ITEMS: FaqItem[] = [
 
 const structuredData = [
   webPageJsonLd({
-    title: "lpm vs Docker Compose",
+    title: "lpm vs Docker Compose — Local Dev Without Containers",
     description:
       "Native dev, without container overhead. Honest comparison of lpm and Docker Compose for running your Rails, Next.js, Go, or Python stack locally.",
     path: PATH,
@@ -185,7 +185,7 @@ export default function LpmVsDockerComposePage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <ComparisonHero
         eyebrow="lpm vs Docker Compose"

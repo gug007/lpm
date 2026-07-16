@@ -14,12 +14,12 @@ import {
   VS_BASE_PATH,
   vsPath,
 } from "@/lib/links";
-import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
+import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 
 const PATH = vsPath("overmind");
 
 export const metadata: Metadata = {
-  title: "lpm vs Overmind",
+  title: { absolute: "lpm vs Overmind — Procfile Manager Without tmux" },
   description:
     "Overmind-grade per-process control — no tmux to install or learn. lpm gives Rails devs live panes, single-service restarts, and multi-project switching in a native macOS app.",
   keywords: [
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "lpm vs Overmind",
+    title: "lpm vs Overmind — Procfile Manager Without tmux",
     description:
       "Overmind-grade per-process control — no tmux to install or learn. A native macOS desktop app with per-service panes, single-service restarts, and multi-project switching.",
     type: "website",
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm vs Overmind",
+    title: "lpm vs Overmind — Procfile Manager Without tmux",
     description:
       "Overmind-grade per-process control — no tmux to install or learn. Per-service panes, single-service restarts, multi-project switching — in a native macOS app.",
   },
@@ -151,7 +151,7 @@ const FAQS: FaqItem[] = [
 
 const structuredData = [
   webPageJsonLd({
-    title: "lpm vs Overmind",
+    title: "lpm vs Overmind — Procfile Manager Without tmux",
     description:
       "Overmind-grade per-process control — no tmux to install or learn. lpm gives Rails devs live panes, single-service restarts, and multi-project switching in a native macOS app.",
     path: PATH,
@@ -168,7 +168,7 @@ export default function OvermindVsPage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <ComparisonHero
         eyebrow="lpm vs Overmind"

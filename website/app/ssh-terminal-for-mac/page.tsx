@@ -15,13 +15,16 @@ import Features from "./_components/features";
 import Hero from "./_components/hero";
 import Problem from "./_components/problem";
 import Workflows from "./_components/workflows";
+import { jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 
 const pageUrl = `${SITE_URL}${SSH_TERMINAL_MAC_PATH}`;
 
+const pageDescription =
+  "lpm is a native SSH terminal for Mac developers. Import ~/.ssh/config hosts, forward remote ports to localhost, and run remote dev box services beside your local stack.";
+
 export const metadata: Metadata = {
   title: "SSH Terminal for Mac — Port Forwarding & Remote Dev",
-  description:
-    "lpm is a native SSH terminal for Mac developers. Import ~/.ssh/config hosts, forward remote ports to localhost, and run remote dev box services beside your local stack.",
+  description: pageDescription,
   keywords: [
     "ssh terminal for mac",
     "ssh client for mac",
@@ -50,17 +53,10 @@ export const metadata: Metadata = {
 };
 
 const structuredData = [
-  {
-    "@context": "https://schema.org",
-    "@type": "WebPage",
-    name: "SSH Terminal for Mac",
-    url: pageUrl,
-    description: metadata.description,
-    isPartOf: {
-      "@type": "WebSite",
-      name: "lpm",
-      url: SITE_URL,
-    },
+  webPageJsonLd({
+    title: "SSH Terminal for Mac",
+    description: pageDescription,
+    path: SSH_TERMINAL_MAC_PATH,
     about: [
       "SSH terminal for Mac",
       "macOS SSH client",
@@ -68,7 +64,7 @@ const structuredData = [
       "~/.ssh/config host picker",
       "remote development terminal",
     ],
-  },
+  }),
   {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -94,7 +90,7 @@ export default function SshTerminalForMacPage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
       <DemoSection />

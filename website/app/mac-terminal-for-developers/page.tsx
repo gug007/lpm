@@ -6,7 +6,7 @@ import {
   MAC_TERMINAL_DEVELOPERS_PATH,
   SSH_TERMINAL_MAC_PATH,
 } from "@/lib/links";
-import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
+import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 import Benefits from "./_components/benefits";
 import Comparison from "./_components/comparison";
 import Cta from "./_components/cta";
@@ -65,7 +65,7 @@ export default function MacTerminalForDevelopersPage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
       <DemoSection />

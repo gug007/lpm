@@ -15,12 +15,12 @@ import {
   VS_BASE_PATH,
   vsPath,
 } from "@/lib/links";
-import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
+import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 
 const PATH = vsPath("cmux");
 
 export const metadata: Metadata = {
-  title: "lpm vs cmux",
+  title: { absolute: "lpm vs cmux — Mac Tools for AI Coding Agents" },
   description:
     "lpm and cmux both target Mac developers running AI coding agents. Honest side-by-side: lpm manages projects, cmux is the terminal.",
   keywords: [
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "lpm vs cmux",
+    title: "lpm vs cmux — Mac Tools for AI Coding Agents",
     description:
       "Both run on macOS for AI coding agents — lpm manages projects while cmux is the terminal. Honest comparison.",
     type: "website",
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm vs cmux",
+    title: "lpm vs cmux — Mac Tools for AI Coding Agents",
     description:
       "Both run on macOS for AI coding agents — lpm manages projects while cmux is the terminal.",
   },
@@ -160,7 +160,7 @@ const FAQ_ITEMS: FaqItem[] = [
 
 const structuredData = [
   webPageJsonLd({
-    title: "lpm vs cmux",
+    title: "lpm vs cmux — Mac Tools for AI Coding Agents",
     description:
       "lpm and cmux both target Mac developers running AI coding agents. Honest side-by-side: lpm manages projects, cmux is the terminal.",
     path: PATH,
@@ -177,7 +177,7 @@ export default function LpmVsCmuxPage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <ComparisonHero
         eyebrow="lpm vs cmux"

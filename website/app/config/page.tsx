@@ -7,7 +7,7 @@ import { ConfigPlayground } from "@/components/config/playground";
 import { Section } from "@/components/config/section";
 import { TableOfContents } from "@/components/config/toc";
 import { CONFIG_PATH } from "@/lib/links";
-import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
+import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 import {
   ACTIONS_BACKGROUND_EXAMPLE,
   ACTIONS_DESTRUCTIVE_EXAMPLE,
@@ -37,6 +37,20 @@ export const metadata: Metadata = {
     "Full configuration reference for lpm. Learn how to define services, actions, terminals, profiles, and global config.",
   alternates: {
     canonical: CONFIG_PATH,
+  },
+  openGraph: {
+    title: "Configuration Reference",
+    description:
+      "Full configuration reference for lpm. Learn how to define services, actions, terminals, profiles, and global config.",
+    type: "website",
+    url: CONFIG_PATH,
+    siteName: "lpm",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Configuration Reference",
+    description:
+      "Full configuration reference for lpm. Learn how to define services, actions, terminals, profiles, and global config.",
   },
 };
 
@@ -379,7 +393,7 @@ export default function ConfigPage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <section className="pt-28 sm:pt-36 pb-20">
         <div className="max-w-5xl mx-auto px-6">

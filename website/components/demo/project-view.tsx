@@ -1058,9 +1058,9 @@ function Header({
     "border-[#2e2e2e] bg-[#242424] text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5]";
   return (
     <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 h-12 shrink-0">
-      <h1 className="min-w-0 shrink-0 truncate pr-2 text-xl font-semibold tracking-tight text-[#e5e5e5]">
+      <div className="min-w-0 shrink-0 truncate pr-2 text-xl font-semibold tracking-tight text-[#e5e5e5]">
         {project.label ?? project.name}
-      </h1>
+      </div>
       <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:gap-2">
         <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto">
           {headerActions.map((a) => (

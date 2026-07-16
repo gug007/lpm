@@ -17,12 +17,12 @@ import {
   VS_BASE_PATH,
   vsPath,
 } from "@/lib/links";
-import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
+import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 
 const PATH = vsPath("foreman");
 
 export const metadata: Metadata = {
-  title: "lpm vs Foreman",
+  title: { absolute: "lpm vs Foreman — Procfile Manager for Mac" },
   description:
     "A modern Procfile experience for local dev: per-service panes, a desktop app, and multi-project switching. Honest comparison of lpm and Foreman.",
   keywords: [
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "lpm vs Foreman",
+    title: "lpm vs Foreman — Procfile Manager for Mac",
     description:
       "Keep the Procfile-style ergonomics, get per-service panes, a desktop app, and multi-project support. Honest look at lpm versus Foreman.",
     type: "website",
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm vs Foreman",
+    title: "lpm vs Foreman — Procfile Manager for Mac",
     description:
       "A modern Procfile experience with per-service panes, a desktop app, and multi-project switching.",
   },
@@ -179,7 +179,7 @@ const FAQ_ITEMS: FaqItem[] = [
 
 const structuredData = [
   webPageJsonLd({
-    title: "lpm vs Foreman",
+    title: "lpm vs Foreman — Procfile Manager for Mac",
     description:
       "A modern Procfile experience for local dev: per-service panes, a desktop app, and multi-project switching. Honest comparison of lpm and Foreman.",
     path: PATH,
@@ -196,7 +196,7 @@ export default function LpmVsForemanPage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <ComparisonHero
         eyebrow="lpm vs Foreman"

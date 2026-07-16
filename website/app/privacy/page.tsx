@@ -9,6 +9,20 @@ export const metadata: Metadata = {
   alternates: {
     canonical: PRIVACY_PATH,
   },
+  openGraph: {
+    title: "Privacy Policy",
+    description:
+      "Privacy policy for lpm — what data the website and software collect, how it's used, and your rights.",
+    type: "website",
+    url: PRIVACY_PATH,
+    siteName: "lpm",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Privacy Policy",
+    description:
+      "Privacy policy for lpm — what data the website and software collect, how it's used, and your rights.",
+  },
 };
 
 export default function PrivacyPage() {

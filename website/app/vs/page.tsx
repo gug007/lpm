@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { Cta } from "@/components/vs/cta";
 import { SectionHeader } from "@/components/section-header";
 import { VS_BASE_PATH, vsPath, type VsSlug } from "@/lib/links";
-import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
+import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
   title: "How lpm compares",
@@ -99,7 +99,7 @@ export default function ComparisonsHubPage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <section className="pt-28 sm:pt-40 pb-12 sm:pb-16 text-center">
         <div className="max-w-3xl mx-auto px-6">

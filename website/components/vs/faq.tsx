@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
+import { jsonLdString } from "@/lib/structured-data";
 
 export type FaqItem = {
   question: string;
@@ -49,7 +50,7 @@ export function Faq({ eyebrow = "FAQ", title, items }: Props) {
         </ul>
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{ __html: jsonLdString(jsonLd) }}
         />
       </div>
     </section>

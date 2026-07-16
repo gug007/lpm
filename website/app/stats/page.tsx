@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getDownloadStats } from "@/lib/github-stats";
 import { RELEASES_URL, REPO_URL, STATS_PATH } from "@/lib/links";
+import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 
 export const revalidate = 3600;
 
@@ -12,7 +13,34 @@ export const metadata: Metadata = {
   alternates: {
     canonical: STATS_PATH,
   },
+  openGraph: {
+    title: "Download stats",
+    description:
+      "Live download counts for lpm across all GitHub releases.",
+    type: "website",
+    url: STATS_PATH,
+    siteName: "lpm",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Download stats",
+    description:
+      "Live download counts for lpm across all GitHub releases.",
+  },
 };
+
+const structuredData = [
+  webPageJsonLd({
+    title: "Download stats",
+    description:
+      "Live download counts for lpm across all GitHub releases.",
+    path: STATS_PATH,
+  }),
+  breadcrumbJsonLd([
+    { name: "Home", path: "/" },
+    { name: "Download stats", path: STATS_PATH },
+  ]),
+];
 
 const numberFmt = new Intl.NumberFormat("en-US");
 const dateFmt = new Intl.DateTimeFormat("en-US", {
@@ -27,6 +55,10 @@ export default async function StatsPage() {
   if (!stats) {
     return (
       <article className="max-w-3xl mx-auto px-6 py-16">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
+        />
         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
           Download stats
         </h1>
@@ -49,6 +81,10 @@ export default async function StatsPage() {
 
   return (
     <article className="max-w-3xl mx-auto px-6 py-16">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
+      />
       <header>
         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
           Download stats

@@ -6,7 +6,7 @@ import {
   MOBILE_PATH,
   REVIEW_CHANGES_PATH,
 } from "@/lib/links";
-import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
+import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 import Composer from "./_components/composer";
 import Control from "./_components/control";
 import Cta from "./_components/cta";
@@ -19,7 +19,7 @@ import Problem from "./_components/problem";
 import ReviewShip from "./_components/review-ship";
 import Security from "./_components/security";
 
-const TITLE = "Control Claude Code, Codex & More From Your iPhone — lpm";
+const TITLE = "Control Claude Code, Codex & More From Your iPhone";
 const DESCRIPTION =
   "Pair your iPhone with lpm on your Mac to steer Claude Code and Codex, review diffs, commit, push, or open a PR, and get encrypted alerts when an agent is waiting.";
 
@@ -73,7 +73,7 @@ export default function MobilePage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
       <Problem />

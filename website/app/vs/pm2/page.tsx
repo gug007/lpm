@@ -17,12 +17,12 @@ import {
   VS_BASE_PATH,
   vsPath,
 } from "@/lib/links";
-import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
+import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 
 const PATH = vsPath("pm2");
 
 export const metadata: Metadata = {
-  title: "lpm vs PM2",
+  title: { absolute: "lpm vs PM2 — Process Manager for the Dev Loop" },
   description:
     "PM2 keeps Node apps alive in production. lpm runs your dev loop with per-service panes, multi-project switching, and AI-agent workflows. Honest comparison.",
   keywords: [
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "lpm vs PM2",
+    title: "lpm vs PM2 — Process Manager for the Dev Loop",
     description:
       "PM2 is for production. lpm is for the dev loop. See where each one is the right tool — honestly, side by side.",
     type: "website",
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm vs PM2",
+    title: "lpm vs PM2 — Process Manager for the Dev Loop",
     description:
       "PM2 is for production. lpm is for the dev loop. Honest side-by-side comparison.",
   },
@@ -198,7 +198,7 @@ const FAQ_ITEMS: FaqItem[] = [
 
 const structuredData = [
   webPageJsonLd({
-    title: "lpm vs PM2",
+    title: "lpm vs PM2 — Process Manager for the Dev Loop",
     description:
       "PM2 keeps Node apps alive in production. lpm runs your dev loop with per-service panes, multi-project switching, and AI-agent workflows. Honest comparison.",
     path: PATH,
@@ -215,7 +215,7 @@ export default function LpmVsPm2Page() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <ComparisonHero
         eyebrow="lpm vs PM2"

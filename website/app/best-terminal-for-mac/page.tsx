@@ -6,7 +6,7 @@ import {
   GIT_TERMINAL_MAC_PATH,
   MAC_TERMINAL_DEVELOPERS_PATH,
 } from "@/lib/links";
-import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
+import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 import Benefits from "./_components/benefits";
 import Comparison from "./_components/comparison";
 import Cta from "./_components/cta";
@@ -19,7 +19,7 @@ import Workflows from "./_components/workflows";
 export const metadata: Metadata = {
   title: "Best Terminal for Mac — Native Apple Silicon Workspace",
   description:
-    "lpm is the best terminal for Mac developers — a native Apple Silicon app with live output per service, a visual project switcher, and no Electron bloat.",
+    "lpm is the best terminal for Mac — a native Apple Silicon app with live output per service, a visual project switcher, and no Electron bloat.",
   keywords: [
     "best terminal for mac",
     "best terminal for macos",
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Best Terminal for Mac — Native Apple Silicon Workspace",
     description:
-      "A native macOS terminal built for developers. Run every service side by side, switch projects visually, and skip the Electron bloat of Hyper or Tabby.",
+      "A native macOS terminal workspace. Run every service side by side, switch projects visually, and skip the Electron bloat of Hyper or Tabby.",
     type: "website",
     url: BEST_TERMINAL_MAC_PATH,
     siteName: "lpm",
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Best Terminal for Mac — Native Apple Silicon Workspace",
     description:
-      "A native macOS terminal built for developers. Run every service side by side, switch projects visually, and skip the Electron bloat.",
+      "A native macOS terminal workspace. Run every service side by side, switch projects visually, and skip the Electron bloat.",
   },
 };
 
@@ -51,7 +51,7 @@ const structuredData = [
   webPageJsonLd({
     title: "Best Terminal for Mac — Native Apple Silicon Workspace",
     description:
-      "lpm is the best terminal for Mac developers — a native Apple Silicon app with live output per service, a visual project switcher, and no Electron bloat.",
+      "lpm is the best terminal for Mac — a native Apple Silicon app with live output per service, a visual project switcher, and no Electron bloat.",
     path: BEST_TERMINAL_MAC_PATH,
   }),
   breadcrumbJsonLd([
@@ -65,7 +65,7 @@ export default function BestTerminalForMacPage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
       <DemoSection />

@@ -12,12 +12,12 @@ import {
   VS_BASE_PATH,
   vsPath,
 } from "@/lib/links";
-import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
+import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 
 const PATH = vsPath("tmux");
 
 export const metadata: Metadata = {
-  title: "lpm vs tmux",
+  title: { absolute: "lpm vs tmux — Run Local Dev Stacks in Panes" },
   description:
     "tmux-level visibility, one-command start, no config. An honest comparison of lpm and tmux for running local dev stacks with services in panes.",
   keywords: [
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "lpm vs tmux",
+    title: "lpm vs tmux — Run Local Dev Stacks in Panes",
     description:
       "tmux-level visibility, one-command start, no config. How lpm compares to tmux when you use it only as a crude dev-stack process manager.",
     type: "website",
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm vs tmux",
+    title: "lpm vs tmux — Run Local Dev Stacks in Panes",
     description:
       "tmux-level visibility, one-command start, no config. An honest comparison of lpm and tmux for local dev stacks.",
   },
@@ -153,7 +153,7 @@ const FAQ_ITEMS: FaqItem[] = [
 
 const structuredData = [
   webPageJsonLd({
-    title: "lpm vs tmux",
+    title: "lpm vs tmux — Run Local Dev Stacks in Panes",
     description:
       "tmux-level visibility, one-command start, no config. An honest comparison of lpm and tmux for running local dev stacks with services in panes.",
     path: PATH,
@@ -170,7 +170,7 @@ export default function VsTmuxPage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <ComparisonHero
         eyebrow="lpm vs tmux"
