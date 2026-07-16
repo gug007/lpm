@@ -19,9 +19,12 @@ export function UndoCloseToast({ toastId, label, durationMs, onUndo }: UndoClose
   }, []);
 
   return (
-    <div className="group relative flex w-[300px] items-center gap-2 overflow-hidden rounded-[11px] border border-[var(--border)] bg-[var(--bg-primary)] py-2.5 pl-3.5 pr-2 shadow-lg">
-      <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-muted)]">
-        Closed <span className="text-[var(--text-primary)]">{label}</span>
+    <div
+      className="group relative flex w-[300px] items-center gap-2 overflow-hidden rounded-[11px] border border-[var(--border)] py-2.5 pl-3.5 pr-2 shadow-lg backdrop-blur-md"
+      style={{ backgroundColor: "color-mix(in srgb, var(--bg-primary) 88%, transparent)" }}
+    >
+      <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-primary)]">
+        {label} closed
       </span>
       <button
         type="button"
@@ -70,6 +73,7 @@ export function showUndoCloseToast(opts: {
     {
       id: opts.toastId,
       duration: opts.durationMs,
+      position: "bottom-right",
       onAutoClose: opts.onFinalize,
       onDismiss: opts.onFinalize,
     },
