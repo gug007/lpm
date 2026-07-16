@@ -3,6 +3,7 @@ import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { GlobalTerminalsView } from "./components/GlobalTerminalsView";
 import { StatsView } from "./components/StatsView";
+import { ScheduledView } from "./components/ScheduledView";
 import { Settings } from "./components/Settings";
 import { GlobalConfigEditor } from "./components/GlobalConfigEditor";
 import { TemplateEditor } from "./components/TemplateEditor";
@@ -90,7 +91,9 @@ export default function App() {
 
   const isTerminalsView = view === "terminals";
   const isStatsView = view === "stats";
-  const isSettingsView = view !== "projects" && view !== "terminals" && view !== "stats";
+  const isScheduledView = view === "scheduled";
+  const isSettingsView =
+    view !== "projects" && view !== "terminals" && view !== "stats" && view !== "scheduled";
   const selectedProject = projects.find((p) => p.name === selected) || null;
 
   const [globalTerminalsVisited, setGlobalTerminalsVisited] = useState(false);
@@ -229,6 +232,7 @@ export default function App() {
           onToggle={toggleProjectRunning}
           onTerminals={() => setView("terminals")}
           onStats={() => setView("stats")}
+          onScheduled={() => setView("scheduled")}
           onSettings={() => setView("settings")}
           onAddProject={addProject}
           onBulkDuplicate={bulkDuplicate}
@@ -250,6 +254,7 @@ export default function App() {
           detached={detached}
           showTerminals={isTerminalsView}
           showStats={isStatsView}
+          showScheduled={isScheduledView}
           showSettings={isSettingsView}
           duplicatingNames={duplicatingNames}
           removingNames={removingNames}
@@ -274,6 +279,7 @@ export default function App() {
           )}
           {view === "settings" && <Settings onNavigate={setView} />}
           {isStatsView && <StatsView />}
+          {isScheduledView && <ScheduledView />}
           {view === "global-config" && (
             <GlobalConfigEditor onBack={() => setView("settings")} />
           )}

@@ -2585,6 +2585,75 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
     });
 }
 
+/// Push an APNs alert when a scheduled job found work but the app window was
+/// closed, so the user knows to open lpm and start it. Reuses the agent-status
+/// push path: same seal + relay, gated on the remote server being enabled and
+/// running, sent to every registered device opted in to at least one push kind
+/// and not holding a live socket. The full message rides in the `status` field —
+/// the phone renders any non-Waiting/Done/Error value verbatim — so no phone
+/// change is needed. Network work runs on a spawned thread so the calling job
+/// worker never blocks.
+pub fn push_job_found_work(app: &AppHandle, project: &str, job_id: &str) {
+    let Some(hub) = app.try_state::<RemoteHub>() else {
+        return;
+    };
+    if !hub.inner.enabled.load(Ordering::Relaxed) || !hub.inner.running.load(Ordering::Relaxed) {
+        return;
+    }
+    if project.is_empty() {
+        return;
+    }
+
+    let connected: HashSet<String> =
+        hub.inner.clients.lock().unwrap().values().map(|c| c.device_id.clone()).collect();
+    let cfg = load_config();
+    let relay = cfg.effective_relay();
+    let server_id = cfg.server_id.clone().unwrap_or_default();
+    let recipients = alert_recipients(&cfg.devices, &connected);
+    if recipients.is_empty() {
+        return;
+    }
+
+    let key = format!("job:{job_id}");
+    let collapse_id = push_collapse_id(&server_id, project, &key);
+    let plaintext = json!({
+        "serverId": server_id,
+        "project": project,
+        "terminal": "",
+        "status": "Scheduled job found work — open lpm to start it.",
+        "ts": crate::status::now_millis(),
+        "key": key,
+    })
+    .to_string();
+
+    let hub = (*hub).clone();
+    std::thread::spawn(move || {
+        let client = match reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(10))
+            .build()
+        {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("warning: push relay client init failed: {e}");
+                return;
+            }
+        };
+        for dev in &recipients {
+            let Some(blob) = seal_push(&dev.key, plaintext.as_bytes()) else {
+                continue;
+            };
+            let body = json!({
+                "token": dev.token,
+                "env": dev.env,
+                "blob": blob,
+                "collapseId": collapse_id,
+            })
+            .to_string();
+            post_push(&client, &relay, &hub, &dev.id, body);
+        }
+    });
+}
+
 /// POST one sealed push body to the relay. Returns true when the relay reported
 /// the device token dead (HTTP 410 / Unregistered) and cleared it, so the caller
 /// stops pushing to that device.

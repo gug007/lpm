@@ -2060,6 +2060,7 @@ pub struct ActionResolved {
     pub ports: Vec<i64>,
     pub env: BTreeMap<String, String>,
     pub mode: String, // "" | "remote" | "sync"
+    pub kind: String, // "" | "terminal"
 }
 
 pub fn resolve_action_full(file_name: &str, action_name: &str) -> Option<ActionResolved> {
@@ -2071,6 +2072,7 @@ pub fn resolve_action_full(file_name: &str, action_name: &str) -> Option<ActionR
         ports: act.port.to_vec(),
         env: act.env,
         mode: act.mode,
+        kind: act.kind,
     })
 }
 

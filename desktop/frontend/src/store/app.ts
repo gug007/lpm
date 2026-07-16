@@ -81,6 +81,7 @@ export type View =
   | "projects"
   | "terminals"
   | "stats"
+  | "scheduled"
   | "settings"
   | "global-config"
   | "commit-instructions"

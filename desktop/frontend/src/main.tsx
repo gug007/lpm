@@ -15,9 +15,12 @@ import { useGeneratorsStore } from "./store/generators";
 import { useAccountsStore } from "./store/accounts";
 import { queryClient } from "./queryClient";
 import { MIRROR_PROJECT } from "./mirror";
+import { initScrollbarFade } from "./scrollbarFade";
 import "./styles/globals.css";
 
 const detachedProject = MIRROR_PROJECT;
+
+initScrollbarFade();
 
 Promise.all([loadSettings(), loadTerminals(), loadGroups(), hydrateComposerActions()]).then(([s, , g]) => {
   applyTheme(s.theme);

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { EventsOn } from "../../bridge/runtime";
-import { RemoteTakeRunActions } from "../../bridge/commands";
+import { DrainPendingJobTasks, RemoteTakeRunActions } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
 import type { SpawnTask } from "../types";
 
@@ -13,8 +13,29 @@ export function useAmbientAppEvents(): void {
       toast.error(`Sync push failed: ${msg}`);
     });
 
+    // A scheduled job finished a run. Only the outcomes worth interrupting for
+    // get a toast — quiet days and skipped runs stay silent.
+    const cancelJobStatus = EventsOn(
+      "job-status",
+      (payload: { project: string; jobId: string; result: string; copy?: string }) => {
+        if (!payload?.project) return;
+        if (payload.result === "found-work") {
+          toast.success(
+            payload.copy
+              ? `Job "${payload.jobId}" found work in ${payload.project} — running in ${payload.copy}.`
+              : `Job "${payload.jobId}" found work in ${payload.project}.`,
+          );
+        } else if (payload.result === "completed") {
+          toast.success(`Job "${payload.jobId}" in ${payload.project} finished.`);
+        } else if (payload.result === "error") {
+          toast.error(`Job "${payload.jobId}" in ${payload.project} hit a problem.`);
+        }
+      },
+    );
+
     return () => {
       if (typeof cancelSyncError === "function") cancelSyncError();
+      if (typeof cancelJobStatus === "function") cancelJobStatus();
     };
   }, []);
 }
@@ -114,6 +135,12 @@ export function useAppEvents(): void {
     const cancelFeedback = EventsOn("menu-open-feedback", () => {
       setFeedbackOpen(true);
     });
+
+    // A job that found work while the app window was closed parked its task in
+    // Rust. Now that the main window (and the remote-run-task listener above)
+    // exists, drain those parked tasks so each mounts its copy and runs. Safe to
+    // call unconditionally — it's a no-op when nothing is parked.
+    void DrainPendingJobTasks().catch(() => {});
 
     return () => {
       if (typeof cancelDock === "function") cancelDock();

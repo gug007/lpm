@@ -280,6 +280,27 @@ export function ListPortForwards(project) {
 export function ListProjects() {
   return invoke("list_projects");
 }
+export function ListJobs(project) {
+  return invoke("list_jobs", { project });
+}
+export function RunJobNow(project, jobId) {
+  return invoke("run_job_now", { project, jobId });
+}
+export function SetJobEnabled(project, jobId, enabled) {
+  return invoke("set_job_enabled", { project, jobId, enabled });
+}
+export function JobHistory(project, jobId) {
+  return invoke("job_history", { project, jobId });
+}
+export function TestJobCheck(project, check) {
+  return invoke("test_job_check", { project, check });
+}
+export function DrainPendingJobTasks() {
+  return invoke("drain_pending_job_tasks");
+}
+export function ListAllJobs() {
+  return invoke("list_all_jobs");
+}
 export function ListSSHHosts() {
   return invoke("list_ssh_hosts");
 }

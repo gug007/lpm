@@ -542,6 +542,38 @@ body {
   box-shadow: 0 1px 2px -1px rgba(0, 0, 0, 0.18);
 }
 
+/* WKWebView draws chunky legacy scrollbars with a track for any unstyled
+   scroll container; with nested scrollers (a modal body, a dropdown list, the
+   view behind) several render at once and read as clutter. Slim, trackless,
+   rounded thumbs in a theme-neutral gray keep them quiet in both themes. */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Thumbs stay invisible until their container is actively scrolling
+   (data-scrolling is stamped by scrollbarFade.ts) — the macOS
+   "show scroll bars: when scrolling" behavior. */
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+
+[data-scrolling]::-webkit-scrollbar-thumb {
+  background-color: rgba(127, 127, 127, 0.35);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(127, 127, 127, 0.5);
+}
+
 /* The terminal tab strip scrolls horizontally but uses fade gradients as the
    affordance; the native bar would otherwise overlap the short tab row and
    swallow clicks on the tabs underneath it. */

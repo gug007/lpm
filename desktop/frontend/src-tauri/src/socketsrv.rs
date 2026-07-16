@@ -17,6 +17,8 @@
 //   remove_project <project>
 //   run_task <project> [--action=X | --command=X] [--prompt=TEXT]
 //   set_resume <project> <pane_id> <session_id>
+//   list_jobs <project>
+//   run_job <project> <job_id>
 // Each line gets a single-line reply, EXCEPT `duplicate_project`, which streams
 // zero or more `PROGRESS <done> <total> <copy-name>` lines and then a final JSON
 // line (`{"ok":true,"names":[...]}` / `{"ok":false,"error":...}`) — cloning N
@@ -115,6 +117,8 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "remove_project" => cmd_remove_project(args, app),
         "run_task" => cmd_run_task(args, app),
         "set_resume" => cmd_set_resume(args, app),
+        "list_jobs" => cmd_list_jobs(args),
+        "run_job" => cmd_run_job(args, app),
         _ => "ERROR: unknown command".into(),
     }
 }
@@ -380,6 +384,35 @@ fn cmd_set_resume(args: &[String], app: &AppHandle) -> String {
     }
 }
 
+/// `list_jobs <project>` → one JSON line, the same array `list_jobs` returns to
+/// the app (per-job id / schedule / enabled / last result / next run).
+fn cmd_list_jobs(args: &[String]) -> String {
+    let (positional, _) = parse_options(args);
+    if positional.is_empty() {
+        return "ERROR: usage: list_jobs <project>".into();
+    }
+    match crate::jobs::list_jobs(positional[0].clone()) {
+        Ok(jobs) => serde_json::to_string(&jobs).unwrap_or_else(|e| format!("ERROR: {e}")),
+        Err(e) => format!("ERROR: {e}"),
+    }
+}
+
+/// `run_job <project> <job_id>` → fire a job immediately (same as the app's
+/// "run now"), replying `{ok:true}` or `{ok:false,error}`. The run itself is
+/// fire-and-forget on a worker thread; a job that finds work while no window is
+/// open parks its task like the scheduler would.
+fn cmd_run_job(args: &[String], app: &AppHandle) -> String {
+    let (positional, _) = parse_options(args);
+    if positional.len() < 2 {
+        return serde_json::json!({ "ok": false, "error": "usage: run_job <project> <job_id>" })
+            .to_string();
+    }
+    match crate::jobs::run_job_now(app.clone(), positional[0].clone(), positional[1].clone()) {
+        Ok(()) => serde_json::json!({ "ok": true }).to_string(),
+        Err(e) => serde_json::json!({ "ok": false, "error": e }).to_string(),
+    }
+}
+
 fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> String {
     let (positional, options) = parse_options(args);
     if positional.len() < 3 {
@@ -525,7 +558,7 @@ mod tests {
         for bad in [
             "start_project", "stop_project", "start_service", "stop_service",
             "restart_service", "remove_project", "run_task", "duplicate_project",
-            "set_resume", "unknown",
+            "set_resume", "list_jobs", "run_job", "unknown",
         ] {
             assert!(!remote_allowed(bad), "{bad} must be refused on the remote socket");
         }
