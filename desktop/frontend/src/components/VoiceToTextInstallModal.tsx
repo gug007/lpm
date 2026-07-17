@@ -27,7 +27,9 @@ export function VoiceToTextInstallModal({ open, onClose }: VoiceToTextInstallMod
     <Modal
       open={open}
       onClose={onClose}
-      zIndexClassName="z-[60]"
+      // Above the composer actions popover (z-80) that can open this while
+      // staying open behind it, and so above the modals hosting either.
+      zIndexClassName="z-[90]"
       backdropClassName="bg-black/50 backdrop-blur-sm"
       contentClassName="field-reveal w-[420px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl shadow-black/40"
     >

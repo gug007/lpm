@@ -1,8 +1,9 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAnchoredPanel } from "../hooks/useAnchoredPanel";
 import { useOverlay } from "../store/overlay";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
+import { SEND_SHELL_CLASS, sendFaceClass, sendGlow, sendShellTint } from "./composerSendStyles";
 import { MENU_PANEL_CLASS } from "./ui/ContextMenuShell";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ChevronUpIcon, CopyIcon, PencilIcon, SendIcon } from "./icons";
@@ -66,21 +67,13 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onRunInDu
     if (inert && open) setOpen(false);
   }, [inert, open]);
 
-  const glow: CSSProperties | undefined = inert
-    ? undefined
-    : { boxShadow: "0 2px 12px -2px color-mix(in srgb, var(--accent-blue) 60%, transparent)" };
-
-  // One segmented pill in both states so the control never reads as two loose
-  // icons: a solid accent send half and a slightly recessed caret half when
-  // live; a quiet neutral shell when there's nothing to send.
-  const container = inert ? "bg-[var(--bg-active)]/60" : "bg-[var(--accent-blue)]";
   const divider = inert ? "bg-[var(--border)]" : "bg-[var(--bg-primary)]/20";
 
   return (
     <div
       ref={triggerRef}
-      className={`flex items-center rounded-lg transition-colors duration-150 ${container}`}
-      style={glow}
+      className={`${SEND_SHELL_CLASS} ${sendShellTint(inert)}`}
+      style={sendGlow(inert)}
     >
       <Tooltip content="Send  ·  ↵" delay={COMPOSER_TOOLTIP_DELAY_MS}>
         <button
@@ -91,11 +84,7 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onRunInDu
           }}
           disabled={inert}
           aria-label="Send"
-          className={`flex h-7 items-center justify-center rounded-l-lg pl-2.5 pr-2 transition-colors [&>svg]:rotate-45 ${
-            inert
-              ? "text-[var(--text-muted)]"
-              : "text-[var(--bg-primary)] hover:bg-black/10 active:bg-black/20"
-          }`}
+          className={sendFaceClass(inert, "rounded-l-lg")}
         >
           <SendIcon />
         </button>

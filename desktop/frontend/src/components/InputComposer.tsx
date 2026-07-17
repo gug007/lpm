@@ -8,6 +8,7 @@ import {
   type DragEvent,
   type KeyboardEvent,
   type MouseEvent,
+  type ReactNode,
 } from "react";
 import { ImagePlus } from "lucide-react";
 import { toast } from "sonner";
@@ -84,6 +85,11 @@ interface InputComposerProps {
   // Working directory AI-edit transforms run in (the project root). When set, an
   // AI-actions button transforms the prompt in place.
   aiCwd?: string;
+  // Host controls placed on the composer's own footer row, after the built-in
+  // buttons, so the box keeps a single row instead of stacking a second one.
+  footer?: ReactNode;
+  // Locks the field: nothing can be typed and no AI action can run.
+  disabled?: boolean;
 }
 
 function blobToBase64(blob: Blob): Promise<string | null> {
@@ -113,6 +119,8 @@ export function InputComposer({
   autoFocus,
   history,
   aiCwd,
+  footer,
+  disabled,
 }: InputComposerProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -142,6 +150,9 @@ export function InputComposer({
   const ai = useAIPicker(!!aiCwd);
   const enabledActions = useEnabledComposerActions();
   const busy = transformingId !== null;
+  // A transform in flight and a host lock both freeze the field; only the
+  // transform gets the actions button's spinner.
+  const editable = !busy && !disabled;
   const showActions = !!aiCwd && ai.anyAvailable;
 
   const report = useCallback(() => {
@@ -669,7 +680,7 @@ export function InputComposer({
 
         <div
           ref={editorRef}
-          contentEditable={!busy}
+          contentEditable={editable}
           suppressContentEditableWarning
           role="textbox"
           aria-multiline="true"
@@ -697,20 +708,20 @@ export function InputComposer({
         )}
 
         <div className="flex items-center justify-start gap-1 px-2 pb-2">
-          <ComposerMicButton />
+          <ComposerMicButton disabled={disabled} />
           {showActions && (
             <ComposerActionsButton
               align="left"
               enabledActions={enabledActions}
               busy={busy}
               onStop={gen.generating ? gen.cancel : undefined}
-              canRun={canRun}
+              canRun={canRun && !disabled}
               cliLabel={ai.cliLabel}
               onRun={runAction}
               onManage={() => setActionsModalOpen(true)}
             />
           )}
-          {history && (
+          {history && !disabled && (
             <TerminalHistoryButton
               terminalId={history.terminalId}
               projectName={history.projectName}
@@ -718,6 +729,7 @@ export function InputComposer({
               onPick={loadFromHistory}
             />
           )}
+          {footer}
         </div>
       </div>
       {aiCwd && (

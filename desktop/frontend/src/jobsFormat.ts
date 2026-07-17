@@ -2,7 +2,7 @@
 // React and the bridge so the schedule <-> human-string mapping and the YAML
 // jobs-block round-trip can be unit tested directly.
 
-import { EMPTY_COMPOSER, isImagePath } from "./composerValue";
+import { composerValueToText, EMPTY_COMPOSER, isImagePath } from "./composerValue";
 import type { ComposerImage, ComposerValue } from "./composerValue";
 
 export type Weekday = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
@@ -434,32 +434,11 @@ function buildScheduleBlock(draft: JobDraft): Record<string, unknown> {
   return block;
 }
 
-const IMAGE_TOKEN_RE = /\[Image #(\d+)\]/g;
 // An absolute path standing on its own in the prompt text — the shape an
 // attachment serializes to, and what parsing turns back into a chip.
 const ABS_PATH_RE = /(?<![^\s])\/\S+/g;
 
-// The composer's value as the one plain string the YAML stores: each attachment
-// token replaced in place by its absolute path, padded with a space when it
-// would otherwise run into neighboring text, so the agent reads the path as its
-// own word. Tokens with no path left (their chip was removed) drop out. Newlines
-// stay — a job prompt is written as prose, not typed into a terminal line.
-function promptToText(value: ComposerValue): string {
-  const byToken = new Map(value.images.map((im) => [im.token, im.path]));
-  return value.text
-    .replace(IMAGE_TOKEN_RE, (match, n: string, offset: number, whole: string) => {
-      const path = byToken.get(Number(n));
-      if (!path) return "";
-      const before = whole[offset - 1];
-      const after = whole[offset + match.length];
-      const lead = before && !/\s/.test(before) ? " " : "";
-      const tail = after && !/\s/.test(after) ? " " : "";
-      return `${lead}${path}${tail}`;
-    })
-    .trim();
-}
-
-// Reverse of promptToText: every standalone absolute image path becomes an
+// Reverse of composerValueToText: every standalone absolute image path becomes an
 // attachment token again, so an edited job shows its chips back. Any other path
 // stays literal text, and re-serializing reproduces the stored string verbatim.
 function textToPrompt(text: string): ComposerValue {
@@ -476,7 +455,9 @@ function textToPrompt(text: string): ComposerValue {
 function buildRunBlock(draft: JobDraft): Record<string, unknown> {
   if (draft.runMode === "action") return { action: draft.action.trim() };
   if (draft.runMode === "cmd") return { cmd: draft.cmd.trim() };
-  const block: Record<string, unknown> = { prompt: promptToText(draft.prompt) };
+  const block: Record<string, unknown> = {
+    prompt: composerValueToText(draft.prompt),
+  };
   if (draft.agent.trim()) block.agent = draft.agent.trim();
   if (draft.model.trim()) block.model = draft.model.trim();
   if (draft.effort.trim()) block.effort = draft.effort.trim();

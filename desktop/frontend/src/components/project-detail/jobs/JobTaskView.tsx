@@ -9,16 +9,23 @@ import { MessageMarkdown } from "../../MessageMarkdown";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { JobLiveOutput } from "./JobLiveOutput";
 import {
-  ArrowUpIcon,
   ChevronLeftIcon,
   ClockIcon,
   StopIcon,
   TrashIcon,
 } from "../../icons";
+import { ComposerSendButton } from "../../ComposerSendButton";
 import { relativeTime } from "../../../relativeTime";
 import { useNow } from "../../../hooks/useNow";
 import { RowSelect } from "./RowSelect";
+import { InputComposer } from "../../InputComposer";
+import { useAppStore } from "../../../store/app";
 import { effortsFor, MODEL_OPTIONS } from "../../../agentModelOptions";
+import {
+  composerValueToText,
+  EMPTY_COMPOSER,
+  type ComposerValue,
+} from "../../../composerValue";
 import {
   formatCost,
   formatDuration,
@@ -63,7 +70,10 @@ export function JobTaskView({
 }: JobTaskViewProps) {
   const [entries, setEntries] = useState<JobHistoryEntry[] | null>(null);
   const [reload, setReload] = useState(0);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState<ComposerValue>(EMPTY_COMPOSER);
+  // The composer is uncontrolled (its defaultValue is a mount-only seed), so a
+  // sent reply is cleared by remounting it empty.
+  const [composerSession, setComposerSession] = useState(0);
   // "agent|model", seeded from the job so a reply runs like the job by default.
   const [pick, setPick] = useState(`${job.agent ?? ""}|${job.model ?? ""}`);
   const [effort, setEffort] = useState(job.effort ?? "");
@@ -73,11 +83,19 @@ export function JobTaskView({
   const [removing, setRemoving] = useState<{ at: number; whole: boolean } | null>(null);
   const [removeCopy, setRemoveCopy] = useState(false);
   const sawRunning = useRef(false);
-  const replyRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrolledOnce = useRef(false);
   const nearBottom = useRef(true);
   const now = useNow(job.running === true);
+  // AI-edit and prompt history both belong to the project the job runs in.
+  const projectRoot = useAppStore(
+    (s) => s.projects.find((p) => p.name === project)?.root,
+  );
+  const composerHistory = {
+    terminalId: project,
+    projectName: project,
+    terminalLabel: project,
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -119,14 +137,6 @@ export function JobTaskView({
     }
   }, [job.running]);
 
-  // The reply box grows with its draft, up to a few lines.
-  useEffect(() => {
-    const el = replyRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
-  }, [draft]);
-
   useEffect(() => {
     if (entries === null) return;
     const el = scrollRef.current;
@@ -152,11 +162,13 @@ export function JobTaskView({
   // Every conversation of an AI prompt job stays continuable: a Claude session
   // resumes, anything else continues from the condensed transcript.
   const canReply = job.valid && job.runKind === "prompt";
+  // Sending mid-save would drop an attachment that isn't on disk yet.
+  const canSend = draft.text.trim() !== "" && !draft.pending && !locked;
 
   const send = async () => {
-    if (!thread) return;
-    const message = draft.trim();
-    if (!message || locked) return;
+    if (!thread || !canSend) return;
+    const message = composerValueToText(draft);
+    if (!message) return;
     setSendError(null);
     try {
       await SendJobFollowup(
@@ -169,7 +181,10 @@ export function JobTaskView({
         effort,
       );
       setPending({ text: message, baseCount: replies.length });
-      setDraft("");
+      // Only a send that landed clears the field — a failed one keeps the text
+      // so it can be retried.
+      setDraft(EMPTY_COMPOSER);
+      setComposerSession((n) => n + 1);
     } catch (err) {
       setSendError(err instanceof Error ? err.message : String(err));
     }
@@ -323,55 +338,53 @@ export function JobTaskView({
             e.preventDefault();
             void send();
           }}
-          className="pb-5 pt-2"
+          // The composer is a contenteditable, not a textarea in a form: plain
+          // Enter would insert a line break, so submit on it here (the composer
+          // itself keeps Shift+Enter for newlines). Scoped to the field so Enter
+          // still activates a focused footer control.
+          onKeyDown={(e) => {
+            if (
+              e.key !== "Enter" ||
+              e.shiftKey ||
+              e.nativeEvent.isComposing ||
+              !(e.target as HTMLElement).isContentEditable
+            )
+              return;
+            e.preventDefault();
+            void send();
+          }}
+          className={`pb-5 pt-2 ${locked ? "opacity-60" : ""}`}
         >
-          <div
-            className={`rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)]/40 px-4 pb-2.5 pt-3 transition-colors focus-within:border-[var(--accent-cyan)] ${
-              locked ? "opacity-60" : ""
-            }`}
-          >
-            <textarea
-              ref={replyRef}
-              value={draft}
-              rows={1}
-              onChange={(e) => {
-                setDraft(e.target.value);
-                setSendError(null);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  void send();
-                }
-              }}
-              placeholder={locked ? "Waiting for the run to finish…" : "Reply…"}
-              disabled={locked}
-              className="block w-full resize-none border-none bg-transparent text-[13px] leading-relaxed text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
-            />
-            <div className="mt-2 flex items-center gap-1.5">
-              <RowSelect
-                value={pick}
-                onChange={(v) => {
-                  setPick(v);
-                  const nextEfforts = effortsFor(v.split("|")[0]);
-                  if (!nextEfforts.some((e) => e.value === effort)) setEffort("");
-                }}
-                options={MODEL_OPTIONS}
-              />
-              {efforts.length > 0 && (
-                <RowSelect value={effort} onChange={setEffort} options={efforts} />
-              )}
-              <span className="min-w-0 flex-1" />
-              <button
-                type="submit"
-                disabled={!draft.trim() || locked}
-                aria-label="Send reply"
-                className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[var(--text-primary)] text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:opacity-25"
-              >
-                <ArrowUpIcon />
-              </button>
-            </div>
-          </div>
+          <InputComposer
+            key={composerSession}
+            defaultValue={draft}
+            onChange={(value) => {
+              setDraft(value);
+              setSendError(null);
+            }}
+            placeholder={locked ? "Waiting for the run to finish…" : "Reply…"}
+            disabled={locked}
+            history={composerHistory}
+            aiCwd={projectRoot}
+            footer={
+              <>
+                <RowSelect
+                  value={pick}
+                  onChange={(v) => {
+                    setPick(v);
+                    const nextEfforts = effortsFor(v.split("|")[0]);
+                    if (!nextEfforts.some((e) => e.value === effort)) setEffort("");
+                  }}
+                  options={MODEL_OPTIONS}
+                />
+                {efforts.length > 0 && (
+                  <RowSelect value={effort} onChange={setEffort} options={efforts} />
+                )}
+                <span className="min-w-0 flex-1" />
+                <ComposerSendButton type="submit" disabled={!canSend} label="Send reply" />
+              </>
+            }
+          />
           {sendError && (
             <p className="mt-1.5 px-1 text-[11px] text-[var(--accent-red)]">{sendError}</p>
           )}

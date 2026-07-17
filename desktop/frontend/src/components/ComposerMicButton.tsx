@@ -5,7 +5,7 @@ import { VoiceToTextInstallModal } from "./VoiceToTextInstallModal";
 import { Tooltip } from "./ui/Tooltip";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 
-export function ComposerMicButton() {
+export function ComposerMicButton({ disabled }: { disabled?: boolean }) {
   const { toggle, installOpen, setInstallOpen } = useVoiceDictation();
 
   // Don't pull focus off the composer editor, so the dictated text pastes there.
@@ -18,8 +18,9 @@ export function ComposerMicButton() {
           type="button"
           onMouseDown={keepEditorFocus}
           onClick={() => void toggle()}
+          disabled={disabled}
           aria-label="Dictate"
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:pointer-events-none disabled:opacity-40"
         >
           <MicIcon />
         </button>

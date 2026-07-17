@@ -31,3 +31,25 @@ const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif|svg)$/i;
 export function isImagePath(path: string): boolean {
   return IMAGE_EXT_RE.test(path);
 }
+
+const IMAGE_TOKEN_RE = /\[Image #(\d+)\]/g;
+
+// The composer's value as one plain string: each attachment token replaced in
+// place by its absolute path, padded with a space when it would otherwise run
+// into neighboring text, so the agent reads the path as its own word. Tokens
+// with no path left (their chip was removed) drop out. Newlines stay — the text
+// is written as prose, not typed into a terminal line.
+export function composerValueToText(value: ComposerValue): string {
+  const byToken = new Map(value.images.map((im) => [im.token, im.path]));
+  return value.text
+    .replace(IMAGE_TOKEN_RE, (match, n: string, offset: number, whole: string) => {
+      const path = byToken.get(Number(n));
+      if (!path) return "";
+      const before = whole[offset - 1];
+      const after = whole[offset + match.length];
+      const lead = before && !/\s/.test(before) ? " " : "";
+      const tail = after && !/\s/.test(after) ? " " : "";
+      return `${lead}${path}${tail}`;
+    })
+    .trim();
+}
