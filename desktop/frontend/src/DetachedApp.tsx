@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Toaster } from "sonner";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
+import { FeedbackModal } from "./components/FeedbackModal";
 import { findParentProject, projectDisplayName } from "./components/ProjectNameDisplay";
 import { PortConflictDialog } from "./components/PortConflictDialog";
 import { FileViewerHost } from "./components/FileViewerHost";
@@ -29,6 +30,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
   const removingNames = useAppStore((s) => s.removingNames);
 
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
+  const setFeedbackOpen = useAppStore((s) => s.setFeedbackOpen);
   const startProject = useAppStore((s) => s.startProject);
   const stopProject = useAppStore((s) => s.stopProject);
   const restartProject = useAppStore((s) => s.restartProject);
@@ -109,6 +111,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
           onTerminals={() => FocusMainWindow(undefined, "terminals")}
           onStats={() => FocusMainWindow(undefined, "stats")}
           onScheduled={() => FocusMainWindow(undefined, "scheduled")}
+          onFeedback={() => setFeedbackOpen(true)}
           onSettings={() => FocusMainWindow(undefined, "settings")}
           onAddProject={() => FocusMainWindow(undefined, undefined, true)}
           onBulkDuplicate={bulkDuplicate}
@@ -156,6 +159,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
           </div>
         </main>
       </div>
+      <FeedbackModal />
       <PortConflictDialog />
       <FileViewerHost />
       <TerminalDropOverlayHost />

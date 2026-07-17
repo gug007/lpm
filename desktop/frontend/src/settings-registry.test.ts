@@ -48,9 +48,7 @@ describe("matchSettings", () => {
 
   it("matches rows via their tab title", () => {
     const results = matchSettings(withTTS, "general");
-    // "Send feedback" has neither "general" in its label nor description; it is
-    // only reachable through the General tab title.
-    expect(ids(results)).toContain("general.feedback");
+    expect(ids(results)).toContain("general.theme");
   });
 
   it("is case-insensitive", () => {

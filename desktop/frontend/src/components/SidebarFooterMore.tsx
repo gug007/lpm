@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
+import { Workflow } from "lucide-react";
 import { EventsOn } from "../../bridge/runtime";
 import { ListAllJobs } from "../../bridge/commands";
 import { useEventListener } from "../hooks/useEventListener";
 import { useOutsideClick } from "../hooks/useOutsideClick";
-import { ClockIcon, MoreHorizontalIcon } from "./icons";
+import { MessageIcon, MoreHorizontalIcon } from "./icons";
 import { MENU_PANEL_CLASS } from "./ui/ContextMenuShell";
 
 interface SidebarFooterMoreProps {
   showScheduled: boolean;
   onScheduled: () => void;
+  onFeedback: () => void;
 }
 
 // Ambient scheduled-job state for the footer: how many jobs are running, and
@@ -50,7 +52,7 @@ function useJobsAmbient(showScheduled: boolean): {
   return { running, attention };
 }
 
-export function SidebarFooterMore({ showScheduled, onScheduled }: SidebarFooterMoreProps) {
+export function SidebarFooterMore({ showScheduled, onScheduled, onFeedback }: SidebarFooterMoreProps) {
   const [open, setOpen] = useState(false);
   const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
   useEventListener("keydown", (e) => {
@@ -101,7 +103,7 @@ export function SidebarFooterMore({ showScheduled, onScheduled }: SidebarFooterM
       {open && (
         <div className={`absolute bottom-full right-0 z-[80] mb-1.5 w-40 px-1 ${MENU_PANEL_CLASS}`}>
           <button onClick={pick(onScheduled)} className={itemClass(showScheduled)}>
-            <ClockIcon size={14} />
+            <Workflow className="shrink-0" size={16} strokeWidth={2} />
             Scheduled
             {running > 0 ? (
               <span className="ml-auto flex items-center gap-1.5 text-[10px] font-medium text-[var(--accent-cyan)]">
@@ -113,6 +115,10 @@ export function SidebarFooterMore({ showScheduled, onScheduled }: SidebarFooterM
                 Beta
               </span>
             )}
+          </button>
+          <button onClick={pick(onFeedback)} className={itemClass(false)}>
+            <MessageIcon />
+            Send feedback
           </button>
         </div>
       )}

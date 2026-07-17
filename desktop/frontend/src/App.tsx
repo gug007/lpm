@@ -52,6 +52,7 @@ export default function App() {
   const selectedTemplate = useAppStore((s) => s.selectedTemplate);
 
   const setView = useAppStore((s) => s.setView);
+  const setFeedbackOpen = useAppStore((s) => s.setFeedbackOpen);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
   const setTmuxReady = useAppStore((s) => s.setTmuxReady);
   const selectProject = useAppStore((s) => s.selectProject);
@@ -233,6 +234,7 @@ export default function App() {
           onTerminals={() => setView("terminals")}
           onStats={() => setView("stats")}
           onScheduled={() => setView("scheduled")}
+          onFeedback={() => setFeedbackOpen(true)}
           onSettings={() => setView("settings")}
           onAddProject={addProject}
           onBulkDuplicate={bulkDuplicate}

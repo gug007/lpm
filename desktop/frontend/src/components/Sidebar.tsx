@@ -73,6 +73,7 @@ interface SidebarProps {
   onTerminals: () => void;
   onStats: () => void;
   onScheduled: () => void;
+  onFeedback: () => void;
   onSettings: () => void;
   onAddProject: () => void;
   onBulkDuplicate: (name: string, count: number, opts: BulkDuplicateOptions) => void;
@@ -133,7 +134,7 @@ type TreeItem =
   | { kind: "project"; project: ProjectInfo; isChild: boolean; folderId?: string }
   | { kind: "empty"; group: ProjectGroup };
 
-export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onStats, onScheduled, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onMoveProjectRoot, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showStats, showScheduled, showSettings, duplicatingNames, removingNames }: SidebarProps) {
+export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onStats, onScheduled, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onMoveProjectRoot, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showStats, showScheduled, showSettings, duplicatingNames, removingNames }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -1195,7 +1196,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             </svg>
             Settings
           </button>
-          <SidebarFooterMore showScheduled={showScheduled} onScheduled={onScheduled} />
+          <SidebarFooterMore
+            showScheduled={showScheduled}
+            onScheduled={onScheduled}
+            onFeedback={onFeedback}
+          />
         </div>
       </div>
       <div

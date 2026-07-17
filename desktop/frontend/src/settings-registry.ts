@@ -146,14 +146,6 @@ export const ROWS = {
       "Teach AI coding agents to author configs and drive lpm from the command line.",
     keywords: ["skill", "cli", "claude code", "codex", "gemini"],
   },
-  "general.feedback": {
-    kind: "row",
-    tab: "general",
-    id: "general.feedback",
-    label: "Send feedback",
-    description: "Report a bug or share ideas",
-    keywords: ["bug", "idea", "contact", "support"],
-  },
   "notifications.sound": {
     kind: "row",
     tab: "notifications",

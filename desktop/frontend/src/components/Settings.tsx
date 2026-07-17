@@ -189,7 +189,6 @@ export function Settings({
   const [systemSounds, setSystemSounds] = useState<string[]>([]);
   const activeTab = useAppStore((s) => s.settingsTab);
   const setActiveTab = useAppStore((s) => s.setSettingsTab);
-  const setFeedbackOpen = useAppStore((s) => s.setFeedbackOpen);
   const templates = useAppStore((s) => s.templates);
   const selectTemplate = useAppStore((s) => s.selectTemplate);
   const createTemplate = useAppStore((s) => s.createTemplate);
@@ -580,11 +579,6 @@ export function Settings({
                 }
               >
                 <SkillInstallControl />
-              </SettingsRow>
-              <SettingsRow {...rowProps("general.feedback")}>
-                <button onClick={() => setFeedbackOpen(true)} className={BTN_SECONDARY}>
-                  Open
-                </button>
               </SettingsRow>
             </SettingsSection>
             </>
