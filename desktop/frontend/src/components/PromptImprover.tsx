@@ -4,6 +4,7 @@ import { TransformText } from "../../bridge/commands";
 import { useAIPicker } from "../hooks/useAIPicker";
 import { type ComposerAction } from "../store/composerActions";
 import { generateVariants, resolveTransformParams } from "../composerVariants";
+import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
 import { useGeneratorsStore, usePromptActions, useEnabledPromptActions } from "../store/generators";
 import { DEFAULT_GENERATOR_PROMPT_ACTIONS } from "../generatorPromptActions";
 import { ComposerActionsButton } from "./ComposerActionsButton";
@@ -22,6 +23,7 @@ export function PromptImprover({ value, onChange, disabled = false }: PromptImpr
   const promptActions = usePromptActions();
   const savePromptActions = useGeneratorsStore((s) => s.savePromptActions);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const gen = useAIGeneration();
   const [manageOpen, setManageOpen] = useState(false);
   const [variants, setVariants] = useState<{ label: string; list: string[] } | null>(null);
 
@@ -33,15 +35,18 @@ export function PromptImprover({ value, onChange, disabled = false }: PromptImpr
     try {
       const params = resolveTransformParams(ai);
       if (count <= 1) {
-        const out = await TransformText(
-          null,
-          ".",
-          params.cli,
-          params.model,
-          params.effort,
-          params.fast,
-          action.instruction,
-          value,
+        const out = await gen.run((genId) =>
+          TransformText(
+            null,
+            ".",
+            params.cli,
+            params.model,
+            params.effort,
+            params.fast,
+            action.instruction,
+            value,
+            genId,
+          ),
         );
         const text = typeof out === "string" ? out.trim() : "";
         if (!text) {
@@ -50,7 +55,9 @@ export function PromptImprover({ value, onChange, disabled = false }: PromptImpr
         }
         onChange(text);
       } else {
-        const list = await generateVariants(null, ".", params, action.instruction, value, count);
+        const list = await gen.runAll(count, (genIds) =>
+          generateVariants(null, ".", params, action.instruction, value, count, genIds),
+        );
         if (list.length === 0) {
           toast.error("AI returned an empty response");
           return;
@@ -58,7 +65,7 @@ export function PromptImprover({ value, onChange, disabled = false }: PromptImpr
         setVariants({ label: action.label, list });
       }
     } catch (err) {
-      toast.error(`Action failed: ${err}`);
+      if (!isCanceledError(err)) toast.error(`Action failed: ${err}`);
     } finally {
       setBusyId(null);
     }
@@ -69,6 +76,7 @@ export function PromptImprover({ value, onChange, disabled = false }: PromptImpr
       <ComposerActionsButton
         enabledActions={enabledActions}
         busy={busyId !== null}
+        onStop={gen.generating ? gen.cancel : undefined}
         canRun={!disabled && value.trim().length > 0}
         cliLabel={ai.cliLabel}
         onRun={runAction}

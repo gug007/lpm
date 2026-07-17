@@ -39,7 +39,8 @@ function variantInstruction(instruction: string, index: number, total: number): 
 
 // Run the action `count` times in parallel and return the non-empty rewrites.
 // Partial failures are dropped so a few dead runs still yield choices; only when
-// every run fails do we surface the first error to the caller.
+// every run fails do we surface the first error to the caller. `genIds` carries
+// one id per run so the caller's stop control can reap the whole fan-out.
 export async function generateVariants(
   projectName: string | null,
   cwd: string,
@@ -47,6 +48,7 @@ export async function generateVariants(
   instruction: string,
   text: string,
   count: number,
+  genIds: string[] = [],
 ): Promise<string[]> {
   const n = clampVariantCount(count);
   const runs = Array.from({ length: n }, (_, i) =>
@@ -59,6 +61,7 @@ export async function generateVariants(
       params.fast,
       n === 1 ? instruction : variantInstruction(instruction, i, n),
       text,
+      genIds[i] ?? "",
     ),
   );
   const settled = await Promise.allSettled(runs);

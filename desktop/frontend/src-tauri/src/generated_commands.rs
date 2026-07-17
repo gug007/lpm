@@ -21,6 +21,7 @@ macro_rules! all_command_handlers {
         browse_folder,
         browser_back,
         cancel_action_background,
+        cancel_ai_generate,
         browser_forward,
         browser_reload,
         close_browser,

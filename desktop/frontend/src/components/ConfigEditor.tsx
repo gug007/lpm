@@ -90,8 +90,8 @@ export function ConfigEditor({
 
   const [aiOpen, setAiOpen] = useState(false);
 
-  const handleAIGenerate = async (cli: AICLI, extraPrompt: string) => {
-    const yaml = await GenerateProjectConfig(projectName, cli, extraPrompt);
+  const handleAIGenerate = async (cli: AICLI, extraPrompt: string, genId: string) => {
+    const yaml = await GenerateProjectConfig(projectName, cli, extraPrompt, genId);
     userEditor.setContent(yaml);
     changeMode("yaml");
     setTarget("user");

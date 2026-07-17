@@ -24,6 +24,7 @@ import { main } from "../../bridge/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useBranchSearch } from "../hooks/useBranchSearch";
 import { useAIPicker } from "../hooks/useAIPicker";
+import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
 import { aiEffectiveFast } from "../types";
 import { EventsEmit, BrowserOpenURL } from "../../bridge/runtime";
 import { getSettings, saveSettings } from "../store/settings";
@@ -58,8 +59,8 @@ export function PRModal({
   const [commits, setCommits] = useState<BranchCommit[]>([]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [generatingTitle, setGeneratingTitle] = useState(false);
-  const [generatingDesc, setGeneratingDesc] = useState(false);
+  const titleGen = useAIGeneration();
+  const descGen = useAIGeneration();
   const [ghAvailable, setGhAvailable] = useState(true);
   const ai = useAIPicker(open);
   const [baseMenuOpen, setBaseMenuOpen] = useState(false);
@@ -135,6 +136,8 @@ export function PRModal({
 
   const autoGenTriggered = useRef(false);
 
+  const generatingTitle = titleGen.generating;
+  const generatingDesc = descGen.generating;
   const generating = generatingTitle || generatingDesc;
 
   useEffect(() => {
@@ -188,44 +191,51 @@ export function PRModal({
 
   const generateTitle = async () => {
     if (generatingTitle || !base) return;
-    setGeneratingTitle(true);
     try {
-      const result = await GeneratePRTitle(
-        projectName,
-        projectPath,
-        ai.selectedCLI,
-        ai.selectedModel,
-        ai.selectedEffort,
-        aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
-        base,
+      const result = await titleGen.run((genId) =>
+        GeneratePRTitle(
+          projectName,
+          projectPath,
+          ai.selectedCLI,
+          ai.selectedModel,
+          ai.selectedEffort,
+          aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
+          base,
+          genId,
+        ),
       );
       if (result) setTitle(result);
     } catch (err) {
-      toast.error(`Title generation failed: ${err}`);
-    } finally {
-      setGeneratingTitle(false);
+      if (!isCanceledError(err)) toast.error(`Title generation failed: ${err}`);
     }
   };
 
   const generateDesc = async () => {
     if (generatingDesc || !base) return;
-    setGeneratingDesc(true);
     try {
-      const result = await GeneratePRDescription(
-        projectName,
-        projectPath,
-        ai.selectedCLI,
-        ai.selectedModel,
-        ai.selectedEffort,
-        aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
-        base,
+      const result = await descGen.run((genId) =>
+        GeneratePRDescription(
+          projectName,
+          projectPath,
+          ai.selectedCLI,
+          ai.selectedModel,
+          ai.selectedEffort,
+          aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
+          base,
+          genId,
+        ),
       );
       if (result) setDescription(result);
     } catch (err) {
-      toast.error(`Description generation failed: ${err}`);
-    } finally {
-      setGeneratingDesc(false);
+      if (!isCanceledError(err)) toast.error(`Description generation failed: ${err}`);
     }
+  };
+
+  // Title and description run independently, so leaving stops whichever is live.
+  const closeModal = () => {
+    titleGen.cancel();
+    descGen.cancel();
+    onClose();
   };
 
   const toggleAutoGenerate = () => {
@@ -281,10 +291,10 @@ export function PRModal({
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={closeModal}
       backdrop={false}
       draggable
-      closeOnEscape={!busy && !generating}
+      closeOnEscape={!busy}
       zIndexClassName="z-[60]"
       contentClassName="w-[640px] max-h-[80vh] flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >
@@ -304,7 +314,7 @@ export function PRModal({
           </p>
         </div>
         <button
-          onClick={onClose}
+          onClick={closeModal}
           disabled={busy}
           aria-label="Close"
           className="-mr-1 -mt-1 shrink-0 rounded-md p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
@@ -472,6 +482,7 @@ export function PRModal({
                   <div className="flex items-center justify-end gap-1.5 px-2 pb-2">
                     <AIPickerButton
                       onGenerate={generateTitle}
+                      onCancel={titleGen.cancel}
                       generating={generatingTitle}
                       disabled={
                         generatingTitle || busy || !base || commits.length === 0
@@ -492,6 +503,7 @@ export function PRModal({
                     />
                     <AIPickerButton
                       onGenerate={generateDesc}
+                      onCancel={descGen.cancel}
                       generating={generatingDesc}
                       disabled={
                         generatingDesc || busy || !base || commits.length === 0
@@ -594,7 +606,7 @@ export function PRModal({
               <button
                 onClick={() => {
                   EventsEmit("navigate-pr-instructions");
-                  onClose();
+                  closeModal();
                 }}
                 className="text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
               >
@@ -604,7 +616,7 @@ export function PRModal({
           </span>
           <div className="flex gap-2">
             <button
-              onClick={onClose}
+              onClick={closeModal}
               disabled={busy}
               className="rounded-lg px-3.5 py-1.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
             >

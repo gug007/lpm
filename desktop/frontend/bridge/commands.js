@@ -28,6 +28,9 @@ export function AttachProject(projectName) {
 export function BrowseFolder(defaultDir) {
   return invoke("browse_folder", { defaultDir });
 }
+export function CancelAIGenerate(genId) {
+  return invoke("cancel_ai_generate", { genId });
+}
 export function CancelActionBackground(runId) {
   return invoke("cancel_action_background", { runId });
 }
@@ -139,23 +142,23 @@ export function FocusDetachedWindow(projectName) {
 export function FocusMainWindow(project, view, addProject) {
   return invoke("focus_main_window", { project, view, addProject });
 }
-export function GenerateActionYAML(projectName, cli, model, effort, fast, userPrompt, currentYAML) {
-  return invoke("generate_action_yaml", { projectName, cli, model, effort, fast, userPrompt, currentYaml: currentYAML });
+export function GenerateActionYAML(projectName, cli, model, effort, fast, userPrompt, currentYAML, genId = "") {
+  return invoke("generate_action_yaml", { projectName, cli, model, effort, fast, userPrompt, currentYaml: currentYAML, genId });
 }
-export function GenerateBranchName(projectName, cwd, cli, model, effort, fast) {
-  return invoke("generate_branch_name", { projectName, cwd, cli, model, effort, fast });
+export function GenerateBranchName(projectName, cwd, cli, model, effort, fast, genId = "") {
+  return invoke("generate_branch_name", { projectName, cwd, cli, model, effort, fast, genId });
 }
-export function GenerateCommitMessage(projectName, cwd, cli, model, effort, fast, files, taskDescription) {
-  return invoke("generate_commit_message", { projectName, cwd, cli, model, effort, fast, files, taskDescription });
+export function GenerateCommitMessage(projectName, cwd, cli, model, effort, fast, files, taskDescription, genId = "") {
+  return invoke("generate_commit_message", { projectName, cwd, cli, model, effort, fast, files, taskDescription, genId });
 }
-export function GeneratePRDescription(projectName, cwd, cli, model, effort, fast, base) {
-  return invoke("generate_pr_description", { projectName, cwd, cli, model, effort, fast, base });
+export function GeneratePRDescription(projectName, cwd, cli, model, effort, fast, base, genId = "") {
+  return invoke("generate_pr_description", { projectName, cwd, cli, model, effort, fast, base, genId });
 }
-export function GenerateProjectConfig(projectName, cli, extraPrompt) {
-  return invoke("generate_project_config", { projectName, cli, extraPrompt });
+export function GenerateProjectConfig(projectName, cli, extraPrompt, genId = "") {
+  return invoke("generate_project_config", { projectName, cli, extraPrompt, genId });
 }
-export function GeneratePRTitle(projectName, cwd, cli, model, effort, fast, base) {
-  return invoke("generate_pr_title", { projectName, cwd, cli, model, effort, fast, base });
+export function GeneratePRTitle(projectName, cwd, cli, model, effort, fast, base, genId = "") {
+  return invoke("generate_pr_title", { projectName, cwd, cli, model, effort, fast, base, genId });
 }
 export function GetPlatform() {
   return invoke("get_platform");
@@ -550,8 +553,8 @@ export function ResetClaudeHooks() {
 export function ResizeTerminal(id, cols, rows) {
   return invoke("resize_terminal", { id, cols, rows });
 }
-export function ResolveMergeConflictsWithAI(projectName, cwd, cli, model, effort, fast) {
-  return invoke("resolve_merge_conflicts_with_ai", { projectName, cwd, cli, model, effort, fast });
+export function ResolveMergeConflictsWithAI(projectName, cwd, cli, model, effort, fast, genId = "") {
+  return invoke("resolve_merge_conflicts_with_ai", { projectName, cwd, cli, model, effort, fast, genId });
 }
 export function ResolvePortConflict(c) {
   return invoke("resolve_port_conflict", { c });
@@ -682,8 +685,8 @@ export function TmuxInstalled() {
 export function ToggleProjectService(name, serviceName) {
   return invoke("toggle_project_service", { name, serviceName });
 }
-export function TransformText(projectName, cwd, cli, model, effort, fast, instruction, text) {
-  return invoke("transform_text", { projectName, cwd, cli, model, effort, fast, instruction, text });
+export function TransformText(projectName, cwd, cli, model, effort, fast, instruction, text, genId = "") {
+  return invoke("transform_text", { projectName, cwd, cli, model, effort, fast, instruction, text, genId });
 }
 export function TrashProject(name) {
   return invoke("trash_project", { name });

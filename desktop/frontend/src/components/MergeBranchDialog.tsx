@@ -15,6 +15,7 @@ import { main } from "../../bridge/models";
 import { useBranchSearch } from "../hooks/useBranchSearch";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useAIPicker } from "../hooks/useAIPicker";
+import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
 import { aiEffectiveFast } from "../types";
 import { branchKey, branchMatches, RemoteBadge } from "./branchUtils";
 import { BranchIcon, ChevronDownIcon, CloudBranchIcon, XIcon } from "./icons";
@@ -62,7 +63,8 @@ export function MergeBranchDialog({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
-  const [aiBusy, setAiBusy] = useState(false);
+  const gen = useAIGeneration();
+  const aiBusy = gen.generating;
   const [progressLine, setProgressLine] = useState("");
   const [commitCount, setCommitCount] = useState<number | null>(null);
   const [fetching, setFetching] = useState(false);
@@ -96,7 +98,6 @@ export function MergeBranchDialog({
     setPickerOpen(false);
     setQuery("");
     setBusy(false);
-    setAiBusy(false);
     setProgressLine("");
     setCommitCount(null);
 
@@ -201,16 +202,18 @@ export function MergeBranchDialog({
 
   const resolveWithAI = async () => {
     if (aiBusy || mode.kind !== "conflicts") return;
-    setAiBusy(true);
     setProgressLine("");
     try {
-      await ResolveMergeConflictsWithAI(
-        projectName,
-        projectPath,
-        ai.selectedCLI,
-        ai.selectedModel,
-        ai.selectedEffort,
-        aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
+      await gen.run((genId) =>
+        ResolveMergeConflictsWithAI(
+          projectName,
+          projectPath,
+          ai.selectedCLI,
+          ai.selectedModel,
+          ai.selectedEffort,
+          aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
+          genId,
+        ),
       );
       const remaining = await GitMergeConflicts(projectPath).catch(() => [] as string[]);
       onMerged();
@@ -222,11 +225,17 @@ export function MergeBranchDialog({
         toast.warning(`${remaining.length} file(s) still have conflicts`);
       }
     } catch (err) {
-      toast.error(`AI resolve failed: ${err}`);
+      if (!isCanceledError(err)) toast.error(`AI resolve failed: ${err}`);
     } finally {
-      setAiBusy(false);
       setProgressLine("");
     }
+  };
+
+  // A stop leaves whatever the agent already staged in place; the remaining
+  // conflicts are still listed when the dialog is reopened.
+  const closeDialog = () => {
+    gen.cancel();
+    onClose();
   };
 
   const abort = async () => {
@@ -254,9 +263,9 @@ export function MergeBranchDialog({
   return (
     <Modal
       open={open}
-      onClose={onClose}
-      closeOnBackdrop={interactive}
-      closeOnEscape={interactive}
+      onClose={closeDialog}
+      closeOnBackdrop={!busy}
+      closeOnEscape={!busy}
       zIndexClassName="z-[60]"
       contentClassName="w-[480px] overflow-visible rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >
@@ -271,8 +280,8 @@ export function MergeBranchDialog({
           </span>
         )}
         <button
-          onClick={onClose}
-          disabled={!interactive}
+          onClick={closeDialog}
+          disabled={busy}
           aria-label="Close"
           className="rounded-md p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
         >
@@ -375,7 +384,7 @@ export function MergeBranchDialog({
           </div>
           <div className="flex items-center justify-end gap-2 border-t border-[var(--border)] px-4 py-3">
             <button
-              onClick={onClose}
+              onClick={closeDialog}
               disabled={busy}
               className="rounded-lg px-3.5 py-1.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
             >
@@ -418,6 +427,7 @@ export function MergeBranchDialog({
               {ai.anyAvailable ? (
                 <AIPickerButton
                   onGenerate={resolveWithAI}
+                  onCancel={gen.cancel}
                   generating={aiBusy}
                   disabled={aiBusy || busy}
                   title={`Resolve with ${ai.cliLabel}`}

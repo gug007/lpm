@@ -23,6 +23,7 @@ import {
   type ComposerAction,
 } from "../store/composerActions";
 import { generateVariants, resolveTransformParams } from "../composerVariants";
+import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
 import { ComposerActionsButton } from "./ComposerActionsButton";
 import { ComposerActionsModal } from "./ComposerActionsModal";
 import { ComposerVariantsModal } from "./ComposerVariantsModal";
@@ -126,6 +127,7 @@ export function InputComposer({
   const [dragOver, setDragOver] = useState(false);
   // AI-edit: the action transform in flight (locks the field), if any.
   const [transformingId, setTransformingId] = useState<string | null>(null);
+  const gen = useAIGeneration();
   const [actionsModalOpen, setActionsModalOpen] = useState(false);
   // Set while the multi-result variant picker is open; holds the rewrites plus
   // the image map to rehydrate whichever one the user commits.
@@ -352,15 +354,18 @@ export function InputComposer({
       try {
         const params = resolveTransformParams(ai);
         if (count <= 1) {
-          const out = await TransformText(
-            history?.projectName ?? null,
-            aiCwd,
-            params.cli,
-            params.model,
-            params.effort,
-            params.fast,
-            action.instruction,
-            value,
+          const out = await gen.run((genId) =>
+            TransformText(
+              history?.projectName ?? null,
+              aiCwd,
+              params.cli,
+              params.model,
+              params.effort,
+              params.fast,
+              action.instruction,
+              value,
+              genId,
+            ),
           );
           const text = typeof out === "string" ? out.trim() : "";
           if (!text) {
@@ -369,7 +374,9 @@ export function InputComposer({
           }
           applyHistoryEntry(text, images);
         } else {
-          const list = await generateVariants(history?.projectName ?? null, aiCwd, params, action.instruction, value, count);
+          const list = await gen.runAll(count, (genIds) =>
+            generateVariants(history?.projectName ?? null, aiCwd, params, action.instruction, value, count, genIds),
+          );
           if (list.length === 0) {
             toast.error("AI returned an empty response");
             return;
@@ -378,12 +385,12 @@ export function InputComposer({
           setVariants({ label: action.label, list, images });
         }
       } catch (err) {
-        toast.error(`Action failed: ${err}`);
+        if (!isCanceledError(err)) toast.error(`Action failed: ${err}`);
       } finally {
         if (!openedPicker) endTransform();
       }
     },
-    [aiCwd, ai, applyHistoryEntry, endTransform],
+    [aiCwd, ai, gen, applyHistoryEntry, endTransform],
   );
 
   const chooseVariant = useCallback(
@@ -694,6 +701,7 @@ export function InputComposer({
               <ComposerActionsButton
                 enabledActions={enabledActions}
                 busy={busy}
+                onStop={gen.generating ? gen.cancel : undefined}
                 canRun={canRun}
                 cliLabel={ai.cliLabel}
                 onRun={runAction}

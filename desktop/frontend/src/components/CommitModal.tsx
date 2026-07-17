@@ -22,6 +22,7 @@ import {
 import { main } from "../../bridge/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useAIPicker } from "../hooks/useAIPicker";
+import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
 import { aiEffectiveFast } from "../types";
 import { EventsEmit } from "../../bridge/runtime";
 import { getSettings, saveSettings } from "../store/settings";
@@ -64,7 +65,8 @@ export function CommitModal({
     name: string;
     paths: string[];
   } | null>(null);
-  const [generating, setGenerating] = useState(false);
+  const gen = useAIGeneration();
+  const generating = gen.generating;
   const ai = useAIPicker(open);
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
   const [showContext, setShowContext] = useState(false);
@@ -230,24 +232,30 @@ export function CommitModal({
 
   const generateMessage = async () => {
     if (generating || selected.size === 0) return;
-    setGenerating(true);
     try {
-      const msg = await GenerateCommitMessage(
-        projectName,
-        projectPath,
-        ai.selectedCLI,
-        ai.selectedModel,
-        ai.selectedEffort,
-        aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
-        Array.from(selected),
-        taskDescription.trim(),
+      const msg = await gen.run((genId) =>
+        GenerateCommitMessage(
+          projectName,
+          projectPath,
+          ai.selectedCLI,
+          ai.selectedModel,
+          ai.selectedEffort,
+          aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
+          Array.from(selected),
+          taskDescription.trim(),
+          genId,
+        ),
       );
       if (msg) setMessage(msg);
     } catch (err) {
-      toast.error(`AI generate failed: ${err}`);
-    } finally {
-      setGenerating(false);
+      if (!isCanceledError(err)) toast.error(`AI generate failed: ${err}`);
     }
+  };
+
+  // Leaving the modal shouldn't strand a run: stop it first, then close.
+  const closeModal = () => {
+    gen.cancel();
+    onClose();
   };
 
   const toggleAutoGenerate = () => {
@@ -294,10 +302,10 @@ export function CommitModal({
     <>
       <Modal
         open={open}
-        onClose={onClose}
+        onClose={closeModal}
         backdrop={false}
         draggable
-        closeOnEscape={!busy && !generating}
+        closeOnEscape={!busy}
         zIndexClassName="z-[60]"
         contentClassName="w-[640px] max-h-[80vh] flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
       >
@@ -310,7 +318,7 @@ export function CommitModal({
               Commit
             </h3>
             <button
-              onClick={onClose}
+              onClick={closeModal}
               disabled={!!busy}
               aria-label="Close"
               className="rounded-md p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
@@ -407,6 +415,7 @@ export function CommitModal({
                   </button>
                   <AIPickerButton
                     onGenerate={generateMessage}
+                    onCancel={gen.cancel}
                     generating={generating}
                     disabled={generating || !!busy || selected.size === 0}
                     title={`Generate with ${ai.cliLabel}`}
@@ -504,7 +513,7 @@ export function CommitModal({
             <button
               onClick={() => {
                 EventsEmit("navigate-commit-instructions");
-                onClose();
+                closeModal();
               }}
               className="text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
             >
@@ -513,7 +522,7 @@ export function CommitModal({
           </span>
           <div className="flex gap-2">
             <button
-              onClick={onClose}
+              onClick={closeModal}
               disabled={!!busy}
               className="rounded-lg px-3.5 py-1.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
             >

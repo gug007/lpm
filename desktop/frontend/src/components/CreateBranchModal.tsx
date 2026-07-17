@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -10,6 +10,7 @@ import { AIPickerButton } from "./ui/AIPickerButton";
 import { GenerateBranchName } from "../../bridge/commands";
 import { EventsEmit } from "../../bridge/runtime";
 import { useAIPicker } from "../hooks/useAIPicker";
+import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
 import { aiEffectiveFast } from "../types";
 import { newBranchNameSchema } from "../forms/schemas";
 import { slugify } from "../slugify";
@@ -36,7 +37,8 @@ export function CreateBranchModal({
   onClose,
   onCreate,
 }: CreateBranchModalProps) {
-  const [generating, setGenerating] = useState(false);
+  const gen = useAIGeneration();
+  const generating = gen.generating;
   const ai = useAIPicker(open);
   const openRef = useRef(open);
 
@@ -57,7 +59,6 @@ export function CreateBranchModal({
     openRef.current = open;
     if (!open) return;
     reset({ name: "" });
-    setGenerating(false);
     const focusTimer = setTimeout(() => setFocus("name"), 50);
     return () => clearTimeout(focusTimer);
   }, [open, reset, setFocus]);
@@ -66,15 +67,17 @@ export function CreateBranchModal({
 
   const generate = async () => {
     if (generating || !projectPath) return;
-    setGenerating(true);
     try {
-      const result = await GenerateBranchName(
-        projectName,
-        projectPath,
-        ai.selectedCLI,
-        ai.selectedModel,
-        ai.selectedEffort,
-        aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
+      const result = await gen.run((genId) =>
+        GenerateBranchName(
+          projectName,
+          projectPath,
+          ai.selectedCLI,
+          ai.selectedModel,
+          ai.selectedEffort,
+          aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
+          genId,
+        ),
       );
       if (!openRef.current) return;
       if (result) {
@@ -84,10 +87,14 @@ export function CreateBranchModal({
         });
       }
     } catch (err) {
-      if (openRef.current) toast.error(`Branch name generation failed: ${err}`);
-    } finally {
-      if (openRef.current) setGenerating(false);
+      if (openRef.current && !isCanceledError(err))
+        toast.error(`Branch name generation failed: ${err}`);
     }
+  };
+
+  const closeModal = () => {
+    gen.cancel();
+    onClose();
   };
 
   const onSubmit = handleSubmit(async (values) => {
@@ -99,10 +106,10 @@ export function CreateBranchModal({
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={closeModal}
       backdrop={false}
       draggable
-      closeOnEscape={!busy && !generating}
+      closeOnEscape={!busy}
       zIndexClassName="z-[60]"
       contentClassName="w-[440px] rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-5 shadow-xl"
     >
@@ -124,8 +131,8 @@ export function CreateBranchModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
-            disabled={busy || generating}
+            onClick={closeModal}
+            disabled={busy}
             aria-label="Close"
             className="-mr-1 -mt-1 shrink-0 rounded p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
           >
@@ -161,6 +168,7 @@ export function CreateBranchModal({
                 <div className="flex items-center justify-end px-2 pb-1.5">
                   <AIPickerButton
                     onGenerate={generate}
+                    onCancel={gen.cancel}
                     generating={generating}
                     disabled={generating || busy || !projectPath}
                     title={`Generate with ${ai.cliLabel}`}
@@ -186,7 +194,7 @@ export function CreateBranchModal({
               type="button"
               onClick={() => {
                 EventsEmit("navigate-branch-instructions");
-                onClose();
+                closeModal();
               }}
               className="text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
             >
@@ -198,8 +206,8 @@ export function CreateBranchModal({
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={onClose}
-              disabled={busy || generating}
+              onClick={closeModal}
+              disabled={busy}
               className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
             >
               Close

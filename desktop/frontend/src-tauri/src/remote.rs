@@ -1657,6 +1657,7 @@ fn handle_msg(
                     std::thread::spawn(move || {
                         let reply = match crate::aigen::generate_commit_message(
                             app, project.clone(), cwd, cli, model, effort, fast, files, String::new(),
+                            String::new(),
                         ) {
                             Ok(message) => json!({ "t": "gitGenMessage", "project": project, "ok": true, "message": message }),
                             Err(e) => json!({ "t": "gitGenMessage", "project": project, "ok": false, "error": e }),
@@ -1677,9 +1678,11 @@ fn handle_msg(
                         let base = crate::git::git_default_branch(cwd.clone());
                         let reply = match crate::aigen::generate_pr_title(
                             app.clone(), project.clone(), cwd.clone(), cli.clone(), model.clone(), effort.clone(), fast, base.clone(),
+                            String::new(),
                         ) {
                             Ok(title) => match crate::aigen::generate_pr_description(
                                 app, project.clone(), cwd, cli, model, effort, fast, base,
+                                String::new(),
                             ) {
                                 Ok(body) => json!({ "t": "gitGenPr", "project": project, "ok": true, "title": title, "body": body }),
                                 Err(e) => json!({ "t": "gitGenPr", "project": project, "ok": false, "error": e }),
@@ -1748,6 +1751,7 @@ fn handle_msg(
                         std::thread::spawn(move || {
                             let reply = match crate::aigen::transform_text(
                                 app, project_opt, cwd, cli, model, effort, fast, instr, text,
+                                String::new(),
                             ) {
                                 Ok(t) => {
                                     any_ok.store(true, Ordering::SeqCst);

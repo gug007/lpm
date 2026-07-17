@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "./ui/Modal";
 import { CheckAICLIs } from "../../bridge/commands";
+import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
 import { EventsOn } from "../../bridge/runtime";
 import type { main } from "../../bridge/models";
 
@@ -18,7 +19,7 @@ const PRESETS: { label: string; prompt: string }[] = [
 interface AIGenerateModalProps {
   open: boolean;
   onCancel: () => void;
-  onGenerate: (cli: AICLI, extraPrompt: string) => Promise<void>;
+  onGenerate: (cli: AICLI, extraPrompt: string, genId: string) => Promise<void>;
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -72,7 +73,9 @@ export function AIGenerateModal({ open, onCancel, onGenerate }: AIGenerateModalP
   const [availability, setAvailability] = useState<main.AICLIAvailability | null>(null);
   const [cli, setCli] = useState<AICLI>("claude");
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
-  const [running, setRunning] = useState(false);
+  const gen = useAIGeneration();
+  const running = gen.generating;
+  const [stopHover, setStopHover] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string[]>([]);
   const progressEndRef = useRef<HTMLDivElement>(null);
@@ -111,23 +114,26 @@ export function AIGenerateModal({ open, onCancel, onGenerate }: AIGenerateModalP
 
   const handleGenerate = async () => {
     if (running || !selectedAvailable) return;
-    setRunning(true);
     setError(null);
     setProgress([]);
     try {
-      await onGenerate(cli, prompt);
+      await gen.run((genId) => onGenerate(cli, prompt, genId));
     } catch (err) {
-      setError(`${err}`);
-    } finally {
-      setRunning(false);
+      if (!isCanceledError(err)) setError(`${err}`);
     }
   };
+
+  const close = () => {
+    gen.cancel();
+    onCancel();
+  };
+
+  const showStop = running && stopHover;
 
   return (
     <Modal
       open={open}
-      onClose={running ? () => {} : onCancel}
-      closeOnBackdrop={!running}
+      onClose={close}
       zIndexClassName="z-[60]"
       contentClassName="w-[480px] rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-6 shadow-xl"
     >
@@ -219,18 +225,21 @@ export function AIGenerateModal({ open, onCancel, onGenerate }: AIGenerateModalP
         </div>
         <div className="flex gap-2">
           <button
-            onClick={onCancel}
-            disabled={running}
-            className="rounded-md px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+            onClick={close}
+            className="rounded-md px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           >
             Cancel
           </button>
           <button
-            onClick={handleGenerate}
-            disabled={running || !selectedAvailable}
+            onClick={showStop ? gen.cancel : handleGenerate}
+            disabled={!running && !selectedAvailable}
+            onMouseEnter={() => setStopHover(true)}
+            onMouseLeave={() => setStopHover(false)}
+            onFocus={() => setStopHover(true)}
+            onBlur={() => setStopHover(false)}
             className="rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-40"
           >
-            {running ? "Generating\u2026" : "Generate"}
+            {showStop ? "Stop" : running ? "Generating\u2026" : "Generate"}
           </button>
         </div>
       </div>

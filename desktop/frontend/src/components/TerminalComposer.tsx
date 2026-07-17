@@ -28,6 +28,7 @@ import {
   type ComposerAction,
 } from "../store/composerActions";
 import { generateVariants, resolveTransformParams } from "../composerVariants";
+import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
 import { ComposerActionsButton } from "./ComposerActionsButton";
 import { ComposerActionsModal } from "./ComposerActionsModal";
 import { ComposerVariantsModal } from "./ComposerVariantsModal";
@@ -206,6 +207,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const [lightboxPath, setLightboxPath] = useState<string | null>(null);
   // The composer action currently being applied (drives the busy UI), or null.
   const [transformingId, setTransformingId] = useState<string | null>(null);
+  const gen = useAIGeneration();
   const [actionsModalOpen, setActionsModalOpen] = useState(false);
   // Set while the multi-result variant picker is open. `startedId` pins the tab
   // the rewrites belong to, and `images` rehydrates whichever one is committed.
@@ -1368,15 +1370,18 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       // (or any other AI flow) may have changed it since this composer mounted.
       const params = resolveTransformParams(ai);
       if (count <= 1) {
-        const out = await TransformText(
-          projectName,
-          cwd,
-          params.cli,
-          params.model,
-          params.effort,
-          params.fast,
-          action.instruction,
-          value,
+        const out = await gen.run((genId) =>
+          TransformText(
+            projectName,
+            cwd,
+            params.cli,
+            params.model,
+            params.effort,
+            params.fast,
+            action.instruction,
+            value,
+            genId,
+          ),
         );
         const text = typeof out === "string" ? out.trim() : "";
         if (!text) {
@@ -1386,7 +1391,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         if (activeId.current !== startedId) return;
         applyRewrite(editor, text, images);
       } else {
-        const list = await generateVariants(projectName, cwd, params, action.instruction, value, count);
+        const list = await gen.runAll(count, (genIds) =>
+          generateVariants(projectName, cwd, params, action.instruction, value, count, genIds),
+        );
         if (list.length === 0) {
           toast.error("AI returned an empty response");
           return;
@@ -1396,7 +1403,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         setVariants({ label: action.label, list, images, startedId });
       }
     } catch (err) {
-      toast.error(`Action failed: ${err}`);
+      if (!isCanceledError(err)) toast.error(`Action failed: ${err}`);
     } finally {
       if (!openedPicker) endTransform();
     }
@@ -1824,6 +1831,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
                 align="left"
                 enabledActions={enabledActions}
                 busy={busy}
+                onStop={gen.generating ? gen.cancel : undefined}
                 canRun={!disabled}
                 cliLabel={ai.cliLabel}
                 onRun={runAction}

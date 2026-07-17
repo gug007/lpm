@@ -5,7 +5,7 @@ import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useVoiceDictation } from "../hooks/useVoiceDictation";
 import { composerActionIcon, type ComposerAction } from "../store/composerActions";
 import { MAX_VARIANTS } from "../composerVariants";
-import { MicIcon } from "./icons";
+import { MicIcon, StopIcon } from "./icons";
 import { VoiceToTextInstallModal } from "./VoiceToTextInstallModal";
 import { Tooltip } from "./ui/Tooltip";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
@@ -17,6 +17,9 @@ interface ComposerActionsButtonProps {
   // Enabled actions, in order. May be empty — the popover then offers setup.
   enabledActions: ComposerAction[];
   busy: boolean;
+  // When given, the trigger offers to stop the in-flight rewrite on hover
+  // instead of sitting inert behind the spinner.
+  onStop?: () => void;
   // False when the input is empty, so actions show as unavailable.
   canRun: boolean;
   // The AI CLI/model the transforms run with, surfaced in tooltips.
@@ -34,6 +37,7 @@ interface ComposerActionsButtonProps {
 export function ComposerActionsButton({
   enabledActions,
   busy,
+  onStop,
   canRun,
   cliLabel,
   onRun,
@@ -54,6 +58,7 @@ export function ComposerActionsButton({
   // Clicks on the install modal's backdrop are ignored by useOutsideClick itself
   // (it skips [data-modal-overlay]), so dismissing it keeps the popover open.
   const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
+  const [stopHover, setStopHover] = useState(false);
 
   const countFor = (id: string) => counts[id] ?? 1;
   const setCount = (id: string, n: number) =>
@@ -119,15 +124,25 @@ export function ComposerActionsButton({
 
   const canRunCustom = custom.trim().length > 0 && canRun && !busy;
 
+  const canStop = busy && !!onStop;
+  const showStop = canStop && stopHover;
+
   return (
     <div ref={ref} className="relative">
-      <Tooltip content={busy ? "Refining…" : "Refine with AI"} delay={COMPOSER_TOOLTIP_DELAY_MS}>
+      <Tooltip
+        content={showStop ? "Stop" : busy ? "Refining…" : "Refine with AI"}
+        delay={COMPOSER_TOOLTIP_DELAY_MS}
+      >
         <button
           type="button"
           onMouseDown={keepEditorFocus}
-          onClick={() => setOpen((v) => !v)}
-          disabled={busy}
-          aria-label="AI actions"
+          onClick={() => (showStop ? onStop?.() : setOpen((v) => !v))}
+          disabled={busy && !canStop}
+          onMouseEnter={() => setStopHover(true)}
+          onMouseLeave={() => setStopHover(false)}
+          onFocus={() => setStopHover(true)}
+          onBlur={() => setStopHover(false)}
+          aria-label={showStop ? "Stop rewrite" : "AI actions"}
           aria-expanded={open}
           className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors disabled:opacity-50 ${
             open
@@ -135,7 +150,13 @@ export function ComposerActionsButton({
               : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           }`}
         >
-          {busy ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} strokeWidth={1.75} />}
+          {showStop ? (
+            <StopIcon />
+          ) : busy ? (
+            <Loader2 size={15} className="animate-spin" />
+          ) : (
+            <Sparkles size={15} strokeWidth={1.75} />
+          )}
         </button>
       </Tooltip>
 

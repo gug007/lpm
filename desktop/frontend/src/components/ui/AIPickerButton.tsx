@@ -7,6 +7,9 @@ import type { AICLI } from "../../types";
 
 interface AIPickerButtonProps {
   onGenerate: () => void;
+  // When given, the button turns into a stop control while generating; without
+  // it the button stays disabled for the duration of the run.
+  onCancel?: () => void;
   generating: boolean;
   disabled?: boolean;
   title?: string;
@@ -25,6 +28,7 @@ interface AIPickerButtonProps {
 
 export function AIPickerButton({
   onGenerate,
+  onCancel,
   generating,
   disabled,
   title,
@@ -47,6 +51,7 @@ export function AIPickerButton({
     <div ref={ref} className="relative">
       <AIButton
         onClick={onGenerate}
+        onCancel={onCancel}
         disabled={disabled}
         loading={generating}
         title={title}

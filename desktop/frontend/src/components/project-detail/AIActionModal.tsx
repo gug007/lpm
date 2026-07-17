@@ -6,6 +6,7 @@ import { XIcon, SparkleIcon } from "../icons";
 import { GenerateActionYAML } from "../../../bridge/commands";
 import { EventsOn } from "../../../bridge/runtime";
 import { useAIPicker } from "../../hooks/useAIPicker";
+import { isCanceledError, useAIGeneration } from "../../hooks/useAIGeneration";
 import { aiEffectiveFast } from "../../types";
 
 const ACTION_YAML_PROGRESS_EVENT = "action-yaml-progress";
@@ -28,7 +29,8 @@ export function AIActionModal({
   onGenerated,
 }: AIActionModalProps) {
   const [prompt, setPrompt] = useState("");
-  const [generating, setGenerating] = useState(false);
+  const gen = useAIGeneration();
+  const generating = gen.generating;
   const [progress, setProgress] = useState("");
   const ai = useAIPicker(open);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -37,7 +39,6 @@ export function AIActionModal({
     if (!open) return;
     setPrompt("");
     setProgress("");
-    setGenerating(false);
     setTimeout(() => textareaRef.current?.focus(), 60);
   }, [open]);
 
@@ -54,17 +55,19 @@ export function AIActionModal({
   const submit = async () => {
     const value = prompt.trim();
     if (!value || generating) return;
-    setGenerating(true);
     setProgress("");
     try {
-      const raw = await GenerateActionYAML(
-        projectName,
-        ai.selectedCLI,
-        ai.selectedModel,
-        ai.selectedEffort,
-        aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
-        value,
-        currentYAML,
+      const raw = await gen.run((genId) =>
+        GenerateActionYAML(
+          projectName,
+          ai.selectedCLI,
+          ai.selectedModel,
+          ai.selectedEffort,
+          aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
+          value,
+          currentYAML,
+          genId,
+        ),
       );
       const cleaned = stripCodeFences(typeof raw === "string" ? raw : "");
       if (!cleaned.trim()) {
@@ -74,10 +77,13 @@ export function AIActionModal({
       onGenerated(cleaned);
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "AI generation failed");
-    } finally {
-      setGenerating(false);
+      if (!isCanceledError(err)) toast.error(`AI generation failed: ${err}`);
     }
+  };
+
+  const closeModal = () => {
+    gen.cancel();
+    onClose();
   };
 
   const title = isEditing ? "Edit action with AI" : "Generate action with AI";
@@ -88,10 +94,8 @@ export function AIActionModal({
   return (
     <Modal
       open={open}
-      onClose={generating ? () => {} : onClose}
+      onClose={closeModal}
       backdropClassName="bg-black/60 backdrop-blur-sm"
-      closeOnBackdrop={!generating}
-      closeOnEscape={!generating}
       contentClassName="rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
       zIndexClassName="z-[60]"
     >
@@ -108,8 +112,7 @@ export function AIActionModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
-            disabled={generating}
+            onClick={closeModal}
             aria-label="Close"
             className="-mr-2 -mt-1 rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
           >
@@ -163,8 +166,7 @@ export function AIActionModal({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={onClose}
-              disabled={generating}
+              onClick={closeModal}
               className="rounded-lg px-3 py-1.5 text-[12.5px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
             >
               Cancel
@@ -172,6 +174,7 @@ export function AIActionModal({
             {ai.anyAvailable ? (
               <AIPickerButton
                 onGenerate={submit}
+                onCancel={gen.cancel}
                 generating={generating}
                 disabled={generating || !prompt.trim()}
                 title={`Generate with ${ai.cliLabel}`}

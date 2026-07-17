@@ -1,12 +1,16 @@
 // AI generation — port of desktop/aigen.go + internal/aigen. Shells out to the
 // user's AI CLI (claude/codex/gemini/opencode), streams progress events, and
 // returns the generated text. The 8 *-instructions read/save commands live in
-// templates.rs and are reused here. DEFERRED: cancellation (no cancel token),
-// SSH port/dir in the action-yaml context (config.rs lacks them yet).
+// templates.rs and are reused here. Each run can carry a caller-supplied
+// `gen_id` so `cancel_ai_generate` can reap it. DEFERRED: SSH port/dir in the
+// action-yaml context (config.rs lacks them yet).
 use crate::config;
 use serde::Serialize;
+use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Read};
+use std::os::unix::process::CommandExt;
 use std::process::{Command, Stdio};
+use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Emitter};
 
 const LPM_ACTION_REFERENCE: &str =
@@ -526,6 +530,69 @@ fn build_args(cli: &str, prompt: &str, o: &RunOptions) -> Vec<String> {
     }
 }
 
+// ---- cancellation -----------------------------------------------------------
+
+/// The error a canceled run rejects with, so the frontend can stay silent
+/// instead of surfacing it as a failure.
+pub const AI_CANCELED: &str = "canceled";
+
+/// gen_id -> pid of the CLI child currently running for it. Untracked runs
+/// (empty gen_id) never enter the map and so can't be canceled.
+fn active_gens() -> &'static Mutex<HashMap<String, i32>> {
+    static MAP: OnceLock<Mutex<HashMap<String, i32>>> = OnceLock::new();
+    MAP.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn canceled_gens() -> &'static Mutex<HashSet<String>> {
+    static SET: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    SET.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+/// Keeps the pid registration tied to the lifetime of the run, so every exit
+/// path (including the `?` early returns) deregisters.
+struct GenGuard(String);
+
+impl GenGuard {
+    fn register(gen_id: &str, pid: i32) -> Self {
+        if !gen_id.is_empty() {
+            active_gens().lock().unwrap().insert(gen_id.to_string(), pid);
+        }
+        Self(gen_id.to_string())
+    }
+}
+
+impl Drop for GenGuard {
+    fn drop(&mut self) {
+        if !self.0.is_empty() {
+            active_gens().lock().unwrap().remove(&self.0);
+            // Also drops a flag raised by a cancel that landed after the run had
+            // already read it, so nothing is left behind.
+            canceled_gens().lock().unwrap().remove(&self.0);
+        }
+    }
+}
+
+/// Consume the cancel flag, so a later run reusing the id isn't poisoned.
+fn take_canceled(gen_id: &str) -> bool {
+    !gen_id.is_empty() && canceled_gens().lock().unwrap().remove(gen_id)
+}
+
+/// Stop the run registered under `gen_id`, reaping the CLI's whole process tree
+/// (the CLI spawns its own helpers). Returns whether a run was found to stop.
+#[tauri::command(async)]
+pub fn cancel_ai_generate(gen_id: String) -> bool {
+    if gen_id.is_empty() {
+        return false;
+    }
+    let Some(pid) = active_gens().lock().unwrap().get(&gen_id).copied() else {
+        return false;
+    };
+    canceled_gens().lock().unwrap().insert(gen_id);
+    // Snapshot before signalling: once the roots die their children reparent.
+    crate::proctree::kill_pids_async(crate::proctree::trees(&[pid]));
+    true
+}
+
 /// Spawn the CLI, stream stdout line-by-line emitting `event` progress chunks,
 /// and return the trimmed final text. claude parses stream-json events; the
 /// others accumulate raw stdout.
@@ -536,6 +603,7 @@ fn run_ai(
     prompt: &str,
     opts: RunOptions,
     event: &str,
+    gen_id: &str,
 ) -> Result<String, String> {
     detect(cli)?;
     let args = build_args(cli, prompt, &opts);
@@ -546,7 +614,17 @@ fn run_ai(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     opts.claude_env.apply(&mut cmd);
+    // Own session so cancelling reaps the CLI's descendants along with it.
+    unsafe {
+        cmd.pre_exec(|| {
+            if libc::setsid() == -1 {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
     let mut child = cmd.spawn().map_err(|e| format!("{cli}: start: {e}"))?;
+    let _gen = GenGuard::register(gen_id, child.id() as i32);
 
     let stdout = child.stdout.take().ok_or("no stdout")?;
     // Drain stderr on its own thread so a chatty CLI can't deadlock on a full pipe.
@@ -598,7 +676,11 @@ fn run_ai(
 
     let status = child.wait().map_err(|e| e.to_string())?;
     let stderr_text = stderr_handle.and_then(|h| h.join().ok()).unwrap_or_default();
+    let canceled = take_canceled(gen_id);
     if !status.success() {
+        if canceled {
+            return Err(AI_CANCELED.into());
+        }
         let se = stderr_text.trim();
         if se.is_empty() {
             return Err(format!("{cli} failed"));
@@ -872,6 +954,7 @@ pub fn generate_commit_message(
     fast: bool,
     files: Vec<String>,
     task_description: String,
+    gen_id: String,
 ) -> Result<String, String> {
     let diff = crate::git::git_diff(cwd.clone(), files)?;
     if diff.trim().is_empty() {
@@ -890,7 +973,7 @@ pub fn generate_commit_message(
         ));
     }
     prompt.push_str(&diff);
-    run_ai(&app, &cli, &cwd, &prompt, ropts(Some(&project_name), model, effort, fast, false), "commit-msg-progress")
+    run_ai(&app, &cli, &cwd, &prompt, ropts(Some(&project_name), model, effort, fast, false), "commit-msg-progress", &gen_id)
 }
 
 #[tauri::command(async)]
@@ -903,11 +986,12 @@ pub fn generate_pr_title(
     effort: String,
     fast: bool,
     base: String,
+    gen_id: String,
 ) -> Result<String, String> {
     let (diff, log) = pr_diff_and_log(&cwd, &base)?;
     let instr = crate::templates::resolve_instructions(&project_name, "pr-title");
     let prompt = build_pr_prompt(PR_TITLE_PROMPT, &instr, &diff, &log);
-    run_ai(&app, &cli, &cwd, &prompt, ropts(Some(&project_name), model, effort, fast, false), "pr-title-progress")
+    run_ai(&app, &cli, &cwd, &prompt, ropts(Some(&project_name), model, effort, fast, false), "pr-title-progress", &gen_id)
 }
 
 #[tauri::command(async)]
@@ -920,11 +1004,12 @@ pub fn generate_pr_description(
     effort: String,
     fast: bool,
     base: String,
+    gen_id: String,
 ) -> Result<String, String> {
     let (diff, log) = pr_diff_and_log(&cwd, &base)?;
     let instr = crate::templates::resolve_instructions(&project_name, "pr-description");
     let prompt = build_pr_prompt(PR_DESCRIPTION_PROMPT, &instr, &diff, &log);
-    run_ai(&app, &cli, &cwd, &prompt, ropts(Some(&project_name), model, effort, fast, false), "pr-description-progress")
+    run_ai(&app, &cli, &cwd, &prompt, ropts(Some(&project_name), model, effort, fast, false), "pr-description-progress", &gen_id)
 }
 
 #[tauri::command(async)]
@@ -936,6 +1021,7 @@ pub fn generate_branch_name(
     model: String,
     effort: String,
     fast: bool,
+    gen_id: String,
 ) -> Result<String, String> {
     let mut commit_log = String::new();
     let mut diff = git_diff_head(&cwd);
@@ -954,7 +1040,7 @@ pub fn generate_branch_name(
     let diff = truncate_diff(&diff, MAX_BRANCH_DIFF);
     let instr = crate::templates::resolve_instructions(&project_name, "branch-name");
     let prompt = build_pr_prompt(BRANCH_NAME_PROMPT, &instr, &diff, &commit_log);
-    run_ai(&app, &cli, &cwd, &prompt, ropts(Some(&project_name), model, effort, fast, false), "branch-name-progress")
+    run_ai(&app, &cli, &cwd, &prompt, ropts(Some(&project_name), model, effort, fast, false), "branch-name-progress", &gen_id)
 }
 
 #[tauri::command(async)]
@@ -966,11 +1052,12 @@ pub fn resolve_merge_conflicts_with_ai(
     model: String,
     effort: String,
     fast: bool,
+    gen_id: String,
 ) -> Result<String, String> {
     if crate::git::git_merge_conflicts(cwd.clone()).is_empty() {
         return Err("no merge conflicts to resolve".into());
     }
-    run_ai(&app, &cli, &cwd, MERGE_CONFLICT_PROMPT, ropts(project_name.as_deref(), model, effort, fast, true), "merge-conflict-progress")
+    run_ai(&app, &cli, &cwd, MERGE_CONFLICT_PROMPT, ropts(project_name.as_deref(), model, effort, fast, true), "merge-conflict-progress", &gen_id)
 }
 
 #[tauri::command(async)]
@@ -983,6 +1070,7 @@ pub fn generate_action_yaml(
     fast: bool,
     user_prompt: String,
     current_yaml: String,
+    gen_id: String,
 ) -> Result<String, String> {
     let user_prompt = user_prompt.trim();
     if user_prompt.is_empty() {
@@ -991,7 +1079,7 @@ pub fn generate_action_yaml(
     let (root, is_remote) = config::project_root(&project_name)?;
     let prompt = build_action_yaml_prompt(&project_name, &root, is_remote, user_prompt, &current_yaml);
     let cwd = if root.is_empty() { ".".to_string() } else { root };
-    run_ai(&app, &cli, &cwd, &prompt, ropts(Some(&project_name), model, effort, fast, false), "action-yaml-progress")
+    run_ai(&app, &cli, &cwd, &prompt, ropts(Some(&project_name), model, effort, fast, false), "action-yaml-progress", &gen_id)
 }
 
 const TRANSFORM_OUTPUT_RULES: &str = r#"
@@ -1017,6 +1105,7 @@ pub fn transform_text(
     fast: bool,
     instruction: String,
     text: String,
+    gen_id: String,
 ) -> Result<String, String> {
     let instruction = instruction.trim();
     if instruction.is_empty() {
@@ -1027,7 +1116,7 @@ pub fn transform_text(
     }
     let prompt = format!("{instruction}{TRANSFORM_OUTPUT_RULES}{text}");
     let dir = if cwd.trim().is_empty() { ".".to_string() } else { cwd };
-    run_ai(&app, &cli, &dir, &prompt, ropts(project_name.as_deref(), model, effort, fast, false), "composer-transform-progress")
+    run_ai(&app, &cli, &dir, &prompt, ropts(project_name.as_deref(), model, effort, fast, false), "composer-transform-progress", &gen_id)
 }
 
 #[tauri::command(async)]
@@ -1036,6 +1125,7 @@ pub fn generate_project_config(
     project_name: String,
     cli: String,
     extra_prompt: String,
+    gen_id: String,
 ) -> Result<String, String> {
     let (root, _) = config::project_root(&project_name)?;
     if root.is_empty() {
@@ -1050,7 +1140,7 @@ pub fn generate_project_config(
             "\nAdditional user instructions (follow these precisely, they override defaults):\n{extra}\n"
         ));
     }
-    let result = run_ai(&app, &cli, &root, &prompt, ropts(Some(&project_name), String::new(), String::new(), false, false), "ai-generate-output")?;
+    let result = run_ai(&app, &cli, &root, &prompt, ropts(Some(&project_name), String::new(), String::new(), false, false), "ai-generate-output", &gen_id)?;
     let yaml = extract_yaml(&result);
     if yaml.is_empty() {
         return Err(format!("no YAML found in {cli} output"));
@@ -1124,6 +1214,38 @@ fn build_action_yaml_prompt(
     }
 
     format!("{ctx}\n# Reference: lpm action schema\n\n{LPM_ACTION_REFERENCE}\n\n{task}")
+}
+
+#[cfg(test)]
+mod cancel_tests {
+    use super::*;
+
+    #[test]
+    fn untracked_runs_are_not_cancelable() {
+        assert!(!cancel_ai_generate(String::new()));
+        assert!(!cancel_ai_generate("never-registered".into()));
+        assert!(!take_canceled(""));
+    }
+
+    #[test]
+    fn guard_deregisters_and_clears_a_late_flag() {
+        {
+            let _g = GenGuard::register("gen-1", 424242);
+            assert_eq!(active_gens().lock().unwrap().get("gen-1"), Some(&424242));
+            canceled_gens().lock().unwrap().insert("gen-1".to_string());
+        }
+        assert!(!active_gens().lock().unwrap().contains_key("gen-1"));
+        assert!(!canceled_gens().lock().unwrap().contains("gen-1"));
+    }
+
+    #[test]
+    fn take_canceled_consumes_the_flag_once() {
+        let _g = GenGuard::register("gen-2", 424243);
+        canceled_gens().lock().unwrap().insert("gen-2".to_string());
+        assert!(take_canceled("gen-2"));
+        // A later run reusing the id must not inherit the cancel.
+        assert!(!take_canceled("gen-2"));
+    }
 }
 
 #[cfg(test)]
