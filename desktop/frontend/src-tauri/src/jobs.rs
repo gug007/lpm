@@ -102,6 +102,9 @@ struct ScheduleDef {
     #[serde(default)]
     days: Vec<String>,
     every: Option<EveryValue>,
+    /// The job never fires on its own — it only runs when started by hand.
+    #[serde(default)]
+    manual: bool,
 }
 
 /// `every: 6h` / `every: 2d` (string with an h/d suffix) or a bare integer read
@@ -139,6 +142,8 @@ enum Schedule {
     /// `at_min` is minutes since local midnight; `days` are weekday numbers
     /// (0 = Mon .. 6 = Sun), empty meaning every day.
     Calendar { at_min: u32, days: Vec<u8> },
+    /// Never fires automatically; runs only when started by hand.
+    Manual,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -210,6 +215,9 @@ fn parse_day(d: &str) -> Result<u8, String> {
 }
 
 fn resolve_schedule(sched: &ScheduleDef) -> Result<Schedule, String> {
+    if sched.manual {
+        return Ok(Schedule::Manual);
+    }
     let has_at = !sched.at.trim().is_empty();
     let has_every = sched.every.is_some();
     match (has_at, has_every) {
@@ -463,6 +471,7 @@ fn is_due(schedule: &Schedule, last_run: u64, now: u64, jitter: u64) -> bool {
                 None => false,
             }
         }
+        Schedule::Manual => false,
     }
 }
 
@@ -472,6 +481,7 @@ fn next_fire_at(schedule: &Schedule, last_run: u64, jitter: u64, now: u64) -> Op
         Schedule::Calendar { at_min, days } => {
             next_calendar_occurrence(*at_min, days, now as i64).map(|o| o + jitter as i64)
         }
+        Schedule::Manual => None,
     }
 }
 
@@ -1975,6 +1985,7 @@ fn schedule_json(schedule: &Schedule) -> Value {
             let days: Vec<&str> = days.iter().map(|d| DAY_NAMES[*d as usize]).collect();
             json!({ "mode": "calendar", "atMinutes": at_min, "days": days })
         }
+        Schedule::Manual => json!({ "mode": "manual" }),
     }
 }
 
@@ -2619,6 +2630,7 @@ mod tests {
             at: at.to_string(),
             days: days.iter().map(|s| s.to_string()).collect(),
             every,
+            manual: false,
         }
     }
 
@@ -2767,6 +2779,22 @@ mod tests {
         // this is exactly the "anchor lastRunAt = now, never fire at init" case.
         assert!(!is_due(&s, occ as u64, now as u64, 0));
         assert!(!is_due(&s, now as u64, now as u64, 0));
+    }
+
+    #[test]
+    fn manual_never_auto_fires() {
+        let now = 1_700_000_000u64;
+        // Never due, no matter how long since the last (or never a) run.
+        assert!(!is_due(&Schedule::Manual, 0, now, 0));
+        assert!(!is_due(&Schedule::Manual, now, now + 10 * 86_400, 0));
+        // And it has no next fire point.
+        assert_eq!(next_fire_at(&Schedule::Manual, 0, 0, now), None);
+    }
+
+    #[test]
+    fn resolve_manual_schedule() {
+        let sched = ScheduleDef { manual: true, ..Default::default() };
+        assert_eq!(resolve_schedule(&sched), Ok(Schedule::Manual));
     }
 
     #[test]

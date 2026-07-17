@@ -71,6 +71,10 @@ describe("formatSchedule", () => {
       "Every day",
     );
   });
+
+  it("labels a manual schedule", () => {
+    expect(formatSchedule({ mode: "manual" })).toBe("Manual");
+  });
 });
 
 describe("formatInterval", () => {
@@ -293,6 +297,19 @@ describe("draft <-> payload round-trip", () => {
       schedule: { every: "6h" },
       run: { cmd: "make" },
     });
+  });
+
+  it("writes and reads back a manual schedule", () => {
+    const draft: JobDraft = {
+      ...defaultJobDraft(),
+      label: "On demand",
+      scheduleMode: "manual",
+      runMode: "cmd",
+      cmd: "make",
+    };
+    expect(buildJobPayload(draft).schedule).toEqual({ manual: true });
+    expect(payloadToDraft(buildJobPayload(draft))).toEqual(draft);
+    expect(describeDraftSchedule(draft)).toBe("Runs only when you start it");
   });
 
   it("round-trips a payload back into an equivalent draft", () => {

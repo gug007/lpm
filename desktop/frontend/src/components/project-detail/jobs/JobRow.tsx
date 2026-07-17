@@ -85,6 +85,9 @@ export function JobRow({ job, onRunNow, onStop, onToggleEnabled, onOpen, onEdit,
 
   const enabled = job.enabled;
   const blocked = isBlockedResult(job.lastResult);
+  // A manual job only ever runs from this button, so keep it visible rather than
+  // revealing it on hover like the scheduled jobs' shortcut.
+  const isManual = job.schedule?.mode === "manual";
   const scheduleText = job.schedule ? formatSchedule(job.schedule) : "";
   const nextRunText = enabled ? formatNextRun(job.nextFireAt) : "";
   const lastRunText = job.lastRunAt
@@ -181,7 +184,7 @@ export function JobRow({ job, onRunNow, onStop, onToggleEnabled, onOpen, onEdit,
           onClick={() => onRunNow(job.id)}
           title="Run now"
           aria-label="Run now"
-          className="shrink-0 rounded-md p-2 text-[var(--text-muted)] opacity-0 transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:opacity-100 group-hover:opacity-100"
+          className={`shrink-0 rounded-md p-2 text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:opacity-100 group-hover:opacity-100 ${isManual ? "opacity-100" : "opacity-0"}`}
         >
           <PlayIcon />
         </button>

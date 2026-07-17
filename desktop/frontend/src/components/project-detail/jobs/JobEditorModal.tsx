@@ -65,7 +65,7 @@ type TestState =
 
 // The UI's repeat vocabulary, derived from (and written back to) the draft's
 // schedule fields.
-type Repeat = "daily" | "days" | "interval";
+type Repeat = "daily" | "days" | "interval" | "manual";
 
 const RUN_LABEL: Record<JobRunKind, string> = {
   prompt: "AI prompt",
@@ -203,14 +203,18 @@ export function JobEditorModal({
   };
 
   const repeat: Repeat =
-    draft.scheduleMode === "interval"
-      ? "interval"
-      : draft.days.length > 0
-        ? "days"
-        : "daily";
+    draft.scheduleMode === "manual"
+      ? "manual"
+      : draft.scheduleMode === "interval"
+        ? "interval"
+        : draft.days.length > 0
+          ? "days"
+          : "daily";
 
   const setRepeat = (next: Repeat) => {
-    if (next === "interval") {
+    if (next === "manual") {
+      set("scheduleMode", "manual");
+    } else if (next === "interval") {
       set("scheduleMode", "interval");
     } else {
       setTouched(true);
@@ -265,7 +269,9 @@ export function JobEditorModal({
       }
       if (isEditing) {
         if (source === "global") {
-          if (editProjectsRef.current !== undefined) {
+          if (scopeEditable) {
+            payload.projects = draft.targets;
+          } else if (editProjectsRef.current !== undefined) {
             payload.projects = editProjectsRef.current;
           }
           await saveJobGlobal(id, payload);
@@ -313,17 +319,23 @@ export function JobEditorModal({
     }
   };
 
-  const whereValue = !isEditing
+  // A global job whose scope is "every project" (not standalone, no explicit
+  // targets) — the multi-select can't express it (empty reads as standalone), so
+  // its scope stays read-only.
+  const isEveryProjectJob =
+    isEditing &&
+    source === "global" &&
+    !editing.job.standalone &&
+    !(editing.job.targets && editing.job.targets.length > 0);
+  // The "Runs in" scope is editable for new jobs and for global jobs that pick
+  // specific projects (or are standalone). Project/repo jobs are bound to their
+  // project, and every-project jobs stay read-only.
+  const scopeEditable = !isEditing || (source === "global" && !isEveryProjectJob);
+  const whereValue = scopeEditable
     ? undefined
     : source !== "global"
-      ? displayNameForProjectName(editing.project, storeProjects)
-      : editing.job.standalone
-        ? "No project"
-        : editing.job.targets && editing.job.targets.length > 0
-          ? editing.job.targets
-              .map((t) => displayNameForProjectName(t, storeProjects))
-              .join(", ")
-          : "Every project";
+      ? displayNameForProjectName(editing!.project, storeProjects)
+      : "Every project";
 
   return (
     <>
@@ -504,6 +516,7 @@ export function JobEditorModal({
                         { value: "daily", label: "Every day" },
                         { value: "days", label: "On certain days" },
                         { value: "interval", label: "On an interval" },
+                        { value: "manual", label: "Manually" },
                       ]}
                     />
                   </Row>
@@ -515,7 +528,7 @@ export function JobEditorModal({
                       />
                     </Row>
                   )}
-                  {repeat === "interval" ? (
+                  {repeat === "interval" && (
                     <Row label="Every">
                       <span className="flex items-center gap-2">
                         <input
@@ -540,7 +553,8 @@ export function JobEditorModal({
                         />
                       </span>
                     </Row>
-                  ) : (
+                  )}
+                  {(repeat === "daily" || repeat === "days") && (
                     <Row label="At">
                       <input
                         type="time"

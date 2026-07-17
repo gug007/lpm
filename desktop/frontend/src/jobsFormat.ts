@@ -41,7 +41,8 @@ export type JobRunKind = "action" | "cmd" | "prompt";
 
 export type JobSchedule =
   | { mode: "interval"; everySecs: number }
-  | { mode: "calendar"; atMinutes: number; days: Weekday[] };
+  | { mode: "calendar"; atMinutes: number; days: Weekday[] }
+  | { mode: "manual" };
 
 // Which config layer defines the job: the project registry file, the repo's
 // .lpm.yml, or ~/.lpm/global.yml (applies to every project).
@@ -270,6 +271,9 @@ function joinDayPhrase(days: Weekday[]): string {
 // Plain-language schedule: "Every day at 09:00", "Mondays and Thursdays at
 // 09:00", "Every 6 hours", "Every 2 days".
 export function formatSchedule(schedule: JobSchedule): string {
+  if (schedule.mode === "manual") {
+    return "Manual";
+  }
   if (schedule.mode === "interval") {
     return formatInterval(schedule.everySecs);
   }
@@ -331,7 +335,7 @@ export function formatNextRun(
 
 // ---- editor draft <-> YAML payload -----------------------------------------
 
-export type ScheduleMode = "time" | "interval";
+export type ScheduleMode = "time" | "interval" | "manual";
 export type IntervalUnit = "hours" | "days";
 
 export interface JobDraft {
@@ -396,6 +400,9 @@ function parseTimeToMinutes(time: string): number | null {
 
 // The editor's live "when it runs" summary, derived from the draft alone.
 export function describeDraftSchedule(draft: JobDraft): string {
+  if (draft.scheduleMode === "manual") {
+    return "Runs only when you start it";
+  }
   if (draft.scheduleMode === "interval") {
     const secs =
       draft.intervalUnit === "days"
@@ -420,7 +427,7 @@ export function validateJobDraft(
   }
   if (draft.scheduleMode === "time") {
     if (parseTimeToMinutes(draft.time) === null) return "Pick a valid time.";
-  } else {
+  } else if (draft.scheduleMode === "interval") {
     if (!Number.isFinite(draft.intervalValue) || draft.intervalValue < 1) {
       return "The interval must be at least 1.";
     }
@@ -441,6 +448,9 @@ export function validateJobDraft(
 }
 
 function buildScheduleBlock(draft: JobDraft): Record<string, unknown> {
+  if (draft.scheduleMode === "manual") {
+    return { manual: true };
+  }
   if (draft.scheduleMode === "interval") {
     const suffix = draft.intervalUnit === "days" ? "d" : "h";
     return { every: `${draft.intervalValue}${suffix}` };
@@ -527,7 +537,9 @@ export function payloadToDraft(payload: Record<string, unknown>): JobDraft {
   const schedule = payload.schedule;
   if (schedule && typeof schedule === "object") {
     const s = schedule as Record<string, unknown>;
-    if (s.every !== undefined && s.every !== null) {
+    if (s.manual === true) {
+      draft.scheduleMode = "manual";
+    } else if (s.every !== undefined && s.every !== null) {
       const { value, unit } = parseEvery(s.every);
       draft.scheduleMode = "interval";
       draft.intervalValue = value;
