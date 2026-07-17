@@ -5,6 +5,7 @@ import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { ActionPicker } from "../../ActionPicker";
 import { InputComposer } from "../../InputComposer";
 import { EmojiSlotButton } from "../../EmojiPickerButton";
+import { displayNameForProjectName } from "../../ProjectNameDisplay";
 import { ChevronDownIcon, ClockIcon, XIcon } from "../../icons";
 import { WeekdayPicker } from "./WeekdayPicker";
 import { RowSelect } from "./RowSelect";
@@ -127,9 +128,13 @@ export function JobEditorModal({
   const actions = actionsAvailable && runProject ? actionsFor(runProject) : [];
   // AI-edit runs in the project the job runs in; a standalone or multi-project
   // job has no single root, so it gets a plain prompt field.
-  const projectRoot = useAppStore(
-    (s) => s.projects.find((p) => p.name === runProject)?.root,
-  );
+  const storeProjects = useAppStore((s) => s.projects);
+  const projectRoot = storeProjects.find((p) => p.name === runProject)?.root;
+  // "Refine with AI" only needs somewhere to run the CLI — it rewrites the
+  // prompt text, not the job's project. Before a project is picked (a new,
+  // standalone job) fall back to any known project root so the action stays
+  // available; it retargets to the chosen project's root once one is selected.
+  const aiCwd = projectRoot ?? storeProjects.find((p) => !p.isRemote)?.root;
   const composerHistory = runProject
     ? {
         terminalId: runProject,
@@ -311,11 +316,13 @@ export function JobEditorModal({
   const whereValue = !isEditing
     ? undefined
     : source !== "global"
-      ? editing.project
+      ? displayNameForProjectName(editing.project, storeProjects)
       : editing.job.standalone
         ? "No project"
         : editing.job.targets && editing.job.targets.length > 0
-          ? editing.job.targets.join(", ")
+          ? editing.job.targets
+              .map((t) => displayNameForProjectName(t, storeProjects))
+              .join(", ")
           : "Every project";
 
   return (
@@ -377,7 +384,7 @@ export function JobEditorModal({
                   onChange={setPrompt}
                   placeholder="Check for dependency updates. If there are none, stop. Otherwise duplicate this project with the lpm CLI, upgrade them in the copy, and run the tests."
                   history={composerHistory}
-                  aiCwd={projectRoot}
+                  aiCwd={aiCwd}
                 />
               )}
               {draft.runMode === "cmd" && (
@@ -410,7 +417,10 @@ export function JobEditorModal({
                             set("runMode", "prompt");
                           }
                         }}
-                        options={projects.map((p) => ({ value: p, label: p }))}
+                        options={projects.map((p) => ({
+                          value: p,
+                          label: displayNameForProjectName(p, storeProjects),
+                        }))}
                       />
                     )}
                   </Row>
