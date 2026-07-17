@@ -5,7 +5,7 @@ import { History, Mic, Plus, Send, Sparkles } from "lucide-react";
 import type { ReplyContext } from "./projects";
 
 export type AgentKind = "claude" | "codex";
-export type AgentStatus = "waiting" | "running" | "done";
+export type AgentStatus = "running" | "done";
 
 type Brand = {
   glyph: string;
@@ -365,9 +365,8 @@ export function AgentTerminal({
   useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
-    // The agent launches idle, awaiting your first prompt (lpm's "waiting"
-    // state) — unless it opens with work in flight (progress) or already
-    // finished (done) via autoPrompt.
+    // The agent launches idle, awaiting your first prompt — unless it opens
+    // with work in flight (progress) or already finished (done) via autoPrompt.
     if (autoPrompt && autoMode === "progress") {
       runQuery(autoPrompt, { steps: IN_PROGRESS_STEPS, keepBusy: true });
     } else if (autoPrompt && autoMode === "done") {
@@ -381,8 +380,6 @@ export function AgentTerminal({
           finished: true,
         },
       ]);
-    } else {
-      onStatusRef.current?.("waiting");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

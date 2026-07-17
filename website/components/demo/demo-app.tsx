@@ -412,8 +412,8 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
   const selectProject = (name: string) => {
     setSelected(name);
     setView("project");
-    // Viewing a project consumes its attention badge (done / waiting) — a
-    // running agent re-announces itself when its view mounts.
+    // Viewing a project consumes its attention badge (done) — a running agent
+    // re-announces itself when its view mounts.
     setAiStatusByProject((prev) => {
       if (!(name in prev)) return prev;
       const next = { ...prev };

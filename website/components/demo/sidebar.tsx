@@ -101,13 +101,11 @@ function ProjectRow({
   const nameClass =
     aiStatus === "running"
       ? "sidebar-shimmer"
-      : aiStatus === "waiting"
-        ? "sidebar-waiting"
-        : aiStatus === "error"
-          ? "text-red-400"
-          : aiStatus === "done"
-            ? "text-[#60a5fa]"
-            : "";
+      : aiStatus === "error"
+        ? "text-red-400"
+        : aiStatus === "done"
+          ? "text-[#60a5fa]"
+          : "";
   return (
     <button
       type="button"

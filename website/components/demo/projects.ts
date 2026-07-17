@@ -105,7 +105,7 @@ export type DemoProject = {
   replyContext?: ReplyContext;
 };
 
-export type AiStatus = "running" | "waiting" | "done" | "error";
+export type AiStatus = "running" | "done" | "error";
 
 const CLAUDE_ACTION: DemoAction = {
   name: "claude",
@@ -809,13 +809,12 @@ const PROJECTS: DemoProject[] = [
 ];
 
 // Seeded so the sidebar shows lpm's per-project AI states at a glance: a
-// background agent still working (running shimmer), one that needs input
-// (waiting), and one that just finished (done). The selected project picks up
-// live status when you launch Claude Code or Codex in it.
+// background agent still working (running shimmer) and one that just finished
+// (done). The selected project picks up live status when you launch Claude Code
+// or Codex in it.
 export const INITIAL_AI_STATUS: Record<string, AiStatus> = {
   "auth-service": "running",
   "docs-site": "done",
-  "ml-pipeline": "waiting",
 };
 
 export default PROJECTS;

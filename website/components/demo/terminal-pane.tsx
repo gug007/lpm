@@ -17,7 +17,6 @@ import { AddTabSplitButton } from "./tab-controls";
 
 const STATUS_LABEL_CLASS: Record<AgentStatus, string> = {
   running: "sidebar-shimmer",
-  waiting: "sidebar-waiting",
   done: "text-[#60a5fa]",
 };
 

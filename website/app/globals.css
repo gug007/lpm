@@ -225,28 +225,12 @@ body {
   }
 }
 
-.sidebar-waiting {
-  color: #f59e0b;
-  animation: waiting-pulse 2s ease-in-out infinite;
-}
-
-@keyframes waiting-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .animate-bounce-soft,
   .animate-cta-breath,
   .animate-icon-glow,
   .start-ring-pulse,
-  .sidebar-shimmer,
-  .sidebar-waiting {
+  .sidebar-shimmer {
     animation: none;
   }
   .dl-card:hover {
