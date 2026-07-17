@@ -30,6 +30,12 @@ final class LpmClient: NSObject {
     var onMentions: ((_ project: String, _ entries: [MentionEntry]) -> Void)?
     var onHistory: ((_ project: String, _ rows: [HistoryRow]) -> Void)?
     var onStatus: ((_ project: String, _ entries: [StatusEntry]) -> Void)?
+    var onJobs: ((_ jobs: [AutomationJob], _ error: String?) -> Void)?
+    var onJobHistory: ((_ project: String, _ jobId: String, _ entries: [AutomationHistoryEntry], _ error: String?) -> Void)?
+    var onJobLiveOutput: ((_ project: String, _ jobId: String, _ live: AutomationLiveOutput?, _ error: String?) -> Void)?
+    var onAutomationMutation: ((_ project: String, _ jobId: String, _ error: String?) -> Void)?
+    var onAutomationFollowup: ((_ project: String, _ jobId: String, _ error: String?) -> Void)?
+    var onJobsChanged: (() -> Void)?
     var onDuplicateDefaults: ((_ excludeUncommitted: Bool, _ reinstallDeps: Bool, _ pullLatest: Bool) -> Void)?
     var onDuplicateProgress: ((_ done: Int, _ total: Int, _ name: String) -> Void)?
     var onDuplicateDone: ((_ error: String?, _ warning: String?) -> Void)?
@@ -299,6 +305,23 @@ final class LpmClient: NSObject {
         send(Wire.historyAdd(project: project, id: id, label: label, text: text))
     }
     func requestStatus(project: String) { send(Wire.status(project: project)) }
+    func requestJobs() { send(Wire.jobs()) }
+    func requestJobHistory(project: String, jobId: String) {
+        send(Wire.jobHistory(project: project, jobId: jobId))
+    }
+    func requestJobLiveOutput(project: String, jobId: String) {
+        send(Wire.jobLiveOutput(project: project, jobId: jobId))
+    }
+    func runJob(project: String, jobId: String) { send(Wire.runJob(project: project, jobId: jobId)) }
+    func stopJob(project: String, jobId: String) { send(Wire.stopJob(project: project, jobId: jobId)) }
+    func setJobEnabled(project: String, jobId: String, enabled: Bool) {
+        send(Wire.setJobEnabled(project: project, jobId: jobId, enabled: enabled))
+    }
+    func sendJobFollowup(project: String, jobId: String, at: Int, message: String,
+                         agent: String, model: String, effort: String) {
+        send(Wire.sendJobFollowup(project: project, jobId: jobId, at: at, message: message,
+                                  agent: agent, model: model, effort: effort))
+    }
     func runAction(project: String, action: String) { send(Wire.runAction(project: project, action: action)) }
     func newTerminal(project: String) { send(Wire.newTerminal(project: project)) }
     func closeTerminal(project: String, id: String) { send(Wire.closeTerminal(project: project, id: id)) }
@@ -496,6 +519,16 @@ final class LpmClient: NSObject {
             case .mentions(let proj, let entries): self.onMentions?(proj, entries)
             case .history(let proj, let rows): self.onHistory?(proj, rows)
             case .status(let proj, let s): self.onStatus?(proj, s)
+            case .jobs(let jobs, let error): self.onJobs?(jobs, error)
+            case .jobHistory(let project, let jobId, let entries, let error):
+                self.onJobHistory?(project, jobId, entries, error)
+            case .jobLiveOutput(let project, let jobId, let live, let error):
+                self.onJobLiveOutput?(project, jobId, live, error)
+            case .automationMutation(let project, let jobId, let error):
+                self.onAutomationMutation?(project, jobId, error)
+            case .automationFollowup(let project, let jobId, let error):
+                self.onAutomationFollowup?(project, jobId, error)
+            case .jobsChanged: self.onJobsChanged?()
             case .seed(let id, let c, let r, let d, let owner):
                 self.onControl?(id, owner)
                 self.onSeed?(id, c, r, d)

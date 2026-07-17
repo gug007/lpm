@@ -15,6 +15,19 @@ import UniformTypeIdentifiers
 struct TerminalComposer: View {
     @EnvironmentObject var model: AppModel
     @ObservedObject var store: ComposerStore
+    private let onSend: ((String) -> Void)?
+    private let terminalTools: Bool
+    private let disabled: Bool
+    private let placeholder: String
+
+    init(store: ComposerStore, onSend: ((String) -> Void)? = nil,
+         terminalTools: Bool = true, disabled: Bool = false, placeholder: String = "Message") {
+        _store = ObservedObject(wrappedValue: store)
+        self.onSend = onSend
+        self.terminalTools = terminalTools
+        self.disabled = disabled
+        self.placeholder = placeholder
+    }
 
     @State private var showPhotoPicker = false
     @State private var photoItems: [PhotosPickerItem] = []
@@ -55,6 +68,7 @@ struct TerminalComposer: View {
     // A "/" at the very start, with no space typed yet, is a slash-command being
     // composed; the token after "/" filters the menu.
     private var slashQuery: String? {
+        guard terminalTools else { return nil }
         let text = store.text
         guard text.hasPrefix("/"), !text.contains(" "), !text.contains("\n") else { return nil }
         return String(text.dropFirst())
@@ -68,6 +82,7 @@ struct TerminalComposer: View {
     /// After a fully-typed "/command " (single trailing space), the ghost hint to
     /// draw dimmed after the caret.
     private var slashArgumentHint: String? {
+        guard terminalTools else { return nil }
         let text = store.text
         guard text.hasPrefix("/"), text.hasSuffix(" "), !text.contains("\n") else { return nil }
         let name = String(text.dropFirst().dropLast())
@@ -96,7 +111,7 @@ struct TerminalComposer: View {
     private var changedMentions: [MentionEntry] { cachedMentionFiles.filter { $0.changed } }
     private var fileMentions: [MentionEntry] { cachedMentionFiles.filter { !$0.changed } }
     private var hasMentionContent: Bool {
-        !cachedMentionFiles.isEmpty || !cachedBranches.isEmpty || !cachedServices.isEmpty || mentionActive
+        !cachedMentionFiles.isEmpty || !cachedBranches.isEmpty || !cachedServices.isEmpty || (terminalTools && mentionActive)
     }
 
     /// Recompute the memoized mention results from the current fragment + sources.
@@ -122,6 +137,7 @@ struct TerminalComposer: View {
 
     private var sendState: ComposerStore.SendState { store.sendState() }
     private var canSend: Bool {
+        guard !disabled else { return false }
         switch sendState {
         case .ready, .droppedFailures: return !store.transforming
         case .pending, .empty: return false
@@ -148,7 +164,7 @@ struct TerminalComposer: View {
             .animation(.easeOut(duration: 0.12), value: hasMentionContent)
             .animation(.easeOut(duration: 0.15), value: store.transforming)
             .onAppear {
-                model.loadSlash(termId, project: project)
+                if terminalTools { model.loadSlash(termId, project: project) }
                 model.loadMentions(project)
                 model.loadComposerActions()
                 model.loadServices(project)
@@ -209,6 +225,7 @@ struct TerminalComposer: View {
                     changed: changedMentions, files: fileMentions,
                     branches: cachedBranches, services: cachedServices,
                     pickPath: pickPath, pickBranch: pickBranch,
+                    includeTerminalOutput: terminalTools,
                     pickTerminalOutput: pickTerminalOutput, pickServiceLog: pickServiceLog)
                 Divider().opacity(0.5)
             }
@@ -220,7 +237,9 @@ struct TerminalComposer: View {
                                 onRetry: { store.retryUpload($0) },
                                 onRemove: { store.removeAttachment($0) })
                 .equatable()
-            SpecialKeyBar(key: key, onPaste: pasteClipboard)
+            if terminalTools {
+                SpecialKeyBar(key: key, onPaste: pasteClipboard)
+            }
             Divider().opacity(0.5)
             inputRow
         }
@@ -390,7 +409,7 @@ struct TerminalComposer: View {
                 .frame(width: 36, height: 36)
                 .contentShape(Rectangle())
         }
-        .disabled(store.transforming)
+        .disabled(store.transforming || disabled)
         .popover(isPresented: $showRewriteHint, arrowEdge: .bottom) {
             Text("Type a message first — then tap to rewrite it with AI.")
                 .font(.footnote)
@@ -409,7 +428,7 @@ struct TerminalComposer: View {
                     .padding(.vertical, 8)
                     .allowsHitTesting(false)
             }
-            TextField("Message", text: store.textBinding, axis: .vertical)
+            TextField(placeholder, text: store.textBinding, axis: .vertical)
                 .font(.body)
                 .lineLimit(1...5)
                 .focused($focused)
@@ -417,7 +436,7 @@ struct TerminalComposer: View {
                 .autocorrectionDisabled()
                 .padding(.horizontal, 8)
                 .padding(.vertical, 8)
-                .disabled(store.transforming)
+                .disabled(store.transforming || disabled)
         }
         .frame(height: fieldHeight, alignment: .topLeading)
     }
@@ -432,12 +451,14 @@ struct TerminalComposer: View {
                 }
             } label: { Label("Save as draft", systemImage: "tray.and.arrow.down") }
 
-            Menu {
-                ForEach(2...10, id: \.self) { n in
-                    Button("\(n) copies") { dupSeed = DupSeed(count: n, prompt: store.text) }
-                }
-            } label: { Label("Run in duplicates", systemImage: "plus.square.on.square") }
-                .disabled(store.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            if terminalTools {
+                Menu {
+                    ForEach(2...10, id: \.self) { n in
+                        Button("\(n) copies") { dupSeed = DupSeed(count: n, prompt: store.text) }
+                    }
+                } label: { Label("Run in duplicates", systemImage: "plus.square.on.square") }
+                    .disabled(store.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
         } label: {
             Image(systemName: "arrow.up")
                 .font(.system(size: 16, weight: .semibold))
@@ -449,13 +470,13 @@ struct TerminalComposer: View {
         } primaryAction: {
             send()
         }
-        .disabled(!canSend && !isSendMenuUseful)
+        .disabled(disabled || (!canSend && !isSendMenuUseful))
     }
 
     // The menu (save draft / duplicates) is still worth offering even when there's
     // nothing to send yet — but only if there's text to act on.
     private var isSendMenuUseful: Bool {
-        !store.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !store.transforming
+        !disabled && !store.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !store.transforming
     }
     private var canRewrite: Bool {
         !store.transforming && !store.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -494,7 +515,8 @@ struct TerminalComposer: View {
 
     /// Deliver a composed body and reset the active tab (closing it if others exist).
     private func deliver(_ body: String) {
-        model.submit(termId, body)
+        if let onSend { onSend(body) }
+        else { model.submit(termId, body) }
         if !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             model.recordHistory(project: project, id: termId, label: label, text: body)
         }
@@ -505,7 +527,8 @@ struct TerminalComposer: View {
     /// tab (used by "Send now" from history and the duplicate flow's current copy).
     private func sendRaw(_ text: String) {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        model.submit(termId, text)
+        if let onSend { onSend(text) }
+        else { model.submit(termId, text) }
         model.recordHistory(project: project, id: termId, label: label, text: text)
     }
 
@@ -728,6 +751,7 @@ private struct ComposerMentionMenu: View {
     let services: [ServiceInfo]
     let pickPath: (String) -> Void
     let pickBranch: (String) -> Void
+    let includeTerminalOutput: Bool
     let pickTerminalOutput: () -> Void
     let pickServiceLog: (ServiceInfo) -> Void
 
@@ -746,12 +770,16 @@ private struct ComposerMentionMenu: View {
                     header("Branches")
                     ForEach(branches) { b in branchRow(b) }
                 }
-                header("Context")
-                contextRow(icon: "terminal", title: "This terminal's output",
-                           subtitle: "Insert recent output", action: pickTerminalOutput)
-                ForEach(services) { s in
-                    contextRow(icon: "square.stack.3d.up", title: "\(s.name) logs",
-                               subtitle: "Insert recent logs", action: { pickServiceLog(s) })
+                if includeTerminalOutput || !services.isEmpty {
+                    header("Context")
+                    if includeTerminalOutput {
+                        contextRow(icon: "terminal", title: "This terminal's output",
+                                   subtitle: "Insert recent output", action: pickTerminalOutput)
+                    }
+                    ForEach(services) { s in
+                        contextRow(icon: "square.stack.3d.up", title: "\(s.name) logs",
+                                   subtitle: "Insert recent logs", action: { pickServiceLog(s) })
+                    }
                 }
             }
         }

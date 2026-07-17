@@ -118,7 +118,13 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "run_task" => cmd_run_task(args, app),
         "set_resume" => cmd_set_resume(args, app),
         "list_jobs" => cmd_list_jobs(args),
+        "list_all_jobs" => cmd_list_all_jobs(),
         "run_job" => cmd_run_job(args, app),
+        "stop_job" => cmd_stop_job(args),
+        "set_job_enabled" => cmd_set_job_enabled(args),
+        "job_history" => cmd_job_history(args),
+        "job_live_output" => cmd_job_live_output(args),
+        "send_job_followup" => cmd_send_job_followup(args, app),
         _ => "ERROR: unknown command".into(),
     }
 }
@@ -419,6 +425,93 @@ fn cmd_run_job(args: &[String], app: &AppHandle) -> String {
         Ok(()) => serde_json::json!({ "ok": true }).to_string(),
         Err(e) => serde_json::json!({ "ok": false, "error": e }).to_string(),
     }
+}
+
+fn cmd_list_all_jobs() -> String {
+    match crate::jobs::list_all_jobs() {
+        Ok(jobs) => serde_json::to_string(&jobs).unwrap_or_else(|e| format!("ERROR: {e}")),
+        Err(e) => format!("ERROR: {e}"),
+    }
+}
+
+fn job_result(r: Result<(), String>) -> String {
+    match r {
+        Ok(()) => serde_json::json!({ "ok": true }).to_string(),
+        Err(e) => serde_json::json!({ "ok": false, "error": e }).to_string(),
+    }
+}
+
+fn cmd_stop_job(args: &[String]) -> String {
+    let (positional, _) = parse_options(args);
+    if positional.len() < 2 {
+        return serde_json::json!({ "ok": false, "error": "usage: stop_job <project> <job_id>" })
+            .to_string();
+    }
+    job_result(crate::jobs::stop_job_run(
+        positional[0].clone(),
+        positional[1].clone(),
+    ))
+}
+
+fn cmd_set_job_enabled(args: &[String]) -> String {
+    let (positional, _) = parse_options(args);
+    if positional.len() < 3 {
+        return serde_json::json!({ "ok": false, "error": "usage: set_job_enabled <project> <job_id> <true|false>" })
+            .to_string();
+    }
+    let Ok(enabled) = positional[2].parse::<bool>() else {
+        return serde_json::json!({ "ok": false, "error": "enabled must be true or false" })
+            .to_string();
+    };
+    job_result(crate::jobs::set_job_enabled(
+        positional[0].clone(),
+        positional[1].clone(),
+        enabled,
+    ))
+}
+
+fn cmd_job_history(args: &[String]) -> String {
+    let (positional, _) = parse_options(args);
+    if positional.len() < 2 {
+        return "ERROR: usage: job_history <project> <job_id>".into();
+    }
+    match crate::jobs::job_history(positional[0].clone(), positional[1].clone()) {
+        Ok(history) => serde_json::to_string(&history).unwrap_or_else(|e| format!("ERROR: {e}")),
+        Err(e) => format!("ERROR: {e}"),
+    }
+}
+
+fn cmd_job_live_output(args: &[String]) -> String {
+    let (positional, _) = parse_options(args);
+    if positional.len() < 2 {
+        return "ERROR: usage: job_live_output <project> <job_id>".into();
+    }
+    match crate::jobs::job_live_output(positional[0].clone(), positional[1].clone()) {
+        Ok(live) => serde_json::to_string(&live).unwrap_or_else(|e| format!("ERROR: {e}")),
+        Err(e) => format!("ERROR: {e}"),
+    }
+}
+
+fn cmd_send_job_followup(args: &[String], app: &AppHandle) -> String {
+    let (positional, options) = parse_options(args);
+    if positional.len() < 4 {
+        return serde_json::json!({ "ok": false, "error": "usage: send_job_followup <project> <job_id> <at> <message> [--agent=X] [--model=X] [--effort=X]" })
+            .to_string();
+    }
+    let Ok(at) = positional[2].parse::<u64>() else {
+        return serde_json::json!({ "ok": false, "error": "at must be a unix timestamp" })
+            .to_string();
+    };
+    job_result(crate::jobs::send_job_followup(
+        app.clone(),
+        positional[0].clone(),
+        positional[1].clone(),
+        at,
+        positional[3].clone(),
+        options.get("agent").cloned().unwrap_or_default(),
+        options.get("model").cloned().unwrap_or_default(),
+        options.get("effort").cloned().unwrap_or_default(),
+    ))
 }
 
 fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> String {

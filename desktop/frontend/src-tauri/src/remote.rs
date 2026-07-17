@@ -966,6 +966,81 @@ fn handle_msg(
             let sb = sidebar_json();
             send(ws, json!({ "t": "sidebar", "order": sb.0, "groups": sb.1 }))?;
         }
+        "jobs" => match crate::jobs::list_all_jobs() {
+            Ok(jobs) => send(ws, json!({ "t": "jobs", "ok": true, "jobs": jobs }))?,
+            Err(e) => send(ws, json!({ "t": "jobs", "ok": false, "error": e }))?,
+        },
+        "jobHistory" => {
+            let project = str_field("project").unwrap_or_default();
+            let job_id = str_field("jobId").unwrap_or_default();
+            match crate::jobs::job_history(project.clone(), job_id.clone()) {
+                Ok(entries) => send(ws, json!({ "t": "jobHistory", "project": project,
+                    "jobId": job_id, "ok": true, "entries": entries }))?,
+                Err(e) => send(ws, json!({ "t": "jobHistory", "project": project,
+                    "jobId": job_id, "ok": false, "error": e }))?,
+            }
+        }
+        "jobLiveOutput" => {
+            let project = str_field("project").unwrap_or_default();
+            let job_id = str_field("jobId").unwrap_or_default();
+            match crate::jobs::job_live_output(project.clone(), job_id.clone()) {
+                Ok(live) => send(ws, json!({ "t": "jobLiveOutput", "project": project,
+                    "jobId": job_id, "ok": true, "live": live }))?,
+                Err(e) => send(ws, json!({ "t": "jobLiveOutput", "project": project,
+                    "jobId": job_id, "ok": false, "error": e }))?,
+            }
+        }
+        "runJob" => {
+            let project = str_field("project").unwrap_or_default();
+            let job_id = str_field("jobId").unwrap_or_default();
+            let r = crate::jobs::run_job_now(app.clone(), project.clone(), job_id.clone());
+            let mut reply = result_reply("runJob", r);
+            reply["project"] = json!(project);
+            reply["jobId"] = json!(job_id);
+            send(ws, reply)?;
+        }
+        "stopJob" => {
+            let project = str_field("project").unwrap_or_default();
+            let job_id = str_field("jobId").unwrap_or_default();
+            let r = crate::jobs::stop_job_run(project.clone(), job_id.clone());
+            let mut reply = result_reply("stopJob", r);
+            reply["project"] = json!(project);
+            reply["jobId"] = json!(job_id);
+            send(ws, reply)?;
+        }
+        "setJobEnabled" => {
+            let project = str_field("project").unwrap_or_default();
+            let job_id = str_field("jobId").unwrap_or_default();
+            let enabled = v.get("enabled").and_then(Value::as_bool).unwrap_or(false);
+            let r = crate::jobs::set_job_enabled(project.clone(), job_id.clone(), enabled);
+            let mut reply = result_reply("setJobEnabled", r);
+            reply["project"] = json!(project);
+            reply["jobId"] = json!(job_id);
+            send(ws, reply)?;
+        }
+        "sendJobFollowup" => {
+            let project = str_field("project").unwrap_or_default();
+            let job_id = str_field("jobId").unwrap_or_default();
+            let at = v.get("at").and_then(Value::as_u64).unwrap_or_default();
+            let message = str_field("message").unwrap_or_default();
+            let agent = str_field("agent").unwrap_or_default();
+            let model = str_field("model").unwrap_or_default();
+            let effort = str_field("effort").unwrap_or_default();
+            let r = crate::jobs::send_job_followup(
+                app.clone(),
+                project.clone(),
+                job_id.clone(),
+                at,
+                message,
+                agent,
+                model,
+                effort,
+            );
+            let mut reply = result_reply("sendJobFollowup", r);
+            reply["project"] = json!(project);
+            reply["jobId"] = json!(job_id);
+            send(ws, reply)?;
+        }
         "terminals" => {
             let project = str_field("project").unwrap_or_default();
             let terms = pty::remote_terminals(&app.state::<pty::PtyState>(), &project);
@@ -2700,6 +2775,10 @@ fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {
         let project = serde_json::from_str::<String>(e.payload()).unwrap_or_default();
         broadcast(&h, json!({ "t": "status-changed", "project": project }));
         push_notifications(&h, &a, &project);
+    });
+    let h = hub.clone();
+    app.listen("job-status", move |_| {
+        broadcast(&h, json!({ "t": "jobs-changed" }));
     });
 }
 

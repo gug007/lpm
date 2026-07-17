@@ -16,6 +16,14 @@ final class AppModel: ObservableObject {
     @Published var slashCommands: [String: [SlashCommand]] = [:] // terminal id -> commands
     @Published var mentions: [String: [MentionEntry]] = [:] // project -> @-mention targets
     @Published var history: [String: [HistoryRow]] = [:] // project -> recent sent prompts
+    @Published var automations: [AutomationJob] = []
+    @Published var automationsLoaded = false
+    @Published var automationHistory: [String: [AutomationHistoryEntry]] = [:]
+    @Published var automationHistoryLoading: Set<String> = []
+    @Published var automationLiveOutput: [String: AutomationLiveOutput] = [:]
+    @Published var automationPending: Set<String> = []
+    @Published var automationError: String?
+    @Published var automationFollowupError: [String: String] = [:]
 
     // Saved Macs and which one is live. The phone talks to exactly one Mac at a
     // time; `activeMacId` names it. An empty `macs` list means "not paired with any
@@ -509,6 +517,14 @@ final class AppModel: ObservableObject {
         slashCommands = [:]
         mentions = [:]
         history = [:]
+        automations = []
+        automationsLoaded = false
+        automationHistory = [:]
+        automationHistoryLoading = []
+        automationLiveOutput = [:]
+        automationPending = []
+        automationError = nil
+        automationFollowupError = [:]
         composerActions = []
         actionVariantCounts = [:]
         services = [:]
@@ -710,6 +726,53 @@ final class AppModel: ObservableObject {
     func toggleService(_ project: String, service: String) { client?.toggleService(project, service: service) }
     func loadTerminals(_ project: String) { client?.requestTerminals(project: project) }
 
+    func loadAutomations() { client?.requestJobs() }
+
+    func refreshAutomations() async {
+        if case .ready = connection { client?.requestJobs() }
+        else { reconnectIfNeeded() }
+        try? await Task.sleep(nanoseconds: 500_000_000)
+    }
+
+    func loadAutomationHistory(project: String, jobId: String) {
+        let key = automationKey(project, jobId)
+        automationHistoryLoading.insert(key)
+        client?.requestJobHistory(project: project, jobId: jobId)
+    }
+
+    func loadAutomationLiveOutput(project: String, jobId: String) {
+        client?.requestJobLiveOutput(project: project, jobId: jobId)
+    }
+
+    func runAutomation(project: String, jobId: String) {
+        let key = automationKey(project, jobId)
+        automationPending.insert(key)
+        client?.runJob(project: project, jobId: jobId)
+    }
+
+    func stopAutomation(project: String, jobId: String) {
+        let key = automationKey(project, jobId)
+        automationPending.insert(key)
+        client?.stopJob(project: project, jobId: jobId)
+    }
+
+    func setAutomationEnabled(project: String, jobId: String, enabled: Bool) {
+        let key = automationKey(project, jobId)
+        automationPending.insert(key)
+        client?.setJobEnabled(project: project, jobId: jobId, enabled: enabled)
+    }
+
+    func sendAutomationFollowup(project: String, jobId: String, at: Int, message: String,
+                                agent: String, model: String, effort: String) {
+        let key = automationKey(project, jobId)
+        automationPending.insert(key)
+        automationFollowupError[key] = nil
+        client?.sendJobFollowup(project: project, jobId: jobId, at: at, message: message,
+                                agent: agent, model: model, effort: effort)
+    }
+
+    func automationKey(_ project: String, _ jobId: String) -> String { project + "\n" + jobId }
+
     /// Pull-to-refresh on the projects list: re-request projects + sidebar when
     /// live, or kick a reconnect when the link is down. The brief wait lets the
     /// round-trip land so the refresh control reflects a real update.
@@ -882,6 +945,8 @@ final class AppModel: ObservableObject {
     /// requests it issues queue on the client and flush on reconnect.
     private func handleConnectionReset() {
         for store in composerStores.values { store.failInFlightUploads() }
+        automationPending = []
+        automationHistoryLoading = []
         historyPending = []
         historyLoadingMore = false
         if historyActive {
@@ -1325,6 +1390,7 @@ final class AppModel: ObservableObject {
                 c.requestProjects()
                 c.requestSidebar()
                 c.requestDuplicateDefaults()
+                c.requestJobs()
                 self.requestPushRegistration()
                 self.sendApnsTokenIfPossible()
             }
@@ -1373,9 +1439,57 @@ final class AppModel: ObservableObject {
         }
         c.onMentions = { [weak self] proj, entries in self?.mentions[proj] = entries }
         c.onHistory = { [weak self] proj, rows in self?.history[proj] = rows.filter { !$0.isDraft } }
+        c.onJobs = { [weak self] jobs, error in
+            guard let self else { return }
+            self.automationsLoaded = true
+            if let error { self.automationError = error }
+            else { self.automations = jobs }
+        }
+        c.onJobHistory = { [weak self] project, jobId, entries, error in
+            guard let self else { return }
+            let key = self.automationKey(project, jobId)
+            self.automationHistoryLoading.remove(key)
+            if error == nil { self.automationHistory[key] = entries }
+            else { self.automationError = error }
+        }
+        c.onJobLiveOutput = { [weak self] project, jobId, live, error in
+            guard let self else { return }
+            let key = self.automationKey(project, jobId)
+            if let live { self.automationLiveOutput[key] = live }
+            else { self.automationLiveOutput[key] = nil }
+            if let error { self.automationError = error }
+        }
+        c.onAutomationMutation = { [weak self] project, jobId, error in
+            guard let self else { return }
+            let key = self.automationKey(project, jobId)
+            self.automationPending.remove(key)
+            if let error { self.automationError = error }
+            c.requestJobs()
+            if self.automationHistory[key] != nil {
+                c.requestJobHistory(project: project, jobId: jobId)
+            }
+        }
+        c.onAutomationFollowup = { [weak self] project, jobId, error in
+            guard let self else { return }
+            let key = self.automationKey(project, jobId)
+            self.automationPending.remove(key)
+            if let error { self.automationFollowupError[key] = error }
+            c.requestJobs()
+            c.requestJobHistory(project: project, jobId: jobId)
+            c.requestJobLiveOutput(project: project, jobId: jobId)
+        }
+        c.onJobsChanged = { [weak self] in
+            guard let self else { return }
+            c.requestJobs()
+            for key in self.automationHistory.keys {
+                let parts = key.split(separator: "\n", maxSplits: 1).map(String.init)
+                if parts.count == 2 { c.requestJobHistory(project: parts[0], jobId: parts[1]) }
+            }
+        }
         c.onProjectsChanged = {
             c.requestProjects()
             c.requestSidebar()
+            c.requestJobs()
         }
         c.onStatusChanged = { proj in c.requestStatus(project: proj) }
         c.onActionError = { [weak self] message in self?.actionError = message }

@@ -316,6 +316,11 @@ struct ProjectsView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    NavigationLink {
+                        AutomationsView()
+                    } label: {
+                        Label("Automations", systemImage: "clock.arrow.circlepath")
+                    }
                     Button { showingSettings = true } label: {
                         Label("Settings", systemImage: "gearshape")
                     }

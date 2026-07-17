@@ -56,6 +56,13 @@ any live connection.
 | Request | Reply |
 |---|---|
 | `{ "t": "projects" }` | `{ "t": "projects", "projects": [ProjectInfo…] }` |
+| `{ "t": "jobs" }` | `{ "t": "jobs", "ok": true, "jobs": [JobInfo…] }` / `{ "ok": false, "error": "…" }` — every automation across local projects |
+| `{ "t": "jobHistory", "project": "<name>", "jobId": "<id>" }` | `{ "t": "jobHistory", "project": "<name>", "jobId": "<id>", "ok": true, "entries": [JobHistoryEntry…] }` / `{ "ok": false, "error": "…" }` |
+| `{ "t": "jobLiveOutput", "project": "<name>", "jobId": "<id>" }` | `{ "t": "jobLiveOutput", "project": "<name>", "jobId": "<id>", "ok": true, "live": { "startedAt": N, "text": "…" }\|null }` / `{ "ok": false, "error": "…" }` |
+| `{ "t": "runJob", "project": "<name>", "jobId": "<id>" }` | `{ "t": "runJob", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` |
+| `{ "t": "stopJob", "project": "<name>", "jobId": "<id>" }` | `{ "t": "stopJob", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` |
+| `{ "t": "setJobEnabled", "project": "<name>", "jobId": "<id>", "enabled": bool }` | `{ "t": "setJobEnabled", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` |
+| `{ "t": "sendJobFollowup", "project": "<name>", "jobId": "<id>", "at": N, "message": "…", "agent": "…", "model": "…", "effort": "…" }` | `{ "t": "sendJobFollowup", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` — continues the conversation containing history entry `at`; empty agent/model/effort use the automation's settings |
 | `{ "t": "terminals", "project": "<name>" }` | `{ "t": "terminals", "project": "<name>", "terminals": [Terminal…] }` |
 | `{ "t": "slash", "id": "<termId>", "project": "<name>" }` | `{ "t": "slash", "id": "<termId>", "commands": [SlashCommand…] }` — slash-command autocomplete; empty unless the terminal runs a known AI CLI (the frontend registers each terminal's CLI, detected from its launch command) |
 | `{ "t": "upload", "id": "<termId>", "data": "<base64 blob>", "mime": "image/jpeg", "name": "<original filename>"?, "reqId": <any>? }` | `{ "t": "upload", "id": "<termId>", "ok": true, "path": "<on-Mac path>", "reqId": <any>? }` / `{ "ok": false, "error": "…", "reqId": <any>? }` — saves the blob to a temp file on the Mac (scp'd first for a remote pane); the phone drops the path into the composer, which pastes it so an agent loads it. With `name` the file is saved under its **original basename** (uniquified in a fresh temp subdir) and **any** `mime` is accepted — arbitrary files, not just images. Without `name` (image-only callers, unchanged) the file is keyed by `mime` (default `image/png`) like before. Runs on a worker thread (base64 decode + fs write + possible scp), so a large upload never stalls this connection's keystrokes/resizes — replies may therefore arrive **out of order**. Pass `reqId` (string or number) and it is echoed verbatim so the phone correlates each reply to its request by id rather than FIFO (FIFO desyncs permanently if a reply is lost on a socket drop). Omit `reqId` (older phones) → the reply omits it too, unchanged |
@@ -228,6 +235,7 @@ installs stop generating traffic.
 | `{ "t": "exit", "id": "<termId>", "code": N }` | The terminal's process exited. |
 | `{ "t": "projects-changed" }` | A project started/stopped/renamed. Re-request `projects`. |
 | `{ "t": "status-changed", "project": "<name>" }` | A status badge changed (e.g. an agent is now Waiting). Re-request `status`. |
+| `{ "t": "jobs-changed" }` | An automation started, stopped, or completed. Re-request `jobs` and any open history/live output. |
 | `{ "t": "git-changed", "project": "<name>" }` | The watched project's working tree changed (sent only to a connection that issued `gitWatch` for it, debounced ~400ms after the last change). Carries no payload — re-request `git` and any open `gitDiff`s to refresh the review screen. |
 | `{ "t": "control", "id": "<termId>", "owner": ControlOwner\|null }` | The terminal's control owner changed. If `owner` is not this phone, show the "take control" placeholder and stop driving size; if it is (or `null`), render live. |
 
@@ -246,6 +254,44 @@ statusEntries: [StatusEntry]
 isRemote: bool
 parentName: string        // the project this is a duplicate of; empty for originals — the phone offers Remove only when set
 actions: [ActionInfo]     // recursive: { name (composite parent:child), label, emoji, cmd, type, display, children[] … }
+```
+
+**JobInfo**:
+```
+id: string
+project: string
+valid: bool
+source: "project" | "repo" | "global"
+label: string
+emoji: string
+enabled: bool
+duplicate: bool
+runKind: "action" | "cmd" | "prompt"
+schedule: { mode: "interval", everySecs: N } | { mode: "calendar", atMinutes: N, days: ["mon"…] }
+lastRunAt: unix seconds | null
+lastResult: string | null
+nextFireAt: unix seconds | null
+running: bool
+runningSince: unix seconds | null
+agent: string?
+model: string?
+effort: string?
+```
+
+**JobHistoryEntry**:
+```
+at: unix seconds
+result: string
+count: number?
+copy: string?
+output: string?
+durationSecs: number?
+costUsd: number?
+question: string?
+session: string?
+resumed: string?
+follows: unix seconds?
+compacted: bool?
 ```
 
 **Terminal**:

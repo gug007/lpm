@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-import { Workflow } from "lucide-react";
 import { EventsOn } from "../../bridge/runtime";
 import { ListAllJobs } from "../../bridge/commands";
 import { useEventListener } from "../hooks/useEventListener";
 import { useOutsideClick } from "../hooks/useOutsideClick";
-import { MessageIcon, MoreHorizontalIcon } from "./icons";
+import { HistoryIcon, MessageIcon, MoreHorizontalIcon } from "./icons";
 import { MENU_PANEL_CLASS } from "./ui/ContextMenuShell";
 
 interface SidebarFooterMoreProps {
@@ -103,7 +102,9 @@ export function SidebarFooterMore({ showScheduled, onScheduled, onFeedback }: Si
       {open && (
         <div className={`absolute bottom-full right-0 z-[80] mb-1.5 w-48 px-1 ${MENU_PANEL_CLASS}`}>
           <button onClick={pick(onScheduled)} className={itemClass(showScheduled)}>
-            <Workflow className="shrink-0" size={16} strokeWidth={2} />
+            <span className="shrink-0">
+              <HistoryIcon />
+            </span>
             Automations
             {running > 0 ? (
               <span className="ml-auto flex items-center gap-1.5 text-[10px] font-medium text-[var(--accent-cyan)]">

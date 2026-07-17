@@ -41,6 +41,27 @@ enum Wire {
         json(["t": "historyAdd", "project": project, "id": id, "label": label, "text": text])
     }
     static func status(project: String) -> String { json(["t": "status", "project": project]) }
+    static func jobs() -> String { json(["t": "jobs"]) }
+    static func jobHistory(project: String, jobId: String) -> String {
+        json(["t": "jobHistory", "project": project, "jobId": jobId])
+    }
+    static func jobLiveOutput(project: String, jobId: String) -> String {
+        json(["t": "jobLiveOutput", "project": project, "jobId": jobId])
+    }
+    static func runJob(project: String, jobId: String) -> String {
+        json(["t": "runJob", "project": project, "jobId": jobId])
+    }
+    static func stopJob(project: String, jobId: String) -> String {
+        json(["t": "stopJob", "project": project, "jobId": jobId])
+    }
+    static func setJobEnabled(project: String, jobId: String, enabled: Bool) -> String {
+        json(["t": "setJobEnabled", "project": project, "jobId": jobId, "enabled": enabled])
+    }
+    static func sendJobFollowup(project: String, jobId: String, at: Int, message: String,
+                                agent: String, model: String, effort: String) -> String {
+        json(["t": "sendJobFollowup", "project": project, "jobId": jobId, "at": at,
+              "message": message, "agent": agent, "model": model, "effort": effort])
+    }
     static func sub(id: String) -> String { json(["t": "sub", "id": id]) }
     static func unsub(id: String) -> String { json(["t": "unsub", "id": id]) }
     /// Take control of a terminal shown live elsewhere (the "Take control" button).
@@ -221,6 +242,12 @@ enum Wire {
         case history(project: String, [HistoryRow])
         case upload(id: String, reqId: String, path: String)
         case status(project: String, [StatusEntry])
+        case jobs([AutomationJob], error: String?)
+        case jobHistory(project: String, jobId: String, entries: [AutomationHistoryEntry], error: String?)
+        case jobLiveOutput(project: String, jobId: String, live: AutomationLiveOutput?, error: String?)
+        case automationMutation(project: String, jobId: String, error: String?)
+        case automationFollowup(project: String, jobId: String, error: String?)
+        case jobsChanged
         case seed(id: String, cols: Int, rows: Int, data: String, owner: ControlOwner?)
         case control(id: String, owner: ControlOwner?)
         case output(id: String, data: String)
@@ -323,6 +350,33 @@ enum Wire {
             case "status":
                 return .status(project: obj["project"] as? String ?? "",
                                (obj["status"] as? [[String: Any]] ?? []).map(StatusEntry.init))
+            case "jobs":
+                let ok = obj["ok"] as? Bool ?? false
+                return .jobs(ok ? (obj["jobs"] as? [[String: Any]] ?? []).map(AutomationJob.init) : [],
+                             error: ok ? nil : (obj["error"] as? String ?? "Couldn't load automations."))
+            case "jobHistory":
+                let ok = obj["ok"] as? Bool ?? false
+                return .jobHistory(project: obj["project"] as? String ?? "",
+                                   jobId: obj["jobId"] as? String ?? "",
+                                   entries: ok ? (obj["entries"] as? [[String: Any]] ?? []).map(AutomationHistoryEntry.init) : [],
+                                   error: ok ? nil : (obj["error"] as? String ?? "Couldn't load run history."))
+            case "jobLiveOutput":
+                let ok = obj["ok"] as? Bool ?? false
+                return .jobLiveOutput(project: obj["project"] as? String ?? "",
+                                      jobId: obj["jobId"] as? String ?? "",
+                                      live: ok ? AutomationLiveOutput(obj["live"] as? [String: Any]) : nil,
+                                      error: ok ? nil : (obj["error"] as? String ?? "Couldn't load live output."))
+            case "runJob", "stopJob", "setJobEnabled":
+                let ok = obj["ok"] as? Bool ?? false
+                return .automationMutation(project: obj["project"] as? String ?? "",
+                                           jobId: obj["jobId"] as? String ?? "",
+                                           error: ok ? nil : (obj["error"] as? String ?? "Couldn't update the automation."))
+            case "sendJobFollowup":
+                let ok = obj["ok"] as? Bool ?? false
+                return .automationFollowup(project: obj["project"] as? String ?? "",
+                                           jobId: obj["jobId"] as? String ?? "",
+                                           error: ok ? nil : (obj["error"] as? String ?? "Couldn't send the message."))
+            case "jobs-changed": return .jobsChanged
             case "seed":
                 return .seed(id: obj["id"] as? String ?? "",
                              cols: obj["cols"] as? Int ?? 80,
@@ -466,6 +520,103 @@ enum Wire {
             default: return .unknown
             }
         }
+    }
+}
+
+struct AutomationJob: Identifiable {
+    let id: String
+    let project: String
+    let valid: Bool
+    let source: String
+    let error: String
+    let label: String
+    let emoji: String
+    let enabled: Bool
+    let duplicate: Bool
+    let runKind: String
+    let scheduleMode: String
+    let everySecs: Int
+    let atMinutes: Int
+    let days: [String]
+    let lastRunAt: Int?
+    let lastResult: String
+    let nextFireAt: Int?
+    let running: Bool
+    let runningSince: Int?
+    let agent: String
+    let model: String
+    let effort: String
+
+    init(_ o: [String: Any]) {
+        id = o["id"] as? String ?? ""
+        project = o["project"] as? String ?? ""
+        valid = o["valid"] as? Bool ?? false
+        source = o["source"] as? String ?? ""
+        error = o["error"] as? String ?? ""
+        label = o["label"] as? String ?? ""
+        emoji = o["emoji"] as? String ?? ""
+        enabled = o["enabled"] as? Bool ?? false
+        duplicate = o["duplicate"] as? Bool ?? false
+        runKind = o["runKind"] as? String ?? ""
+        let schedule = o["schedule"] as? [String: Any] ?? [:]
+        scheduleMode = schedule["mode"] as? String ?? ""
+        everySecs = schedule["everySecs"] as? Int ?? 0
+        atMinutes = schedule["atMinutes"] as? Int ?? 0
+        days = schedule["days"] as? [String] ?? []
+        lastRunAt = o["lastRunAt"] as? Int
+        lastResult = o["lastResult"] as? String ?? ""
+        nextFireAt = o["nextFireAt"] as? Int
+        running = o["running"] as? Bool ?? false
+        runningSince = o["runningSince"] as? Int
+        agent = o["agent"] as? String ?? ""
+        model = o["model"] as? String ?? ""
+        effort = o["effort"] as? String ?? ""
+    }
+
+    var key: String { project + "\n" + id }
+    var displayName: String { label.isEmpty ? id : label }
+}
+
+struct AutomationHistoryEntry: Identifiable {
+    let at: Int
+    let result: String
+    let count: Int
+    let copy: String
+    let output: String
+    let durationSecs: Int?
+    let costUsd: Double?
+    let question: String
+    let session: String
+    let resumed: String
+    let follows: Int?
+    let compacted: Bool
+
+    init(_ o: [String: Any]) {
+        at = o["at"] as? Int ?? 0
+        result = o["result"] as? String ?? ""
+        count = o["count"] as? Int ?? 1
+        copy = o["copy"] as? String ?? ""
+        output = o["output"] as? String ?? ""
+        durationSecs = o["durationSecs"] as? Int
+        costUsd = (o["costUsd"] as? NSNumber)?.doubleValue
+        question = o["question"] as? String ?? ""
+        session = o["session"] as? String ?? ""
+        resumed = o["resumed"] as? String ?? ""
+        follows = o["follows"] as? Int
+        compacted = o["compacted"] as? Bool ?? false
+    }
+
+    var id: Int { at }
+}
+
+struct AutomationLiveOutput {
+    let startedAt: Int
+    let text: String
+
+    init?(_ o: [String: Any]?) {
+        guard let o else { return nil }
+        startedAt = o["startedAt"] as? Int ?? 0
+        text = o["text"] as? String ?? ""
     }
 }
 
