@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { History, Mic, Plus, Send, Sparkles } from "lucide-react";
+import type { ReplyContext } from "./projects";
 
 export type AgentKind = "claude" | "codex";
 export type AgentStatus = "waiting" | "running" | "done";
@@ -100,7 +101,31 @@ function useSpinnerFrame(active: boolean): string {
   return SPINNER[i];
 }
 
-function buildReply(query: string, agent: AgentKind): Step[] {
+const GENERIC_REPLY_CONTEXT: ReplyContext = {
+  manifest: "README.md",
+  manifestLines: "64 lines",
+  sourceGlob: "**/*",
+  sourceMatches: "37 matches",
+  overview: "Fresh project — nothing indexed yet beyond the files on disk.",
+  flows: "Point me at what you're building and I'll dig in.",
+  testCmd: "make test",
+  testResult: "no tests configured",
+  testSummary: "No test suite wired up yet. Want me to scaffold one?",
+  focusFile: "README.md",
+  focusLines: "64 lines",
+  focusArea: "this project",
+  hotspotDir: "./",
+  deployFile: "README.md",
+  deployCmd: "make deploy",
+  draftFile: "src/new-feature.ts",
+  wireTarget: "the entry point",
+};
+
+function buildReply(
+  query: string,
+  agent: AgentKind,
+  ctx: ReplyContext = GENERIC_REPLY_CONTEXT,
+): Step[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
 
@@ -120,18 +145,22 @@ function buildReply(query: string, agent: AgentKind): Step[] {
   if (/what (is|does)|explain|tell me|overview|summary|describe/.test(q)) {
     return [
       { kind: "thinking" },
-      { kind: "tool", label: "Read", arg: "package.json", result: "42 lines" },
+      {
+        kind: "tool",
+        label: "Read",
+        arg: ctx.manifest,
+        result: ctx.manifestLines,
+      },
       { kind: "tool", label: "Read", arg: "README.md", result: "108 lines" },
-      { kind: "tool", label: "Glob", arg: "src/**/*.ts", result: "86 matches" },
       {
-        kind: "text",
-        text: "Next.js frontend in `app/`, Rails API in `api/`, Sidekiq workers for async jobs.",
+        kind: "tool",
+        label: "Glob",
+        arg: ctx.sourceGlob,
+        result: ctx.sourceMatches,
       },
+      { kind: "text", text: ctx.overview },
       { kind: "text", text: "", style: "muted" },
-      {
-        kind: "text",
-        text: "Main flows: auth, billing, dashboard, teams. Want a deeper dive on any of them?",
-      },
+      { kind: "text", text: ctx.flows },
     ];
   }
 
@@ -141,13 +170,10 @@ function buildReply(query: string, agent: AgentKind): Step[] {
       {
         kind: "tool",
         label: "Bash",
-        arg: "pnpm test",
-        result: "14 passed in 2.1s",
+        arg: ctx.testCmd,
+        result: ctx.testResult,
       },
-      {
-        kind: "text",
-        text: "All 14 tests green. Auth, utils, and the button component all passed.",
-      },
+      { kind: "text", text: ctx.testSummary },
     ];
   }
 
@@ -163,15 +189,15 @@ function buildReply(query: string, agent: AgentKind): Step[] {
       {
         kind: "tool",
         label: "Read",
-        arg: "src/lib/auth.ts",
-        result: "142 lines",
+        arg: ctx.focusFile,
+        result: ctx.focusLines,
       },
       {
         kind: "text",
         text:
           agent === "claude"
-            ? "Found 3 TODOs in the auth module. Want me to patch them or walk you through what each one is blocking?"
-            : "3 TODOs in auth/. I can draft a patch or leave them as-is — which?",
+            ? `Found 3 TODOs in ${ctx.focusArea}. Want me to patch them or walk you through what each one is blocking?`
+            : `3 TODOs in ${ctx.focusArea}. I can draft a patch or leave them as-is — which?`,
       },
     ];
   }
@@ -185,10 +211,10 @@ function buildReply(query: string, agent: AgentKind): Step[] {
         arg: "git status --porcelain",
         result: "clean",
       },
-      { kind: "tool", label: "Read", arg: "scripts/deploy.sh", result: "68 lines" },
+      { kind: "tool", label: "Read", arg: ctx.deployFile, result: "68 lines" },
       {
         kind: "text",
-        text: "Tree is clean. I can run `./scripts/deploy.sh production` when you're ready — but you'll want to run the full test suite first.",
+        text: `Tree is clean. I can run \`${ctx.deployCmd}\` when you're ready — but you'll want to run the full test suite first.`,
       },
     ];
   }
@@ -196,10 +222,15 @@ function buildReply(query: string, agent: AgentKind): Step[] {
   if (/refactor|clean|simplify|rewrite/.test(q)) {
     return [
       { kind: "thinking" },
-      { kind: "tool", label: "Glob", arg: "src/**/*.ts", result: "86 matches" },
+      {
+        kind: "tool",
+        label: "Glob",
+        arg: ctx.sourceGlob,
+        result: ctx.sourceMatches,
+      },
       {
         kind: "text",
-        text: "Scanning for duplication and long functions. A few hotspots jump out in `src/lib/` — want me to propose a refactor plan before touching anything?",
+        text: `Scanning for duplication and long functions. A few hotspots jump out in \`${ctx.hotspotDir}\` — want me to propose a refactor plan before touching anything?`,
       },
     ];
   }
@@ -207,16 +238,16 @@ function buildReply(query: string, agent: AgentKind): Step[] {
   if (/add|implement|build|create|new/.test(q)) {
     return [
       { kind: "thinking" },
-      { kind: "tool", label: "Read", arg: "src/lib/router.ts", result: "54 lines" },
       {
         kind: "tool",
-        label: "Write",
-        arg: "src/features/new-feature.ts",
-        result: "draft",
+        label: "Read",
+        arg: ctx.focusFile,
+        result: ctx.focusLines,
       },
+      { kind: "tool", label: "Write", arg: ctx.draftFile, result: "draft" },
       {
         kind: "text",
-        text: "Drafted a skeleton in `src/features/new-feature.ts`. Want me to wire it up into the router next?",
+        text: `Drafted a skeleton in \`${ctx.draftFile}\`. Want me to wire it up into ${ctx.wireTarget} next?`,
       },
     ];
   }
@@ -238,7 +269,7 @@ function buildReply(query: string, agent: AgentKind): Step[] {
 
   return [
     { kind: "thinking" },
-    { kind: "tool", label: "Read", arg: "package.json", result: "ok" },
+    { kind: "tool", label: "Read", arg: ctx.manifest, result: "ok" },
     {
       kind: "text",
       text:
@@ -258,6 +289,7 @@ function stepDelay(step: Step): number {
 type AgentTerminalProps = {
   agent: AgentKind;
   cwd: string;
+  replyContext?: ReplyContext;
   onStatus?: (status: AgentStatus) => void;
   // When set, the session opens with this prompt already sent. autoMode
   // "progress" streams a canned reply that never resolves (agent still
@@ -269,6 +301,7 @@ type AgentTerminalProps = {
 export function AgentTerminal({
   agent,
   cwd,
+  replyContext,
   onStatus,
   autoPrompt,
   autoMode = "progress",
@@ -290,7 +323,7 @@ export function AgentTerminal({
     text: string,
     opts?: { steps?: Step[]; keepBusy?: boolean },
   ) => {
-    const steps = opts?.steps ?? buildReply(text, agent);
+    const steps = opts?.steps ?? buildReply(text, agent, replyContext);
     if (steps.length === 0) return;
     nextIdRef.current += 1;
     const id = nextIdRef.current;
@@ -357,7 +390,7 @@ export function AgentTerminal({
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [history, input, busy, spinner]);
+  }, [history, input, busy]);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -396,8 +429,8 @@ export function AgentTerminal({
       <div className="pl-2 text-gray-600">────────────────────</div>
       <div className="h-1" />
       <div className="pl-2 text-gray-400">
-        ※ Tip: lpm launched {agent === "claude" ? "Claude" : "Codex"} in this
-        project&apos;s root
+        ※ Tip: lpm launched {agent === "claude" ? "Claude" : "Codex"}{" "}
+        in this project&apos;s root
       </div>
 
       <div className="h-3" />

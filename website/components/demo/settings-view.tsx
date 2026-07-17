@@ -138,12 +138,12 @@ function ToggleRow({
         role="switch"
         aria-checked={on}
         onClick={onToggle}
-        className={`relative h-[18px] w-8 shrink-0 rounded-full transition-colors ${
+        className={`inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors ${
           on ? "bg-emerald-500" : "bg-[#3a3a3a]"
         }`}
       >
         <span
-          className={`absolute top-[2px] h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+          className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
             on ? "translate-x-[16px]" : "translate-x-[2px]"
           }`}
         />

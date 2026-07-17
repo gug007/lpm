@@ -57,11 +57,41 @@ import {
 
 const MAX_TERMINAL_HISTORY = 200;
 
-type ActionTerminalMap = Record<string, DemoAction>;
+export type ActionTerminalMap = Record<string, DemoAction>;
+
+// The workspace lives in DemoApp, keyed by project, so switching projects and
+// back doesn't wipe panes the header still reports as running.
+export function initialPaneState(project: DemoProject): {
+  tree: PaneNode | null;
+  actionTerminals: ActionTerminalMap;
+} {
+  const autoAction = project.autoStart
+    ? project.actions.find((a) => a.name === project.autoStart)
+    : undefined;
+  if (!autoAction) return { tree: null, actionTerminals: {} };
+  const autoKey = `${autoAction.name}-auto`;
+  return {
+    tree: makeLeaf({
+      kind: "action",
+      key: autoKey,
+      label: autoAction.label,
+      ...(autoAction.emoji ? { emoji: autoAction.emoji } : {}),
+    }),
+    actionTerminals: { [autoKey]: autoAction },
+  };
+}
 
 type ProjectViewProps = {
   project: DemoProject;
   runningServices: Set<string>;
+  tree: PaneNode | null;
+  setTree: React.Dispatch<React.SetStateAction<PaneNode | null>>;
+  actionTerminals: ActionTerminalMap;
+  setActionTerminals: React.Dispatch<React.SetStateAction<ActionTerminalMap>>;
+  agentTabStatus: Record<string, AgentStatus>;
+  setAgentTabStatus: React.Dispatch<
+    React.SetStateAction<Record<string, AgentStatus>>
+  >;
   onStartServices: (names: string[]) => void;
   onStopAll: () => void;
   onToggleService: (name: string) => void;
@@ -107,6 +137,12 @@ function reconcileServices(
 export function DemoProjectView({
   project,
   runningServices,
+  tree,
+  setTree,
+  actionTerminals,
+  setActionTerminals,
+  agentTabStatus,
+  setAgentTabStatus,
   onStartServices,
   onStopAll,
   onToggleService,
@@ -132,27 +168,6 @@ export function DemoProjectView({
   const [startOpen, setStartOpen] = useState(false);
   const [addingAction, setAddingAction] = useState(false);
   const [runningAction, setRunningAction] = useState<DemoAction | null>(null);
-  const autoAction = project.autoStart
-    ? project.actions.find((a) => a.name === project.autoStart)
-    : undefined;
-  const autoKey = autoAction ? `${autoAction.name}-auto` : null;
-  const [tree, setTree] = useState<PaneNode | null>(() =>
-    autoAction && autoKey
-      ? makeLeaf({
-          kind: "action",
-          key: autoKey,
-          label: autoAction.label,
-          ...(autoAction.emoji ? { emoji: autoAction.emoji } : {}),
-        })
-      : null,
-  );
-  const [actionTerminals, setActionTerminals] = useState<ActionTerminalMap>(() =>
-    autoAction && autoKey ? { [autoKey]: autoAction } : {},
-  );
-  const [agentTabStatus, setAgentTabStatus] = useState<
-    Record<string, AgentStatus>
-  >({});
-
   const handleAgentStatus = (tabKey: string, status: AgentStatus) => {
     setAgentTabStatus((prev) => ({ ...prev, [tabKey]: status }));
     onAgentStatus?.(status);
@@ -355,7 +370,7 @@ export function DemoProjectView({
     (path: number[], ratio: number) => {
       setTree((prev) => (prev ? setRatioAtPath(prev, path, ratio) : prev));
     },
-    [],
+    [setTree],
   );
 
   const handleResizeStart = useCallback((dir: SplitDirection) => {
@@ -661,6 +676,7 @@ function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
         key={tab.key}
         agent={action.agent}
         cwd={ctx.project.root}
+        replyContext={ctx.project.replyContext}
         autoPrompt={action.autoPrompt}
         autoMode={action.autoMode}
         onStatus={(status) => ctx.onAgentTabStatus(key, status)}

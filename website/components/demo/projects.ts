@@ -50,6 +50,36 @@ export type DemoBranch = {
   age: string;
 };
 
+// What the agent knows about the project it was launched in, so a Go service
+// doesn't get answers about a Next.js app.
+export type ReplyContext = {
+  manifest: string;
+  manifestLines: string;
+  sourceGlob: string;
+  sourceMatches: string;
+  overview: string;
+  flows: string;
+  testCmd: string;
+  testResult: string;
+  testSummary: string;
+  focusFile: string;
+  focusLines: string;
+  focusArea: string;
+  hotspotDir: string;
+  deployFile: string;
+  deployCmd: string;
+  draftFile: string;
+  wireTarget: string;
+};
+
+export type DiffLine = { t: "hunk" | "ctx" | "add" | "del"; text: string };
+
+export type ChangedFile = {
+  path: string;
+  status: "modified" | "added" | "deleted";
+  diff: DiffLine[];
+};
+
 export type DemoGit = {
   branch: string;
   upstream?: string;
@@ -70,6 +100,9 @@ export type DemoProject = {
   git?: DemoGit;
   // Action name to auto-open (mid-task) when this project is first viewed.
   autoStart?: string;
+  // Working-tree diff behind the Review tab. Length tracks git.uncommitted.
+  changedFiles?: ChangedFile[];
+  replyContext?: ReplyContext;
 };
 
 export type AiStatus = "running" | "waiting" | "done" | "error";
@@ -240,6 +273,73 @@ const PROJECTS: DemoProject[] = [
       { name: "full", services: ["web", "api", "worker"] },
       { name: "frontend", services: ["web"] },
     ],
+    replyContext: {
+      manifest: "package.json",
+      manifestLines: "42 lines",
+      sourceGlob: "src/**/*.ts",
+      sourceMatches: "86 matches",
+      overview:
+        "Next.js frontend in `app/`, Rails API in `api/`, Sidekiq workers for async jobs.",
+      flows:
+        "Main flows: auth, billing, dashboard, teams. Want a deeper dive on any of them?",
+      testCmd: "pnpm test",
+      testResult: "14 passed in 2.1s",
+      testSummary:
+        "All 14 tests green. Auth, utils, and the button component all passed.",
+      focusFile: "src/lib/auth.ts",
+      focusLines: "142 lines",
+      focusArea: "the auth module",
+      hotspotDir: "src/lib/",
+      deployFile: "scripts/deploy.sh",
+      deployCmd: "./scripts/deploy.sh production",
+      draftFile: "src/features/new-feature.ts",
+      wireTarget: "the router",
+    },
+    changedFiles: [
+      {
+        path: "src/lib/billing.ts",
+        status: "modified",
+        diff: [
+          { t: "hunk", text: "@@ -14,7 +14,9 @@ export async function createSubscription(" },
+          { t: "ctx", text: "   const customer = await stripe.customers.create({ email });" },
+          { t: "del", text: "-  const price = PRICES[plan];" },
+          { t: "add", text: "+  const price = PRICES[plan] ?? PRICES.starter;" },
+          { t: "add", text: "+  if (!price) throw new Error(`Unknown plan: ${plan}`);" },
+          { t: "ctx", text: "   return stripe.subscriptions.create({" },
+          { t: "ctx", text: "     customer: customer.id," },
+          { t: "add", text: "+    trial_period_days: 14," },
+          { t: "ctx", text: "   });" },
+        ],
+      },
+      {
+        path: "src/components/PlanCard.tsx",
+        status: "modified",
+        diff: [
+          { t: "hunk", text: "@@ -8,5 +8,7 @@ export function PlanCard({ plan }: Props) {" },
+          { t: "ctx", text: "   return (" },
+          { t: "del", text: '-    <div className="rounded-lg border p-4">' },
+          { t: "add", text: '+    <div className="rounded-xl border p-5 shadow-sm">' },
+          { t: "add", text: "+      {plan.popular && <Badge>Most popular</Badge>}" },
+          { t: "ctx", text: "       <h3>{plan.name}</h3>" },
+          { t: "ctx", text: "     </div>" },
+        ],
+      },
+      {
+        path: "src/lib/stripe-webhook.ts",
+        status: "added",
+        diff: [
+          { t: "hunk", text: "@@ -0,0 +1,48 @@" },
+          { t: "add", text: '+import { stripe } from "./billing";' },
+          { t: "add", text: "+" },
+          { t: "add", text: "+export async function handleWebhook(req: Request) {" },
+          { t: "add", text: '+  const sig = req.headers.get("stripe-signature");' },
+          { t: "add", text: "+  const event = stripe.webhooks.constructEvent(body, sig, secret);" },
+          { t: "add", text: '+  if (event.type === "invoice.paid") await markPaid(event);' },
+          { t: "add", text: "+  return new Response(null, { status: 200 });" },
+          { t: "add", text: "+}" },
+        ],
+      },
+    ],
     git: {
       branch: "feat/billing-flow",
       upstream: "origin",
@@ -344,6 +444,28 @@ const PROJECTS: DemoProject[] = [
       { name: "default", services: ["server", "postgres", "redis"] },
       { name: "deps", services: ["postgres", "redis"] },
     ],
+    replyContext: {
+      manifest: "go.mod",
+      manifestLines: "28 lines",
+      sourceGlob: "**/*.go",
+      sourceMatches: "64 matches",
+      overview:
+        "Go HTTP service in `cmd/server`, JWT auth in `internal/auth`, Postgres access in `internal/db`, Redis for sessions.",
+      flows:
+        "Main flows: login, token refresh, key rotation, session revocation. Want a deeper dive on any of them?",
+      testCmd: "go test ./...",
+      testResult: "ok — 3 packages",
+      testSummary:
+        "All green across internal/auth, internal/db, and internal/api.",
+      focusFile: "internal/auth/jwt.go",
+      focusLines: "212 lines",
+      focusArea: "internal/auth",
+      hotspotDir: "internal/",
+      deployFile: "k8s/auth-service.yaml",
+      deployCmd: "kubectl rollout restart deploy/auth-service",
+      draftFile: "internal/auth/handler.go",
+      wireTarget: "the router",
+    },
     git: {
       branch: "main",
       upstream: "origin",
@@ -431,6 +553,99 @@ const PROJECTS: DemoProject[] = [
       },
     ],
     profiles: [{ name: "default", services: ["site"] }],
+    replyContext: {
+      manifest: "package.json",
+      manifestLines: "31 lines",
+      sourceGlob: "src/content/**/*.mdx",
+      sourceMatches: "42 matches",
+      overview:
+        "Astro site with MDX content in `src/content/docs`, custom components in `src/components`.",
+      flows:
+        "Sections: quickstart, API reference, guides, changelog. Want a deeper dive on any of them?",
+      testCmd: "pnpm build",
+      testResult: "42 pages in 1.6s",
+      testSummary: "Build clean — all 42 pages generated, no broken links.",
+      focusFile: "src/content/docs/api/authentication.mdx",
+      focusLines: "96 lines",
+      focusArea: "the API reference",
+      hotspotDir: "src/components/",
+      deployFile: "vercel.json",
+      deployCmd: "vercel deploy --prod",
+      draftFile: "src/content/docs/guides/new-guide.mdx",
+      wireTarget: "the sidebar nav",
+    },
+    changedFiles: [
+      {
+        path: "src/content/docs/api/authentication.mdx",
+        status: "modified",
+        diff: [
+          { t: "hunk", text: "@@ -1,6 +1,6 @@" },
+          { t: "ctx", text: " ---" },
+          { t: "del", text: "-title: API Keys" },
+          { t: "add", text: "+title: Authentication" },
+          { t: "ctx", text: " ---" },
+          { t: "ctx", text: "" },
+          { t: "del", text: "-Pass your key as a query parameter." },
+          { t: "add", text: "+Send your key in the `Authorization` header:" },
+          { t: "add", text: "+" },
+          { t: "add", text: "+```bash" },
+          { t: "add", text: '+curl -H "Authorization: Bearer $API_KEY" https://api.example.com/v2/me' },
+          { t: "add", text: "+```" },
+        ],
+      },
+      {
+        path: "src/content/docs/api/webhooks.mdx",
+        status: "added",
+        diff: [
+          { t: "hunk", text: "@@ -0,0 +1,32 @@" },
+          { t: "add", text: "+---" },
+          { t: "add", text: "+title: Webhooks" },
+          { t: "add", text: "+---" },
+          { t: "add", text: "+" },
+          { t: "add", text: "+Every webhook is signed with `X-Signature`. Verify it before" },
+          { t: "add", text: "+trusting the payload." },
+          { t: "add", text: "+" },
+          { t: "add", text: "+<ApiEndpoint method=\"POST\" path=\"/v2/webhooks\" />" },
+        ],
+      },
+      {
+        path: "src/components/ApiEndpoint.astro",
+        status: "added",
+        diff: [
+          { t: "hunk", text: "@@ -0,0 +1,24 @@" },
+          { t: "add", text: "+---" },
+          { t: "add", text: "+const { method, path } = Astro.props;" },
+          { t: "add", text: "+---" },
+          { t: "add", text: "+" },
+          { t: "add", text: '+<div class="endpoint">' },
+          { t: "add", text: "+  <span class={`method method--${method.toLowerCase()}`}>{method}</span>" },
+          { t: "add", text: "+  <code>{path}</code>" },
+          { t: "add", text: "+</div>" },
+        ],
+      },
+      {
+        path: "src/content/docs/index.mdx",
+        status: "modified",
+        diff: [
+          { t: "hunk", text: "@@ -12,3 +12,4 @@ Start here if you're new." },
+          { t: "ctx", text: " - [Quickstart](/docs/quickstart)" },
+          { t: "ctx", text: " - [Authentication](/docs/api/authentication)" },
+          { t: "add", text: "+- [Webhooks](/docs/api/webhooks)" },
+        ],
+      },
+      {
+        path: "astro.config.mjs",
+        status: "modified",
+        diff: [
+          { t: "hunk", text: "@@ -6,6 +6,7 @@ export default defineConfig({" },
+          { t: "ctx", text: "   integrations: [" },
+          { t: "ctx", text: "     mdx()," },
+          { t: "add", text: "+    sitemap()," },
+          { t: "ctx", text: "   ]," },
+          { t: "ctx", text: " });" },
+        ],
+      },
+    ],
     git: {
       branch: "docs/api-v2",
       upstream: "origin",
@@ -450,6 +665,7 @@ const PROJECTS: DemoProject[] = [
     label: "ml-pipeline",
     root: "~/Projects/ml-pipeline",
     stack: "Python + Jupyter",
+    autoStart: "codex",
     services: [
       {
         name: "notebook",
@@ -524,6 +740,57 @@ const PROJECTS: DemoProject[] = [
       { name: "default", services: ["notebook"] },
       { name: "full", services: ["notebook", "trainer"] },
     ],
+    replyContext: {
+      manifest: "pyproject.toml",
+      manifestLines: "38 lines",
+      sourceGlob: "pipeline/**/*.py",
+      sourceMatches: "51 matches",
+      overview:
+        "Python training pipeline in `pipeline/`, exploratory notebooks in `notebooks/`, checkpoints under `runs/`.",
+      flows:
+        "Main stages: ingest, features, train, eval. Want a deeper dive on any of them?",
+      testCmd: "pytest -q",
+      testResult: "23 passed in 4.8s",
+      testSummary:
+        "All 23 tests green across features, training, and eval.",
+      focusFile: "pipeline/features.py",
+      focusLines: "184 lines",
+      focusArea: "the feature builder",
+      hotspotDir: "pipeline/",
+      deployFile: "Makefile",
+      deployCmd: "make train-full",
+      draftFile: "pipeline/transforms.py",
+      wireTarget: "the pipeline config",
+    },
+    changedFiles: [
+      {
+        path: "pipeline/features.py",
+        status: "modified",
+        diff: [
+          { t: "hunk", text: "@@ -28,9 +28,12 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:" },
+          { t: "ctx", text: "     df = df.dropna(subset=[\"user_id\"])" },
+          { t: "del", text: "-    df[\"amount_norm\"] = df[\"amount\"] / df[\"amount\"].max()" },
+          { t: "add", text: "+    # max() leaks the test set into training — scale on the train split only" },
+          { t: "add", text: "+    scaler = RobustScaler().fit(df.loc[df.split == \"train\", [\"amount\"]])" },
+          { t: "add", text: "+    df[\"amount_norm\"] = scaler.transform(df[[\"amount\"]])" },
+          { t: "ctx", text: "     df[\"is_weekend\"] = df[\"ts\"].dt.dayofweek >= 5" },
+          { t: "ctx", text: "     return df" },
+        ],
+      },
+      {
+        path: "pipeline/train.py",
+        status: "modified",
+        diff: [
+          { t: "hunk", text: "@@ -41,6 +41,8 @@ def train(cfg: Config) -> Path:" },
+          { t: "ctx", text: "     model = GradientBoosting(**cfg.params)" },
+          { t: "ctx", text: "     model.fit(X_train, y_train)" },
+          { t: "add", text: "+    mlflow.log_metric(\"val_f1\", f1_score(y_val, model.predict(X_val)))" },
+          { t: "add", text: "+    mlflow.log_params(cfg.params)" },
+          { t: "ctx", text: "     ckpt = RUNS / f\"{run_id}.ckpt\"" },
+          { t: "ctx", text: "     joblib.dump(model, ckpt)" },
+        ],
+      },
+    ],
     git: {
       branch: "exp/data-pipeline-v3",
       upstream: "origin",
@@ -548,6 +815,7 @@ const PROJECTS: DemoProject[] = [
 export const INITIAL_AI_STATUS: Record<string, AiStatus> = {
   "auth-service": "running",
   "docs-site": "done",
+  "ml-pipeline": "waiting",
 };
 
 export default PROJECTS;

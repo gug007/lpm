@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { MousePointer2 } from "lucide-react";
 import INITIAL_PROJECTS, {
   INITIAL_AI_STATUS,
@@ -13,7 +21,13 @@ import INITIAL_PROJECTS, {
 } from "./projects";
 import { DemoSidebar } from "./sidebar";
 import { MobileProjectSwitcher } from "./mobile-project-switcher";
-import { DemoProjectView } from "./project-view";
+import {
+  DemoProjectView,
+  initialPaneState,
+  type ActionTerminalMap,
+} from "./project-view";
+import type { PaneNode } from "./pane-tree";
+import type { AgentStatus } from "./agent-terminal";
 import { GlobalTerminalsView } from "./global-terminals-view";
 import { SettingsView } from "./settings-view";
 import {
@@ -39,6 +53,22 @@ function initialGitState(projects: DemoProject[]): Record<string, DemoGit> {
     if (p.git) out[p.name] = { ...p.git, branches: [...p.git.branches] };
   }
   return out;
+}
+
+function initialTreeState(
+  projects: DemoProject[],
+): Record<string, PaneNode | null> {
+  return Object.fromEntries(
+    projects.map((p) => [p.name, initialPaneState(p).tree]),
+  );
+}
+
+function initialActionTerminalState(
+  projects: DemoProject[],
+): Record<string, ActionTerminalMap> {
+  return Object.fromEntries(
+    projects.map((p) => [p.name, initialPaneState(p).actionTerminals]),
+  );
 }
 
 function uniqueName(base: string, taken: Set<string>): string {
@@ -143,6 +173,15 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
   const [aiStatusByProject, setAiStatusByProject] = useState<
     Record<string, AiStatus>
   >(() => ({ ...INITIAL_AI_STATUS }));
+  const [treeByProject, setTreeByProject] = useState<
+    Record<string, PaneNode | null>
+  >(() => initialTreeState(INITIAL_PROJECTS));
+  const [actionTerminalsByProject, setActionTerminalsByProject] = useState<
+    Record<string, ActionTerminalMap>
+  >(() => initialActionTerminalState(INITIAL_PROJECTS));
+  const [agentTabStatusByProject, setAgentTabStatusByProject] = useState<
+    Record<string, Record<string, AgentStatus>>
+  >({});
   const [view, setView] = useState<"project" | "terminals" | "settings">(
     "project",
   );
@@ -194,6 +233,7 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     return () => {
       cancelAnimationFrame(raf);
       window.clearTimeout(timeout);
+      setGlowActive(false);
     };
   }, [isInView]);
 
@@ -203,37 +243,58 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     if (!container) return;
     if (typeof window === "undefined") return;
 
-    const prefersReducedMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-    if (prefersReducedMotion) {
-      autoCursorRanRef.current = true;
-      return;
-    }
-
     const startBtn = startButtonRef.current;
     if (!startBtn) return;
     autoCursorRanRef.current = true;
 
+    // Start is a toggle, so read its rendered state before firing: the effect
+    // can arm twice (Strict Mode, Fast Refresh) and a blind second click would
+    // stop the project it just started.
+    const startIfIdle = () => {
+      if (startBtn.getAttribute("aria-label") === "Start services") {
+        startBtn.click();
+      }
+    };
+
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    if (prefersReducedMotion) {
+      startIfIdle();
+      return;
+    }
+
     let cancelled = false;
+    let cursorHidden = false;
     let timers: ReturnType<typeof setTimeout>[] = [];
     const clearTimers = () => {
       for (const t of timers) clearTimeout(t);
       timers = [];
     };
 
-    const abort = () => {
-      if (cancelled) return;
-      cancelled = true;
-      clearTimers();
+    const hideCursor = () => {
+      if (cursorHidden) return;
+      cursorHidden = true;
       setAutoCursor({ phase: "hidden" });
       setRingPulseOn(false);
     };
 
-    const onPointerMove = () => abort();
-    const onPointerDown = () => abort();
+    const cancel = () => {
+      if (cancelled) return;
+      cancelled = true;
+      clearTimers();
+      hideCursor();
+    };
+
+    // Moving the pointer means the visitor is taking over: drop the mimed
+    // cursor, but still boot the project so the demo never sits empty.
+    // Clicking or typing is real engagement — leave the project untouched.
+    const onPointerMove = () => hideCursor();
+    const onPointerDown = () => cancel();
+    const onKeyDown = () => cancel();
     container.addEventListener("pointermove", onPointerMove, { passive: true });
     container.addEventListener("pointerdown", onPointerDown, { passive: true });
+    container.addEventListener("keydown", onKeyDown);
 
     const containerRect = container.getBoundingClientRect();
     const btnRect = startBtn.getBoundingClientRect();
@@ -244,33 +305,38 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
 
     timers.push(
       setTimeout(() => {
-        if (cancelled) return;
+        if (cancelled || cursorHidden) return;
         setRingPulseOn(true);
       }, 0),
     );
     timers.push(
       setTimeout(() => {
-        if (cancelled) return;
+        if (cancelled || cursorHidden) return;
         setAutoCursor({ phase: "travel", x: startX, y: startY });
       }, 600),
     );
     timers.push(
       setTimeout(() => {
-        if (cancelled) return;
+        if (cancelled || cursorHidden) return;
         setAutoCursor({ phase: "travel", x: targetX, y: targetY });
       }, 680),
     );
     timers.push(
       setTimeout(() => {
         if (cancelled) return;
-        setAutoCursor({ phase: "tap", x: targetX, y: targetY });
+        if (!cursorHidden) {
+          setAutoCursor({ phase: "tap", x: targetX, y: targetY });
+        }
+        startIfIdle();
       }, 1700),
     );
     timers.push(
       setTimeout(() => {
         if (cancelled) return;
-        setAutoCursor({ phase: "fade", x: targetX, y: targetY });
-        setRingPulseOn(false);
+        if (!cursorHidden) {
+          setAutoCursor({ phase: "fade", x: targetX, y: targetY });
+          setRingPulseOn(false);
+        }
         if (!interactedRef.current) {
           interactedRef.current = true;
           setHasInteracted(true);
@@ -279,7 +345,7 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     );
     timers.push(
       setTimeout(() => {
-        if (cancelled) return;
+        if (cancelled || cursorHidden) return;
         setAutoCursor({ phase: "hidden" });
       }, 2600),
     );
@@ -287,14 +353,60 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     return () => {
       cancelled = true;
       clearTimers();
+      // Scrolling away mid-flight would otherwise strand the mimed cursor on
+      // screen: the effect never re-arms, so nothing would clear it.
+      hideCursor();
       container.removeEventListener("pointermove", onPointerMove);
       container.removeEventListener("pointerdown", onPointerDown);
+      container.removeEventListener("keydown", onKeyDown);
     };
   }, [isInView]);
 
   const project = useMemo(
     () => projects.find((p) => p.name === selected) ?? projects[0],
     [projects, selected],
+  );
+
+  const setTree: Dispatch<SetStateAction<PaneNode | null>> = useCallback(
+    (update) => {
+      setTreeByProject((prev) => {
+        const cur =
+          project.name in prev
+            ? prev[project.name]
+            : initialPaneState(project).tree;
+        const next = typeof update === "function" ? update(cur) : update;
+        return { ...prev, [project.name]: next };
+      });
+    },
+    [project],
+  );
+
+  const setActionTerminals: Dispatch<SetStateAction<ActionTerminalMap>> =
+    useCallback(
+      (update) => {
+        setActionTerminalsByProject((prev) => {
+          const cur =
+            project.name in prev
+              ? prev[project.name]
+              : initialPaneState(project).actionTerminals;
+          const next = typeof update === "function" ? update(cur) : update;
+          return { ...prev, [project.name]: next };
+        });
+      },
+      [project],
+    );
+
+  const setAgentTabStatus: Dispatch<
+    SetStateAction<Record<string, AgentStatus>>
+  > = useCallback(
+    (update) => {
+      setAgentTabStatusByProject((prev) => {
+        const cur = prev[project.name] ?? {};
+        const next = typeof update === "function" ? update(cur) : update;
+        return { ...prev, [project.name]: next };
+      });
+    },
+    [project],
   );
 
   const selectProject = (name: string) => {
@@ -452,8 +564,14 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
 
   const handleAddProject = (input: NewProjectInput) => {
     const newProject = buildProjectFromInput(input, projects);
+    const pane = initialPaneState(newProject);
     setProjects((prev) => [...prev, newProject]);
     setRunningByProject((prev) => ({ ...prev, [newProject.name]: new Set() }));
+    setTreeByProject((prev) => ({ ...prev, [newProject.name]: pane.tree }));
+    setActionTerminalsByProject((prev) => ({
+      ...prev,
+      [newProject.name]: pane.actionTerminals,
+    }));
     setSelected(newProject.name);
     setView("project");
     setAdding(false);
@@ -502,6 +620,12 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
             key={project.name}
             project={project}
             runningServices={runningHere}
+            tree={treeByProject[project.name] ?? null}
+            setTree={setTree}
+            actionTerminals={actionTerminalsByProject[project.name] ?? {}}
+            setActionTerminals={setActionTerminals}
+            agentTabStatus={agentTabStatusByProject[project.name] ?? {}}
+            setAgentTabStatus={setAgentTabStatus}
             onStartServices={startServices}
             onStopAll={stopAll}
             onToggleService={toggleService}

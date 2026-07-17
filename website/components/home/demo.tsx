@@ -2,8 +2,8 @@
 
 import dynamic from "next/dynamic";
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Terminal } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 import { useInView } from "@/components/config/playground/hooks";
 
@@ -41,17 +41,32 @@ function DemoPlaceholder() {
 
 function DesktopOnlyPrompt() {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-gray-200 dark:border-[#2e2e2e] bg-[#1a1a1a] px-6 py-14 text-center">
-      <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-[#2e2e2e] bg-[#242424] text-[#b3b3b3]">
-        <Terminal className="h-5 w-5" strokeWidth={1.75} />
-      </span>
-      <div className="text-sm font-semibold text-[#e5e5e5]">
-        The live demo runs on desktop
+    <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-[#2e2e2e] bg-[#1a1a1a] shadow-2xl shadow-gray-200/60 dark:shadow-black/60">
+      <video
+        src="/screenrecording/start-project-claude.mp4"
+        poster="/screenrecording/start-project-claude-poster.jpg"
+        width={1224}
+        height={804}
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="none"
+        aria-label="lpm starting a project's services, then handing the project to Claude Code in a terminal tab"
+        className="h-auto w-full"
+      />
+      <div className="flex flex-col items-center gap-3 border-t border-[#2e2e2e] px-5 py-5 text-center">
+        <p className="max-w-xs text-[13px] leading-relaxed text-[#919191]">
+          lpm is a macOS app with a multi-pane terminal workspace. Open this
+          page on your computer to try the interactive demo.
+        </p>
+        <Link
+          href="/#download"
+          className="rounded-lg bg-white px-4 py-2 text-[13px] font-medium text-gray-900 transition-opacity hover:opacity-85"
+        >
+          Get lpm for Mac
+        </Link>
       </div>
-      <p className="max-w-xs text-[13px] leading-relaxed text-[#919191]">
-        lpm is a macOS app with a multi-pane terminal workspace. Open this page
-        on your computer to try the interactive demo.
-      </p>
     </div>
   );
 }
@@ -97,22 +112,33 @@ export function DemoSection() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <SectionHeader
           eyebrow={
-            <span
-              className="inline-flex items-center gap-1.5"
-              aria-label="Interactive demo, click to try"
-            >
+            <span className="inline-flex items-center gap-1.5">
               <span
-                className="relative inline-flex h-1.5 w-1.5"
+                className="relative hidden h-1.5 w-1.5 sm:inline-flex"
                 aria-hidden="true"
               >
                 <span className="absolute inline-flex h-full w-full motion-safe:animate-ping rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
               </span>
-              Live interactive demo
+              <span className="sm:hidden">See it in action</span>
+              <span className="hidden sm:inline">Live interactive demo</span>
             </span>
           }
           title="Projects, terminals, agents, a built-in browser — one click each"
-          description="Click anywhere below. Switch projects, start services, launch Claude Code or Codex, and preview your dev server in the in-pane browser — all running live in your browser, right now."
+          description={
+            <>
+              <span className="sm:hidden">
+                Watch lpm boot a project&apos;s services and hand it straight to
+                Claude Code. The demo below is a recording — lpm is a macOS app,
+                so the clickable version runs on desktop.
+              </span>
+              <span className="hidden sm:inline">
+                Click anywhere below. Switch projects, start services, launch
+                Claude Code or Codex, and preview your dev server in the in-pane
+                browser — all running live in your browser, right now.
+              </span>
+            </>
+          }
           className="mb-10"
         />
         <DemoStage />
