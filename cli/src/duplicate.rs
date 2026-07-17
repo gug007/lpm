@@ -13,6 +13,7 @@ pub fn run(
     ctx: &Ctx,
     project: Option<&str>,
     count: u32,
+    labels: &[String],
     group: Option<&str>,
     run_action: Option<&str>,
     run_command: Option<&str>,
@@ -26,6 +27,12 @@ pub fn run(
         return Err(RunError::NotFound(
             "--prompt needs --run <action> or --command <cmd>".into(),
         ));
+    }
+    if labels.len() > count as usize {
+        return Err(RunError::NotFound(format!(
+            "received {} --label values, but --count is {count}",
+            labels.len()
+        )));
     }
     control::require_app(ctx)?;
     let file_name = resolve_or_infer(ctx, project)?;
@@ -46,6 +53,11 @@ pub fn run(
         "duplicate_project {} --count={count}",
         quote_arg(&file_name)
     );
+    if let Some(flag) = labels_flag(labels)
+        .map_err(|e| RunError::Internal(format!("could not encode labels: {e}")))?
+    {
+        line.push_str(&flag);
+    }
     if let Some(g) = group.filter(|g| !g.is_empty()) {
         line.push_str(&format!(" --group={}", quote_arg(g)));
     }
@@ -110,6 +122,7 @@ pub fn run(
             "ok": true,
             "project": file_name,
             "names": names,
+            "labels": labels,
             "copies": copies
                 .iter()
                 .map(|(name, path)| json!({ "name": name, "path": path }))
@@ -159,6 +172,14 @@ fn exclude_uncommitted_flag(exclude_uncommitted: Option<bool>) -> Option<&'stati
     }
 }
 
+fn labels_flag(labels: &[String]) -> Result<Option<String>, serde_json::Error> {
+    if labels.is_empty() {
+        return Ok(None);
+    }
+    let encoded = serde_json::to_string(labels)?.replace('\'', "\\u0027");
+    Ok(Some(format!(" --labels={}", quote_arg(&encoded))))
+}
+
 fn task_echo(action: Option<&str>, command: Option<&str>, prompt: Option<&str>) -> Value {
     if let Some(a) = action {
         json!({ "kind": "action", "action": a, "prompt": prompt })
@@ -196,6 +217,16 @@ mod tests {
             Some(" --exclude-uncommitted=false")
         );
         assert_eq!(exclude_uncommitted_flag(None), None);
+    }
+
+    #[test]
+    fn labels_flag_encodes_order_spaces_and_apostrophes() {
+        let labels = vec!["First copy".to_string(), "O'Brien".to_string()];
+        assert_eq!(
+            labels_flag(&labels).unwrap(),
+            Some(r#" --labels='["First copy","O\u0027Brien"]'"#.to_string())
+        );
+        assert_eq!(labels_flag(&[]).unwrap(), None);
     }
 
     #[test]

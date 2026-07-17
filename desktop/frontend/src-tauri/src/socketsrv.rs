@@ -235,17 +235,25 @@ fn cmd_duplicate_project(line: &str, app: &AppHandle, w: &mut impl Write) -> std
     let pull_latest = bool_opt(&options, "pull-latest", sb("duplicatePullLatest", true));
 
     let group_name = options.get("group").cloned().unwrap_or_default();
+    let labels: Vec<String> = options
+        .get("labels")
+        .and_then(|value| serde_json::from_str(value).ok())
+        .unwrap_or_default();
     let run_action = options.get("run-action").cloned().filter(|s| !s.is_empty());
     let run_command = options.get("run-command").cloned().filter(|s| !s.is_empty());
     let prompt = options.get("prompt").cloned().filter(|p| !p.trim().is_empty());
 
     let mut created: Vec<String> = Vec::new();
     let mut err: Option<String> = None;
-    for _ in 0..count {
+    for i in 0..count as usize {
+        let label = labels
+            .get(i)
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
         match crate::projects_crud::duplicate_project(
             app.clone(),
             name.clone(),
-            None,
+            label,
             exclude_uncommitted,
             reinstall_deps,
             pull_latest,
@@ -586,5 +594,14 @@ mod tests {
         assert!(bool_opt(&o, "x", false)); // explicit true beats default false
         o.insert("x".into(), "garbage".into());
         assert!(bool_opt(&o, "x", true)); // unparseable -> default
+    }
+
+    #[test]
+    fn duplicate_labels_preserve_order_and_apostrophes() {
+        let parts =
+            shell_split(r#"duplicate_project app --labels='["First copy","O\u0027Brien"]'"#);
+        let (_, options) = parse_options(&parts[1..]);
+        let labels: Vec<String> = serde_json::from_str(options.get("labels").unwrap()).unwrap();
+        assert_eq!(labels, ["First copy", "O'Brien"]);
     }
 }

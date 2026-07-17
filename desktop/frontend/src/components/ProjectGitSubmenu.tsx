@@ -138,12 +138,6 @@ function GitSubmenuItems({
 
   return (
     <>
-      <div
-        className="truncate px-3 pb-1 pt-1.5 font-mono text-[10px] font-medium uppercase tracking-wide text-[var(--text-muted)]"
-        title={status.branch}
-      >
-        {status.branch || "detached"}
-      </div>
       <ContextMenuItem
         label="Pull"
         icon={<DownloadIcon />}
@@ -191,6 +185,12 @@ function GitSubmenuItems({
         onClick={copyBranch}
         disabled={!status.branch}
       />
+      <div
+        className="truncate px-3 pb-1 pt-1.5 font-mono text-[10px] font-medium tracking-wide text-[var(--text-muted)]"
+        title={status.branch}
+      >
+        {status.branch || "detached"}
+      </div>
       <ContextMenuItem
         destructive
         label="Discard all changes…"

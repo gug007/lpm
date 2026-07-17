@@ -204,6 +204,11 @@ enum Commands {
         /// Number of copies to create (1..=50).
         #[arg(long, short = 'n', default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..=50))]
         count: u32,
+        #[arg(
+            long,
+            help = "Display label in <project-name>-<short-description> form. Repeat in creation order"
+        )]
+        label: Vec<String>,
         /// Group the copies under this sidebar folder.
         #[arg(long)]
         group: Option<String>,
@@ -346,6 +351,7 @@ fn main() -> ExitCode {
         Commands::Duplicate {
             name,
             count,
+            label,
             group,
             run,
             command,
@@ -359,6 +365,7 @@ fn main() -> ExitCode {
             &ctx,
             name.as_deref(),
             count,
+            &label,
             group.as_deref(),
             run.as_deref(),
             command.as_deref(),
