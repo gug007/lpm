@@ -54,6 +54,7 @@ export interface JobInfo {
   error?: string;
   label?: string;
   emoji?: string;
+  description?: string;
   enabled: boolean;
   duplicate?: boolean;
   runKind?: JobRunKind;

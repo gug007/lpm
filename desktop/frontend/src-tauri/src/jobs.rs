@@ -1880,6 +1880,16 @@ fn run_kind(run: &RunTarget) -> &'static str {
     }
 }
 
+/// A one-glance summary of what the job runs, for the list row: the prompt
+/// text, the command, or the action name.
+fn run_description(run: &RunTarget) -> String {
+    match run {
+        RunTarget::Action(a) => a.clone(),
+        RunTarget::Cmd(c) => c.clone(),
+        RunTarget::Prompt { prompt, .. } => prompt.clone(),
+    }
+}
+
 fn schedule_json(schedule: &Schedule) -> Value {
     match schedule {
         Schedule::Interval { secs } => json!({ "mode": "interval", "everySecs": secs }),
@@ -1933,6 +1943,7 @@ pub fn list_jobs(project: String) -> Result<Vec<Value>, String> {
                         "enabled": enabled,
                         "duplicate": job.duplicate,
                         "runKind": run_kind(&job.run),
+                        "description": run_description(&job.run),
                         "schedule": schedule_json(&job.schedule),
                         "lastRunAt": st.last_run_at,
                         "lastResult": st.history.last().map(|h| h.result.clone()),

@@ -312,21 +312,23 @@ export function JobEditorModal({
             </div>
           ) : (
             <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 pb-6 pt-6">
-              <div className="relative flex items-center gap-2">
-                <EmojiSlotButton
-                  inputRef={nameRef}
-                  value={draft.emoji}
-                  onSelect={(next) => set("emoji", next)}
-                  size="md"
-                  placeholder={<ClockIcon size={15} />}
-                />
-                <input
-                  ref={nameRef}
-                  value={draft.label}
-                  onChange={(e) => set("label", e.target.value)}
-                  placeholder="Name this job"
-                  className="min-w-0 flex-1 border-none bg-transparent pl-10 text-[20px] font-semibold tracking-tight text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
-                />
+              <div className="flex items-center gap-2">
+                <div className="relative flex min-w-0 flex-1 items-center rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/40 transition focus-within:border-[var(--accent-cyan)]">
+                  <EmojiSlotButton
+                    inputRef={nameRef}
+                    value={draft.emoji}
+                    onSelect={(next) => set("emoji", next)}
+                    size="md"
+                    placeholder={<ClockIcon size={15} />}
+                  />
+                  <input
+                    ref={nameRef}
+                    value={draft.label}
+                    onChange={(e) => set("label", e.target.value)}
+                    placeholder="Name this job"
+                    className="min-w-0 flex-1 border-none bg-transparent py-3 pl-11 pr-4 text-[15px] font-semibold tracking-tight text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={onClose}

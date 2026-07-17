@@ -87,10 +87,11 @@ export function JobRow({ job, onRunNow, onStop, onToggleEnabled, onOpen, onEdit,
       : `${relativeTime(job.lastRunAt)} ago`
     : "";
   const tone = jobResultTone(job.lastResult);
+  const description = job.description?.replace(/\s+/g, " ").trim();
 
   return (
-    <div className={`group flex items-center gap-3 px-1 py-3 ${enabled ? "" : "opacity-60"}`}>
-      <span className="grid h-7 w-7 shrink-0 place-items-center text-[15px] text-[var(--text-muted)]">
+    <div className={`group flex items-start gap-3 px-1 py-3 ${enabled ? "" : "opacity-60"}`}>
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--bg-hover)] text-[15px] text-[var(--text-muted)]">
         {job.emoji || <ClockIcon size={15} />}
       </span>
 
@@ -109,7 +110,12 @@ export function JobRow({ job, onRunNow, onStop, onToggleEnabled, onOpen, onEdit,
             </span>
           )}
         </span>
-        <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
+        {description && (
+          <span className="mt-1 line-clamp-2 break-words text-[12px] leading-snug text-[var(--text-secondary)] [overflow-wrap:anywhere]">
+            {description}
+          </span>
+        )}
+        <span className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
           {job.running ? (
             <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
           ) : (
