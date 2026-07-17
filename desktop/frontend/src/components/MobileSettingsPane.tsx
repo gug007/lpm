@@ -68,6 +68,14 @@ function SmartphoneIcon({ size = 18 }: { size?: number } = {}) {
   );
 }
 
+function AppleIcon({ size = 18 }: { size?: number } = {}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M16.4 12.8c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.9-3-.8-1.5 0-2.9.9-3.7 2.2-1.6 2.7-.4 6.8 1.1 9 .8 1.1 1.7 2.3 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.2 0 2-1.1 2.8-2.2.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.5zM14.2 5.9c.6-.8 1.1-1.9 1-3-.9 0-2.1.6-2.8 1.4-.6.7-1.1 1.8-1 2.9 1 .1 2.1-.5 2.8-1.3z" />
+    </svg>
+  );
+}
+
 function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
   return (
     <button
@@ -189,26 +197,25 @@ export function MobileSettingsPane() {
 
   return (
     <>
-      <div
-        className="mt-2 flex items-start gap-3 rounded-xl px-4 py-3"
-        style={{ backgroundColor: "color-mix(in srgb, var(--accent-green) 8%, transparent)" }}
-      >
-        <span className="mt-px shrink-0 text-[10px] font-semibold uppercase tracking-wide text-[var(--accent-green-text)]">
+      <div className="mt-2 flex items-center gap-4 rounded-xl border border-[var(--border)] px-4 py-4">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--bg-active)] text-[var(--text-secondary)]">
+          <AppleIcon size={20} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-[var(--text-primary)]">lpm Link</p>
+          <p className="mt-0.5 text-[12px] text-[var(--text-muted)]">
+            The companion app for iPhone and iPad. Install it, then pair below.
+          </p>
+        </div>
+        <button
+          onClick={() => BrowserOpenURL(APP_STORE_URL)}
+          className="shrink-0 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        >
           App Store
-        </span>
-        <p className="text-[12px] leading-relaxed text-[var(--text-muted)]">
-          lpm Link is available on the App Store. Install it on your iPhone or iPad, then pair it
-          below.{" "}
-          <button
-            onClick={() => BrowserOpenURL(APP_STORE_URL)}
-            className="font-medium text-[var(--accent-green-text)] hover:underline"
-          >
-            View on the App Store
-          </button>
-        </p>
+        </button>
       </div>
 
-      <div className="mt-6 flex items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-4">
+      <div className="mt-3 flex items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-4">
         <div
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors"
           style={{
