@@ -19,6 +19,7 @@ import { JobRow } from "./project-detail/jobs/JobRow";
 import { JobMessages } from "./project-detail/jobs/JobMessages";
 import { JobTaskView } from "./project-detail/jobs/JobTaskView";
 import { JobEditorModal } from "./project-detail/jobs/JobEditorModal";
+import { RunProjectsDialog } from "./project-detail/jobs/RunProjectsDialog";
 
 type ScheduledJob = JobInfo & { project?: string };
 
@@ -34,6 +35,8 @@ export function ScheduledView() {
   // The run page open inside the job page — a run entry's `at`.
   const [openTask, setOpenTask] = useState<number | null>(null);
   const [removing, setRemoving] = useState<{ project: string; job: JobInfo } | null>(null);
+  // A multi-project job awaiting the "which projects?" pick before a manual run.
+  const [runPick, setRunPick] = useState<ScheduledJob | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const refetch = useCallback(async () => {
@@ -98,10 +101,18 @@ export function ScheduledView() {
   const rowProject = (job: ScheduledJob): string =>
     job.standalone ? "" : job.targets?.[0] ?? job.project ?? "";
 
-  // Row buttons act on every folder the job runs in, so a shared job's Run /
-  // Stop / pause reach all of its projects at once.
-  const runNowJob = (job: JobInfo) =>
-    targetsOfRow(job).forEach((p) => runNow(p, job.id));
+  // Row buttons act on every folder the job runs in, so a shared job's Stop /
+  // pause reach all of its projects at once.
+  // A manual run in a job with more than one project first asks which to run;
+  // a single-project or standalone job runs straight away.
+  const runNowJob = (job: ScheduledJob) => {
+    const targets = targetsOfRow(job).filter((p) => p !== "");
+    if (targets.length > 1) {
+      setRunPick(job);
+    } else {
+      targetsOfRow(job).forEach((p) => runNow(p, job.id));
+    }
+  };
   const stopRunJob = (job: JobInfo) =>
     targetsOfRow(job).forEach((p) => stopRun(p, job.id));
   const toggleEnabledJob = (job: JobInfo, enabled: boolean) =>
@@ -354,6 +365,18 @@ export function ScheduledView() {
         running={removingRunning}
         onCancel={() => setRemoving(null)}
         onConfirm={(deleteCopies) => void removeJob(deleteCopies)}
+      />
+      <RunProjectsDialog
+        open={runPick !== null}
+        jobLabel={runPick?.label || runPick?.id || ""}
+        targets={runPick?.targets ?? []}
+        projects={projects}
+        onCancel={() => setRunPick(null)}
+        onRun={(selected) => {
+          const job = runPick;
+          setRunPick(null);
+          if (job) selected.forEach((p) => runNow(p, job.id));
+        }}
       />
     </div>
   );
