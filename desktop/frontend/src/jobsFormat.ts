@@ -2,6 +2,9 @@
 // React and the bridge so the schedule <-> human-string mapping and the YAML
 // jobs-block round-trip can be unit tested directly.
 
+import { EMPTY_COMPOSER, isImagePath } from "./composerValue";
+import type { ComposerImage, ComposerValue } from "./composerValue";
+
 export type Weekday = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 
 export const WEEKDAYS: Weekday[] = [
@@ -336,7 +339,7 @@ export interface JobDraft {
   runMode: JobRunKind;
   action: string;
   cmd: string;
-  prompt: string;
+  prompt: ComposerValue;
   // Which agent CLI runs a prompt job and with which model; both empty = the
   // app's default agent with its default model. `effort` is the reasoning
   // effort (Claude/Codex only); empty = the model's default. `access` is
@@ -362,7 +365,7 @@ export function defaultJobDraft(): JobDraft {
     runMode: "prompt",
     action: "",
     cmd: "",
-    prompt: "",
+    prompt: EMPTY_COMPOSER,
     agent: "",
     model: "",
     effort: "",
@@ -413,7 +416,7 @@ export function validateJobDraft(draft: JobDraft): string | null {
   if (draft.runMode === "cmd" && !draft.cmd.trim()) {
     return "Enter a command to run.";
   }
-  if (draft.runMode === "prompt" && !draft.prompt.trim()) {
+  if (draft.runMode === "prompt" && !draft.prompt.text.trim()) {
     return "Enter a prompt to run.";
   }
   return null;
@@ -431,10 +434,49 @@ function buildScheduleBlock(draft: JobDraft): Record<string, unknown> {
   return block;
 }
 
+const IMAGE_TOKEN_RE = /\[Image #(\d+)\]/g;
+// An absolute path standing on its own in the prompt text — the shape an
+// attachment serializes to, and what parsing turns back into a chip.
+const ABS_PATH_RE = /(?<![^\s])\/\S+/g;
+
+// The composer's value as the one plain string the YAML stores: each attachment
+// token replaced in place by its absolute path, padded with a space when it
+// would otherwise run into neighboring text, so the agent reads the path as its
+// own word. Tokens with no path left (their chip was removed) drop out. Newlines
+// stay — a job prompt is written as prose, not typed into a terminal line.
+function promptToText(value: ComposerValue): string {
+  const byToken = new Map(value.images.map((im) => [im.token, im.path]));
+  return value.text
+    .replace(IMAGE_TOKEN_RE, (match, n: string, offset: number, whole: string) => {
+      const path = byToken.get(Number(n));
+      if (!path) return "";
+      const before = whole[offset - 1];
+      const after = whole[offset + match.length];
+      const lead = before && !/\s/.test(before) ? " " : "";
+      const tail = after && !/\s/.test(after) ? " " : "";
+      return `${lead}${path}${tail}`;
+    })
+    .trim();
+}
+
+// Reverse of promptToText: every standalone absolute image path becomes an
+// attachment token again, so an edited job shows its chips back. Any other path
+// stays literal text, and re-serializing reproduces the stored string verbatim.
+function textToPrompt(text: string): ComposerValue {
+  const images: ComposerImage[] = [];
+  const out = text.replace(ABS_PATH_RE, (path) => {
+    if (!isImagePath(path)) return path;
+    const token = images.length + 1;
+    images.push({ token, path });
+    return `[Image #${token}]`;
+  });
+  return { text: out, images, pending: false };
+}
+
 function buildRunBlock(draft: JobDraft): Record<string, unknown> {
   if (draft.runMode === "action") return { action: draft.action.trim() };
   if (draft.runMode === "cmd") return { cmd: draft.cmd.trim() };
-  const block: Record<string, unknown> = { prompt: draft.prompt.trim() };
+  const block: Record<string, unknown> = { prompt: promptToText(draft.prompt) };
   if (draft.agent.trim()) block.agent = draft.agent.trim();
   if (draft.model.trim()) block.model = draft.model.trim();
   if (draft.effort.trim()) block.effort = draft.effort.trim();
@@ -509,7 +551,7 @@ export function payloadToDraft(payload: Record<string, unknown>): JobDraft {
       draft.cmd = r.cmd.trim();
     } else if (typeof r.prompt === "string") {
       draft.runMode = "prompt";
-      draft.prompt = r.prompt;
+      draft.prompt = textToPrompt(r.prompt);
       if (typeof r.agent === "string") draft.agent = r.agent.trim().toLowerCase();
       if (typeof r.model === "string") draft.model = r.model.trim();
       if (typeof r.effort === "string") draft.effort = r.effort.trim().toLowerCase();

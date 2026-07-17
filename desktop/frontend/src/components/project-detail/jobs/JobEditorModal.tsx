@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { Modal } from "../../ui/Modal";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { ActionPicker } from "../../ActionPicker";
+import { InputComposer } from "../../InputComposer";
 import { EmojiSlotButton } from "../../EmojiPickerButton";
 import { ChevronDownIcon, ClockIcon, XIcon } from "../../icons";
 import { WeekdayPicker } from "./WeekdayPicker";
@@ -34,7 +35,9 @@ import {
   type JobInfo,
   type JobRunKind,
 } from "../../../jobsFormat";
+import { type ComposerValue } from "../../../composerValue";
 import { type ActionInfo } from "../../../types";
+import { useAppStore } from "../../../store/app";
 import { effortsFor, MODEL_OPTIONS } from "../../../agentModelOptions";
 
 interface JobEditorModalProps {
@@ -72,6 +75,17 @@ const RUN_LABEL: Record<JobRunKind, string> = {
 // "" = every project (the global config layer).
 const ALL_PROJECTS = "";
 
+// Same prompt content — `pending` (an image still saving) aside.
+function samePrompt(a: ComposerValue, b: ComposerValue): boolean {
+  return (
+    a.text === b.text &&
+    a.images.length === b.images.length &&
+    a.images.every(
+      (im, i) => im.token === b.images[i].token && im.path === b.images[i].path,
+    )
+  );
+}
+
 export function JobEditorModal({
   open,
   projects,
@@ -93,12 +107,29 @@ export function JobEditorModal({
   // Whether the user has edited anything yet — the "what's missing" hint
   // stays quiet on a freshly opened editor.
   const [touched, setTouched] = useState(false);
+  // The composer is uncontrolled (its defaultValue is a mount-only seed), so it
+  // is remounted whenever the draft is replaced wholesale — on open, and again
+  // when an edited job's body arrives from disk.
+  const [composerSession, setComposerSession] = useState(0);
   const nameRef = useRef<HTMLInputElement>(null);
+  const promptRef = useRef<ComposerValue>(draft.prompt);
 
   const source = editing?.job.source ?? "project";
   const isGlobalTarget = isEditing ? source === "global" : target === ALL_PROJECTS;
   const runProject = isEditing ? editing.project : target;
   const actions = isGlobalTarget ? [] : actionsFor(runProject);
+  // AI-edit runs in the project the job runs in; a job that runs everywhere has
+  // no single root, so it gets a plain prompt field.
+  const projectRoot = useAppStore(
+    (s) => s.projects.find((p) => p.name === runProject)?.root,
+  );
+  const composerHistory = runProject
+    ? {
+        terminalId: runProject,
+        projectName: runProject,
+        terminalLabel: runProject,
+      }
+    : undefined;
 
   useEffect(() => {
     if (!open) return;
@@ -108,6 +139,7 @@ export function JobEditorModal({
     setTarget(ALL_PROJECTS);
     setAdvancedOpen(false);
     setTouched(false);
+    setComposerSession((n) => n + 1);
     if (!editing) {
       setDraft(defaultJobDraft());
       setLoading(false);
@@ -121,6 +153,7 @@ export function JobEditorModal({
         if (cancelled) return;
         const next = payload ? payloadToDraft(payload) : defaultJobDraft();
         setDraft(next);
+        setComposerSession((n) => n + 1);
         // A job that already gates on a check must not hide it behind the
         // collapsed disclosure.
         setAdvancedOpen(Boolean(next.check.trim()));
@@ -136,6 +169,24 @@ export function JobEditorModal({
   const set = <K extends keyof JobDraft>(key: K, value: JobDraft[K]) => {
     setTouched(true);
     setDraft((prev) => ({ ...prev, [key]: value }));
+  };
+
+  // Mirrors the prompt for setPrompt to compare against. Written during render so
+  // it is already current when the freshly mounted composer reports its seed.
+  promptRef.current = draft.prompt;
+
+  // The composer reports its value once on mount (the seed it was given) and
+  // again whenever an image save starts or finishes — neither is a user edit, so
+  // only a changed prompt marks the draft touched.
+  const setPrompt = (value: ComposerValue) => {
+    const prev = promptRef.current;
+    promptRef.current = value;
+    if (samePrompt(prev, value)) {
+      if (prev.pending === value.pending) return;
+    } else {
+      setTouched(true);
+    }
+    setDraft((d) => ({ ...d, prompt: value }));
   };
 
   const repeat: Repeat =
@@ -160,7 +211,10 @@ export function JobEditorModal({
 
   const scheduleSummary = useMemo(() => describeDraftSchedule(draft), [draft]);
   const validationError = validateJobDraft(draft);
-  const canSave = validationError === null && !loading && !saving;
+  // Saving mid-save would write a prompt whose image isn't on disk yet.
+  const imagesPending = draft.prompt.pending;
+  const canSave =
+    validationError === null && !loading && !saving && !imagesPending;
   const canTest = !isGlobalTarget && !!runProject;
 
   const runCheckTest = async () => {
@@ -284,12 +338,13 @@ export function JobEditorModal({
               </div>
 
               {draft.runMode === "prompt" && (
-                <textarea
-                  value={draft.prompt}
-                  onChange={(e) => set("prompt", e.target.value)}
+                <InputComposer
+                  key={composerSession}
+                  defaultValue={draft.prompt}
+                  onChange={setPrompt}
                   placeholder="Check for dependency updates. If there are none, stop. Otherwise duplicate this project with the lpm CLI, upgrade them in the copy, and run the tests."
-                  rows={4}
-                  className="w-full resize-none rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/40 px-4 py-3.5 text-[14px] leading-relaxed text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
+                  history={composerHistory}
+                  aiCwd={projectRoot}
                 />
               )}
               {draft.runMode === "cmd" && (
@@ -572,13 +627,15 @@ export function JobEditorModal({
                 disabled={!canSave}
                 className="rounded-lg bg-[var(--text-primary)] px-4 py-2 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition hover:opacity-90 disabled:opacity-40 disabled:shadow-none"
               >
-                {saving
-                  ? isEditing
-                    ? "Saving…"
-                    : "Creating…"
-                  : isEditing
-                    ? "Save changes"
-                    : "Create job"}
+                {imagesPending
+                  ? "Attaching images…"
+                  : saving
+                    ? isEditing
+                      ? "Saving…"
+                      : "Creating…"
+                    : isEditing
+                      ? "Save changes"
+                      : "Create job"}
               </button>
             </div>
           </footer>

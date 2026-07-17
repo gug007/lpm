@@ -19,6 +19,13 @@ import {
   validateJobDraft,
   type JobDraft,
 } from "./jobsFormat";
+import { EMPTY_COMPOSER, type ComposerImage } from "./composerValue";
+
+const prompt = (text: string, images: ComposerImage[] = []) => ({
+  text,
+  images,
+  pending: false,
+});
 
 describe("formatSchedule", () => {
   it("describes an every-day calendar schedule", () => {
@@ -259,7 +266,7 @@ describe("draft <-> payload round-trip", () => {
       check: "test -n \"$(npm outdated)\"",
       duplicate: true,
       runMode: "prompt",
-      prompt: "Upgrade dependencies",
+      prompt: prompt("Upgrade dependencies"),
     };
     expect(buildJobPayload(draft)).toEqual({
       label: "Nightly deps",
@@ -332,7 +339,7 @@ describe("draft <-> payload round-trip", () => {
       ...defaultJobDraft(),
       label: "Report",
       runMode: "prompt",
-      prompt: "Summarize open TODOs",
+      prompt: prompt("Summarize open TODOs"),
       access: "read",
     };
     expect(buildJobPayload(readOnly).run).toEqual({
@@ -344,6 +351,84 @@ describe("draft <-> payload round-trip", () => {
     const full = buildJobPayload({ ...readOnly, access: "full" });
     expect(full.run).toEqual({ prompt: "Summarize open TODOs" });
     expect(payloadToDraft(full).access).toBe("full");
+  });
+});
+
+describe("prompt attachments", () => {
+  it("inlines each attachment's path where its token stood", () => {
+    const draft: JobDraft = {
+      ...defaultJobDraft(),
+      label: "Ship",
+      runMode: "prompt",
+      prompt: prompt("Match [Image #2] and\nthen[Image #1]ship it", [
+        { token: 2, path: "/tmp/lpm/before.png" },
+        { token: 1, path: "/tmp/lpm/after.jpeg" },
+      ]),
+    };
+    expect(buildJobPayload(draft).run).toEqual({
+      prompt: "Match /tmp/lpm/before.png and\nthen /tmp/lpm/after.jpeg ship it",
+    });
+  });
+
+  it("drops a token whose image is gone", () => {
+    expect(
+      buildJobPayload({
+        ...defaultJobDraft(),
+        label: "X",
+        runMode: "prompt",
+        prompt: prompt("look [Image #1] here"),
+      }).run,
+    ).toEqual({ prompt: "look  here" });
+  });
+
+  it("rebuilds attachments from the stored text, numbering them in order", () => {
+    const draft = payloadToDraft({
+      label: "X",
+      schedule: { at: "09:00" },
+      run: { prompt: "compare /tmp/a.png with /tmp/b.webp" },
+    });
+    expect(draft.prompt).toEqual(
+      prompt("compare [Image #1] with [Image #2]", [
+        { token: 1, path: "/tmp/a.png" },
+        { token: 2, path: "/tmp/b.webp" },
+      ]),
+    );
+  });
+
+  it("leaves non-image and relative paths as plain text", () => {
+    const draft = payloadToDraft({
+      label: "X",
+      schedule: { at: "09:00" },
+      run: { prompt: "read /src/app.tsx and src/logo.png and /notes.txt" },
+    });
+    expect(draft.prompt).toEqual(
+      prompt("read /src/app.tsx and src/logo.png and /notes.txt"),
+    );
+  });
+
+  it("round-trips a prompt with attachments back to the same stored text", () => {
+    const draft: JobDraft = {
+      ...defaultJobDraft(),
+      label: "Ship",
+      runMode: "prompt",
+      prompt: prompt("Match [Image #1] exactly", [
+        { token: 1, path: "/tmp/lpm/shot.png" },
+      ]),
+    };
+    const payload = buildJobPayload(draft);
+    const back = payloadToDraft(payload);
+    expect(back.prompt).toEqual(draft.prompt);
+    expect(buildJobPayload(back)).toEqual(payload);
+  });
+
+  it("round-trips a plain multi-line prompt verbatim", () => {
+    const draft: JobDraft = {
+      ...defaultJobDraft(),
+      label: "Report",
+      runMode: "prompt",
+      prompt: prompt("Check the deps.\n\nIf any are stale, upgrade them."),
+    };
+    expect(payloadToDraft(buildJobPayload(draft))).toEqual(draft);
   });
 });
 
@@ -371,7 +456,9 @@ describe("validateJobDraft", () => {
 
   it("requires the chosen run target to be filled", () => {
     const base = { ...defaultJobDraft(), label: "X" };
-    expect(validateJobDraft({ ...base, runMode: "prompt", prompt: "" })).toBe(
+    expect(
+      validateJobDraft({ ...base, runMode: "prompt", prompt: EMPTY_COMPOSER }),
+    ).toBe(
       "Enter a prompt to run.",
     );
     expect(validateJobDraft({ ...base, runMode: "cmd", cmd: "" })).toBe(

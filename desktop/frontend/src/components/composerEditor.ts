@@ -4,37 +4,18 @@
 // `[Image #N]` placeholders the rest of the app expects.
 
 import { basename } from "../path";
+import { isImagePath } from "../composerValue";
 import { ansiColors } from "./terminal-utils";
 import type { ComposerClipboardPayload } from "./composerClipboard";
+
+export { EMPTY_COMPOSER, isImagePath } from "../composerValue";
+export type { ComposerImage, ComposerValue } from "../composerValue";
 
 // The same blue the terminal renders a recognized slash command in (xterm's
 // bright-blue), so the composer's highlight matches what the CLI shows.
 export const COMMAND_COLOR = ansiColors.brightBlue;
 
 const IMAGE_TOKEN_RE = /\[Image #(\d+)\]/g;
-
-// A single attachment: the `[Image #N]` token in the serialized text and the
-// local file path it resolves to. The path is read in place by whoever consumes
-// the value, so there's no separate upload step here (unlike the terminal).
-export interface ComposerImage {
-  token: number;
-  path: string;
-}
-
-// The composer's serialized value: text with inline `[Image #N]` tokens, the
-// token→path map for those tokens, and whether an image is still being saved
-// (so the consumer can hold a submit until attachments are on disk).
-export interface ComposerValue {
-  text: string;
-  images: ComposerImage[];
-  pending: boolean;
-}
-
-export const EMPTY_COMPOSER: ComposerValue = {
-  text: "",
-  images: [],
-  pending: false,
-};
 
 // Shared visual base for an image chip, so the editable composer chip and the
 // read-only history chip (MessageImageChip) can't drift apart. Each site layers
@@ -75,14 +56,6 @@ const AUDIO_ICON =
   '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="transition-opacity group-hover:opacity-0"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
 const VIDEO_EXT_RE = /\.(mp4|mov|webm|mkv|avi|m4v|flv|wmv|mpe?g)$/i;
 const AUDIO_EXT_RE = /\.(mp3|wav|m4a|aac|flac|ogg|oga|opus|aiff?)$/i;
-// A path the composer renders as an image chip (thumbnail + lightbox); every
-// other dropped/pasted file becomes a named file chip. Shared by the editor, the
-// drop/paste handlers, and the read-only history chips so they stay in agreement.
-const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|heif|svg)$/i;
-
-export function isImagePath(path: string): boolean {
-  return IMAGE_EXT_RE.test(path);
-}
 
 function fileIconSvg(path: string): string {
   if (VIDEO_EXT_RE.test(path)) return VIDEO_ICON;

@@ -25,6 +25,7 @@ import {
 import { generateVariants, resolveTransformParams } from "../composerVariants";
 import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
 import { ComposerActionsButton } from "./ComposerActionsButton";
+import { ComposerMicButton } from "./ComposerMicButton";
 import { ComposerActionsModal } from "./ComposerActionsModal";
 import { ComposerVariantsModal } from "./ComposerVariantsModal";
 import { TerminalHistoryButton } from "./TerminalHistoryButton";
@@ -695,29 +696,29 @@ export function InputComposer({
           </div>
         )}
 
-        {(showActions || history) && (
-          <div className="flex items-center justify-end gap-1 px-2 pb-2">
-            {showActions && (
-              <ComposerActionsButton
-                enabledActions={enabledActions}
-                busy={busy}
-                onStop={gen.generating ? gen.cancel : undefined}
-                canRun={canRun}
-                cliLabel={ai.cliLabel}
-                onRun={runAction}
-                onManage={() => setActionsModalOpen(true)}
-              />
-            )}
-            {history && (
-              <TerminalHistoryButton
-                terminalId={history.terminalId}
-                projectName={history.projectName}
-                terminalLabel={history.terminalLabel}
-                onPick={loadFromHistory}
-              />
-            )}
-          </div>
-        )}
+        <div className="flex items-center justify-start gap-1 px-2 pb-2">
+          <ComposerMicButton />
+          {showActions && (
+            <ComposerActionsButton
+              align="left"
+              enabledActions={enabledActions}
+              busy={busy}
+              onStop={gen.generating ? gen.cancel : undefined}
+              canRun={canRun}
+              cliLabel={ai.cliLabel}
+              onRun={runAction}
+              onManage={() => setActionsModalOpen(true)}
+            />
+          )}
+          {history && (
+            <TerminalHistoryButton
+              terminalId={history.terminalId}
+              projectName={history.projectName}
+              terminalLabel={history.terminalLabel}
+              onPick={loadFromHistory}
+            />
+          )}
+        </div>
       </div>
       {aiCwd && (
         <ComposerActionsModal
