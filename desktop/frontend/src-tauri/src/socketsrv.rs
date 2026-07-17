@@ -441,16 +441,27 @@ fn job_result(r: Result<(), String>) -> String {
     }
 }
 
+fn ensure_job_exists(project: &str, job_id: &str) -> Result<(), String> {
+    if crate::jobs::list_jobs(project.to_string())?
+        .iter()
+        .any(|job| job.get("id").and_then(serde_json::Value::as_str) == Some(job_id))
+    {
+        Ok(())
+    } else {
+        Err("That automation doesn't exist.".into())
+    }
+}
+
 fn cmd_stop_job(args: &[String]) -> String {
     let (positional, _) = parse_options(args);
     if positional.len() < 2 {
         return serde_json::json!({ "ok": false, "error": "usage: stop_job <project> <job_id>" })
             .to_string();
     }
-    job_result(crate::jobs::stop_job_run(
-        positional[0].clone(),
-        positional[1].clone(),
-    ))
+    job_result(
+        ensure_job_exists(&positional[0], &positional[1])
+            .and_then(|_| crate::jobs::stop_job_run(positional[0].clone(), positional[1].clone())),
+    )
 }
 
 fn cmd_set_job_enabled(args: &[String]) -> String {
@@ -463,17 +474,18 @@ fn cmd_set_job_enabled(args: &[String]) -> String {
         return serde_json::json!({ "ok": false, "error": "enabled must be true or false" })
             .to_string();
     };
-    job_result(crate::jobs::set_job_enabled(
-        positional[0].clone(),
-        positional[1].clone(),
-        enabled,
-    ))
+    job_result(ensure_job_exists(&positional[0], &positional[1]).and_then(|_| {
+        crate::jobs::set_job_enabled(positional[0].clone(), positional[1].clone(), enabled)
+    }))
 }
 
 fn cmd_job_history(args: &[String]) -> String {
     let (positional, _) = parse_options(args);
     if positional.len() < 2 {
         return "ERROR: usage: job_history <project> <job_id>".into();
+    }
+    if let Err(error) = ensure_job_exists(&positional[0], &positional[1]) {
+        return format!("ERROR: {error}");
     }
     match crate::jobs::job_history(positional[0].clone(), positional[1].clone()) {
         Ok(history) => serde_json::to_string(&history).unwrap_or_else(|e| format!("ERROR: {e}")),
@@ -486,6 +498,9 @@ fn cmd_job_live_output(args: &[String]) -> String {
     if positional.len() < 2 {
         return "ERROR: usage: job_live_output <project> <job_id>".into();
     }
+    if let Err(error) = ensure_job_exists(&positional[0], &positional[1]) {
+        return format!("ERROR: {error}");
+    }
     match crate::jobs::job_live_output(positional[0].clone(), positional[1].clone()) {
         Ok(live) => serde_json::to_string(&live).unwrap_or_else(|e| format!("ERROR: {e}")),
         Err(e) => format!("ERROR: {e}"),
@@ -494,7 +509,7 @@ fn cmd_job_live_output(args: &[String]) -> String {
 
 fn cmd_send_job_followup(args: &[String], app: &AppHandle) -> String {
     let (positional, options) = parse_options(args);
-    if positional.len() < 4 {
+    if positional.len() < 3 {
         return serde_json::json!({ "ok": false, "error": "usage: send_job_followup <project> <job_id> <at> <message> [--agent=X] [--model=X] [--effort=X]" })
             .to_string();
     }
@@ -502,16 +517,45 @@ fn cmd_send_job_followup(args: &[String], app: &AppHandle) -> String {
         return serde_json::json!({ "ok": false, "error": "at must be a unix timestamp" })
             .to_string();
     };
+    let message = match options.get("message-hex") {
+        Some(value) => match hex_decode(value) {
+            Some(message) => message,
+            None => {
+                return serde_json::json!({ "ok": false, "error": "message-hex is invalid" })
+                    .to_string()
+            }
+        },
+        None => positional.get(3).cloned().unwrap_or_default(),
+    };
+    if let Err(error) = ensure_job_exists(&positional[0], &positional[1]) {
+        return serde_json::json!({ "ok": false, "error": error }).to_string();
+    }
     job_result(crate::jobs::send_job_followup(
         app.clone(),
         positional[0].clone(),
         positional[1].clone(),
         at,
-        positional[3].clone(),
+        message,
         options.get("agent").cloned().unwrap_or_default(),
         options.get("model").cloned().unwrap_or_default(),
         options.get("effort").cloned().unwrap_or_default(),
     ))
+}
+
+fn hex_decode(value: &str) -> Option<String> {
+    let encoded = value.as_bytes();
+    if encoded.len() % 2 != 0 {
+        return None;
+    }
+    let bytes: Option<Vec<_>> = encoded
+        .chunks_exact(2)
+        .map(|pair| {
+            std::str::from_utf8(pair)
+                .ok()
+                .and_then(|pair| u8::from_str_radix(pair, 16).ok())
+        })
+        .collect();
+    String::from_utf8(bytes?).ok()
 }
 
 fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> String {
@@ -659,7 +703,8 @@ mod tests {
         for bad in [
             "start_project", "stop_project", "start_service", "stop_service",
             "restart_service", "remove_project", "run_task", "duplicate_project",
-            "set_resume", "list_jobs", "run_job", "unknown",
+            "set_resume", "list_jobs", "list_all_jobs", "run_job", "stop_job",
+            "set_job_enabled", "job_history", "job_live_output", "send_job_followup", "unknown",
         ] {
             assert!(!remote_allowed(bad), "{bad} must be refused on the remote socket");
         }
@@ -696,5 +741,11 @@ mod tests {
         let (_, options) = parse_options(&parts[1..]);
         let labels: Vec<String> = serde_json::from_str(options.get("labels").unwrap()).unwrap();
         assert_eq!(labels, ["First copy", "O'Brien"]);
+    }
+
+    #[test]
+    fn followup_hex_preserves_message_text() {
+        assert_eq!(hex_decode("646f6e2774").as_deref(), Some("don't"));
+        assert!(hex_decode("xyz").is_none());
     }
 }

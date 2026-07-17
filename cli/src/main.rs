@@ -51,7 +51,7 @@ configuration from ~/.lpm and live state from tmux and the app's status socket, 
 control projects — start, stop, restart services, set agent status — by asking the running \
 app over that socket (so the app stays the single owner of run-state).\n\n\
 Read commands: `list`, `project`, `logs`, `status`, `config`. Control commands (need the app running): \
-`start`, `stop`, `service`, `set-status`, `clear-status`, `duplicate`, `remove`, `run`, `job`. \
+`start`, `stop`, `service`, `set-status`, `clear-status`, `duplicate`, `remove`, `run`, `automations`. \
 `wait` polls client-side, except its `--agent` mode which queries the app. Inside an lpm \
 terminal or a project directory the project name \
 may be omitted — it is inferred from LPM_PROJECT_NAME or the current directory.\n\n\
@@ -71,8 +71,13 @@ enum Commands {
         #[command(subcommand)]
         command: config_cmd::Command,
     },
-    /// List or run a project's scheduled jobs (via the running app).
-    Job {
+    #[command(
+        name = "automations",
+        visible_aliases = ["automation", "jobs"],
+        aliases = ["job"],
+        about = "List, run, pause, inspect, and reply to automations"
+    )]
+    Automations {
         #[command(subcommand)]
         command: job::Command,
     },
@@ -281,7 +286,7 @@ fn main() -> ExitCode {
 
     let result = match cli.command {
         Commands::Config { command } => config_cmd::run(&ctx, command),
-        Commands::Job { command } => job::run(&ctx, command),
+        Commands::Automations { command } => job::run(&ctx, command),
         Commands::List { json } => list::run(&ctx, json),
         Commands::Project { name, json, full } => project::run(&ctx, name.as_deref(), json, full),
         Commands::Logs {

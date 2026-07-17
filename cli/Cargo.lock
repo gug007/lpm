@@ -232,7 +232,7 @@ checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
 name = "lpm-cli"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "clap",
  "dirs",

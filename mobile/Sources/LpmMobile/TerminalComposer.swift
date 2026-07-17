@@ -14,6 +14,7 @@ import UniformTypeIdentifiers
 /// re-entering the terminal.
 struct TerminalComposer: View {
     @EnvironmentObject var model: AppModel
+    @Environment(\.colorScheme) private var systemColorScheme
     @ObservedObject var store: ComposerStore
     private let onSend: ((String) -> Void)?
     private let terminalTools: Bool
@@ -57,9 +58,15 @@ struct TerminalComposer: View {
     private var project: String { store.project }
     private var label: String { store.label }
 
-    // Matches the terminal ground (true black) so the composer reads as part of the
-    // terminal rather than a separate light bar.
-    private let ground = SwiftUI.Color.black
+    private var ground: SwiftUI.Color {
+        terminalTools ? SwiftUI.Color.black : SwiftUI.Color(.systemGroupedBackground)
+    }
+    private var fieldGround: SwiftUI.Color {
+        terminalTools ? SwiftUI.Color.white.opacity(0.08) : SwiftUI.Color(.secondarySystemGroupedBackground)
+    }
+    private var composerControlColor: SwiftUI.Color {
+        terminalTools ? SwiftUI.Color.white : SwiftUI.Color.primary
+    }
 
     private var cameraAvailable: Bool { UIImagePickerController.isSourceTypeAvailable(.camera) }
 
@@ -159,7 +166,7 @@ struct TerminalComposer: View {
     var body: some View {
         composerStack
             .background(ground)
-            .environment(\.colorScheme, .dark)
+            .environment(\.colorScheme, terminalTools ? .dark : systemColorScheme)
             .animation(.easeOut(duration: 0.12), value: slashMatches.count)
             .animation(.easeOut(duration: 0.12), value: hasMentionContent)
             .animation(.easeOut(duration: 0.15), value: store.transforming)
@@ -285,7 +292,7 @@ struct TerminalComposer: View {
                     .padding(.trailing, 6)
                     .padding(.bottom, isExpanded ? 2 : 1)
             }
-            .background(SwiftUI.Color.white.opacity(0.08))
+            .background(fieldGround)
             .clipShape(RoundedRectangle(cornerRadius: composerCorner, style: .continuous))
             .overlay {
                 if store.transforming {
@@ -405,7 +412,7 @@ struct TerminalComposer: View {
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(.white)
+                .foregroundStyle(composerControlColor)
                 .frame(width: 36, height: 36)
                 .contentShape(Rectangle())
         }
@@ -415,7 +422,7 @@ struct TerminalComposer: View {
                 .font(.footnote)
                 .padding(12)
                 .presentationCompactAdaptation(.popover)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(terminalTools ? .dark : systemColorScheme)
         }
     }
 
@@ -462,15 +469,25 @@ struct TerminalComposer: View {
         } label: {
             Image(systemName: "arrow.up")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(canSend ? SwiftUI.Color.black : SwiftUI.Color.white.opacity(0.35))
+                .foregroundStyle(sendForeground)
                 .frame(width: 32, height: 32)
-                .background(canSend ? SwiftUI.Color.white : SwiftUI.Color.white.opacity(0.12))
+                .background(sendGround)
                 .clipShape(Circle())
                 .frame(width: 36, height: 36)
         } primaryAction: {
             send()
         }
         .disabled(disabled || (!canSend && !isSendMenuUseful))
+    }
+
+    private var sendForeground: SwiftUI.Color {
+        if terminalTools { return canSend ? SwiftUI.Color.black : SwiftUI.Color.white.opacity(0.35) }
+        return canSend ? SwiftUI.Color.white : SwiftUI.Color.secondary.opacity(0.55)
+    }
+
+    private var sendGround: SwiftUI.Color {
+        if terminalTools { return canSend ? SwiftUI.Color.white : SwiftUI.Color.white.opacity(0.12) }
+        return canSend ? SwiftUI.Color.accentColor : SwiftUI.Color(.tertiarySystemFill)
     }
 
     // The menu (save draft / duplicates) is still worth offering even when there's
