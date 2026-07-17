@@ -109,7 +109,7 @@ export function RowMultiSelect({
               right: pos.right,
               maxHeight: pos.maxHeight,
             }}
-            className="fixed z-[80] min-w-[200px] overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-1 shadow-2xl"
+            className="fixed z-[80] w-max min-w-[220px] max-w-[min(360px,calc(100vw-32px))] overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-1 shadow-2xl"
           >
             {options.length === 0 ? (
               <p className="px-2.5 py-1.5 text-[13px] text-[var(--text-muted)]">
@@ -132,7 +132,7 @@ export function RowMultiSelect({
                     <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-[var(--accent-cyan)] [&_svg]:h-3.5 [&_svg]:w-3.5">
                       {active && <CheckIcon />}
                     </span>
-                    <span className="truncate">{o.label}</span>
+                    <span className="min-w-0 truncate">{o.label}</span>
                   </button>
                 );
               })
