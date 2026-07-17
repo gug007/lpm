@@ -61,6 +61,38 @@ struct JobDef {
     duplicate: bool,
     run: Option<RunDef>,
     enabled: Option<bool>,
+    /// Only meaningful on the global layer: which projects a shared job runs in.
+    /// Absent = every project (legacy); a non-empty list = those projects; an
+    /// empty list = standalone (no project, runs in the home directory).
+    #[serde(default)]
+    projects: Option<Vec<String>>,
+}
+
+/// What a global-layer job runs against, derived from its `projects` field.
+#[derive(Clone, Debug, PartialEq)]
+enum JobTargets {
+    Every,
+    Projects(Vec<String>),
+    Standalone,
+}
+
+fn job_targets(def: &JobDef) -> JobTargets {
+    match &def.projects {
+        None => JobTargets::Every,
+        Some(list) if list.is_empty() => JobTargets::Standalone,
+        Some(list) => JobTargets::Projects(list.clone()),
+    }
+}
+
+/// Whether a global-layer job resolves under `project`. Every runs everywhere;
+/// a scoped job only in its listed projects; a standalone job never under a
+/// real project (it ticks on its own).
+fn global_resolves_for(def: &JobDef, project: &str) -> bool {
+    match job_targets(def) {
+        JobTargets::Every => true,
+        JobTargets::Projects(list) => list.iter().any(|p| p == project),
+        JobTargets::Standalone => false,
+    }
 }
 
 #[derive(Deserialize, Default, Clone)]
@@ -316,6 +348,9 @@ fn resolve_jobs(project: &str) -> Vec<(String, &'static str, Result<JobResolved,
 
     merge_job_defs(registry, repo, global)
         .into_iter()
+        // Only global-layer jobs carry project targeting; a `projects` field on
+        // a repo/registry job is ignored — those are already single-project.
+        .filter(|(_, (def, source))| *source != SOURCE_GLOBAL || global_resolves_for(def, project))
         .map(|(id, (def, source))| {
             let r = if is_remote {
                 Err("Scheduled jobs aren't available on SSH projects.".to_string())
@@ -325,6 +360,24 @@ fn resolve_jobs(project: &str) -> Vec<(String, &'static str, Result<JobResolved,
             (id, source, r)
         })
         .collect()
+}
+
+/// The global layer's standalone jobs (empty `projects`): each runs once on its
+/// schedule with no project, in the user's home directory. Ticked and acted on
+/// with the sentinel project `""` (state key `/<id>`).
+fn resolve_standalone_jobs() -> Vec<(String, Result<JobResolved, String>)> {
+    load_jobs_yaml(&config::global_path())
+        .into_iter()
+        .filter(|(_, def)| matches!(job_targets(def), JobTargets::Standalone))
+        .map(|(id, def)| {
+            let r = resolve_job("", &id, &def);
+            (id, r)
+        })
+        .collect()
+}
+
+fn home_dir() -> String {
+    dirs::home_dir().unwrap_or_default().to_string_lossy().into_owned()
 }
 
 // ---- scheduling math --------------------------------------------------------
@@ -1389,14 +1442,26 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
     }
 }
 
+/// The folder a run happens in: a project's root, or the home directory for a
+/// standalone job (sentinel empty project).
+fn dispatch_root(project: &str) -> Option<String> {
+    if project.is_empty() {
+        return Some(home_dir());
+    }
+    match config::project_root(project) {
+        Ok((r, false)) if !r.is_empty() => Some(r),
+        _ => None,
+    }
+}
+
 fn dispatch_run(app: &AppHandle, key: &str, target: &str, job: &JobResolved) -> Dispatch {
     let project = key.split_once('/').map(|(p, _)| p).unwrap_or(key);
     let copy = (target != project).then(|| target.to_string());
     match &job.run {
         RunTarget::Cmd(cmd) => {
-            let root = match config::project_root(target) {
-                Ok((r, false)) if !r.is_empty() => r,
-                _ => return Dispatch::Error,
+            let root = match dispatch_root(target) {
+                Some(r) => r,
+                None => return Dispatch::Error,
             };
             spawn_captured(app, key, &root, CaptureSpec::run(cmd.clone(), None, copy))
         }
@@ -1424,9 +1489,9 @@ fn dispatch_run(app: &AppHandle, key: &str, target: &str, job: &JobResolved) -> 
             }
         }
         RunTarget::Prompt { prompt, agent, model, effort, full_access } => {
-            let root = match config::project_root(target) {
-                Ok((r, false)) if !r.is_empty() => r,
-                _ => return Dispatch::Error,
+            let root = match dispatch_root(target) {
+                Some(r) => r,
+                None => return Dispatch::Error,
             };
             let agent = if agent.is_empty() { default_ai_cli() } else { agent.clone() };
             spawn_captured(
@@ -1451,9 +1516,13 @@ fn pipeline_body(app: &AppHandle, project: &str, job: &JobResolved, key: &str) -
         }
     }
 
-    let root = match config::project_root(project) {
-        Ok((r, false)) if !r.is_empty() => r,
-        _ => return err_outcome("This project has no local folder to run in."),
+    let root = if project.is_empty() {
+        home_dir()
+    } else {
+        match config::project_root(project) {
+            Ok((r, false)) if !r.is_empty() => r,
+            _ => return err_outcome("This project has no local folder to run in."),
+        }
     };
 
     if !job.check.is_empty() {
@@ -1469,7 +1538,7 @@ fn pipeline_body(app: &AppHandle, project: &str, job: &JobResolved, key: &str) -
         }
     }
 
-    let (target, copy) = if job.duplicate {
+    let (target, copy) = if job.duplicate && !project.is_empty() {
         let (excl, reinstall, pull) = duplicate_defaults();
         match crate::projects_crud::duplicate_project(
             app.clone(),
@@ -1518,17 +1587,16 @@ fn emit_status(app: &AppHandle, project: &str, job_id: &str, result: &str, copy:
 /// outcomes worth interrupting for also go out as a system notification. Quiet
 /// days and skips stay silent everywhere.
 fn notify_if_unattended(app: &AppHandle, project: &str, job_id: &str, result: &str) {
+    let at = if project.is_empty() { String::new() } else { format!(" in {project}") };
     let (title, body) = match result {
-        COMPLETED => ("Scheduled job finished", format!("\"{job_id}\" in {project} is done.")),
+        COMPLETED => ("Scheduled job finished", format!("\"{job_id}\"{at} is done.")),
         FOUND_WORK => {
-            ("Scheduled job found work", format!("\"{job_id}\" in {project} started working."))
+            ("Scheduled job found work", format!("\"{job_id}\"{at} started working."))
         }
-        ERROR => {
-            ("Scheduled job hit a problem", format!("\"{job_id}\" in {project} needs a look."))
-        }
+        ERROR => ("Scheduled job hit a problem", format!("\"{job_id}\"{at} needs a look.")),
         TIMED_OUT => (
             "Scheduled job stopped",
-            format!("\"{job_id}\" in {project} ran too long and was stopped."),
+            format!("\"{job_id}\"{at} ran too long and was stopped."),
         ),
         _ => return,
     };
@@ -1821,35 +1889,45 @@ fn prune_job_logs() {
 
 // ---- scheduler thread -------------------------------------------------------
 
+/// Anchor, enablement, and due-check for one resolved job. `project` is the
+/// sentinel `""` for a standalone job.
+fn tick_job(app: &AppHandle, project: &str, id: &str, job: JobResolved) {
+    let key = state_key(project, id);
+    let st = load_job_state(&key);
+
+    let last = match st.last_run_at {
+        Some(l) => l,
+        None => {
+            // First time we've seen this job: anchor it to now so a job added
+            // while the app was closed never fires retroactively.
+            let _ = with_state(|f| {
+                let s = f.jobs.entry(key.clone()).or_default();
+                if s.last_run_at.is_none() {
+                    s.last_run_at = Some(now_secs());
+                }
+            });
+            return;
+        }
+    };
+
+    if !st.enabled_override.unwrap_or(job.enabled) {
+        return;
+    }
+    if is_due(&job.schedule, last, now_secs(), jitter_secs(project, id)) {
+        spawn_pipeline(app, project, job);
+    }
+}
+
 fn tick(app: &AppHandle) {
     for project in config::project_names() {
         for (id, _source, res) in resolve_jobs(&project) {
             let Ok(job) = res else { continue };
-            let key = state_key(&project, &id);
-            let st = load_job_state(&key);
-
-            let last = match st.last_run_at {
-                Some(l) => l,
-                None => {
-                    // First time we've seen this job: anchor it to now so a job
-                    // added while the app was closed never fires retroactively.
-                    let _ = with_state(|f| {
-                        let s = f.jobs.entry(key.clone()).or_default();
-                        if s.last_run_at.is_none() {
-                            s.last_run_at = Some(now_secs());
-                        }
-                    });
-                    continue;
-                }
-            };
-
-            if !st.enabled_override.unwrap_or(job.enabled) {
-                continue;
-            }
-            if is_due(&job.schedule, last, now_secs(), jitter_secs(&project, &id)) {
-                spawn_pipeline(app, &project, job);
-            }
+            tick_job(app, &project, &id, job);
         }
+    }
+    for (id, res) in resolve_standalone_jobs() {
+        let Ok(job) = res else { continue };
+        tick_job(app, "", &id, job);
     }
 }
 
@@ -1900,16 +1978,133 @@ fn schedule_json(schedule: &Schedule) -> Value {
     }
 }
 
-/// Every project's jobs in one flat list for the app-wide Scheduled view. Each
-/// row is the `list_jobs` shape plus the owning `project`.
+/// One aggregated row for a global-layer job — every-project, project-scoped, or
+/// standalone — with run state folded across the folders it runs in, so a shared
+/// job shows as a single list entry instead of one per project.
+fn global_job_row(id: &str, def: &JobDef, projects: &[String], now: u64) -> Value {
+    let standalone = matches!(job_targets(def), JobTargets::Standalone);
+    let existing: HashSet<&str> = projects.iter().map(String::as_str).collect();
+    let targets: Vec<String> = match job_targets(def) {
+        JobTargets::Every => projects.to_vec(),
+        JobTargets::Projects(list) => {
+            list.into_iter().filter(|p| existing.contains(p.as_str())).collect()
+        }
+        JobTargets::Standalone => Vec::new(),
+    };
+    // The folders the job actually runs in: a standalone job's is the sentinel
+    // "" (home dir); everything else is its targets.
+    let run_targets: Vec<String> = if standalone { vec![String::new()] } else { targets.clone() };
+
+    // Resolve against a representative project so validity and run details are
+    // known — prompt and command jobs resolve the same everywhere, and shared
+    // jobs never run actions.
+    let repr = run_targets.first().cloned().unwrap_or_default();
+    let resolved = resolve_job(&repr, id, def);
+
+    let mut enabled = false;
+    let mut running_count: u32 = 0;
+    let mut earliest_since: Option<u64> = None;
+    let mut max_last: Option<u64> = None;
+    let mut last_result: Option<String> = None;
+    let mut next: Option<i64> = None;
+    for t in &run_targets {
+        let key = state_key(t, id);
+        let st = load_job_state(&key);
+        let job_enabled = match &resolved {
+            Ok(job) => st.enabled_override.unwrap_or(job.enabled),
+            Err(_) => st.enabled_override.unwrap_or(false),
+        };
+        enabled = enabled || job_enabled;
+        if let Some(since) = running_since(&key) {
+            running_count += 1;
+            earliest_since = Some(earliest_since.map_or(since, |e| e.min(since)));
+        }
+        if let Some(lr) = st.last_run_at {
+            if max_last.map_or(true, |m| lr >= m) {
+                max_last = Some(lr);
+                last_result = st.history.last().map(|h| h.result.clone());
+            }
+        }
+        if let Ok(job) = &resolved {
+            if job_enabled {
+                if let Some(nf) = next_fire_at(
+                    &job.schedule,
+                    st.last_run_at.unwrap_or(now),
+                    jitter_secs(t, id),
+                    now,
+                ) {
+                    next = Some(next.map_or(nf, |n: i64| n.min(nf)));
+                }
+            }
+        }
+    }
+
+    match resolved {
+        Ok(job) => {
+            let mut row = json!({
+                "id": id,
+                "valid": true,
+                "source": SOURCE_GLOBAL,
+                "label": job.label,
+                "emoji": job.emoji,
+                "enabled": enabled,
+                "duplicate": job.duplicate,
+                "runKind": run_kind(&job.run),
+                "description": run_description(&job.run),
+                "schedule": schedule_json(&job.schedule),
+                "lastRunAt": max_last,
+                "lastResult": last_result,
+                "nextFireAt": next,
+                "running": running_count > 0,
+                "runningSince": earliest_since,
+                "runningCount": running_count,
+                "targetCount": targets.len(),
+                "targets": targets,
+                "standalone": standalone,
+            });
+            if let RunTarget::Prompt { agent, model, effort, .. } = &job.run {
+                row["agent"] = json!(agent);
+                row["model"] = json!(model);
+                row["effort"] = json!(effort);
+            }
+            row
+        }
+        Err(e) => json!({
+            "id": id,
+            "valid": false,
+            "source": SOURCE_GLOBAL,
+            "error": e,
+            "enabled": enabled,
+            "runningCount": running_count,
+            "targetCount": targets.len(),
+            "targets": targets,
+            "standalone": standalone,
+        }),
+    }
+}
+
+/// Every project's jobs in one flat list for the app-wide Scheduled view.
+/// Project- and repo-layer jobs stay one row per project (each carries its
+/// owning `project` plus a single-entry `targets`); global-layer jobs collapse
+/// to one aggregated row apiece.
 #[tauri::command(async)]
 pub fn list_all_jobs() -> Result<Vec<Value>, String> {
+    let now = now_secs();
+    let projects = config::project_names();
     let mut out: Vec<Value> = Vec::new();
-    for project in config::project_names() {
+    for project in &projects {
         for mut row in list_jobs(project.clone())? {
+            if row.get("source") == Some(&json!(SOURCE_GLOBAL)) {
+                continue;
+            }
             row["project"] = json!(project);
+            row["targets"] = json!([project]);
+            row["standalone"] = json!(false);
             out.push(row);
         }
+    }
+    for (id, def) in load_jobs_yaml(&config::global_path()) {
+        out.push(global_job_row(&id, &def, &projects, now));
     }
     Ok(out)
 }
@@ -1992,11 +2187,19 @@ pub fn test_job_check(project: String, check: String) -> Result<Value, String> {
 
 #[tauri::command(async)]
 pub fn run_job_now(app: AppHandle, project: String, job_id: String) -> Result<(), String> {
-    let job = resolve_jobs(&project)
-        .into_iter()
-        .find(|(id, _, _)| *id == job_id)
-        .ok_or_else(|| "That job doesn't exist.".to_string())?
-        .2?;
+    let job = if project.is_empty() {
+        resolve_standalone_jobs()
+            .into_iter()
+            .find(|(id, _)| *id == job_id)
+            .ok_or_else(|| "That job doesn't exist.".to_string())?
+            .1?
+    } else {
+        resolve_jobs(&project)
+            .into_iter()
+            .find(|(id, _, _)| *id == job_id)
+            .ok_or_else(|| "That job doesn't exist.".to_string())?
+            .2?
+    };
     spawn_pipeline(&app, &project, job);
     Ok(())
 }
@@ -3118,5 +3321,34 @@ mod tests {
                 ("c", "glob-c", SOURCE_GLOBAL),
             ],
         );
+    }
+
+    fn def_with_projects(projects: Option<Vec<&str>>) -> JobDef {
+        JobDef {
+            projects: projects.map(|list| list.into_iter().map(str::to_string).collect()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn job_targets_reads_the_projects_field() {
+        assert_eq!(job_targets(&def_with_projects(None)), JobTargets::Every);
+        assert_eq!(job_targets(&def_with_projects(Some(vec![]))), JobTargets::Standalone);
+        assert_eq!(
+            job_targets(&def_with_projects(Some(vec!["web", "api"]))),
+            JobTargets::Projects(vec!["web".into(), "api".into()]),
+        );
+    }
+
+    #[test]
+    fn global_jobs_filter_by_project_target() {
+        // Legacy every-project job resolves everywhere.
+        assert!(global_resolves_for(&def_with_projects(None), "web"));
+        // A scoped job resolves only under its listed projects.
+        let scoped = def_with_projects(Some(vec!["web"]));
+        assert!(global_resolves_for(&scoped, "web"));
+        assert!(!global_resolves_for(&scoped, "api"));
+        // A standalone job never resolves under a real project.
+        assert!(!global_resolves_for(&def_with_projects(Some(vec![])), "web"));
     }
 }

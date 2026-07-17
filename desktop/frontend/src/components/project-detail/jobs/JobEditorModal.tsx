@@ -8,6 +8,7 @@ import { EmojiSlotButton } from "../../EmojiPickerButton";
 import { ChevronDownIcon, ClockIcon, XIcon } from "../../icons";
 import { WeekdayPicker } from "./WeekdayPicker";
 import { RowSelect } from "./RowSelect";
+import { RowMultiSelect } from "./RowMultiSelect";
 import {
   ClearJobState,
   ClearJobStateGlobal,
@@ -19,7 +20,6 @@ import {
   deleteJob,
   deleteJobGlobal,
   readGlobalJobIds,
-  readJobIds,
   readJobPayloadFrom,
   saveJob,
   saveJobGlobal,
@@ -72,9 +72,6 @@ const RUN_LABEL: Record<JobRunKind, string> = {
   action: "Action",
 };
 
-// "" = every project (the global config layer).
-const ALL_PROJECTS = "";
-
 // Same prompt content — `pending` (an image still saving) aside.
 function samePrompt(a: ComposerValue, b: ComposerValue): boolean {
   return (
@@ -97,7 +94,6 @@ export function JobEditorModal({
 }: JobEditorModalProps) {
   const isEditing = editing !== null;
   const [draft, setDraft] = useState<JobDraft>(defaultJobDraft);
-  const [target, setTarget] = useState<string>(ALL_PROJECTS);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [test, setTest] = useState<TestState>({ kind: "idle" });
@@ -113,13 +109,24 @@ export function JobEditorModal({
   const [composerSession, setComposerSession] = useState(0);
   const nameRef = useRef<HTMLInputElement>(null);
   const promptRef = useRef<ComposerValue>(draft.prompt);
+  // A global job's original `projects` field, captured on open so editing (which
+  // never rewrites scope) preserves it rather than collapsing it to every-project.
+  const editProjectsRef = useRef<unknown>(undefined);
 
   const source = editing?.job.source ?? "project";
-  const isGlobalTarget = isEditing ? source === "global" : target === ALL_PROJECTS;
-  const runProject = isEditing ? editing.project : target;
-  const actions = isGlobalTarget ? [] : actionsFor(runProject);
-  // AI-edit runs in the project the job runs in; a job that runs everywhere has
-  // no single root, so it gets a plain prompt field.
+  // New jobs choose their projects with the multi-select; empty = standalone.
+  // Exactly one selected unlocks the project-scoped features.
+  const singleProject =
+    draft.targets.length === 1 ? draft.targets[0] : undefined;
+  // The concrete project a scoped feature runs against: the job's project when
+  // editing, or the one selected project when creating.
+  const runProject = isEditing ? editing.project : singleProject;
+  // Actions need one project. Editing keeps today's rule (any non-global source);
+  // a new job needs exactly one selected project.
+  const actionsAvailable = isEditing ? source !== "global" : singleProject !== undefined;
+  const actions = actionsAvailable && runProject ? actionsFor(runProject) : [];
+  // AI-edit runs in the project the job runs in; a standalone or multi-project
+  // job has no single root, so it gets a plain prompt field.
   const projectRoot = useAppStore(
     (s) => s.projects.find((p) => p.name === runProject)?.root,
   );
@@ -136,10 +143,10 @@ export function JobEditorModal({
     setTest({ kind: "idle" });
     setConfirmDelete(false);
     setSaving(false);
-    setTarget(ALL_PROJECTS);
     setAdvancedOpen(false);
     setTouched(false);
     setComposerSession((n) => n + 1);
+    editProjectsRef.current = undefined;
     if (!editing) {
       setDraft(defaultJobDraft());
       setLoading(false);
@@ -151,6 +158,7 @@ export function JobEditorModal({
     readJobPayloadFrom(editing.project, editing.job.source ?? "project", editing.job.id)
       .then((payload) => {
         if (cancelled) return;
+        editProjectsRef.current = payload?.projects;
         const next = payload ? payloadToDraft(payload) : defaultJobDraft();
         setDraft(next);
         setComposerSession((n) => n + 1);
@@ -209,16 +217,17 @@ export function JobEditorModal({
     }
   };
 
+  const isStandalone = !isEditing && draft.targets.length === 0;
   const scheduleSummary = useMemo(() => describeDraftSchedule(draft), [draft]);
-  const validationError = validateJobDraft(draft);
+  const validationError = validateJobDraft(draft, isStandalone);
   // Saving mid-save would write a prompt whose image isn't on disk yet.
   const imagesPending = draft.prompt.pending;
   const canSave =
     validationError === null && !loading && !saving && !imagesPending;
-  const canTest = !isGlobalTarget && !!runProject;
+  const canTest = actionsAvailable && !!runProject;
 
   const runCheckTest = async () => {
-    if (!draft.check.trim() || !canTest) return;
+    if (!draft.check.trim() || !canTest || !runProject) return;
     setTest({ kind: "running" });
     try {
       const result = (await TestJobCheck(runProject, draft.check)) as {
@@ -240,17 +249,27 @@ export function JobEditorModal({
       const payload = buildJobPayload(draft);
       let id = editing?.job.id;
       if (!id) {
-        const layerIds = isGlobalTarget
-          ? await readGlobalJobIds()
-          : await readJobIds(target);
-        const visibleIds = knownIds?.(isGlobalTarget ? null : target) ?? [];
+        // New jobs always live in the global layer, so their id must be unique
+        // there and across every job currently visible.
+        const layerIds = await readGlobalJobIds();
+        const visibleIds = knownIds?.(null) ?? [];
         id = uniqueKey(slugify(draft.label) || "job", [
           ...layerIds,
           ...visibleIds,
         ]);
       }
-      if (isGlobalTarget) await saveJobGlobal(id, payload);
-      else await saveJob(isEditing ? editing.project : target, id, payload);
+      if (isEditing) {
+        if (source === "global") {
+          if (editProjectsRef.current !== undefined) {
+            payload.projects = editProjectsRef.current;
+          }
+          await saveJobGlobal(id, payload);
+        } else {
+          await saveJob(editing.project, id, payload);
+        }
+      } else {
+        await saveJobGlobal(id, { ...payload, projects: draft.targets });
+      }
       toast.success(isEditing ? "Job updated" : "Job created");
       onSaved();
       onClose();
@@ -289,11 +308,15 @@ export function JobEditorModal({
     }
   };
 
-  const whereValue = isEditing
-    ? source === "global"
-      ? "Every project"
-      : editing.project
-    : undefined;
+  const whereValue = !isEditing
+    ? undefined
+    : source !== "global"
+      ? editing.project
+      : editing.job.standalone
+        ? "No project"
+        : editing.job.targets && editing.job.targets.length > 0
+          ? editing.job.targets.join(", ")
+          : "Every project";
 
   return (
     <>
@@ -370,19 +393,16 @@ export function JobEditorModal({
                         {whereValue}
                       </span>
                     ) : (
-                      <RowSelect
-                        value={target}
+                      <RowMultiSelect
+                        value={draft.targets}
                         onChange={(next) => {
-                          setTarget(next);
+                          set("targets", next);
                           setTest({ kind: "idle" });
-                          if (next === ALL_PROJECTS && draft.runMode === "action") {
+                          if (next.length !== 1 && draft.runMode === "action") {
                             set("runMode", "prompt");
                           }
                         }}
-                        options={[
-                          { value: ALL_PROJECTS, label: "Every project" },
-                          ...projects.map((p) => ({ value: p, label: p })),
-                        ]}
+                        options={projects.map((p) => ({ value: p, label: p }))}
                       />
                     )}
                   </Row>
@@ -390,9 +410,9 @@ export function JobEditorModal({
                     <RowSelect
                       value={draft.runMode}
                       onChange={(mode) => set("runMode", mode as JobRunKind)}
-                      options={(isGlobalTarget
-                        ? (["prompt", "cmd"] as JobRunKind[])
-                        : (["prompt", "cmd", "action"] as JobRunKind[])
+                      options={(actionsAvailable
+                        ? (["prompt", "cmd", "action"] as JobRunKind[])
+                        : (["prompt", "cmd"] as JobRunKind[])
                       ).map((k) => ({ value: k, label: RUN_LABEL[k] }))}
                     />
                   </Row>
@@ -436,7 +456,7 @@ export function JobEditorModal({
                       />
                     </Row>
                   )}
-                  {draft.runMode === "action" && !isGlobalTarget && (
+                  {draft.runMode === "action" && actionsAvailable && (
                     <div className="px-4 py-3">
                       {actions.length > 0 ? (
                         <ActionPicker

@@ -19,7 +19,7 @@ import { JobMessages } from "./project-detail/jobs/JobMessages";
 import { JobTaskView } from "./project-detail/jobs/JobTaskView";
 import { JobEditorModal } from "./project-detail/jobs/JobEditorModal";
 
-type ScheduledJob = JobInfo & { project: string };
+type ScheduledJob = JobInfo & { project?: string };
 
 type Editing = { mode: "new" } | { mode: "edit"; project: string; job: JobInfo } | null;
 
@@ -86,22 +86,74 @@ export function ScheduledView() {
     };
   }, [refetch]);
 
-  const groups = new Map<string, ScheduledJob[]>();
+  // The folders a row's job runs in: a standalone job's is the sentinel "";
+  // project/repo and single-target rows carry a one-entry `targets`; a shared
+  // job carries all of them.
+  const targetsOfRow = (job: JobInfo): string[] =>
+    job.standalone ? [""] : job.targets ?? [];
+
+  // A representative project for opening / editing / removing a row: standalone
+  // has none, otherwise the first target.
+  const rowProject = (job: ScheduledJob): string =>
+    job.standalone ? "" : job.targets?.[0] ?? job.project ?? "";
+
+  // Row buttons act on every folder the job runs in, so a shared job's Run /
+  // Stop / pause reach all of its projects at once.
+  const runNowJob = (job: JobInfo) =>
+    targetsOfRow(job).forEach((p) => runNow(p, job.id));
+  const stopRunJob = (job: JobInfo) =>
+    targetsOfRow(job).forEach((p) => stopRun(p, job.id));
+  const toggleEnabledJob = (job: JobInfo, enabled: boolean) =>
+    targetsOfRow(job).forEach((p) => toggleEnabled(p, job.id, enabled));
+
+  // Rows grouped by target: one project → that project's section; more than one
+  // (or a legacy every-project job) → "Multiple projects"; none → "No project".
+  const projectGroups = new Map<string, ScheduledJob[]>();
+  const multiJobs: ScheduledJob[] = [];
+  const standaloneJobs: ScheduledJob[] = [];
   for (const row of rows ?? []) {
-    const list = groups.get(row.project) ?? [];
-    list.push(row);
-    groups.set(row.project, list);
+    if (row.standalone) {
+      standaloneJobs.push(row);
+      continue;
+    }
+    const targets = row.targets ?? (row.project ? [row.project] : []);
+    if (targets.length === 1) {
+      const list = projectGroups.get(targets[0]) ?? [];
+      list.push(row);
+      projectGroups.set(targets[0], list);
+    } else {
+      multiJobs.push(row);
+    }
   }
 
   const actionsFor = (project: string) =>
     projects.find((p) => p.name === project)?.actions ?? [];
 
-  // Every job id visible for a project (null = anywhere) — so a new job never
-  // silently takes over an id another config layer already uses.
+  // Every job id in use (null = anywhere) — so a new job never silently takes
+  // over an id another config layer already uses.
   const knownIds = (project: string | null) =>
     (rows ?? [])
       .filter((r) => project === null || r.project === project)
       .map((r) => r.id);
+
+  const renderRows = (jobs: ScheduledJob[], sectionKey: string) => (
+    <div className="mt-1 divide-y divide-[var(--border)]">
+      {jobs.map((job) => (
+        <JobRow
+          key={`${sectionKey}/${job.id}`}
+          job={job}
+          onRunNow={() => runNowJob(job)}
+          onStop={() => stopRunJob(job)}
+          onToggleEnabled={(_id, enabled) => toggleEnabledJob(job, enabled)}
+          onOpen={(j) => setOpen({ project: rowProject(j), id: j.id })}
+          onEdit={(j) =>
+            setEditing({ mode: "edit", project: rowProject(j), job: j })
+          }
+          onRemove={(j) => setRemoving({ project: rowProject(j), job: j })}
+        />
+      ))}
+    </div>
+  );
 
   const removeJob = async (deleteCopies: boolean) => {
     if (!removing) return;
@@ -132,12 +184,12 @@ export function ScheduledView() {
         (r) =>
           r.id === removing.job.id &&
           r.running === true &&
-          (removing.job.source === "global" || r.project === removing.project),
+          rowProject(r) === rowProject(removing.job),
       )
     : false;
 
   const openJob = open
-    ? (rows ?? []).find((r) => r.project === open.project && r.id === open.id)
+    ? (rows ?? []).find((r) => r.id === open.id && rowProject(r) === open.project)
     : undefined;
   useEffect(() => {
     if (open && rows !== null && !openJob) {
@@ -249,10 +301,10 @@ export function ScheduledView() {
           />
         ) : (
           <div className="space-y-6">
-            {[...groups.entries()]
+            {[...projectGroups.entries()]
               .sort(([a], [b]) => a.localeCompare(b))
               .map(([project, jobs]) => (
-                <section key={project}>
+                <section key={`project/${project}`}>
                   <button
                     type="button"
                     onClick={() => selectProject(project)}
@@ -260,26 +312,25 @@ export function ScheduledView() {
                   >
                     {project}
                   </button>
-                  <div className="mt-1 divide-y divide-[var(--border)]">
-                    {jobs.map((job) => (
-                      <JobRow
-                        key={`${project}/${job.id}`}
-                        job={job}
-                        onRunNow={(id) => runNow(project, id)}
-                        onStop={(id) => stopRun(project, id)}
-                        onToggleEnabled={(id, enabled) =>
-                          toggleEnabled(project, id, enabled)
-                        }
-                        onOpen={(j) => setOpen({ project, id: j.id })}
-                        onEdit={(j) =>
-                          setEditing({ mode: "edit", project, job: j })
-                        }
-                        onRemove={(j) => setRemoving({ project, job: j })}
-                      />
-                    ))}
-                  </div>
+                  {renderRows(jobs, `project/${project}`)}
                 </section>
               ))}
+            {multiJobs.length > 0 && (
+              <section key="multi">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                  Multiple projects
+                </span>
+                {renderRows(multiJobs, "multi")}
+              </section>
+            )}
+            {standaloneJobs.length > 0 && (
+              <section key="none">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                  No project
+                </span>
+                {renderRows(standaloneJobs, "none")}
+              </section>
+            )}
           </div>
         )}
       </div>

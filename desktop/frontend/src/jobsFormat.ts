@@ -67,6 +67,13 @@ export interface JobInfo {
   agent?: string;
   model?: string;
   effort?: string;
+  // Shared (global-layer) jobs only: which projects the job runs in (empty for a
+  // standalone job), whether it's standalone, and the aggregate run counts folded
+  // across its targets.
+  targets?: string[];
+  standalone?: boolean;
+  targetCount?: number;
+  runningCount?: number;
 }
 
 export interface JobHistoryEntry {
@@ -350,6 +357,9 @@ export interface JobDraft {
   model: string;
   effort: string;
   access: "full" | "read";
+  // The projects a new job runs in (empty = standalone). New jobs only; the edit
+  // path shows scope read-only and never rewrites it from this.
+  targets: string[];
 }
 
 export function defaultJobDraft(): JobDraft {
@@ -371,6 +381,7 @@ export function defaultJobDraft(): JobDraft {
     model: "",
     effort: "",
     access: "full",
+    targets: [],
   };
 }
 
@@ -399,8 +410,14 @@ export function describeDraftSchedule(draft: JobDraft): string {
 
 // Mirrors the backend validation (jobs.rs) so save is blocked before a write
 // that the scheduler would reject, and the message reads in product terms.
-export function validateJobDraft(draft: JobDraft): string | null {
+export function validateJobDraft(
+  draft: JobDraft,
+  standalone = false,
+): string | null {
   if (!draft.label.trim()) return "Give this job a name.";
+  if (standalone && draft.runMode === "action") {
+    return "Standalone jobs can't run an action.";
+  }
   if (draft.scheduleMode === "time") {
     if (parseTimeToMinutes(draft.time) === null) return "Pick a valid time.";
   } else {
@@ -544,5 +561,8 @@ export function payloadToDraft(payload: Record<string, unknown>): JobDraft {
   }
 
   if (typeof payload.check === "string") draft.check = payload.check;
+  if (Array.isArray(payload.projects)) {
+    draft.targets = payload.projects.map((p) => String(p));
+  }
   return draft;
 }

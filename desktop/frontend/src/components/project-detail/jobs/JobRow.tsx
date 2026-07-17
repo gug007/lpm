@@ -30,7 +30,13 @@ interface JobRowProps {
 }
 
 export function JobRow({ job, onRunNow, onStop, onToggleEnabled, onOpen, onEdit, onRemove }: JobRowProps) {
-  const sourceTag = job.source ? SOURCE_TAG[job.source] : undefined;
+  // A shared job shows what it targets instead of a bare "All projects" tag.
+  const targetTag = job.standalone
+    ? "No project"
+    : job.targets && job.targets.length > 1
+      ? `${job.targets.length} projects`
+      : undefined;
+  const sourceTag = targetTag ?? (job.source ? SOURCE_TAG[job.source] : undefined);
   const now = useNow(job.running === true);
   // A repo-declared job lives in the repo's own config file, which stays the
   // user's to edit — no delete from here.
@@ -88,6 +94,16 @@ export function JobRow({ job, onRunNow, onStop, onToggleEnabled, onOpen, onEdit,
     : "";
   const tone = jobResultTone(job.lastResult);
   const description = job.description?.replace(/\s+/g, " ").trim();
+  // A shared job runs in many folders at once, so its "running" line aggregates
+  // how many are live rather than a single elapsed clock.
+  const runningFor = formatRunningFor(job.runningSince, now);
+  const elapsedSuffix = runningFor.startsWith("Running —")
+    ? runningFor.slice("Running".length)
+    : "";
+  const runningText =
+    job.targetCount && job.targetCount > 1
+      ? `Running in ${job.runningCount ?? 0} of ${job.targetCount}${elapsedSuffix}`
+      : runningFor;
 
   return (
     <div className={`group flex items-start gap-3 px-1 py-3 ${enabled ? "" : "opacity-60"}`}>
@@ -128,7 +144,7 @@ export function JobRow({ job, onRunNow, onStop, onToggleEnabled, onOpen, onEdit,
           <span className="min-w-0 truncate">
             {job.running ? (
               <span className="text-[var(--accent-cyan)]">
-                {formatRunningFor(job.runningSince, now)}
+                {runningText}
               </span>
             ) : blocked ? (
               <span className="text-[var(--accent-amber)]">
