@@ -14,6 +14,7 @@ import { ClockIcon, PlusIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { deleteJob, deleteJobGlobal } from "../jobsConfig";
 import type { JobInfo } from "../jobsFormat";
+import { displayNameForProjectName } from "./ProjectNameDisplay";
 import { JobRow } from "./project-detail/jobs/JobRow";
 import { JobMessages } from "./project-detail/jobs/JobMessages";
 import { JobTaskView } from "./project-detail/jobs/JobTaskView";
@@ -310,7 +311,7 @@ export function ScheduledView() {
                     onClick={() => selectProject(project)}
                     className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
                   >
-                    {project}
+                    {displayNameForProjectName(project, projects)}
                   </button>
                   {renderRows(jobs, `project/${project}`)}
                 </section>

@@ -12,6 +12,8 @@ import {
 } from "../../icons";
 import { PlayIcon } from "../icons";
 import { useNow } from "../../../hooks/useNow";
+import { useAppStore } from "../../../store/app";
+import { displayNameForProjectName } from "../../ProjectNameDisplay";
 import { JobRunRow } from "./JobRunRow";
 import { JobLiveOutput } from "./JobLiveOutput";
 import {
@@ -109,9 +111,11 @@ export function JobMessages({
     }
   };
 
+  const storeProjects = useAppStore((s) => s.projects);
   const scheduleText = job.schedule ? formatSchedule(job.schedule) : "";
   const nextRunText = job.enabled ? formatNextRun(job.nextFireAt) : "Paused";
-  const meta = [project, scheduleText, nextRunText].filter(Boolean).join(" · ");
+  const projectLabel = project ? displayNameForProjectName(project, storeProjects) : "";
+  const meta = [projectLabel, scheduleText, nextRunText].filter(Boolean).join(" · ");
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -266,7 +270,7 @@ export function JobMessages({
                   onChange={(e) => setRemoveCopy(e.target.checked)}
                   className="accent-[var(--accent-blue)] h-3 w-3"
                 />
-                Also remove {removingCopy}, the copy it worked in
+                Also remove {displayNameForProjectName(removingCopy, storeProjects)}, the copy it worked in
               </label>
             )}
           </>
