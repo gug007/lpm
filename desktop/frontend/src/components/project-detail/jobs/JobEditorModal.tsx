@@ -129,17 +129,18 @@ export function JobEditorModal({
   // AI-edit runs in the project the job runs in; a standalone or multi-project
   // job has no single root, so it gets a plain prompt field.
   const storeProjects = useAppStore((s) => s.projects);
-  const projectRoot = storeProjects.find((p) => p.name === runProject)?.root;
-  // "Refine with AI" only needs somewhere to run the CLI — it rewrites the
-  // prompt text, not the job's project. Before a project is picked (a new,
-  // standalone job) fall back to any known project root so the action stays
-  // available; it retargets to the chosen project's root once one is selected.
-  const aiCwd = projectRoot ?? storeProjects.find((p) => !p.isRemote)?.root;
-  const composerHistory = runProject
+  // "Refine with AI" and prompt history both only need *a* project context — the
+  // AI rewrites the prompt text and history can widen to every project. Before
+  // one is picked (a new, standalone job) fall back to any local project so both
+  // stay available; they retarget to the chosen project once one is selected.
+  const contextProject =
+    runProject ?? storeProjects.find((p) => !p.isRemote)?.name;
+  const aiCwd = storeProjects.find((p) => p.name === contextProject)?.root;
+  const composerHistory = contextProject
     ? {
-        terminalId: runProject,
-        projectName: runProject,
-        terminalLabel: runProject,
+        terminalId: contextProject,
+        projectName: contextProject,
+        terminalLabel: displayNameForProjectName(contextProject, storeProjects),
       }
     : undefined;
 

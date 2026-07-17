@@ -50,10 +50,10 @@ export function RunProjectsDialog({
           </span>
           <div className="min-w-0">
             <h2 className="truncate text-[14px] font-semibold tracking-tight text-[var(--text-primary)]">
-              Run {jobLabel}
+              {jobLabel}
             </h2>
             <p className="text-[12px] text-[var(--text-muted)]">
-              Choose where to run it now.
+              Choose which projects to run in.
             </p>
           </div>
         </header>
@@ -79,18 +79,24 @@ export function RunProjectsDialog({
                 key={p}
                 type="button"
                 onClick={() => toggle(p)}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
+                className="group/row flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
               >
                 <span
-                  className={`grid h-4 w-4 shrink-0 place-items-center rounded border transition-colors [&_svg]:h-3 [&_svg]:w-3 ${
+                  className={`grid h-[18px] w-[18px] shrink-0 place-items-center rounded-md border transition-colors [&_svg]:h-3 [&_svg]:w-3 ${
                     on
-                      ? "border-[var(--accent-cyan)] bg-[var(--accent-cyan)] text-white"
-                      : "border-[var(--border)] text-transparent"
+                      ? "border-[var(--accent-cyan)] bg-[var(--accent-cyan)] text-[var(--bg-primary)]"
+                      : "border-[var(--border)] text-transparent group-hover/row:border-[var(--text-muted)]"
                   }`}
                 >
                   {on && <CheckIcon />}
                 </span>
-                <span className="min-w-0 truncate text-[13px] text-[var(--text-primary)]">
+                <span
+                  className={`min-w-0 truncate text-[13px] transition-colors ${
+                    on
+                      ? "text-[var(--text-primary)]"
+                      : "text-[var(--text-secondary)]"
+                  }`}
+                >
                   {displayNameForProjectName(p, projects)}
                 </span>
               </button>
