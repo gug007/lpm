@@ -104,7 +104,7 @@ export function SidebarFooterMore({ showScheduled, onScheduled, onFeedback }: Si
         <div className={`absolute bottom-full right-0 z-[80] mb-1.5 w-40 px-1 ${MENU_PANEL_CLASS}`}>
           <button onClick={pick(onScheduled)} className={itemClass(showScheduled)}>
             <Workflow className="shrink-0" size={16} strokeWidth={2} />
-            Scheduled
+            Automations
             {running > 0 ? (
               <span className="ml-auto flex items-center gap-1.5 text-[10px] font-medium text-[var(--accent-cyan)]">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
