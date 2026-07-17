@@ -35,7 +35,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cx.lpm.mobile
-        MARKETING_VERSION: "0.1.0"
+        MARKETING_VERSION: "1.1"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
@@ -60,6 +60,8 @@ targets:
     info:
       path: Info.plist
       properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDisplayName: lpm
         # Wake the app for silent background pushes that withdraw delivered
         # notifications (agent status cleared on the Mac).
@@ -109,7 +111,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cx.lpm.mobile.notificationservice
-        MARKETING_VERSION: "0.1.0"
+        MARKETING_VERSION: "1.1"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
@@ -122,6 +124,8 @@ targets:
     info:
       path: NotificationService-Info.plist
       properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDisplayName: lpm
         NSExtension:
           NSExtensionPointIdentifier: com.apple.usernotifications.service
