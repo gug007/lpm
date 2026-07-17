@@ -329,37 +329,45 @@ export function JobEditorModal({
         contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
       >
         <div className="flex max-h-[min(820px,92vh)] w-[min(640px,calc(100vw-32px))] flex-col">
+          <header className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-6 py-4">
+            <div className="flex items-center gap-2.5">
+              <span className="grid h-7 w-7 place-items-center rounded-lg bg-[var(--accent-cyan)]/12 text-[var(--accent-cyan)]">
+                <ClockIcon size={15} />
+              </span>
+              <h2 className="text-[14px] font-semibold tracking-tight text-[var(--text-primary)]">
+                {isEditing ? "Edit job" : "New job"}
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="shrink-0 rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              <XIcon />
+            </button>
+          </header>
           {loading ? (
             <div className="flex min-h-[320px] items-center justify-center text-[12px] text-[var(--text-muted)]">
               Loading job…
             </div>
           ) : (
             <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 pb-6 pt-6">
-              <div className="flex items-center gap-2">
-                <div className="relative flex min-w-0 flex-1 items-center rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/40 transition focus-within:border-[var(--accent-cyan)]">
-                  <EmojiSlotButton
-                    inputRef={nameRef}
-                    value={draft.emoji}
-                    onSelect={(next) => set("emoji", next)}
-                    size="md"
-                    placeholder={<ClockIcon size={15} />}
-                  />
-                  <input
-                    ref={nameRef}
-                    value={draft.label}
-                    onChange={(e) => set("label", e.target.value)}
-                    placeholder="Name this job"
-                    className="min-w-0 flex-1 border-none bg-transparent py-3 pl-11 pr-4 text-[15px] font-semibold tracking-tight text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  aria-label="Close"
-                  className="shrink-0 rounded-lg p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                >
-                  <XIcon />
-                </button>
+              <div className="relative flex min-w-0 items-center rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/40 transition focus-within:border-[var(--accent-cyan)]/70">
+                <EmojiSlotButton
+                  inputRef={nameRef}
+                  value={draft.emoji}
+                  onSelect={(next) => set("emoji", next)}
+                  size="md"
+                  placeholder={<ClockIcon size={16} />}
+                />
+                <input
+                  ref={nameRef}
+                  value={draft.label}
+                  onChange={(e) => set("label", e.target.value)}
+                  placeholder="Name this job"
+                  className="min-w-0 flex-1 border-none bg-transparent py-3 pl-11 pr-4 text-[15px] font-semibold tracking-tight text-[var(--text-primary)] outline-none placeholder:font-medium placeholder:text-[var(--text-muted)]"
+                />
               </div>
 
               {draft.runMode === "prompt" && (
@@ -380,7 +388,7 @@ export function JobEditorModal({
                   spellCheck={false}
                   autoCapitalize="off"
                   autoCorrect="off"
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/40 px-4 py-3.5 font-mono text-[13px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
+                  className="w-full rounded-xl border border-transparent bg-[var(--bg-secondary)]/40 px-4 py-3 font-mono text-[13px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]/60"
                 />
               )}
 
@@ -698,7 +706,7 @@ export function JobEditorModal({
 
 function GroupLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-2 text-[12px] font-medium text-[var(--text-muted)]">
+    <div className="mb-2 px-1 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
       {children}
     </div>
   );
@@ -706,7 +714,7 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
 
 function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
+    <div className="divide-y divide-[var(--border)]/70 overflow-hidden rounded-xl bg-[var(--bg-secondary)]/40">
       {children}
     </div>
   );
@@ -723,9 +731,9 @@ function Row({
 }) {
   return (
     <div
-      className={`flex ${alignTop ? "items-start" : "items-center"} justify-between gap-4 px-4 py-3`}
+      className={`flex ${alignTop ? "items-start" : "items-center"} justify-between gap-4 px-4 py-2.5`}
     >
-      <span className="shrink-0 text-[13px] text-[var(--text-primary)]">
+      <span className="shrink-0 text-[13px] text-[var(--text-secondary)]">
         {label}
       </span>
       {children}
