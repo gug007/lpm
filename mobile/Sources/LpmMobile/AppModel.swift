@@ -97,6 +97,15 @@ final class AppModel: ObservableObject {
     @Published var notifyError: Bool = AppModel.loadBoolPref(AppModel.notifyErrorKey) {
         didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
     }
+    @Published var notifyAutomationStarted: Bool = AppModel.loadBoolPref(AppModel.notifyAutomationStartedKey) {
+        didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
+    }
+    @Published var notifyAutomationDone: Bool = AppModel.loadBoolPref(AppModel.notifyAutomationDoneKey) {
+        didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
+    }
+    @Published var notifyAutomationError: Bool = AppModel.loadBoolPref(AppModel.notifyAutomationErrorKey) {
+        didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
+    }
 
     // Sidebar folders, matching the desktop: `order` interleaves project names and
     // "group:<id>" tokens; `groups` are the folder defs.
@@ -628,13 +637,19 @@ final class AppModel: ObservableObject {
         client.sendApnsToken(token: hex, env: env, key: key,
                              notifyWaiting: notifyEnabled && notifyWaiting,
                              notifyDone: notifyEnabled && notifyDone,
-                             notifyError: notifyEnabled && notifyError)
+                             notifyError: notifyEnabled && notifyError,
+                             notifyAutomationStarted: notifyEnabled && notifyAutomationStarted,
+                             notifyAutomationDone: notifyEnabled && notifyAutomationDone,
+                             notifyAutomationError: notifyEnabled && notifyAutomationError)
     }
 
     static let notifyEnabledKey = "lpm.notify.enabled"
     static let notifyWaitingKey = "lpm.notify.waiting"
     static let notifyDoneKey = "lpm.notify.done"
     static let notifyErrorKey = "lpm.notify.error"
+    static let notifyAutomationStartedKey = "lpm.notify.automation.started"
+    static let notifyAutomationDoneKey = "lpm.notify.automation.done"
+    static let notifyAutomationErrorKey = "lpm.notify.automation.error"
 
     // Absent keys default to enabled, so a fresh install opts in to every push type.
     private static func loadBoolPref(_ key: String) -> Bool {
@@ -647,6 +662,9 @@ final class AppModel: ObservableObject {
         d.set(notifyWaiting, forKey: Self.notifyWaitingKey)
         d.set(notifyDone, forKey: Self.notifyDoneKey)
         d.set(notifyError, forKey: Self.notifyErrorKey)
+        d.set(notifyAutomationStarted, forKey: Self.notifyAutomationStartedKey)
+        d.set(notifyAutomationDone, forKey: Self.notifyAutomationDoneKey)
+        d.set(notifyAutomationError, forKey: Self.notifyAutomationErrorKey)
     }
 
     // Terminal wiring used by TerminalScreen.

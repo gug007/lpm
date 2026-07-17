@@ -159,7 +159,7 @@ encrypted, so the relay sees only opaque blobs and device tokens.
 
 | Request | Reply |
 |---|---|
-| `{ "t": "apnsToken", "token": "<hex APNs device token>", "env": "production"\|"sandbox", "key": "<base64 32-byte push key>", "notify": { "waiting": bool, "done": bool, "error": bool } }` | `{ "t": "apnsToken", "ok": true }` — registers (or refreshes) this device's push identity; sent after every successful `auth`, since the token can rotate, and re-sent immediately when the user changes notification preferences. `env` is the APNs environment the build's token belongs to (debug builds → `sandbox`, TestFlight/App Store → `production`). `key` is the phone-generated AES-256 push key; the phone keeps **one** push key (Keychain, shared with the notification extension) and registers the same key with every paired Mac, so the extension never has to guess which key decrypts. `notify` selects which status kinds this device wants pushed; the desktop filters **before** sealing/sending, so a disabled kind never leaves the Mac. Omitted (older phones) → all three enabled; all-false = notifications off while staying registered. Everything persists on the device record in `remote.json` |
+| `{ "t": "apnsToken", "token": "<hex APNs device token>", "env": "production"\|"sandbox", "key": "<base64 32-byte push key>", "notify": { "waiting": bool, "done": bool, "error": bool, "automationStarted": bool, "automationDone": bool, "automationError": bool } }` | `{ "t": "apnsToken", "ok": true }` — registers (or refreshes) this device's push identity; sent after every successful `auth`, since the token can rotate, and re-sent immediately when the user changes notification preferences. `env` is the APNs environment the build's token belongs to (debug builds → `sandbox`, TestFlight/App Store → `production`). `key` is the phone-generated AES-256 push key; the phone keeps **one** push key (Keychain, shared with the notification extension) and registers the same key with every paired Mac, so the extension never has to guess which key decrypts. `notify` selects which agent and automation outcomes this device wants pushed; the desktop filters **before** sealing/sending, so a disabled kind never leaves the Mac. Missing agent fields default to enabled for older phones; missing automation fields default to disabled. All-false keeps the device registered with notifications off. Everything persists on the device record in `remote.json` |
 
 **When the desktop pushes.** On an agent status transition to `Waiting`, `Done`,
 or `Error` (the same `status-changed` signal that drives the socket push), for
@@ -167,10 +167,13 @@ every registered device that does **not** currently hold a live authed
 connection (a live socket means the app is foregrounded and already sees the
 change), filtered by that device's `notify` preferences. Transitions are deduped
 per (project, status key) so a re-reported identical status never re-notifies.
+Automation results use the same delivery path and connection exclusion. The
+`automationStarted`, `automationDone`, and `automationError` preferences cover
+found-work/pending-window, completed, and error/timed-out results respectively.
 
 **Payload encryption.** The notification plaintext is JSON:
 ```
-{ "serverId": "<uuid>", "project": "<name>", "terminal": "<tab label>", "status": "Waiting"|"Done"|"Error", "ts": <unix millis>, "key": "<status entry key>" }
+{ "serverId": "<uuid>", "project": "<name>", "terminal": "<tab label or automation id>", "status": "<agent status or automation outcome>", "ts": <unix millis>, "key": "<status entry key>" }
 ```
 (`terminal` may be empty when the pane label is unknown; `key` identifies the
 status entry so a later clear can find this notification. `serverId` is this Mac's

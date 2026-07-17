@@ -125,9 +125,14 @@ enum Wire {
     /// Register (or refresh) this device's push identity. `key` is the base64
     /// AES-256 push key shared with the notification extension.
     static func apnsToken(token: String, env: String, key: String,
-                          notifyWaiting: Bool, notifyDone: Bool, notifyError: Bool) -> String {
+                          notifyWaiting: Bool, notifyDone: Bool, notifyError: Bool,
+                          notifyAutomationStarted: Bool, notifyAutomationDone: Bool,
+                          notifyAutomationError: Bool) -> String {
         json(["t": "apnsToken", "token": token, "env": env, "key": key,
-              "notify": ["waiting": notifyWaiting, "done": notifyDone, "error": notifyError]])
+              "notify": ["waiting": notifyWaiting, "done": notifyDone, "error": notifyError,
+                         "automationStarted": notifyAutomationStarted,
+                         "automationDone": notifyAutomationDone,
+                         "automationError": notifyAutomationError]])
     }
 
     // MARK: git review

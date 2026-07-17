@@ -37,6 +37,8 @@ struct NotificationSettingsView: View {
                 Toggle("Waiting for you", isOn: $model.notifyWaiting)
                 Toggle("Finished", isOn: $model.notifyDone)
                 Toggle("Error", isOn: $model.notifyError)
+            } header: {
+                Text("Agents")
             } footer: {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Waiting for you: an agent needs your input or approval. Finished: a run wrapped up. Error: something went wrong.")
@@ -44,6 +46,18 @@ struct NotificationSettingsView: View {
                         Text("Not connected to your Mac — changes apply the next time this phone connects.")
                     }
                 }
+            }
+            .disabled(!model.notifyEnabled)
+            .opacity(model.notifyEnabled ? 1 : 0.4)
+
+            Section {
+                Toggle("Started", isOn: $model.notifyAutomationStarted)
+                Toggle("Finished", isOn: $model.notifyAutomationDone)
+                Toggle("Error or timeout", isOn: $model.notifyAutomationError)
+            } header: {
+                Text("Automations")
+            } footer: {
+                Text("Choose which automation outcomes send a notification when this app is closed.")
             }
             .disabled(!model.notifyEnabled)
             .opacity(model.notifyEnabled ? 1 : 0.4)

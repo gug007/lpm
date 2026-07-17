@@ -68,18 +68,21 @@ struct Device {
     apns_token: String,
     apns_env: String,
     push_key: String,
-    // Per-device notification prefs (from the phone's `notify` object). Absent on
-    // older records/frames, so each defaults to enabled.
+    // Per-device notification prefs (from the phone's `notify` object). Agent
+    // prefs default on for older records; automation prefs default off.
     #[serde(default = "default_true")]
     push_waiting: bool,
     #[serde(default = "default_true")]
     push_done: bool,
     #[serde(default = "default_true")]
     push_error: bool,
+    push_automation_started: bool,
+    push_automation_done: bool,
+    push_automation_error: bool,
 }
 
-// Manual Default (not derived) so `..Default::default()` agrees with serde: the
-// three prefs must start true, but a derived Default would make them false.
+// Manual Default (not derived) so `..Default::default()` agrees with serde: agent
+// prefs start true, but a derived Default would make them false.
 impl Default for Device {
     fn default() -> Self {
         Self {
@@ -93,8 +96,21 @@ impl Default for Device {
             push_waiting: true,
             push_done: true,
             push_error: true,
+            push_automation_started: false,
+            push_automation_done: false,
+            push_automation_error: false,
         }
     }
+}
+
+#[derive(Clone, Copy)]
+struct PushPreferences {
+    waiting: bool,
+    done: bool,
+    error: bool,
+    automation_started: bool,
+    automation_done: bool,
+    automation_error: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -1235,13 +1251,20 @@ fn handle_msg(
             // Per-device notification prefs: a missing `notify` object or any missing
             // field means that class stays enabled.
             let notify = v.get("notify");
-            let pref = |name: &str| {
+            let pref = |name: &str, fallback: bool| {
                 notify
                     .and_then(|n| n.get(name))
                     .and_then(|v| v.as_bool())
-                    .unwrap_or(true)
+                    .unwrap_or(fallback)
             };
-            let prefs = (pref("waiting"), pref("done"), pref("error"));
+            let prefs = PushPreferences {
+                waiting: pref("waiting", true),
+                done: pref("done", true),
+                error: pref("error", true),
+                automation_started: pref("automationStarted", false),
+                automation_done: pref("automationDone", false),
+                automation_error: pref("automationError", false),
+            };
             match validate_apns(&token, &env, &key) {
                 Ok(()) => {
                     set_apns_token(hub, device_id, &token, &env, &key, prefs);
@@ -2301,7 +2324,7 @@ fn apply_apns_token(
     token: &str,
     env: &str,
     key: &str,
-    prefs: (bool, bool, bool),
+    prefs: PushPreferences,
 ) -> bool {
     if !devices.iter().any(|d| d.id == device_id) {
         return false;
@@ -2311,7 +2334,12 @@ fn apply_apns_token(
             d.apns_token = token.to_string();
             d.apns_env = env.to_string();
             d.push_key = key.to_string();
-            (d.push_waiting, d.push_done, d.push_error) = prefs;
+            d.push_waiting = prefs.waiting;
+            d.push_done = prefs.done;
+            d.push_error = prefs.error;
+            d.push_automation_started = prefs.automation_started;
+            d.push_automation_done = prefs.automation_done;
+            d.push_automation_error = prefs.automation_error;
         } else if d.apns_token == token {
             d.apns_token.clear();
             d.apns_env.clear();
@@ -2329,7 +2357,7 @@ fn set_apns_token(
     token: &str,
     env: &str,
     key: &str,
-    prefs: (bool, bool, bool),
+    prefs: PushPreferences,
 ) -> bool {
     let mut cfg = hub.inner.config.lock().unwrap();
     if !apply_apns_token(&mut cfg.devices, device_id, token, env, key, prefs) {
@@ -2426,6 +2454,9 @@ struct PushDevice {
     push_waiting: bool,
     push_done: bool,
     push_error: bool,
+    push_automation_started: bool,
+    push_automation_done: bool,
+    push_automation_error: bool,
 }
 
 impl PushDevice {
@@ -2437,6 +2468,24 @@ impl PushDevice {
             STATUS_ERROR => self.push_error,
             _ => false,
         }
+    }
+
+    fn wants_automation(&self, result: &str) -> bool {
+        match result {
+            "found-work" | "pending-window" => self.push_automation_started,
+            "completed" => self.push_automation_done,
+            "error" | "timed-out" => self.push_automation_error,
+            _ => false,
+        }
+    }
+
+    fn wants_any_alert(&self) -> bool {
+        self.push_waiting
+            || self.push_done
+            || self.push_error
+            || self.push_automation_started
+            || self.push_automation_done
+            || self.push_automation_error
     }
 }
 
@@ -2493,21 +2542,20 @@ fn make_push_device(d: &Device) -> Option<PushDevice> {
         push_waiting: d.push_waiting,
         push_done: d.push_done,
         push_error: d.push_error,
+        push_automation_started: d.push_automation_started,
+        push_automation_done: d.push_automation_done,
+        push_automation_error: d.push_automation_error,
     })
 }
 
-/// Devices to alert on a new/changed status: a registered token, not currently
-/// connected, opted in to at least one status kind, and a valid push key. The
-/// per-status filter is applied later via `PushDevice::wants`.
+/// Devices eligible for alerts: a registered token, not currently connected,
+/// opted in to at least one alert kind, and a valid push key.
 fn alert_recipients(devices: &[Device], connected: &HashSet<String>) -> Vec<PushDevice> {
     devices
         .iter()
-        .filter(|d| {
-            !d.apns_token.is_empty()
-                && !connected.contains(&d.id)
-                && (d.push_waiting || d.push_done || d.push_error)
-        })
+        .filter(|d| !d.apns_token.is_empty() && !connected.contains(&d.id))
         .filter_map(make_push_device)
+        .filter(PushDevice::wants_any_alert)
         .collect()
 }
 
@@ -2584,6 +2632,9 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
     let server_id = cfg.server_id.clone().unwrap_or_default();
     let recipients: Vec<PushDevice> = if want_alert {
         alert_recipients(&cfg.devices, &connected)
+            .into_iter()
+            .filter(|device| deltas.iter().any(|(_, value, _)| device.wants(value)))
+            .collect()
     } else {
         Vec::new()
     };
@@ -2664,42 +2715,43 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
     });
 }
 
-/// Push an APNs alert when a scheduled job found work but the app window was
-/// closed, so the user knows to open lpm and start it. Reuses the agent-status
-/// push path: same seal + relay, gated on the remote server being enabled and
-/// running, sent to every registered device opted in to at least one push kind
-/// and not holding a live socket. The full message rides in the `status` field —
-/// the phone renders any non-Waiting/Done/Error value verbatim — so no phone
-/// change is needed. Network work runs on a spawned thread so the calling job
-/// worker never blocks.
-pub fn push_job_found_work(app: &AppHandle, project: &str, job_id: &str) {
-    let Some(hub) = app.try_state::<RemoteHub>() else {
-        return;
-    };
+fn push_automation_notification(hub: &RemoteHub, project: &str, job_id: &str, result: &str) {
     if !hub.inner.enabled.load(Ordering::Relaxed) || !hub.inner.running.load(Ordering::Relaxed) {
         return;
     }
-    if project.is_empty() {
+    if project.is_empty() || job_id.is_empty() {
         return;
     }
+
+    let status = match result {
+        "found-work" => "Automation started",
+        "pending-window" => "Automation found work — open lpm to start it",
+        "completed" => "Automation finished",
+        "error" => "Automation failed",
+        "timed-out" => "Automation timed out",
+        _ => return,
+    };
 
     let connected: HashSet<String> =
         hub.inner.clients.lock().unwrap().values().map(|c| c.device_id.clone()).collect();
     let cfg = load_config();
     let relay = cfg.effective_relay();
     let server_id = cfg.server_id.clone().unwrap_or_default();
-    let recipients = alert_recipients(&cfg.devices, &connected);
+    let recipients: Vec<PushDevice> = alert_recipients(&cfg.devices, &connected)
+        .into_iter()
+        .filter(|device| device.wants_automation(result))
+        .collect();
     if recipients.is_empty() {
         return;
     }
 
-    let key = format!("job:{job_id}");
+    let key = format!("automation:{job_id}");
     let collapse_id = push_collapse_id(&server_id, project, &key);
     let plaintext = json!({
         "serverId": server_id,
         "project": project,
-        "terminal": "",
-        "status": "Scheduled job found work — open lpm to start it.",
+        "terminal": job_id,
+        "status": status,
         "ts": crate::status::now_millis(),
         "key": key,
     })
@@ -2777,8 +2829,15 @@ fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {
         push_notifications(&h, &a, &project);
     });
     let h = hub.clone();
-    app.listen("job-status", move |_| {
+    app.listen("job-status", move |event| {
         broadcast(&h, json!({ "t": "jobs-changed" }));
+        let Ok(payload) = serde_json::from_str::<Value>(event.payload()) else {
+            return;
+        };
+        let project = payload.get("project").and_then(Value::as_str).unwrap_or_default();
+        let job_id = payload.get("jobId").and_then(Value::as_str).unwrap_or_default();
+        let result = payload.get("result").and_then(Value::as_str).unwrap_or_default();
+        push_automation_notification(&h, project, job_id, result);
     });
 }
 
@@ -3144,13 +3203,29 @@ mod tests {
         ];
 
         let key = b64([9u8; 32]);
-        assert!(apply_apns_token(&mut devices, "new", "deadbeef", "sandbox", &key, (true, false, true)));
+        let prefs = PushPreferences {
+            waiting: true,
+            done: false,
+            error: true,
+            automation_started: true,
+            automation_done: false,
+            automation_error: true,
+        };
+        assert!(apply_apns_token(&mut devices, "new", "deadbeef", "sandbox", &key, prefs));
 
         let new = devices.iter().find(|d| d.id == "new").unwrap();
         assert_eq!(new.apns_token, "deadbeef");
         assert_eq!(new.apns_env, "sandbox");
         assert_eq!(new.push_key, key);
         assert_eq!((new.push_waiting, new.push_done, new.push_error), (true, false, true));
+        assert_eq!(
+            (
+                new.push_automation_started,
+                new.push_automation_done,
+                new.push_automation_error,
+            ),
+            (true, false, true)
+        );
 
         // The stale record survives but loses its push identity, so it stops pushing.
         let old = devices.iter().find(|d| d.id == "old").unwrap();
@@ -3168,7 +3243,7 @@ mod tests {
 
         // An unknown device id reports not-paired and mutates nothing — not even
         // other records holding the same token.
-        assert!(!apply_apns_token(&mut devices, "ghost", "deadbeef", "sandbox", &key, (true, true, true)));
+        assert!(!apply_apns_token(&mut devices, "ghost", "deadbeef", "sandbox", &key, prefs));
         let new = devices.iter().find(|d| d.id == "new").unwrap();
         assert_eq!(new.apns_token, "deadbeef");
         assert_eq!((new.push_waiting, new.push_done, new.push_error), (true, false, true));
@@ -3188,6 +3263,8 @@ mod tests {
             ..Default::default()
         };
 
+        let mut automation = dev("automation", "ee", b64([6u8; 32]), (false, false, false));
+        automation.push_automation_done = true;
         let devices = vec![
             // Opted in with a valid key: an alert recipient and a clear recipient.
             dev("opted", "aa", b64([1u8; 32]), (true, false, false)),
@@ -3204,20 +3281,26 @@ mod tests {
                 base64::engine::general_purpose::STANDARD.encode([5u8; 16]),
                 (true, true, true),
             ),
+            automation,
         ];
 
         let connected: HashSet<String> = ["connected".to_string()].into_iter().collect();
 
         let alert_ids: Vec<String> =
             alert_recipients(&devices, &connected).into_iter().map(|d| d.id).collect();
-        assert_eq!(alert_ids, vec!["opted".to_string()]);
+        assert_eq!(alert_ids, vec!["opted".to_string(), "automation".to_string()]);
 
         let mut clear_ids: Vec<String> =
             clear_recipients(&devices).into_iter().map(|d| d.id).collect();
         clear_ids.sort();
         assert_eq!(
             clear_ids,
-            vec!["connected".to_string(), "muted".to_string(), "opted".to_string()]
+            vec![
+                "automation".to_string(),
+                "connected".to_string(),
+                "muted".to_string(),
+                "opted".to_string(),
+            ]
         );
     }
 
@@ -3242,6 +3325,9 @@ mod tests {
                 push_waiting: true,
                 push_done: false,
                 push_error: true,
+                push_automation_started: false,
+                push_automation_done: true,
+                push_automation_error: false,
             }],
         };
         let s = serde_json::to_string(&cfg).unwrap();
@@ -3262,6 +3348,9 @@ mod tests {
         assert!(back.devices[0].push_waiting);
         assert!(!back.devices[0].push_done);
         assert!(back.devices[0].push_error);
+        assert!(!back.devices[0].push_automation_started);
+        assert!(back.devices[0].push_automation_done);
+        assert!(!back.devices[0].push_automation_error);
     }
 
     // Old remote.json (written before push support) has neither the device push
@@ -3287,6 +3376,9 @@ mod tests {
         assert!(cfg.devices[0].push_waiting);
         assert!(cfg.devices[0].push_done);
         assert!(cfg.devices[0].push_error);
+        assert!(!cfg.devices[0].push_automation_started);
+        assert!(!cfg.devices[0].push_automation_done);
+        assert!(!cfg.devices[0].push_automation_error);
     }
 
     #[test]
@@ -3421,6 +3513,9 @@ mod tests {
             push_waiting: w,
             push_done: d,
             push_error: e,
+            push_automation_started: false,
+            push_automation_done: false,
+            push_automation_error: false,
         };
         let jobs = [STATUS_WAITING, STATUS_DONE, STATUS_ERROR];
 
@@ -3437,5 +3532,28 @@ mod tests {
         // All disabled -> nothing survives (such a device is dropped upstream).
         let none = dev(false, false, false);
         assert!(!jobs.iter().any(|s| none.wants(s)));
+    }
+
+    #[test]
+    fn push_device_wants_automation_filters_by_prefs() {
+        let dev = PushDevice {
+            id: "d".into(),
+            token: "t".into(),
+            env: "sandbox".into(),
+            key: [0u8; 32],
+            push_waiting: false,
+            push_done: false,
+            push_error: false,
+            push_automation_started: true,
+            push_automation_done: false,
+            push_automation_error: true,
+        };
+
+        assert!(dev.wants_automation("found-work"));
+        assert!(dev.wants_automation("pending-window"));
+        assert!(!dev.wants_automation("completed"));
+        assert!(dev.wants_automation("error"));
+        assert!(dev.wants_automation("timed-out"));
+        assert!(!dev.wants_automation("running"));
     }
 }

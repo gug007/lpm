@@ -1620,9 +1620,6 @@ fn run_pipeline(app: &AppHandle, project: &str, job: &JobResolved) {
         }
     });
     emit_status(app, project, &job.id, outcome.result, &outcome.copy);
-    if outcome.result == PENDING_WINDOW {
-        crate::remote::push_job_found_work(app, project, &job.id);
-    }
 }
 
 fn spawn_pipeline(app: &AppHandle, project: &str, job: JobResolved) {
