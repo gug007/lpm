@@ -118,7 +118,7 @@ export function SidebarFooterMore({ showScheduled, onScheduled, onFeedback }: Si
           </button>
           <button onClick={pick(onFeedback)} className={itemClass(false)}>
             <MessageIcon />
-            Send feedback
+            Help Improve lpm
           </button>
         </div>
       )}

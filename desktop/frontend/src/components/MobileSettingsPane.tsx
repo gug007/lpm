@@ -7,7 +7,9 @@ import {
   RemoteStartPairing,
   RemoteRevokeDevice,
 } from "../../bridge/commands";
-import { EventsOn } from "../../bridge/runtime";
+import { EventsOn, BrowserOpenURL } from "../../bridge/runtime";
+
+const APP_STORE_URL = "https://apps.apple.com/app/lpm-link/id6788396977";
 
 interface Device {
   id: string;
@@ -192,11 +194,17 @@ export function MobileSettingsPane() {
         style={{ backgroundColor: "color-mix(in srgb, var(--accent-green) 8%, transparent)" }}
       >
         <span className="mt-px shrink-0 text-[10px] font-semibold uppercase tracking-wide text-[var(--accent-green-text)]">
-          Private beta
+          App Store
         </span>
         <p className="text-[12px] leading-relaxed text-[var(--text-muted)]">
-          The lpm mobile app is in a private beta with a small group of testers. A wider release is
-          coming soon.
+          lpm Link is available on the App Store. Install it on your iPhone or iPad, then pair it
+          below.{" "}
+          <button
+            onClick={() => BrowserOpenURL(APP_STORE_URL)}
+            className="font-medium text-[var(--accent-green-text)] hover:underline"
+          >
+            View on the App Store
+          </button>
         </p>
       </div>
 

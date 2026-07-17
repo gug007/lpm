@@ -2,7 +2,7 @@
 //
 // Built with Tauri's cross-platform menu API (no objc2). The first submenu
 // becomes the macOS app menu: the standard About (with version/copyright),
-// Settings (Cmd+,), Send Feedback, Check for Updates, then Services/Hide/Quit.
+// Settings (Cmd+,), Help Improve lpm, Check for Updates, then Services/Hide/Quit.
 // Edit + Window submenus give copy/paste and window management. Menu clicks
 // show the main window and emit the events the frontend already listens for
 // (menu-open-settings / menu-open-feedback). Dock menu + traffic-light
@@ -26,7 +26,7 @@ pub fn build_and_set(app: &AppHandle) -> tauri::Result<()> {
     let settings = MenuItemBuilder::with_id(ID_SETTINGS, "Settings…")
         .accelerator("CmdOrCtrl+,")
         .build(app)?;
-    let feedback = MenuItemBuilder::with_id(ID_FEEDBACK, "Send Feedback…").build(app)?;
+    let feedback = MenuItemBuilder::with_id(ID_FEEDBACK, "Help Improve lpm…").build(app)?;
     let check_updates = MenuItemBuilder::with_id(ID_CHECK_UPDATES, "Check for Updates…").build(app)?;
 
     let app_menu = SubmenuBuilder::new(app, "lpm")
