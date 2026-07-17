@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuSubmenu } from "./ui/ContextMenuSubmenu";
+import { Tooltip } from "./ui/Tooltip";
 import {
   BranchIcon,
   CopyIcon,
@@ -179,13 +180,14 @@ function GitSubmenuItems({
       />
       <ContextMenuItem label="Create PR…" icon={<PRIcon />} onClick={close(onCreatePR)} />
       <ContextMenuSeparator />
-      <ContextMenuItem
-        label="Copy branch name"
-        icon={<CopyIcon />}
-        onClick={copyBranch}
-        disabled={!status.branch}
-        title={status.branch || undefined}
-      />
+      <Tooltip content={status.branch || "Detached HEAD"} align="start" triggerClassName="flex w-full">
+        <ContextMenuItem
+          label="Copy branch name"
+          icon={<CopyIcon />}
+          onClick={copyBranch}
+          disabled={!status.branch}
+        />
+      </Tooltip>
       <ContextMenuItem
         destructive
         label="Discard all changes…"
