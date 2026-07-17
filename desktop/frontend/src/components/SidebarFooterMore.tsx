@@ -101,7 +101,7 @@ export function SidebarFooterMore({ showScheduled, onScheduled, onFeedback }: Si
         )}
       </button>
       {open && (
-        <div className={`absolute bottom-full right-0 z-[80] mb-1.5 w-40 px-1 ${MENU_PANEL_CLASS}`}>
+        <div className={`absolute bottom-full right-0 z-[80] mb-1.5 w-48 px-1 ${MENU_PANEL_CLASS}`}>
           <button onClick={pick(onScheduled)} className={itemClass(showScheduled)}>
             <Workflow className="shrink-0" size={16} strokeWidth={2} />
             Automations

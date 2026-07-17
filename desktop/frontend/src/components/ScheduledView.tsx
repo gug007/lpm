@@ -209,7 +209,7 @@ export function ScheduledView() {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex items-center gap-3 pt-6">
         <h1 className="flex-1 text-lg font-semibold tracking-tight">
-          Scheduled
+          Automations
         </h1>
         <button
           type="button"
