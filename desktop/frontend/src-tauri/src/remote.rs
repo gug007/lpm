@@ -1688,6 +1688,11 @@ fn handle_msg(
         "runAction" => {
             let project = str_field("project").unwrap_or_default();
             let action = str_field("action").unwrap_or_default();
+            // The phone owns the confirm + inputs gauntlet now, so it relays the
+            // collected input values and `confirmed:true` to tell the owner window
+            // to run the action directly rather than re-prompting on the Mac.
+            let confirmed = v.get("confirmed").and_then(Value::as_bool).unwrap_or(false);
+            let input_values = v.get("inputValues").cloned().unwrap_or_else(|| json!({}));
             if app.get_webview_window("main").is_none() {
                 send(
                     ws,
@@ -1696,10 +1701,90 @@ fn handle_msg(
                 )?;
             } else {
                 if !project.is_empty() && !action.is_empty() {
-                    queue_run_action(hub, app, json!({ "project": project, "action": action }));
+                    queue_run_action(
+                        hub,
+                        app,
+                        json!({ "project": project, "action": action,
+                            "inputValues": input_values, "confirmed": confirmed }),
+                    );
                 }
                 send(ws, json!({ "t": "runAction", "ok": true }))?;
             }
+        }
+        // Run a non-terminal action headlessly, driven entirely from Rust so it works
+        // even with the Mac's main window closed. The run streams into the background
+        // registry; the phone polls `actionBgOutput` for its output + status. The
+        // caller-supplied `runId` keys the run for polling and cancellation.
+        "runActionBackground" => {
+            let project = str_field("project").unwrap_or_default();
+            let action = str_field("action").unwrap_or_default();
+            let run_id = str_field("runId").unwrap_or_default();
+            let input_values: HashMap<String, String> = v
+                .get("inputValues")
+                .and_then(Value::as_object)
+                .map(|m| {
+                    m.iter()
+                        .filter_map(|(k, val)| val.as_str().map(|s| (k.clone(), s.to_string())))
+                        .collect()
+                })
+                .unwrap_or_default();
+            if project.is_empty() || action.is_empty() || run_id.is_empty() {
+                send(
+                    ws,
+                    json!({ "t": "runActionBackground", "ok": false, "runId": run_id,
+                    "error": "Missing project, action, or runId." }),
+                )?;
+            } else {
+                let app2 = app.clone();
+                std::thread::spawn(move || {
+                    let _ = crate::actions::run_action_background(
+                        app2,
+                        project,
+                        action,
+                        input_values,
+                        run_id,
+                    );
+                });
+                send(ws, json!({ "t": "runActionBackground", "ok": true }))?;
+            }
+        }
+        // Poll one background run's accumulated output + terminal status. `found` is
+        // false once the run has been reaped (or never existed).
+        "actionBgOutput" => {
+            let run_id = str_field("runId").unwrap_or_default();
+            let reply = match crate::actions::background_run_output(&run_id) {
+                Some(s) => json!({ "t": "actionBgOutput", "ok": true, "found": true,
+                    "runId": s.run_id, "project": s.project, "label": s.label,
+                    "startedAt": s.started_at, "text": s.text, "running": s.running,
+                    "success": s.success, "error": s.error }),
+                None => {
+                    json!({ "t": "actionBgOutput", "ok": true, "found": false, "runId": run_id })
+                }
+            };
+            send(ws, reply)?;
+        }
+        // Cancel a running background action (reaps its process tree). A no-op if the
+        // run already finished or is unknown.
+        "cancelActionBackground" => {
+            let run_id = str_field("runId").unwrap_or_default();
+            let _ = crate::actions::cancel_action_background(run_id.clone());
+            send(ws, json!({ "t": "cancelActionBackground", "ok": true, "runId": run_id }))?;
+        }
+        // List a project's background runs (running + recently finished) so a
+        // reconnecting phone can re-attach to a run it started before relaunch.
+        "backgroundRuns" => {
+            let project = str_field("project").unwrap_or_default();
+            let runs: Vec<Value> = crate::actions::list_background_runs(&project)
+                .into_iter()
+                .map(|s| {
+                    json!({ "runId": s.run_id, "label": s.label, "startedAt": s.started_at,
+                        "running": s.running, "success": s.success, "error": s.error })
+                })
+                .collect();
+            send(
+                ws,
+                json!({ "t": "backgroundRuns", "ok": true, "project": project, "runs": runs }),
+            )?;
         }
         "newTerminal" => {
             let project = str_field("project").unwrap_or_default();

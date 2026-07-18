@@ -68,10 +68,15 @@ export function useAppEvents(): void {
     // Each request activates the target project and parks for its ProjectDetail
     // to execute (only the mounted view owns the terminal tree).
     const drainRemoteActions = async () => {
-      const pending: Array<{ project?: string; action?: string | null }> =
-        (await RemoteTakeRunActions().catch(() => [])) ?? [];
+      const pending: Array<{
+        project?: string;
+        action?: string | null;
+        inputValues?: Record<string, string>;
+        confirmed?: boolean;
+      }> = (await RemoteTakeRunActions().catch(() => [])) ?? [];
       for (const req of pending) {
-        if (req?.project) triggerRemoteAction(req.project, req.action ?? null);
+        if (req?.project)
+          triggerRemoteAction(req.project, req.action ?? null, req.inputValues, req.confirmed);
       }
     };
     const cancelRemoteAction = EventsOn("remote-run-action", () => {

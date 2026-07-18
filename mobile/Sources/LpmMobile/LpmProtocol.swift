@@ -71,8 +71,24 @@ enum Wire {
     static func resize(id: String, cols: Int, rows: Int) -> String {
         json(["t": "resize", "id": id, "cols": cols, "rows": rows])
     }
-    static func runAction(project: String, action: String) -> String {
-        json(["t": "runAction", "project": project, "action": action])
+    static func runAction(project: String, action: String,
+                          inputValues: [String: String] = [:], confirmed: Bool = false) -> String {
+        json(["t": "runAction", "project": project, "action": action,
+              "inputValues": inputValues, "confirmed": confirmed])
+    }
+    static func runActionBackground(project: String, action: String,
+                                    inputValues: [String: String], runId: String) -> String {
+        json(["t": "runActionBackground", "project": project, "action": action,
+              "inputValues": inputValues, "runId": runId])
+    }
+    static func actionBgOutput(project: String, runId: String) -> String {
+        json(["t": "actionBgOutput", "project": project, "runId": runId])
+    }
+    static func cancelActionBackground(runId: String) -> String {
+        json(["t": "cancelActionBackground", "runId": runId])
+    }
+    static func backgroundRuns(project: String) -> String {
+        json(["t": "backgroundRuns", "project": project])
     }
     static func newTerminal(project: String) -> String {
         json(["t": "newTerminal", "project": project])
@@ -305,6 +321,13 @@ enum Wire {
         case transformDone(reqId: String, ok: Bool)
         case services(project: String, running: Bool, services: [ServiceInfo], error: String?)
         case serviceLogs(project: String, paneIndex: Int, text: String?, error: String?)
+        // A polled background-action snapshot; `snapshot` is nil once the run has
+        // been reaped on the Mac (or never existed).
+        case actionBgOutput(runId: String, snapshot: ActionBgOutput?)
+        // A background run the Mac refused to start (bad request).
+        case actionBgStartFailed(runId: String, error: String)
+        // The project's background runs, for re-attaching after a reconnect.
+        case backgroundRuns(project: String, runs: [BackgroundRunSummary])
         case historyQuery(items: [HistoryItem], hasMore: Bool)
         case historySaveDraft(ok: Bool)
         case historyToggleFavorite(id: String, favorite: Bool, error: String?)
@@ -509,6 +532,17 @@ enum Wire {
                                     paneIndex: obj["paneIndex"] as? Int ?? 0,
                                     text: ok ? (obj["text"] as? String ?? "") : nil,
                                     error: ok ? nil : (obj["error"] as? String ?? "Couldn't read the logs."))
+            case "actionBgOutput":
+                let found = obj["found"] as? Bool ?? false
+                return .actionBgOutput(runId: obj["runId"] as? String ?? "",
+                                       snapshot: found ? ActionBgOutput(obj) : nil)
+            case "runActionBackground":
+                if obj["ok"] as? Bool ?? true { return .unknown }
+                return .actionBgStartFailed(runId: obj["runId"] as? String ?? "",
+                                            error: obj["error"] as? String ?? "Couldn't start the action.")
+            case "backgroundRuns":
+                return .backgroundRuns(project: obj["project"] as? String ?? "",
+                                       runs: (obj["runs"] as? [[String: Any]] ?? []).map(BackgroundRunSummary.init))
             case "historyQuery":
                 return .historyQuery(items: (obj["items"] as? [[String: Any]] ?? []).map(HistoryItem.init),
                                      hasMore: obj["hasMore"] as? Bool ?? false)
@@ -710,6 +744,10 @@ struct Action: Identifiable {
     let emoji: String
     let type: String   // terminal | command | background | ""
     let display: String
+    // Show a confirmation before running (destructive/irreversible commands).
+    let confirm: Bool
+    // User-supplied values substituted into the command as {{key}} before running.
+    let inputs: [ActionInput]
     let children: [Action]
 
     var id: String { name }
@@ -722,12 +760,111 @@ struct Action: Identifiable {
         emoji = o["emoji"] as? String ?? ""
         type = o["type"] as? String ?? ""
         display = o["display"] as? String ?? ""
+        confirm = o["confirm"] as? Bool ?? false
+        inputs = (o["inputs"] as? [[String: Any]] ?? []).map(ActionInput.init)
         children = (o["children"] as? [[String: Any]] ?? []).map(Action.init)
     }
 
     /// All runnable leaves under this action, depth-first (self if it's a leaf).
     var runnableLeaves: [Action] {
         isRunnable ? [self] : children.flatMap { $0.runnableLeaves }
+    }
+
+    /// Non-terminal actions (background or the default headless type) run on the Mac
+    /// and stream their logs back for the phone to poll; terminal/command actions
+    /// relay to the Mac's terminal flow.
+    var runsInBackground: Bool { type != "terminal" && type != "command" }
+}
+
+/// One declared input for an action (mirrors the Rust ActionInputInfo). `key` names
+/// the `{{key}}` token substituted into the command.
+struct ActionInput: Identifiable {
+    let key: String
+    let label: String
+    let type: String   // "" (text) | "select"
+    let required: Bool
+    let placeholder: String
+    let defaultValue: String
+    let options: [ActionInputOption]
+
+    var id: String { key }
+    var isSelect: Bool { type == "select" && !options.isEmpty }
+
+    init(_ o: [String: Any]) {
+        key = o["key"] as? String ?? ""
+        let lbl = o["label"] as? String ?? ""
+        label = lbl.isEmpty ? key : lbl
+        type = o["type"] as? String ?? ""
+        required = o["required"] as? Bool ?? false
+        placeholder = o["placeholder"] as? String ?? ""
+        defaultValue = o["default"] as? String ?? ""
+        options = (o["options"] as? [[String: Any]] ?? []).map(ActionInputOption.init)
+    }
+}
+
+struct ActionInputOption: Identifiable {
+    let label: String
+    let value: String
+    var id: String { value }
+    init(_ o: [String: Any]) {
+        value = o["value"] as? String ?? ""
+        let lbl = o["label"] as? String ?? ""
+        label = lbl.isEmpty ? value : lbl
+    }
+}
+
+/// A background action run's live output + terminal status, polled from the Mac
+/// (mirrors the Rust BgRunSnapshot).
+struct ActionBgOutput {
+    let runId: String
+    let project: String
+    let label: String
+    let startedAt: Int
+    let text: String
+    let running: Bool
+    let success: Bool
+    let error: String
+
+    init?(_ o: [String: Any]?) {
+        guard let o else { return nil }
+        runId = o["runId"] as? String ?? ""
+        project = o["project"] as? String ?? ""
+        label = o["label"] as? String ?? ""
+        startedAt = o["startedAt"] as? Int ?? 0
+        text = o["text"] as? String ?? ""
+        running = o["running"] as? Bool ?? false
+        success = o["success"] as? Bool ?? false
+        error = o["error"] as? String ?? ""
+    }
+}
+
+/// What the phone knows about a background run at start time (before its first
+/// poll returns), so the run is listable/openable immediately.
+struct BackgroundRunInfo: Identifiable {
+    let runId: String
+    let project: String
+    let label: String
+    let startedAt: Int
+    var id: String { runId }
+}
+
+/// A background run summary from the `backgroundRuns` list (for reconnect re-attach).
+struct BackgroundRunSummary: Identifiable {
+    let runId: String
+    let label: String
+    let startedAt: Int
+    let running: Bool
+    let success: Bool
+    let error: String
+
+    var id: String { runId }
+    init(_ o: [String: Any]) {
+        runId = o["runId"] as? String ?? ""
+        label = o["label"] as? String ?? ""
+        startedAt = o["startedAt"] as? Int ?? 0
+        running = o["running"] as? Bool ?? false
+        success = o["success"] as? Bool ?? false
+        error = o["error"] as? String ?? ""
     }
 }
 

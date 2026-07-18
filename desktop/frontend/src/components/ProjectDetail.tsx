@@ -224,12 +224,13 @@ export function ProjectDetail({
       return;
     }
     remoteActionConsumed.current = pendingRemoteAction.nonce;
-    const { action } = pendingRemoteAction;
+    const { action, inputValues, confirmed } = pendingRemoteAction;
     clearPendingRemoteAction();
     switchDetailView("terminal");
     if (action) {
       const found = resolveRunnableAction(project.actions ?? [], action);
-      if (found) handleRunAction(found);
+      if (found)
+        handleRunAction(found, { inputValues: inputValues ?? {}, skipPrompts: confirmed ?? false });
       else
         toast.error(
           `Couldn't run "${action}" in ${project.name} — no matching action.`,

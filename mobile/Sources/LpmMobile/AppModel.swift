@@ -63,6 +63,14 @@ final class AppModel: ObservableObject {
     @Published var serviceLogsResult: [String: String] = [:]
     @Published var serviceLogsError: [String: String] = [:]
 
+    // Headless background action runs the phone started (or re-attached to), keyed
+    // by runId. `backgroundRuns` holds the latest polled snapshot; `backgroundRunInfo`
+    // carries project/label/startedAt known at start time so a run shows before its
+    // first poll; `backgroundRunErrors` records a rejected start.
+    @Published var backgroundRuns: [String: ActionBgOutput] = [:]
+    @Published var backgroundRunInfo: [String: BackgroundRunInfo] = [:]
+    @Published var backgroundRunErrors: [String: String] = [:]
+
     // Rich history screen (historyQuery). The reply carries no echo of its params,
     // so a per-request generation queue (below) records whether each reply should
     // replace (first page) or append (next page), and drops superseded replies.
@@ -559,6 +567,9 @@ final class AppModel: ObservableObject {
         servicesRunning = [:]
         serviceLogsResult = [:]
         serviceLogsError = [:]
+        backgroundRuns = [:]
+        backgroundRunInfo = [:]
+        backgroundRunErrors = [:]
         historyItems = []
         historyHasMore = false
         historyLoading = false
@@ -856,10 +867,42 @@ final class AppModel: ObservableObject {
         try? await Task.sleep(nanoseconds: 500_000_000)
     }
 
-    func runAction(_ project: String, action: String) {
-        client?.runAction(project: project, action: action)
+    func runAction(_ project: String, action: String,
+                   inputValues: [String: String] = [:], confirmed: Bool = false) {
+        client?.runAction(project: project, action: action, inputValues: inputValues, confirmed: confirmed)
         markTerminalCreating(project)
         reloadTerminalsSoon(project)
+    }
+
+    /// Start a non-terminal action headlessly on the Mac and return its runId. The
+    /// run streams into the Mac's background registry; poll `loadBackgroundRunOutput`
+    /// for its live output + status.
+    func startBackgroundAction(project: String, action: String, label: String,
+                               inputValues: [String: String]) -> String {
+        let runId = UUID().uuidString
+        backgroundRunInfo[runId] = BackgroundRunInfo(
+            runId: runId, project: project, label: label,
+            startedAt: Int(Date().timeIntervalSince1970))
+        backgroundRunErrors[runId] = nil
+        client?.runActionBackground(project: project, action: action,
+                                    inputValues: inputValues, runId: runId)
+        return runId
+    }
+    func loadBackgroundRunOutput(project: String, runId: String) {
+        client?.requestActionBgOutput(project: project, runId: runId)
+    }
+    func cancelBackgroundRun(_ runId: String) {
+        client?.cancelActionBackground(runId: runId)
+    }
+    func loadBackgroundRuns(_ project: String) {
+        client?.requestBackgroundRuns(project: project)
+    }
+    /// Background runs for a project, newest first — its own started runs plus any
+    /// re-attached via `backgroundRuns` discovery.
+    func backgroundRunList(for project: String) -> [BackgroundRunInfo] {
+        backgroundRunInfo.values
+            .filter { $0.project == project }
+            .sorted { $0.startedAt > $1.startedAt }
     }
     func newTerminal(_ project: String) {
         client?.newTerminal(project: project)
@@ -1779,6 +1822,26 @@ final class AppModel: ObservableObject {
             let key = self.serviceLogsKey(project, pane)
             if let text { self.serviceLogsResult[key] = text; self.serviceLogsError[key] = nil }
             else { self.serviceLogsError[key] = error ?? "Couldn't read the logs." }
+        }
+        c.onActionBgOutput = { [weak self] runId, snapshot in
+            guard let self else { return }
+            guard let snapshot else { return } // reaped — keep the last known snapshot
+            self.backgroundRuns[runId] = snapshot
+            if self.backgroundRunInfo[runId] == nil {
+                self.backgroundRunInfo[runId] = BackgroundRunInfo(
+                    runId: runId, project: snapshot.project, label: snapshot.label,
+                    startedAt: snapshot.startedAt)
+            }
+        }
+        c.onActionBgStartFailed = { [weak self] runId, error in
+            self?.backgroundRunErrors[runId] = error
+        }
+        c.onBackgroundRuns = { [weak self] project, runs in
+            guard let self else { return }
+            for r in runs where self.backgroundRunInfo[r.runId] == nil {
+                self.backgroundRunInfo[r.runId] = BackgroundRunInfo(
+                    runId: r.runId, project: project, label: r.label, startedAt: r.startedAt)
+            }
         }
         c.onHistoryQuery = { [weak self] items, hasMore in
             guard let self, !self.historyPending.isEmpty else { return }

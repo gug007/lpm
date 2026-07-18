@@ -15,6 +15,11 @@ struct ProjectDetail: View {
     @State private var showBranchSheet = false
     @State private var showPrSheet = false
     @State private var confirmingDiscard = false
+    // Action run flow: collect inputs (if any) → confirm (if flagged) → dispatch.
+    @State private var runInputsFor: Action?
+    @State private var runConfirmFor: Action?
+    @State private var pendingInputValues: [String: String] = [:]
+    @State private var activeBgRun: BackgroundRunInfo?
 
     // Current project object (fresh status/actions) from the store; falls back to
     // the one we were pushed with.
@@ -24,6 +29,7 @@ struct ProjectDetail: View {
     private var terminalsLoaded: Bool { model.terminals[project.name] != nil }
     private var creating: Bool { model.creatingTerminals.contains(project.name) }
     private var actions: [Action] { live.actions.flatMap { $0.runnableLeaves } }
+    private var bgRuns: [BackgroundRunInfo] { model.backgroundRunList(for: project.name) }
     // Changed-file count for the Review Changes menu item; nil until the snapshot
     // loads (or when the project isn't a git repo).
     private var changedCount: Int? {
@@ -80,6 +86,20 @@ struct ProjectDetail: View {
                     }
                 } header: {
                     TabsSectionHeader(count: terminals.count)
+                }
+            }
+
+            if !bgRuns.isEmpty {
+                Section {
+                    ForEach(bgRuns) { run in
+                        BackgroundRunRow(run: run, snapshot: model.backgroundRuns[run.runId],
+                                         startError: model.backgroundRunErrors[run.runId])
+                            .terminalRowChrome()
+                            .contentShape(Rectangle())
+                            .onTapGesture { activeBgRun = run }
+                    }
+                } header: {
+                    Text("Background runs")
                 }
             }
         }
@@ -147,6 +167,23 @@ struct ProjectDetail: View {
                 renaming = nil
             }
         }
+        .sheet(item: $runInputsFor) { action in
+            ActionInputsSheet(action: action) { values in afterInputs(action, values) }
+        }
+        .sheet(item: $activeBgRun) { run in
+            BackgroundRunSheet(run: run).environmentObject(model)
+        }
+        .alert(
+            runConfirmFor.map { "Run \($0.label)?" } ?? "Run action?",
+            isPresented: Binding(
+                get: { runConfirmFor != nil },
+                set: { if !$0 { runConfirmFor = nil; pendingInputValues = [:] } }
+            ),
+            presenting: runConfirmFor
+        ) { action in
+            Button("Run") { runConfirmed(action) }
+            Button("Cancel", role: .cancel) {}
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 ProjectRunControl(project: live,
@@ -156,7 +193,7 @@ struct ProjectDetail: View {
                                   onStart: { profile in model.startProject(live, profile: profile) },
                                   onStop: { model.stopProject(live) },
                                   onToggleService: { model.toggleService(live.name, service: $0) },
-                                  onRunAction: { model.runAction(live.name, action: $0) },
+                                  onRunAction: { beginRun($0) },
                                   onReviewChanges: { showChanges = true },
                                   onSwitchBranch: { showBranchSheet = true },
                                   onCreatePr: { showPrSheet = true },
@@ -175,6 +212,50 @@ struct ProjectDetail: View {
         .onAppear {
             model.loadTerminals(project.name)
             model.loadGit(project.name)
+            model.loadBackgroundRuns(project.name)
+        }
+        // Keep the background-runs section fresh while it's on screen: poll any run
+        // still marked running (or not yet polled) every 3s.
+        .task {
+            while !Task.isCancelled {
+                for run in model.backgroundRunList(for: project.name)
+                where model.backgroundRuns[run.runId]?.running ?? true {
+                    model.loadBackgroundRunOutput(project: project.name, runId: run.runId)
+                }
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+            }
+        }
+    }
+
+    // Action run flow — mirrors the desktop gauntlet (inputs → confirm → dispatch).
+    // Non-terminal actions run headlessly on the Mac with logs streamed back;
+    // terminal/command actions relay to the Mac's terminal flow (confirmed:true so
+    // the Mac doesn't re-prompt).
+    private func beginRun(_ action: Action) {
+        if !action.inputs.isEmpty { runInputsFor = action; return }
+        if action.confirm { runConfirmFor = action; return }
+        dispatch(action, inputValues: [:], deferred: false)
+    }
+    private func afterInputs(_ action: Action, _ values: [String: String]) {
+        if action.confirm { pendingInputValues = values; runConfirmFor = action; return }
+        dispatch(action, inputValues: values, deferred: true)
+    }
+    private func runConfirmed(_ action: Action) {
+        let values = pendingInputValues
+        pendingInputValues = [:]
+        dispatch(action, inputValues: values, deferred: true)
+    }
+    private func dispatch(_ action: Action, inputValues: [String: String], deferred: Bool) {
+        if action.runsInBackground {
+            let runId = model.startBackgroundAction(project: live.name, action: action.name,
+                                                    label: action.label, inputValues: inputValues)
+            let present = { activeBgRun = model.backgroundRunInfo[runId] }
+            // A run reached from a dismissing sheet/alert waits for it to settle
+            // before this sheet is presented (SwiftUI can't stack two at once).
+            if deferred { DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: present) }
+            else { present() }
+        } else {
+            model.runAction(live.name, action: action.name, inputValues: inputValues, confirmed: true)
         }
     }
 
@@ -202,6 +283,54 @@ private extension View {
             .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20))
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
+    }
+}
+
+/// A row in the project's background-runs section: the action label plus a live
+/// status dot, tappable to reopen the run's log sheet.
+private struct BackgroundRunRow: View {
+    let run: BackgroundRunInfo
+    let snapshot: ActionBgOutput?
+    let startError: String?
+
+    private var running: Bool { startError == nil && (snapshot?.running ?? true) }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "bolt")
+                .font(.system(size: 15))
+                .foregroundStyle(SwiftUI.Color.accentColor)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(run.label).font(.body.weight(.medium)).lineLimit(1)
+                HStack(spacing: 5) {
+                    Circle().fill(statusColor).frame(width: 6, height: 6)
+                    Text(statusText).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 4)
+            if running {
+                ProgressView().controlSize(.small)
+            } else {
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.vertical, 3)
+    }
+
+    private var statusColor: Color {
+        if startError != nil { return .red }
+        guard let s = snapshot else { return .blue }
+        if s.running { return .blue }
+        if s.error == "cancelled" { return .orange }
+        return s.success ? .green : .red
+    }
+    private var statusText: String {
+        if startError != nil { return "Couldn't start" }
+        guard let s = snapshot else { return "Starting…" }
+        if s.running { return "Running" }
+        if s.error == "cancelled" { return "Stopped" }
+        return s.success ? "Done" : "Failed"
     }
 }
 
@@ -237,7 +366,7 @@ private struct ProjectRunControl: View {
     let onStart: (_ profile: String) -> Void
     let onStop: () -> Void
     let onToggleService: (_ service: String) -> Void
-    let onRunAction: (_ name: String) -> Void
+    let onRunAction: (_ action: Action) -> Void
     let onReviewChanges: () -> Void
     let onSwitchBranch: () -> Void
     let onCreatePr: () -> Void
@@ -274,7 +403,7 @@ private struct ProjectRunControl: View {
             if !actions.isEmpty {
                 Menu {
                     ForEach(actions) { a in
-                        Button { onRunAction(a.name) } label: { actionLabel(a) }
+                        Button { onRunAction(a) } label: { actionLabel(a) }
                     }
                 } label: {
                     Label("Actions", systemImage: "bolt")

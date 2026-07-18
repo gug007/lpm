@@ -78,6 +78,11 @@ final class LpmClient: NSObject {
     var onTransformDone: ((_ reqId: String, _ ok: Bool) -> Void)?
     var onServices: ((_ project: String, _ running: Bool, _ services: [ServiceInfo], _ error: String?) -> Void)?
     var onServiceLogs: ((_ project: String, _ paneIndex: Int, _ text: String?, _ error: String?) -> Void)?
+    // A polled background-action snapshot (`snapshot` nil once reaped on the Mac),
+    // a rejected start, and the project's background-run list for reconnect.
+    var onActionBgOutput: ((_ runId: String, _ snapshot: ActionBgOutput?) -> Void)?
+    var onActionBgStartFailed: ((_ runId: String, _ error: String) -> Void)?
+    var onBackgroundRuns: ((_ project: String, _ runs: [BackgroundRunSummary]) -> Void)?
     var onHistoryQuery: ((_ items: [HistoryItem], _ hasMore: Bool) -> Void)?
     var onHistorySaveDraft: ((_ ok: Bool) -> Void)?
     var onHistoryToggleFavorite: ((_ id: String, _ favorite: Bool, _ error: String?) -> Void)?
@@ -324,7 +329,20 @@ final class LpmClient: NSObject {
         send(Wire.sendJobFollowup(project: project, jobId: jobId, at: at, message: message,
                                   agent: agent, model: model, effort: effort))
     }
-    func runAction(project: String, action: String) { send(Wire.runAction(project: project, action: action)) }
+    func runAction(project: String, action: String,
+                   inputValues: [String: String] = [:], confirmed: Bool = false) {
+        send(Wire.runAction(project: project, action: action, inputValues: inputValues, confirmed: confirmed))
+    }
+    func runActionBackground(project: String, action: String,
+                             inputValues: [String: String], runId: String) {
+        send(Wire.runActionBackground(project: project, action: action,
+                                      inputValues: inputValues, runId: runId))
+    }
+    func requestActionBgOutput(project: String, runId: String) {
+        send(Wire.actionBgOutput(project: project, runId: runId))
+    }
+    func cancelActionBackground(runId: String) { send(Wire.cancelActionBackground(runId: runId)) }
+    func requestBackgroundRuns(project: String) { send(Wire.backgroundRuns(project: project)) }
     func newTerminal(project: String) { send(Wire.newTerminal(project: project)) }
     func closeTerminal(project: String, id: String) { send(Wire.closeTerminal(project: project, id: id)) }
     func renameTerminal(project: String, id: String, label: String) {
@@ -586,6 +604,12 @@ final class LpmClient: NSObject {
                 self.onServices?(proj, running, services, error)
             case .serviceLogs(let proj, let pane, let text, let error):
                 self.onServiceLogs?(proj, pane, text, error)
+            case .actionBgOutput(let runId, let snapshot):
+                self.onActionBgOutput?(runId, snapshot)
+            case .actionBgStartFailed(let runId, let error):
+                self.onActionBgStartFailed?(runId, error)
+            case .backgroundRuns(let proj, let runs):
+                self.onBackgroundRuns?(proj, runs)
             case .historyQuery(let items, let hasMore): self.onHistoryQuery?(items, hasMore)
             case .historySaveDraft(let ok): self.onHistorySaveDraft?(ok)
             case .historyToggleFavorite(let id, let favorite, let error):

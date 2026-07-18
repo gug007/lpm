@@ -205,8 +205,20 @@ interface AppState {
   // A run-action / new-terminal request relayed from the mobile app. `action` is
   // the action's (possibly composite) name, or null for a plain new terminal.
   // `nonce` lets an already-mounted ProjectDetail re-fire on repeat requests.
-  pendingRemoteAction: { projectName: string; action: string | null; nonce: number } | null;
-  triggerRemoteAction: (projectName: string, action: string | null) => void;
+  pendingRemoteAction: {
+    projectName: string;
+    action: string | null;
+    nonce: number;
+    // Relayed from mobile after it ran the inputs + confirm gauntlet on the phone.
+    inputValues?: Record<string, string>;
+    confirmed?: boolean;
+  } | null;
+  triggerRemoteAction: (
+    projectName: string,
+    action: string | null,
+    inputValues?: Record<string, string>,
+    confirmed?: boolean,
+  ) => void;
   clearPendingRemoteAction: () => void;
   // A terminal-tab op (close / rename / pin / reorder) relayed from the mobile
   // app. Addressed by terminal id, except reorder which carries the full new id
@@ -1057,7 +1069,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // Mount/activate the target project (only a mounted ProjectDetail has a live
   // TerminalView to run in), then park the request for its consumer effect.
-  triggerRemoteAction: (projectName, action) =>
+  triggerRemoteAction: (projectName, action, inputValues, confirmed) =>
     set((s) => ({
       selected: projectName,
       view: "projects",
@@ -1066,6 +1078,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         projectName,
         action,
         nonce: ++remoteRequestNonce,
+        inputValues,
+        confirmed,
       },
     })),
 

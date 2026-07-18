@@ -39,6 +39,10 @@ export interface RunActionOpts {
   // initial task for an AI agent the action launches). A string is a text
   // prompt; an array is ordered paste parts (text runs and image paths).
   prompt?: string | string[];
+  // A mobile client already ran the inputs + confirm gauntlet on the phone and
+  // relayed the collected values, so run directly without re-prompting here.
+  inputValues?: Record<string, string>;
+  skipPrompts?: boolean;
 }
 
 export interface UseProjectActionsResult {
@@ -154,6 +158,11 @@ export function useProjectActions({
   };
 
   const handleRunAction = (action: ActionInfo, opts?: RunActionOpts) => {
+    if (opts?.skipPrompts) {
+      // Mobile already collected inputs + confirmed; run straight through.
+      executeAction(action, opts.inputValues ?? {}, opts);
+      return;
+    }
     if (action.inputs && action.inputs.length > 0) {
       setInputsAction(action);
       return;

@@ -25,15 +25,112 @@ use tauri::{AppHandle, Emitter};
 
 pub const CANCELLED_ERR: &str = "cancelled";
 
+/// Max retained output per background run (head-trimmed when exceeded). Enough for
+/// a phone to scroll a meaningful tail without letting a chatty run grow unbounded.
+const BG_OUTPUT_CAP: usize = 256 * 1024;
+/// How long a finished run stays queryable so a polling client (the phone) can read
+/// its final status before it's reaped.
+const BG_DONE_TTL_SECS: i64 = 300;
+
 struct BackgroundRun {
     pid: i32,
     cancelled: bool,
+    // The following fields let a polling client (the mobile app) read a run it did
+    // not start in-process: the desktop frontend only ever listens to the
+    // `action-bg-output` event, but the phone has no event bus and must query.
+    project: String,
+    label: String,
+    started_at: i64,
+    output: String,
+    running: bool,
+    success: bool,
+    error: String,
+    done_at: i64,
 }
 
 static BACKGROUND_RUNS: OnceLock<Mutex<HashMap<String, BackgroundRun>>> = OnceLock::new();
 
 fn background_runs() -> &'static Mutex<HashMap<String, BackgroundRun>> {
     BACKGROUND_RUNS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn now_secs() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+/// Drop finished runs whose result has been queryable past the TTL, so the registry
+/// doesn't grow across a long-lived session. Running entries are always kept.
+fn reap_stale_runs(runs: &mut HashMap<String, BackgroundRun>) {
+    let now = now_secs();
+    runs.retain(|_, r| r.running || now - r.done_at < BG_DONE_TTL_SECS);
+}
+
+/// Append a streamed line to a run's retained buffer, head-trimming on a char
+/// boundary once it exceeds the cap.
+fn append_run_output(run_id: &str, line: &str) {
+    let mut runs = background_runs().lock().unwrap();
+    let Some(r) = runs.get_mut(run_id) else { return };
+    r.output.push_str(line);
+    r.output.push('\n');
+    if r.output.len() > BG_OUTPUT_CAP {
+        let mut cut = r.output.len() - (BG_OUTPUT_CAP - BG_OUTPUT_CAP / 4);
+        while cut < r.output.len() && !r.output.is_char_boundary(cut) {
+            cut += 1;
+        }
+        r.output.drain(..cut);
+    }
+}
+
+/// A snapshot of a background run for a polling (mobile) client.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct BgRunSnapshot {
+    pub run_id: String,
+    pub project: String,
+    pub label: String,
+    pub started_at: i64,
+    pub text: String,
+    pub running: bool,
+    pub success: bool,
+    pub error: String,
+}
+
+fn snapshot(run_id: &str, r: &BackgroundRun) -> BgRunSnapshot {
+    BgRunSnapshot {
+        run_id: run_id.to_string(),
+        project: r.project.clone(),
+        label: r.label.clone(),
+        started_at: r.started_at,
+        text: r.output.clone(),
+        running: r.running,
+        success: r.success,
+        error: r.error.clone(),
+    }
+}
+
+/// Read a background run's current output + status. Returns None once the run has
+/// been reaped (or never existed).
+pub fn background_run_output(run_id: &str) -> Option<BgRunSnapshot> {
+    let mut runs = background_runs().lock().unwrap();
+    reap_stale_runs(&mut runs);
+    runs.get(run_id).map(|r| snapshot(run_id, r))
+}
+
+/// Every background run for a project — running ones plus recently finished ones
+/// still within the TTL, newest first — so a reconnecting phone can re-attach.
+pub fn list_background_runs(project: &str) -> Vec<BgRunSnapshot> {
+    let mut runs = background_runs().lock().unwrap();
+    reap_stale_runs(&mut runs);
+    let mut out: Vec<BgRunSnapshot> = runs
+        .iter()
+        .filter(|(_, r)| r.project == project)
+        .map(|(id, r)| snapshot(id, r))
+        .collect();
+    out.sort_by(|a, b| b.started_at.cmp(&a.started_at));
+    out
 }
 
 #[derive(Serialize, Clone)]
@@ -235,8 +332,56 @@ pub fn run_action_background(
     input_values: HashMap<String, String>,
     run_id: String,
 ) -> Result<(), String> {
-    let mut plan = resolve_action_command(&app, &project_name, &action_name, &input_values)?;
-    ports::format_action_port(&action_name, &plan.ports)?;
+    // Register up-front so a polling client (the phone) sees the run even if
+    // resolve/spawn fails before any output is produced. The entry is retained
+    // after completion — its terminal status is stamped in below and it's dropped
+    // later by reap_stale_runs — so a final poll can read success/error.
+    {
+        let mut runs = background_runs().lock().unwrap();
+        reap_stale_runs(&mut runs);
+        runs.entry(run_id.clone()).or_insert_with(|| BackgroundRun {
+            pid: 0,
+            cancelled: false,
+            project: project_name.clone(),
+            label: action_name.clone(),
+            started_at: now_secs(),
+            output: String::new(),
+            running: true,
+            success: false,
+            error: String::new(),
+            done_at: 0,
+        });
+    }
+
+    let result = run_action_background_inner(&app, &project_name, &action_name, &input_values, &run_id);
+
+    let mut runs = background_runs().lock().unwrap();
+    if let Some(r) = runs.get_mut(&run_id) {
+        r.running = false;
+        r.done_at = now_secs();
+        match &result {
+            Ok(()) => {
+                r.success = true;
+                r.error.clear();
+            }
+            Err(e) => {
+                r.success = false;
+                r.error = e.clone();
+            }
+        }
+    }
+    result
+}
+
+fn run_action_background_inner(
+    app: &AppHandle,
+    project_name: &str,
+    action_name: &str,
+    input_values: &HashMap<String, String>,
+    run_id: &str,
+) -> Result<(), String> {
+    let mut plan = resolve_action_command(app, project_name, action_name, input_values)?;
+    ports::format_action_port(action_name, &plan.ports)?;
     let on_exit = plan.on_exit.take();
 
     let mut cmd = action_command(&plan);
@@ -262,16 +407,12 @@ pub fn run_action_background(
         .stdout
         .take()
         .ok_or("failed to capture action output")?;
-    background_runs().lock().unwrap().insert(
-        run_id.clone(),
-        BackgroundRun {
-            pid: child.id() as i32,
-            cancelled: false,
-        },
-    );
+    if let Some(r) = background_runs().lock().unwrap().get_mut(run_id) {
+        r.pid = child.id() as i32;
+    }
 
-    // Stream lines so the run toast can preview output live; keep a bounded
-    // tail for the failure message.
+    // Stream lines so the run toast can preview output live and the phone poll can
+    // read the accumulated buffer; keep a bounded tail for the failure message.
     let mut tail: Vec<u8> = Vec::new();
     for line in std::io::BufReader::new(stdout).lines() {
         let Ok(l) = line else { break };
@@ -281,10 +422,11 @@ pub fn run_action_background(
             let cut = tail.len() - 2048;
             tail.drain(..cut);
         }
+        append_run_output(run_id, &l);
         let _ = app.emit(
             "action-bg-output",
             ActionBgOutput {
-                run_id: run_id.clone(),
+                run_id: run_id.to_string(),
                 line: l,
             },
         );
@@ -293,7 +435,7 @@ pub fn run_action_background(
     let cancelled = background_runs()
         .lock()
         .unwrap()
-        .remove(&run_id)
+        .get(run_id)
         .map(|r| r.cancelled)
         .unwrap_or(false);
     let status = status.map_err(|e| e.to_string())?;
@@ -320,13 +462,15 @@ pub fn cancel_action_background(run_id: String) -> Result<(), String> {
     let pid = {
         let mut runs = background_runs().lock().unwrap();
         match runs.get_mut(&run_id) {
-            Some(run) => {
+            Some(run) if run.running => {
                 run.cancelled = true;
                 run.pid
             }
-            None => return Ok(()), // already finished
+            _ => return Ok(()), // unknown or already finished
         }
     };
-    proctree::kill_tree_async(pid);
+    if pid > 0 {
+        proctree::kill_tree_async(pid);
+    }
     Ok(())
 }
