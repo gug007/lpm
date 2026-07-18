@@ -23,8 +23,9 @@ const CYAN = "text-cyan-400";
 
 type Span = { t: string; c?: string };
 // gap = blank line above, matching the real CLIs' block spacing;
-// band = codex's tinted full-width user-message row
-type Line = { spans: Span[]; gap?: boolean; band?: boolean };
+// band = codex's tinted full-width user row, bubble = claude's gray
+// content-width user bubble
+type Line = { spans: Span[]; gap?: boolean; band?: string; bubble?: string };
 // preamble = launch-header lines already on screen when the tab activates
 type Session = { key: string; label: string; preamble: number; lines: Line[] };
 
@@ -34,21 +35,46 @@ const gap = (...spans: Span[]): Line => ({ spans, gap: true });
 
 // Captured from the real CLIs in a PTY (claude 2.1.214, codex 0.144.5):
 // glyphs, logo art, box drawing, and per-segment colors mirror that output.
+// #4eba65 = claude's success green, #373737/#505050 = its user-prompt
+// bubble, both lifted from the shipped dark theme
+const CLAUDE_GREEN = "text-[#4eba65]";
+const BOLD_DIM = "font-semibold text-gray-400";
+const PROMPT_BUBBLE = "bg-[#373737]";
+const PROMPT_CHAR = "text-[#707070]";
+
 const CLAUDE_LINES: Line[] = [
-  line(s(" ▐▛███▜▌ ", ORANGE), s(" "), s("Claude Code ", BOLD), s("v2.1.214", LIGHT)),
-  line(s("▝▜█████▛▘", ORANGE), s("  "), s("Fable 5 with high effort · Claude Max", LIGHT)),
-  line(s("  ▘▘ ▝▝  ", ORANGE), s("  "), s("~/Projects/auth-service", LIGHT)),
-  gap(s("> ", FAINT), s("tighten the login rate limiter", LIGHT)),
-  gap(s("⏺ ", GREEN), s("Read", BOLD), s("(src/auth/rateLimiter.ts)", TEXT)),
-  line(s("  ⎿  Read 84 lines (ctrl+o to expand)", DIM)),
-  gap(s("⏺ ", GREEN), s("Update", BOLD), s("(src/auth/rateLimiter.ts)", TEXT)),
-  line(s("  ⎿  Updated with 18 additions and 4 removals", DIM)),
-  gap(s("⏺ ", GREEN), s("Bash", BOLD), s("(npm test -- rateLimiter)", TEXT)),
+  line(s(" ▐▛███▜▌ ", ORANGE), s(" "), s("Claude Code ", BOLD), s("v2.1.214", "text-gray-400")),
+  line(s("▝▜█████▛▘", ORANGE), s("  "), s("Fable 5 with high effort · Claude Max", "text-gray-400")),
+  line(s("  ▘▘ ▝▝  ", ORANGE), s("  "), s("~/Projects/auth-service", "text-gray-400")),
+  {
+    spans: [s("❯ ", PROMPT_CHAR), s("tighten the login rate limiter", TEXT), s(" ")],
+    gap: true,
+    bubble: PROMPT_BUBBLE,
+  },
+  gap(s("⏺ ", CLAUDE_GREEN), s("Read", BOLD), s("(src/auth/rateLimiter.ts)", TEXT)),
+  line(
+    s("  ⎿  Read ", DIM),
+    s("84", BOLD_DIM),
+    s(" lines (ctrl+o to expand)", DIM),
+  ),
+  gap(s("⏺ ", CLAUDE_GREEN), s("Update", BOLD), s("(src/auth/rateLimiter.ts)", TEXT)),
+  line(
+    s("  ⎿  Updated with ", DIM),
+    s("18", BOLD_DIM),
+    s(" additions and ", DIM),
+    s("4", BOLD_DIM),
+    s(" removals", DIM),
+  ),
+  gap(s("⏺ ", CLAUDE_GREEN), s("Bash", BOLD), s("(npm test -- rateLimiter)", TEXT)),
   line(s("  ⎿  8 passed, 0 failed (2.1s)", DIM)),
   gap(s("⏺ ", TEXT), s("The limiter now blocks after 5 attempts and", TEXT)),
   line(s("  resets on success. Commit and open a PR?", TEXT)),
-  gap(s("> ", FAINT), s("yes — commit & open the PR", LIGHT)),
-  gap(s("⏺ ", GREEN), s("Bash", BOLD), s("(git push && gh pr create)", TEXT)),
+  {
+    spans: [s("❯ ", PROMPT_CHAR), s("yes — commit & open the PR", TEXT), s(" ")],
+    gap: true,
+    bubble: PROMPT_BUBBLE,
+  },
+  gap(s("⏺ ", CLAUDE_GREEN), s("Bash", BOLD), s("(git push && gh pr create)", TEXT)),
   line(s("  ⎿  PR #204 opened", DIM)),
 ];
 
@@ -71,7 +97,7 @@ const CODEX_LINES: Line[] = [
   line(
     s("│ directory: ", FAINT),
     s("~/Projects/auth-service", TEXT),
-    s("            │", FAINT),
+    s("             │", FAINT),
   ),
   line(s("╰────────────────────────────────────────────────╯", FAINT)),
   {
@@ -80,7 +106,7 @@ const CODEX_LINES: Line[] = [
       s("add cursor pagination to GET /users", TEXT),
     ],
     gap: true,
-    band: true,
+    band: "bg-white/[0.1]",
   },
   gap(s("• ", DIM), s("Explored", BOLD)),
   line(s("  └ ", DIM), s("Read", CYAN), s(" routes/users.ts, models/user.ts", TEXT)),
@@ -135,17 +161,18 @@ const CONTROL_INDEX = 12;
 const CONTROL_TEXT = "yes — commit & open the PR";
 
 function TerminalLine({ line, size }: { line: Line; size: string }) {
+  const spans = line.spans.map((span, i) => (
+    <span key={i} className={span.c ?? LIGHT}>
+      {span.t}
+    </span>
+  ));
   return (
     <div
       className={`whitespace-pre tabular-nums ${size}${line.gap ? " mt-5" : ""}${
-        line.band ? " bg-white/[0.07]" : ""
+        line.band ? ` ${line.band}` : ""
       }`}
     >
-      {line.spans.map((span, i) => (
-        <span key={i} className={span.c ?? LIGHT}>
-          {span.t}
-        </span>
-      ))}
+      {line.bubble ? <span className={line.bubble}>{spans}</span> : spans}
     </div>
   );
 }
@@ -279,17 +306,18 @@ export function PairedDevices({
       <span className="mt-0.5 inline-block h-3 w-1.5 bg-gray-300 [animation:pd-blink_1.05s_steps(1)_infinite]" />
     ) : (
       <div className="mt-5 whitespace-pre">
-        <span className={session.key === "claude" ? ORANGE : TEXT}>
-          {session.key === "claude" ? "✻ " : "• "}
-        </span>
-        <span className={LIGHT}>
-          {session.key === "claude" ? "Pondering… " : "Working "}
-        </span>
-        <span className={FAINT}>
-          {session.key === "claude"
-            ? "(esc to interrupt)"
-            : "(6s • esc to interrupt)"}
-        </span>
+        {session.key === "claude" ? (
+          <>
+            <span className={ORANGE}>✻ Pondering… </span>
+            <span className={FAINT}>(34s · ↓ 1.8k tokens)</span>
+          </>
+        ) : (
+          <>
+            <span className={TEXT}>• </span>
+            <span className={LIGHT}>Working </span>
+            <span className={FAINT}>(6s • esc to interrupt)</span>
+          </>
+        )}
       </div>
     )
   ) : zshIdle ? (
@@ -416,7 +444,7 @@ export function PairedDevices({
                           className={`border-y py-[3px] transition-colors ${
                             isTyping
                               ? "border-emerald-500/40"
-                              : "border-[#3d3d40]"
+                              : "border-[#6b6b70]"
                           }`}
                         >
                           <div className="flex items-center gap-1.5 text-[10.5px]">
@@ -438,8 +466,13 @@ export function PairedDevices({
                             )}
                           </div>
                         </div>
-                        <div className="pt-1 text-[8px] text-gray-600">
-                          ? for shortcuts
+                        <div className="flex justify-between pt-1 text-[8px]">
+                          <span className="text-gray-600">
+                            {working ? "esc to interrupt" : "? for shortcuts"}
+                          </span>
+                          <span className="text-[#af87ff]">
+                            ⏵⏵ accept edits on
+                          </span>
                         </div>
                       </div>
                     )}
