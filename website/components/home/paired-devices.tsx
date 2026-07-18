@@ -266,7 +266,7 @@ export function PairedDevices() {
 
         <div
           aria-hidden="true"
-          className="relative flex flex-col items-center justify-center gap-2 sm:flex-row sm:gap-0"
+          className="relative flex flex-col items-center justify-center sm:flex-row"
         >
           <div className="pointer-events-none absolute -inset-x-8 -inset-y-10 bg-grid" />
           {/* MacBook running lpm — sidebar, terminal tabs, streaming pane */}
@@ -353,56 +353,62 @@ export function PairedDevices() {
             </div>
           </div>
 
-          {/* Sync link — glassy badge on a gradient line with comet streaks */}
-          <div className="relative flex h-20 w-full flex-col items-center justify-center overflow-hidden sm:hidden">
-            <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-gray-300 to-transparent dark:via-[#3a3a3c]" />
+          {/* Sync link — glass capsule on an animated beam */}
+          <div className="relative flex h-20 w-full items-center justify-center overflow-hidden sm:hidden">
+            <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-300 dark:bg-[#3a3a3c]" />
             {!reduced && (
               <>
                 <span className="absolute left-1/2 h-5 w-px -translate-x-1/2 rounded-full bg-gradient-to-b from-transparent to-emerald-400 [animation:pd-spine-down_2.4s_ease-in-out_infinite]" />
                 <span className="absolute left-1/2 h-5 w-px -translate-x-1/2 rounded-full bg-gradient-to-t from-transparent to-emerald-400/70 [animation:pd-spine-up_2.4s_ease-in-out_infinite]" />
               </>
             )}
-            <div className="relative z-10 flex h-9 w-9 items-center justify-center rounded-full border border-gray-200/80 bg-white/90 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#1a1a1a]/90">
-              <MonitorSmartphone className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-emerald-400 ring-2 ring-white dark:ring-[#111]" />
+            <div className="relative z-10 flex items-center gap-1.5 rounded-full border border-gray-200/70 bg-white/85 px-3 py-1.5 shadow-[0_2px_10px_rgba(0,0,0,0.06)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.06] dark:shadow-none">
+              <MonitorSmartphone className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
+              <span className="whitespace-nowrap text-[9px] font-medium text-gray-500 dark:text-gray-300">
+                Mirrored live
+              </span>
+              <span className="relative inline-flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full motion-safe:animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              </span>
             </div>
-            <span className="relative z-10 mt-1 rounded-full bg-white/90 px-1.5 text-[9px] font-medium text-gray-400 backdrop-blur dark:bg-[#111]/90 dark:text-gray-500">
-              Mirrored live
-            </span>
           </div>
-          <div className="relative z-10 hidden h-72 w-36 shrink-0 overflow-hidden sm:block">
-            <div className="absolute left-0 right-0 top-1/2 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent dark:via-[#3a3a3c]" />
+          <div className="relative z-10 hidden h-72 w-36 shrink-0 overflow-hidden sm:-ml-4 sm:block">
+            <div className="absolute left-0 right-0 top-1/2 h-px bg-gray-300 dark:bg-[#3a3a3c]" />
             {!reduced && (
               <>
-                <span className="absolute top-1/2 h-px w-8 -translate-y-1/2 rounded-full bg-gradient-to-r from-transparent to-emerald-400 [animation:pd-spine-right_2.4s_ease-in-out_infinite]" />
-                <span className="absolute top-1/2 h-px w-8 -translate-y-1/2 rounded-full bg-gradient-to-l from-transparent to-emerald-400/70 [animation:pd-spine-left_2.4s_ease-in-out_infinite]" />
+                <span className="absolute top-1/2 h-px w-10 -translate-y-1/2 rounded-full bg-gradient-to-r from-transparent to-emerald-400 [animation:pd-spine-right_2.4s_ease-in-out_infinite]" />
+                <span className="absolute top-1/2 h-px w-10 -translate-y-1/2 rounded-full bg-gradient-to-l from-transparent to-emerald-400/70 [animation:pd-spine-left_2.4s_ease-in-out_infinite]" />
               </>
             )}
-            <div className="absolute left-1/2 top-1/2 z-10 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200/80 bg-white/90 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#1a1a1a]/90">
-              <MonitorSmartphone className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-emerald-400 ring-2 ring-white dark:ring-[#111]" />
+            <div className="absolute left-1/2 top-1/2 z-10 -mt-2 flex -translate-x-1/2 -translate-y-full items-center gap-1.5 rounded-full border border-gray-200/70 bg-white/85 px-3 py-1.5 shadow-[0_2px_10px_rgba(0,0,0,0.06)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.06] dark:shadow-none">
+              <MonitorSmartphone className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
+              <span className="whitespace-nowrap text-[9px] font-medium text-gray-500 dark:text-gray-300">
+                Mirrored live
+              </span>
+              <span className="relative inline-flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full motion-safe:animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              </span>
             </div>
-            <span className="absolute left-1/2 top-1/2 z-10 mt-7 -translate-x-1/2 whitespace-nowrap text-[9px] font-medium text-gray-400 dark:text-gray-500">
-              Mirrored live
-            </span>
           </div>
 
-          {/* iPhone — mirrors the same session, then drives it */}
+          {/* iPhone 17 Pro — mirrors the same session, then drives it */}
           <div className="shrink-0">
-            <div className="relative w-[14.5rem] rounded-[2.9rem] bg-gradient-to-b from-[#48484c] via-[#2b2b2e] to-[#48484c] p-[3px] shadow-xl shadow-gray-400/25 dark:shadow-black/70">
+            <div className="relative w-[14.5rem] rounded-[2.9rem] bg-gradient-to-b from-[#48484c] via-[#2b2b2e] to-[#48484c] p-[2px] shadow-xl shadow-gray-400/25 dark:shadow-black/70">
               {/* Side buttons */}
               <span className="absolute -left-[2px] top-20 h-5 w-[2px] rounded-l-sm bg-[#3a3a3c]" />
               <span className="absolute -left-[2px] top-[7.5rem] h-9 w-[2px] rounded-l-sm bg-[#3a3a3c]" />
               <span className="absolute -left-[2px] top-[10.25rem] h-9 w-[2px] rounded-l-sm bg-[#3a3a3c]" />
               <span className="absolute -right-[2px] top-[8.5rem] h-12 w-[2px] rounded-r-sm bg-[#3a3a3c]" />
-              <div className="rounded-[2.75rem] bg-black p-[7px]">
-                <div className="relative flex flex-col overflow-hidden rounded-[2.25rem] bg-[#1a1a1a]">
+              <div className="rounded-[2.8rem] bg-black p-1">
+                <div className="relative flex flex-col overflow-hidden rounded-[2.55rem] bg-[#1a1a1a]">
                   {/* iOS status bar + Dynamic Island */}
                   <div className="relative flex items-center justify-between px-5 pb-1 pt-2.5">
                     <span className="text-[10px] font-semibold tabular-nums text-gray-100">
                       9:41
                     </span>
-                    <span className="absolute left-1/2 top-2 flex h-[1.1rem] w-16 -translate-x-1/2 items-center justify-end rounded-full bg-black pr-1.5">
+                    <span className="absolute left-1/2 top-2 flex h-[1.1rem] w-14 -translate-x-1/2 items-center justify-end rounded-full bg-black pr-1.5">
                       <span className="h-1.5 w-1.5 rounded-full bg-[#16222e]" />
                     </span>
                     <span className="flex items-center gap-1 text-gray-100">
